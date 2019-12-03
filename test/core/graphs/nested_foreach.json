@@ -1,0 +1,36 @@
+{
+    "name": "nested-foreach",
+    "graph": {
+        "start": {"linear": "foreach_split_x"},
+        "foreach_split_x": {
+            "foreach": "foreach_split_y",
+            "foreach_var": "x",
+            "foreach_var_default": "'abc'",
+            "quals": ["foreach-split"]
+        },
+        "foreach_split_y": {
+            "foreach": "foreach_split_z",
+            "foreach_var": "y",
+            "foreach_var_default": "'de'",
+            "quals": ["foreach-split"]
+        },
+        "foreach_split_z": {
+            "foreach": "foreach_inner",
+            "foreach_var": "z",
+            "foreach_var_default": "'fghijk'",
+            "quals": ["foreach-nested-split", "foreach-split"]
+        },
+        "foreach_inner": {
+            "linear": "foreach_join_z",
+            "quals": ["foreach-nested-inner", "foreach-inner"]
+        },
+        "foreach_join_z": {
+            "linear": "foreach_join_y",
+            "join": true,
+            "quals": ["foreach-nested-join"]
+        },
+        "foreach_join_y": { "linear": "foreach_join_x", "join": true },
+        "foreach_join_x": { "linear": "end", "join": true },
+        "end": {}
+    }
+}

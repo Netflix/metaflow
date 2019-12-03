@@ -1,0 +1,22 @@
+{
+    "name": "small-foreach",
+    "graph": {
+        "start": {"linear": "foreach_split"},
+        "foreach_split": {
+            "foreach": "foreach_inner",
+            "foreach_var": "arr",
+            "foreach_var_default": "[1, 2, 3]",
+            "quals": ["foreach-split-small", "foreach-split"]
+        },
+        "foreach_inner": {
+            "linear": "foreach_join",
+            "quals": ["foreach-inner-small"]
+        },
+        "foreach_join": {
+            "linear": "end",
+            "join": true,
+            "quals": ["foreach-join-small"]
+        },
+        "end": {}
+    }
+}

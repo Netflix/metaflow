@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.metaflow
+
+build/
+dist/
+*.egg-info/
+
+.tox/
+
+.ipynb_checkpoints/

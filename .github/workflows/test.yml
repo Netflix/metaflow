@@ -1,0 +1,35 @@
+name: Test
+on:
+  push:
+    branches:
+    - master
+  pull_request:
+    branches:
+    - master
+jobs:
+  test:
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+    - uses: actions/checkout@v1
+    - name: Set up Python 2.x
+      uses: actions/setup-python@v1
+      with:
+        python-version: '2.x'
+    - name: Install Python 2.x dependencies
+      run: |
+        python2 -m pip install --upgrade pip
+        python2 -m pip install tox
+    - name: Set up Python 3.x
+      uses: actions/setup-python@v1
+      with:
+        python-version: '3.x'
+    - name: Install Python 3.x dependencies
+      run: |
+        python3 -m pip install --upgrade pip
+        python3 -m pip install tox
+    - name: Test with tox
+      run: tox
