@@ -208,7 +208,7 @@ def pull(episode):
     if not episode:
         episodes = get_all_episodes()
     else:
-        episodes = list(episode)
+        episodes = [episode]
         # Validate that the list is valid.
         for episode in episodes:
             validate_episode(episode)
