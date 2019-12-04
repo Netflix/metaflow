@@ -41,7 +41,7 @@ class MovieStatsFlow(FlowSpec):
         import pandas
         from io import StringIO
 
-        # Load the data set into a pandas dataaframe.
+        # Load the data set into a pandas dataframe.
         self.dataframe = pandas.read_csv(StringIO(self.movie_data))
 
         # The column 'genres' has a list of genres for each movie. Let's get
