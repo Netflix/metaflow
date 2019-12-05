@@ -1,4 +1,3 @@
-import collections
 import os
 import sys
 from hashlib import sha1

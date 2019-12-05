@@ -4,7 +4,10 @@ import sys
 import time
 from hashlib import sha1
 from functools import partial
-from collections import Sequence
+try:
+    from collections.abc import Sequence
+except ImportError:
+    from collections import Sequence
 
 try:
     # Python 2
