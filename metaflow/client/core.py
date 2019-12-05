@@ -1,4 +1,5 @@
 from __future__ import print_function
+import sys
 import time
 import tarfile
 import json
@@ -655,6 +656,10 @@ class DataArtifact(MetaflowObject):
     ----------
     data : object
         The unpickled representation of the data contained in this artifact
+    size : int
+        The unpickled size of the data contained in this artifact
+    type : string
+        The specific type for this artifact
     sha : string
         SHA encoding representing the unique identity of this artifact
     finished_at : datetime
@@ -680,13 +685,33 @@ class DataArtifact(MetaflowObject):
             obj = pickle.load(f)
             return obj
 
-    # TODO add
-    # @property
-    # def size(self)
+    @property
+    def size(self):
+        """
+        Unpickled size of the data contained in this artifact.
 
-    # TODO add
-    # @property
-    # def type(self)
+        Returns
+        -------
+        size
+            Object size contained in this artifact
+        """
+        ds_type = self._object['ds_type']
+        sha = self._object['sha']
+        with filecache.get_data(ds_type, self.path_components[0], sha) as f:
+            obj = pickle.load(f)
+            return sys.getsizeof(obj)
+
+    @property
+    def type(self):
+        """
+        Specific type for this artifact.
+
+        Returns
+        -------
+        string
+            Type of this artifact
+        """
+        return self._object['type']
 
     @property
     def sha(self):
