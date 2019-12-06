@@ -88,6 +88,14 @@ BATCH_CONTAINER_REGISTRY = from_conf("METAFLOW_BATCH_CONTAINER_REGISTRY")
 BATCH_METADATA_SERVICE_URL = METADATA_SERVICE_URL
 
 ###
+# AWS Sagemaker configuration
+###
+# IAM role for AWS Sagemaker execution
+SAGEMAKER_IAM_ROLE = from_conf('METAFLOW_SAGEMAKER_IAM_ROLE')
+# Region for AWS Sagemaker execution
+SAGEMAKER_REGION = from_conf('METAFLOW_SAGEMAKER_REGION')
+
+###
 # Conda configuration
 ###
 # Conda package root location on S3

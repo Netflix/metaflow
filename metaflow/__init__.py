@@ -80,6 +80,7 @@ from .client import namespace,\
 from .multicore_utils import parallel_imap_unordered,\
                              parallel_map
 from .metaflow_profile import profile
+from .plugins.aws.sagemaker.sagemaker_client import SageMakerClient as Sagemaker
 
 import pkg_resources
 try:

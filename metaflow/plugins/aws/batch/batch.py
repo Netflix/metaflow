@@ -10,7 +10,8 @@ import warnings
 from requests.exceptions import HTTPError
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.metaflow_config import BATCH_METADATA_SERVICE_URL, DATATOOLS_S3ROOT, \
-    DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_S3, DEFAULT_METADATA, METADATA_SERVICE_HEADERS
+    DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_S3, DEFAULT_METADATA, METADATA_SERVICE_HEADERS, \
+    SAGEMAKER_IAM_ROLE, SAGEMAKER_REGION
 from metaflow import util
 
 from .batch_client import BatchClient
@@ -148,7 +149,9 @@ class Batch(object):
             .environment_variable('METAFLOW_DATASTORE_SYSROOT_S3', DATASTORE_SYSROOT_S3) \
             .environment_variable('METAFLOW_DATATOOLS_S3ROOT', DATATOOLS_S3ROOT) \
             .environment_variable('METAFLOW_DEFAULT_DATASTORE', 's3') \
-            .environment_variable('METAFLOW_DEFAULT_METADATA', DEFAULT_METADATA)
+            .environment_variable('METAFLOW_DEFAULT_METADATA', DEFAULT_METADATA) \
+            .environment_variable("METAFLOW_SAGEMAKER_IAM_ROLE", SAGEMAKER_IAM_ROLE) \
+            .environment_variable("METAFLOW_SAGEMAKER_REGION", SAGEMAKER_REGION)
         for name, value in env.items():
             job.environment_variable(name, value)
         for name, value in self.metadata.get_runtime_environment('batch').items():
