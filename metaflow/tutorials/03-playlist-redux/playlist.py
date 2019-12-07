@@ -42,7 +42,7 @@ class PlayListFlow(FlowSpec):
 
         self.genre_stats = run.data.genre_stats
 
-        # Compute our two recomendation types in parallel.
+        # Compute our two recommendation types in parallel.
         self.next(self.bonus_movie, self.genre_movies)
 
     @step
@@ -106,7 +106,7 @@ class PlayListFlow(FlowSpec):
         Print out the playlist and bonus movie.
 
         """
-        # Print the playist.
+        # Print the playlist.
         print("Playlist for movies in genre '%s'" % self.genre)
         for pick, movie in enumerate(self.playlist, start=1):
             print("Pick %d: '%s'" % (pick, movie))

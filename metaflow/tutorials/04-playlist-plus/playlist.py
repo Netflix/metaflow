@@ -153,7 +153,7 @@ class PlayListFlow(FlowSpec):
         This step simply prints out the playlist.
 
         """
-        # Print the playist.
+        # Print the playlist.
         print("Playlist for movies in genre '%s'" % self.genre)
         for pick, movie in enumerate(self.playlist, start=1):
             print("Pick %d: '%s'" % (pick, movie))
