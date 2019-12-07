@@ -1,4 +1,4 @@
-from metaflow import FlowSpec, step, IncludeFile, Parameter, conda, conda_base
+from metaflow import FlowSpec, step, Parameter, conda, conda_base
 
 
 def get_python_version():
