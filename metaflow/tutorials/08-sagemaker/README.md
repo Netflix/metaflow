@@ -19,7 +19,7 @@
 
 #### Sagemaker-specific environment variables required for this flow:
 1. ```export METAFLOW_SAGEMAKER_REGION="<YOUR_AWS_REGION>"```
-2. ```export METAFLOW_SAGEMAKER_IAM_ROLE="<SAGEMAKER_IAM_ARN_WITH_S3_PERMISSIONS_FROM_CFN"```
+2. ```export METAFLOW_SAGEMAKER_IAM_ROLE="<SAGEMAKER_IAM_ARN_WITH_S3_PERMISSIONS_FROM_CFN>"```
 
 #### To play this episode:
 
