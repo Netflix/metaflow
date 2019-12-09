@@ -19,7 +19,7 @@ class SageMakerClient(object):
     def fit(cls, data, image, hyperparameters, content_type="text/csv", stopping_condition=None, resource_config=None):
 
         #Serialize data to some bucket in S3 based as a data artifact.
-        s3_root =  "{}{}/{}/{}/{}/sagemaker".format(DATASTORE_SYSROOT_S3,
+        s3_root =  "{}/{}/{}/{}/{}/sagemaker".format(DATASTORE_SYSROOT_S3,
                                      current.flow_name,
                                      current.run_id,
                                      current.step_name,
