@@ -5,40 +5,35 @@ import shlex
 import warnings
 import boto3
 import string
-from metaflow.metaflow_config import DATASTORE_SYSROOT_S3, SAGEMAKER_IAM_ROLE, SAGEMAKER_REGION
 
 from requests.exceptions import HTTPError
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow import util, current, S3
 
-from .sagemaker_params import SageMakerParams
+from .sagemaker_params import SageMakerParams, get_sagemaker_environment
 
 class SageMakerClient(object):
 
     @classmethod
     def fit(cls, data, image, hyperparameters, content_type="text/csv", stopping_condition=None, resource_config=None):
 
-        #Serialize data to some bucket in S3 based as a data artifact.
-        s3_root =  "{}/{}/{}/{}/{}/sagemaker".format(DATASTORE_SYSROOT_S3,
-                                     current.flow_name,
-                                     current.run_id,
-                                     current.step_name,
-                                     current.task_id)
+        # Retrieve Sagemaker environment info and S3 paths
+        aws_env = get_sagemaker_environment()
 
         channels = []
         for channel in data:
             channels.append(channel)
-            with S3(s3root="{}/{}".format(s3_root, channel)) as s3:
+            with S3(s3root="{}/{}".format(aws_env['s3_root'], channel)) as s3:
                 message = data[channel]
                 s3.put('{}.csv'.format(channel), message)
 
         # Sagemaker code.
-        params = SageMakerParams(s3_root, image, hyperparameters)
-        params_complete = params.assemble_params(channels, s3_root, content_type, stopping_condition, resource_config)
+        params = SageMakerParams(aws_env['s3_root'], image, hyperparameters)
+        params_complete = params.assemble_params(channels, aws_env['s3_root'], content_type, stopping_condition, resource_config)
 
         print("Sagemaker Training Starting...  Please wait.")
 
-        sm = boto3.Session().client('sagemaker', region_name=SAGEMAKER_REGION)
+        sm = boto3.Session().client('sagemaker', region_name=aws_env['sagemaker_region'])
         sm.create_training_job(**params_complete)
 
         training_job_name = params.TrainingJobName
@@ -56,12 +51,15 @@ class SageMakerClient(object):
     @classmethod
     def deploy(cls, model_uri, image, instanceType="ml.m4.xlarge", instanceCount = 1, instanceWeight = 1, variantName="AllTraffic" ):
 
+         # Retrieve Sagemaker environment info and S3 paths
+        aws_env = get_sagemaker_environment()
+
         model_root = "{}-{}-{}".format(
             current.flow_name,
             current.run_id,
             current.step_name.replace("_", "-"))
 
-        sm = boto3.Session().client('sagemaker', region_name=SAGEMAKER_REGION)
+        sm = boto3.Session().client('sagemaker', region_name=aws_env['sagemaker_region'])
         container = {
             'Image': image,
             'ModelDataUrl': model_uri,
@@ -70,7 +68,7 @@ class SageMakerClient(object):
 
         model_response = sm.create_model(
             ModelName="{}-Model".format(model_root),
-            ExecutionRoleArn=SAGEMAKER_IAM_ROLE,
+            ExecutionRoleArn=aws_env['sagemaker_iam'],
             PrimaryContainer=container)
 
         endpoint_config_response = sm.create_endpoint_config(
@@ -104,8 +102,11 @@ class SageMakerClient(object):
 
     @classmethod
     def predict(cls, data, endpoint_name, content_type="text/csv"):
+
+         # Retrieve Sagemaker environment info and S3 paths
+        aws_env = get_sagemaker_environment()
         
-        runtime= boto3.Session().client('runtime.sagemaker', region_name=SAGEMAKER_REGION)
+        runtime= boto3.Session().client('runtime.sagemaker', region_name=aws_env['sagemaker_region'])
 
         response = runtime.invoke_endpoint(EndpointName=endpoint_name, 
                                     ContentType=content_type, 

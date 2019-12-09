@@ -5,12 +5,27 @@ import shlex
 import warnings
 import copy
 import string
-from metaflow.metaflow_config import DATASTORE_SYSROOT_S3, SAGEMAKER_IAM_ROLE
+from metaflow.metaflow_config import DATASTORE_SYSROOT_S3, SAGEMAKER_IAM_ROLE, SAGEMAKER_REGION
 
 from requests.exceptions import HTTPError
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow import util, current
 from time import strftime, gmtime
+
+def get_sagemaker_environment():
+    if SAGEMAKER_IAM_ROLE is None or SAGEMAKER_REGION is None:
+        raise Exception("Ensure METAFLOW_SAGEMAKER_IAM_ROLE and METAFLOW_SAGEMAKER_REGION "
+            "environment variables are set prior to execution.")
+        
+    s3_root =  "{}/{}/{}/{}/{}/sagemaker".format(DATASTORE_SYSROOT_S3,
+                                     current.flow_name,
+                                     current.run_id,
+                                     current.step_name,
+                                     current.task_id)
+
+    return {"s3_root": s3_root,
+        "sagemaker_iam": SAGEMAKER_IAM_ROLE,
+        "sagemaker_region": SAGEMAKER_REGION}
 
 class SageMakerParams(object):
 
