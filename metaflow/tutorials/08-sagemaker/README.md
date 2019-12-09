@@ -1,9 +1,7 @@
 # Episode 08-sagemaker: Let's do a simple workflow with Amazon Sagemaker.
---
-**This flow creates an XOR dataset and trains and deploys it against two different Sagemaker algorithms**
-**Please note that this flow requires a user with access to AWS Sagemaker permissions**
 
---
+**This flow creates an XOR dataset and trains and deploys it against two different Sagemaker algorithms
+Please note that this flow requires a user with access to AWS Sagemaker permissions**
 
 #### Showcasing:
 - Sagemaker Capabilities
