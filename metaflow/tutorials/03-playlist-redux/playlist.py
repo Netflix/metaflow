@@ -67,7 +67,7 @@ class PlayListFlow(FlowSpec):
     @step
     def genre_movies(self):
         """
-        Select the top performing movies from the use specified genre.
+        Select the top performing movies from the user specified genre.
 
         """
         from random import shuffle
