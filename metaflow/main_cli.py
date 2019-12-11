@@ -408,7 +408,7 @@ def aws(profile):
             service_url = click.prompt('\tPlease enter the URL for your '
                                        'metadata service')
             env_dict['METAFLOW_DEFAULT_METADATA'] = 'service'
-            env_dict['METADATA_SERVICE_URL'] = service_url
+            env_dict['METAFLOW_SERVICE_URL'] = service_url
 
         # Conda (on S3) configuration.
         if use_s3:
