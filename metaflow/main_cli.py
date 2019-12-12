@@ -68,6 +68,7 @@ def main(ctx):
         short_help = {'tutorials': 'Browse and access metaflow tutorials.',
                       'configure': 'Configure metaflow to access the cloud.',
                       'status': 'Display the current working tree.',
+                      'reset-local': 'Resets your local data store',
                       'help': 'Show all available commands to run.'}
 
         echo('Commands:', bold=False)
@@ -123,6 +124,21 @@ def status():
     for flow in Metaflow():
         echo('* %s' % flow, fg='cyan')
 
+@main.command(help='Reset local data store. This will remove all information and artifacts from your runs.')
+def reset_local():
+    # Get the local data store path
+    path = LocalDataStore.get_datastore_root_from_config(echo, create_on_absent=False)
+    
+    if path:
+        if click.confirm("This will reset your local data store." +\
+                        click.style("\nWARNING:", fg='red') +\
+                                    "This step cannot be undone!\nProceed to delete: " +\
+                                    click.style("\"{0}\"".format(path), fg='red') + "?"):
+            shutil.rmtree(path)
+    else:
+        # Nothing to do here since we didnt find an existing store.
+        pass
+    
 @main.group(help="Browse and access the metaflow tutorial episodes.")
 def tutorials():
     pass
