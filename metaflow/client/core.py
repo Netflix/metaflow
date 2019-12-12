@@ -589,6 +589,7 @@ class MetaflowCode(object):
         self._path = info['location']
         self._ds_type = info['ds_type']
         self._sha = info['sha']
+        self._size = info['size']
         with filecache.get_data(self._ds_type, self._flow_name, self._sha) as f:
             self._tar = tarfile.TarFile(fileobj=f)
             # The JSON module in Python3 deals with Unicode. Tar gives bytes.
@@ -695,11 +696,7 @@ class DataArtifact(MetaflowObject):
         size
             Object size contained in this artifact
         """
-        ds_type = self._object['ds_type']
-        sha = self._object['sha']
-        with filecache.get_data(ds_type, self.path_components[0], sha) as f:
-            obj = pickle.load(f)
-            return sys.getsizeof(obj)
+        return self._object['size']
 
     @property
     def type(self):

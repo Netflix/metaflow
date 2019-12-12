@@ -525,7 +525,8 @@ class MetaflowDataStore(object):
                                   ds_type=self.TYPE,
                                   url=self.object_path(sha),
                                   sha=sha,
-                                  type=info[var]['encoding'])
+                                  type=info[var]['encoding'],
+                                  size=info[var]['size'])
                      for var, sha in objects.items()]
 
         self.metadata.register_data_artifacts(self.run_id,

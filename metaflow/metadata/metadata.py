@@ -9,7 +9,7 @@ from metaflow.util import get_username, resolve_identity
 
 
 DataArtifact = namedtuple('DataArtifact',
-                          'name ds_type url type sha')
+                          'name ds_type url type sha size')
 
 MetaDatum = namedtuple('MetaDatum',
                        'field value type')
@@ -403,7 +403,8 @@ class MetadataProvider(object):
                 'type': 'metaflow.artifact',
                 'sha': art.sha,
                 'ds_type': art.ds_type,
-                'location': art.url}
+                'location': art.url,
+                'size': art.size}
             d.update(self._all_obj_elements(self.sticky_tags, self.sticky_sys_tags))
             result.append(d)
         return result
@@ -438,9 +439,11 @@ class MetadataProvider(object):
         code_url = os.environ.get('METAFLOW_CODE_URL')
         code_ds = os.environ.get('METAFLOW_CODE_DS')
         if code_sha:
+            path = self._object_path(self._flow_name, '_', '_', '_', code_sha)
+            size = os.path.getsize(path)
             metadata.append(MetaDatum(
                 field='code-package',
-                value=json.dumps({'ds_type': code_ds, 'sha': code_sha, 'location': code_url}),
+                value=json.dumps({'ds_type': code_ds, 'sha': code_sha, 'location': code_url, 'size': size}),
                 type='code-package'))
         if metadata:
             self.register_metadata(run_id, step_name, task_id, metadata)
