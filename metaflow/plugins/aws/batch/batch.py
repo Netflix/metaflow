@@ -10,7 +10,8 @@ import warnings
 from requests.exceptions import HTTPError
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.metaflow_config import BATCH_METADATA_SERVICE_URL, DATATOOLS_S3ROOT, \
-    DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_S3, DEFAULT_METADATA, METADATA_SERVICE_HEADERS
+    DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_S3, DEFAULT_METADATA, \
+    BATCH_METADATA_SERVICE_HEADERS
 from metaflow import util
 
 from .batch_client import BatchClient
@@ -143,7 +144,7 @@ class Batch(object):
             .environment_variable('METAFLOW_CODE_DS', code_package_ds) \
             .environment_variable('METAFLOW_USER', attrs['metaflow.user']) \
             .environment_variable('METAFLOW_SERVICE_URL', BATCH_METADATA_SERVICE_URL) \
-            .environment_variable('METAFLOW_SERVICE_HEADERS', json.dumps(METADATA_SERVICE_HEADERS)) \
+            .environment_variable('METAFLOW_SERVICE_HEADERS', json.dumps(BATCH_METADATA_SERVICE_HEADERS)) \
             .environment_variable('METAFLOW_DATASTORE_SYSROOT_LOCAL', DATASTORE_LOCAL_DIR) \
             .environment_variable('METAFLOW_DATASTORE_SYSROOT_S3', DATASTORE_SYSROOT_S3) \
             .environment_variable('METAFLOW_DATATOOLS_S3ROOT', DATATOOLS_S3ROOT) \
