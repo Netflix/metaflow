@@ -216,6 +216,13 @@ class NativeRuntime(object):
 
         except KeyboardInterrupt as ex:
             self._logger('Workflow interrupted.', system_msg=True, bad=True)
+            # Ignore new signals
+            import signal
+
+            def print_ignore(signum, frame):
+                self._logger('Shutdown in progress -- ignoring additional CTRL-C',
+                             system_msg=True, bad=True)
+            signal.signal(signal.SIGINT, print_ignore)
             self._killall()
             exception = ex
             raise
@@ -238,7 +245,25 @@ class NativeRuntime(object):
                                         'by the end of flow.')
 
     def _killall(self):
+        # If we are here, all children have received a signal and are shutting down.
+        # We want to give them an opportunity to do so and then kill
+        live_workers = []
+        temp_workers = {}
         for worker in self._workers.values():
+            temp_workers[worker] = 1
+        live_workers = temp_workers.keys()
+        now = int(time.time())
+        self._logger('Pre-killing %d workers' % len(live_workers), system_msg=True, bad=True)
+        while live_workers and int(time.time()) - now < 5:
+            # While not all workers are dead and we have waited less than 5 seconds
+            new_live_workers = []
+            for worker in live_workers:
+                if not worker.pre_kill():
+                    new_live_workers.append(worker)
+            live_workers = new_live_workers
+        self._logger('Have %d remaining workers after %d seconds' % (
+            len(live_workers), int(time.time()) - now), system_msg=True, bad=True)
+        for worker in live_workers:
             worker.kill()
         # give killed workers a chance to flush their logs to datastore
         for _ in range(3):
@@ -381,7 +406,7 @@ class NativeRuntime(object):
                         task = worker.task
                         if returncode:
                             # worker did not finish successfully
-                            if worker.killed or\
+                            if worker.prekilled or \
                                returncode == METAFLOW_EXIT_DISALLOW_RETRY:
                                 self._logger("This failed task will not be "
                                              "retried.", system_msg=True)
@@ -770,6 +795,7 @@ class Worker(object):
 
         self._encoding = sys.stdout.encoding or 'UTF-8'
         self.killed = False
+        self.prekilled = False
 
     def _launch(self):
         args = CLIArgs(self.task)
@@ -826,13 +852,18 @@ class Worker(object):
         return (self._proc.stderr.fileno(),
                 self._proc.stdout.fileno())
 
-    def kill(self):
-        if not self.killed:
+    def pre_kill(self):
+        if self.killed:
+            return True
+        if not self.prekilled:
             for fileobj, buf in self._logs.values():
                 buf.write(b'[KILLED BY ORCHESTRATOR]\n', system_msg=True)
+            self.prekilled = True
+        return self._proc.poll() is not None
+
+    def kill(self):
+        if not self.killed:
             try:
-                # wait for the process to clean up after itself
-                select.poll().poll(1000)
                 self._proc.kill()
             except:
                 pass

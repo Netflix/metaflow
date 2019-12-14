@@ -307,9 +307,12 @@ class RunningJob(object):
 
     def kill(self):
         if not self.is_done:
-            self._client.terminate_job(
+            print("In terminate part")
+            print("Going to call terminate_job with id %s" % self._id)
+            res = self._client.terminate_job(
                 jobId=self._id, reason='Metaflow initiated job termination.'
             )
+            print("Done with terminate: %s" % res)
         return self.update()
 
 
