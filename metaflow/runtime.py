@@ -253,7 +253,8 @@ class NativeRuntime(object):
             temp_workers[worker] = 1
         live_workers = temp_workers.keys()
         now = int(time.time())
-        self._logger('Pre-killing %d workers' % len(live_workers), system_msg=True, bad=True)
+        self._logger('Waiting for %d workers to shutdown...' % len(live_workers),
+                     system_msg=True, bad=True)
         while live_workers and int(time.time()) - now < 5:
             # While not all workers are dead and we have waited less than 5 seconds
             new_live_workers = []
@@ -261,10 +262,15 @@ class NativeRuntime(object):
                 if not worker.pre_kill():
                     new_live_workers.append(worker)
             live_workers = new_live_workers
-        self._logger('Have %d remaining workers after %d seconds' % (
-            len(live_workers), int(time.time()) - now), system_msg=True, bad=True)
-        for worker in live_workers:
-            worker.kill()
+        if live_workers:
+            self._logger('Killing remaining %d workers (waited %d seconds) -- '
+                         'some workers may not exit cleanly' % (len(live_workers),
+                                                                int(time.time()) - now),
+                         system_msg=True, bad=True)
+            for worker in live_workers:
+                worker.kill()
+        self._logger('Flushing logs -- you may see messages from shutdown workers...',
+                     system_msg=True, bad=True)
         # give killed workers a chance to flush their logs to datastore
         for _ in range(3):
             list(self._poll_workers())
@@ -867,6 +873,7 @@ class Worker(object):
                 self._proc.kill()
             except:
                 pass
+            self.prekilled = True
             self.killed = True
 
     def terminate(self):
