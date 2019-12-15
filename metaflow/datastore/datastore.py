@@ -441,9 +441,10 @@ class MetaflowDataStore(object):
                                         % var)
                 transformable_obj.transform(lambda x: pickle.dumps(x, protocol=4))
         sha = sha1(transformable_obj.current()).hexdigest()
-        sz = len(transformable_obj.current())
-        self.save_data(sha, transformable_obj)
-        return sha, sz, blobtype
+        pickle_sz = len(transformable_obj.current())
+        path = self.save_data(sha, transformable_obj)
+        unpickle_sz = sys.getsizeof(open(path, 'rb'))
+        return sha, pickle_sz, blobtype, unpickle_sz
 
     def _load_object(self, sha):
         if sha in self.artifact_cache:
@@ -504,9 +505,9 @@ class MetaflowDataStore(object):
 
         # ...overwrite with new
         for var, obj, force_v4 in serializable_attributes():
-            sha, size, encoding = self._save_object(obj, var, force_v4)
+            sha, pickle_size, encoding, unpickle_size = self._save_object(obj, var, force_v4)
             self.objects[var] = sha
-            self.info[var] = {'size': size,
+            self.info[var] = {'size': unpickle_size,
                               'type': str(obj.original_type()),
                               'encoding': encoding}
 
