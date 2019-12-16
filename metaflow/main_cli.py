@@ -360,8 +360,11 @@ def aws(profile):
         return click.style(string, fg='yellow')
 
     prompt_config_overwrite(profile)
-    if not True:
-        pass
+    if not click.confirm('Already configured ' + cyan('AWS access credentials') + '?',
+          default=True):
+        echo('\nSetup your access credentials by following this guide: ', nl=False)
+        echo('https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html',
+             fg='cyan')
     else:
         env_dict = {}
         # Datastore configuration.
@@ -371,12 +374,12 @@ def aws(profile):
         if use_s3:
             env_dict['METAFLOW_DEFAULT_DATASTORE'] = 's3'
             env_dict['METAFLOW_DATASTORE_SYSROOT_S3'] =\
-                click.prompt('\t' + cyan('[METAFLOW_DATASTORE_SYSROOT_S3]') + 
+                click.prompt('\t' + cyan('METAFLOW_DATASTORE_SYSROOT_S3:') + 
                   ' Amazon S3 url for metaflow datastore (s3://<bucket>/<prefix>)')
 
             env_dict['METAFLOW_DATATOOLS_SYSROOT_S3'] =\
-                click.prompt('\t' + cyan('[METAFLOW_DATATOOLS_SYSROOT_S3]') + 
-                  yellow('(Optional)') + ' Amazon S3 url for metaflow datatools (s3://<bucket>/<prefix>)',
+                click.prompt('\t' + cyan('METAFLOW_DATATOOLS_SYSROOT_S3:') + 
+                  yellow(' (optional)') + ' Amazon S3 url for metaflow datatools (s3://<bucket>/<prefix>)',
                     default='%s/data' % env_dict['METAFLOW_DATASTORE_SYSROOT_S3'],
                     show_default=True)
             # AWS Batch configuration (only if Amazon S3 is being used).
@@ -385,20 +388,20 @@ def aws(profile):
                               default=True, abort=False)
             if use_batch:
                 env_dict['METAFLOW_BATCH_JOB_QUEUE'] =\
-                    click.prompt('\t' + cyan('[METAFLOW_BATCH_JOB_QUEUE]') + 
+                    click.prompt('\t' + cyan('METAFLOW_BATCH_JOB_QUEUE:') + 
                       ' AWS Batch Job Queue')
                 env_dict['METAFLOW_ECS_S3_ACCESS_IAM_ROLE'] =\
-                    click.prompt('\t' + cyan('[METAFLOW_ECS_S3_ACCESS_IAM_ROLE]') + 
+                    click.prompt('\t' + cyan('METAFLOW_ECS_S3_ACCESS_IAM_ROLE:') + 
                       ' IAM role granting AWS Batch access to Amazon S3')
                 metaflow_batch_container_registry =\
-                    click.prompt('\t' + cyan('[METAFLOW_BATCH_CONTAINER_REGISTRY]') + 
-                      yellow('(Optional)') + ' Default docker image repository for AWS Batch jobs',
+                    click.prompt('\t' + cyan('METAFLOW_BATCH_CONTAINER_REGISTRY:') + 
+                      yellow(' (optional)') + ' Default docker image repository for AWS Batch jobs',
                         default='', show_default=False)
                 if metaflow_batch_container_registry:
                     env_dict['METAFLOW_BATCH_CONTAINER_REGISTRY'] = metaflow_batch_container_registry
                 metaflow_batch_container_image =\
-                    click.prompt('\t' + cyan('[METAFLOW_BATCH_CONTAINER_IMAGE]') + 
-                      yellow('(Optional)') + ' Default docker image for AWS Batch jobs',
+                    click.prompt('\t' + cyan('METAFLOW_BATCH_CONTAINER_IMAGE:') + 
+                      yellow(' (optional)') + ' Default docker image for AWS Batch jobs',
                         default='', show_default=False)
                 if metaflow_batch_container_image:
                     env_dict['METAFLOW_BATCH_CONTAINER_IMAGE'] = metaflow_batch_container_image
@@ -408,15 +411,15 @@ def aws(profile):
         if use_metadata:
             env_dict['METAFLOW_DEFAULT_METADATA'] = 'service'
             env_dict['METAFLOW_SERVICE_URL'] =\
-                click.prompt('\t' + cyan('[METAFLOW_SERVICE_URL]') +
+                click.prompt('\t' + cyan('METAFLOW_SERVICE_URL:') +
                   ' URL for Metadata Service (Open to Public Access)')
             env_dict['METAFLOW_SERVICE_INTERNAL_URL'] =\
-                click.prompt('\t' + cyan('[METAFLOW_SERVICE_INTERNAL_URL]') +
-                  yellow('(Optional)') +  ' URL for Metadata Service (Accessible within VPC)',
+                click.prompt('\t' + cyan('METAFLOW_SERVICE_INTERNAL_URL:') +
+                  yellow(' (optional)') +  ' URL for Metadata Service (Accessible within VPC)',
                     default=env_dict['METAFLOW_SERVICE_URL'], show_default=True)
             metaflow_service_auth_key =\
-                click.prompt('\t' + cyan('[METAFLOW_SERVICE_AUTH_KEY]') + 
-                  yellow('(Optional)') + ' Auth key for Metadata Service',
+                click.prompt('\t' + cyan('METAFLOW_SERVICE_AUTH_KEY:') + 
+                  yellow(' (optional)') + ' Auth key for Metadata Service',
                     default='', show_default=False)
             if metaflow_service_auth_key:
                     env_dict['METAFLOW_SERVICE_AUTH_KEY'] = metaflow_service_auth_key
