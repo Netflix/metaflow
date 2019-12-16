@@ -216,13 +216,6 @@ class NativeRuntime(object):
 
         except KeyboardInterrupt as ex:
             self._logger('Workflow interrupted.', system_msg=True, bad=True)
-            # Ignore new signals
-            import signal
-
-            def print_ignore(signum, frame):
-                self._logger('Shutdown in progress -- ignoring additional CTRL-C',
-                             system_msg=True, bad=True)
-            signal.signal(signal.SIGINT, print_ignore)
             self._killall()
             exception = ex
             raise
@@ -259,7 +252,7 @@ class NativeRuntime(object):
             # While not all workers are dead and we have waited less than 5 seconds
             live_workers = [worker for worker in live_workers if not worker.clean()]
         if live_workers:
-            self._logger('Killing remaining %d tasks after having waited for %d seconds -- '
+            self._logger('Killing %d remaining tasks after having waited for %d seconds -- '
                          'some tasks may not exit cleanly' % (len(live_workers),
                                                               int(time.time()) - now),
                          system_msg=True, bad=True)
