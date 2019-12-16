@@ -1,5 +1,6 @@
 import traceback
 from functools import partial
+import re
 
 from .flowspec import FlowSpec
 from .exception import MetaflowException, InvalidDecoratorAttribute
@@ -99,7 +100,8 @@ class Decorator(object):
             return cls()
         else:
             name, attrspec = top
-            attrs = dict(a.split('=') for a in attrspec.split(','))
+            attrs = dict(map(lambda x: x.strip(), a.split('=')) 
+                for a in re.split(''',(?=[\s\w]+=)''', attrspec.strip('"\'')))
             return cls(attributes=attrs)
 
     def make_decorator_spec(self):
