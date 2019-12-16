@@ -279,21 +279,30 @@ def prompt_config_overwrite(profile):
                          abort=True):
             return
 
+def check_for_missing_profile(profile):
+    path = get_config_path(profile)
+    # Absence of default config is equivalent to running locally.
+    if profile and not os.path.exists(path):
+        raise click.ClickException("Couldn't find configuration for profile " +
+                                   click.style('"%s"' % profile, fg='red') +
+                                   " in " +
+                                   click.style('"%s"' % path, fg='red'))
+
 def persist_env(env_dict, profile):
     # TODO: Should we persist empty env_dict or notify user differently?
     path = get_config_path(profile)
 
     with open(path, 'w') as f:
-        json.dump(env_dict, f)
+        json.dump(env_dict, f, indent=4, sort_keys=True)
 
     echo('\nConfiguration successfully written to ', nl=False)
     echo('"%s"' % path, fg='cyan')
 
 @configure.command(help='Reset configuration to disable cloud access.')
 @click.option('--profile', '-p', default='',
-                help='Configure a named profile. Activate the profile by setting ' 
-                    '`METAFLOW_PROFILE` environment variable.')
+              help="Optional named profile.")
 def reset(profile):
+    check_for_missing_profile(profile)
     path = get_config_path(profile)
     if os.path.exists(path):
         if click.confirm('Do you really wish to reset the configuration in ' +\
@@ -305,9 +314,9 @@ def reset(profile):
 
 @configure.command(help='Show existing configuration.')
 @click.option('--profile', '-p', default='',
-                help='Configure a named profile. Activate the profile by setting ' 
-                    '`METAFLOW_PROFILE` environment variable.')
+              help="Optional named profile.")
 def show(profile):
+    check_for_missing_profile(profile)
     path = get_config_path(profile)
     env_dict = {}
     if os.path.exists(path):
@@ -320,6 +329,52 @@ def show(profile):
             echo('%s=%s' % (k, v))
     else:
         echo('Configuration is set to run locally.')
+
+@configure.command(help='Export configuration to a file.')
+@click.option('--profile', '-p', default='',
+              help="Optional named profile whose configuration must be "
+                   "exported.")
+@click.argument('output_filename', type=click.Path(resolve_path=True))
+def export(profile, output_filename):
+    check_for_missing_profile(profile)
+    # Export its contents to a new file.
+    path = get_config_path(profile)
+    env_dict = {}
+    if os.path.exists(path):
+        with open(path, 'r') as f:
+            env_dict = json.load(f)
+    # resolve_path doesn't expand `~` in `path`.
+    output_path = expanduser(output_filename)
+    if os.path.exists(output_path):
+        if click.confirm('Do you wish to overwrite the contents in ' +
+                         click.style('"%s"' % output_path, fg='cyan') + '?',
+                         abort=True):
+            pass
+    # Write to file.
+    with open(output_path, 'w') as f:
+        json.dump(env_dict, f, indent=4, sort_keys=True)
+    echo('Configuration successfully exported to: ', nl=False)
+    echo('"%s"' % output_path, fg='cyan')
+
+@configure.command(help='Import configuration from a file.', name='import')
+@click.option('--profile', '-p', default='',
+              help="Optional named profile to which the configuration must be "
+                   "imported into.")
+@click.argument('input_filename', type=click.Path(exists=True,
+                                                  resolve_path=True))
+def import_from(profile, input_filename):
+    check_for_missing_profile(profile)
+    # Import configuration.
+    input_path = expanduser(input_filename)
+    env_dict = {}
+    with open(input_path, 'r') as f:
+        env_dict = json.load(f)
+    echo('Configuration successfully read from: ', nl=False)
+    echo('"%s"' % input_path, fg='cyan')
+
+    # Persist configuration.
+    prompt_config_overwrite(profile)
+    persist_env(env_dict, profile)
 
 @configure.command(help='Configure metaflow to access hosted sandbox.')
 @click.option('--profile', '-p', default='',
