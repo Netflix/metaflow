@@ -301,7 +301,7 @@ def persist_env(env_dict, profile):
 
 @configure.command(help='Resets the configuration to run locally.')
 @click.option('--profile', '-p', default='',
-              help="Optional user profile whose configuration would be reset.")
+              help="Optional named profile whose configuration would be reset.")
 def reset(profile):
     check_for_missing_profile(profile)
     path = get_config_path(profile)
@@ -315,7 +315,7 @@ def reset(profile):
 
 @configure.command(help='Shows the existing configuration.')
 @click.option('--profile', '-p', default='',
-              help="Optional user profile whose configuration should be "
+              help="Optional named profile whose configuration should be "
                    "shown instead of the default.")
 def show(profile):
     check_for_missing_profile(profile)
@@ -332,9 +332,9 @@ def show(profile):
     else:
         echo('Configuration is set to run locally.')
 
-@configure.command(help='Exports the configuration to a file.')
+@configure.command(help='Export configuration to a file.')
 @click.option('--profile', '-p', default='',
-              help="Optional user profile whose configuration must be "
+              help="Optional named profile whose configuration must be "
                    "exported.")
 @click.argument('output_filename', type=click.Path(resolve_path=True))
 def export(profile, output_filename):
@@ -342,8 +342,9 @@ def export(profile, output_filename):
     # Export its contents to a new file.
     path = get_config_path(profile)
     env_dict = {}
-    with open(path, 'r') as f:
-        env_dict = json.load(f)
+    if os.path.exists(path):
+        with open(path, 'r') as f:
+            env_dict = json.load(f)
     # resolve_path doesn't expand `~` in `path`.
     output_path = expanduser(output_filename)
     if os.path.exists(output_path):
@@ -357,9 +358,9 @@ def export(profile, output_filename):
     echo('Configuration successfully exported to: ', nl=False)
     echo('"%s"' % output_path, fg='cyan')
 
-@configure.command(help='Imports the configuration from a file.', name='import')
+@configure.command(help='Import configuration from a file.', name='import')
 @click.option('--profile', '-p', default='',
-              help="Optional user profile to which the configuration must be "
+              help="Optional named profile to which the configuration must be "
                    "imported into.")
 @click.argument('input_filename', type=click.Path(exists=True,
                                                   resolve_path=True))
@@ -379,7 +380,7 @@ def import_from(profile, input_filename):
 
 @configure.command(help='Get Metaflow up and running on our sandbox.')
 @click.option('--profile', '-p', default='',
-              help="Optional user profile to allow storing multiple "
+              help="Optional named profile to allow storing multiple "
                    "configurations. Please `export METAFLOW_PROFILE` to "
                    "switch between profile configuration(s).")
 def sandbox(profile):
@@ -404,7 +405,7 @@ def sandbox(profile):
 
 @configure.command(help='Get Metaflow up and running on your own AWS environment.')
 @click.option('--profile', '-p', default='',
-              help="Optional user profile to allow storing multiple "
+              help="Optional named profile to allow storing multiple "
                    "configurations. Please `export METAFLOW_PROFILE` to "
                    "switch between profile configuration(s).")
 def aws(profile):
