@@ -390,7 +390,6 @@ def aws(profile):
                 env_dict['METAFLOW_ECS_S3_ACCESS_IAM_ROLE'] =\
                     click.prompt('\t' + cyan('[METAFLOW_ECS_S3_ACCESS_IAM_ROLE]') + 
                       ' IAM role granting AWS Batch access to Amazon S3')
-                env_dict['METAFLOW_BATCH_CONTAINER_REGISTRY'] 
                 metaflow_batch_container_registry =\
                     click.prompt('\t' + cyan('[METAFLOW_BATCH_CONTAINER_REGISTRY]') + 
                       yellow('(Optional)') + ' Default docker image repository for AWS Batch jobs',
