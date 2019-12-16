@@ -299,7 +299,6 @@ class RunningJob(object):
                     else:
                         yield line
             except Exception as ex:
-                last_exc = ex
                 if self.is_crashed:
                     break
                 sys.stderr.write(repr(ex))
@@ -308,8 +307,7 @@ class RunningJob(object):
     def kill(self):
         if not self.is_done:
             self._client.terminate_job(
-                jobId=self._id, reason='Metaflow initiated job termination.'
-            )
+                jobId=self._id, reason='Metaflow initiated job termination.')
         return self.update()
 
 

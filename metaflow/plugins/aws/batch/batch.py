@@ -30,7 +30,7 @@ class Batch(object):
         self.metadata = metadata
         self.environment = environment
         self._client = BatchClient()
-        atexit.register(lambda : self.job.kill() if hasattr(self, 'job') else None)
+        atexit.register(lambda: self.job.kill() if hasattr(self, 'job') else None)
 
     def _command(self, code_package_url, environment, step_name, step_cli):
         cmds = environment.get_package_commands(code_package_url)
