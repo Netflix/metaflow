@@ -54,7 +54,7 @@ def main(ctx):
 
         # metaflow URL
         echo('http://docs.metaflow.org', fg='cyan', nl=False)
-        echo(' - Find the documentation')
+        echo(' - Read the documentation')
 
         # metaflow chat
         echo('http://chat.metaflow.org', fg='cyan', nl=False)
@@ -66,9 +66,9 @@ def main(ctx):
 
         # print a short list of next steps.
         short_help = {'tutorials': 'Browse and access metaflow tutorials.',
-                      'configure': 'Configure metaflow to run remotely.',
+                      'configure': 'Configure metaflow to access the cloud.',
                       'status': 'Display the current working tree.',
-                      'help': 'Shows all available commands to run.'}
+                      'help': 'Show all available commands to run.'}
 
         echo('Commands:', bold=False)
 
@@ -85,7 +85,7 @@ def main(ctx):
 def help(ctx):
     print(ctx.parent.get_help())
 
-@main.command(help='Shows flows accessible from the current working tree.')
+@main.command(help='Show flows accessible from the current working tree.')
 def status():
     from metaflow.client import get_metadata
     res = get_metadata()
@@ -262,8 +262,7 @@ def info(episode):
 METAFLOW_CONFIGURATION_DIR =\
     expanduser(os.environ.get('METAFLOW_HOME', '~/.metaflowconfig'))
 
-@main.group(help="Configure Metaflow to "\
-            "run on our sandbox or an AWS account.")
+@main.group(help="Configure Metaflow to access the cloud.")
 def configure():
     makedirs(METAFLOW_CONFIGURATION_DIR)
 
@@ -275,7 +274,7 @@ def get_config_path(profile):
 def prompt_config_overwrite(profile):
     path = get_config_path(profile)
     if os.path.exists(path):
-        if click.confirm('Do you wish to overwrite the existing configuration '
+        if click.confirm('Overwrite existing configuration '
                          'in ' + click.style('"%s"' % path, fg='cyan') + '?',
                          abort=True):
             return
@@ -290,11 +289,10 @@ def persist_env(env_dict, profile):
     echo('\nConfiguration successfully written to ', nl=False)
     echo('"%s"' % path, fg='cyan')
 
-@configure.command(help='Resets the configuration to run locally.')
+@configure.command(help='Reset configuration to disable cloud access.')
 @click.option('--profile', '-p', default='',
-              help="Optional user profile to allow storing multiple "
-                   "configurations. Please `export METAFLOW_PROFILE` to "
-                   "switch between profile configuration(s).")
+                help='Configure a named profile. Activate the profile by setting ' 
+                    '`METAFLOW_PROFILE` environment variable.')
 def reset(profile):
     path = get_config_path(profile)
     if os.path.exists(path):
@@ -305,11 +303,10 @@ def reset(profile):
     else:
         echo('Configuration is already reset to run locally.')
 
-@configure.command(help='Shows the existing configuration.')
+@configure.command(help='Show existing configuration.')
 @click.option('--profile', '-p', default='',
-              help="Optional user profile to allow storing multiple "
-                   "configurations. Please `export METAFLOW_PROFILE` to "
-                   "switch between profile configuration(s).")
+                help='Configure a named profile. Activate the profile by setting ' 
+                    '`METAFLOW_PROFILE` environment variable.')
 def show(profile):
     path = get_config_path(profile)
     env_dict = {}
@@ -324,11 +321,10 @@ def show(profile):
     else:
         echo('Configuration is set to run locally.')
 
-@configure.command(help='Get Metaflow up and running on our sandbox.')
+@configure.command(help='Configure metaflow to access hosted sandbox.')
 @click.option('--profile', '-p', default='',
-              help="Optional user profile to allow storing multiple "
-                   "configurations. Please `export METAFLOW_PROFILE` to "
-                   "switch between profile configuration(s).")
+                help='Configure a named profile. Activate the profile by setting ' 
+                    '`METAFLOW_PROFILE` environment variable.')
 def sandbox(profile):
     prompt_config_overwrite(profile)
     # Prompt for user input.
@@ -349,83 +345,79 @@ def sandbox(profile):
     # Persist to a file.
     persist_env(env_dict, profile)
 
-@configure.command(help='Get Metaflow up and running on your own AWS environment.')
+@configure.command(help='Configure metaflow to access self-managed AWS resources.')
 @click.option('--profile', '-p', default='',
-              help="Optional user profile to allow storing multiple "
-                   "configurations. Please `export METAFLOW_PROFILE` to "
-                   "switch between profile configuration(s).")
+                help='Configure a named profile. Activate the profile by setting ' 
+                    '`METAFLOW_PROFILE` environment variable.')
 def aws(profile):
+    def cyan(string):
+        return click.style(string, fg='cyan')
+
+    def yellow(string):
+        return click.style(string, fg='yellow')
+
     prompt_config_overwrite(profile)
-    if click.confirm('Have you setup your ' +\
-                     click.style('AWS credentials?', fg='cyan')):
+    if not click.confirm('Already configured ' + cyan('AWS access credentials') + '?',
+          default=True):
+        echo('\nSetup your access credentials first by following this guide: ', nl=False)
+        echo('https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html',
+             fg='cyan')
+    else:
         env_dict = {}
         # Datastore configuration.
-        use_s3 = click.confirm('\nDo you want to use AWS S3 as your datastore?',
+        use_s3 = click.confirm('\nConfigure Amazon '
+                                'S3 as default datastore (required for AWS Batch)?',
                               default=True, abort=False)
         if use_s3:
-            echo('\tAWS S3', fg='cyan')
-            datastore_s3_root =\
-                click.prompt('\tPlease enter the bucket prefix to use for your '
-                             'flows')
-
-            datatools_s3_root =\
-                click.prompt('\tPlease enter the bucket prefix to use for your '
-                             'data',
-                             default='%s/data' % datastore_s3_root)
-
             env_dict['METAFLOW_DEFAULT_DATASTORE'] = 's3'
-            env_dict['METAFLOW_DATASTORE_SYSROOT_S3'] = datastore_s3_root
-            env_dict['METAFLOW_DATATOOLS_SYSROOT_S3'] = datatools_s3_root
+            env_dict['METAFLOW_DATASTORE_SYSROOT_S3'] =\
+                click.prompt('\t' + cyan('METAFLOW_DATASTORE_SYSROOT_S3:') + 
+                  ' Amazon S3 url for metaflow datastore (s3://<bucket>/<prefix>)')
 
-            # Batch configuration (only if S3 is being used).
+            env_dict['METAFLOW_DATATOOLS_SYSROOT_S3'] =\
+                click.prompt('\t' + cyan('METAFLOW_DATATOOLS_SYSROOT_S3:') + 
+                  yellow(' (optional)') + ' Amazon S3 url for metaflow datatools (s3://<bucket>/<prefix>)',
+                    default='%s/data' % env_dict['METAFLOW_DATASTORE_SYSROOT_S3'],
+                    show_default=True)
+            # AWS Batch configuration (only if Amazon S3 is being used).
             use_batch =\
-                click.confirm('\nDo you want to use AWS Batch for compute?',
+                click.confirm('\nConfigure AWS Batch for compute?',
                               default=True, abort=False)
             if use_batch:
-                echo('\n\tAWS Batch', fg='cyan')
-                job_queue = click.prompt('\tPlease enter the job queue to use '
-                                         'for batch')
-                default_image =\
-                    click.prompt('\tPlease enter the default container image '
-                                 'to use')
-                container_registry =\
-                    click.prompt('\tPlease enter the container registry')
-                ecs_s3_role =\
-                    click.prompt('\tPlease enter the IAM role to use for the '
-                                 'container to get AWS S3 access')
-
-                env_dict['METAFLOW_BATCH_JOB_QUEUE'] = job_queue
-                env_dict['METAFLOW_BATCH_CONTAINER_IMAGE'] = default_image
-                env_dict['METAFLOW_BATCH_CONTAINER_REGISTRY'] =\
-                    container_registry
-                env_dict['METAFLOW_ECS_S3_ACCESS_IAM_ROLE'] = ecs_s3_role
-
+                env_dict['METAFLOW_BATCH_JOB_QUEUE'] =\
+                    click.prompt('\t' + cyan('METAFLOW_BATCH_JOB_QUEUE:') + 
+                      ' AWS Batch Job Queue')
+                env_dict['METAFLOW_ECS_S3_ACCESS_IAM_ROLE'] =\
+                    click.prompt('\t' + cyan('METAFLOW_ECS_S3_ACCESS_IAM_ROLE:') + 
+                      ' IAM role granting AWS Batch access to Amazon S3')
+                metaflow_batch_container_registry =\
+                    click.prompt('\t' + cyan('METAFLOW_BATCH_CONTAINER_REGISTRY:') + 
+                      yellow(' (optional)') + ' Default docker image repository for AWS Batch jobs',
+                        default='', show_default=False)
+                if metaflow_batch_container_registry:
+                    env_dict['METAFLOW_BATCH_CONTAINER_REGISTRY'] = metaflow_batch_container_registry
+                metaflow_batch_container_image =\
+                    click.prompt('\t' + cyan('METAFLOW_BATCH_CONTAINER_IMAGE:') + 
+                      yellow(' (optional)') + ' Default docker image for AWS Batch jobs',
+                        default='', show_default=False)
+                if metaflow_batch_container_image:
+                    env_dict['METAFLOW_BATCH_CONTAINER_IMAGE'] = metaflow_batch_container_image
         # Metadata service configuration.
-        use_metadata = click.confirm('\nDo you want to use a (remote) metadata '
-                                     'service?', default=True, abort=False)
+        use_metadata = click.confirm('\nConfigure Metadata Service as default metadata provider?', 
+            default=True, abort=False)
         if use_metadata:
-            echo('\tMetadata service', fg='cyan')
-            service_url = click.prompt('\tPlease enter the URL for your '
-                                       'metadata service')
             env_dict['METAFLOW_DEFAULT_METADATA'] = 'service'
-            env_dict['METAFLOW_SERVICE_URL'] = service_url
-
-        # Conda (on S3) configuration.
-        if use_s3:
-            use_conda = click.confirm('\nDo you want to use conda for '
-                                      'dependency management?',
-                                      default=True, abort=False)
-            if use_conda:
-                echo('\tConda on AWS S3', fg='cyan')
-                default_val =\
-                    '%s/conda' % env_dict['METAFLOW_DATASTORE_SYSROOT_S3']
-                package_s3root = \
-                    click.prompt('\tPlease enter the bucket prefix for storing '
-                                 'conda packages',
-                                 default=default_val)
-                env_dict['METAFLOW_CONDA_PACKAGE_S3ROOT'] = package_s3root
+            env_dict['METAFLOW_SERVICE_URL'] =\
+                click.prompt('\t' + cyan('METAFLOW_SERVICE_URL:') +
+                  ' URL for Metadata Service (Open to Public Access)')
+            env_dict['METAFLOW_SERVICE_INTERNAL_URL'] =\
+                click.prompt('\t' + cyan('METAFLOW_SERVICE_INTERNAL_URL:') +
+                  yellow(' (optional)') +  ' URL for Metadata Service (Accessible within VPC)',
+                    default=env_dict['METAFLOW_SERVICE_URL'], show_default=True)
+            metaflow_service_auth_key =\
+                click.prompt('\t' + cyan('METAFLOW_SERVICE_AUTH_KEY:') + 
+                  yellow(' (optional)') + ' Auth key for Metadata Service',
+                    default='', show_default=False)
+            if metaflow_service_auth_key:
+                    env_dict['METAFLOW_SERVICE_AUTH_KEY'] = metaflow_service_auth_key
         persist_env(env_dict, profile)
-    else:
-        echo('\nPlease set them up first through ', nl=False)
-        echo('"https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html"',
-             fg='cyan')
