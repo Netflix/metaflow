@@ -415,7 +415,6 @@ def aws(profile):
                 click.prompt('\t' + cyan('[METAFLOW_SERVICE_INTERNAL_URL]') +
                   yellow('(Optional)') +  ' URL for Metadata Service (Accessible within VPC)',
                     default=env_dict['METAFLOW_SERVICE_URL'], show_default=True)
-            env_dict['METAFLOW_SERVICE_AUTH_KEY'] 
             metaflow_service_auth_key =\
                 click.prompt('\t' + cyan('[METAFLOW_SERVICE_AUTH_KEY]') + 
                   yellow('(Optional)') + ' Auth key for Metadata Service',
