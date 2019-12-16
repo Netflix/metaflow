@@ -54,7 +54,7 @@ def main(ctx):
 
         # metaflow URL
         echo('http://docs.metaflow.org', fg='cyan', nl=False)
-        echo(' - Find the documentation')
+        echo(' - Read the documentation')
 
         # metaflow chat
         echo('http://chat.metaflow.org', fg='cyan', nl=False)
@@ -66,7 +66,7 @@ def main(ctx):
 
         # print a short list of next steps.
         short_help = {'tutorials': 'Browse and access metaflow tutorials.',
-                      'configure': 'Configure metaflow to run remotely.',
+                      'configure': 'Configure metaflow to access the cloud.',
                       'status': 'Display the current working tree.',
                       'help': 'Show all available commands to run.'}
 
@@ -262,7 +262,7 @@ def info(episode):
 METAFLOW_CONFIGURATION_DIR =\
     expanduser(os.environ.get('METAFLOW_HOME', '~/.metaflowconfig'))
 
-@main.group(help="Configure Metaflow to run on AWS.")
+@main.group(help="Configure Metaflow to access the cloud.")
 def configure():
     makedirs(METAFLOW_CONFIGURATION_DIR)
 
@@ -289,11 +289,10 @@ def persist_env(env_dict, profile):
     echo('\nConfiguration successfully written to ', nl=False)
     echo('"%s"' % path, fg='cyan')
 
-@configure.command(help='Reset configuration to run locally.')
+@configure.command(help='Reset configuration to disable cloud access.')
 @click.option('--profile', '-p', default='',
-              help="Optional user profile to allow storing multiple "
-                   "configurations. Please `export METAFLOW_PROFILE` to "
-                   "switch between profile configuration(s).")
+                help='Configure a named profile. Activate the profile by setting ' 
+                    '`METAFLOW_PROFILE` environment variable.')
 def reset(profile):
     path = get_config_path(profile)
     if os.path.exists(path):
@@ -306,9 +305,8 @@ def reset(profile):
 
 @configure.command(help='Show existing configuration.')
 @click.option('--profile', '-p', default='',
-              help="Optional user profile to allow storing multiple "
-                   "configurations. Please `export METAFLOW_PROFILE` to "
-                   "switch between profile configuration(s).")
+                help='Configure a named profile. Activate the profile by setting ' 
+                    '`METAFLOW_PROFILE` environment variable.')
 def show(profile):
     path = get_config_path(profile)
     env_dict = {}
@@ -323,11 +321,10 @@ def show(profile):
     else:
         echo('Configuration is set to run locally.')
 
-@configure.command(help='Get Metaflow up and running on our sandbox.')
+@configure.command(help='Configure metaflow to access hosted sandbox.')
 @click.option('--profile', '-p', default='',
-              help="Optional user profile to allow storing multiple "
-                   "configurations. Please `export METAFLOW_PROFILE` to "
-                   "switch between profile configuration(s).")
+                help='Configure a named profile. Activate the profile by setting ' 
+                    '`METAFLOW_PROFILE` environment variable.')
 def sandbox(profile):
     prompt_config_overwrite(profile)
     # Prompt for user input.
@@ -348,9 +345,9 @@ def sandbox(profile):
     # Persist to a file.
     persist_env(env_dict, profile)
 
-@configure.command(help='Configure Metaflow to access self-managed AWS resources.')
+@configure.command(help='Configure metaflow to access self-managed AWS resources.')
 @click.option('--profile', '-p', default='',
-              help='Configure a named profile. Activate the profile by setting ' 
+                help='Configure a named profile. Activate the profile by setting ' 
                     '`METAFLOW_PROFILE` environment variable.')
 def aws(profile):
     def cyan(string):
@@ -362,7 +359,7 @@ def aws(profile):
     prompt_config_overwrite(profile)
     if not click.confirm('Already configured ' + cyan('AWS access credentials') + '?',
           default=True):
-        echo('\nSetup your access credentials by following this guide: ', nl=False)
+        echo('\nSetup your access credentials first by following this guide: ', nl=False)
         echo('https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html',
              fg='cyan')
     else:
