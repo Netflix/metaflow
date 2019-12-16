@@ -253,23 +253,19 @@ class NativeRuntime(object):
             temp_workers[worker] = 1
         live_workers = temp_workers.keys()
         now = int(time.time())
-        self._logger('Waiting for %d workers to shutdown...' % len(live_workers),
+        self._logger('Terminating %d active tasks...' % len(live_workers),
                      system_msg=True, bad=True)
         while live_workers and int(time.time()) - now < 5:
             # While not all workers are dead and we have waited less than 5 seconds
-            new_live_workers = []
-            for worker in live_workers:
-                if not worker.pre_kill():
-                    new_live_workers.append(worker)
-            live_workers = new_live_workers
+            live_workers = [worker for worker in live_workers if not worker.clean()]
         if live_workers:
-            self._logger('Killing remaining %d workers (waited %d seconds) -- '
-                         'some workers may not exit cleanly' % (len(live_workers),
-                                                                int(time.time()) - now),
+            self._logger('Killing remaining %d tasks after having waited for %d seconds -- '
+                         'some tasks may not exit cleanly' % (len(live_workers),
+                                                              int(time.time()) - now),
                          system_msg=True, bad=True)
             for worker in live_workers:
                 worker.kill()
-        self._logger('Flushing logs -- you may see messages from shutdown workers...',
+        self._logger('Flushing logs -- you may see messages from the tasks that were shutdown...',
                      system_msg=True, bad=True)
         # give killed workers a chance to flush their logs to datastore
         for _ in range(3):
@@ -412,7 +408,7 @@ class NativeRuntime(object):
                         task = worker.task
                         if returncode:
                             # worker did not finish successfully
-                            if worker.prekilled or \
+                            if worker.cleaned or \
                                returncode == METAFLOW_EXIT_DISALLOW_RETRY:
                                 self._logger("This failed task will not be "
                                              "retried.", system_msg=True)
@@ -801,7 +797,7 @@ class Worker(object):
 
         self._encoding = sys.stdout.encoding or 'UTF-8'
         self.killed = False
-        self.prekilled = False
+        self.cleaned = False
 
     def _launch(self):
         args = CLIArgs(self.task)
@@ -858,13 +854,13 @@ class Worker(object):
         return (self._proc.stderr.fileno(),
                 self._proc.stdout.fileno())
 
-    def pre_kill(self):
+    def clean(self):
         if self.killed:
             return True
-        if not self.prekilled:
+        if not self.cleaned:
             for fileobj, buf in self._logs.values():
                 buf.write(b'[KILLED BY ORCHESTRATOR]\n', system_msg=True)
-            self.prekilled = True
+            self.cleaned = True
         return self._proc.poll() is not None
 
     def kill(self):
@@ -873,7 +869,7 @@ class Worker(object):
                 self._proc.kill()
             except:
                 pass
-            self.prekilled = True
+            self.cleaned = True
             self.killed = True
 
     def terminate(self):
