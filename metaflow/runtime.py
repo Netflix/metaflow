@@ -240,7 +240,7 @@ class NativeRuntime(object):
     def _killall(self):
         # If we are here, all children have received a signal and are shutting down.
         # We want to give them an opportunity to do so and then kill
-        live_workers = list(set(self._workers.values()))
+        live_workers = set(self._workers.values())
         now = int(time.time())
         self._logger('Terminating %d active tasks...' % len(live_workers),
                      system_msg=True, bad=True)
@@ -784,8 +784,12 @@ class Worker(object):
                                                    self._stdout)}
 
         self._encoding = sys.stdout.encoding or 'UTF-8'
-        self.killed = False
-        self.cleaned = False
+        self.killed = False  # Killed indicates that the task was forcibly killed
+                             # with SIGKILL by the master process.
+                             # A killed task is always considered cleaned
+        self.cleaned = False  # A cleaned task is one that is shutting down and has been
+                              # noticed by the runtime and queried for its state (whether or
+                              # not is is properly shut down)
 
     def _launch(self):
         args = CLIArgs(self.task)
