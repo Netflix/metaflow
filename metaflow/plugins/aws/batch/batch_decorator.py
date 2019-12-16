@@ -198,6 +198,6 @@ class BatchDecorator(StepDecorator):
         groups = pattern.match(image).groups()
         registry = groups[0]
         namespace = groups[1]
-        if not namespace and registry and not re.match(r'[:.]', registry):
+        if not namespace and registry and not re.search(r'[:.]', registry):
             return None
         return registry
