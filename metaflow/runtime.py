@@ -240,11 +240,7 @@ class NativeRuntime(object):
     def _killall(self):
         # If we are here, all children have received a signal and are shutting down.
         # We want to give them an opportunity to do so and then kill
-        live_workers = []
-        temp_workers = {}
-        for worker in self._workers.values():
-            temp_workers[worker] = 1
-        live_workers = temp_workers.keys()
+        live_workers = list(set(self._workers.values()))
         now = int(time.time())
         self._logger('Terminating %d active tasks...' % len(live_workers),
                      system_msg=True, bad=True)
@@ -258,8 +254,7 @@ class NativeRuntime(object):
                          system_msg=True, bad=True)
             for worker in live_workers:
                 worker.kill()
-        self._logger('Flushing logs -- you may see messages from the tasks that were shutdown...',
-                     system_msg=True, bad=True)
+        self._logger('Flushing logs...', system_msg=True, bad=True)
         # give killed workers a chance to flush their logs to datastore
         for _ in range(3):
             list(self._poll_workers())
