@@ -1,11 +1,9 @@
 # Contributing
 
-First off, thanks for taking the time! 
+First off, thanks for taking the time! We'd love to hear from you! Drop us a line in our [chatroom](http://chat.metaflow.org)!
 
 If you are interested in contributing to Metaflow, we wrote a [guide](https://docs.metaflow.org/introduction/contributing-to-metaflow#contributing-code-and-issues)
 to get you started. 
-
-We'd love to hear from you! Drop us a line in our [chatroom](http://chat.metaflow.org)!
 
 We'd appreciate [issue reports](https://github.com/Netflix/metaflow/issues) if you run into trouble using Metaflow.
 
