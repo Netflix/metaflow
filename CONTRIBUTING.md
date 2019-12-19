@@ -2,18 +2,14 @@
 
 First off, thanks for taking the time! 
 
-If you are interested in contributing to Metaflow, we'd love to hear from you! Drop us a line
-in our [chatroom](http://chat.metaflow.org).
+If you are interested in contributing to Metaflow, we wrote a [guide](https://docs.metaflow.org/introduction/contributing-to-metaflow#contributing-code-and-issues)
+to get you started. 
 
-## Contributing Code and Issues
-Metaflow is under very active development and is also being used widely at Netflix. We’re 
-working out the kinks to make contributing to this project as easy and transparent as possible, 
-but we’re not quite there yet.
+We'd love to hear from you! Drop us a line in our [chatroom](http://chat.metaflow.org)!
 
-We'd appreciate [issue reports](https://github.com/Netflix/metaflow/issues) if you run into trouble 
-using Metaflow.
+We'd appreciate [issue reports](https://github.com/Netflix/metaflow/issues) if you run into trouble using Metaflow.
 
-## Community
+# Community
 
 Everyone is welcome to join us in our [chatroom](http://chat.metaflow.org)!
 
