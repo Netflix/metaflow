@@ -338,13 +338,6 @@ class FlowSpec(object):
               the current class decorated with the `@step` decorator
             - Static fan-out connection: self.next(self.step1, self.step2, ...) where `stepX` are
               methods in the current class decorated with the `@step` decorator
-            - Conditional branch:
-                self.next(self.if_true, self.if_false, condition='boolean_variable')
-              In this situation, both `if_true` and `if_false` are methods in the current class
-              decorated with the `@step` decorator and `boolean_variable` is a variable name
-              in the current class that evaluates to True or False. The `if_true` step will be
-              executed if thecondition variable evaluates to True and the `if_false` step will
-              be executed otherwise
             - Foreach branch:
                 self.next(self.foreach_step, foreach='foreach_iterator')
               In this situation, `foreach_step` is a method in the current class decorated with the
