@@ -353,7 +353,7 @@ class MetaflowTask(object):
 
                 # Ensure that we have the right number of inputs. The
                 # foreach case is checked above.
-                if join_type != 'foreach' and\
+                if join_type == 'split-and' and\
                    len(inputs) != len(node.in_funcs):
                     raise MetaflowDataMissing("Join *%s* expected %d "
                                               "inputs but only %d inputs "
@@ -362,15 +362,34 @@ class MetaflowTask(object):
                                                  len(node.in_funcs),
                                                  len(inputs)))
 
-                # Multiple input contexts are passed in as an argument
-                # to the step function.
-                input_obj = Inputs(self._clone_flow(inp) for inp in inputs)
-                self.flow._set_datastore(output)
-                # initialize parameters (if they exist)
-                # We take Parameter values from the first input,
-                # which is always safe since parameters are read-only
-                self._init_parameters(inputs[0])
-                self._exec_step_function(step_func, input_obj)
+                if join_type in ['foreach', 'split-and']:
+
+                    # Multiple input contexts are passed in as an argument
+                    # to the step function.
+                    input_obj = Inputs(self._clone_flow(inp) for inp in inputs)
+                    self.flow._set_datastore(output)
+                    # initialize parameters (if they exist)
+                    # We take Parameter values from the first input,
+                    # which is always safe since parameters are read-only
+                    self._init_parameters(inputs[0])
+                    self._exec_step_function(step_func, input_obj)
+                elif join_type in ['split-or']:
+                    # split-or Join:
+                    # We are running with a single input context.
+                    # The context is embedded in the flow.
+                    if len(inputs) > 1:
+                        # This should be captured by static checking but
+                        # let's assert this again
+                        raise MetaflowInternalError("Step *%s* is split-or join "
+                                                    "step but it gets multiple "
+                                                    "inputs." % step_name)
+                    self.flow._set_datastore(inputs[0])
+                    if input_paths:
+                        # initialize parameters (if they exist)
+                        # We take Parameter values from the first input,
+                        # which is always safe since parameters are read-only
+                        self._init_parameters(inputs[0])
+                    self._exec_step_function(step_func)
             else:
                 # Linear step:
                 # We are running with a single input context.

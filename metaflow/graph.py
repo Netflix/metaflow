@@ -179,8 +179,29 @@ class FlowGraph(object):
                         child.in_funcs.add(node.name)
                         traverse(child, seen + [n], split_parents)
 
+        vis = set()
+        def traverse2(node, cnt):
+            if node.name in vis:
+                return
+
+            vis.add(node.name)
+            if node.type == "linear" and len(node.in_funcs) > 1:
+                node.type = "join"
+                if cnt>0:
+                    node.split_parents = node.split_parents[:-cnt]
+                node.matching_join = node.split_parents[-1]
+                cnt+=1
+            else:
+                if cnt>0:
+                    node.split_parents = node.split_parents[:-cnt]
+            for n in node.out_funcs[::-1]:
+                if n in self:
+                    child = self[n]
+                    traverse2(child, cnt)
+
         if 'start' in self:
             traverse(self['start'], [], [])
+            traverse2(self['start'], 0)
 
         # fix the order of in_funcs
         for node in self.nodes.values():

@@ -282,12 +282,17 @@ class NativeRuntime(object):
             required_tasks = [self._finished.get((task.step, s))
                               for s in siblings(foreach_stack)]
             join_type = 'foreach'
-        else:
+        elif matching_split.type == 'split-and':
             # next step is a split-and
             # required tasks are all branches joined by the next step
             required_tasks = [self._finished.get((step, foreach_stack))
                               for step in self._graph[next_step].in_funcs]
-            join_type = 'linear'
+            join_type = 'split-and'
+        elif matching_split.type == 'split-or':
+            # next step is a split-or join step
+            # required task is the task queueing this task
+            required_tasks = [task.path]
+            join_type = 'split-or'
 
         if all(required_tasks):
             # all tasks to be joined are ready. Schedule the next join step.
