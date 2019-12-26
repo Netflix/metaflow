@@ -340,9 +340,11 @@ class NativeRuntime(object):
             if trans:
                 next_steps = trans[0]
                 foreach = trans[1]
+                condition = trans[2]
             else:
                 next_steps = []
                 foreach = None
+                condition = None
             expected = self._graph[task.step].out_funcs
             if next_steps != expected:
                 msg = 'Based on static analysis of the code, step *{step}* '\
@@ -363,6 +365,13 @@ class NativeRuntime(object):
             elif foreach:
                 # Next step is a foreach child
                 self._queue_task_foreach(task, next_steps)
+            elif condition:
+                condition_res = task.results[condition]
+                if condition_res:
+                    next_step = next_steps[0]
+                else:
+                    next_step = next_steps[1]
+                self._queue_push(next_step, {'input_paths': [task.path]})
             else:
                 # Next steps are normal linear steps
                 for step in next_steps:
