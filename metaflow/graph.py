@@ -180,7 +180,7 @@ class FlowGraph(object):
                         traverse(child, seen + [n], split_parents)
 
         vis = set()
-        def traverse2(node, cnt):
+        def traverse_fix_split_or(node, cnt):
             if node.name in vis:
                 return
 
@@ -197,11 +197,11 @@ class FlowGraph(object):
             for n in node.out_funcs[::-1]:
                 if n in self:
                     child = self[n]
-                    traverse2(child, cnt)
+                    traverse_fix_split_or(child, cnt)
 
         if 'start' in self:
             traverse(self['start'], [], [])
-            traverse2(self['start'], 0)
+            traverse_fix_split_or(self['start'], 0)
 
         # fix the order of in_funcs
         for node in self.nodes.values():
