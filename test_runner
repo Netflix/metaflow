@@ -5,12 +5,16 @@ set -o errexit -o nounset -o pipefail
 install_deps() {
   for version in 2 3;
   do
-    python$version -m pip install . coverage
+    python$version -m pip install . coverage flake8
   done
+}
+
+lint_python() {
+  flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
 }
 
 run_tests() {
   cd test/core && PYTHONPATH=`pwd`/../../ python3 run_tests.py --num-parallel 8
 }
 
-install_deps && run_tests
+install_deps && lint_python && run_tests
