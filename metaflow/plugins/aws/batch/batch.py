@@ -54,7 +54,7 @@ class Batch(object):
 
     def _job_name(self, user, flow_name, run_id, step_name, task_id, retry_count):
         return '{user}-{flow_name}-{run_id}-{step_name}-{task_id}-{retry_count}'.format(
-            user=user,
+            user=user.replace(" ", ""),
             flow_name=flow_name,
             run_id=run_id,
             step_name=step_name,
