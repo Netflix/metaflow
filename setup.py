@@ -16,7 +16,7 @@ setup(name='metaflow',
         metaflow=metaflow.main_cli:main
       ''',
       install_requires = [
-        'click',
+        'click>=7.0',
         'requests',
         'boto3'
       ],
