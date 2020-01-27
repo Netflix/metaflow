@@ -40,7 +40,7 @@ LOGGER_BAD_COLOR = 'red'
 try:
     # Python 2
     import cPickle as pickle
-except:
+except ImportError:
     # Python 3
     import pickle
 
