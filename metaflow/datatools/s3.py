@@ -507,7 +507,7 @@ class S3(object):
                         "Object corresponding to the key '%s' is not a string "
                         "or a bytes object." % key)
 
-        return self._put_many_files(_store(), overwrite)
+        return self._put_many_files(_store(), overwrite, verify=True)
 
 
     def put_files(self, key_paths, overwrite=True):
@@ -527,7 +527,7 @@ class S3(object):
                     raise MetaflowS3NotFound("Local file not found: %s" % path)
                 yield path, self._url(key), key
 
-        return self._put_many_files(_check(), overwrite)
+        return self._put_many_files(_check(), overwrite, verify=True)
 
     def _one_boto_op(self, op, url):
         error = ''
@@ -579,7 +579,7 @@ class S3(object):
                 for line in stdout.splitlines():
                     yield tuple(map(url_unquote, line.strip(b'\n').split(b' ')))
 
-    def _put_many_files(self, url_files, overwrite):
+    def _put_many_files(self, url_files, overwrite, verify):
         url_files = list(url_files)
         with NamedTemporaryFile(dir=self._tmpdir,
                                 mode='wb',
@@ -593,6 +593,7 @@ class S3(object):
                                                 filelist=inputfile.name,
                                                 verbose=False,
                                                 overwrite=overwrite,
+                                                verify=verify,
                                                 listing=True)
             if stderr:
                 raise MetaflowS3Exception("Uploading S3 files failed.\n"\

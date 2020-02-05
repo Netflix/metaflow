@@ -381,6 +381,10 @@ def lst(prefixes,
               default=True,
               show_default=True,
               help='Overwrite key if it already exists in S3.')
+@click.option('--verify/--no-verify',
+              default=True,
+              show_default=True,
+              help='Verify that files were uploaded correctly.')
 @click.option('--listing/--no-listing',
               default=False,
               show_default=True,
@@ -390,6 +394,7 @@ def put(files=None,
         num_workers=None,
         verbose=None,
         overwrite=True,
+        verify=None,
         listing=None):
 
     def _files():
@@ -423,6 +428,16 @@ def put(files=None,
                 new_urls.add(prefix_url)
         urls = [(url, size) for url, size in urls if url in new_urls]
     process_urls('upload', urls, verbose, num_workers)
+
+    if verify:
+        to_verify = []
+        for success, url, ret in parallel_op(op_get_size, [url for (url, size) in urls], num_workers):
+            if success:
+                to_verify.extend(ret)
+            else:
+                exit(ret, url)
+        verify_results(to_verify, verbose=verbose)       
+
     if listing:
         for url, _ in urls:
             print(format_triplet(url.url))
