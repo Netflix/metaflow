@@ -145,10 +145,15 @@ class CondaStepDecorator(StepDecorator):
                                 url.path.lstrip('/'),
                                 package_info['md5'],
                                 package_info['fn'])
-            #The tarball maybe missing when user invokes `conda clean`!
             tarball_path = package_info['package_tarball_full_path']
-            if os.path.isdir(package_info['package_tarball_full_path']):
-                tarball_path = '%s.tar.bz2' % package_info['package_tarball_full_path']
+            if tarball_path.endswith('.conda'):
+                #Conda doesn't set the metadata correctly for certain fields
+                # when the underlying OS is spoofed.
+                tarball_path = tarball_path[:-6]
+            if not tarball_path.endswith('.tar.bz2'):
+                tarball_path = '%s.tar.bz2' % tarball_path
+            if not os.path.isfile(tarball_path):
+                #The tarball maybe missing when user invokes `conda clean`!
                 to_download.append((package_info['url'], tarball_path))
             files.append((path, tarball_path))
         if to_download:
