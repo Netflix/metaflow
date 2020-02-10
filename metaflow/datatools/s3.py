@@ -545,6 +545,8 @@ class S3(object):
                     raise MetaflowS3NotFound(url)
                 elif error_code == 403:
                     raise MetaflowS3AccessDenied(url)
+                elif error_code == 'NoSuchBucket':
+                    raise MetaflowS3URLException("Specified S3 bucket doesn't exist.")
                 error = str(err)
             except Exception as ex:
                 # TODO specific error message for out of disk space
