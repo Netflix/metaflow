@@ -39,9 +39,9 @@ def download_conda_packages(flow_name, env_id):
 def install_conda_environment(env_id, packages):
     args = [
         'if ! type conda  >/dev/null 2>&1; \
-            then wget --no-check-certificate https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh >/dev/null 2>&1; \
-            bash ~/miniconda.sh -b -p {0} >/dev/null 2>&1; \
-            export PATH=$PATH:{0}/bin; fi'.format(os.path.join(os.getcwd(), 'conda')),
+            then wget --no-check-certificate https://repo.anaconda.com/pkgs/misc/conda-execs/conda-latest-linux-64.exe -O conda >/dev/null 2>&1; \
+            chmod +x conda; \
+            export PATH=$PATH:{0}; fi'.format(os.getcwd()),
         'cd {0}'.format(os.path.join(os.getcwd(), 'pkgs')),
         'conda create --yes --no-default-packages -p {0} --no-deps {1} >/dev/null 2>&1'.format(os.path.join(os.getcwd(), env_id), ' '.join(packages)),
         'cd {0}'.format(os.getcwd())
