@@ -4,7 +4,6 @@ import sys
 import time
 from hashlib import sha1
 from functools import partial
-from collections import Sequence
 
 try:
     # Python 2
