@@ -6,6 +6,7 @@ from hashlib import sha1
 from itertools import chain
 
 from .util import to_unicode
+from . import R
 
 try:
     # python2
@@ -16,7 +17,7 @@ except:
     import io
     BytesIO = io.BytesIO
 
-DEFAULT_SUFFIXES = ['.py']
+DEFAULT_SUFFIXES = ['.py', '.R']
 
 
 class MetaflowPackage(object):
@@ -61,10 +62,18 @@ class MetaflowPackage(object):
         # the package folders for environment
         for path_tuple in self.environment.add_to_package():
             yield path_tuple
-        # the user's working directory
-        flowdir = os.path.dirname(os.path.abspath(sys.argv[0])) + '/'
-        for path_tuple in self._walk(flowdir):
-            yield path_tuple
+        if R.use_r():
+            # the R working directory
+            for path_tuple in self._walk('%s/' % R.working_dir()):
+                yield path_tuple
+            # the R package
+            for path_tuple in R.package_paths():
+                yield path_tuple
+        else:
+            # the user's working directory
+            flowdir = os.path.dirname(os.path.abspath(sys.argv[0])) + '/'
+            for path_tuple in self._walk(flowdir):
+                yield path_tuple
 
     def _add_info(self, tar):
         info = tarfile.TarInfo('INFO')

@@ -12,6 +12,7 @@ from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 
 from metaflow import util
+from metaflow import R
 
 from .batch import Batch, BatchException
 from metaflow.metaflow_config import ECS_S3_ACCESS_IAM_ROLE, BATCH_JOB_QUEUE, \
@@ -157,7 +158,8 @@ class BatchDecorator(StepDecorator):
             cli_args.command_args.append(self.package_url)
             cli_args.command_options.update(self.attributes)
             cli_args.command_options['run-time-limit'] = self.run_time_limit
-            cli_args.entrypoint[0] = sys.executable
+            if not R.use_r():
+                cli_args.entrypoint[0] = sys.executable
 
     def task_pre_step(
             self, step_name, ds, meta, run_id, task_id, flow, graph, retry_count, max_retries):
