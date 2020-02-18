@@ -401,6 +401,7 @@ def step(obj,
          fg='magenta',
          bold=False)
 
+    obj.datastore.datastore_root = obj.datastore_root
     if obj.datastore.datastore_root is None:
         obj.datastore.datastore_root = obj.datastore.get_datastore_root_from_config(obj.echo)
 
@@ -765,6 +766,8 @@ def start(ctx,
                                                   ctx.obj.event_logger,
                                                   ctx.obj.monitor)
     ctx.obj.datastore = DATASTORES[datastore]
+    if datastore_root is None:
+        datastore_root = ctx.obj.datastore.get_datastore_root_from_config(echo)
     ctx.obj.datastore_root = datastore_root
     if ctx.invoked_subcommand not in ('run', 'resume'):
         # run/resume are special cases because they can add more decorators with --with,
