@@ -63,6 +63,7 @@ class MetaflowTask(object):
                     property(fget=property_setter))
             vars.append(var)
         self.flow._datastore.passdown_partial(parameter_ds, vars)
+        self.flow._reset_parameter_names(vars)
 
     def _init_data(self, run_id, join_type, input_paths):
         # We prefer to use the parallelized version to initialize datastores
