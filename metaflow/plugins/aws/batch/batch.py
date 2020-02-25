@@ -145,7 +145,6 @@ class Batch(object):
             .environment_variable('METAFLOW_USER', attrs['metaflow.user']) \
             .environment_variable('METAFLOW_SERVICE_URL', BATCH_METADATA_SERVICE_URL) \
             .environment_variable('METAFLOW_SERVICE_HEADERS', json.dumps(BATCH_METADATA_SERVICE_HEADERS)) \
-            .environment_variable('METAFLOW_DATASTORE_SYSROOT_LOCAL', DATASTORE_LOCAL_DIR) \
             .environment_variable('METAFLOW_DATASTORE_SYSROOT_S3', DATASTORE_SYSROOT_S3) \
             .environment_variable('METAFLOW_DATATOOLS_S3ROOT', DATATOOLS_S3ROOT) \
             .environment_variable('METAFLOW_DEFAULT_DATASTORE', 's3') \
