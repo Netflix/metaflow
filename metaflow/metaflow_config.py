@@ -56,6 +56,12 @@ DATASTORE_SYSROOT_S3 = from_conf('METAFLOW_DATASTORE_SYSROOT_S3')
 DATATOOLS_S3ROOT = from_conf(
     'METAFLOW_DATATOOLS_S3ROOT', 
         '%s/data' % from_conf('METAFLOW_DATASTORE_SYSROOT_S3'))
+# GCS bucket and prefix to store artifacts for 'gcs' datastore.
+DATASTORE_SYSROOT_GCS = from_conf('METAFLOW_DATASTORE_SYSROOT_GCS')
+# GCS datatools root location
+DATATOOLS_GCSROOT = from_conf(
+    'METAFLOW_DATATOOLS_GCSROOT', 
+        '%s/data' % from_conf('METAFLOW_DATASTORE_SYSROOT_GCS'))
 
 ###
 # Datastore local cache
@@ -195,3 +201,20 @@ def get_authenticated_boto3_client(module):
                 raise MetaflowException(repr(e))
         return boto3.session.Session(**cached_aws_sandbox_creds).client(module)
     return boto3.client(module)
+
+def get_authenticated_gcs_client():
+    try:
+        from google.cloud import storage
+    except (NameError, ImportError):
+        raise MetaflowException("Could not import module 'google.cloud.storage'. Install Google Cloud Storage first.")
+    try:
+        from google import auth
+    except (NameError, ImportError):
+        raise MetaflowException("Could not import module 'google.auth'. Install Google Auth first.")
+
+    DEFAULT_SCOPES = [
+        "https://www.googleapis.com/auth/devstorage.read_write",
+    ]
+
+    credentials, project = auth.default(scopes=DEFAULT_SCOPES)
+    return storage.Client(credentials=credentials, project=project)

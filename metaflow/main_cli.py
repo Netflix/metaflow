@@ -400,17 +400,39 @@ def sandbox(profile):
     # Persist to a file.
     persist_env(env_dict, profile)
 
+def prompt_use_metadata_service():
+    # Metadata service configuration
+    env_dict = {}
+    use_metadata = click.confirm('\nConfigure Metadata Service as default metadata provider?', 
+        default=True, abort=False)
+    if use_metadata:
+        env_dict['METAFLOW_DEFAULT_METADATA'] = 'service'
+        env_dict['METAFLOW_SERVICE_URL'] =\
+            click.prompt('\t' + cyan('METAFLOW_SERVICE_URL:') +
+              ' URL for Metadata Service (Open to Public Access)')
+        env_dict['METAFLOW_SERVICE_INTERNAL_URL'] =\
+            click.prompt('\t' + cyan('METAFLOW_SERVICE_INTERNAL_URL:') +
+              yellow(' (optional)') +  ' URL for Metadata Service (Accessible within VPC)',
+                default=env_dict['METAFLOW_SERVICE_URL'], show_default=True)
+        metaflow_service_auth_key =\
+            click.prompt('\t' + cyan('METAFLOW_SERVICE_AUTH_KEY:') + 
+              yellow(' (optional)') + ' Auth key for Metadata Service',
+                default='', show_default=False)
+        if metaflow_service_auth_key:
+                env_dict['METAFLOW_SERVICE_AUTH_KEY'] = metaflow_service_auth_key
+    return env_dict
+
+def cyan(string):
+    return click.style(string, fg='cyan')
+
+def yellow(string):
+    return click.style(string, fg='yellow')
+
 @configure.command(help='Configure metaflow to access self-managed AWS resources.')
 @click.option('--profile', '-p', default='',
                 help='Configure a named profile. Activate the profile by setting ' 
                     '`METAFLOW_PROFILE` environment variable.')
 def aws(profile):
-    def cyan(string):
-        return click.style(string, fg='cyan')
-
-    def yellow(string):
-        return click.style(string, fg='yellow')
-
     prompt_config_overwrite(profile)
     if not click.confirm('Already configured ' + cyan('AWS access credentials') + '?',
           default=True):
@@ -457,22 +479,35 @@ def aws(profile):
                         default='', show_default=False)
                 if metaflow_batch_container_image:
                     env_dict['METAFLOW_BATCH_CONTAINER_IMAGE'] = metaflow_batch_container_image
-        # Metadata service configuration.
-        use_metadata = click.confirm('\nConfigure Metadata Service as default metadata provider?', 
-            default=True, abort=False)
-        if use_metadata:
-            env_dict['METAFLOW_DEFAULT_METADATA'] = 'service'
-            env_dict['METAFLOW_SERVICE_URL'] =\
-                click.prompt('\t' + cyan('METAFLOW_SERVICE_URL:') +
-                  ' URL for Metadata Service (Open to Public Access)')
-            env_dict['METAFLOW_SERVICE_INTERNAL_URL'] =\
-                click.prompt('\t' + cyan('METAFLOW_SERVICE_INTERNAL_URL:') +
-                  yellow(' (optional)') +  ' URL for Metadata Service (Accessible within VPC)',
-                    default=env_dict['METAFLOW_SERVICE_URL'], show_default=True)
-            metaflow_service_auth_key =\
-                click.prompt('\t' + cyan('METAFLOW_SERVICE_AUTH_KEY:') + 
-                  yellow(' (optional)') + ' Auth key for Metadata Service',
-                    default='', show_default=False)
-            if metaflow_service_auth_key:
-                    env_dict['METAFLOW_SERVICE_AUTH_KEY'] = metaflow_service_auth_key
+        env_dict.update(prompt_use_metadata_service())
+        persist_env(env_dict, profile)
+
+@configure.command(help='Configure metaflow to access GCP resources.')
+@click.option('--profile', '-p', default='',
+                help='Configure a named profile. Activate the profile by setting '
+                    '`METAFLOW_PROFILE` environment variable.')
+def gcp(profile):
+    prompt_config_overwrite(profile)
+    if not click.confirm('Already configured ' + cyan('GCS access credentials') + '?',
+          default=True):
+        echo('\nSetup your GCS access credentials first by following this guide: ', nl=False)
+        echo('https://cloud.google.com/storage/docs/authentication/hmackeys',
+             fg='cyan')
+    else:
+        env_dict = {}
+        # Datastore configuration.
+        use_gcs = click.confirm('\nConfigure GCS as default datastore?',
+                              default=True, abort=False)
+        if use_gcs:
+            env_dict['METAFLOW_DEFAULT_DATASTORE'] = 'gcs'
+            env_dict['METAFLOW_DATASTORE_SYSROOT_GCS'] =\
+                click.prompt('\t' + cyan('METAFLOW_DATASTORE_SYSROOT_GCS:') +
+                  ' GCS url for metaflow datastore (gs://<bucket>/<prefix>)')
+
+            env_dict['METAFLOW_DATATOOLS_SYSROOT_GCS'] =\
+                click.prompt('\t' + cyan('METAFLOW_DATATOOLS_SYSROOT_GCS:') +
+                  yellow(' (optional)') + ' GCS url for metaflow datatools (s3://<bucket>/<prefix>)',
+                    default='%s/data' % env_dict['METAFLOW_DATASTORE_SYSROOT_GCS'],
+                    show_default=True)
+        env_dict.update(prompt_use_metadata_service())
         persist_env(env_dict, profile)
