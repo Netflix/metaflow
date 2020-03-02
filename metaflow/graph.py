@@ -4,7 +4,38 @@ import re
 
 def deindent_docstring(doc):
     if doc:
-        return re.sub(r'\n[\t ]+', '\n', doc).strip()
+        # Find the indent to remove from the doctring. We consider the following possibilities:
+        # Option 1:
+        #  """This is the first line
+        #    This is the second line
+        #  """
+        # Option 2:
+        #  """
+        # This is the first line
+        # This is the second line
+        # """
+        # Option 3:
+        #  """
+        #     This is the first line
+        #     This is the second line
+        #  """
+        #
+        # In all cases, we can fine the indent to remove by doing the following:
+        #  - Check the first non-empty line, if it has an indent, use that as the base indent
+        #  - If it does not have an indent and there is a second line, check the indent of the
+        #    second line and use that
+        saw_first_line = False
+        matched_indent = None
+        for line in doc.splitlines():
+            if line:
+                matched_indent = re.match('[\t ]+', line)
+                if matched_indent is not None or saw_first_line:
+                    break
+                saw_first_line = True
+        if matched_indent:
+            return re.sub(r'\n' + matched_indent.group(), '\n', doc).strip()
+        else:
+            return doc
     else:
         return ''
 
