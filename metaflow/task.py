@@ -63,7 +63,7 @@ class MetaflowTask(object):
                     property(fget=property_setter))
             vars.append(var)
         self.flow._datastore.passdown_partial(parameter_ds, vars)
-        self.flow._reset_parameter_names(vars)
+        return vars
 
     def _init_data(self, run_id, join_type, input_paths):
         # We prefer to use the parallelized version to initialize datastores
@@ -370,7 +370,7 @@ class MetaflowTask(object):
                 # initialize parameters (if they exist)
                 # We take Parameter values from the first input,
                 # which is always safe since parameters are read-only
-                self._init_parameters(inputs[0])
+                current.parameter_names = self._init_parameters(inputs[0])
                 self._exec_step_function(step_func, input_obj)
             else:
                 # Linear step:
@@ -387,7 +387,7 @@ class MetaflowTask(object):
                     # initialize parameters (if they exist)
                     # We take Parameter values from the first input,
                     # which is always safe since parameters are read-only
-                    self._init_parameters(inputs[0])
+                    current.parameter_names = self._init_parameters(inputs[0])
                 self._exec_step_function(step_func)
 
             for deco in decorators:

@@ -69,7 +69,6 @@ class FlowSpec(object):
 
         self._graph = FlowGraph(self.__class__)
         self._steps = [getattr(self, node.name) for node in self._graph]
-        self._parameter_names = None
 
         if use_cli:
             # we import cli here to make sure custom parameters in
@@ -92,23 +91,6 @@ class FlowSpec(object):
             fname = fname[:-1]
         return os.path.basename(fname)
 
-    @property
-    def parameter_names(self):
-        """
-        Generator of the names of all parameters for this flow
-
-        Yields
-        ------
-        str
-            A name of a parameter
-        """
-        if self._parameter_names:
-            for n in self._parameter_names:
-                yield n
-        else:
-            for n, _ in self._get_parameters():
-                yield n
-
     def _get_parameters(self):
         for var in dir(self):
             if var[0] == '_':
@@ -119,9 +101,6 @@ class FlowSpec(object):
                 continue
             if isinstance(val, Parameter):
                 yield var, val
-
-    def _reset_parameter_names(self, names):
-        self._parameter_names = names
 
     def _set_datastore(self, datastore):
         self._datastore = datastore

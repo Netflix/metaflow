@@ -10,6 +10,7 @@ class Current(object):
         self._namespace = None
         self._username = None
         self._is_running = False
+        self._parameter_names = None
 
     def _set_env(self,
                  flow_name,
@@ -67,6 +68,19 @@ class Current(object):
     @property
     def username(self):
         return self._username
+
+    @property
+    def parameter_names(self):
+        if self._parameter_names is not None:
+            return self._parameter_names
+        raise RuntimeError("Parameter names not set")
+
+    @parameter_names.setter
+    def parameter_names(self, value):
+        if self._parameter_names is None:
+            self._parameter_names = value
+        else:
+            raise ValueError("Cannot reset parameter names")
 
 # instantiate the Current singleton. This will be populated
 # by task.MetaflowTask before a task is executed.
