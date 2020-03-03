@@ -58,7 +58,7 @@ DATATOOLS_S3ROOT = from_conf(
         '%s/data' % from_conf('METAFLOW_DATASTORE_SYSROOT_S3'))
 
 # S3 endpoint url 
-S3_ENDPOINT_URL = from_conf('METAFLOW_S3_ENDPOINT_URL', 's3.amazonaws.com')
+S3_ENDPOINT_URL = from_conf('METAFLOW_S3_ENDPOINT_URL', None)
 
 ###
 # Datastore local cache
