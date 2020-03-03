@@ -128,7 +128,7 @@ class Batch(object):
                 )
         # Environment variable for METAFLOW_DATASTORE_SYSROOT_LOCAL is NOT set 
         # because of directory replication issues caused when working with local metadata provider and batch. 
-        # The a local metadata provider will sync metadata from batch via tar'd object placed on S3 from the batch container. 
+        # The a local metadata provider will sync metadata from batch via tar'd object placed on S3. 
         # The syncing works by taring and untaring an archieve. if METAFLOW_DATASTORE_SYSROOT_LOCAL is set then  
         # it will create an extra folder under `.metaflow/.metaflow` and hence incorrectly syncing the information in your metadataprovidor's .metaflow directory. 
         job = self._client.job()
