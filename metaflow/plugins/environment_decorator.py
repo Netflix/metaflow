@@ -1,8 +1,32 @@
 import os
 
 from metaflow.exception import MetaflowException
-from metaflow.decorators import StepDecorator
+from metaflow.decorators import StepDecorator,FlowDecorator
 
+class GlobalEnvironmentDecorator(FlowDecorator):
+    """
+    Flow Decorator to add a general environment variables to ever decorator. 
+
+    To use, annotate your flows as follows:
+    ```
+    @global_environment(vars={'MY_ENV': 'value'})
+    class MyFlow(FlowSpec):
+        ...
+    ```
+
+    Any step level Environment decorator will add/update mote env variables set via this decorator. 
+
+    Parameters
+    ----------
+    vars : Dict
+        Dictionary of environment variables to add/update prior to executing your step.
+    """
+    name = 'global_environment'
+    defaults = {
+        'vars':{}
+    }
+    def flow_init(self, flow, graph, environment, datastore, logger):
+        os.environ.update(self.attributes['vars'].items())
 
 class EnvironmentDecorator(StepDecorator):
     """

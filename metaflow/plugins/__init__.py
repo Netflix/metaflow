@@ -38,7 +38,8 @@ ENVIRONMENTS = [CondaEnvironment]
 # careful with the choice of name though - they become top-level
 # imports from the metaflow package.
 from .conda.conda_flow_decorator import CondaFlowDecorator
-FLOW_DECORATORS = [CondaFlowDecorator]
+from .environment_decorator import GlobalEnvironmentDecorator
+FLOW_DECORATORS = [CondaFlowDecorator,GlobalEnvironmentDecorator]
 
 # Sidecars
 SIDECAR = {}
