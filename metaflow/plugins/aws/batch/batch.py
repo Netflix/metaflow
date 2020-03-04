@@ -126,6 +126,7 @@ class Batch(object):
                     'Unable to launch Batch job. No job queue '
                     ' specified and no valid & enabled queue found.'
                 )
+
         job = self._client.job()
         job \
             .job_name(job_name) \
@@ -145,11 +146,14 @@ class Batch(object):
             .environment_variable('METAFLOW_USER', attrs['metaflow.user']) \
             .environment_variable('METAFLOW_SERVICE_URL', BATCH_METADATA_SERVICE_URL) \
             .environment_variable('METAFLOW_SERVICE_HEADERS', json.dumps(BATCH_METADATA_SERVICE_HEADERS)) \
-            .environment_variable('METAFLOW_DATASTORE_SYSROOT_LOCAL', DATASTORE_LOCAL_DIR) \
             .environment_variable('METAFLOW_DATASTORE_SYSROOT_S3', DATASTORE_SYSROOT_S3) \
             .environment_variable('METAFLOW_DATATOOLS_S3ROOT', DATATOOLS_S3ROOT) \
             .environment_variable('METAFLOW_DEFAULT_DATASTORE', 's3') \
             .environment_variable('METAFLOW_DEFAULT_METADATA', DEFAULT_METADATA)
+            # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync between the local user 
+            # instance and the remote AWS Batch instance assumes metadata is stored in DATASTORE_LOCAL_DIR 
+            # on the remote AWS Batch instance; this happens when METAFLOW_DATASTORE_SYSROOT_LOCAL 
+            # is NOT set (see get_datastore_root_from_config in datastore/local.py).
         for name, value in env.items():
             job.environment_variable(name, value)
         for name, value in self.metadata.get_runtime_environment('batch').items():
