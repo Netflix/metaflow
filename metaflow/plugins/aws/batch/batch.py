@@ -26,14 +26,15 @@ class BatchKilledException(MetaflowException):
 
 
 class Batch(object):
-    def __init__(self, metadata, environment):
+    def __init__(self, metadata, environment,datastore):
         self.metadata = metadata
         self.environment = environment
         self._client = BatchClient()
+        self.datastore = datastore
         atexit.register(lambda: self.job.kill() if hasattr(self, 'job') else None)
-
+    
     def _command(self, code_package_url, environment, step_name, step_cli):
-        cmds = environment.get_package_commands(code_package_url)
+        cmds = environment.get_package_commands(code_package_url,self.datastore)
         cmds.extend(environment.bootstrap_commands(step_name))
         cmds.append("echo 'Task is starting.'")
         cmds.extend(step_cli)

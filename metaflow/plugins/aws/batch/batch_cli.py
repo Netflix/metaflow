@@ -95,7 +95,7 @@ def _sync_metadata(echo, metadata, datastore_root, attempt):
 @click.option("--run-id", default=None, help="List tasks corresponding to the run id.")
 @click.pass_context
 def list(ctx, run_id, user, my_runs):
-    batch = Batch(ctx.obj.metadata, ctx.obj.environment)
+    batch = Batch(ctx.obj.metadata, ctx.obj.environment,ctx.obj.datastore)
     _execute_cmd(
         batch.list_jobs, ctx.obj.flow.name, run_id, user, my_runs, ctx.obj.echo
     )
@@ -109,7 +109,7 @@ def list(ctx, run_id, user, my_runs):
 )
 @click.pass_context
 def kill(ctx, run_id, user, my_runs):
-    batch = Batch(ctx.obj.metadata, ctx.obj.environment)
+    batch = Batch(ctx.obj.metadata, ctx.obj.environment,ctx.obj.datastore)
     _execute_cmd(
         batch.kill_jobs, ctx.obj.flow.name, run_id, user, my_runs, ctx.obj.echo
     )
@@ -238,7 +238,7 @@ def step(
             "Sleeping %d minutes before the next Batch retry" % minutes_between_retries
         )
         time.sleep(minutes_between_retries * 60)
-    batch = Batch(ctx.obj.metadata, ctx.obj.environment)
+    batch = Batch(ctx.obj.metadata, ctx.obj.environment,ctx.obj.datastore)
     try:
         with ctx.obj.monitor.measure("metaflow.batch.launch"):
             batch.launch_job(

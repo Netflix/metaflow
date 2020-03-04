@@ -76,21 +76,15 @@ class MetaflowEnvironment(object):
         """
         return "Local environment"
 
-    def get_package_commands(self, code_package_url):
+    def get_package_commands(self, code_package_url,datastore):
         cmds = ["set -e",
                 "echo \'Setting up task environment.\'",
                 "%s -m pip install awscli click requests boto3 \
                     --user -qqq" % self._python(),
                 "mkdir metaflow",
-                "cd metaflow",
-                "i=0; while [ $i -le 5 ]; do "
-                    "echo \'Downloading code package.\'; "
-                    "%s -m awscli s3 cp %s job.tar >/dev/null && \
-                        echo \'Code package downloaded.\' && break; "
-                    "sleep 10; i=$((i+1));"
-                "done " % (self._python(), code_package_url),
-                "tar xf job.tar"
-                ]
+                "cd metaflow"]
+        env = self
+        cmds.extend(datastore.package_download_commands(env,code_package_url))
         return cmds
 
     def get_environment_info(self):

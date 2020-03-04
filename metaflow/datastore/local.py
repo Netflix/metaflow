@@ -241,3 +241,6 @@ class LocalDataStore(MetaflowDataStore):
         filename = self.get_done_filename_for_attempt(self.attempt)
         path = os.path.join(self.root, filename)
         return os.path.exists(path)
+
+    def package_download_commands(environment,code_package):
+        return []

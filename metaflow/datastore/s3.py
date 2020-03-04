@@ -254,3 +254,15 @@ class S3DataStore(MetaflowDataStore):
         filename = self.get_done_filename_for_attempt(self.attempt)
         path = os.path.join(self.root, filename)
         return bool(self._head_s3_object(path))
+
+    
+    def package_download_commands(environment,code_package):
+        return [
+            "i=0; while [ $i -le 5 ]; do "
+                "echo \'Downloading code package.\'; "
+                "%s -m awscli s3 cp %s job.tar >/dev/null && \
+                echo \'Code package downloaded.\' && break; "
+                "sleep 10; i=$((i+1));"
+            "done " % (environment._python(), code_package),
+            "tar xf job.tar"
+        ]
