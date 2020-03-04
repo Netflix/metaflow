@@ -126,14 +126,14 @@ class Batch(object):
                     'Unable to launch Batch job. No job queue '
                     ' specified and no valid & enabled queue found.'
                 )
-
+        """ 
+        The environment variable for METAFLOW_DATASTORE_SYSROOT_LOCAL is NOT set because
+        the syncing of the metadata (provided in task_finished in batch_decorator.py and
+        in  _sync_metadata  in batch_cli.py) assumes ',that DATASTORE_LOCAL_DIR is where
+        the metadata is stored on the remote batch instance This is the default value if
+        METAFLOW_DATASTORE_SYSROOT_LOCAL  is  NOT  set  if  it  is the resulting path is
+        different (see get_datastore_root_from_config in datastore/local.py
         """
-        # The environment variable for METAFLOW_DATASTORE_SYSROOT_LOCAL is NOT set because the syncing of the
-        # metadata (provided in task_finished in batch_decorator.py and in _sync_metadata in batch_cli.py) assumes that DATASTORE_LOCAL_DIR is where the metadata is stored on the remote batch instance. 
-        # This is the default value if METAFLOW_DATASTORE_SYSROOT_LOCAL is NOT set; 
-        # if it is, the resulting path is different (see get_datastore_root_from_config in datastore/local.py)
-        """
-
         job = self._client.job()
         job \
             .job_name(job_name) \
