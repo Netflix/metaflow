@@ -83,6 +83,7 @@ class MetaflowEnvironment(object):
                     --user -qqq" % self._python(),
                 "mkdir metaflow",
                 "cd metaflow",
+                "mkdir .metaflow", # mute local datastore creation log
                 "i=0; while [ $i -le 5 ]; do "
                     "echo \'Downloading code package.\'; "
                     "%s -m awscli s3 cp %s job.tar >/dev/null && \
