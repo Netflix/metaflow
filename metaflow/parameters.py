@@ -235,7 +235,7 @@ def set_parameters(flow, kwargs):
     parameter_list_length = 0
     num_parameters = 0
     for var, param in flow._get_parameters():
-        val = kwargs[param.name.lower()]
+        val = kwargs[param.name.replace('-', '_').lower()]
         # Account for the parameter values to unicode strings or integer
         # values. And the name to be a unicode string.
         parameter_list_length += len((param.name + str(val)).encode("utf-8"))
