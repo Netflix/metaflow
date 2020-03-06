@@ -607,10 +607,10 @@ class MetaflowDataStore(object):
         return '\n'.join(line for k, line in sorted(lines()))
 
     @staticmethod
-    def package_download_commands(environment,code_package):
+    def package_download_commands(environment, code_package):
         """
         Intended to download the package inside a container for the execution of a step. 
-        Static because it is a utility method WRT to the datastore child class defined for different object store. 
+        Static because it is a utility method WRT the datastore child class defined for different object store. 
         Will be called by the MetaflowEnvironment.get_package_commands
         """
         raise NotImplementedError()

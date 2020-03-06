@@ -256,8 +256,14 @@ class S3DataStore(MetaflowDataStore):
         return bool(self._head_s3_object(path))
 
     
-    def package_download_commands(environment,code_package):
+    def package_download_commands(environment, code_package):
+        """
+        Inherited from MetaflowDataStore. 
+        """
         return [
+            "echo 'Installing S3 Dependencies'",
+            "%s -m pip install awscli boto3 \
+                    --user -qqq" % environment._python(),
             "i=0; while [ $i -le 5 ]; do "
                 "echo \'Downloading code package.\'; "
                 "%s -m awscli s3 cp %s job.tar >/dev/null && \
