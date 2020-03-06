@@ -20,7 +20,7 @@ def deindent_docstring(doc):
         #     This is the second line
         #  """
         #
-        # In all cases, we can fine the indent to remove by doing the following:
+        # In all cases, we can find the indent to remove by doing the following:
         #  - Check the first non-empty line, if it has an indent, use that as the base indent
         #  - If it does not have an indent and there is a second line, check the indent of the
         #    second line and use that
