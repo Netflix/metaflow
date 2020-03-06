@@ -82,7 +82,9 @@ class MetaflowEnvironment(object):
                 "%s -m pip install click requests \
                     --user -qqq" % self._python(),
                 "mkdir metaflow",
-                "cd metaflow"]
+                "cd metaflow",
+                "mkdir .metaflow" # mute local datastore creation log
+                ]
         env = self
         cmds.extend(datastore.package_download_commands(env, code_package_url))
         return cmds
