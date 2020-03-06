@@ -370,7 +370,7 @@ class MetaflowTask(object):
                 # initialize parameters (if they exist)
                 # We take Parameter values from the first input,
                 # which is always safe since parameters are read-only
-                current.parameter_names = self._init_parameters(inputs[0])
+                current._update_env({'parameter_names': self._init_parameters(inputs[0])})
                 self._exec_step_function(step_func, input_obj)
             else:
                 # Linear step:
@@ -387,7 +387,7 @@ class MetaflowTask(object):
                     # initialize parameters (if they exist)
                     # We take Parameter values from the first input,
                     # which is always safe since parameters are read-only
-                    current.parameter_names = self._init_parameters(inputs[0])
+                    current._update_env({'parameter_names': self._init_parameters(inputs[0])})
                 self._exec_step_function(step_func)
 
             for deco in decorators:

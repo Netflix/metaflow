@@ -61,4 +61,7 @@ class PyLint(object):
             # Ditto for IncludeFile
             if "Instance of 'IncludeFile' has no" in line:
                 continue
+            # Ditto for dynamically added properties in 'current'
+            if "Instance of 'Current' has no" in line:
+                continue
             yield line
