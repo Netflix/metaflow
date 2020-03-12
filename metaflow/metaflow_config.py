@@ -59,6 +59,7 @@ DATATOOLS_S3ROOT = from_conf(
 
 # S3 endpoint url 
 S3_ENDPOINT_URL = from_conf('METAFLOW_S3_ENDPOINT_URL', None)
+S3_VERIFY_CERTIFICATE = from_conf('METAFLOW_S3_VERIFY_CERTIFICATE', None)
 
 ###
 # Datastore local cache
