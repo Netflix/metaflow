@@ -109,7 +109,7 @@ class Batch(object):
         memory=None,
         run_time_limit=None,
         env={},
-        attrs={},
+        attrs={}
     ):
         job_name = self._job_name(
             attrs['metaflow.user'],
