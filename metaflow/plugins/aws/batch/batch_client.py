@@ -157,7 +157,7 @@ class BatchJob(object):
 
 
 class Throttle(object):
-    def __init__(self, delta_in_secs=1, num_tries=10):
+    def __init__(self, delta_in_secs=1, num_tries=20):
         self.delta_in_secs = delta_in_secs
         self.num_tries = num_tries
         self._now = None
