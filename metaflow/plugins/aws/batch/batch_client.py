@@ -179,7 +179,7 @@ class Throttle(object):
                     self._tries_left -= 1
                     if self._tries_left == 0:
                         raise ex.ex
-                    self._wait = (self.delta_in_secs*1.1)**(self.num_tries-self._tries_left) + \
+                    self._wait = (self.delta_in_secs*1.2)**(self.num_tries-self._tries_left) + \
                         random.randint(0, 3*self.delta_in_secs)
         return wrapped
 
