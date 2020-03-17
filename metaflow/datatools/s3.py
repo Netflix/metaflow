@@ -26,7 +26,7 @@ except:
     # python3
     from urllib.parse import urlparse
 
-from ..metaflow_config import get_authenticated_boto3_client
+from metaflow.datastore.util.s3util import get_s3_client
 from botocore.exceptions import ClientError
 
 NUM_S3OP_RETRIES = 8
@@ -536,7 +536,7 @@ class S3(object):
                                      prefix='metaflow.s3.one_file.',
                                      delete=False)
             try:
-                s3 = get_authenticated_boto3_client('s3')
+                s3, _ = get_s3_client()
                 op(s3, tmp.name)
                 return tmp.name
             except ClientError as err:

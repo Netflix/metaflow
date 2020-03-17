@@ -57,6 +57,10 @@ DATATOOLS_S3ROOT = from_conf(
     'METAFLOW_DATATOOLS_S3ROOT', 
         '%s/data' % from_conf('METAFLOW_DATASTORE_SYSROOT_S3'))
 
+# S3 endpoint url 
+S3_ENDPOINT_URL = from_conf('METAFLOW_S3_ENDPOINT_URL', None)
+S3_VERIFY_CERTIFICATE = from_conf('METAFLOW_S3_VERIFY_CERTIFICATE', None)
+
 ###
 # Datastore local cache
 ###
@@ -170,7 +174,7 @@ def get_pinned_conda_libs():
 
 cached_aws_sandbox_creds = None
 
-def get_authenticated_boto3_client(module):
+def get_authenticated_boto3_client(module, params={}):
     from metaflow.exception import MetaflowException
     import requests
     try:
@@ -193,5 +197,5 @@ def get_authenticated_boto3_client(module):
                 cached_aws_sandbox_creds = r.json()
             except requests.exceptions.HTTPError as e:
                 raise MetaflowException(repr(e))
-        return boto3.session.Session(**cached_aws_sandbox_creds).client(module)
-    return boto3.client(module)
+        return boto3.session.Session(**cached_aws_sandbox_creds).client(module, **params)
+    return boto3.client(module, **params)

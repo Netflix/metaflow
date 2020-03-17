@@ -66,8 +66,8 @@ def normalize_client_error(err):
 
 def worker(queue, mode):
     try:
-        from metaflow.metaflow_config import get_authenticated_boto3_client
-        s3 = get_authenticated_boto3_client('s3')
+        from metaflow.datastore.util.s3util import get_s3_client
+        s3, _ = get_s3_client()
         while True:
             url = queue.get()
             if url is None:
@@ -163,9 +163,9 @@ class S3Ops(object):
         self.s3 = None
 
     def reset_client(self, hard_reset=False):
-        from metaflow.metaflow_config import get_authenticated_boto3_client
+        from metaflow.datastore.util.s3util import get_s3_client
         if hard_reset or self.s3 is None:
-            self.s3 = get_authenticated_boto3_client('s3')
+            self.s3, _ = get_s3_client()
 
     @aws_retry
     def get_size(self, url):
