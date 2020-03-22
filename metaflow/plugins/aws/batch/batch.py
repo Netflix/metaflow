@@ -3,7 +3,6 @@ import time
 import json
 import select
 import atexit
-import re
 import shlex
 import time
 import warnings
@@ -55,7 +54,7 @@ class Batch(object):
 
     def _job_name(self, user, flow_name, run_id, step_name, task_id, retry_count):
         job_name = '{user}-{flow_name}-{run_id}-{step_name}-{task_id}-{retry_count}'.format(
-            user=user.replace(" ", ""),
+            user=user,
             flow_name=flow_name,
             run_id=run_id,
             step_name=step_name,
@@ -63,15 +62,12 @@ class Batch(object):
             retry_count=retry_count,
         )
 
-        # AWS Batch job name validation according to
-        # https://docs.aws.amazon.com/batch/latest/APIReference/API_SubmitJob.html#API_SubmitJob_RequestSyntax
-        if not job_name[0].isalnum():
-            raise BatchException('The Batch Jobs first character has to be alphanumeric')
         if len(job_name) > 128:
-            raise BatchException('The Batch Jobs name cannot exceed 128 characters')
-        pattern = re.compile('/[a-zA-Z0-9_-]*/')
-        if not pattern.match(job_name):
-            raise BatchException('The Batch Jobs name may only have dashes, underscores or alphanumeric characters')
+            raise BatchException(f"""Can't run a batch job with a name exceeding 128 characters
+                your current batch job name is: {job_name}
+                try reducing your flow or step name's length
+                """)
+
         return job_name
 
     def list_jobs(self, flow_name, run_id, user, echo):
