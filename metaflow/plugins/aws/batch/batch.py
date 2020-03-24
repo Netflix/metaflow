@@ -63,10 +63,7 @@ class Batch(object):
         )
 
         if len(job_name) > 128:
-            raise BatchException(f"""Can't run a batch job with a name exceeding 128 characters
-                your current batch job name is: {job_name}
-                try reducing your flow or step name's length
-                """)
+            raise BatchException('Cant run a batch job with a name exceeding 128 characters. Try reducing your flow or step names length')
 
         return job_name
 

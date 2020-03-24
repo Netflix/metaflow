@@ -111,10 +111,8 @@ class BatchDecorator(StepDecorator):
     def __init__(self, attributes=None, statically_defined=False):
         username = util.get_username()
         if not re.match('^[a-zA-Z0-9][a-zA-Z0-9_-]*$', username):
-            raise BatchException("""The username trying to execute this batch job has one or more illegal characters.\n
-                - make sure the first character in the username is alphanumeric
-                - username may only have dashes, underscores or alphanumeric characters
-                - you can set a specific username via the USER environment variable""")
+            raise BatchException('The username trying to execute this batch job has one or more illegal characters. Make sure the first character in the username is alphanumeric and that it only contains dashes, underscores or alphanumeric characters. You can also set a specific username via the USER environment variable')
+
         super(BatchDecorator, self).__init__(attributes, statically_defined)
         if not self.attributes['image']:
             if BATCH_CONTAINER_IMAGE:
