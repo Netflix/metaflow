@@ -13,7 +13,7 @@ from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 
 from metaflow import util
 
-from .batch import Batch, BatchException
+from .batch import Batch, BatchException, BatchInvalidUserException
 from metaflow.metaflow_config import ECS_S3_ACCESS_IAM_ROLE, BATCH_JOB_QUEUE, \
                     BATCH_CONTAINER_IMAGE, BATCH_CONTAINER_REGISTRY
 
@@ -124,7 +124,7 @@ class BatchDecorator(StepDecorator):
     def step_init(self, flow, graph, step, decos, environment, datastore, logger):
         username = util.get_username()
         if not re.match('^[a-zA-Z0-9][a-zA-Z0-9_-]*$', username):
-            raise BatchException('The username trying to execute this batch job has one or more illegal characters. Make sure the first character in the username is alphanumeric and that it only contains dashes, underscores or alphanumeric characters. You can also set a specific username via the USER environment variable')
+            raise BatchInvalidUserException()
         if datastore.TYPE != 's3':
             raise BatchException('The *@batch* decorator requires --datastore=s3.')
 

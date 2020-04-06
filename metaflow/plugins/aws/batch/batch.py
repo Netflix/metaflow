@@ -69,7 +69,7 @@ class Batch(object):
         )
 
         if len(job_name) > 128:
-            raise BatchException('Unable to launch AWS Batch job - job name exceeds 128 characters. Shorten your flow and/or step name by x characters.')
+            raise BatchException(f'Unable to launch AWS Batch job - job name exceeds 128 characters. Shorten your flow and/or step name by {128 - len(job_name)} characters.')
 
         return job_name
 
