@@ -208,6 +208,7 @@ class CondaStepDecorator(StepDecorator):
         self.flow = flow
         self.datastore = datastore
         self.base_attributes = self._get_base_attributes()
+        os.environ['PYTHONNOUSERSITE'] = '1'
 
     def package_init(self, flow, step, environment):
         if self.is_enabled():
