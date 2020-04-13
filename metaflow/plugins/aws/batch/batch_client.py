@@ -1,4 +1,5 @@
 from collections import defaultdict, deque
+import random
 import select
 import sys
 import time
@@ -155,19 +156,36 @@ class BatchJob(object):
         return self
 
 
-class limit(object):
-    def __init__(self, delta_in_secs):
+class Throttle(object):
+    def __init__(self, delta_in_secs=1, num_tries=20):
         self.delta_in_secs = delta_in_secs
+        self.num_tries = num_tries
         self._now = None
+        self._reset()
+
+    def _reset(self):
+        self._tries_left = self.num_tries
+        self._wait = self.delta_in_secs
 
     def __call__(self, func):
         def wrapped(*args, **kwargs):
             now = time.time()
-            if self._now is None or (now - self._now > self.delta_in_secs):
-                func(*args, **kwargs)
+            if self._now is None or (now - self._now > self._wait):
                 self._now = now
+                try:
+                    func(*args, **kwargs)
+                    self._reset()
+                except TriableException as ex:
+                    self._tries_left -= 1
+                    if self._tries_left == 0:
+                        raise ex.ex
+                    self._wait = (self.delta_in_secs*1.2)**(self.num_tries-self._tries_left) + \
+                        random.randint(0, 3*self.delta_in_secs)
         return wrapped
 
+class TriableException(Exception):
+    def __init__(self, ex):
+        self.ex = ex
 
 class RunningJob(object):
 
@@ -184,16 +202,21 @@ class RunningJob(object):
     def _apply(self, data):
         self._data = data
 
-    @limit(1)
+    @Throttle()
     def _update(self):
         try:
             data = self._client.describe_jobs(jobs=[self._id])
-        except self._client.exceptions.ClientException:
-            return
+        except self._client.exceptions.ClientError as err:
+            code = err.response['ResponseMetadata']['HTTPStatusCode']
+            if code == 429 or code >= 500:
+                raise TriableException(err)
+            raise err
         self._apply(data['jobs'][0])
 
     def update(self):
         self._update()
+        while not self._data:
+            self._update()
         return self
 
     @property

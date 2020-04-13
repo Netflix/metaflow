@@ -255,7 +255,7 @@ def step(
                 memory=memory,
                 run_time_limit=run_time_limit,
                 env=env,
-                attrs=attrs,
+                attrs=attrs
             )
     except Exception as e:
         print(e)
