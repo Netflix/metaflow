@@ -173,11 +173,11 @@ class Batch(object):
                 if status != job.status or (time.time()-t) > 30:
                     status = job.status
                     echo(
-                        self.job.id,
+                        job.id,
                         'Task is starting (status %s)...' % status
                     )
                     t = time.time()
-                if self.job.is_running or self.job.is_done or self.job.is_crashed:
+                if job.is_running or job.is_done or job.is_crashed:
                     break
                 select.poll().poll(200)
 
@@ -199,16 +199,13 @@ class Batch(object):
                 select.poll().poll(500)
 
         if self.job.is_crashed:
-            if self.job.reason:
-                raise BatchException(
-                    'Task crashed due to %s .'
-                    'This could be a transient error. '
-                    'Use @retry to retry.' % self.job.reason
-                )
+            msg = next(msg for msg in 
+                [self.job.reason, self.job.status_reason, 'Task crashed.']
+                 if msg is not None)
             raise BatchException(
-                'Task crashed. '
+                '%s '
                 'This could be a transient error. '
-                'Use @retry to retry.'
+                'Use @retry to retry.' % msg
             )
         else:
             if self.job.is_running:
