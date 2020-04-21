@@ -60,11 +60,11 @@ class BatchJob(object):
     def execute(self):
         if self._image is None:
             raise BatchJobException(
-                'Unable to launch Batch job. No docker image specified.'
+                'Unable to launch AWS Batch job. No docker image specified.'
             )
         if self._iam_role is None:
             raise BatchJobException(
-                'Unable to launch Batch job. No IAM role specified.'
+                'Unable to launch AWS Batch job. No IAM role specified.'
             )
         self.payload['jobDefinition'] = self._job_def_arn(self._image, self._iam_role)
         response = self._client.submit_job(**self.payload)
@@ -302,7 +302,7 @@ class RunningJob(object):
 
         log_stream = None
         while True:
-            if self.is_running or self.is_done:
+            if self.is_running or self.is_done or self.is_crashed:
                 log_stream = get_log_stream(self)
                 break
             elif not self.is_done:
