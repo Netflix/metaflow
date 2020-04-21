@@ -66,12 +66,13 @@ class BatchJob(object):
             raise BatchJobException(
                 'Unable to launch AWS Batch job. No IAM role specified.'
             )
-        self.payload['jobDefinition'] = self._job_def_arn(self._image, self._iam_role)
+        if 'jobDefinition' not in self.payload:
+            self.payload['jobDefinition'] = self._register_job_definition(self._image, self._iam_role)
         response = self._client.submit_job(**self.payload)
         job = RunningJob(response['jobId'], self._client)
         return job.update()
 
-    def _job_def_arn(self, image, job_role):
+    def _register_job_definition(self, image, job_role):
         def_name = 'metaflow_%s' % hashlib.sha224((image + job_role).encode('utf-8')).hexdigest()
         payload = {'jobDefinitionName': def_name, 'status': 'ACTIVE'}
         response = self._client.describe_job_definitions(**payload)
@@ -97,6 +98,10 @@ class BatchJob(object):
 
     def job_queue(self, job_queue):
         self.payload['jobQueue'] = job_queue
+        return self
+
+    def job_def(self, image, iam_role):
+        self.payload['jobDefinition'] = self._register_job_definition(image, iam_role)
         return self
 
     def image(self, image):
