@@ -43,10 +43,6 @@ class Current(object):
     def get(self, key, default=None):
         return getattr(self, key, default)
 
-    def _update_env(self, env):
-        for k, v in env.items():
-            setattr(self.__class__, k, property(fget=lambda _, v=v: v))
-
     @property
     def is_running_flow(self):
         return self._is_running
