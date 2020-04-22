@@ -46,7 +46,7 @@ from .event_logger import EventLogger
 
 # Flow spec
 from .flowspec import FlowSpec
-from .includefile import IncludeFile
+from .includefile import IncludeFile, IncludeMultipleFiles
 from .parameters import Parameter, JSONTypeClass
 JSONType = JSONTypeClass()
 

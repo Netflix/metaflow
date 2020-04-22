@@ -1,12 +1,17 @@
 import io
+import glob
 import os
+import random
+import re
+import string
+
 import click
 
 from metaflow.exception import MetaflowException
 from metaflow.parameters import Parameter
 
 
-class InternalFile():
+class InternalFile(object):
     def __init__(self, logger, is_text, encoding, path):
         self._logger = logger
         self._is_text = is_text
@@ -44,6 +49,35 @@ class InternalFile():
         return self._size
 
 
+class MultipleFiles(object):
+    def __init__(self, base_name, logger, is_text, encoding):
+        self._base_name = base_name
+        self._logger = logger
+        self._is_text = is_text
+        self._encoding = encoding
+        self._files = {}
+
+    def add_file(self, path):
+        name = os.path.basename(path)
+        # Sanitize the name to make it possible to use as a variable name
+        name = re.sub('[^a-zA-Z0-9_]', '_', name)
+        name = "%s_%s" % (self._base_name, name)
+        ending = ''
+        while name + ending in self._files:
+            ending = ''.join([random.choice(string.digits) for _ in range(2)])
+        name = name + ending
+        self._files[name] = path
+
+    def get_reference_dict(self):
+        result = {name: info for name, info in self._files.items()}
+        return result
+
+    def __iter__(self):
+        for name, file in self._files.items():
+            f = InternalFile(self._logger, self._is_text, self._encoding, file)
+            yield name, f(), f.size()
+
+
 class FilePathClass(click.ParamType):
     name = 'FilePath'
 
@@ -52,6 +86,7 @@ class FilePathClass(click.ParamType):
         self._encoding = encoding
 
     def convert(self, value, param, ctx):
+        value = os.path.expanduser(value)
         try:
             with open(value, mode='r') as _:
                 pass
@@ -67,6 +102,36 @@ class FilePathClass(click.ParamType):
         return 'FilePath'
 
 
+class FileGlobClass(click.ParamType):
+    name = 'FileGlob'
+
+    def __init__(self, name, is_text, encoding, recursive):
+        self._name = name
+        self._is_text = is_text
+        self._encoding = encoding
+        self._recursive = recursive
+
+    def convert(self, value, param, ctx):
+        result = MultipleFiles(self._name, ctx.obj.logger, self._is_text, self._encoding)
+        value = os.path.expanduser(value)
+        for path in glob.glob(value, recursive=self._recursive):
+            try:
+                with open(path, mode='r') as _:
+                    pass
+            except OSError:
+                pass  # Skip files that we can't open
+            else:
+                result.add_file(path)
+
+        return result
+
+    def __str__(self):
+        return repr(self)
+
+    def __repr__(self):
+        return 'FileGlob'
+
+
 class IncludeFile(Parameter):
 
     def __init__(
@@ -74,3 +139,13 @@ class IncludeFile(Parameter):
         super(IncludeFile, self).__init__(
             name, required=required, help=help, default=default,
             type=FilePathClass(is_text, encoding))
+
+
+class IncludeMultipleFiles(Parameter):
+
+    def __init__(
+            self, name, required=False, is_text=True, encoding=None,
+            recursive=False, help=None, default=None):
+        super(IncludeMultipleFiles, self).__init__(
+            name, required=required, help=help, default=default,
+            type=FileGlobClass(name, is_text, encoding, recursive))
