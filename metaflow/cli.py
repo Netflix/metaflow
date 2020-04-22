@@ -13,6 +13,7 @@ from . import parameters
 from . import decorators
 from . import metaflow_version
 from . import namespace
+from . import current
 from .util import resolve_identity, decompress_list, write_latest_run_id, get_latest_run_id
 from .task import MetaflowTask
 from .exception import CommandException, MetaflowException
@@ -767,6 +768,8 @@ def start(ctx,
                                                   ctx.obj.monitor)
     ctx.obj.datastore = DATASTORES[datastore]
     ctx.obj.datastore_root = datastore_root
+
+    current._set_env(flow_name=ctx.obj.flow.name, is_running=False)
     if ctx.invoked_subcommand not in ('run', 'resume'):
         # run/resume are special cases because they can add more decorators with --with,
         # so they have to take care of themselves.
