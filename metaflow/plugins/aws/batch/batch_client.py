@@ -160,6 +160,10 @@ class BatchJob(object):
         self.payload['parameters'][key] = str(value)
         return self
 
+    def attempts(self, attempts):
+        self.payload['retryStrategy']['attempts'] = attempts
+        return self
+
 
 class Throttle(object):
     def __init__(self, delta_in_secs=1, num_tries=20):
