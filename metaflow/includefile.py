@@ -4,6 +4,9 @@ import os
 import random
 import re
 import string
+import tempfile
+
+from shutil import move
 
 import click
 
@@ -17,11 +20,41 @@ class InternalFile(object):
         self._is_text = is_text
         self._encoding = encoding
         self._path = path
-        self._size = os.path.getsize(self._path)
+        self._size = 0
 
-    def __call__(self):
+    @classmethod
+    def is_file_handled(cls, path):
+        if path.startswith("s3://"):
+            return True, None
+        try:
+            with open(path, mode='r') as _:
+                pass
+        except OSError:
+            return False, "Could not open file '%s'" % path
+        else:
+            return True, None
+
+    def handle_s3_file(self):
+        # We bring the file back in locally so we can then properly
+        # include it like a local file; we currently do not support
+        # S3 -> S3 directly.
+        from metaflow import S3
+
+        to_return = tempfile.NamedTemporaryFile(dir='/tmp', delete=False)
+        to_return.close()
+        self._logger('Fetching %s from S3 to temporary file %s' % (self._path, to_return.name))
+        with S3() as s3:
+            res = s3.get(self._path)
+            move(res.path, to_return.name)
+        return to_return.name
+
+    def handle_local_file(self, override_path=None):
+        if override_path:
+            path = override_path
+        else:
+            path = self._path
+        sz = self._size = os.path.getsize(path)
         unit = ['B', 'KB', 'MB', 'GB', 'TB']
-        sz = self._size
         pos = 0
         while pos < len(unit) and sz >= 1024:
             sz = sz // 1024
@@ -33,14 +66,24 @@ class InternalFile(object):
         self._logger(
             'Including file %s of size %d%s %s' % (self._path, sz, unit[pos], extra))
         if self._is_text:
-            return io.open(self._path, mode='rt', encoding=self._encoding).read()
+            return io.open(path, mode='rt', encoding=self._encoding).read()
         try:
-            return io.open(self._path, mode='rb').read()
+            return io.open(path, mode='rb').read()
         except IOError:
             # If we get an error here, since we know that the file exists already,
             # it means that read failed which happens with Python 2.7 for large files
             raise MetaflowException('Cannot read file at %s -- this is likely because it is too '
                                     'large to be properly handled by Python 2.7' % self._path)
+
+    def __call__(self):
+        local_file = None
+        if self._path.startswith("s3://"):
+            local_file = self.handle_s3_file()
+        try:
+            return self.handle_local_file(local_file)
+        finally:
+            if local_file:
+                os.unlink(local_file)
 
     def name(self):
         return self._path
@@ -87,11 +130,9 @@ class FilePathClass(click.ParamType):
 
     def convert(self, value, param, ctx):
         value = os.path.expanduser(value)
-        try:
-            with open(value, mode='r') as _:
-                pass
-        except OSError:
-            self.fail("Could not open file '%s'" % value)
+        ok, err = InternalFile.is_file_handled(value)
+        if not ok:
+            self.fail(err)
 
         return InternalFile(ctx.obj.logger, self._is_text, self._encoding, value)
 
