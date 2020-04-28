@@ -406,23 +406,32 @@ class BatchLogs(object):
         self._token = None
 
     def _get_events(self):
-        if self._token:
-            response = self._client.get_log_events(
-                logGroupName=self._group,
-                logStreamName=self._stream,
-                startTime=self._pos,
-                nextToken=self._token,
-                startFromHead=True,
-            )
-        else:
-            response = self._client.get_log_events(
-                logGroupName=self._group,
-                logStreamName=self._stream,
-                startTime=self._pos,
-                startFromHead=True,
-            )
-        self._token = response['nextForwardToken']
-        return response['events']
+        try:
+            if self._token:
+                response = self._client.get_log_events(
+                    logGroupName=self._group,
+                    logStreamName=self._stream,
+                    startTime=self._pos,
+                    nextToken=self._token,
+                    startFromHead=True,
+                )
+            else:
+                response = self._client.get_log_events(
+                    logGroupName=self._group,
+                    logStreamName=self._stream,
+                    startTime=self._pos,
+                    startFromHead=True,
+                )
+            self._token = response['nextForwardToken']
+            return response['events']
+        except self._client.exceptions.ClientError as err:
+            code = err.response['Error']['Code']
+            if 'ThrottlingException' in code:
+                # AWS Logs API is throttling us, better
+                # try our luck next time. We will continue to
+                # poll till the AWS Batch task is alive.
+                return []
+            raise err
 
     def __iter__(self):
         while True:
