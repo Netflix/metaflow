@@ -198,7 +198,7 @@ class TriableException(Exception):
 
 class RunningJob(object):
 
-    NUM_RETRIES = 5
+    NUM_RETRIES = 8
 
     def __init__(self, id, client):
         self._id = id
@@ -317,7 +317,8 @@ class RunningJob(object):
             elif not self.is_done:
                 self.wait_for_running()
 
-        for i in range(self.NUM_RETRIES):
+        exception = None
+        for i in range(self.NUM_RETRIES + 1):
             try:
                 check_after_done = 0
                 for line in log_stream:
@@ -329,12 +330,17 @@ class RunningJob(object):
                         else:
                             pass
                     else:
+                        i = 0
                         yield line
+                return
             except Exception as ex:
+                exception = ex
                 if self.is_crashed:
                     break
-                sys.stderr.write(repr(ex))
-                time.sleep(2 ** i)
+                #sys.stderr.write(repr(ex) + '\n')
+                if i < self.NUM_RETRIES:
+                    time.sleep(2 ** i + random.randint(0, 5))
+        raise BatchJobException(repr(exception))
 
     def kill(self):
         if not self.is_done:
@@ -406,32 +412,23 @@ class BatchLogs(object):
         self._token = None
 
     def _get_events(self):
-        try:
-            if self._token:
-                response = self._client.get_log_events(
-                    logGroupName=self._group,
-                    logStreamName=self._stream,
-                    startTime=self._pos,
-                    nextToken=self._token,
-                    startFromHead=True,
-                )
-            else:
-                response = self._client.get_log_events(
-                    logGroupName=self._group,
-                    logStreamName=self._stream,
-                    startTime=self._pos,
-                    startFromHead=True,
-                )
-            self._token = response['nextForwardToken']
-            return response['events']
-        except self._client.exceptions.ClientError as err:
-            code = err.response['Error']['Code']
-            if 'ThrottlingException' in code:
-                # AWS Logs API is throttling us, better
-                # try our luck next time. We will continue to
-                # poll till the AWS Batch task is alive.
-                return []
-            raise err
+        if self._token:
+            response = self._client.get_log_events(
+                logGroupName=self._group,
+                logStreamName=self._stream,
+                startTime=self._pos,
+                nextToken=self._token,
+                startFromHead=True,
+            )
+        else:
+            response = self._client.get_log_events(
+                logGroupName=self._group,
+                logStreamName=self._stream,
+                startTime=self._pos,
+                startFromHead=True,
+            )
+        self._token = response['nextForwardToken']
+        return response['events']
 
     def __iter__(self):
         while True:
