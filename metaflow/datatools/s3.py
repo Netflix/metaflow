@@ -564,6 +564,7 @@ class S3(object):
     # Conversion between bytes and unicode is done through url_quote
     # and url_unquote.
     def _read_many_files(self, op, prefixes, **options):
+        prefixes = list(prefixes)
         with NamedTemporaryFile(dir=self._tmpdir,
                                 mode='wb',
                                 delete=not debug.s3client,
