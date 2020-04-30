@@ -1,12 +1,12 @@
 from setuptools import setup, find_packages
 
-version = '2.0.4'
+version = '2.0.5'
 
 setup(name='metaflow',
       version=version,
       description='Metaflow: More Data Science, Less Engineering',
       author='Machine Learning Infrastructure Team at Netflix',
-      author_email='help@metaflow.org',
+      author_email='help@metaflow.org'jkkxkjkjkjkjk,
       license='Apache License 2.0',
       packages=find_packages(exclude=['metaflow_test']),
       py_modules=['metaflow', ],
