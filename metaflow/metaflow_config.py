@@ -3,8 +3,6 @@ import json
 import logging
 import pkg_resources
 import sys
-
-
 from metaflow.exception import MetaflowException
 
 # Disable multithreading security on MacOS
@@ -124,6 +122,15 @@ AWS_SANDBOX_INTERNAL_SERVICE_URL = from_conf('METAFLOW_AWS_SANDBOX_INTERNAL_SERV
 # AWS region
 AWS_SANDBOX_REGION = from_conf('METAFLOW_AWS_SANDBOX_REGION')
 
+# $ (TODO) : THIS IS TEMPORARY TO SEE FUNCTIONING OF CODE. NEED TO FIND BETTER WAY OF DOING THIS
+AWS_ACCESS_KEY_ID = from_conf('AWS_ACCESS_KEY_ID')
+# $ (TODO) : THIS IS TEMPORARY TO SEE FUNCTIONING OF CODE. NEED TO FIND BETTER WAY OF DOING THIS
+AWS_SECRET_ACCESS_KEY = from_conf('AWS_SECRET_ACCESS_KEY')
+# $ (TODO) : THIS IS TEMPORARY TO SEE FUNCTIONING OF CODE. NEED TO FIND BETTER WAY OF DOING THIS
+AWS_SESSION_TOKEN = from_conf('AWS_SESSION_TOKEN')
+# $ (TODO) : THIS IS TEMPORARY TO SEE FUNCTIONING OF CODE. NEED TO FIND BETTER WAY OF DOING THIS
+AWS_DEFAULT_REGION = from_conf('AWS_DEFAULT_REGION')
+
 
 # Finalize configuration
 if AWS_SANDBOX_ENABLED:
@@ -172,8 +179,27 @@ def get_pinned_conda_libs():
     }
 
 
-cached_aws_sandbox_creds = None
+KUBE_CONFIG_FILE_PATH = from_conf('METAFLOW_KUBE_CONFIG_PATH','~/.kube/config')
+KUBE_NAMESPACE = from_conf('METAFLOW_KUBE_NAMESPACE','default')
+KUBE_RUNTIME_IN_CLUSTER = from_conf('METAFLOW_KUBE_RUNTIME_IN_CLUSTER','no')
+KUBE_SERVICE_ACCOUNT = from_conf('METAFLOW_KUBE_SERVICE_ACCOUNT','default')
 
+def get_kubernetes_client():
+    import kubernetes.config as kube_config
+    import kubernetes.client as kube_client
+    try:
+        if KUBE_RUNTIME_IN_CLUSTER == 'no':
+            Kube_Configured_Api_Client = kube_config.new_client_from_config(config_file=KUBE_CONFIG_FILE_PATH)
+            return Kube_Configured_Api_Client,kube_client
+        else:
+            kube_config.load_incluster_config()
+            configuration = kube_client.Configuration()
+            Kube_Configured_Api_Client = kube_client.ApiClient(configuration)
+            return Kube_Configured_Api_Client,kube_client
+    except Exception as e:
+        raise MetaflowException("Error Loading Kubernetes Configuration. %s" % str(e))
+    
+cached_aws_sandbox_creds = None
 def get_authenticated_boto3_client(module, params={}):
     from metaflow.exception import MetaflowException
     import requests

@@ -455,7 +455,6 @@ def init(obj, run_id=None, task_id=None, **kwargs):
 
     if obj.datastore.datastore_root is None:
         obj.datastore.datastore_root = obj.datastore.get_datastore_root_from_config(obj.echo)
-
     runtime = NativeRuntime(obj.flow,
                             obj.graph,
                             obj.datastore,
@@ -726,7 +725,6 @@ def start(ctx,
         echo = echo_always
 
     ctx.obj.version = metaflow_version.get_version()
-
     echo('Metaflow %s' % ctx.obj.version, fg='magenta', bold=True, nl=False)
     echo(" executing *%s*" % ctx.obj.flow.name, fg='magenta', nl=False)
     echo(" for *%s*" % resolve_identity(), fg='magenta')
@@ -768,9 +766,8 @@ def start(ctx,
                                                   ctx.obj.monitor)
     ctx.obj.datastore = DATASTORES[datastore]
     ctx.obj.datastore_root = datastore_root
-
     current._set_env(flow_name=ctx.obj.flow.name, is_running=False)
-    if ctx.invoked_subcommand not in ('run', 'resume'):
+    if ctx.invoked_subcommand not in ('run', 'resume','kube-deploy'):
         # run/resume are special cases because they can add more decorators with --with,
         # so they have to take care of themselves.
         decorators._attach_decorators(
