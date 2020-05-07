@@ -82,7 +82,8 @@ if METADATA_SERVICE_AUTH_KEY is not None:
 ###
 # AWS Batch configuration
 ###
-# IAM role for AWS Batch container with S3 access
+# IAM role for AWS Batch container with Amazon S3 access 
+# (and AWS DynamoDb access for AWS StepFunctions, if enabled)
 ECS_S3_ACCESS_IAM_ROLE = from_conf('METAFLOW_ECS_S3_ACCESS_IAM_ROLE')
 # Job queue for AWS Batch
 BATCH_JOB_QUEUE = from_conf('METAFLOW_BATCH_JOB_QUEUE')
@@ -93,6 +94,19 @@ BATCH_CONTAINER_REGISTRY = from_conf("METAFLOW_BATCH_CONTAINER_REGISTRY")
 # Metadata service URL for AWS Batch
 BATCH_METADATA_SERVICE_URL = from_conf('METAFLOW_SERVICE_INTERNAL_URL', METADATA_SERVICE_URL)
 BATCH_METADATA_SERVICE_HEADERS = METADATA_SERVICE_HEADERS
+
+###
+# AWS Step Functions configuration
+###
+# IAM role for AWS Step Functions with AWS Batch and AWS DynamoDb access
+# https://docs.aws.amazon.com/step-functions/latest/dg/batch-iam.html
+SFN_IAM_ROLE = from_conf("METAFLOW_SFN_IAM_ROLE")
+# AWS DynamoDb Table name (with partition key - `pathspec` of type string)
+SFN_DYNAMO_DB_TABLE = from_conf("METAFLOW_SFN_DYNAMO_DB_TABLE")
+SFN_DYNAMO_DB_REGION = from_conf("METAFLOW_SFN_DYNAMO_DB_REGION")
+# IAM role for AWS Events with AWS Step Functions access'
+# https://docs.aws.amazon.com/eventbridge/latest/userguide/auth-and-access-control-eventbridge.html
+EVENTS_SFN_ACCESS_IAM_ROLE = from_conf("METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE")
 
 ###
 # Conda configuration
@@ -197,5 +211,6 @@ def get_authenticated_boto3_client(module, params={}):
                 cached_aws_sandbox_creds = r.json()
             except requests.exceptions.HTTPError as e:
                 raise MetaflowException(repr(e))
-        return boto3.session.Session(**cached_aws_sandbox_creds).client(module, **params)
+        return boto3.session.Session(**cached_aws_sandbox_creds) \
+            .client(module, **params)
     return boto3.client(module, **params)

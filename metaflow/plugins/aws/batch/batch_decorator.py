@@ -110,6 +110,7 @@ class BatchDecorator(StepDecorator):
 
     def __init__(self, attributes=None, statically_defined=False):
         super(BatchDecorator, self).__init__(attributes, statically_defined)
+
         if not self.attributes['image']:
             if BATCH_CONTAINER_IMAGE:
                 self.attributes['image'] = BATCH_CONTAINER_IMAGE

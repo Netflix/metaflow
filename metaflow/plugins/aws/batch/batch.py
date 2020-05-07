@@ -18,11 +18,11 @@ from .batch_client import BatchClient
 
 
 class BatchException(MetaflowException):
-    headline = 'Batch error'
+    headline = 'AWS Batch error'
 
 
 class BatchKilledException(MetaflowException):
-    headline = 'Batch task killed'
+    headline = 'AWS Batch task killed'
 
 
 class Batch(object):
@@ -56,10 +56,10 @@ class Batch(object):
         return '{user}-{flow_name}-{run_id}-{step_name}-{task_id}-{retry_count}'.format(
             user=user,
             flow_name=flow_name,
-            run_id=run_id,
+            run_id=str(run_id or ''),
             step_name=step_name,
-            task_id=task_id,
-            retry_count=retry_count,
+            task_id=str(task_id or ''),
+            retry_count=str(retry_count or '')
         )
 
     def list_jobs(self, flow_name, run_id, user, echo):
@@ -72,27 +72,26 @@ class Batch(object):
                     )
                 )
         else:
-            echo('No running Batch jobs found.')
+            echo('No running AWS Batch jobs found.')
 
     def kill_jobs(self, flow_name, run_id, user, echo):
         jobs = self._search_jobs(flow_name, run_id, user)
-
         if jobs:
             for job in jobs:
                 try:
                     self._client.attach_job(job['jobId']).kill()
                     echo(
-                        'Killing Batch job: {name} [{id}] ({status})'.format(
+                        'Killing AWS Batch job: {name} [{id}] ({status})'.format(
                             name=job['jobName'], id=job['jobId'], status=job['status']
                         )
                     )
                 except Exception as e:
                     echo(
-                        'Failed to terminate Batch job %s [%s]'
+                        'Failed to terminate AWS Batch job %s [%s]'
                         % (job['jobId'], repr(e))
                     )
         else:
-            echo('No running Batch jobs found.')
+            echo('No running AWS Batch jobs found.')
 
     def create_job(
         self,
@@ -112,12 +111,12 @@ class Batch(object):
         attrs={}
     ):
         job_name = self._job_name(
-            attrs['metaflow.user'],
-            attrs['metaflow.flow_name'],
-            attrs['metaflow.run_id'],
-            attrs['metaflow.step_name'],
-            attrs['metaflow.task_id'],
-            attrs['metaflow.retry_count'],
+            attrs.get('metaflow.user'),
+            attrs.get('metaflow.flow_name'),
+            attrs.get('metaflow.run_id'),
+            attrs.get('metaflow.step_name'),
+            attrs.get('metaflow.task_id'),
+            attrs.get('metaflow.retry_count')
         )
         job = self._client.job()
         job \
@@ -171,31 +170,31 @@ class Batch(object):
         memory=None,
         run_time_limit=None,
         env={},
-        attrs={}
-    ):
+        attrs={},
+        ):
         if queue is None:
             queue = next(self._client.active_job_queues(), None)
             if queue is None:
                 raise BatchException(
-                    'Unable to launch Batch job. No job queue '
+                    'Unable to launch AWS Batch job. No job queue '
                     ' specified and no valid & enabled queue found.'
                 )
         job = self.create_job(
-                step_name,
-                step_cli,
-                code_package_sha,
-                code_package_url,
-                code_package_ds,
-                image,
-                queue,
-                iam_role,
-                cpu,
-                gpu,
-                memory,
-                run_time_limit,
-                env,
-                attrs
-            )
+                        step_name,
+                        step_cli,
+                        code_package_sha,
+                        code_package_url,
+                        code_package_ds,
+                        image,
+                        queue,
+                        iam_role,
+                        cpu,
+                        gpu,
+                        memory,
+                        run_time_limit,
+                        env,
+                        attrs
+        )
         self.job = job.execute()
 
     def wait(self, echo=None):

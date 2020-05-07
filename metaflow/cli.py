@@ -7,6 +7,7 @@ from datetime import datetime
 
 import click
 
+from . import current
 from . import lint
 from . import plugins
 from . import parameters
@@ -643,7 +644,6 @@ def before_run(obj, tags, decospecs):
     # Package working directory only once per run.
     # We explicitly avoid doing this in `start` since it is invoked for every
     # step in the run.
-    # TODO(crk): Capture time taken to package and log to keystone.
     obj.package = MetaflowPackage(obj.flow, obj.environment, obj.logger, obj.package_suffixes)
 
 
@@ -767,9 +767,18 @@ def start(ctx,
                                                   ctx.obj.event_logger,
                                                   ctx.obj.monitor)
     ctx.obj.datastore = DATASTORES[datastore]
-    ctx.obj.datastore_root = datastore_root
 
+    if datastore_root is None:
+        datastore_root = ctx.obj.datastore.get_datastore_root_from_config()
+    ctx.obj.datastore_root = ctx.obj.datastore.datastore_root = datastore_root
+
+    if decospecs:
+        decorators._attach_decorators(ctx.obj.flow, decospecs)
+
+    # initialize current and parameter context for deploy-time parameters
     current._set_env(flow_name=ctx.obj.flow.name, is_running=False)
+    parameters.set_parameter_context(ctx.obj.flow.name)
+
     if ctx.invoked_subcommand not in ('run', 'resume'):
         # run/resume are special cases because they can add more decorators with --with,
         # so they have to take care of themselves.
@@ -849,8 +858,6 @@ def main(flow, args=None, handle_exceptions=True, entrypoint=None):
 
     state = CliState(flow)
     state.entrypoint = entrypoint
-
-    parameters.set_parameter_context(flow.name)
 
     try:
         if args is None:

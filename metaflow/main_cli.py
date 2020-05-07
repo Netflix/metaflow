@@ -457,6 +457,34 @@ def aws(profile):
                         default='', show_default=False)
                 if metaflow_batch_container_image:
                     env_dict['METAFLOW_BATCH_CONTAINER_IMAGE'] = metaflow_batch_container_image
+
+                # AWS Step Functions configuration (only if AWS Batch is being used).
+                use_step_functions =\
+                    click.confirm(
+                        '\nConfigure AWS Step Functions for orchestration?',
+                                  default=True, abort=False)
+                if use_step_functions:
+                    env_dict['METAFLOW_SFN_IAM_ROLE'] =\
+                        click.prompt('\t' + 
+                            cyan('METAFLOW_SFN_IAM_ROLE:') + 
+                          ' IAM role granting AWS Step Functions access to'
+                          ' AWS Batch')
+                    env_dict['METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE'] =\
+                        click.prompt('\t' + 
+                            cyan('METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE:') + 
+                          ' IAM role granting AWS Events bridge access to'
+                          ' AWS Step Functions')
+                    env_dict['METAFLOW_SFN_DYNAMO_DB_TABLE'] =\
+                        click.prompt('\t' + 
+                            cyan('METAFLOW_SFN_DYNAMO_DB_TABLE:') + 
+                          ' AWS DynamoDB Table Name for tracking AWS Step '
+                          ' Functions metadata')
+                    env_dict['METAFLOW_SFN_DYNAMO_DB_REGION'] =\
+                        click.prompt('\t' + 
+                            cyan('METAFLOW_SFN_DYNAMO_DB_REGION:') + 
+                          ' Region of AWS DynamoDB Table for tracking AWS Step '
+                          ' Functions metadata')
+
         # Metadata service configuration.
         use_metadata = click.confirm('\nConfigure Metadata Service as default metadata provider?', 
             default=True, abort=False)
