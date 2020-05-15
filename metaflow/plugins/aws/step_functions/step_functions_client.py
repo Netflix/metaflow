@@ -34,7 +34,7 @@ class StepFunctionsClient(object):
         return state_machine_arn
 
     def get(self, name):
-        state_machine_arn = self._state_machine_arn(name)
+        state_machine_arn = self.get_state_machine_arn(name)
         if state_machine_arn is None:
             return None
         try:
@@ -44,13 +44,13 @@ class StepFunctionsClient(object):
         except self._client.exceptions.StateMachineDoesNotExist:
             return None
 
-    def trigger(self, name, input):
+    def trigger(self, state_machine_arn, input):
         return self._client.start_execution(
-            stateMachineArn = self._state_machine_arn(name),
+            stateMachineArn = state_machine_arn,
             input = input
         )
 
-    def _state_machine_arn(self, name):
+    def get_state_machine_arn(self, name):
         state_machine = self.search(name)
         if state_machine:
             return state_machine['stateMachineArn']
