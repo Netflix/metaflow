@@ -773,7 +773,7 @@ def start(ctx,
 
     if datastore_root is None:
         datastore_root = \
-          ctx.obj.datastore.get_datastore_root_from_config(obj.echo)
+          ctx.obj.datastore.get_datastore_root_from_config(ctx.obj.echo)
     ctx.obj.datastore_root = ctx.obj.datastore.datastore_root = datastore_root
 
     if decospecs:
