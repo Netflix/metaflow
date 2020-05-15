@@ -405,7 +405,8 @@ def step(obj,
 
     obj.datastore.datastore_root = obj.datastore_root
     if obj.datastore.datastore_root is None:
-        obj.datastore.datastore_root = obj.datastore.get_datastore_root_from_config(obj.echo)
+        obj.datastore.datastore_root = \
+            obj.datastore.get_datastore_root_from_config(obj.echo)
 
     obj.metadata.add_sticky_tags(tags=tags)
     paths = decompress_list(input_paths) if input_paths else []
@@ -455,7 +456,8 @@ def init(obj, run_id=None, task_id=None, **kwargs):
     # variables.
 
     if obj.datastore.datastore_root is None:
-        obj.datastore.datastore_root = obj.datastore.get_datastore_root_from_config(obj.echo)
+        obj.datastore.datastore_root = \
+            obj.datastore.get_datastore_root_from_config(obj.echo)
 
     runtime = NativeRuntime(obj.flow,
                             obj.graph,
@@ -635,7 +637,8 @@ def before_run(obj, tags, decospecs):
     #obj.environment.init_environment(obj.logger)
 
     if obj.datastore.datastore_root is None:
-        obj.datastore.datastore_root = obj.datastore.get_datastore_root_from_config(obj.echo)
+        obj.datastore.datastore_root = \
+            obj.datastore.get_datastore_root_from_config(obj.echo)
 
     decorators._init_decorators(
         obj.flow, obj.graph, obj.environment, obj.datastore, obj.logger)
@@ -769,7 +772,8 @@ def start(ctx,
     ctx.obj.datastore = DATASTORES[datastore]
 
     if datastore_root is None:
-        datastore_root = ctx.obj.datastore.get_datastore_root_from_config()
+        datastore_root = \
+          ctx.obj.datastore.get_datastore_root_from_config(obj.echo)
     ctx.obj.datastore_root = ctx.obj.datastore.datastore_root = datastore_root
 
     if decospecs:
