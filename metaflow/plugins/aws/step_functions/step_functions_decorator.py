@@ -65,14 +65,13 @@ class StepFunctionsInternalDecorator(StepDecorator):
     def _save_foreach_cardinality(self, 
                                    foreach_split_task_id, 
                                    for_each_cardinality):
-        dynamo_db = DynamoDbClient('metaflow')
-        dynamo_db.save_foreach_cardinality(foreach_split_task_id, 
-                                                for_each_cardinality)
+        DynamoDbClient().save_foreach_cardinality(foreach_split_task_id, 
+                                                  for_each_cardinality)
 
     def _save_parent_task_id_for_foreach_join(self, 
                                               foreach_split_task_id, 
                                               foreach_join_parent_task_id):
-        dynamo_db = DynamoDbClient('metaflow')
-        dynamo_db.save_parent_task_id_for_foreach_join(foreach_split_task_id, 
+        DynamoDbClient().save_parent_task_id_for_foreach_join(
+                                                foreach_split_task_id, 
                                                 foreach_join_parent_task_id)
 

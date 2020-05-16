@@ -468,11 +468,11 @@ def aws(profile):
                         click.prompt('\t' + 
                             cyan('METAFLOW_SFN_IAM_ROLE:') + 
                           ' IAM role granting AWS Step Functions access to'
-                          ' AWS Batch')
+                          ' AWS Batch and AWS DynamoDB')
                     env_dict['METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE'] =\
                         click.prompt('\t' + 
                             cyan('METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE:') + 
-                          ' IAM role granting AWS Events bridge access to'
+                          ' IAM role granting AWS Events Bridge access to'
                           ' AWS Step Functions')
                     env_dict['METAFLOW_SFN_DYNAMO_DB_TABLE'] =\
                         click.prompt('\t' + 

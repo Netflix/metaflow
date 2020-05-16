@@ -113,7 +113,7 @@ class StepFunctions(object):
         try:
             # Dump parameters into `Parameters` input field.
             input = json.dumps({"Parameters" : json.dumps(parameters)})
-            return StepFunctionsClient().trigger(name, input)
+            return StepFunctionsClient().trigger(state_machine_arn, input)
         except Exception as e:
             raise StepFunctionsException(repr(e))
 
@@ -451,8 +451,11 @@ class StepFunctions(object):
         env['METAFLOW_VERSION'] = json.dumps(metaflow_version)
 
         # Set AWS DynamoDb Table Name/Region for state tracking for for-eaches
-        if node.type == 'foreach' or (node.is_inside_foreach and \
-            any(self.graph[n].type == 'join' for n in node.out_funcs)):
+        if node.type == 'foreach' or \
+            (node.is_inside_foreach and \
+                any(self.graph[n].type == 'join' for n in node.out_funcs)) or \
+            (node.type == 'join' and \
+                self.graph[node.split_parents[-1]].type == 'foreach'):
             env['METAFLOW_SFN_DYNAMO_DB_TABLE'] = SFN_DYNAMO_DB_TABLE
             env['METAFLOW_SFN_DYNAMO_DB_REGION'] = SFN_DYNAMO_DB_REGION
 

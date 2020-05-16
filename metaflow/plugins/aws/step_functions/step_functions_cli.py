@@ -1,4 +1,5 @@
 import click
+import json
 
 from metaflow import current, decorators, parameters, JSONType
 from metaflow.exception import MetaflowException, MetaflowInternalError
@@ -95,7 +96,6 @@ def create(obj,
     if only_json:
         obj.echo_always(flow.to_json(), err=False, no_bold=True)
     else:
-        #obj.echo_always(flow.to_json(), err=False, no_bold=True)
         flow.deploy()
         obj.echo("Workflow *{name}* pushed to "
                  "AWS Step Functions successfully.\n".format(name=name), 

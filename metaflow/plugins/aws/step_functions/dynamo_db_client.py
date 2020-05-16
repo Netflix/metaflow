@@ -7,7 +7,7 @@ from metaflow.metaflow_config import get_authenticated_boto3_client, \
 
 class DynamoDbClient(object):
 
-    def __init__(self, name):
+    def __init__(self):
         self._client = get_authenticated_boto3_client('dynamodb', 
             params = {'region_name': SFN_DYNAMO_DB_REGION})
         self.name = SFN_DYNAMO_DB_TABLE
