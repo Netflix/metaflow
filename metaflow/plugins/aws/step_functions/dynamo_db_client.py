@@ -2,14 +2,14 @@ import json
 import os
 
 from metaflow.metaflow_config import get_authenticated_boto3_client, \
-                                    SFN_DYNAMO_DB_TABLE, SFN_DYNAMO_DB_REGION
+                                    SFN_DYNAMO_DB_TABLE
 
 
 class DynamoDbClient(object):
 
     def __init__(self):
         self._client = get_authenticated_boto3_client('dynamodb', 
-            params = {'region_name': SFN_DYNAMO_DB_REGION})
+            params = {'region_name': self._get_instance_region()})
         self.name = SFN_DYNAMO_DB_TABLE
 
     def save_foreach_cardinality(self, 
@@ -58,3 +58,8 @@ class DynamoDbClient(object):
                 ConsistentRead = True
             )
         return response['Item']['parent_task_ids_for_foreach_join']['SS']
+
+    def _get_instance_region(self):
+        return os.popen(
+            'curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone/'
+            ).read()[:-1]

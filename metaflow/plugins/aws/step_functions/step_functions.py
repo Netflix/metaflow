@@ -12,7 +12,7 @@ from metaflow.plugins import ResourcesDecorator, BatchDecorator, RetryDecorator
 from metaflow.parameters import deploy_time_eval
 from metaflow.util import compress_list, dict_to_cli_options, to_pascalcase
 from metaflow.metaflow_config import SFN_IAM_ROLE, \
-    EVENTS_SFN_ACCESS_IAM_ROLE, SFN_DYNAMO_DB_TABLE, SFN_DYNAMO_DB_REGION
+    EVENTS_SFN_ACCESS_IAM_ROLE, SFN_DYNAMO_DB_TABLE
 
 from .step_functions_client import StepFunctionsClient
 from .event_bridge_client import EventBridgeClient
@@ -396,26 +396,33 @@ class StepFunctions(object):
                         if self.graph[parent].type == 'foreach':
                             attrs['split_parent_task_id_%s.$' % parent] = \
                                 '$.Parameters.split_parent_task_id_%s' % parent
-                elif node.type == 'join' and \
-                    self.graph[node.split_parents[-1]].type == 'foreach':
-                    # A foreach join only gets one set of input from the parent
-                    # tasks. We filter the Map state to only output `$.[0]`, 
-                    # since we don't need any of the other outputs, that 
-                    # information is available to us from AWS DynamoDB. This
-                    # has a nice side-effect of making our foreach splits 
-                    # infinitely scalable because otherwise we would be bounded
-                    # by the 32K state limit for the outputs. So, instead of
-                    # referencing `Parameters` fields by index (like in 
-                    # `split-and`), we can just reference them directly.
-                    attrs['split_parent_task_id_%s.$' % \
-                        node.split_parents[-1]] = \
-                            '$.Parameters.split_parent_task_id_%s' % \
-                                node.split_parents[-1]
-                    for parent in node.split_parents[:-1]:
-                        if self.graph[parent].type == 'foreach':
-                            attrs['split_parent_task_id_%s.$' % parent] = \
+                elif node.type == 'join':
+                    if self.graph[node.split_parents[-1]].type == 'foreach':
+                        # A foreach join only gets one set of input from the
+                        # parent tasks. We filter the Map state to only output
+                        # `$.[0]`, since we don't need any of the other outputs,
+                        # that information is available to us from AWS DynamoDB.
+                        # This has a nice side-effect of making our foreach
+                        # splits infinitely scalable because otherwise we would
+                        # be bounded by the 32K state limit for the outputs. So,
+                        # instead of referencing `Parameters` fields by index
+                        # (like in `split-and`), we can just reference them
+                        # directly.
+                        attrs['split_parent_task_id_%s.$' % \
+                            node.split_parents[-1]] = \
                                 '$.Parameters.split_parent_task_id_%s' % \
-                                    parent
+                                    node.split_parents[-1]
+                        for parent in node.split_parents[:-1]:
+                            if self.graph[parent].type == 'foreach':
+                                attrs['split_parent_task_id_%s.$' % parent] = \
+                                    '$.Parameters.split_parent_task_id_%s' % \
+                                        parent
+                    else:
+                        for parent in node.split_parents:
+                            if self.graph[parent].type == 'foreach':
+                                attrs['split_parent_task_id_%s.$' % parent] = \
+                                    '$.[0].Parameters.split_parent_task_id_%s' % \
+                                        parent
                 else:
                     for parent in node.split_parents:
                         if self.graph[parent].type == 'foreach':
@@ -426,7 +433,10 @@ class StepFunctions(object):
                 # next transition is to a foreach join, so that the 
                 # stepfunctions decorator can write the mapping for input path
                 # to DynamoDb.
-                if any(self.graph[n].type == 'join' for n in node.out_funcs):
+                if any(self.graph[n].type == 'join' and \
+                        self.graph[self.graph[n].split_parents[-1]].type == \
+                        'foreach'
+                            for n in node.out_funcs):
                     env['METAFLOW_SPLIT_PARENT_TASK_ID_FOR_FOREACH_JOIN'] = \
                             attrs['split_parent_task_id_%s.$' % \
                                 self.graph[node.out_funcs[0]].split_parents[-1]]
@@ -450,14 +460,22 @@ class StepFunctions(object):
         metaflow_version['production_token'] = self.production_token
         env['METAFLOW_VERSION'] = json.dumps(metaflow_version)
 
-        # Set AWS DynamoDb Table Name/Region for state tracking for for-eaches
+        # Set AWS DynamoDb Table Name for state tracking for for-eaches.
+        # There are three instances when metaflow runtime directly interacts
+        # with AWS DynamoDB.
+        #   1. To set the cardinality of foreaches (which are subsequently)
+        #      read prior to the instantiation of the Map state by AWS Step
+        #      Functions.
+        #   2. To set the input paths from the parent steps of a foreach join.
+        #   3. To read the input paths in a foreach join.
         if node.type == 'foreach' or \
             (node.is_inside_foreach and \
-                any(self.graph[n].type == 'join' for n in node.out_funcs)) or \
+                any(self.graph[n].type == 'join' and \
+                    self.graph[self.graph[n].split_parents[-1]].type == \
+                        'foreach' for n in node.out_funcs)) or \
             (node.type == 'join' and \
                 self.graph[node.split_parents[-1]].type == 'foreach'):
             env['METAFLOW_SFN_DYNAMO_DB_TABLE'] = SFN_DYNAMO_DB_TABLE
-            env['METAFLOW_SFN_DYNAMO_DB_REGION'] = SFN_DYNAMO_DB_REGION
 
         # Resolve AWS Batch resource requirements.
         batch_deco = [deco for deco in node.decorators

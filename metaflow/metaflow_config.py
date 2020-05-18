@@ -103,7 +103,6 @@ BATCH_METADATA_SERVICE_HEADERS = METADATA_SERVICE_HEADERS
 SFN_IAM_ROLE = from_conf("METAFLOW_SFN_IAM_ROLE")
 # AWS DynamoDb Table name (with partition key - `pathspec` of type string)
 SFN_DYNAMO_DB_TABLE = from_conf("METAFLOW_SFN_DYNAMO_DB_TABLE")
-SFN_DYNAMO_DB_REGION = from_conf("METAFLOW_SFN_DYNAMO_DB_REGION")
 # IAM role for AWS Events with AWS Step Functions access'
 # https://docs.aws.amazon.com/eventbridge/latest/userguide/auth-and-access-control-eventbridge.html
 EVENTS_SFN_ACCESS_IAM_ROLE = from_conf("METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE")

@@ -57,7 +57,9 @@ class StepFunctionsInternalDecorator(StepDecorator):
         # instead write the task ids from the parent task to DynamoDb and read
         # it back in the foreach join
         elif graph[step_name].is_inside_foreach and \
-            any(graph[n].type == 'join' for n in graph[step_name].out_funcs):
+            any(graph[n].type == 'join' and \
+                graph[graph[n].split_parents[-1]].type == 'foreach'
+                    for n in graph[step_name].out_funcs):
             self._save_parent_task_id_for_foreach_join(
                 os.environ['METAFLOW_SPLIT_PARENT_TASK_ID_FOR_FOREACH_JOIN'],
                 os.environ['AWS_BATCH_JOB_ID'])

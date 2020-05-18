@@ -479,11 +479,6 @@ def aws(profile):
                             cyan('METAFLOW_SFN_DYNAMO_DB_TABLE:') + 
                           ' AWS DynamoDB Table Name for tracking AWS Step '
                           ' Functions metadata')
-                    env_dict['METAFLOW_SFN_DYNAMO_DB_REGION'] =\
-                        click.prompt('\t' + 
-                            cyan('METAFLOW_SFN_DYNAMO_DB_REGION:') + 
-                          ' Region of AWS DynamoDB Table for tracking AWS Step '
-                          ' Functions metadata')
 
         # Metadata service configuration.
         use_metadata = click.confirm('\nConfigure Metadata Service as default metadata provider?', 
