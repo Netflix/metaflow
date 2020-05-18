@@ -10,7 +10,8 @@ def export_parameters(output_file):
     params.update(input)
     with open(output_file, 'w') as f:
         for k in params:
-            f.write('export METAFLOW_INIT_%s=%s\n' % (k.upper(), params[k]))
+            f.write('export METAFLOW_INIT_%s=%s\n' %
+                (k.upper(), json.dumps(params[k])))
     os.chmod(output_file, 509)
 
 def export_parent_task_ids(output_file):
@@ -21,7 +22,7 @@ def export_parent_task_ids(output_file):
     os.chmod(output_file, 509)
 
 
-# Maybe use click someday instead of conditional
+# TODO: Maybe use click someday instead of conditional.
 if __name__ == '__main__':
     if sys.argv[1] == 'parameters':
         export_parameters(sys.argv[2])

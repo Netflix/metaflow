@@ -37,20 +37,21 @@ class EventBridgeClient(object):
             pass
 
     def _set(self):
-        # generate a new rule or update existing rule.
+        # Generate a new rule or update existing rule.
         self._client.put_rule(
             Name=self.name,
             ScheduleExpression='cron(%s)' % self.cron,
             Description='Metaflow generated rule for %s' % self.name,
             State='ENABLED'
         )
-        # assign AWS Step Functions ARN to the rule as a target.
+        # Assign AWS Step Functions ARN to the rule as a target.
         self._client.put_targets(
             Rule=self.name,
             Targets=[
                 {
                     'Id':self.name,
                     'Arn':self.state_machine_arn,
+                    # Set input parameters to empty.
                     'Input':json.dumps({'Parameters':json.dumps({})}),
                     'RoleArn':self.role_arn
                 }

@@ -73,7 +73,8 @@ class StepFunctions(object):
             # that can translate cron specifications into a human readable 
             # format and push to the user for a better UX, someday.
             return 'This workflow triggers automatically '\
-                'via a cron schedule defined in AWS EventBridge.'
+                'via a cron schedule *%s* defined in AWS EventBridge.' \
+                % self.name
         else:
             return 'No triggers defined. '\
                 'You need to launch this workflow manually.'
