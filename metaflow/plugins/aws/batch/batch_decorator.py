@@ -137,6 +137,9 @@ class BatchDecorator(StepDecorator):
                     if not (my_val is None and v is None):
                         self.attributes[k] = str(max(int(my_val or 0), int(v or 0)))
         self.run_time_limit = get_run_time_limit_for_task(decos)
+        if self.run_time_limit < 60:
+            raise BatchException('The timeout for step *{step}* should be at '
+                'least 60 seconds for execution on AWS Batch'.format(step=step))
 
     def runtime_init(self, flow, graph, package, run_id):
         self.flow = flow

@@ -42,7 +42,8 @@ class StepFunctions(object):
                  tags=None,
                  namespace=None,
                  username=None,
-                 max_workers=None):
+                 max_workers=None,
+                 workflow_timeout=None):
         self.name = name
         self.graph = graph
         self.flow = flow
@@ -58,6 +59,7 @@ class StepFunctions(object):
         self.namespace = namespace
         self.username = username
         self.max_workers = max_workers
+        self.workflow_timeout = workflow_timeout
         
         self._client = StepFunctionsClient()
         self._workflow = self._compile()
@@ -221,10 +223,11 @@ class StepFunctions(object):
                                              % (node.type, node.name))
             return workflow
 
-        return _visit(
-                    self.graph['start'],
-                    Workflow(self.name) \
-                                .start_at('start'))
+        workflow = Workflow(self.name) \
+                        .start_at('start')
+        if self.workflow_timeout:
+            workflow.timeout_seconds(self.workflow_timeout)
+        return _visit(self.graph['start'], workflow)
 
     def _cron(self):
         schedule = self.flow._flow_decorators.get('schedule')
@@ -635,6 +638,10 @@ class Workflow(object):
 
     def add_state(self, state):
         self.payload['States'][state.name] = state.payload
+        return self
+
+    def timeout_seconds(self, timeout_seconds):
+        self.payload['TimeoutSeconds'] = timeout_seconds
         return self
 
     def to_json(self, pretty=False):

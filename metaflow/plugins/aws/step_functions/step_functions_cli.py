@@ -63,6 +63,10 @@ def step_functions(obj):
               default=100,
               show_default=True,
               help="Maximum number of parallel processes.")
+@click.option('--workflow-timeout',
+              default=None,
+              type=int,
+              help="Workflow timeout in seconds.")
 @click.pass_obj
 def create(obj,
            tags=None,
@@ -72,7 +76,7 @@ def create(obj,
            generate_new_token=False,
            given_token=None,
            max_workers=None,
-           enable_debug_logs=None):
+           workflow_timeout=None):
 
     name = current.flow_name
     token_prefix = name.lower()
@@ -91,7 +95,8 @@ def create(obj,
                      name,
                      tags,
                      user_namespace,
-                     max_workers)
+                     max_workers,
+                     workflow_timeout)
 
     if only_json:
         obj.echo_always(flow.to_json(), err=False, no_bold=True)
@@ -111,7 +116,8 @@ def make_flow(obj,
               name,
               tags,
               namespace,
-              max_workers):
+              max_workers,
+              workflow_timeout):
     datastore = obj.datastore(obj.flow.name,
                               mode='w',
                               metadata=obj.metadata,
@@ -141,7 +147,8 @@ def make_flow(obj,
                          tags=tags,
                          namespace=namespace,
                          max_workers=max_workers,
-                         username=get_username())
+                         username=get_username(),
+                         workflow_timeout=workflow_timeout)
 
 def resolve_token(name,
                   token_prefix,
@@ -236,5 +243,5 @@ def trigger(obj, **kwargs):
     name = current.flow_name
     id = response['executionArn'].split(':')[-1]
     obj.echo("Workflow *{name}* triggered on AWS Step Functions "
-        "(run-id *{id}*).".format(name=name, id=id), bold=True)
+        "(run-id *sfn-{id}*).".format(name=name, id=id), bold=True)
 
