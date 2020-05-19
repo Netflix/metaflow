@@ -125,7 +125,7 @@ class StepFunctions(object):
             try:
                 start = json.loads(workflow['definition'])['States']['start']
                 parameters = start['Parameters']['Parameters']
-                return parameters.get('metaflow.user'), \
+                return parameters.get('metaflow.owner'), \
                     parameters.get('metaflow.production_token')
             except KeyError as e:
                 raise StepFunctionsException("An exisiting non-metaflow "
@@ -261,7 +261,13 @@ class StepFunctions(object):
 
     def _batch(self, node):
         attrs = {
-            'metaflow.user': self.username,
+            # metaflow.user is only used for setting the AWS Job Name.
+            # Since job executions are no longer tied to a specific user
+            # identity, we will just set their user to `SFN`. We still do need
+            # access to the owner of the workflow for production tokens, which 
+            # we can stash in metaflow.owner.
+            'metaflow.user': 'SFN',
+            'metaflow.owner': self.username,
             'metaflow.flow_name': self.flow.name,
             'metaflow.step_name': node.name,
             'metaflow.run_id.$': '$$.Execution.Name',
@@ -346,7 +352,7 @@ class StepFunctions(object):
             if node.type == 'join' and \
                  self.graph[node.split_parents[-1]].type == 'foreach':
                 input_paths = \
-                    '${METAFLOW_RUN_ID}/%s/:' \
+                    'sfn-${METAFLOW_RUN_ID}/%s/:' \
                         '${METAFLOW_PARENT_TASK_IDS}' % node.in_funcs[0]
                 # Unfortunately, AWS Batch only allows strings as value types
                 # in it's specification and we don't have any way to concatenate
@@ -366,14 +372,14 @@ class StepFunctions(object):
                 # Set appropriate environment variables for runtime replacement.
                 if len(node.in_funcs) == 1:
                     input_paths = \
-                        '${METAFLOW_RUN_ID}/%s/${METAFLOW_PARENT_TASK_ID}' \
+                        'sfn-${METAFLOW_RUN_ID}/%s/${METAFLOW_PARENT_TASK_ID}' \
                             % node.in_funcs[0]
                     env['METAFLOW_PARENT_TASK_ID'] = '$.JobId'
                 else:
                     # Generate the input paths in a quasi-compressed format.
                     # See util.decompress_list for why this is written the way 
                     # it is.
-                    input_paths = '${METAFLOW_RUN_ID}:' + ','.join(
+                    input_paths = 'sfn-${METAFLOW_RUN_ID}:' + ','.join(
                         '/${METAFLOW_PARENT_%s_STEP}/'
                             '${METAFLOW_PARENT_%s_TASK_ID}' % (idx, idx) 
                             for idx, _ in enumerate(node.in_funcs))
@@ -450,6 +456,7 @@ class StepFunctions(object):
         env['METAFLOW_FLOW_NAME'] = attrs['metaflow.flow_name']
         env['METAFLOW_STEP_NAME'] = attrs['metaflow.step_name']
         env['METAFLOW_RUN_ID'] = attrs['metaflow.run_id.$']
+        #env['METAFLOW_USER'] = attrs['metaflow.owner']
         # Can't set `METAFLOW_TASK_ID` due to lack of run-scoped identifiers.
         # We will instead rely on `AWS_BATCH_JOB_ID` as the task identifier.
         # Can't set `METAFLOW_RETRY_COUNT` either due to integer casting issue.
@@ -555,7 +562,7 @@ class StepFunctions(object):
                  '--monitor=%s' % self.monitor.monitor_type,
                  '--no-pylint',
                  'init',
-                 '--run-id $METAFLOW_RUN_ID',
+                 '--run-id sfn-$METAFLOW_RUN_ID',
                  '--task-id %s' % task_id_params]
 
             # If the start step gets retried, we must be careful not to 
@@ -564,11 +571,11 @@ class StepFunctions(object):
             exists = entrypoint +\
                 ['dump',
                  '--max-value-size=0',
-                 '${METAFLOW_RUN_ID}/_parameters/%s' % (task_id_params)]
+                 'sfn-${METAFLOW_RUN_ID}/_parameters/%s' % (task_id_params)]
             cmd = 'if ! %s >/dev/null 2>/dev/null; then %s && %s; fi'\
                   % (' '.join(exists), export_params, ' '.join(params))
             cmds.append(cmd)
-            paths = '${METAFLOW_RUN_ID}/_parameters/%s' % (task_id_params)
+            paths = 'sfn-${METAFLOW_RUN_ID}/_parameters/%s' % (task_id_params)
         
         if node.type == 'join' and\
             self.graph[node.split_parents[-1]].type == 'foreach':
@@ -596,7 +603,7 @@ class StepFunctions(object):
         step = [
             'step',
             node.name,
-            '--run-id $METAFLOW_RUN_ID',
+            '--run-id sfn-$METAFLOW_RUN_ID',
             '--task-id %s' % task_id,
             # Since retries are handled by AWS Batch, we can rely on
             # AWS_BATCH_JOB_ATTEMPT as the job counter.

@@ -41,11 +41,13 @@ class Batch(object):
 
     def _search_jobs(self, flow_name, run_id, user):
         if user is None:
-            regex = '-{flow_name}-{run_id}-'.format(flow_name=flow_name, run_id=run_id)
+            regex = '-{flow_name}-'.format(flow_name=flow_name, run_id=run_id)
         else:
-            regex = '{user}-{flow_name}-{run_id}-'.format(
+            regex = '{user}-{flow_name}-'.format(
                 user=user, flow_name=flow_name, run_id=run_id
             )
+        if run_id:
+            regex = '{regex}{run_id}-'.format(regex=regex, run_id=run_id)
         jobs = []
         for job in self._client.unfinished_jobs():
             if regex in job['jobName']:

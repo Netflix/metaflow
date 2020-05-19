@@ -47,10 +47,10 @@ def _execute_cmd(func, flow_name, run_id, user, my_runs, echo):
     if my_runs:
         user = util.get_username()
 
-    latest_run = False
+    latest_run = True
 
     if user and not run_id:
-        latest_run = True
+        latest_run = False
 
     if not run_id and latest_run:
         run_id = util.get_latest_run_id(echo, flow_name)
@@ -87,12 +87,14 @@ def _sync_metadata(echo, metadata, datastore_root, attempt):
         except err as e:  # noqa F841
             pass
 
-@batch.command(help="List running AWS Batch tasks of this flow")
-@click.option(
-    "--my-runs", default=False, is_flag=True, help="Run the command over all tasks."
-)
-@click.option("--user", default=None, help="List tasks for the given user.")
-@click.option("--run-id", default=None, help="List tasks corresponding to the run id.")
+
+@batch.command(help="List unfinished AWS Batch tasks of this flow")
+@click.option("--my-runs", default=False, is_flag=True,
+    help="List all my unfinished tasks.")
+@click.option("--user", default=None,
+    help="List unfinished tasks for the given user.")
+@click.option("--run-id", default=None,
+    help="List unfinished tasks corresponding to the run id.")
 @click.pass_context
 def list(ctx, run_id, user, my_runs):
     batch = Batch(ctx.obj.metadata, ctx.obj.environment)
@@ -101,12 +103,13 @@ def list(ctx, run_id, user, my_runs):
     )
 
 
-@batch.command(help="Terminate running AWS Batch tasks of this flow.")
-@click.option("--my-runs", default=False, is_flag=True, help="Kill all running tasks.")
-@click.option("--user", default=None, help="List tasks for the given user.")
-@click.option(
-    "--run-id", default=None, help="Terminate tasks corresponding to the run id."
-)
+@batch.command(help="Terminate unfinished AWS Batch tasks of this flow.")
+@click.option("--my-runs", default=False, is_flag=True,
+    help="Kill all my unfinished tasks.")
+@click.option("--user", default=None,
+    help="Terminate unfinished tasks for the given user.")
+@click.option("--run-id", default=None,
+    help="Terminate unfinished tasks corresponding to the run id.")
 @click.pass_context
 def kill(ctx, run_id, user, my_runs):
     batch = Batch(ctx.obj.metadata, ctx.obj.environment)
