@@ -67,15 +67,13 @@ class BatchJob(object):
                 'Unable to launch AWS Batch job. No IAM role specified.'
             )
         if 'jobDefinition' not in self.payload:
-            self.payload['jobDefinition'] = \
-                self._register_job_definition(self._image, self._iam_role)
+            self.payload['jobDefinition'] = self._register_job_definition(self._image, self._iam_role)
         response = self._client.submit_job(**self.payload)
         job = RunningJob(response['jobId'], self._client)
         return job.update()
 
     def _register_job_definition(self, image, job_role):
-        def_name = 'metaflow_%s' % \
-            hashlib.sha224((image + job_role).encode('utf-8')).hexdigest()
+        def_name = 'metaflow_%s' % hashlib.sha224((image + job_role).encode('utf-8')).hexdigest()
         payload = {'jobDefinitionName': def_name, 'status': 'ACTIVE'}
         response = self._client.describe_job_definitions(**payload)
         if len(response['jobDefinitions']) > 0:
@@ -94,11 +92,6 @@ class BatchJob(object):
         response = self._client.register_job_definition(**payload)
         return response['jobDefinitionArn']
 
-    def job_def(self, image, iam_role):
-        self.payload['jobDefinition'] = \
-            self._register_job_definition(image, iam_role)
-        return self
-
     def job_name(self, job_name):
         self.payload['jobName'] = job_name
         return self
@@ -108,8 +101,7 @@ class BatchJob(object):
         return self
 
     def job_def(self, image, iam_role):
-        self.payload['jobDefinition'] = \
-            self._register_job_definition(image, iam_role)
+        self.payload['jobDefinition'] = self._register_job_definition(image, iam_role)
         return self
 
     def image(self, image):
@@ -155,17 +147,9 @@ class BatchJob(object):
     def environment_variable(self, name, value):
         if 'environment' not in self.payload['containerOverrides']:
             self.payload['containerOverrides']['environment'] = []
-        value = str(value)
-        if value.startswith("$$.") or value.startswith("$."):
-            # Context Object substitution for AWS Step Functions
-            # https://docs.aws.amazon.com/step-functions/latest/dg/input-output-contextobject.html
-            self.payload['containerOverrides']['environment'].append(
-                {'name': name, 'value.$': value}
-            )
-        else:
-            self.payload['containerOverrides']['environment'].append(
-                {'name': name, 'value': value}
-            )
+        self.payload['containerOverrides']['environment'].append(
+            {'name': name, 'value': str(value)}
+        )
         return self
 
     def timeout_in_secs(self, timeout_in_secs):

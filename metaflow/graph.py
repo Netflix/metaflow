@@ -126,7 +126,6 @@ class DAGNode(object):
         return\
 """*[{0.name} {0.type} (line {0.func_lineno})]*
     in_funcs={in_funcs}
-    out_funcs={out_funcs}
     split_parents={parents}
     matching_join={matching_join}
     is_inside_foreach={is_inside_foreach}
@@ -140,7 +139,6 @@ class DAGNode(object):
     .format(self,
             matching_join=self.matching_join and '[%s]' % self.matching_join,
             is_inside_foreach=self.is_inside_foreach,
-            out_funcs=', '.join('[%s]' % x for x in self.out_funcs),
             in_funcs=', '.join('[%s]' % x for x in self.in_funcs),
             parents=', '.join('[%s]' % x for x in self.split_parents),
             decos=' | '.join(map(str, self.decorators)),
