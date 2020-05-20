@@ -791,9 +791,13 @@ def start(ctx,
 
     # initialize current and parameter context for deploy-time parameters
     current._set_env(flow_name=ctx.obj.flow.name, is_running=False)
+<<<<<<< HEAD
     parameters.set_parameter_context(ctx.obj.flow.name,
                                         ctx.obj.logger,
                                         ctx.obj.datastore)
+=======
+    parameters.set_parameter_context(ctx.obj.flow.name)
+>>>>>>> AWS Step Functions Integration
 
     if ctx.invoked_subcommand not in ('run', 'resume'):
         # run/resume are special cases because they can add more decorators with --with,

@@ -179,6 +179,7 @@ class Parameter(object):
         if self.separator and not self.is_string_type:
             raise MetaflowException("Parameter *%s*: Separator is only allowed "
                                     "for string parameters." % name)
+<<<<<<< HEAD
         parameters.append(self)
 
     def option_kwargs(self, deploy_mode):
@@ -195,6 +196,10 @@ class Parameter(object):
 
     def load_parameter(self, v):
         return v
+=======
+        self.user_required = self.kwargs.get('required', False)
+        parameters.append(self)
+>>>>>>> AWS Step Functions Integration
 
     def _get_type(self, kwargs):
         default_type = str
