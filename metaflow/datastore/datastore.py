@@ -377,11 +377,11 @@ class MetaflowDataStore(object):
 
                 # We have to make MAX_ATTEMPTS HEAD requests, which is
                 # very unfortunate performance-wise (TODO: parallelize this).
-                # On Meson it is possible that some attempts are missing, so
-                # we have to check all possible attempt files to find the
-                # latest one. Compared to doing a LIST operation, these checks
-                # are guaranteed to be consistent as long as the task to be
-                # looked up has already finished.
+                # On AWS Step Functions it is possible that some attempts are 
+                # missing, so we have to check all possible attempt files to 
+                # find the latest one. Compared to doing a LIST operation, 
+                # these checks are guaranteed to be consistent as long as the 
+                # task to be looked up has already finished.
                 self.attempt = None # backwards-compatibility for pre-attempts.
                 for i in range(0, metaflow_config.MAX_ATTEMPTS):
                     if self.has_metadata('%d.attempt' % i, with_attempt=False):
