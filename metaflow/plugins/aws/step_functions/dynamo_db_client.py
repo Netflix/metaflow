@@ -14,7 +14,8 @@ class DynamoDbClient(object):
 
     def save_foreach_cardinality(self, 
                                  foreach_split_task_id, 
-                                 foreach_cardinality):
+                                 foreach_cardinality,
+                                 ttl):
         return self._client.put_item(
             TableName = self.name,
             Item = {
@@ -22,7 +23,10 @@ class DynamoDbClient(object):
                     'S': foreach_split_task_id
                 },
                 'for_each_cardinality': {
-                    "NS": list(map(str, range(foreach_cardinality)))
+                    'NS': list(map(str, range(foreach_cardinality)))
+                },
+                'ttl': {
+                    'N': str(ttl)
                 }
             }
         )

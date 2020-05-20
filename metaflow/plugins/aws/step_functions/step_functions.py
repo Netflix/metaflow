@@ -451,6 +451,12 @@ class StepFunctions(object):
                             attrs['split_parent_task_id_%s.$' % \
                                 self.graph[node.out_funcs[0]].split_parents[-1]]
 
+                # Set ttl for the values we set in AWS DynamoDB.
+                if node.type == 'foreach':
+                    if self.workflow_timeout:
+                        env['METAFLOW_SFN_WORKFLOW_TIMEOUT'] = \
+                            self.workflow_timeout
+
             # Handle split index for for-each.
             if any(self.graph[n].type == 'foreach' for n in node.in_funcs):
                 env['METAFLOW_SPLIT_INDEX'] = '$.Index'
