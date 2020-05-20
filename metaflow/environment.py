@@ -79,8 +79,8 @@ class MetaflowEnvironment(object):
     def get_package_commands(self, code_package_url):
         cmds = ["set -e",
                 "echo \'Setting up task environment.\'",
-                "%s -m pip install awscli click requests boto3 \
-                    --user -qqq" % self._python(),
+                "%s -m pip install awscli click requests boto3 --user -qqq" 
+                    % self._python(),
                 "mkdir metaflow",
                 "cd metaflow",
                 "mkdir .metaflow", # mute local datastore creation log

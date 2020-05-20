@@ -140,7 +140,6 @@ class Parameter(object):
         # fields that don't support function-values yet
         for field in ('show_default',
                       'separator',
-                      'external_trigger',
                       'required'):
             if callable(kwargs.get(field)):
                 raise MetaflowException("Parameter *%s*: Field '%s' cannot "
@@ -157,41 +156,13 @@ class Parameter(object):
                                                      self.kwargs['default'],
                                                      return_str=True)
 
-        # external_artfiact can be a function (returning a list), a list of
-        # strings, or a string (which gets converted to a list)
-        external_artifact = self.kwargs.pop('external_artifact', None)
-        if callable(external_artifact):
-            self.external_artifact = DeployTimeField(name,
-                                                     list,
-                                                     'external_artifact',
-                                                     external_artifact,
-                                                     return_str=False)
-        elif isinstance(external_artifact, list):
-            self.external_artifact = external_artifact
-        elif external_artifact is None:
-            self.external_artifact = []
-        else:
-            self.external_artifact = [external_artifact]
-
-        self.external_trigger = self.kwargs.pop('external_trigger', None)
-
         # note that separator doesn't work with DeployTimeFields unless you
         # specify type=str
         self.separator = self.kwargs.pop('separator', None)
         if self.separator and not self.is_string_type:
             raise MetaflowException("Parameter *%s*: Separator is only allowed "
                                     "for string parameters." % name)
-
-        if self.external_trigger and not self.external_artifact:
-            raise MetaflowException("Parameter *%s* has external_trigger=True "
-                                    "but external_artifact is not specified. "
-                                    "Specify the name of the external "
-                                    "artifact." % name)
-
         self.user_required = self.kwargs.get('required', False)
-        if self.external_artifact:
-            self.kwargs['required'] = True
-
         parameters.append(self)
 
     def _get_type(self, kwargs):
