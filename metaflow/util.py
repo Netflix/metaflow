@@ -6,7 +6,6 @@ import zlib
 import base64
 from functools import wraps
 from itertools import takewhile
-import re
 
 from metaflow.exception import MetaflowUnknownUser, MetaflowInternalError
 
@@ -340,22 +339,3 @@ def which(cmd, mode=os.F_OK | os.X_OK, path=None):
                         return name
 
         return None
-
-
-def to_pascalcase(obj):
-    """
-    Convert all keys of a json to pascal case.
-    """
-    if isinstance(obj, (str, int, float)):
-        return obj
-    if isinstance(obj, dict):
-        res = obj.__class__()
-        for k in obj:
-            res[re.sub('([a-zA-Z])', 
-                lambda x: x.groups()[0].upper(), k, 1)] = \
-                to_pascalcase(obj[k])
-    elif isinstance(obj, (list, set, tuple)):
-        res = obj.__class__(to_pascalcase(v) for v in obj)
-    else:
-        return obj
-    return res
