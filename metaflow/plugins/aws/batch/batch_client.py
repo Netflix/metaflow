@@ -1,4 +1,5 @@
 from collections import defaultdict, deque
+import random
 import select
 import sys
 import time
@@ -59,18 +60,19 @@ class BatchJob(object):
     def execute(self):
         if self._image is None:
             raise BatchJobException(
-                'Unable to launch Batch job. No docker image specified.'
+                'Unable to launch AWS Batch job. No docker image specified.'
             )
         if self._iam_role is None:
             raise BatchJobException(
-                'Unable to launch Batch job. No IAM role specified.'
+                'Unable to launch AWS Batch job. No IAM role specified.'
             )
-        self.payload['jobDefinition'] = self._job_def_arn(self._image, self._iam_role)
+        if 'jobDefinition' not in self.payload:
+            self.payload['jobDefinition'] = self._register_job_definition(self._image, self._iam_role)
         response = self._client.submit_job(**self.payload)
         job = RunningJob(response['jobId'], self._client)
         return job.update()
 
-    def _job_def_arn(self, image, job_role):
+    def _register_job_definition(self, image, job_role):
         def_name = 'metaflow_%s' % hashlib.sha224((image + job_role).encode('utf-8')).hexdigest()
         payload = {'jobDefinitionName': def_name, 'status': 'ACTIVE'}
         response = self._client.describe_job_definitions(**payload)
@@ -96,6 +98,10 @@ class BatchJob(object):
 
     def job_queue(self, job_queue):
         self.payload['jobQueue'] = job_queue
+        return self
+
+    def job_def(self, image, iam_role):
+        self.payload['jobDefinition'] = self._register_job_definition(image, iam_role)
         return self
 
     def image(self, image):
@@ -154,24 +160,45 @@ class BatchJob(object):
         self.payload['parameters'][key] = str(value)
         return self
 
+    def attempts(self, attempts):
+        self.payload['retryStrategy']['attempts'] = attempts
+        return self
 
-class limit(object):
-    def __init__(self, delta_in_secs):
+
+class Throttle(object):
+    def __init__(self, delta_in_secs=1, num_tries=20):
         self.delta_in_secs = delta_in_secs
+        self.num_tries = num_tries
         self._now = None
+        self._reset()
+
+    def _reset(self):
+        self._tries_left = self.num_tries
+        self._wait = self.delta_in_secs
 
     def __call__(self, func):
         def wrapped(*args, **kwargs):
             now = time.time()
-            if self._now is None or (now - self._now > self.delta_in_secs):
-                func(*args, **kwargs)
+            if self._now is None or (now - self._now > self._wait):
                 self._now = now
+                try:
+                    func(*args, **kwargs)
+                    self._reset()
+                except TriableException as ex:
+                    self._tries_left -= 1
+                    if self._tries_left == 0:
+                        raise ex.ex
+                    self._wait = (self.delta_in_secs*1.2)**(self.num_tries-self._tries_left) + \
+                        random.randint(0, 3*self.delta_in_secs)
         return wrapped
 
+class TriableException(Exception):
+    def __init__(self, ex):
+        self.ex = ex
 
 class RunningJob(object):
 
-    NUM_RETRIES = 5
+    NUM_RETRIES = 8
 
     def __init__(self, id, client):
         self._id = id
@@ -184,16 +211,21 @@ class RunningJob(object):
     def _apply(self, data):
         self._data = data
 
-    @limit(1)
+    @Throttle()
     def _update(self):
         try:
             data = self._client.describe_jobs(jobs=[self._id])
-        except self._client.exceptions.ClientException:
-            return
+        except self._client.exceptions.ClientError as err:
+            code = err.response['ResponseMetadata']['HTTPStatusCode']
+            if code == 429 or code >= 500:
+                raise TriableException(err)
+            raise err
         self._apply(data['jobs'][0])
 
     def update(self):
         self._update()
+        while not self._data:
+            self._update()
         return self
 
     @property
@@ -279,13 +311,14 @@ class RunningJob(object):
 
         log_stream = None
         while True:
-            if self.is_running or self.is_done:
+            if self.is_running or self.is_done or self.is_crashed:
                 log_stream = get_log_stream(self)
                 break
             elif not self.is_done:
                 self.wait_for_running()
 
-        for i in range(self.NUM_RETRIES):
+        exception = None
+        for i in range(self.NUM_RETRIES + 1):
             try:
                 check_after_done = 0
                 for line in log_stream:
@@ -297,12 +330,17 @@ class RunningJob(object):
                         else:
                             pass
                     else:
+                        i = 0
                         yield line
+                return
             except Exception as ex:
+                exception = ex
                 if self.is_crashed:
                     break
-                sys.stderr.write(repr(ex))
-                time.sleep(2 ** i)
+                #sys.stderr.write(repr(ex) + '\n')
+                if i < self.NUM_RETRIES:
+                    time.sleep(2 ** i + random.randint(0, 5))
+        raise BatchJobException(repr(exception))
 
     def kill(self):
         if not self.is_done:

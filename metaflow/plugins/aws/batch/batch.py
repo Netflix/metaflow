@@ -94,7 +94,7 @@ class Batch(object):
         else:
             echo('No running Batch jobs found.')
 
-    def launch_job(
+    def create_job(
         self,
         step_name,
         step_cli,
@@ -109,7 +109,7 @@ class Batch(object):
         memory=None,
         run_time_limit=None,
         env={},
-        attrs={},
+        attrs={}
     ):
         job_name = self._job_name(
             attrs['metaflow.user'],
@@ -119,14 +119,6 @@ class Batch(object):
             attrs['metaflow.task_id'],
             attrs['metaflow.retry_count'],
         )
-        if queue is None:
-            queue = next(self._client.active_job_queues(), None)
-            if queue is None:
-                raise BatchException(
-                    'Unable to launch Batch job. No job queue '
-                    ' specified and no valid & enabled queue found.'
-                )
-
         job = self._client.job()
         job \
             .job_name(job_name) \
@@ -136,6 +128,7 @@ class Batch(object):
                               self.environment, step_name, [step_cli])) \
             .image(image) \
             .iam_role(iam_role) \
+            .job_def(image, iam_role) \
             .cpu(cpu) \
             .gpu(gpu) \
             .memory(memory) \
@@ -161,8 +154,49 @@ class Batch(object):
         if attrs:
             for key, value in attrs.items():
                 job.parameter(key, value)
-        self.job = job.execute()
+        return job
 
+    def launch_job(
+        self,
+        step_name,
+        step_cli,
+        code_package_sha,
+        code_package_url,
+        code_package_ds,
+        image,
+        queue,
+        iam_role=None,
+        cpu=None,
+        gpu=None,
+        memory=None,
+        run_time_limit=None,
+        env={},
+        attrs={}
+    ):
+        if queue is None:
+            queue = next(self._client.active_job_queues(), None)
+            if queue is None:
+                raise BatchException(
+                    'Unable to launch Batch job. No job queue '
+                    ' specified and no valid & enabled queue found.'
+                )
+        job = self.create_job(
+                step_name,
+                step_cli,
+                code_package_sha,
+                code_package_url,
+                code_package_ds,
+                image,
+                queue,
+                iam_role,
+                cpu,
+                gpu,
+                memory,
+                run_time_limit,
+                env,
+                attrs
+            )
+        self.job = job.execute()
 
     def wait(self, echo=None):
         def wait_for_launch(job):
@@ -173,11 +207,11 @@ class Batch(object):
                 if status != job.status or (time.time()-t) > 30:
                     status = job.status
                     echo(
-                        self.job.id,
+                        job.id,
                         'Task is starting (status %s)...' % status
                     )
                     t = time.time()
-                if self.job.is_running or self.job.is_done or self.job.is_crashed:
+                if job.is_running or job.is_done or job.is_crashed:
                     break
                 select.poll().poll(200)
 
@@ -199,16 +233,13 @@ class Batch(object):
                 select.poll().poll(500)
 
         if self.job.is_crashed:
-            if self.job.reason:
-                raise BatchException(
-                    'Task crashed due to %s .'
-                    'This could be a transient error. '
-                    'Use @retry to retry.' % self.job.reason
-                )
+            msg = next(msg for msg in 
+                [self.job.reason, self.job.status_reason, 'Task crashed.']
+                 if msg is not None)
             raise BatchException(
-                'Task crashed. '
+                '%s '
                 'This could be a transient error. '
-                'Use @retry to retry.'
+                'Use @retry to retry.' % msg
             )
         else:
             if self.job.is_running:
