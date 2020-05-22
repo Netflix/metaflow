@@ -201,6 +201,15 @@ class Parameter(object):
         parameters.append(self)
 >>>>>>> AWS Step Functions Integration
 
+    def option_kwargs(self, deploy_mode):
+        kwargs = self.kwargs
+        if isinstance(kwargs['default'], DeployTimeField) and not deploy_mode:
+            ret = dict(kwargs)
+            ret['default'] = None
+            return ret
+        else:
+            return kwargs
+
     def _get_type(self, kwargs):
         default_type = str
 
