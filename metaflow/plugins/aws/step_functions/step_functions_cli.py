@@ -77,7 +77,6 @@ def create(obj,
            given_token=None,
            max_workers=None,
            workflow_timeout=None):
-
     name = current.flow_name
     token_prefix = name.lower()
 
@@ -228,7 +227,7 @@ def resolve_token(name,
     return token
 
 
-@parameters.add_custom_parameters
+@parameters.add_custom_parameters(deploy_mode=False)
 @step_functions.command(help="Trigger the workflow on AWS Step Functions.")
 @click.pass_obj
 def trigger(obj, **kwargs):
@@ -237,7 +236,9 @@ def trigger(obj, **kwargs):
         return json.dumps(v) if param.kwargs.get('type') == JSONType else v
 
     params = {param.name: _convert_value(param)
-              for _, param in obj.flow._get_parameters()}
+              for _, param in obj.flow._get_parameters()
+                if kwargs.get(param.name) is not None}
+    print(params)
     response = StepFunctions.trigger(current.flow_name, params)
 
     name = current.flow_name
@@ -245,3 +246,92 @@ def trigger(obj, **kwargs):
     obj.echo("Workflow *{name}* triggered on AWS Step Functions "
         "(run-id *sfn-{id}*).".format(name=name, id=id), bold=True)
 
+
+@step_functions.command(
+    help="List all runs of the workflow on AWS Step Functions.")
+@click.option("--running", default=False, is_flag=True,
+    help="List all runs of the workflow in RUNNING state on "
+        "AWS Step Functions.")
+@click.option("--succeeded", default=False, is_flag=True,
+    help="List all runs of the workflow in SUCCEEDED state on "
+        "AWS Step Functions.")
+@click.option("--failed", default=False, is_flag=True,
+    help="List all runs of the workflow in FAILED state on "
+        "AWS Step Functions.")
+@click.option("--timed-out", default=False, is_flag=True,
+    help="List all runs of the workflow in TIMED_OUT state on "
+        "AWS Step Functions.")
+@click.option("--aborted", default=False, is_flag=True,
+    help="List all runs of the workflow in ABORTED state on "
+        "AWS Step Functions.")
+@click.pass_obj
+def list_runs(obj, 
+        running=False,
+        succeeded=False,
+        failed=False,
+        timed_out=False,
+        aborted=False):
+    states = []
+    if running:
+        states.append('RUNNING')
+    if succeeded:
+        states.append('SUCCEEDED')
+    if failed:
+        states.append('FAILED')
+    if timed_out:
+        states.append('TIMED_OUT')
+    if aborted:
+        states.append('ABORTED')
+    executions = StepFunctions.list(current.flow_name, states)
+    found = False
+    for execution in executions:
+        found = True
+        if execution.get('stopDate'):
+            obj.echo(
+                "*{id}* "
+                "[startedAt: {startDate}, stoppedAt: {stopDate}] "
+                "(*{status}*)".format(
+                    id=execution['name'], 
+                    status=execution['status'], 
+                    startDate=execution['startDate'].replace(microsecond=0), 
+                    stopDate=execution['stopDate'].replace(microsecond=0),
+                )
+            )
+        else:
+            obj.echo(
+                "*{id}* "
+                "[startedAt: {startDate}] "
+                "(*{status}*)".format(
+                    id=execution['name'], 
+                    status=execution['status'], 
+                    startDate=execution['startDate'].replace(microsecond=0)
+                )
+            )
+    if not found:
+        if len(states) > 0:
+            status = ''
+            for idx, state in enumerate(states):
+                if idx == 0:
+                    pass
+                elif idx == len(states) - 1:
+                    status += ' and '
+                else:
+                    status += ', '
+                status += '*%s*' % state
+            obj.echo('No %s executions for *%s* found on AWS Step Functions.'
+                % (status, current.flow_name))
+        else:
+            obj.echo('No executions for *%s* found on AWS Step Functions.' \
+                % (current.flow_name))
+
+
+@step_functions.command(
+    help="Terminate workflow execution on AWS Step Functions.")
+@click.option('--run-id',
+              default=None,
+              required=True,
+              help='Run ID of the workflow execution on AWS Step Functions.')
+@click.pass_obj
+def terminate(obj, run_id):
+    #TODO
+    pass

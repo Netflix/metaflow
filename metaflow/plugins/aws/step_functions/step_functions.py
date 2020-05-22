@@ -110,13 +110,28 @@ class StepFunctions(object):
             raise StepFunctionsException(repr(e))
         if state_machine_arn is None:
             raise StepFunctionsException("The workflow *%s* doesn't exist "
-                                         "in AWS Step Functions. Please "
+                                         "on AWS Step Functions. Please "
                                          "deploy your flow before "
                                          "trigerring the execution." % name)
         try:
             # Dump parameters into `Parameters` input field.
             input = json.dumps({"Parameters" : json.dumps(parameters)})
             return StepFunctionsClient().trigger(state_machine_arn, input)
+        except Exception as e:
+            raise StepFunctionsException(repr(e))
+
+    @classmethod
+    def list(cls, name, states):
+        try:
+            state_machine_arn = StepFunctionsClient().get_state_machine_arn(name)
+        except Exception as e:
+            raise StepFunctionsException(repr(e))
+        if state_machine_arn is None:
+            raise StepFunctionsException("The workflow *%s* doesn't exist "
+                                         "on AWS Step Functions." % name)
+        try:
+            return StepFunctionsClient() \
+                .list_executions(state_machine_arn, states)
         except Exception as e:
             raise StepFunctionsException(repr(e))
 
