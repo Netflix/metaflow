@@ -41,7 +41,13 @@ class ServiceMetadataProvider(MetadataProvider):
         return self._new_run(tags=tags, sys_tags=sys_tags)
 
     def register_run_id(self, run_id, tags=[], sys_tags=[]):
-        pass
+        try:
+            # don't try to register an integer ID which was obtained
+            # from the MLI service in the first place
+            int(run_id)
+            return
+        except ValueError:
+            return self._new_run(run_id, tags=tags, sys_tags=sys_tags)
 
     def new_task_id(self, run_id, step_name, tags=[], sys_tags=[]):
         return self._new_task(run_id, step_name, tags=tags, sys_tags=sys_tags)
@@ -52,8 +58,20 @@ class ServiceMetadataProvider(MetadataProvider):
                          task_id,
                          tags=[],
                          sys_tags=[]):
-        self._register_code_package_metadata(run_id, step_name, task_id)
+        try:
+            # don't try to register an integer ID which was obtained
+            # from the MLI service in the first place
+            int(task_id)
+        except ValueError:
+            self._new_task(run_id,
+                           step_name,
+                           task_id,
+                           tags=tags,
+                           sys_tags=sys_tags)
+        finally:
+            self._register_code_package_metadata(run_id, step_name, task_id)
 
+        
     def get_runtime_environment(self, runtime_name):
         return {}
 
@@ -102,19 +120,21 @@ class ServiceMetadataProvider(MetadataProvider):
                 return None
             raise
 
-    def _new_run(self, tags=[], sys_tags=[]):
+    def _new_run(self, run_id=None, tags=[], sys_tags=[]):
         # first ensure that the flow exists
         self._get_or_create('flow')
-        run = self._get_or_create('run', tags=tags, sys_tags=sys_tags)
+        run = self._get_or_create('run', run_id, tags=tags, sys_tags=sys_tags)
         return str(run['run_number'])
 
     def _new_task(self,
                   run_id,
                   step_name,
+                  task_id,
                   tags=[],
                   sys_tags=[]):
+        # first ensure that the step exists
         self._get_or_create('step', run_id, step_name)
-        task = self._get_or_create('task', run_id, step_name, tags=tags, sys_tags=sys_tags)
+        task = self._get_or_create('task', run_id, step_name, task_id, tags=tags, sys_tags=sys_tags)
         self._register_code_package_metadata(run_id, step_name, task['task_id'])
         return task['task_id']
 
