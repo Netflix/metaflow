@@ -165,6 +165,15 @@ class Parameter(object):
         self.user_required = self.kwargs.get('required', False)
         parameters.append(self)
 
+    def option_kwargs(self, deploy_mode):
+        kwargs = self.kwargs
+        if isinstance(kwargs['default'], DeployTimeField) and not deploy_mode:
+            ret = dict(kwargs)
+            ret['default'] = None
+            return ret
+        else:
+            return kwargs
+
     def _get_type(self, kwargs):
         default_type = str
 
@@ -184,10 +193,15 @@ class Parameter(object):
     def __getitem__(self, x):
         pass
 
-def add_custom_parameters(cmd):
-    for arg in parameters:
-        cmd.params.insert(0, click.Option(('--' + arg.name,), **arg.kwargs))
-    return cmd
+def add_custom_parameters(deploy_mode=False):
+    # deploy_mode determines whether deploy-time functions should or should
+    # not be evaluated for this command
+    def wrapper(cmd):
+        for arg in parameters:
+            kwargs = arg.option_kwargs(deploy_mode)
+            cmd.params.insert(0, click.Option(('--' + arg.name,), **kwargs))
+        return cmd
+    return wrapper
 
 def set_parameters(flow, kwargs):
     seen = set()

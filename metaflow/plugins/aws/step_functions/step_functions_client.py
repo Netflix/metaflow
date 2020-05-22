@@ -50,6 +50,25 @@ class StepFunctionsClient(object):
             input = input
         )
 
+    def list_executions(self, state_machine_arn, states):
+        if len(states) > 0:
+            return (
+                execution
+                for state in states
+                for page in self._client.get_paginator('list_executions')
+                                .paginate(
+                                    stateMachineArn=state_machine_arn, 
+                                    statusFilter=state
+                                )
+                for execution in page['executions']
+            )
+        return (
+            execution
+            for page in self._client.get_paginator('list_executions')
+                            .paginate(stateMachineArn=state_machine_arn)
+            for execution in page['executions']
+        )
+
     def get_state_machine_arn(self, name):
         state_machine = self.search(name)
         if state_machine:
