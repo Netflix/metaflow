@@ -10,7 +10,7 @@ def get_plugin_cli():
     from .aws.batch import batch_cli
 
     try:
-        metaflow_custom.plugins import get_plugin_cli as custom_plugin_cli
+        from metaflow_custom.plugins import get_plugin_cli as custom_plugin_cli
     except ImportError:
         custom_plugin_cli = lambda: []
 
