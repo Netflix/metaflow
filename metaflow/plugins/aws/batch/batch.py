@@ -41,10 +41,10 @@ class Batch(object):
 
     def _search_jobs(self, flow_name, run_id, user):
         if user is None:
-            regex = '-{flow_name}-'.format(flow_name=flow_name, run_id=run_id)
+            regex = '-{flow_name}-'.format(flow_name=flow_name)
         else:
             regex = '{user}-{flow_name}-'.format(
-                user=user, flow_name=flow_name, run_id=run_id
+                user=user, flow_name=flow_name
             )
         if run_id:
             regex = '{regex}{run_id}-'.format(regex=regex, run_id=run_id)
@@ -58,10 +58,10 @@ class Batch(object):
         return '{user}-{flow_name}-{run_id}-{step_name}-{task_id}-{retry_count}'.format(
             user=user,
             flow_name=flow_name,
-            run_id=str(run_id or ''),
+            run_id=str(run_id) if run_id is not None else '',
             step_name=step_name,
-            task_id=str(task_id or ''),
-            retry_count=str(retry_count or '')
+            task_id=str(task_id) if task_id is not None else '',
+            retry_count=str(retry_count) if retry_count is not None else ''
         )
 
     def list_jobs(self, flow_name, run_id, user, echo):

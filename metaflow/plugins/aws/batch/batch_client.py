@@ -107,11 +107,6 @@ class BatchJob(object):
         self.payload['jobQueue'] = job_queue
         return self
 
-    def job_def(self, image, iam_role):
-        self.payload['jobDefinition'] = \
-            self._register_job_definition(image, iam_role)
-        return self
-
     def image(self, image):
         self._image = image
         return self

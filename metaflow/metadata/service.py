@@ -43,7 +43,7 @@ class ServiceMetadataProvider(MetadataProvider):
     def register_run_id(self, run_id, tags=[], sys_tags=[]):
         try:
             # don't try to register an integer ID which was obtained
-            # from the MLI service in the first place
+            # from the metadata service in the first place
             int(run_id)
             return
         except ValueError:
@@ -60,7 +60,7 @@ class ServiceMetadataProvider(MetadataProvider):
                          sys_tags=[]):
         try:
             # don't try to register an integer ID which was obtained
-            # from the MLI service in the first place
+            # from the metadata service in the first place
             int(task_id)
         except ValueError:
             self._new_task(run_id,
@@ -129,7 +129,7 @@ class ServiceMetadataProvider(MetadataProvider):
     def _new_task(self,
                   run_id,
                   step_name,
-                  task_id,
+                  task_id=None,
                   tags=[],
                   sys_tags=[]):
         # first ensure that the step exists

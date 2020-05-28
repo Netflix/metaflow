@@ -42,7 +42,7 @@ ENVIRONMENTS = [CondaEnvironment]
 # careful with the choice of name though - they become top-level
 # imports from the metaflow package.
 from .conda.conda_flow_decorator import CondaFlowDecorator
-from .schedule_decorator import ScheduleDecorator
+from .aws.step_functions.schedule_decorator import ScheduleDecorator
 FLOW_DECORATORS = [CondaFlowDecorator, ScheduleDecorator]
 
 # Sidecars
