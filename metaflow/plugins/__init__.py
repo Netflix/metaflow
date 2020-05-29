@@ -1,3 +1,21 @@
+try:
+    import metaflow_custom.plugins as ext_plugins
+except ImportError:
+    class _fake(object):
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+
+        def get_plugin_cli(self):
+            return []
+
+    ext_plugins = _fake(
+        FLOW_DECORATORS=[],
+        STEP_DECORATORS=[],
+        ENVIRONMENTS=[],
+        SIDECAR={},
+        LOGGING_SIDECAR={},
+        MONITOR_SIDECAR={})
+
 
 def get_plugin_cli():
     # it is important that CLIs are not imported when
@@ -9,8 +27,15 @@ def get_plugin_cli():
     from . import package_cli
     from .aws.batch import batch_cli
 
-    return [package_cli.cli,
-            batch_cli.cli]
+    return ext_plugins.get_plugin_cli() + [package_cli.cli, batch_cli.cli]
+
+
+def _merge_lists(decos, overrides, attr):
+    l = list(overrides)
+    existing = set([getattr(o, attr) for o in overrides])
+    l.extend([d for d in decos if getattr(d, attr) not in existing])
+    return l
+
 
 # Add new decorators in this list
 from .catch_decorator import CatchDecorator
@@ -20,17 +45,17 @@ from .retry_decorator import RetryDecorator
 from .aws.batch.batch_decorator import BatchDecorator, ResourcesDecorator
 from .conda.conda_step_decorator import CondaStepDecorator
 
-STEP_DECORATORS = [CatchDecorator,
+STEP_DECORATORS = _merge_lists([CatchDecorator,
                    TimeoutDecorator,
                    EnvironmentDecorator,
                    ResourcesDecorator,
                    RetryDecorator,
                    BatchDecorator,
-                   CondaStepDecorator]
+                   CondaStepDecorator], ext_plugins.STEP_DECORATORS, 'name')
 
 # Add Conda environment
 from .conda.conda_environment import CondaEnvironment
-ENVIRONMENTS = [CondaEnvironment]
+ENVIRONMENTS = _merge_lists([CondaEnvironment], ext_plugins.ENVIRONMENTS, 'TYPE')
 
 
 # Every entry in this list becomes a class-level flow decorator.
@@ -38,20 +63,22 @@ ENVIRONMENTS = [CondaEnvironment]
 # careful with the choice of name though - they become top-level
 # imports from the metaflow package.
 from .conda.conda_flow_decorator import CondaFlowDecorator
-FLOW_DECORATORS = [CondaFlowDecorator]
+FLOW_DECORATORS = _merge_lists([CondaFlowDecorator], ext_plugins.FLOW_DECORATORS, 'name')
 
 # Sidecars
-SIDECAR = {}
+SIDECAR = ext_plugins.SIDECAR
 
 # Add logger
 from .debug_logger import DebugEventLogger
 LOGGING_SIDECAR = {'debugLogger': DebugEventLogger, 
                    'nullSidecarLogger': None}
+LOGGING_SIDECAR.update(ext_plugins.LOGGING_SIDECAR)
 
 # Add monitor
 from .debug_monitor import DebugMonitor
 MONITOR_SIDECAR = {'debugMonitor': DebugMonitor,
                    'nullSidecarMonitor': None}
+MONITOR_SIDECAR.update(ext_plugins.MONITOR_SIDECAR)
 
 SIDECAR.update(LOGGING_SIDECAR)
 SIDECAR.update(MONITOR_SIDECAR)
