@@ -21,7 +21,7 @@ from .graph import FlowGraph
 from .datastore import DATASTORES
 from .runtime import NativeRuntime
 from .package import MetaflowPackage
-from .plugins import LOGGING_SIDECAR, MONITOR_SIDECAR
+from .plugins import LOGGING_SIDECARS, MONITOR_SIDECARS
 from .metadata import METADATAPROVIDERS
 from .metaflow_config import DEFAULT_DATASTORE, DEFAULT_METADATA
 from .plugins import ENVIRONMENTS
@@ -712,12 +712,12 @@ def version(obj):
 @click.option('--event-logger',
               default='nullSidecarLogger',
               show_default=True,
-              type=click.Choice(LOGGING_SIDECAR),
+              type=click.Choice(LOGGING_SIDECARS),
               help='type of event logger used')
 @click.option('--monitor',
               default='nullSidecarMonitor',
               show_default=True,
-              type=click.Choice(MONITOR_SIDECAR),
+              type=click.Choice(MONITOR_SIDECARS),
               help='Monitoring backend type')
 @click.pass_context
 def start(ctx,
