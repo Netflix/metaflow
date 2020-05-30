@@ -24,12 +24,12 @@ def package_paths():
                 if fname[0] == '.':
                     continue
                 p = os.path.join(path, fname)
-                yield p, os.path.join('metaflow-r/metaflow.core', p[prefixlen:])
+                yield p, os.path.join('metaflow, p[prefixlen:])
         flow = R_PACKAGE_PATHS['flow']
         yield flow, os.path.basename(flow)
 
 def entrypoint():
-    return 'PYTHONPATH=/root/metaflow R_LIBS_SITE=`Rscript -e \'cat(paste(.libPaths(), collapse=\\":\\"))\'`:metaflow-r/ Rscript metaflow-r/metaflow.core/run_batch.R'
+    return 'PYTHONPATH=/root/metaflow R_LIBS_SITE=`Rscript -e \'cat(paste(.libPaths(), collapse=\\":\\"))\'`:metaflow/ Rscript metaflow/run_batch.R'
 
 def use_r():
     return R_PACKAGE_PATHS is not None
@@ -40,7 +40,7 @@ def working_dir():
     return None
 
 def run(flow_script, r_functions, metaflow_args, full_cmdline, r_paths):
-    global R_FUNCTIONS, R_PACKAGE_PATHS
+    global R_FUNCTIONS, R_PACKAGE_PATHS, RDS_FILE_PATH
     R_FUNCTIONS = r_functions
     R_PACKAGE_PATHS = r_paths
     # there's some reticulate(?) sillyness which causes metaflow_args
