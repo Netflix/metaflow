@@ -24,7 +24,7 @@ def package_paths():
                 if fname[0] == '.':
                     continue
                 p = os.path.join(path, fname)
-                yield p, os.path.join('metaflow, p[prefixlen:])
+                yield p, os.path.join('metaflow', p[prefixlen:])
         flow = R_PACKAGE_PATHS['flow']
         yield flow, os.path.basename(flow)
 
