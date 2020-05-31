@@ -412,23 +412,28 @@ class BatchLogs(object):
         self._token = None
 
     def _get_events(self):
-        if self._token:
-            response = self._client.get_log_events(
-                logGroupName=self._group,
-                logStreamName=self._stream,
-                startTime=self._pos,
-                nextToken=self._token,
-                startFromHead=True,
-            )
-        else:
-            response = self._client.get_log_events(
-                logGroupName=self._group,
-                logStreamName=self._stream,
-                startTime=self._pos,
-                startFromHead=True,
-            )
-        self._token = response['nextForwardToken']
-        return response['events']
+        try:
+            if self._token:
+                response = self._client.get_log_events(
+                    logGroupName=self._group,
+                    logStreamName=self._stream,
+                    startTime=self._pos,
+                    nextToken=self._token,
+                    startFromHead=True,
+                )
+            else:
+                response = self._client.get_log_events(
+                    logGroupName=self._group,
+                    logStreamName=self._stream,
+                    startTime=self._pos,
+                    startFromHead=True,
+                )
+            self._token = response['nextForwardToken']
+            return response['events']
+        except self._client.exceptions.ResourceNotFoundException as e:
+            # The logs might be delayed by a bit, so we can simply try
+            # again next time.
+            return []
 
     def __iter__(self):
         while True:
