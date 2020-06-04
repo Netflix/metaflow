@@ -1,4 +1,5 @@
 from collections import defaultdict, deque
+from itertools import izip
 import random
 import select
 import sys
