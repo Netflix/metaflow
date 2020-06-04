@@ -1,5 +1,6 @@
 import click
 import json
+from distutils.version import LooseVersion
 
 from metaflow import current, decorators, parameters, JSONType
 from metaflow.exception import MetaflowException, MetaflowInternalError
@@ -13,6 +14,9 @@ from .production_token import load_token, store_token, new_token
 
 class IncorrectProductionToken(MetaflowException):
     headline = "Incorrect production token"
+
+class IncorrectMetadataServiceVersion(MetaflowException):
+    headline = "Incorrect version for metadata service"
 
 @click.group()
 def cli():
@@ -78,12 +82,12 @@ def create(obj,
            max_workers=None,
            workflow_timeout=None):
     name = current.flow_name
-    token_prefix = name.lower()
-
     obj.echo("Deploying *%s* to AWS Step Functions..." % name, bold=True)
 
+    check_metadata_service_version(obj)
+
     token = resolve_token(name,
-                          token_prefix,
+                          name.lower(),
                           obj,
                           authorize,
                           given_token,
@@ -109,6 +113,27 @@ def create(obj,
         obj.echo("What will trigger execution of the workflow:", bold=True)
         obj.echo(flow.trigger_explanation(), indent=True)
         
+
+def check_metadata_service_version(obj):
+    metadata = obj.metadata
+    version = metadata.version()
+    if version == 'local':
+        return
+    elif version is not None and LooseVersion(version) >= LooseVersion('2.0'):
+        # Metaflow metadata service needs to be at least at version 2.0
+        return
+    else:
+        obj.echo("")
+        obj.echo("You are running a version of the metadata service "
+                 "that currently doesn't support AWS Step Functions. ")
+        obj.echo("For more information on how to upgrade your "
+                 "service to a compatible version (>= 2.0), visit:")
+        obj.echo("    [url]", fg='green')
+        obj.echo("Once you have upgraded your metadata service, please "
+                 "re-execute your command.")
+        raise IncorrectMetadataServiceVersion("Try again with the correct "
+                                               "version of metadata service "
+                                               "(>=2.0).")
 
 def make_flow(obj,
               token,

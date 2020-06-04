@@ -37,6 +37,9 @@ class ServiceMetadataProvider(MetadataProvider):
     def default_info(cls):
         return METADATA_SERVICE_URL
 
+    def version(self):
+        return self._version(self._monitor)
+
     def new_run_id(self, tags=[], sys_tags=[]):
         return self._new_run(tags=tags, sys_tags=sys_tags)
 
@@ -235,6 +238,48 @@ class ServiceMetadataProvider(MetadataProvider):
                                            resp.text)
             time.sleep(2**i)
 
+        if resp:
+            raise ServiceException('Metadata request (%s) failed (code %s): %s'
+                                   % (path, resp.status_code, resp.text),
+                                   resp.status_code,
+                                   resp.text)
+        else:
+            raise ServiceException('Metadata request (%s) failed' % path)
+
+    @classmethod
+    def _version(cls, monitor):
+        if cls.INFO is None:
+            raise MetaflowException('Missing Metaflow Service URL. '
+                'Specify with METAFLOW_SERVICE_URL environment variable')
+        url = os.path.join(cls.INFO, 'ping')
+        for i in range(METADATA_SERVICE_NUM_RETRIES):
+            try:
+                if monitor:
+                    with monitor.measure('metaflow.service_metadata.get'):
+                        resp = requests.get(url,
+                            headers=METADATA_SERVICE_HEADERS)
+                else:
+                    resp = requests.get(url, headers=METADATA_SERVICE_HEADERS)
+            except:
+                if monitor:
+                    with monitor.count(
+                        'metaflow.service_metadata.failed_request'):
+                        if i == METADATA_SERVICE_NUM_RETRIES - 1:
+                            raise
+                else:
+                    if i == METADATA_SERVICE_NUM_RETRIES - 1:
+                        raise
+                resp = None
+            else:
+                if resp.status_code < 300:
+                    return resp.headers.get('METADATA_SERVICE_VERSION', None)
+                elif resp.status_code != 503:
+                    raise ServiceException('Metadata request (%s) failed'
+                                           ' (code %s): %s' %
+                                           (path, resp.status_code, resp.text),
+                                           resp.status_code,
+                                           resp.text)
+            time.sleep(2**i)
         if resp:
             raise ServiceException('Metadata request (%s) failed (code %s): %s'
                                    % (path, resp.status_code, resp.text),
