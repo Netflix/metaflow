@@ -1,11 +1,13 @@
-from metaflow.metaflow_config import get_authenticated_boto3_client, \
+from metaflow.metaflow_config import DEFAULT_AWS_CLIENT_PROVIDER, \
     AWS_SANDBOX_ENABLED, AWS_SANDBOX_REGION
 
 
 class StepFunctionsClient(object):
 
     def __init__(self):
-        self._client = get_authenticated_boto3_client('stepfunctions')
+        from ... import AWS_CLIENT_PROVIDERS
+        self._client = AWS_CLIENT_PROVIDERS[DEFAULT_AWS_CLIENT_PROVIDER](
+            'stepfunctions')
 
     def search(self, name):
         paginator = self._client.get_paginator('list_state_machines')
@@ -79,7 +81,8 @@ class StepFunctionsClient(object):
             # We can't execute list_state_machines within the sandbox,
             # but we can construct the statemachine arn since we have
             # explicit access to the region.
-            account_id = get_authenticated_boto3_client('sts') \
+            from ... import AWS_CLIENT_PROVIDERS
+            account_id = AWS_CLIENT_PROVIDERS[DEFAULT_AWS_CLIENT_PROVIDER]('sts') \
                                 .get_caller_identity().get('Account')
             region = AWS_SANDBOX_REGION
             return 'arn:aws:states:%s:%s:stateMachine:%s' \

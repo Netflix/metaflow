@@ -1,15 +1,17 @@
 import json
 import os
 
-from metaflow.metaflow_config import get_authenticated_boto3_client, \
+from metaflow.metaflow_config import DEFAULT_AWS_CLIENT_PROVIDER, \
                                     SFN_DYNAMO_DB_TABLE
 
 
 class DynamoDbClient(object):
 
     def __init__(self):
-        self._client = get_authenticated_boto3_client('dynamodb', 
-            params = {'region_name': self._get_instance_region()})
+        from ... import AWS_CLIENT_PROVIDERS
+        self._client = AWS_CLIENT_PROVIDERS[DEFAULT_AWS_CLIENT_PROVIDER](
+            'dynamodb',
+            params={'region_name': self._get_instance_region()})
         self.name = SFN_DYNAMO_DB_TABLE
 
     def save_foreach_cardinality(self, 
