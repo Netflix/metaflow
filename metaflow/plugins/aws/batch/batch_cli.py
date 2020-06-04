@@ -39,10 +39,10 @@ def batch():
 
 def _execute_cmd(func, flow_name, run_id, user, my_runs, echo):
     if user and my_runs:
-        raise CommandException("--user and --my-runs are mutually exclusive")
+        raise CommandException("--user and --my-runs are mutually exclusive.")
 
     if run_id and my_runs:
-        raise CommandException("--run_id and --my-runs are mutually exclusive")
+        raise CommandException("--run_id and --my-runs are mutually exclusive.")
 
     if my_runs:
         user = util.get_username()

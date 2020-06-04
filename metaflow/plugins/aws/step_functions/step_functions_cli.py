@@ -263,7 +263,6 @@ def trigger(obj, **kwargs):
     params = {param.name: _convert_value(param)
               for _, param in obj.flow._get_parameters()
                 if kwargs.get(param.name) is not None}
-    print(params)
     response = StepFunctions.trigger(current.flow_name, params)
 
     name = current.flow_name
@@ -348,15 +347,3 @@ def list_runs(obj,
         else:
             obj.echo('No executions for *%s* found on AWS Step Functions.' \
                 % (current.flow_name))
-
-
-@step_functions.command(
-    help="Terminate workflow execution on AWS Step Functions.")
-@click.option('--run-id',
-              default=None,
-              required=True,
-              help='Run ID of the workflow execution on AWS Step Functions.')
-@click.pass_obj
-def terminate(obj, run_id):
-    #TODO
-    pass
