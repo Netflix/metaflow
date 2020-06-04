@@ -4,13 +4,26 @@ import time
 import sys
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import get_authenticated_boto3_client, S3_ENDPOINT_URL, S3_VERIFY_CERTIFICATE
+from metaflow.metaflow_config import DEFAULT_AUTH, S3_ENDPOINT_URL, S3_VERIFY_CERTIFICATE
 from botocore.exceptions import ClientError
 
 S3_NUM_RETRIES = 7
 
 def get_s3_client():
-    return get_authenticated_boto3_client('s3', { 'endpoint_url': S3_ENDPOINT_URL, 'verify': S3_VERIFY_CERTIFICATE }), ClientError
+    from metaflow.plugins import AUTH_PROVIDERS
+    try:
+        import boto3
+        from botocore.exceptions import ClientError
+    except (NameError, ImportError):
+        raise MetaflowException("Could not import module 'boto3' which "
+                                "is required by S3 datastore. Install boto "
+                                "first.")
+    get_client = AUTH_PROVIDERS[DEFAULT_AUTH]
+    # If DEFAULT_AUTH does not support s3, this should error. Not checking for
+    # a specific value for DEFAULT_AUTH as multiple values may provide support for S3
+    return get_client(
+        's3',
+        { 'endpoint_url': S3_ENDPOINT_URL, 'verify': S3_VERIFY_CERTIFICATE }), ClientError
 
 # decorator to retry functions that access S3
 def aws_retry(f):

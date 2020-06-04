@@ -65,6 +65,11 @@ ENVIRONMENTS = _merge_lists([CondaEnvironment], ext_plugins.ENVIRONMENTS, 'TYPE'
 from .conda.conda_flow_decorator import CondaFlowDecorator
 FLOW_DECORATORS = _merge_lists([CondaFlowDecorator], ext_plugins.FLOW_DECORATORS, 'name')
 
+# Auth providers
+from .aws.aws_client import get_aws_client
+AUTH_PROVIDERS = {'aws': get_aws_client}
+AUTH_PROVIDERS.update(ext_plugins.AUTH_PROVIDERS)
+
 # Sidecars
 SIDECAR = ext_plugins.SIDECAR
 
