@@ -46,13 +46,19 @@ class Batch(object):
             regex = '{user}-{flow_name}-'.format(
                 user=user, flow_name=flow_name
             )
-        if run_id:
-            regex = '{regex}{run_id}-'.format(regex=regex, run_id=run_id)
         jobs = []
         for job in self._client.unfinished_jobs():
             if regex in job['jobName']:
-                jobs.append(job)
-        return jobs
+                jobs.append(job['jobId'])
+        if run_id is not None:
+            run_id = run_id[run_id.startswith('sfn-') and len('sfn-'):]
+        for job in self._client.describe_jobs(jobs):
+            parameters = job['parameters']
+            match = (user is None or parameters['metaflow.user'] == user) and \
+                    (parameters['metaflow.flow_name'] == flow_name) and \
+                    (run_id is None or parameters['metaflow.run_id'] == run_id)
+            if match:
+                yield job
 
     def _job_name(self, user, flow_name, run_id, step_name, task_id, retry_count):
         return '{user}-{flow_name}-{run_id}-{step_name}-{task_id}-{retry_count}'.format(
@@ -66,33 +72,35 @@ class Batch(object):
 
     def list_jobs(self, flow_name, run_id, user, echo):
         jobs = self._search_jobs(flow_name, run_id, user)
-        if jobs:
-            for job in jobs:
-                echo(
-                    '{name} [{id}] ({status})'.format(
-                        name=job['jobName'], id=job['jobId'], status=job['status']
-                    )
+        found = False
+        for job in jobs:
+            found = True
+            echo(
+                '{name} [{id}] ({status})'.format(
+                    name=job['jobName'], id=job['jobId'], status=job['status']
                 )
-        else:
+            )
+        if not found:
             echo('No running AWS Batch jobs found.')
 
     def kill_jobs(self, flow_name, run_id, user, echo):
         jobs = self._search_jobs(flow_name, run_id, user)
-        if jobs:
-            for job in jobs:
-                try:
-                    self._client.attach_job(job['jobId']).kill()
-                    echo(
-                        'Killing AWS Batch job: {name} [{id}] ({status})'.format(
-                            name=job['jobName'], id=job['jobId'], status=job['status']
-                        )
+        found = False
+        for job in jobs:
+            found = True
+            try:
+                self._client.attach_job(job['jobId']).kill()
+                echo(
+                    'Killing AWS Batch job: {name} [{id}] ({status})'.format(
+                        name=job['jobName'], id=job['jobId'], status=job['status']
                     )
-                except Exception as e:
-                    echo(
-                        'Failed to terminate AWS Batch job %s [%s]'
-                        % (job['jobId'], repr(e))
-                    )
-        else:
+                )
+            except Exception as e:
+                echo(
+                    'Failed to terminate AWS Batch job %s [%s]'
+                    % (job['jobId'], repr(e))
+                )
+        if not found:
             echo('No running AWS Batch jobs found.')
 
     def create_job(

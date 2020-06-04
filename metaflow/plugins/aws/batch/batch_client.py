@@ -1,4 +1,5 @@
 from collections import defaultdict, deque
+from itertools import izip
 import random
 import select
 import sys
@@ -38,6 +39,11 @@ class BatchClient(object):
             )
             for job in page['jobSummaryList']
         )
+
+    def describe_jobs(self, jobIds):
+        for jobIds in [jobIds[i:i+100] for i in range(0, len(jobIds), 100)]:
+            for jobs in self._client.describe_jobs(jobs=jobIds)['jobs']:
+                yield jobs
 
     def job(self):
         return BatchJob(self._client)
