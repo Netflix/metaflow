@@ -84,6 +84,17 @@ class MetadataProvider(object):
         '''
         return ''
 
+    def version(self):
+        '''
+        Returns the version of this provider
+
+        Returns
+        -------
+        str
+            Version of the provider
+        '''
+        return ''
+
     def new_run_id(self, tags=[], sys_tags=[]):
         '''
         Creates an ID and registers this new run.
