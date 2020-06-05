@@ -23,11 +23,11 @@ jobs:
       run: |
         python2 -m pip install --upgrade pip
         python2 -m pip install tox
-    - name: Set up Python 3.x
+    - name: Set up Python 3.7
       uses: actions/setup-python@v1
       with:
-        python-version: '3.x'
-    - name: Install Python 3.x dependencies
+        python-version: '3.7'
+    - name: Install Python 3.7 dependencies
       run: |
         python3 -m pip install --upgrade pip
         python3 -m pip install tox
