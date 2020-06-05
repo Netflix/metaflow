@@ -69,10 +69,6 @@ class StepFunctionsClient(object):
             for execution in page['executions']
         )
 
-    def terminate_execution(self, state_machine_arn, execution_arn):
-        #TODO
-        pass
-
     def get_state_machine_arn(self, name):
         state_machine = self.search(name)
         if state_machine:
