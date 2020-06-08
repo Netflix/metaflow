@@ -5,7 +5,7 @@ on:
     - master
   pull_request:
     branches:
-    - maste 
+    - master
 jobs:
   test:
     name: Test on macos-latest 
