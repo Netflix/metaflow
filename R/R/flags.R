@@ -131,11 +131,7 @@ split_parameters <- function(flags) {
     "help", "resume",
     "max_num_splits", "max_workers",
     "other_args", "show", "force",
-    "notify_on_error",
-    "no_notify_on_error",
-    "notify_on_success",
-    "no_notify_on_success",
-    "notify_email", "authorize",
+    "authorize",
     "my_runs", "run_id", "user",
     "origin_run_id", "with", "force", 
     "tag"

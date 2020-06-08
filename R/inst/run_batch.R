@@ -2,7 +2,7 @@ Sys.setenv(R_CONFIG_ACTIVE = "batch")
 
 # dependencies for metaflow
 suppressMessages(if (!suppressWarnings(require("R6", character.only = TRUE))) { 
-  system("R CMD INSTALL ./metaflow-r", ignore.stdout = TRUE, ignore.stderr = TRUE)
+  install.packages("./metaflow-r", quiet=TRUE, repos=NULL, type="source")
   install.packages(c("R6", "reticulate", "magrittr", "cli", "lubridate"), quiet = TRUE, repos='http://cran.us.r-project.org')
 })
 suppressMessages(library(metaflow, warn.conflicts = FALSE))

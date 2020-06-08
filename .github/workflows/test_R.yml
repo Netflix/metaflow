@@ -54,5 +54,5 @@ jobs:
     - name: Run canary tests
       run: cd R/tests/canaries; bash run_canaries.sh R
 
-    - name: Run integrated tests
+    - name: Run integration tests
       run: cd R/tests; LOCAL_TEST=1 Rscript run_tests.R

@@ -1,7 +1,7 @@
 {
     "contexts": [
         {
-            "name": "python3-all-local",
+            "name": "all-local",
             "disabled": false,
             "env": {
                 "USER": "tester"
@@ -18,7 +18,7 @@
             ]
         },
         {
-            "name": "python3-batch",
+            "name": "batch",
             "disabled": false,
             "env": {
                 "USER": "tester"

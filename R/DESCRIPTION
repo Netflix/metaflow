@@ -2,9 +2,9 @@ Package: metaflow
 Type: Package
 Title: R Binding for Metaflow 
 Version: 2.1.0
-Author: Jason Ge [aut], 
-  Savin Goyal [aut, cre]
-Maintainer: Jason Ge <jge@netflix.com>
+Author: Jason Ge [aut] <jge@netflix.com>, 
+  Savin Goyal [aut, cre] <savin@netflix.com>
+Maintainer: Jason Ge <help@metaflow.org>
 Description: R binding for Metaflow. Metaflow is a human-friendly Python/R library 
   that helps scientists and engineers build and manage real-life data science projects. 
   Metaflow was originally developed at Netflix to boost productivity of data scientists 
