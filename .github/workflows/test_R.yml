@@ -34,12 +34,12 @@ jobs:
 
     - name: Install Metaflow R binding and its dependencies
       run: |
-        Rscript -e 'install.packages(c("R6", "reticulate", "magrittr", "lubridate", "cli"), repos="https://cloud.r-project.org")'        
+        Rscript -e 'install.packages(c("R6", "reticulate", "magrittr", "lubridate", "cli"), repos="https://cloud.r-project.org", Ncpus=8)'        
         cd R/; R CMD INSTALL .
 
     - name: Install R dependencies for tests
       run:
-        Rscript -e 'install.packages(c("data.table", "caret", "glmnet", "Matrix", "rjson", "testthat", "knitr", "rmarkdown"), repos="https://cloud.r-project.org")'    
+        Rscript -e 'install.packages(c("data.table", "caret", "glmnet", "Matrix", "rjson", "testthat", "knitr", "rmarkdown"), repos="https://cloud.r-project.org", Ncpus=8)'    
 
     # LaTeX needed for cran check of vignettes.
     - name: Install Texlive for R vignettes check
