@@ -1,0 +1,56 @@
+{
+    "name": "nested-branches",
+    "graph": {
+        "start": {
+            "branch": ["a", "b"],
+            "quals": ["split-and"]
+        },
+
+        "a": {
+            "branch": ["aa", "ab"],
+            "quals": ["split-and"]
+        },
+        "b": {
+            "branch": ["ba", "bb"],
+            "quals": ["split-and"]
+        },
+
+        "aa": {
+            "branch": ["aaa", "aab"],
+            "quals": ["split-and"]
+        },
+        "ab": {
+            "branch": ["aba", "abb"],
+            "quals": ["split-and"]
+        },
+        "ba": {
+            "branch": ["baa", "bab"],
+            "quals": ["split-and"]
+        },
+        "bb": {
+            "branch": ["bba", "bbb"],
+            "quals": ["split-and"]
+        },
+
+        "aaa": { "linear": "aaa_aab_join" },
+        "aab": { "linear": "aaa_aab_join" },
+        "aba": { "linear": "aba_abb_join" },
+        "abb": { "linear": "aba_abb_join" },
+        "baa": { "linear": "baa_bab_join" },
+        "bab": { "linear": "baa_bab_join" },
+        "bba": { "linear": "bba_bbb_join" },
+        "bbb": { "linear": "bba_bbb_join" },
+
+        "aaa_aab_join": {"linear": "aa_ab_join", "join": true, "quals": ["join-and"]},
+        "aba_abb_join": {"linear": "aa_ab_join", "join": true, "quals": ["join-and"]},
+        "baa_bab_join": {"linear": "ba_bb_join", "join": true, "quals": ["join-and"]},
+        "bba_bbb_join": {"linear": "ba_bb_join", "join": true, "quals": ["join-and"]},
+
+        "aa_ab_join": {"linear": "a_b_join", "join": true, "quals": ["join-and"]},
+        "ba_bb_join": {"linear": "a_b_join", "join": true, "quals": ["join-and"]},
+
+        "a_b_join": {"linear": "end", "join": true, "quals": ["join-and"]},
+
+        "end": {}
+    }
+}
