@@ -23,7 +23,10 @@ jobs:
       run: |
         python3 -m pip install --upgrade pip
         python3 -m pip install numpy
-        python3 -m pip install git+https://github.com/Netflix/metaflow.git@R-dev
+
+    - name: Install Metaflow python library
+      run: python3 -m pip install . 
+
     - name: Set up R 
       uses: r-lib/actions/setup-r@v1
       with:
@@ -32,7 +35,7 @@ jobs:
     - name: Install Metaflow R binding and its dependencies
       run: |
         Rscript -e 'install.packages(c("R6", "reticulate", "magrittr", "lubridate", "cli"), repos="https://cloud.r-project.org")'        
-        R CMD INSTALL .
+        cd R/; R CMD INSTALL .
 
     - name: Install R dependencies for tests
       run:
@@ -43,13 +46,13 @@ jobs:
       uses: r-lib/actions/setup-tinytex@v1
 
     - name: Run R CMD check 
-      run: bash ./check_as_cran.sh
+      run: cd R/; bash ./check_as_cran.sh
 
     - name: Run unit tests
-      run: cd tests; Rscript testthat.R
+      run: cd R/tests; Rscript testthat.R
 
     - name: Run canary tests
-      run: cd tests/canaries; bash run_canaries.sh R
+      run: cd R/tests/canaries; bash run_canaries.sh R
 
     - name: Run integrated tests
-      run: cd tests; LOCAL_TEST=1 Rscript run_tests.R
+      run: cd R/tests; LOCAL_TEST=1 Rscript run_tests.R
