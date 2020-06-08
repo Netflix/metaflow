@@ -58,7 +58,7 @@ run_tests_all_contexts <- function(){
     contexts <- fromJSON(file = "./contexts.json") 
 
     if (Sys.getenv("LOCAL_TEST") == "1"){
-        target_context_name <- c("python3-all-local")
+        target_context_name <- c("all-local")
     } else {
         target_context_name <- NULL 
     }
