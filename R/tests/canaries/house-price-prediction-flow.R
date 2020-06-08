@@ -45,6 +45,4 @@ metaflow("HousingFlow") %>%
     next_step = "end"
   ) %>%
   step(step = "end") %>%
-  run(package_suffixes = c(".R", ".py", ".csv"), 
-   batch = TRUE,  max_workers = 16,
-  metadata='service', datastore='s3')
+  run(package_suffixes = c(".R", ".py", ".csv"), metadata='local', datastore='local')
