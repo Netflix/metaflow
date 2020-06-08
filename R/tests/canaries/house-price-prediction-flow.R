@@ -1,12 +1,6 @@
 library(metaflow)
-source("./resources/house-price-prediction-functions.R")
+source("./house-price-prediction-functions.R")
 
-if (!require(caret)){
-    install.packages("caret", repos="https://cloud.r-project.org")
-}
-if (!require(gbm)){
-    install.packages("gbm", repos="https://cloud.r-project.org")
-}
 
 metaflow("HousingFlow") %>%
   step(
