@@ -10,7 +10,7 @@ Description: R binding for Metaflow. Metaflow is a human-friendly Python/R libra
   Metaflow was originally developed at Netflix to boost productivity of data scientists 
   who work on a wide variety of projects from classical statistics to state-of-the-art deep learning.
 Encoding: UTF-8
-License: file LICENSE
+License: Apache License (>= 2.0)
 LazyData: true
 URL: https://metaflow.org/,
   https://docs.metaflow.org/,
