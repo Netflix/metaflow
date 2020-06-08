@@ -1,10 +1,17 @@
 Sys.setenv(R_CONFIG_ACTIVE = "batch")
 
+install_dep <- function(dep){
+  if (!suppressWarnings(require(dep, character.only = TRUE))) {  
+    install.packages(dep, quiet = TRUE, repos='http://cran.us.r-project.org')
+  }
+}
+
 # dependencies for metaflow
-suppressMessages(if (!suppressWarnings(require("R6", character.only = TRUE))) { 
-  system("R CMD INSTALL ./metaflow-r", ignore.stdout = TRUE, ignore.stderr = TRUE)
-  install.packages(c("R6", "reticulate", "magrittr", "cli", "lubridate"), quiet = TRUE, repos='http://cran.us.r-project.org')
-})
+lapply(c("R6", "reticulate", "magrittr", "cli", "lubridate"), install_dep)
+
+# the remote code package places the R package under the metaflow-r folder
+system("R CMD INSTALL ./metaflow-r", ignore.stdout = TRUE, ignore.stderr = TRUE)
+
 suppressMessages(library(metaflow, warn.conflicts = FALSE))
 
 flowRDS_file <- "flow.RDS"

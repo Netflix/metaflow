@@ -1,9 +1,27 @@
+install_deps <- function(){
+  if (!require(caret)){
+    install.packages("caret", repos="https://cloud.r-project.org")
+  }
+  if (!require(gbm)){
+    install.packages("gbm", repos="https://cloud.r-project.org")
+  }
+  if (!require(data.table)){
+    install.packages("data.table", repos="https://cloud.r-project.org")
+  }
+}
+
 load_training_data <- function(self) {
+  source("house-price-prediction-functions.R")
+  install_deps()
+
   suppressPackageStartupMessages(library(data.table))
   self$data <- fread("./resources/sample-house-data.csv") 
 }
 
 clean_data_set <- function(self) {
+  source("house-price-prediction-functions.R")
+  install_deps()
+
   suppressPackageStartupMessages(library(data.table))
   data <- self$data %>% data.table()
   data[, c("date", "id") := NULL]
@@ -15,6 +33,9 @@ clean_data_set <- function(self) {
 }
 
 parameter_grid <- function(self) {
+  source("house-price-prediction-functions.R")
+  install_deps()
+
   parameters <- list(
     n.trees = 100,
     shrinkage = .01,
@@ -28,7 +49,9 @@ parameter_grid <- function(self) {
 }
 
 fit_models <- function(self) {
-  library(reticulate)
+  source("house-price-prediction-functions.R")
+  install_deps()
+
   suppressPackageStartupMessages(library(caret))
   param <- self$input
   train_control <- trainControl(
@@ -58,6 +81,9 @@ fit_models <- function(self) {
 }
 
 join <- function(self, inputs) {
+  source("house-price-prediction-functions.R")
+  install_deps()
+
   suppressPackageStartupMessages(library(data.table))
   suppressPackageStartupMessages(library(caret))
 
@@ -68,6 +94,9 @@ join <- function(self, inputs) {
 }
 
 select_best_fit <- function(self) {
+  source("house-price-prediction-functions.R")
+  install_deps()
+
   suppressPackageStartupMessages(library(data.table))
   suppressPackageStartupMessages(library(caret))
   fits <- self$fits 
@@ -78,6 +107,9 @@ select_best_fit <- function(self) {
 }
 
 score_data <- function(self) {
+  source("house-price-prediction-functions.R")
+  install_deps()
+
   suppressPackageStartupMessages(library(data.table))
   suppressPackageStartupMessages(library(caret))
   suppressPackageStartupMessages(library(gbm))

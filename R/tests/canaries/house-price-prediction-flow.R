@@ -1,12 +1,6 @@
 library(metaflow)
-source("./resources/house-price-prediction-functions.R")
+source("./house-price-prediction-functions.R")
 
-if (!require(caret)){
-    install.packages("caret", repos="https://cloud.r-project.org")
-}
-if (!require(gbm)){
-    install.packages("gbm", repos="https://cloud.r-project.org")
-}
 
 metaflow("HousingFlow") %>%
   step(
@@ -51,4 +45,6 @@ metaflow("HousingFlow") %>%
     next_step = "end"
   ) %>%
   step(step = "end") %>%
-  run(package_suffixes = c(".R", ".py", ".csv"), metadata='local', datastore='local')
+  run(package_suffixes = c(".R", ".py", ".csv"), 
+   batch = TRUE,  max_workers = 16,
+  metadata='service', datastore='s3')
