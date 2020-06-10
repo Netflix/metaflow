@@ -34,6 +34,7 @@ Collate:
     'metaflow_client.R'
     'metaflow.R'
     'flow_client.R'
+    'metadata.R'
     'namespace.R'
     'parameter.R'
     'run.R'
