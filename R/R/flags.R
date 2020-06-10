@@ -130,10 +130,10 @@ split_parameters <- function(flags) {
     "package_suffixes", "no-pylint",
     "help", "resume",
     "max_num_splits", "max_workers",
-    "other_args", "show", "force",
+    "other_args", "show",
     "authorize",
     "my_runs", "run_id", "user",
-    "origin_run_id", "with", "force", 
+    "origin_run_id", "with",
     "tag"
   )
   parameters <- flags[parameters]
