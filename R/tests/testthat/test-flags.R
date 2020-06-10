@@ -42,22 +42,6 @@ test_that("parse arguments from command line", {
   on.exit(file.remove("flags.RDS"))
 })
 
-test_that("parse --package-suffixes", {
-  skip_if_no_metaflow()
-  arguments <- c("--package-suffixes .csv, .R, .py")
-  actual <- parse_arguments(arguments)
-  expected <- list(
-    package_suffixes = ".csv,.R,.py"
-  )
-  expect_equal(actual, expected)
-  arguments <- c("--package-suffixes=.R,.py,.csv")
-  actual <- parse_arguments(arguments)
-  expected <- list(
-    package_suffixes = ".R,.py,.csv"
-  )
-  expect_equal(actual, expected)
-})
-
 test_that("split parameters sets valid params", {
   skip_if_no_metaflow()
   arguments <- split_flags(parameter_arguments) %>%

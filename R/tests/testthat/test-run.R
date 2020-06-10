@@ -9,7 +9,6 @@ test_that("test run_cmd is correctly passing default flags.", {
   skip_if_no_metaflow()
   expected <- c(
     "--flowRDS=flow.RDS",
-    "--datastore=local", "--metadata=local", "--package-suffixes=.R,.py",
     "--no-pylint", "run"
   )
   actual <- run_cmd("flow.RDS") %>%
@@ -25,7 +24,7 @@ test_that("test run_cmd correctly parses --with batch", {
     extract_args()
   expected <- c(
     "--flowRDS=flow.RDS",
-    "--datastore=s3", "--metadata=service", "--package-suffixes=.R,.py", "--no-pylint", "--with",
+    "--no-pylint", "--with",
     "batch", "run"
   )
   expect_equal(actual, expected)
