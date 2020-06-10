@@ -1,7 +1,3 @@
-library(rjson)
-source("formatter.R")
-source("utils.R")
-
 if (!require(data.table)){
     install.packages("data.table", repos="https://cloud.r-project.org")
 }
@@ -15,6 +11,13 @@ if (!require(caret)){
     install.packages("caret", repos="https://cloud.r-project.org")
 }
 
+if (!require(caret)){
+    install.packages("rjson", repos="https://cloud.r-project.org")
+}
+
+library(rjson)
+source("formatter.R")
+source("utils.R")
 
 run_tests <- function(context){
     graph_files <- list.files(path="./graphs", pattern="\\.json$", full.names=TRUE)
