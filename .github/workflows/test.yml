@@ -52,7 +52,7 @@ jobs:
       if: matrix.lang == 'R'
       uses: r-lib/actions/setup-r@v1
       with:
-        r-version: '3.6.3': 
+        r-version: '3.6.3' 
     
     - name: Install Metaflow R 
       if: matrix.lang == 'R'
