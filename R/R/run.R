@@ -45,21 +45,7 @@ run <- function(flow = NULL, ...) {
 run_cmd <- function(flow_file, ...) {
   flags <- flags(...)
   run_path <- system.file("run.R", package = "metaflow")
-  if ("metadata" %in% names(flags)) {
-    metadata <- paste0("--metadata=",flags$metadata)
-  } else {
-    metadata <- "--metadata=local"
-  }
-  if ("datastore" %in% names(flags)) {
-    datastore <- paste0("--datastore=",flags$datastore)
-  } else {
-    datastore <- "--datastore=local"
-  }
-  if ("package_suffixes" %in% names(flags)) {
-    package_suffixes <- paste0("--package-suffixes=", paste(union(flags$package_suffixes, c(".R", ".py")), collapse = ","))
-  } else {
-    package_suffixes <- "--package-suffixes=.R,.py"
-  }
+
   if ("resume" %in% names(flags)) {
     if (is.logical(flags$resume)) {
       if (flags$resume) {
@@ -79,8 +65,6 @@ run_cmd <- function(flow_file, ...) {
     if (is.logical(flags$batch)) {
       if (flags$batch) {
         batch <- "--with batch"
-        metadata <- "--metadata=service"
-        datastore <- "--datastore=s3"
       } else {
         batch <- ""
       }
@@ -137,9 +121,6 @@ run_cmd <- function(flow_file, ...) {
   flow_RDS <- paste0("--flowRDS=", flow_file)
   cmd <- paste("Rscript", run_path, 
             flow_RDS,
-            datastore,
-            metadata,
-            package_suffixes,
             "--no-pylint",
             with,
             batch,
