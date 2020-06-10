@@ -4,31 +4,89 @@ on:
     types: [published]
 jobs:
   test:
-    name: Test on ${{ matrix.os }}
+    name: Test on ${{ matrix.os }} for ${{ matrix.lang }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
+        lang: [python, R]
+
     steps:
     - uses: actions/checkout@v2
+
     - name: Set up Python 2.x
+      if: matrix.lang == 'python'
       uses: actions/setup-python@v1
       with:
         python-version: '2.x'
+
     - name: Install Python 2.x dependencies
+      if: matrix.lang == 'python'
       run: |
         python2 -m pip install --upgrade pip
         python2 -m pip install tox
+
     - name: Set up Python 3.x
       uses: actions/setup-python@v1
       with:
         python-version: '3.x'
+
     - name: Install Python 3.x dependencies
       run: |
         python3 -m pip install --upgrade pip
-        python3 -m pip install tox
+        python3 -m pip install tox numpy
+
+    - name: Install Metaflow python package for R tests
+      if: matrix.lang == 'R'
+      run: python3 -m pip install . 
+
+    - name: Install system dependencies for R tests
+      if: matrix.lang == 'R' && matrix.os == 'ubuntu-latest'
+      run: sudo apt-get install -y libcurl4-openssl-dev qpdf 
+    
+    - name: Set up R
+      if: matrix.lang == 'R'
+      uses: r-lib/actions/setup-r@v1
+      with:
+        r-version: '3.6.3' 
+    
+    - name: Install Metaflow R 
+      if: matrix.lang == 'R'
+      run: |
+        Rscript -e 'install.packages("devtools", repos="https://cloud.r-project.org", Ncpus=8)'
+        Rscript -e 'devtools::install_deps("R", dependencies=TRUE, repos="https://cloud.r-project.org", upgrade="default")'
+        R CMD INSTALL R 
+
+    - name: Install R dependencies for R tests
+      if: matrix.lang == 'R'
+      run:
+        Rscript -e 'install.packages(c("data.table", "caret", "glmnet", "Matrix", "rjson"), repos="https://cloud.r-project.org", Ncpus=8)'    
+
+    - name: Install Texlive for R vignettes check
+      if: matrix.lang == 'R' && matrix.os == 'ubuntu-latest'
+      uses: r-lib/actions/setup-tinytex@v1
+    
+    - name: Run R CMD check
+      if: matrix.lang == 'R' && matrix.os == 'ubuntu-latest'
+      run: cd R/; bash ./check_as_cran.sh
+    
+    - name: Run unit tests
+      if: matrix.lang == 'R'
+      run: cd R/tests; Rscript testthat.R
+
+    - name: Run canary tests
+      if: matrix.lang == 'R'
+      run: cd R/tests/canaries; bash run_canaries.sh
+
+    - name: Run integration tests
+      if: matrix.lang == 'R'
+      run: cd R/tests; LOCAL_TEST=1 Rscript run_integration_tests.R
+
     - name: Test with tox
+      if: matrix.lang == 'python'
       run: tox
+
+
   deploy:
     needs: test
     runs-on: ubuntu-latest
