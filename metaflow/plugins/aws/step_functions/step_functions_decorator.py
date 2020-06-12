@@ -21,10 +21,9 @@ class StepFunctionsInternalDecorator(StepDecorator):
                       retry_count,
                       max_user_code_retries):
         meta = {}
-        meta['step-functions-execution'] =\
-            self.step_functions_instance = os.environ['METAFLOW_RUN_ID']
-        meta['step-functions-state-machine'] =\
-            self.step_functions_name = os.environ['METAFLOW_FLOW_NAME']
+        meta['aws-step-functions-execution'] = os.environ['METAFLOW_RUN_ID']
+        meta['aws-step-functions-state-machine'] =\
+                                        os.environ['SFN_STATE_MACHINE']
         entries = [MetaDatum(field=k, value=v, type=k) for k, v in meta.items()]
         # Register book-keeping metadata for debugging.
         metadata.register_metadata(run_id, step_name, task_id, entries)

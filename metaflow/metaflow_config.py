@@ -106,6 +106,9 @@ SFN_DYNAMO_DB_TABLE = from_conf("METAFLOW_SFN_DYNAMO_DB_TABLE")
 # IAM role for AWS Events with AWS Step Functions access
 # https://docs.aws.amazon.com/eventbridge/latest/userguide/auth-and-access-control-eventbridge.html
 EVENTS_SFN_ACCESS_IAM_ROLE = from_conf("METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE")
+# Prefix for AWS Step Functions state machines. Set to stack name for Metaflow
+# sandbox.
+SFN_STATE_MACHINE_PREFIX = None
 
 ###
 # Conda configuration
@@ -143,6 +146,7 @@ if AWS_SANDBOX_ENABLED:
     os.environ['AWS_DEFAULT_REGION'] = AWS_SANDBOX_REGION
     BATCH_METADATA_SERVICE_URL = AWS_SANDBOX_INTERNAL_SERVICE_URL
     METADATA_SERVICE_HEADERS['x-api-key'] = AWS_SANDBOX_API_KEY
+    SFN_STATE_MACHINE_PREFIX = from_conf('METAFLOW_AWS_SANDBOX_STACK_NAME')
 
 
 # MAX_ATTEMPTS is the maximum number of attempts, including the first

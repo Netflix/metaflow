@@ -480,6 +480,7 @@ class StepFunctions(object):
         env['METAFLOW_FLOW_NAME'] = attrs['metaflow.flow_name']
         env['METAFLOW_STEP_NAME'] = attrs['metaflow.step_name']
         env['METAFLOW_RUN_ID'] = attrs['metaflow.run_id.$']
+        env['SFN_STATE_MACHINE'] = self.name
         #env['METAFLOW_USER'] = attrs['metaflow.owner']
         # Can't set `METAFLOW_TASK_ID` due to lack of run-scoped identifiers.
         # We will instead rely on `AWS_BATCH_JOB_ID` as the task identifier.
@@ -633,7 +634,10 @@ class StepFunctions(object):
             # AWS_BATCH_JOB_ATTEMPT as the job counter.
             '--retry-count $((AWS_BATCH_JOB_ATTEMPT-1))',
             '--max-user-code-retries %d' % user_code_retries,
-            '--input-paths %s' % paths
+            '--input-paths %s' % paths,
+            # Set decorator to batch to execute `task_*` hooks for batch
+            # decorator.
+            '--with=batch'
         ]
         if any(self.graph[n].type == 'foreach' for n in node.in_funcs):
             # We set the `METAFLOW_SPLIT_INDEX` through JSONPath-foo

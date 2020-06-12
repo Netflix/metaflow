@@ -3,6 +3,7 @@ import json
 from distutils.version import LooseVersion
 
 from metaflow import current, decorators, parameters, JSONType
+from metaflow.metaflow_config import SFN_STATE_MACHINE_PREFIX
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.datastore.datastore import TransformableObject
 from metaflow.package import MetaflowPackage
@@ -81,10 +82,10 @@ def create(obj,
            given_token=None,
            max_workers=None,
            workflow_timeout=None):
-    name = current.flow_name
+    name = state_machine_name(current.flow_name)
     obj.echo("Deploying *%s* to AWS Step Functions..." % name, bold=True)
 
-    check_metadata_service_version(obj)
+    #check_metadata_service_version(obj)
 
     token = resolve_token(name,
                           name.lower(),
@@ -134,6 +135,11 @@ def check_metadata_service_version(obj):
         raise IncorrectMetadataServiceVersion("Try again with the correct "
                                                "version of metadata service "
                                                "(>=2.0).")
+
+def state_machine_name(name):
+    if SFN_STATE_MACHINE_PREFIX is not None:
+        return SFN_STATE_MACHINE_PREFIX + '_' + name
+    return name
 
 def make_flow(obj,
               token,
@@ -263,9 +269,9 @@ def trigger(obj, **kwargs):
     params = {param.name: _convert_value(param)
               for _, param in obj.flow._get_parameters()
                 if kwargs.get(param.name) is not None}
-    response = StepFunctions.trigger(current.flow_name, params)
+    name = state_machine_name(current.flow_name)
+    response = StepFunctions.trigger(name, params)
 
-    name = current.flow_name
     id = response['executionArn'].split(':')[-1]
     obj.echo("Workflow *{name}* triggered on AWS Step Functions "
         "(run-id *sfn-{id}*).".format(name=name, id=id), bold=True)
@@ -306,7 +312,8 @@ def list_runs(obj,
         states.append('TIMED_OUT')
     if aborted:
         states.append('ABORTED')
-    executions = StepFunctions.list(current.flow_name, states)
+    name = state_machine_name(current.flow_name)
+    executions = StepFunctions.list(name, states)
     found = False
     for execution in executions:
         found = True
@@ -343,7 +350,7 @@ def list_runs(obj,
                     status += ', '
                 status += '*%s*' % state
             obj.echo('No %s executions for *%s* found on AWS Step Functions.'
-                % (status, current.flow_name))
+                % (status, name))
         else:
             obj.echo('No executions for *%s* found on AWS Step Functions.' \
-                % (current.flow_name))
+                % (name))

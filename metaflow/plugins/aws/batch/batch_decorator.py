@@ -10,6 +10,7 @@ from metaflow.datastore.util.s3util import get_s3_client
 from metaflow.decorators import StepDecorator
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
+from metaflow.metadata import MetaDatum
 
 from metaflow import util
 
@@ -163,12 +164,29 @@ class BatchDecorator(StepDecorator):
             cli_args.command_options['run-time-limit'] = self.run_time_limit
             cli_args.entrypoint[0] = sys.executable
 
-    def task_pre_step(
-            self, step_name, ds, meta, run_id, task_id, flow, graph, retry_count, max_retries):
-        if meta.TYPE == 'local':
+    def task_pre_step(self,
+                      step_name,
+                      ds,
+                      metadata,
+                      run_id,
+                      task_id,
+                      flow,
+                      graph,
+                      retry_count,
+                      max_retries):
+        if metadata.TYPE == 'local':
             self.ds_root = ds.root
         else:
             self.ds_root = None
+        meta = {}
+        print("here")
+        meta['aws-batch-job-id'] = os.environ['AWS_BATCH_JOB_ID']
+        meta['aws-batch-job-attempt'] = os.environ['AWS_BATCH_JOB_ATTEMPT']
+        meta['aws-batch-ce-name'] = os.environ['AWS_BATCH_CE_NAME']
+        meta['aws-batch-jq-name'] = os.environ['AWS_BATCH_JQ_NAME']    
+        entries = [MetaDatum(field=k, value=v, type=k) for k, v in meta.items()]
+        # Register book-keeping metadata for debugging.
+        metadata.register_metadata(run_id, step_name, task_id, entries)
 
     def task_finished(self, step_name, flow, graph, is_task_ok, retry_count, max_retries):
         if self.ds_root:
