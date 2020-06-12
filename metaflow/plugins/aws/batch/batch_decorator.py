@@ -29,11 +29,9 @@ except:  # noqa E722
 class ResourcesDecorator(StepDecorator):
     """
     Step decorator to specify the resources needed when executing this step.
-
     This decorator passes this information along to Batch when requesting resources
     to execute this step.
     This decorator is ignored if the execution of the step does not happen on Batch.
-
     To use, annotate your step as follows:
     ```
     @resources(cpu=32)
@@ -41,7 +39,6 @@ class ResourcesDecorator(StepDecorator):
     def myStep(self):
         ...
     ```
-
     Parameters
     ----------
     cpu : int
@@ -61,12 +58,10 @@ class ResourcesDecorator(StepDecorator):
 class BatchDecorator(StepDecorator):
     """
     Step decorator to specify that this step should execute on Batch.
-
     This decorator indicates that your step should execute on Batch. Note that you can
     apply this decorator automatically to all steps using the ```--with batch``` argument
     when calling run. Step level decorators are overrides and will force a step to execute
     on Batch regardless of the ```--with``` specification.
-
     To use, annotate your step as follows:
     ```
     @batch
@@ -74,7 +69,6 @@ class BatchDecorator(StepDecorator):
     def myStep(self):
         ...
     ```
-
     Parameters
     ----------
     cpu : int
