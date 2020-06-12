@@ -35,15 +35,17 @@ run <- function(flow = NULL, ...) {
     stop(sprintf("Cannot create temporary RDS file %s", flow_file))
   })
   
-  run_cmd <- run_cmd(flow_file = flow_file, ...)
-  message(paste0("Flow cli:\n", run_cmd))
-  status_code <- system(run_cmd)
+  cmd <- run_cmd(flow_file = flow_file, ...)
+  message(paste0("Flow cli:\n", cmd))
+  status_code <- system(cmd)
   invisible(file.remove(flow_file))
   return(status_code)
 }
 
 run_cmd <- function(flow_file, ...) {
+  run_options <- list(...)
   flags <- flags(...)
+
   run_path <- system.file("run.R", package = "metaflow")
 
   if ("resume" %in% names(flags)) {
@@ -135,13 +137,21 @@ run_cmd <- function(flow_file, ...) {
     logs <- paste("logs", flags$logs, sep=" ")
     cmd <- paste("Rscript", run_path, logs)
   }
+
   if ("show" %in% names(flags) && flags$show) {
     show <- "show"
     cmd <- paste("Rscript", run_path, show)
   }
+  
   if ("help" %in% names(flags) && flags$help) {
-    help <- "run --help"
-    cmd <- paste("Rscript", run_path, help)
+    # if help is specified by the run(...) R functions
+    if ("help" %in% names(run_options) && run_options$help){
+      help_cmd <- "--help"
+    } else { # if help is specified in command line 
+      help_cmd <- paste(commandArgs(trailing=TRUE), collapse=" ")
+    }
+    cmd <- paste("Rscript", run_path, flow_RDS, help_cmd)
   }
+
   cmd
 }
