@@ -179,7 +179,6 @@ class BatchDecorator(StepDecorator):
         else:
             self.ds_root = None
         meta = {}
-        print("here")
         meta['aws-batch-job-id'] = os.environ['AWS_BATCH_JOB_ID']
         meta['aws-batch-job-attempt'] = os.environ['AWS_BATCH_JOB_ATTEMPT']
         meta['aws-batch-ce-name'] = os.environ['AWS_BATCH_CE_NAME']
