@@ -2,7 +2,7 @@ import os
 import sys
 import inspect
 import traceback
-from functools import partial, wraps
+from functools import wraps
 from datetime import datetime
 
 import click
