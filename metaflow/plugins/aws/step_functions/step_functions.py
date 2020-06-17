@@ -111,8 +111,7 @@ class StepFunctions(object):
         if state_machine is None:
             raise StepFunctionsException("The workflow *%s* doesn't exist "
                                          "on AWS Step Functions. Please "
-                                         "deploy your flow before "
-                                         "trigerring the execution." % name)
+                                         "deploy your flow first." % name)
         try:
             # Dump parameters into `Parameters` input field.
             input = json.dumps({"Parameters" : json.dumps(parameters)})
