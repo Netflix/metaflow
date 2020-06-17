@@ -322,7 +322,8 @@ def list_runs(obj,
         if execution.get('stopDate'):
             obj.echo(
                 "*sfn-{id}* "
-                "[startedAt: {startDate}, stoppedAt: {stopDate}] "
+                "startedAt:'{startDate}' "
+                "stoppedAt:'{stopDate}' "
                 "(*{status}*)".format(
                     id=execution['name'], 
                     status=execution['status'], 
@@ -333,8 +334,8 @@ def list_runs(obj,
         else:
             obj.echo(
                 "*sfn-{id}* "
-                "[startedAt: {startDate}] "
-                "(*{status}*)".format(
+                "startedAt:'{startDate}' "
+                "*{status}*".format(
                     id=execution['name'], 
                     status=execution['status'], 
                     startDate=execution['startDate'].replace(microsecond=0)
