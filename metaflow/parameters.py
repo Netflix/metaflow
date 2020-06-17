@@ -21,7 +21,8 @@ except:
 ParameterContext = namedtuple('ParameterContext',
                               ['flow_name',
                                'user_name',
-                               'parameter_name'])
+                               'parameter_name',
+                               'obj'])
 
 # currently we execute only one flow per process, so we can treat
 # Parameters globally. If this was to change, it should/might be
@@ -59,13 +60,15 @@ class DeployTimeField(object):
                  parameter_type,
                  field,
                  fun,
-                 return_str=True):
+                 return_str=True,
+                 print_representation=None):
 
         self.fun = fun
         self.field = field
         self.parameter_name = parameter_name
         self.parameter_type = parameter_type
         self.return_str = return_str
+        self.print_representation = print_representation
 
     def __call__(self):
         ctx = context_proto._replace(parameter_name=self.parameter_name)
@@ -105,9 +108,13 @@ class DeployTimeField(object):
             return val
 
     def __str__(self):
+        if self.print_representation:
+            return self.print_representation
         return self()
 
     def __repr__(self):
+        if self.print_representation:
+            return self.print_representation
         return self()
 
 
@@ -118,11 +125,12 @@ def deploy_time_eval(value):
         return value
 
 # this is called by cli.main
-def set_parameter_context(flow_name):
+def set_parameter_context(ctx):
     global context_proto
-    context_proto = ParameterContext(flow_name=flow_name,
+    context_proto = ParameterContext(flow_name=ctx.flow.name,
                                      user_name=get_username(),
-                                     parameter_name=None)
+                                     parameter_name=None,
+                                     obj=ctx)
 
 class Parameter(object):
     def __init__(self, name, **kwargs):
@@ -149,12 +157,16 @@ class Parameter(object):
         self.kwargs['show_default'] = self.kwargs.get('show_default', True)
 
         # default can be defined as a function
-        if callable(self.kwargs.get('default')):
-            self.kwargs['default'] = DeployTimeField(name,
-                                                     param_type,
-                                                     'default',
-                                                     self.kwargs['default'],
-                                                     return_str=True)
+        for k, v in self.kwargs.items():
+            if k == "default" and v is not None:
+                # Unset required because if we have default_trigger (for example)
+                # which is None, we know that the default was deployed on create
+                self.kwargs['required'] = False
+            if k.startswith('default'):
+                if callable(v) and not isinstance(v, DeployTimeField):
+                    self.kwargs[k] = DeployTimeField(
+                        name, param_type, k, v, return_str=True)
+
 
         # note that separator doesn't work with DeployTimeFields unless you
         # specify type=str
@@ -162,17 +174,10 @@ class Parameter(object):
         if self.separator and not self.is_string_type:
             raise MetaflowException("Parameter *%s*: Separator is only allowed "
                                     "for string parameters." % name)
-        self.user_required = self.kwargs.get('required', False)
         parameters.append(self)
 
-    def option_kwargs(self, deploy_mode):
-        kwargs = self.kwargs
-        if isinstance(kwargs['default'], DeployTimeField) and not deploy_mode:
-            ret = dict(kwargs)
-            ret['default'] = None
-            return ret
-        else:
-            return kwargs
+    def load_parameter(self, v):
+        return v
 
     def _get_type(self, kwargs):
         default_type = str
@@ -193,15 +198,18 @@ class Parameter(object):
     def __getitem__(self, x):
         pass
 
-def add_custom_parameters(deploy_mode=False):
-    # deploy_mode determines whether deploy-time functions should or should
-    # not be evaluated for this command
-    def wrapper(cmd):
-        for arg in parameters:
-            kwargs = arg.option_kwargs(deploy_mode)
-            cmd.params.insert(0, click.Option(('--' + arg.name,), **kwargs))
-        return cmd
-    return wrapper
+def add_custom_parameters(cmd):
+    cmd_default = 'default_%s' % cmd.name
+    for arg in parameters:
+        d = {}
+        for k, v in arg.kwargs.items():
+            if k.startswith('default_'):
+                if k == cmd_default:
+                    d['default'] = v
+            else:
+                d[k] = v
+        cmd.params.insert(0, click.Option(('--' + arg.name,), **d))
+    return cmd
 
 def set_parameters(flow, kwargs):
     seen = set()

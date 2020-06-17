@@ -445,7 +445,7 @@ def step(obj,
 
     echo('Success', fg='green', bold=True, indent=True)
 
-@parameters.add_custom_parameters(deploy_mode=False)
+@parameters.add_custom_parameters
 @cli.command(help="Internal command to initialize a run.")
 @click.option('--run-id',
               default=None,
@@ -576,7 +576,7 @@ def resume(obj,
     write_run_id(run_id_file, runtime.run_id)
 
 
-@parameters.add_custom_parameters(deploy_mode=True)
+@parameters.add_custom_parameters
 @cli.command(help='Run the workflow locally.')
 @common_run_options
 @click.option('--namespace',
@@ -791,7 +791,7 @@ def start(ctx,
 
     # initialize current and parameter context for deploy-time parameters
     current._set_env(flow_name=ctx.obj.flow.name, is_running=False)
-    parameters.set_parameter_context(ctx.obj.flow.name)
+    parameters.set_parameter_context(ctx.obj)
 
     if ctx.invoked_subcommand not in ('run', 'resume'):
         # run/resume are special cases because they can add more decorators with --with,
