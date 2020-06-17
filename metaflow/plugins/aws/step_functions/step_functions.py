@@ -105,10 +105,10 @@ class StepFunctions(object):
     @classmethod
     def trigger(cls, name, parameters):
         try:
-            state_machine_arn = StepFunctionsClient().get_state_machine_arn(name)
+            state_machine = StepFunctionsClient().get(name)
         except Exception as e:
             raise StepFunctionsException(repr(e))
-        if state_machine_arn is None:
+        if state_machine is None:
             raise StepFunctionsException("The workflow *%s* doesn't exist "
                                          "on AWS Step Functions. Please "
                                          "deploy your flow before "
@@ -116,6 +116,7 @@ class StepFunctions(object):
         try:
             # Dump parameters into `Parameters` input field.
             input = json.dumps({"Parameters" : json.dumps(parameters)})
+            state_machine_arn = state_machine.get('stateMachineArn')
             return StepFunctionsClient().trigger(state_machine_arn, input)
         except Exception as e:
             raise StepFunctionsException(repr(e))
@@ -123,13 +124,14 @@ class StepFunctions(object):
     @classmethod
     def list(cls, name, states):
         try:
-            state_machine_arn = StepFunctionsClient().get_state_machine_arn(name)
+            state_machine = StepFunctionsClient().get(name)
         except Exception as e:
             raise StepFunctionsException(repr(e))
-        if state_machine_arn is None:
+        if state_machine is None:
             raise StepFunctionsException("The workflow *%s* doesn't exist "
                                          "on AWS Step Functions." % name)
         try:
+            state_machine_arn = state_machine.get('stateMachineArn')
             return StepFunctionsClient() \
                 .list_executions(state_machine_arn, states)
         except Exception as e:
@@ -480,6 +482,7 @@ class StepFunctions(object):
         env['METAFLOW_FLOW_NAME'] = attrs['metaflow.flow_name']
         env['METAFLOW_STEP_NAME'] = attrs['metaflow.step_name']
         env['METAFLOW_RUN_ID'] = attrs['metaflow.run_id.$']
+        env['METAFLOW_PRODUCTION_TOKEN'] = self.production_token
         env['SFN_STATE_MACHINE'] = self.name
         #env['METAFLOW_USER'] = attrs['metaflow.owner']
         # Can't set `METAFLOW_TASK_ID` due to lack of run-scoped identifiers.
