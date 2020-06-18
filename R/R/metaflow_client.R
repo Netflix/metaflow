@@ -130,7 +130,7 @@ metaflow_object <- R6::R6Class(
     #' @field created_at The time of creation of this object.
     created_at = function() private$created_at_,
 
-    #' @field parent The step identifier of this object.
+    #' @field parent The parent object identifier of this current object.
     parent = function() private$parent_,
 
     #' @field pathspec The path spec that uniquely identifies this object.

@@ -35,11 +35,13 @@ t$summay()
 \describe{
 \item{\code{super_}}{Get the metaflow object base class}
 
-\item{\code{id}}{The identifier of this object.}
+\item{\code{id}}{The identifier of this task object.}
 
-\item{\code{pathspec}}{The path spec that uniquely identifies this object.}
+\item{\code{pathspec}}{The path spec that uniquely identifies this task object,}
 
-\item{\code{tags}}{The vector of tags assigned to this object.}
+\item{\code{parent}}{The parent object (step object) identifier of this task object.}
+
+\item{\code{tags}}{A vector of strings representing tags assigned to this task object.}
 
 \item{\code{exception}}{The exception that caused this task to fail.}
 

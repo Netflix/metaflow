@@ -20,7 +20,7 @@ A Reference Class to represent a metaflow object.
 
 \item{\code{created_at}}{The time of creation of this object.}
 
-\item{\code{parent}}{The step identifier of this object.}
+\item{\code{parent}}{The parent object identifier of this current object.}
 
 \item{\code{pathspec}}{The path spec that uniquely identifies this object.}
 

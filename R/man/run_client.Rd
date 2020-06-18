@@ -38,13 +38,15 @@ r$summary()
 \describe{
 \item{\code{super_}}{Get the metaflow object base class}
 
-\item{\code{id}}{The identifier of this object.}
+\item{\code{id}}{The identifier of this run object.}
 
-\item{\code{created_at}}{The time of creation of this object.}
+\item{\code{created_at}}{The time of creation of this run object.}
 
-\item{\code{pathspec}}{The path spec that uniquely identifies this object.}
+\item{\code{pathspec}}{The path spec that uniquely identifies this run object.}
 
-\item{\code{tags}}{The vector of tags assigned to this object.}
+\item{\code{parent}}{The parent object (flow object) identifier of the current run object.}
+
+\item{\code{tags}}{A vector of strings representing tags assigned to this run object.}
 
 \item{\code{code}}{Get the code package of the run if it exists}
 

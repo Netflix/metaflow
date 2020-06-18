@@ -37,6 +37,16 @@ f$summary()
 \describe{
 \item{\code{super_}}{Access the R6 metaflow object base class}
 
+\item{\code{pathspec}}{The path spec that uniquely identifies this flow object}
+
+\item{\code{parent}}{The parent object identifier of this current flow object.}
+
+\item{\code{tags}}{The vector of tags assigned to this object.}
+
+\item{\code{created_at}}{The time of creation of this flow object.}
+
+\item{\code{finished_at}}{The finish time, if available, of this flow.}
+
 \item{\code{latest_run}}{The latest run identifier of this flow.}
 
 \item{\code{latest_successful_run}}{The latest successful run identifier of this flow.}

@@ -104,17 +104,21 @@ run_client <- R6::R6Class("RunClient",
     #' @field super_ Get the metaflow object base class
     super_ = function() super,
 
-    #' @field id The identifier of this object.
+    #' @field id The identifier of this run object.
     id = function() super$get_obj()$id,
 
-    #' @field created_at The time of creation of this object.
+    #' @field created_at The time of creation of this run object.
     created_at = function() super$get_obj()$created_at,
 
-    #' @field pathspec The path spec that uniquely identifies this object.
+    #' @field pathspec The path spec that uniquely identifies this run object.
+    # It looks like HelloWorldFlow/2 where 2 is the run_id
     pathspec = function() super$get_obj()$pathspec,
 
-    #' @field tags The vector of tags assigned to this object.
-    tags = function() super$get_obj()$tags,  
+    #' @field parent The parent object (flow object) identifier of the current run object.
+    parent = function() super$get_obj()$parent,
+
+    #' @field tags A vector of strings representing tags assigned to this run object.
+    tags = function() import_builtins()$list(super$get_obj()$tags),  
 
     #' @field code Get the code package of the run if it exists 
     code = function() super$get_obj()$code,

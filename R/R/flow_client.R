@@ -62,6 +62,23 @@ flow_client <- R6::R6Class("FlowClient",
     #' @field super_ Access the R6 metaflow object base class  
     super_ = function() super,
 
+    #' @field pathspec The path spec that uniquely identifies this flow object
+    #  Since flow is a top level object, its pathspec is simply the flow name.
+    pathspec = function() super$get_obj()$pathspec,
+
+    #' @field parent The parent object identifier of this current flow object.
+    # Since flow is a top level object, its parent is always NULL.
+    parent = function() super$get_obj()$parent,
+
+    #' @field tags The vector of tags assigned to this object.
+    tags = function() import_builtins()$list(super$get_obj()$tags),  
+
+    #' @field created_at The time of creation of this flow object.
+    created_at = function() super$get_obj()$created_at,
+
+    #' @field finished_at The finish time, if available, of this flow.
+    finished_at = function() super$get_obj()$finished_at,
+
     #' @field latest_run The latest run identifier of this flow. 
     latest_run = function() super$get_obj()$latest_run$id,
 
@@ -69,9 +86,7 @@ flow_client <- R6::R6Class("FlowClient",
     latest_successful_run = function() super$get_obj()$latest_successful_run$id,
 
     #' @field runs The vector of all run identifiers of this flow.
-    runs = function() {
-      super$get_values()
-    }
+    runs = function() super$get_values()
   ),
   lock_class = TRUE
 )

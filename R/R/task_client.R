@@ -80,14 +80,18 @@ task_client <- R6::R6Class("TaskClient",
     #' @field super_ Get the metaflow object base class
     super_ = function() super,
 
-    #' @field id The identifier of this object.
+    #' @field id The identifier of this task object.
     id = function() super$get_obj()$id,
 
-    #' @field pathspec The path spec that uniquely identifies this object.
+    #' @field pathspec The path spec that uniquely identifies this task object,
+    # for example, HelloWorldFlow/2/start/231
     pathspec = function() super$get_obj()$pathspec,
 
-    #' @field tags The vector of tags assigned to this object.
-    tags = function() super$get_obj()$tags,  
+    #' @field parent The parent object (step object) identifier of this task object.
+    parent = function() super$get_obj()$parent,
+
+    #' @field tags A vector of strings representing tags assigned to this task object.
+    tags = function() import_builtins()$list(super$get_obj()$tags),  
 
     #' @field exception The exception that caused this task to fail.
     exception = function() super$get_obj()$exception,

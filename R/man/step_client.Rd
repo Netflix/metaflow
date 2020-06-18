@@ -36,15 +36,17 @@ s$summary()
 \describe{
 \item{\code{super_}}{Access the R6 metaflow object base class}
 
-\item{\code{id}}{The identifier of this object.}
+\item{\code{id}}{The identifier of this step object.}
 
-\item{\code{created_at}}{The time of creation of this object.}
+\item{\code{created_at}}{The time of creation of this step object.}
 
-\item{\code{pathspec}}{The path spec that uniquely identifies this object.}
+\item{\code{pathspec}}{The path spec that uniquely identifies this step object,}
 
-\item{\code{tags}}{The vector of tags assigned to this object.}
+\item{\code{parent}}{The parent object (run object) identifier of this step object.}
 
-\item{\code{finished_at}}{The finish time, if available, of this run.}
+\item{\code{tags}}{A vector of strings representing tags assigned to this step object.}
+
+\item{\code{finished_at}}{The finish time, if available, of this step.}
 
 \item{\code{a_task}}{Any task id of the current step}
 

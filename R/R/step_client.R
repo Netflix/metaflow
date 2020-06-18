@@ -76,19 +76,23 @@ step_client <- R6::R6Class("StepClient",
     #' @field super_ Access the R6 metaflow object base class  
     super_ = function() super,
 
-    #' @field id The identifier of this object.
+    #' @field id The identifier of this step object.
     id = function() super$get_obj()$id,
 
-    #' @field created_at The time of creation of this object.
+    #' @field created_at The time of creation of this step object.
     created_at = function() super$get_obj()$created_at,
 
-    #' @field pathspec The path spec that uniquely identifies this object.
+    #' @field pathspec The path spec that uniquely identifies this step object,
+    #  for example, HellowWorldFlow/2/start.
     pathspec = function() super$get_obj()$pathspec,
 
-    #' @field tags The vector of tags assigned to this object.
-    tags = function() super$get_obj()$tags,  
+    #' @field parent The parent object (run object) identifier of this step object.
+    parent = function() super$get_obj()$parent,
 
-    #' @field finished_at The finish time, if available, of this run.
+    #' @field tags A vector of strings representing tags assigned to this step object.
+    tags = function() import_builtins()$list(super$get_obj()$tags),  
+
+    #' @field finished_at The finish time, if available, of this step.
     finished_at = function() super$get_obj()$finished_at,
     
     #' @field a_task Any task id of the current step
@@ -96,7 +100,6 @@ step_client <- R6::R6Class("StepClient",
 
     #' @field tasks All task ids of the current step
     tasks = function() super$get_values()
-    
   ),
   lock_class = TRUE
 )
