@@ -445,7 +445,7 @@ def step(obj,
 
     echo('Success', fg='green', bold=True, indent=True)
 
-@parameters.add_custom_parameters
+@parameters.add_custom_parameters()
 @cli.command(help="Internal command to initialize a run.")
 @click.option('--run-id',
               default=None,
@@ -576,7 +576,7 @@ def resume(obj,
     write_run_id(run_id_file, runtime.run_id)
 
 
-@parameters.add_custom_parameters
+@parameters.add_custom_parameters()
 @cli.command(help='Run the workflow locally.')
 @common_run_options
 @click.option('--namespace',

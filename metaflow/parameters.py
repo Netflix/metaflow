@@ -198,18 +198,22 @@ class Parameter(object):
     def __getitem__(self, x):
         pass
 
-def add_custom_parameters(cmd):
-    cmd_default = 'default_%s' % cmd.name
-    for arg in parameters:
-        d = {}
-        for k, v in arg.kwargs.items():
-            if k.startswith('default_'):
-                if k == cmd_default:
-                    d['default'] = v
-            else:
-                d[k] = v
-        cmd.params.insert(0, click.Option(('--' + arg.name,), **d))
-    return cmd
+def add_custom_parameters(default='__ignore__'):
+    def wrapper(cmd):
+        cmd_default = 'default_%s' % cmd.name
+        for arg in parameters:
+            d = {}
+            for k, v in arg.kwargs.items():
+                if k.startswith('default_'):
+                    if k == cmd_default:
+                        d['default'] = v
+                else:
+                    d[k] = v
+            if default != '__ignore__':
+                d['default'] = default
+            cmd.params.insert(0, click.Option(('--' + arg.name,), **d))
+        return cmd
+    return wrapper
 
 def set_parameters(flow, kwargs):
     seen = set()
