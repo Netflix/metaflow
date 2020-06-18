@@ -135,12 +135,12 @@ run_cmd <- function(flow_file, ...) {
 
   if ("logs" %in% names(flags)) {
     logs <- paste("logs", flags$logs, sep=" ")
-    cmd <- paste("Rscript", run_path, logs)
+    cmd <- paste("Rscript", run_path, flow_RDS, logs)
   }
 
   if ("show" %in% names(flags) && flags$show) {
     show <- "show"
-    cmd <- paste("Rscript", run_path, show)
+    cmd <- paste("Rscript", run_path, flow_RDS, show)
   }
   
   if ("help" %in% names(flags) && flags$help) {
