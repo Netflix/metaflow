@@ -203,7 +203,7 @@ class Parameter(object):
 
     def option_kwargs(self, deploy_mode):
         kwargs = self.kwargs
-        if isinstance(kwargs['default'], DeployTimeField) and not deploy_mode:
+        if isinstance(kwargs.get('default'), DeployTimeField) and not deploy_mode:
             ret = dict(kwargs)
             ret['default'] = None
             return ret
