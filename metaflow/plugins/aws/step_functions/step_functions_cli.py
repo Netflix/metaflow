@@ -85,6 +85,7 @@ def create(obj,
     name = state_machine_name(current.flow_name)
     obj.echo("Deploying *%s* to AWS Step Functions..." % name, bold=True)
 
+    #TODO: Uncomment after v2.0.0 service is live
     #check_metadata_service_version(obj)
 
     token = resolve_token(name,
@@ -120,21 +121,21 @@ def check_metadata_service_version(obj):
     version = metadata.version()
     if version == 'local':
         return
-    elif version is not None and LooseVersion(version) >= LooseVersion('2.0'):
-        # Metaflow metadata service needs to be at least at version 2.0
+    elif version is not None and LooseVersion(version) >= LooseVersion('2.0.0'):
+        # Metaflow metadata service needs to be at least at version 2.0.0
         return
     else:
         obj.echo("")
         obj.echo("You are running a version of the metadata service "
                  "that currently doesn't support AWS Step Functions. ")
         obj.echo("For more information on how to upgrade your "
-                 "service to a compatible version (>= 2.0), visit:")
+                 "service to a compatible version (>= 2.0.0), visit:")
         obj.echo("    [url]", fg='green')
         obj.echo("Once you have upgraded your metadata service, please "
                  "re-execute your command.")
-        raise IncorrectMetadataServiceVersion("Try again with the correct "
+        raise IncorrectMetadataServiceVersion("Try again with a more recent "
                                                "version of metadata service "
-                                               "(>=2.0).")
+                                               "(>=2.0.0).")
 
 def state_machine_name(name):
     if SFN_STATE_MACHINE_PREFIX is not None:
@@ -163,6 +164,7 @@ def make_flow(obj,
 
     obj.package = MetaflowPackage(obj.flow, obj.environment, obj.logger, obj.package_suffixes)
     package_url = datastore.save_data(obj.package.sha, TransformableObject(obj.package.blob))
+
     return StepFunctions(name,
                          obj.graph,
                          obj.flow,
@@ -320,8 +322,9 @@ def list_runs(obj,
         if execution.get('stopDate'):
             obj.echo(
                 "*sfn-{id}* "
-                "[startedAt: {startDate}, stoppedAt: {stopDate}] "
-                "(*{status}*)".format(
+                "startedAt:'{startDate}' "
+                "stoppedAt:'{stopDate}' "
+                "*{status}*".format(
                     id=execution['name'], 
                     status=execution['status'], 
                     startDate=execution['startDate'].replace(microsecond=0), 
@@ -331,8 +334,8 @@ def list_runs(obj,
         else:
             obj.echo(
                 "*sfn-{id}* "
-                "[startedAt: {startDate}] "
-                "(*{status}*)".format(
+                "startedAt:'{startDate}' "
+                "*{status}*".format(
                     id=execution['name'], 
                     status=execution['status'], 
                     startDate=execution['startDate'].replace(microsecond=0)

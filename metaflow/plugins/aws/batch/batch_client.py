@@ -53,7 +53,7 @@ class BatchClient(object):
 
 
 class BatchJobException(MetaflowException):
-    headline = 'Batch job error'
+    headline = 'AWS Batch job error'
 
 
 class BatchJob(object):
