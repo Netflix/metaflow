@@ -60,6 +60,11 @@ def run(flow_script, r_functions, rds_file, metaflow_args, full_cmdline, r_paths
         from . import cli
         cli.main(flow,
                  args=metaflow_args,
+                 handle_exceptions=False,
                  entrypoint=full_cmdline[:-len(metaflow_args)])
+    except Exception as x:
+        print(repr(x), flush=True)
+        os.remove(tmp.name)
+        os._exit(1)
     finally:
         os.remove(tmp.name)
