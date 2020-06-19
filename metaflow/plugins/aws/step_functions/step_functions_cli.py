@@ -260,7 +260,7 @@ def resolve_token(name,
     return token
 
 
-@parameters.add_custom_parameters(default=None)
+@parameters.add_custom_parameters(deploy_mode=False)
 @step_functions.command(help="Trigger the workflow on AWS Step Functions.")
 @click.pass_obj
 def trigger(obj, **kwargs):
