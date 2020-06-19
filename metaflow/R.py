@@ -42,6 +42,10 @@ def working_dir():
 
 def run(flow_script, r_functions, rds_file, metaflow_args, full_cmdline, r_paths):
     global R_FUNCTIONS, R_PACKAGE_PATHS, RDS_FILE_PATH
+
+    from .exception import MetaflowException
+    from .cli import print_metaflow_exception
+
     R_FUNCTIONS = r_functions
     R_PACKAGE_PATHS = r_paths
     RDS_FILE_PATH = rds_file
@@ -62,8 +66,12 @@ def run(flow_script, r_functions, rds_file, metaflow_args, full_cmdline, r_paths
                  args=metaflow_args,
                  handle_exceptions=False,
                  entrypoint=full_cmdline[:-len(metaflow_args)])
-    except Exception as x:
-        print(repr(x), flush=True)
+    except MetaflowException as e:
+        print_metaflow_exception(e)
+        os.remove(tmp.name)
+        os._exit(1)
+    except Exception as e:
+        print(e, flush=True)
         os.remove(tmp.name)
         os._exit(1)
     finally:
