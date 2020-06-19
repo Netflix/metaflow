@@ -71,7 +71,7 @@ run_cmd <- function(flow_file, ...) {
         batch <- ""
       }
     } else {
-      batch <- paste0("batch", flags$batch)
+      batch <- paste0("batch ", flags$batch)
       run <- ""
       if ("my_runs" %in% names(flags) && flags$my_runs) {
         batch <- paste0(batch, " --my-runs")
@@ -98,7 +98,7 @@ run_cmd <- function(flow_file, ...) {
     max_num_splits <- ""
   }
   if ("other_args" %in% names(flags)) {
-    other_args <- paste0(flags$other_args)
+    other_args <- paste(flags$other_args)
   } else {
     other_args <- ""
   }
@@ -132,6 +132,10 @@ run_cmd <- function(flow_file, ...) {
             max_workers,
             max_num_splits,
             other_args)
+          
+  if (batch %in% c("batch list", "batch kill")){
+    cmd <- paste("Rscript", run_path, flow_RDS, batch)
+  }
 
   if ("logs" %in% names(flags)) {
     logs <- paste("logs", flags$logs, sep=" ")
