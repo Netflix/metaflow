@@ -45,9 +45,9 @@ flow_client <- R6::R6Class("FlowClient",
 
     #' @description Get a list of run_ids which has the specific tag
     #' @return A list of run_client R6 object 
-    #' @param tag the specific tag we need to have for the runs
-    runs_with_tag = function(tag) {
-      run_objs <- import_builtins()$list(super$get_obj()$runs(tag))
+    #' @param ... the specific tags (string) we need to have for the runs
+    runs_with_tags = function(...) {
+      run_objs <- import_builtins()$list(super$get_obj()$runs(...))
       return(invisible(lapply(run_objs, function(run){run_client$new(self, run$id)})))
     },
 

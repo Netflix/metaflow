@@ -60,7 +60,7 @@ f$summary()
 \itemize{
 \item \href{#method-new}{\code{flow_client$new()}}
 \item \href{#method-run}{\code{flow_client$run()}}
-\item \href{#method-runs_with_tag}{\code{flow_client$runs_with_tag()}}
+\item \href{#method-runs_with_tags}{\code{flow_client$runs_with_tags()}}
 \item \href{#method-summary}{\code{flow_client$summary()}}
 \item \href{#method-clone}{\code{flow_client$clone()}}
 }
@@ -115,18 +115,18 @@ RunClient R6 object
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-runs_with_tag"></a>}}
-\if{latex}{\out{\hypertarget{method-runs_with_tag}{}}}
-\subsection{Method \code{runs_with_tag()}}{
+\if{html}{\out{<a id="method-runs_with_tags"></a>}}
+\if{latex}{\out{\hypertarget{method-runs_with_tags}{}}}
+\subsection{Method \code{runs_with_tags()}}{
 Get a list of run_ids which has the specific tag
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{flow_client$runs_with_tag(tag)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{flow_client$runs_with_tags(...)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{tag}}{the specific tag we need to have for the runs}
+\item{\code{...}}{the specific tags (string) we need to have for the runs}
 }
 \if{html}{\out{</div>}}
 }
