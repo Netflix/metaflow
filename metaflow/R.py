@@ -69,7 +69,9 @@ def run(flow_script, r_functions, rds_file, metaflow_args, full_cmdline, r_paths
         os.remove(tmp.name)
         os._exit(1)
     except Exception as e:
-        print(e, flush=True)
+        import sys
+        print(e)
+        sys.stdout.flush()
         os.remove(tmp.name)
         os._exit(1)
     finally:
