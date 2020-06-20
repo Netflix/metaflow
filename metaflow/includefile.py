@@ -351,4 +351,4 @@ class Uploader():
                         return io.open(obj.path, mode='rt', encoding=value_info.get('encoding')).read()
                     else:
                         return io.open(obj.path, mode='rb').read()
-            raise FileNotFoundError("File at %s does not exist" % self._url)
+            raise FileNotFoundError("File at %s does not exist" % value_info['url'])
