@@ -25,7 +25,6 @@ type is the first argument.
 
 \preformatted{
 decorator("catch", print_exception=FALSE)
-decorator("timeout", seconds=1)
 decorator("resources", cpu=2, memory=10000)
 }
 }
