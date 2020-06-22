@@ -56,7 +56,8 @@ class CondaStepDecorator(StepDecorator):
     name = 'conda'
     defaults = {'libraries': {},
                 'python': None,
-                'disabled': None}
+                'disabled': None,
+                'env_name': None}
 
     conda = None
     environments = None
@@ -230,6 +231,10 @@ class CondaStepDecorator(StepDecorator):
             python_path = self.metaflow_home
             if os.environ.get('PYTHONPATH') is not None:
                 python_path = os.pathsep.join([os.environ['PYTHONPATH'], python_path])
+
+            if self.attributes['env_name']:
+                self.env_id = self.attributes['env_name']
+
             cli_args.env['PYTHONPATH'] = python_path
             cli_args.env['_METAFLOW_CONDA_ENV'] = self.env_id
             cli_args.entrypoint[0] = self.conda.python(self.env_id)
