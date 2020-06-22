@@ -22,7 +22,7 @@ set_metadata <- function(ms = NULL){
 #' This information typically returns provider specific information (like URL for remote 
 #' providers or local paths for local providers.
 #' @export
-get_metdata <- function(){
+get_metadata <- function(){
     mf$get_metadata()
 }
 
