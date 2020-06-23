@@ -131,18 +131,18 @@ StepClient R6 object
 \subsection{Method \code{artifact()}}{
 Fetch the data artifacts for the end step of this \code{run}.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{run_client$artifact(...)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{run_client$artifact(name)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{...}}{names of artifacts}
+\item{\code{name}}{names of artifacts}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-a list of metaflow artifact
+metaflow artifact
 }
 }
 \if{html}{\out{<hr>}}

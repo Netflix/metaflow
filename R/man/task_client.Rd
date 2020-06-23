@@ -115,18 +115,18 @@ a \code{TaskClient} object
 \subsection{Method \code{artifact()}}{
 Fetch the data artifacts for this task
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{task_client$artifact(...)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{task_client$artifact(name)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{...}}{names of the artifacts}
+\item{\code{name}}{names of artifacts}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-a list of metaflow artifacts
+metaflow artifact
 }
 }
 \if{html}{\out{<hr>}}

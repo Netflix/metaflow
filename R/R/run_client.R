@@ -7,6 +7,7 @@
 #' @importFrom reticulate import_builtins py_get_attr
 #' @include metaflow.R
 #' @include metaflow_client.R
+#' @include utils.R
 #'
 #' @return Object of \code{\link{R6Class}} with fields/methods for introspection.
 #' @format \code{\link{R6Class}} object.
@@ -63,20 +64,11 @@ run_client <- R6::R6Class("RunClient",
     },
 
     #' @description Fetch the data artifacts for the end step of this \code{run}.
-    #' @return a list of metaflow artifact 
-    #' @param ... names of artifacts
-    artifact = function(...) {
-      artifact <- list(...)
-      artifacts <- unlist(lapply(seq_along(artifact), function(x) {
-        blob <- super$get_obj()$data[[artifact[[x]]]]
-        if (is.raw(blob)) {
-          blob %>% unserialize
-        } else {
-          blob
-        }
-      }))
-      names(artifacts) <- artifact
-      artifacts
+    #' @return metaflow artifact 
+    #' @param name names of artifacts
+    artifact = function(name) {
+      blob <- super$get_obj()$data[[name]]
+      return(mf_deserialize(blob))
     },
 
     #' @description Summary of the \code{run} 
