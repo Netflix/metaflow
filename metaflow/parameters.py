@@ -132,13 +132,13 @@ def deploy_time_eval(value):
         return value
 
 # this is called by cli.main
-def set_parameter_context(ctx):
+def set_parameter_context(flow_name, logger, datastore):
     global context_proto
-    context_proto = ParameterContext(flow_name=ctx.flow.name,
+    context_proto = ParameterContext(flow_name=flow_name,
                                      user_name=get_username(),
                                      parameter_name=None,
-                                     logger=ctx.logger,
-                                     ds_type=ctx.datastore.TYPE)
+                                     logger=logger,
+                                     ds_type=datastore.TYPE)
 
 class Parameter(object):
     def __init__(self, name, **kwargs):

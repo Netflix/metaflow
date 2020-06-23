@@ -791,7 +791,9 @@ def start(ctx,
 
     # initialize current and parameter context for deploy-time parameters
     current._set_env(flow_name=ctx.obj.flow.name, is_running=False)
-    parameters.set_parameter_context(ctx.obj)
+    parameters.set_parameter_context(ctx.obj.flow.name,
+                                        ctx.obj.logger,
+                                        ctx.obj.datastore)
 
     if ctx.invoked_subcommand not in ('run', 'resume'):
         # run/resume are special cases because they can add more decorators with --with,
@@ -872,6 +874,10 @@ def main(flow, args=None, handle_exceptions=True, entrypoint=None):
 
     state = CliState(flow)
     state.entrypoint = entrypoint
+
+    # parameters.set_parameter_context(state.flow.name,
+    #                                     ctx.logger,
+    #                                     state.datastore)
 
     try:
         if args is None:
