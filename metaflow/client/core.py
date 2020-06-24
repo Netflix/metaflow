@@ -895,7 +895,9 @@ class Task(MetaflowObject):
             True if the task completed and False otherwise
         """
         try:
-            return self['_task_ok'].data
+            if self.finished_at is None:
+                return self['_task_ok'].data
+            return True
         except KeyError:
             return False
 
