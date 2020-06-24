@@ -877,7 +877,7 @@ class Task(MetaflowObject):
             True if the task completed successfully and False otherwise
         """
         try:
-            return self['_success'].data
+            return self['_success'].created_at is not None
         except KeyError:
             return False
 
@@ -895,7 +895,7 @@ class Task(MetaflowObject):
             True if the task completed and False otherwise
         """
         try:
-            return self['_task_ok'].data
+            return self['_task_ok'].created_at is not None
         except KeyError:
             return False
 
