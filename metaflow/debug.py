@@ -4,7 +4,6 @@ import os
 
 from functools import partial
 
-import metaflow.metaflow_config as config
 # Set
 #
 # - METAFLOW_DEBUG_SUBCOMMAND=1
@@ -18,6 +17,7 @@ import metaflow.metaflow_config as config
 
 class Debug(object):
     def __init__(self):
+        import metaflow.metaflow_config as config
         for typ in config.DEBUG_OPTIONS:
             if getattr(config, 'METAFLOW_DEBUG_%s' % typ.upper()):
                 op = partial(self.log, typ)
@@ -30,7 +30,11 @@ class Debug(object):
             setattr(self, typ, op != self.noop)
 
     def log(self, typ, args):
-        print('debug[%s]: %s' % (typ, ' '.join(args)), file=sys.stderr)
+        if isinstance(args, str):
+            s = args
+        else:
+            s = ' '.join(args)
+        print('debug[%s]: %s' % (typ, s), file=sys.stderr)
 
     def noop(self, args):
         pass
