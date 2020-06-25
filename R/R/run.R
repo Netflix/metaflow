@@ -120,10 +120,17 @@ run_cmd <- function(flow_file, ...) {
     tag <- ""
   }
 
+  if ("package_suffixes" %in% names(flags)){
+    package_suffixes <- paste0("--package-suffixes=", flags$package_suffixes)
+  } else {
+    package_suffixes <- ""
+  }
+
   flow_RDS <- paste0("--flowRDS=", flow_file)
   cmd <- paste("Rscript", run_path, 
             flow_RDS,
             "--no-pylint",
+            package_suffixes,
             with,
             batch,
             run,
