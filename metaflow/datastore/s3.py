@@ -115,7 +115,7 @@ class S3DataStore(MetaflowDataStore):
                 task_urls = [task.url for task in task_objs]
             urls = []
             for task_url in task_urls:
-                for attempt in range(5):
+                for attempt in range(metaflow_config.MAX_ATTEMPTS):
                     metadata_filename = \
                         cls.get_metadata_filename_for_attempt(attempt)
                     urls.append(os.path.join(task_url, metadata_filename))

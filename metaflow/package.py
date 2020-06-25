@@ -6,16 +6,17 @@ from hashlib import sha1
 from io import BytesIO
 from itertools import chain
 
+from .metaflow_config import DEFAULT_SUFFIXES
 from .util import to_unicode
 from . import R
 
-DEFAULT_SUFFIXES = ['.py', '.R', '.RDS']
+DEFAULT_SUFFIXES_LIST = DEFAULT_SUFFIXES.split(',')
 
 
 class MetaflowPackage(object):
 
-    def __init__(self, flow, environment, logger, suffixes=DEFAULT_SUFFIXES):
-        self.suffixes = list(set().union(suffixes, DEFAULT_SUFFIXES))
+    def __init__(self, flow, environment, logger, suffixes=DEFAULT_SUFFIXES_LIST):
+        self.suffixes = list(set().union(suffixes, DEFAULT_SUFFIXES_LIST))
         self.environment = environment
         self.metaflow_root = os.path.dirname(__file__)
         try:

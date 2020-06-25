@@ -250,7 +250,7 @@ class MetadataProvider(object):
         obj_type : string
             One of 'root', 'flow', 'run', 'step', 'task', 'artifact'
         obj_order: int
-            Order in the last ['root', 'flow', 'run', 'step', 'task', 'artifact']
+            Order in the list ['root', 'flow', 'run', 'step', 'task', 'artifact']
         sub_type : string
             Same as obj_type with the addition of 'metadata', 'self'
         sub_order:

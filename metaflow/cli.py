@@ -21,10 +21,9 @@ from .graph import FlowGraph
 from .datastore import DATASTORES
 from .runtime import NativeRuntime
 from .package import MetaflowPackage
-from .plugins import LOGGING_SIDECARS, MONITOR_SIDECARS
-from .metadata import METADATAPROVIDERS
-from .metaflow_config import DEFAULT_DATASTORE, DEFAULT_METADATA
-from .plugins import ENVIRONMENTS
+from .plugins import ENVIRONMENTS, LOGGING_SIDECARS, METADATA_PROVIDERS, MONITOR_SIDECARS
+from .metaflow_config import DEFAULT_DATASTORE, DEFAULT_ENVIRONMENT, DEFAULT_EVENTLOGGER, \
+    DEFAULT_METADATA, DEFAULT_MONITOR, DEFAULT_SUFFIXES
 from .environment import MetaflowEnvironment
 from .pylint_wrapper import PyLint
 from .event_logger import EventLogger
@@ -684,10 +683,10 @@ def version(obj):
 @click.option('--metadata',
               default=DEFAULT_METADATA,
               show_default=True,
-              type=click.Choice([m.TYPE for m in METADATAPROVIDERS]),
+              type=click.Choice([m.TYPE for m in METADATA_PROVIDERS]),
               help='Metadata service type')
 @click.option('--environment',
-              default='local',
+              default=DEFAULT_ENVIRONMENT,
               show_default=True,
               type=click.Choice(['local'] + [m.TYPE for m in ENVIRONMENTS]),
               help='Execution environment type')
@@ -701,7 +700,7 @@ def version(obj):
 @click.option('--package-suffixes',
               help='A comma-separated list of file suffixes to include '
                    'in the code package.',
-              default='.py',
+              default=DEFAULT_SUFFIXES,
               show_default=True)
 @click.option('--with',
               'decospecs',
@@ -718,12 +717,12 @@ def version(obj):
               show_default=True,
               help='Measure code coverage using coverage.py.')
 @click.option('--event-logger',
-              default='nullSidecarLogger',
+              default=DEFAULT_EVENTLOGGER,
               show_default=True,
               type=click.Choice(LOGGING_SIDECARS),
               help='type of event logger used')
 @click.option('--monitor',
-              default='nullSidecarMonitor',
+              default=DEFAULT_MONITOR,
               show_default=True,
               type=click.Choice(MONITOR_SIDECARS),
               help='Monitoring backend type')
@@ -796,7 +795,7 @@ def start(ctx,
     ctx.obj.monitor = Monitor(monitor, ctx.obj.environment, ctx.obj.flow.name)
     ctx.obj.monitor.start()
 
-    ctx.obj.metadata = [m for m in METADATAPROVIDERS
+    ctx.obj.metadata = [m for m in METADATA_PROVIDERS
                         if m.TYPE == metadata][0](ctx.obj.environment,
                                                   ctx.obj.flow,
                                                   ctx.obj.event_logger,
