@@ -10,9 +10,8 @@ from metaflow.exception import MetaflowNotFound,\
                                MetaflowNamespaceMismatch,\
                                MetaflowInternalError
 
-from metaflow.metadata import LocalMetadataProvider, METADATAPROVIDERS
 from metaflow.metaflow_config import DEFAULT_METADATA
-from metaflow.plugins import ENVIRONMENTS
+from metaflow.plugins import ENVIRONMENTS, METADATA_PROVIDERS
 
 from metaflow.util import cached_property, resolve_identity
 
@@ -60,9 +59,9 @@ def metadata(ms):
     """
     global current_metadata
     infos = ms.split('@', 1)
-    types = [m.TYPE for m in METADATAPROVIDERS]
+    types = [m.TYPE for m in METADATA_PROVIDERS]
     if infos[0] in types:
-        current_metadata = [m for m in METADATAPROVIDERS if m.TYPE == infos[0]][0]
+        current_metadata = [m for m in METADATA_PROVIDERS if m.TYPE == infos[0]][0]
         if len(infos) > 1:
             current_metadata.INFO = infos[1]
     else:
@@ -71,7 +70,7 @@ def metadata(ms):
             metadata_type = 'service'
         else:
             metadata_type = 'local'
-        res = [m for m in METADATAPROVIDERS if m.TYPE == metadata_type]
+        res = [m for m in METADATA_PROVIDERS if m.TYPE == metadata_type]
         if not res:
             print(
                 "Cannot find a '%s' metadata provider -- "
@@ -117,10 +116,11 @@ def default_metadata():
         The result of get_metadata() after resetting the provider.
     """
     global current_metadata
-    default = [m for m in METADATAPROVIDERS if m.TYPE == DEFAULT_METADATA]
+    default = [m for m in METADATA_PROVIDERS if m.TYPE == DEFAULT_METADATA]
     if default:
         current_metadata = default[0]
     else:
+        from metaflow.plugins.metadata import LocalMetadataProvider
         current_metadata = LocalMetadataProvider
     return get_metadata()
 

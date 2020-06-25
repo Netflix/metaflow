@@ -5,6 +5,7 @@ import json
 from hashlib import sha1
 from itertools import chain
 
+from .metaflow_config import DEFAULT_SUFFIXES
 from .util import to_unicode
 
 try:
@@ -16,13 +17,13 @@ except:
     import io
     BytesIO = io.BytesIO
 
-DEFAULT_SUFFIXES = ['.py']
+LIST_DEFAULT_SUFFIXES = DEFAULT_SUFFIXES.split(',')
 
 
 class MetaflowPackage(object):
 
-    def __init__(self, flow, environment, logger, suffixes=DEFAULT_SUFFIXES):
-        self.suffixes = list(set().union(suffixes, DEFAULT_SUFFIXES))
+    def __init__(self, flow, environment, logger, suffixes=LIST_DEFAULT_SUFFIXES):
+        self.suffixes = list(set().union(suffixes, LIST_DEFAULT_SUFFIXES))
         self.environment = environment
         self.metaflow_root = os.path.dirname(__file__)
         environment.init_environment(logger)

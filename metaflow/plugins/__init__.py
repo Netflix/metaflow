@@ -13,6 +13,8 @@ except ImportError:
         FLOW_DECORATORS=[],
         STEP_DECORATORS=[],
         ENVIRONMENTS=[],
+        DATA_PROVIDERS={},
+        METADATA_PROVIDERS=[],
         SIDECAR={},
         LOGGING_SIDECAR={},
         MONITOR_SIDECAR={})
@@ -46,18 +48,26 @@ from .retry_decorator import RetryDecorator
 from .aws.batch.batch_decorator import BatchDecorator, ResourcesDecorator
 from .conda.conda_step_decorator import CondaStepDecorator
 
-STEP_DECORATORS = _merge_lists([CatchDecorator,
-                   TimeoutDecorator,
-                   EnvironmentDecorator,
-                   ResourcesDecorator,
-                   RetryDecorator,
-                   BatchDecorator,
-                   CondaStepDecorator], ext_plugins.STEP_DECORATORS, 'name')
+STEP_DECORATORS = _merge_lists([
+    CatchDecorator,
+    TimeoutDecorator,
+    EnvironmentDecorator,
+    ResourcesDecorator,
+    RetryDecorator,
+    BatchDecorator,
+    CondaStepDecorator], ext_plugins.STEP_DECORATORS, 'name')
 
 # Add Conda environment
 from .conda.conda_environment import CondaEnvironment
 ENVIRONMENTS = _merge_lists([CondaEnvironment], ext_plugins.ENVIRONMENTS, 'TYPE')
 
+DATA_PROVIDERS = ext_plugins.DATA_PROVIDERS
+
+# Metadata providers
+from .metadata import LocalMetadataProvider, ServiceMetadataProvider
+
+METADATA_PROVIDERS = _merge_lists(
+    [LocalMetadataProvider, ServiceMetadataProvider], ext_plugins.METADATA_PROVIDERS, 'TYPE')
 
 # Every entry in this list becomes a class-level flow decorator.
 # Add an entry here if you need a new flow-level annotation. Be

@@ -41,9 +41,15 @@ def from_conf(name, default=None):
 ###
 # Default configuration
 ###
-DEFAULT_DATASTORE = from_conf('METAFLOW_DEFAULT_DATASTORE', 'local')
-DEFAULT_METADATA = from_conf('METAFLOW_DEFAULT_METADATA', 'local')
 DEFAULT_AUTH = from_conf('METAFLOW_DEFAULT_AUTH', 'aws')
+DEFAULT_DATASTORE = from_conf('METAFLOW_DEFAULT_DATASTORE', 'local')
+DEFAULT_DATA_PROVIDER = from_conf('METAFLOW_DEFAULT_DATAPROVIDER', '')
+DEFAULT_ENVIRONMENT = from_conf('METAFLOW_DEFAULT_ENVIRONMENT', 'local')
+DEFAULT_EVENTLOGGER = from_conf('METAFLOW_DEFAULT_EVENTLOGGER', 'nullSidecarLogger')
+DEFAULT_METADATA = from_conf('METAFLOW_DEFAULT_METADATA', 'local')
+DEFAULT_MONITOR = from_conf('METAFLOW_DEFAULT_MONITOR', 'nullSidecarMonitor')
+DEFAULT_SUFFIXES = from_conf('METAFLOW_DEFAULT_SUFFIXES', '.py')
+
 
 ###
 # Datastore configuration

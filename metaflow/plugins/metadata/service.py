@@ -5,7 +5,7 @@ import time
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import METADATA_SERVICE_NUM_RETRIES, METADATA_SERVICE_HEADERS, \
     METADATA_SERVICE_URL
-from .metadata import MetadataProvider
+from metaflow.metadata import MetadataProvider
 
 
 class ServiceException(MetaflowException):
