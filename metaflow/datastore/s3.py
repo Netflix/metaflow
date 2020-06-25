@@ -7,21 +7,27 @@ import os
 import sys
 import json
 import gzip
+from io import BytesIO
 
 try:
     # python2
     from urlparse import urlparse
-    import cStringIO
-    BytesIO = cStringIO.StringIO
 except:
     # python3
     from urllib.parse import urlparse
-    import io
-    BytesIO = io.BytesIO
 
+from .. import metaflow_config
 from .datastore import MetaflowDataStore, DataException, only_if_not_done
 from ..metadata import MetaDatum
 from .util.s3util import aws_retry, get_s3_client
+
+# We need UncloseableBytesIO for put_s3_object which may need
+# to consume a BytesIO buffer multiple times. Blocking close()
+# is cheaper than creating a new BytesIO object every time
+# which would create duplicate copies of data.
+class UncloseableBytesIO(BytesIO):
+    def close(self):
+        pass
 
 class S3DataStore(MetaflowDataStore):
     TYPE='s3'
@@ -58,8 +64,12 @@ class S3DataStore(MetaflowDataStore):
     @aws_retry
     def _put_s3_object(self, path, blob=None, buf=None):
         url = urlparse(path)
+        # @aws_retry may cause this function to be called multiple times with the same arguments.
+        # Make sure that the buffer state is reset for every iteration
         if buf is None:
             buf = BytesIO(blob)
+        else:
+            buf.seek(0)
         if self.monitor:
             with self.monitor.measure("metaflow.s3.put_object"):
                 self.s3.upload_fileobj(buf, url.netloc, url.path.lstrip('/'))
@@ -194,7 +204,9 @@ class S3DataStore(MetaflowDataStore):
         """
         path = self.object_path(sha)
         if not self._head_s3_object(path):
-            buf = BytesIO()
+            # we need UncloseableBytesIO for put_s3_object which may need
+            # to consume the buffer multiple times
+            buf = UncloseableBytesIO()
             # NOTE compresslevel makes a huge difference. The default
             # level of 9 can be impossibly slow.
             with gzip.GzipFile(fileobj=buf,
