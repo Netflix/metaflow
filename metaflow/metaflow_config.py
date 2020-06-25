@@ -173,15 +173,13 @@ def get_pinned_conda_libs():
     }
 
 
-cached_aws_sandbox_creds = None
-
 # Check if there is a an extension to Metaflow to load and override everything
 try:
-   import metaflow_custom.config.metaflow_config as extension_module
+    import metaflow_custom.config.metaflow_config as extension_module
 except ImportError:
     pass
 else:
-   # We load into globals whatever we have in extension_module
-   for n, o in extension_module.__dict__.items():
-      if not n.startswith('__'):
-         globals()[n] = o
+    # We load into globals whatever we have in extension_module
+    for n, o in extension_module.__dict__.items():
+        if not n.startswith('__'):
+            globals()[n] = o

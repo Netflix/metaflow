@@ -403,7 +403,7 @@ class BatchWaiter(object):
 
 class BatchLogs(object):
     def __init__(self, group, stream, pos=0, sleep_on_no_data=0):
-        self._client = get_authenticated_boto3_client('logs')
+        self._client = get_aws_client('logs')
         self._group = group
         self._stream = stream
         self._pos = pos

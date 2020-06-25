@@ -9,6 +9,7 @@ except ImportError:
             return []
 
     ext_plugins = _fake(
+        AUTH_PROVIDERS={},
         FLOW_DECORATORS=[],
         STEP_DECORATORS=[],
         ENVIRONMENTS=[],
