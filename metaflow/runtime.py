@@ -25,6 +25,7 @@ from . import procpoll
 from .datastore import DataException, MetaflowDatastoreSet
 from .metadata import MetaDatum
 from .debug import debug
+from .decorators import flow_decorators
 
 from .util import to_unicode, compress_list
 
@@ -714,6 +715,13 @@ class CLIArgs(object):
             'with': [deco.make_decorator_spec() for deco in self.task.decos
                      if not deco.statically_defined]
         }
+
+        # FlowDecorators can define their own top-level options. They are
+        # responsible for adding their own top-level options and values through
+        # the get_top_level_options() hook.
+        for deco in flow_decorators():
+            self.top_level_options.update(deco.get_top_level_options())
+
         self.commands = ['step']
         self.command_args = [self.task.step]
         self.command_options = {
