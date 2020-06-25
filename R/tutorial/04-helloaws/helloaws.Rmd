@@ -1,0 +1,21 @@
+---
+title: "Episode 05-helloaws: Look Mom, We're in the Cloud"
+output: html_notebook
+---
+In HellowAWSFlow, the 'start' and 'end' steps were run locally, while the 'hello' step was run remotely on AWS batch. Since we are using AWS, data artifacts and metdata were stored remotely. This means you can use the client to access information about any flow from anywhere. This notebook shows you how.
+
+## Import the metaflow client
+```{r}
+library(metaflow)
+message("Current metaadata provider: ", get_metadata())
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+## Print the message generated from the flow
+```{r}
+flow <- flow_client$new("HelloAWSFlow")
+run <- run_client$new(flow, flow$latest_successful_run)
+message("Using run: ", run$pathspec)
+message(run$artifact("message"))
+```

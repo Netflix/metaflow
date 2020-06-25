@@ -1,9 +1,7 @@
 ---
-title: "R Notebook"
+title: "Episode 01-playlist: Let's build you a movie playlist"
 output: html_notebook
 ---
-
-# Episode 01-playlist: Let's build you a movie playlist.
 
 PlayListFlow is a movie playlist generator, and this notebook shows how you can use the Metaflow client to access data from the versioned Metaflow runs. In this example, you can view all the historical playlists.
 

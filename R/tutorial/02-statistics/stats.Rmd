@@ -1,11 +1,9 @@
 ---
-title: "R Notebook"
+title: "Episode 02: Is this Data Science?"
 output:
   html_document:
     df_print: paged
 ---
-
-#Episode 02: Is this Data Science?
 
 MovieStatsFlow loads the movie metadata CSV file into a Pandas Dataframe and computes some movie genre specific statistics. You can use this notebook and the Metaflow client to eyeball the results and make some simple plots.
 
