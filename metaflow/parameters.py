@@ -21,7 +21,9 @@ except:
 ParameterContext = namedtuple('ParameterContext',
                               ['flow_name',
                                'user_name',
-                               'parameter_name'])
+                               'parameter_name',
+                               'logger',
+                               'ds_type'])
 
 # currently we execute only one flow per process, so we can treat
 # Parameters globally. If this was to change, it should/might be
@@ -59,13 +61,17 @@ class DeployTimeField(object):
                  parameter_type,
                  field,
                  fun,
-                 return_str=True):
+                 return_str=True,
+                 print_representation=None):
 
         self.fun = fun
         self.field = field
         self.parameter_name = parameter_name
         self.parameter_type = parameter_type
         self.return_str = return_str
+        self.print_representation = self.user_print_representation = print_representation
+        if self.print_representation is None:
+            self.print_representation = str(self.fun)
 
     def __call__(self):
         ctx = context_proto._replace(parameter_name=self.parameter_name)
@@ -104,10 +110,18 @@ class DeployTimeField(object):
                 raise ParameterFieldTypeMismatch(msg)
             return val
 
+    @property
+    def description(self):
+        return self.print_representation
+
     def __str__(self):
+        if self.user_print_representation:
+            return self.user_print_representation
         return self()
 
     def __repr__(self):
+        if self.user_print_representation:
+            return self.user_print_representation
         return self()
 
 
@@ -118,11 +132,13 @@ def deploy_time_eval(value):
         return value
 
 # this is called by cli.main
-def set_parameter_context(flow_name):
+def set_parameter_context(flow_name, logger, datastore):
     global context_proto
     context_proto = ParameterContext(flow_name=flow_name,
                                      user_name=get_username(),
-                                     parameter_name=None)
+                                     parameter_name=None,
+                                     logger=logger,
+                                     ds_type=datastore.TYPE)
 
 class Parameter(object):
     def __init__(self, name, **kwargs):
@@ -149,7 +165,8 @@ class Parameter(object):
         self.kwargs['show_default'] = self.kwargs.get('show_default', True)
 
         # default can be defined as a function
-        if callable(self.kwargs.get('default')):
+        default_field = self.kwargs.get('default')
+        if callable(default_field) and not isinstance(default_field, DeployTimeField):
             self.kwargs['default'] = DeployTimeField(name,
                                                      param_type,
                                                      'default',
@@ -162,17 +179,22 @@ class Parameter(object):
         if self.separator and not self.is_string_type:
             raise MetaflowException("Parameter *%s*: Separator is only allowed "
                                     "for string parameters." % name)
-        self.user_required = self.kwargs.get('required', False)
         parameters.append(self)
 
     def option_kwargs(self, deploy_mode):
         kwargs = self.kwargs
         if isinstance(kwargs.get('default'), DeployTimeField) and not deploy_mode:
             ret = dict(kwargs)
+            ret['help'] = kwargs.get('help', '') + \
+                "[default: deploy-time value of '%s']" % self.name
             ret['default'] = None
+            ret['required'] = False
             return ret
         else:
             return kwargs
+
+    def load_parameter(self, v):
+        return v
 
     def _get_type(self, kwargs):
         default_type = str

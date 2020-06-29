@@ -13,7 +13,6 @@ except:
     import pickle
 
 from types import MethodType, FunctionType
-from ..includefile import InternalFile
 from ..parameters import Parameter
 from ..exception import MetaflowException, MetaflowInternalError
 from ..metadata import DataArtifact
@@ -486,11 +485,6 @@ class MetaflowDataStore(object):
                         isinstance(getattr(flow.__class__, var), property):
                     continue
                 val = getattr(flow, var)
-                if isinstance(val, InternalFile):
-                    # We will force protocol 4 for serialization for anything
-                    # bigger than 1 GB
-                    yield var, TransformableObject(val()), val.size() > 1024 * 1024 * 1024
-                    continue
                 if not (isinstance(val, MethodType) or
                         isinstance(val, FunctionType) or
                         isinstance(val, Parameter)):
