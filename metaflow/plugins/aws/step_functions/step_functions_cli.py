@@ -162,8 +162,10 @@ def make_flow(obj,
     decorators._init_decorators(
             obj.flow, obj.graph, obj.environment, obj.datastore, obj.logger)
 
-    obj.package = MetaflowPackage(obj.flow, obj.environment, obj.logger, obj.package_suffixes)
-    package_url = datastore.save_data(obj.package.sha, TransformableObject(obj.package.blob))
+    obj.package = MetaflowPackage(
+        obj.flow, obj.environment, obj.logger, obj.package_suffixes)
+    package_url = datastore.save_data(
+        obj.package.sha, TransformableObject(obj.package.blob))
 
     return StepFunctions(name,
                          obj.graph,
@@ -208,13 +210,15 @@ def resolve_token(name,
         # we allow the user who deployed the previous version to re-deploy,
         # even if they don't have the token
         if prev_user != get_username() and authorize != prev_token:
-            obj.echo("There is an existing version of *%s* on AWS Step Functions which was "
-                     "deployed by the user *%s*." % (name, prev_user))
+            obj.echo("There is an existing version of *%s* on AWS Step "
+                     "Functions which was deployed by the user "
+                     "*%s*." % (name, prev_user))
             obj.echo("To deploy a new version of this flow, you need to use "
                      "the same production token that they used. ")
             obj.echo("Please reach out to them to get the token. Once you "
                      "have it, call this command:")
-            obj.echo("    step-functions create --authorize MY_TOKEN", fg='green')
+            obj.echo("    step-functions create --authorize MY_TOKEN", 
+                        fg='green')
             obj.echo('See "Organizing Results" at docs.metaflow.org for more '
                      "information about production tokens.")
             raise IncorrectProductionToken("Try again with the correct "
@@ -252,7 +256,8 @@ def resolve_token(name,
     obj.echo("If you want to authorize other people to deploy new versions "
              "of this flow to AWS Step Functions, they need to call")
     obj.echo("    step-functions create --authorize %s" % token, fg='green')
-    obj.echo("when deploying this flow to AWS Step Functions for the first time.")
+    obj.echo("when deploying this flow to AWS Step Functions for the first "
+             "time.")
     obj.echo('See "Organizing Results" at https://docs.metaflow.org/ for more '
              "information about production tokens.")
     obj.echo('')

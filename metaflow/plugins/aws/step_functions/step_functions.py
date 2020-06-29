@@ -456,8 +456,8 @@ class StepFunctions(object):
                         for parent in node.split_parents:
                             if self.graph[parent].type == 'foreach':
                                 attrs['split_parent_task_id_%s.$' % parent] = \
-                                    '$.[0].Parameters.split_parent_task_id_%s' % \
-                                        parent
+                                '$.[0].Parameters.split_parent_task_id_%s' % \
+                                    parent
                 else:
                     for parent in node.split_parents:
                         if self.graph[parent].type == 'foreach':
