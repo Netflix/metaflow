@@ -112,9 +112,18 @@ class StepFunctions(object):
             raise StepFunctionsException("The workflow *%s* doesn't exist "
                                          "on AWS Step Functions. Please "
                                          "deploy your flow first." % name)
+        # Dump parameters into `Parameters` input field.
+        input = json.dumps({"Parameters" : json.dumps(parameters)})
+        print(input)
+        # AWS Step Functions limits input to be 32KiB, but AWS Batch
+        # has it's own limitation of 30KiB for job specification length.
+        # Reserving 10KiB for rest of the job sprecification leaves 20KiB
+        # for us, which should be enough for most use cases for now.
+        if len(input) > 20480:
+            raise StepFunctionsException("Length of parameter names and "
+                                         "values shouldn't exceed 20480 as "
+                                         "imposed by AWS Step Functions.")
         try:
-            # Dump parameters into `Parameters` input field.
-            input = json.dumps({"Parameters" : json.dumps(parameters)})
             state_machine_arn = state_machine.get('stateMachineArn')
             return StepFunctionsClient().trigger(state_machine_arn, input)
         except Exception as e:

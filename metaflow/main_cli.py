@@ -432,12 +432,13 @@ def aws(profile):
             env_dict['METAFLOW_DATATOOLS_SYSROOT_S3'] =\
                 click.prompt('\t' + cyan('METAFLOW_DATATOOLS_SYSROOT_S3:') + 
                   yellow(' (optional)') + ' Amazon S3 url for metaflow datatools (s3://<bucket>/<prefix>)',
-                    default='%s/data' % env_dict['METAFLOW_DATASTORE_SYSROOT_S3'],
+                    default=os.path.join(env_dict['METAFLOW_DATASTORE_SYSROOT_S3'], 'data'),
                     show_default=True)
             # AWS Batch configuration (only if Amazon S3 is being used).
             use_batch =\
-                click.confirm('\nConfigure AWS Batch for compute?',
-                              default=True, abort=False)
+                click.confirm('\nConfigure AWS Batch for compute and AWS Step '
+                                'Functions for orchestration?',
+                                    default=True, abort=False)
             if use_batch:
                 env_dict['METAFLOW_BATCH_JOB_QUEUE'] =\
                     click.prompt('\t' + cyan('METAFLOW_BATCH_JOB_QUEUE:') + 
