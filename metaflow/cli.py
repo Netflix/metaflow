@@ -875,10 +875,6 @@ def main(flow, args=None, handle_exceptions=True, entrypoint=None):
     state = CliState(flow)
     state.entrypoint = entrypoint
 
-    # parameters.set_parameter_context(state.flow.name,
-    #                                     ctx.logger,
-    #                                     state.datastore)
-
     try:
         if args is None:
             start(auto_envvar_prefix='METAFLOW', obj=state)
