@@ -121,7 +121,7 @@ run_cmd <- function(flow_file, ...) {
   }
 
   if ("package_suffixes" %in% names(flags)){
-    package_suffixes <- paste0("--package-suffixes=", flags$package_suffixes)
+    package_suffixes <- paste0("--package-suffixes=", paste(flags$package_suffixes, collapse=","))
   } else {
     package_suffixes <- ""
   }
