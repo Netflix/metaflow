@@ -114,7 +114,6 @@ class StepFunctions(object):
                                          "deploy your flow first." % name)
         # Dump parameters into `Parameters` input field.
         input = json.dumps({"Parameters" : json.dumps(parameters)})
-        print(input)
         # AWS Step Functions limits input to be 32KiB, but AWS Batch
         # has it's own limitation of 30KiB for job specification length.
         # Reserving 10KiB for rest of the job sprecification leaves 20KiB
