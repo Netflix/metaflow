@@ -14,6 +14,8 @@
 #' @section Usage:
 #' \preformatted{
 #' t <- task_client$new(step, task_id)
+#' t <- task_client$new("HelloFlow/12/start/139423")
+#' 
 #' t$id
 #' t$tags
 #' t$finished_at
@@ -28,12 +30,25 @@ task_client <- R6::R6Class("TaskClient",
   public = list(
     #' @description Initialize a \code{TaskClient} object
     #' @return a \code{TaskClient} object
-    #' @param step a \code{StepClient} object
-    #' @param task_id the name/id of the step such as "start"
-    initialize = function(step, task_id) {
-      idx <- which(step$get_values() == task_id)
-      task <- import_builtins()$list(step$get_obj())[[idx]]
-      super$initialize(task)
+    #' @param ... The argument list can be either (1) a single \code{pathspec} string such as "HelloFlow/123/start/293812" 
+    #' or (2) \code{(step, task_id)}, where
+    #' a \code{step} is a parent \code{StepClient} object which contains the run, and \code{task_id} is the identifier of the task.
+    initialize = function(...) {
+      arguments <- list(...)
+      if (nargs() == 2){
+        step <- arguments[[1]]
+        task_id <- arguments[[2]]
+        idx <- which(step$get_values() == task_id)
+        task <- import_builtins()$list(step$get_obj())[[idx]]
+        super$initialize(task)
+      } else if (nargs() == 1){
+        pathspec <- arguments[[1]]
+        task <- mf$Task(pathspec)
+        super$initialize(task)
+      } else {
+        stop("Wrong number of arguments. Please see help document for task_client")
+      }
+
     },
 
     #' @description Fetch the data artifacts for this task

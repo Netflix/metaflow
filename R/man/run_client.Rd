@@ -18,6 +18,7 @@ Instances of this class contain all steps related to a run.
 
 \preformatted{
 r <- run_client$new(flow, run_id)
+r <- new_client$new("HelloFlow/12")
 
 r$id
 r$tags
@@ -89,15 +90,15 @@ r$summary()
 \subsection{Method \code{new()}}{
 Initialize the object from a \code{FlowClient} object and \code{run_id}
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{run_client$new(flow, run_id)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{run_client$new(...)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{flow}}{a parent \code{FlowClient} object which contains the run}
-
-\item{\code{run_id}}{identifier of the run}
+\item{\code{...}}{The argument list can be either (1) a single \code{pathspec} string such as "HelloFlow/123" 
+or (2) \code{(flow, run_id)}, where
+a \code{flow} is a parent \code{FlowClient} object which contains the run, and \code{run_id} is the identifier of the run.}
 }
 \if{html}{\out{</div>}}
 }

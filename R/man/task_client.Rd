@@ -18,6 +18,8 @@ Instances of this class contain all data artifacts related to a task.
 
 \preformatted{
 t <- task_client$new(step, task_id)
+t <- task_client$new("HelloFlow/12/start/139423")
+
 t$id
 t$tags
 t$finished_at
@@ -93,15 +95,15 @@ t$summay()
 \subsection{Method \code{new()}}{
 Initialize a \code{TaskClient} object
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{task_client$new(step, task_id)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{task_client$new(...)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{step}}{a \code{StepClient} object}
-
-\item{\code{task_id}}{the name/id of the step such as "start"}
+\item{\code{...}}{The argument list can be either (1) a single \code{pathspec} string such as "HelloFlow/123/start/293812" 
+or (2) \code{(step, task_id)}, where
+a \code{step} is a parent \code{StepClient} object which contains the run, and \code{task_id} is the identifier of the task.}
 }
 \if{html}{\out{</div>}}
 }

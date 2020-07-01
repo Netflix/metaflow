@@ -16,6 +16,7 @@
 #' @section Usage:
 #' \preformatted{
 #' r <- run_client$new(flow, run_id)
+#' r <- new_client$new("HelloFlow/12")
 #'
 #' r$id
 #' r$tags
@@ -33,27 +34,39 @@ run_client <- R6::R6Class("RunClient",
   public = list(
     #' @description Initialize the object from a \code{FlowClient} object and \code{run_id}
     #' @return \code{RunClient} R6 object
-    #' @param flow a parent \code{FlowClient} object which contains the run
-    #' @param run_id identifier of the run
-    initialize = function(flow, run_id) {
-      if (!is.character(run_id)) {
-        run_id <- as.character(run_id)
-      }
-      if (run_id == "latest_run") {
-        run_id <- flow$latest_run
-      } else if (run_id == "latest_successful_run") {
-        run_id <- flow$latest_successful_run
-      } else {
-        if (!run_id %in% flow$get_values()) {
-          stop(
-            "Not a valid run id",
-            call. = FALSE
-          )
+    #' @param ... The argument list can be either (1) a single \code{pathspec} string such as "HelloFlow/123" 
+    #' or (2) \code{(flow, run_id)}, where
+    #' a \code{flow} is a parent \code{FlowClient} object which contains the run, and \code{run_id} is the identifier of the run.
+    initialize = function(...) {
+      arguments <- list(...)
+      if (nargs() == 2){
+        flow <- arguments[[1]]
+        run_id <- arguments[[2]]
+        if (!is.character(run_id)) {
+          run_id <- as.character(run_id)
         }
+        if (run_id == "latest_run") {
+          run_id <- flow$latest_run
+        } else if (run_id == "latest_successful_run") {
+          run_id <- flow$latest_successful_run
+        } else {
+          if (!run_id %in% flow$get_values()) {
+            stop(
+              "Not a valid run id",
+              call. = FALSE
+            )
+          }
+        }
+        idx <- which(flow$get_values() == run_id)
+        run <- import_builtins()$list(flow$get_obj())[[idx]]
+        super$initialize(run)
+      } else if (nargs() == 1){
+        pathspec <- arguments[[1]]
+        run <- mf$Run(pathspec)
+        super$initialize(run)
+      } else {
+        stop("Wrong number of arguments. Please see help document for run_client")
       }
-      idx <- which(flow$get_values() == run_id)
-      run <- import_builtins()$list(flow$get_obj())[[idx]]
-      super$initialize(run)
     },
 
     #' @description Create a \code{StepClient} object under this \code{run} 

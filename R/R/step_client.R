@@ -14,6 +14,7 @@
 #' @section Usage:
 #' \preformatted{
 #' s <- step_client$new(run, step_id) 
+#' s <- step_client$new("HelloWorldFlow/123/start")
 #'
 #' s$id
 #' s$tags
@@ -29,18 +30,30 @@ step_client <- R6::R6Class("StepClient",
   public = list(
     #' @description Initialize a \code{StepClient} object
     #' @return a \code{StepClient} object
-    #' @param run a \code{RunClient} object
-    #' @param step_id the name/id of the step such as "start"
-    initialize = function(run, step_id) {
-      if (!step_id %in% run$get_values()) {
-        stop(
-          "Not a valid step id",
-          call. = FALSE
-       )
+    #' @param ... The argument list can be either (1) a single \code{pathspec} string such as "MyFlow/123/start" or (2) \code(run, step_id), where
+    #' \code{run} is a parent \code{RunClient} object which contains the step, and \code{step_id} is the name/id of the step such as "start".
+    initialize = function(...) {
+      arguments <- list(...)
+      if (nargs() == 2){
+        run <- arguments[[1]] 
+        step_id <- arguments[[2]]
+        if (!step_id %in% run$get_values()) {
+          stop(
+            "Not a valid step id",
+            call. = FALSE
+        )
+        }
+        idx <- which(run$get_values() == step_id)
+        step <- import_builtins()$list(run$get_obj())[[idx]]
+        super$initialize(step)
+      } else if (nargs() == 1) {
+        pathspec <- arguments[[1]]
+        step <- mf$Step(pathspec)
+        super$initialize(step)
+      } else {
+        stop("Wrong number of arguments. Please see help document for step_client.")
       }
-      idx <- which(run$get_values() == step_id)
-      step <- import_builtins()$list(run$get_obj())[[idx]]
-      super$initialize(step)
+
     },
 
     #' @description create a \code{TaskClient} object of the current step
