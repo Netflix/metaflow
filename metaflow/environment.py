@@ -89,7 +89,7 @@ class MetaflowEnvironment(object):
                     "%s -m awscli s3 cp %s job.tar >/dev/null && \
                         echo \'Code package downloaded.\' && break; "
                     "sleep 10; i=$((i+1)); "
-                "done " % (self._python(), code_package_url),
+                "done" % (self._python(), code_package_url),
                 "if [ $i -gt 5 ]; then "
                     "echo \'Failed to download code package from %s "
                     "after 6 tries. Exiting...\' && exit 1; "
