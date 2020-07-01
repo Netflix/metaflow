@@ -9,8 +9,8 @@ b <- function(self){
 }
 
 join <- function(self, inputs){
-    print(paste("var in step a is", inputs[[1]]$var))
-    print(paste("var in step b is", inputs[[2]]$var))
+    print(paste("var in step a is", inputs$a$var))
+    print(paste("var in step b is", inputs$b$var))
 }
 
 metaflow("BranchFlow") %>%

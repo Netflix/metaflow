@@ -37,8 +37,8 @@ bonus_movie <- function(self){
 #  Join our parallel branches and merge results.
 join <- function(self, inputs){
     # Reassign relevant variables from our branches.
-    self$bonus <- inputs[[1]]$bonus
-    self$playlist <- inputs[[2]]$movies
+    self$bonus <- inputs$bonus_movie$bonus
+    self$playlist <- inputs$pick_movie$movies
 }
 
 # Print out the playlist and bonus movie.
