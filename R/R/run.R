@@ -159,7 +159,7 @@ run_cmd <- function(flow_file, ...) {
     if ("help" %in% names(run_options) && run_options$help){
       help_cmd <- "--help"
     } else { # if help is specified in command line 
-      help_cmd <- paste(commandArgs(trailing=TRUE), collapse=" ")
+      help_cmd <- paste(commandArgs(trailingOnly=TRUE), collapse=" ")
     }
     cmd <- paste("Rscript", run_path, flow_RDS, help_cmd)
   }

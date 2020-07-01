@@ -85,7 +85,7 @@ Initialize a \code{StepClient} object
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{...}}{The argument list can be either (1) a single \code{pathspec} string such as "MyFlow/123/start" or (2) \code(run, step_id), where
+\item{\code{...}}{The argument list can be either (1) a single \code{pathspec} string such as "MyFlow/123/start" or (2) \code{(run, step_id)}, where
 \code{run} is a parent \code{RunClient} object which contains the step, and \code{step_id} is the name/id of the step such as "start".}
 }
 \if{html}{\out{</div>}}
