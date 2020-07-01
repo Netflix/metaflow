@@ -117,7 +117,11 @@ fmt_next_step <- function(x, foreach = NULL) {
 fmt_r_function <- function(x, join = NULL) {
   fmt <- paste0(space(8), paste0("call_r('", x, "', (self,))", collapse = ""))
   if (!is.null(join)) {
-    fmt <- gsub(",))", ", list(inputs)))", fmt)
+    fmt_inputs <- paste0(space(8), "r_inputs = {node._current_step : node for node in inputs} if len(inputs[0].foreach_stack()) == 0 else list(inputs)", collapse="")
+    fmt <- gsub(",))", ", r_inputs))", fmt)
+    line <- c(fmt_inputs, space(1, type = "v"), fmt, space(1, type = "v")) 
+  } else {
+    line <- c(fmt, space(1, type="v"))
   }
-  c(fmt, space(1, type = "v"))
+  line
 }

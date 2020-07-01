@@ -162,7 +162,7 @@ gather_inputs <- function(inputs, input) {
 #' }
 #' @export
 merge_artifacts <- function(flow, inputs, exclude = list()) {
-  flow$merge_artifacts(inputs, exclude)
+  flow$merge_artifacts(unname(inputs), exclude)
 }
 
 #' Helper utility to access current IDs of interest
