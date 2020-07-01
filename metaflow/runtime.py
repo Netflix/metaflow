@@ -828,7 +828,7 @@ class Worker(object):
 
     def write(self, msg, buf):
         buf.write(msg)
-        text = msg.strip().decode(self._encoding, errors='replace')
+        text = msg.rstrip().decode(self._encoding, errors='replace')
         self.task.log(text, pid=self._proc.pid)
 
     def read_logline(self, fd):
