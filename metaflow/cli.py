@@ -432,6 +432,9 @@ def step(obj,
                       max_user_code_retries)
 
     echo('Success', fg='green', bold=True, indent=True)
+    # FORMAT: ($1)datastore_root location \t ($2)run_id \t ($3)next_step_to_run \t ($4)task_id(of next step) \t ($5)current step \t ($6)task_id(of current step)
+    if step_name != 'end': # End is the final step
+        print(obj.datastore.datastore_root, run_id, obj.flow._graph[step_name].out_funcs[0], int(task_id)+1, step_name, task_id)
 
 @parameters.add_custom_parameters
 @cli.command(help="Internal command to initialize a run.")
@@ -610,6 +613,56 @@ def run(obj,
     runtime.persist_parameters()
     runtime.execute()
 
+
+@parameters.add_custom_parameters
+@cli.command(help='Run the initial part of the workflow (i.e., save parameters locally).')
+@common_run_options
+@click.option('--namespace',
+              'user_namespace',
+              default=None,
+              help="Change namespace from the default (your username) to "
+                   "the specified tag. Note that this option does not alter "
+                   "tags assigned to the objects produced by this run, just "
+                   "what existing objects are visible in the client API. You "
+                   "can enable the global namespace with an empty string."
+                   "--namespace=")
+@click.pass_obj
+def pre_start(obj,
+        tags=None,
+        max_workers=None,
+        max_num_splits=None,
+        max_log_size=None,
+        decospecs=None,
+        run_id_file=None,
+        user_namespace=None,
+        **kwargs):
+
+    if namespace is not None:
+        namespace(user_namespace or None)
+    before_run(obj, tags, decospecs + obj.environment.decospecs())
+
+    runtime = NativeRuntime(obj.flow,
+                            obj.graph,
+                            obj.datastore,
+                            obj.metadata,
+                            obj.environment,
+                            obj.package,
+                            obj.logger,
+                            obj.entrypoint,
+                            obj.event_logger,
+                            obj.monitor,
+                            max_workers=max_workers,
+                            max_num_splits=max_num_splits,
+                            max_log_size=max_log_size * 1024 * 1024)
+    write_latest_run_id(obj, runtime.run_id)
+    write_run_id(run_id_file, runtime.run_id)
+
+    parameters.set_parameters(obj.flow, kwargs)
+    runtime.persist_parameters()
+
+    # FORMAT: ($1)datastore_root location \t ($2)run_id \t ($3)next_step_to_run \t ($4)task_id(of next step) \t ($5)current step \t ($6)task_id(of current step)
+    print(f"{obj.datastore.datastore_root}\t{runtime.run_id}\tstart\t1\t_parameters\t0")
+    # runtime.execute()
 
 def write_run_id(run_id_file, run_id):
     if run_id_file is not None:
