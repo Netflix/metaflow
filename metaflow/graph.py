@@ -114,7 +114,8 @@ class StepVisitor(ast.NodeVisitor):
         super(StepVisitor, self).__init__()
 
     def visit_FunctionDef(self, node):
-        decos = [d.id for d in node.decorator_list]
+        decos = [d.func.id if isinstance(d, ast.Call) else d.id
+                 for d in node.decorator_list]
         if 'step' in decos:
             doc = ast.get_docstring(node)
             self.nodes[node.name] = DAGNode(node, decos, doc if doc else '')
