@@ -30,6 +30,9 @@ from .pylint_wrapper import PyLint
 from .event_logger import EventLogger
 from .monitor import Monitor
 
+import kfp
+from kfp import dsl
+
 ERASE_TO_EOL = '\033[K'
 HIGHLIGHT = 'red'
 INDENT = ' ' * 4
@@ -104,9 +107,6 @@ def logger(body='', system_msg=False, head='', bad=False, timestamp=True):
                 bold=system_msg,
                 fg=LOGGER_BAD_COLOR if bad else None)
 
-import kfp
-from kfp import dsl
-
 
 def get_ordered_steps(graph, type='linear'):
     """
@@ -149,7 +149,7 @@ def run_step_op(step_name, code_url=DEFAULT_FLOW_CODE_URL):
         command=['sh', '-c'],
         arguments=[
             'curl -o helloworld.py {}' \
-            ' && pip install git+https://github.com/zillow/metaflow.git@mf-on-kfp-2' \
+            ' && pip install git+https://github.com/zillow/metaflow.git@c722fceffa3011ecab68ce319cff98107cc49532' \
             ' && export USERNAME="kfp-user" ' \
             ' && {}'.format(code_url, final_run_cmd)
             ])
