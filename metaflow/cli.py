@@ -44,6 +44,8 @@ LOGGER_BAD_COLOR = 'red'
 # Defaults for running MF on KFP
 DEFAULT_FLOW_CODE_URL = 'https://gist.githubusercontent.com/mon95/98d9d88571a0307a53b637d841295702/raw/df8bc1fa363f629271cfc1d34f3c2f7ca0b2e2cf/helloworld.py'
 DEFAULT_KFP_YAML_OUTPUT_PATH = 'kfp_pipeline.yaml'
+DEFAULT_RUN_NAME = 'run_mf_on_kfp'
+DEFAULT_EXPERIMENT_NAME = 'mf-on-kfp-experiments'
 
 try:
     # Python 2
@@ -763,6 +765,18 @@ def pre_start(obj,
               'code_url',
               default=DEFAULT_FLOW_CODE_URL,
               help="the code URL of the flow to be executed on KFP")
+@click.option('--create-new-run',
+              show_default=True,
+              default=False,
+              help="specify whether to create a new run (Note: This option will not work as expected if your local environment is not configured to connect to the Zillow KFP cluster)"
+              )
+@click.option('--run-name',
+              'run_name',
+              default=DEFAULT_RUN_NAME,
+              help="specify whether to create a new run (Default: False) "
+                   "Note: This option will fail if your local environment is not configured to "
+                   "connect to the KFP cluster"
+              )
 @click.option('--namespace',
               'user_namespace',
               default=None,
@@ -783,10 +797,20 @@ def run_on_kfp(obj,
         user_namespace=None,
         pipeline_output_path=DEFAULT_KFP_YAML_OUTPUT_PATH,
         code_url=DEFAULT_FLOW_CODE_URL,
+        create_new_run=False,
+        run_name=DEFAULT_RUN_NAME,
         **kwargs):
     # from convert_to_kfp import create_flow_pipeline, get_ordered_steps
     pipeline_path = create_flow_pipeline(get_ordered_steps(obj.graph), code_url, pipeline_output_path)
-    print(f"\nDone converting to KFP YAML. Upload the file `{pipeline_path}` to the KFP UI to run!")
+    if create_new_run:
+        run_pipeline_result = kfp.Client().create_run_from_pipeline_package(pipeline_file=pipeline_output_path,
+                                                        arguments={},
+                                                        experiment_name=DEFAULT_EXPERIMENT_NAME,
+                                                        run_name=run_name)
+        print(f"\nRun created successfully!\n")
+        print(f"Run link: https://kubeflow.corp.zillow-analytics-dev.zg-int.net/pipeline/#/runs/details/{run_pipeline_result.run_id}")
+    else:
+        print(f"\nDone converting to KFP YAML. Upload the file `{pipeline_path}` to the KFP UI to run!")
 
 def write_run_id(run_id_file, run_id):
     if run_id_file is not None:
