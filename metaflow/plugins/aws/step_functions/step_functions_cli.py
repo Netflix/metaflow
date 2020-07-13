@@ -85,8 +85,7 @@ def create(obj,
     name = state_machine_name(current.flow_name)
     obj.echo("Deploying *%s* to AWS Step Functions..." % name, bold=True)
 
-    #TODO: Uncomment after v2.0.0 service is live
-    #check_metadata_service_version(obj)
+    check_metadata_service_version(obj)
 
     token = resolve_token(name,
                           name.lower(),
@@ -121,7 +120,7 @@ def check_metadata_service_version(obj):
     version = metadata.version()
     if version == 'local':
         return
-    elif version is not None and LooseVersion(version) >= LooseVersion('2.0.0'):
+    elif version is not None and LooseVersion(version) >= LooseVersion('2.0.2'):
         # Metaflow metadata service needs to be at least at version 2.0.0
         return
     else:
@@ -129,13 +128,13 @@ def check_metadata_service_version(obj):
         obj.echo("You are running a version of the metadata service "
                  "that currently doesn't support AWS Step Functions. ")
         obj.echo("For more information on how to upgrade your "
-                 "service to a compatible version (>= 2.0.0), visit:")
+                 "service to a compatible version (>= 2.0.2), visit:")
         obj.echo("    [url]", fg='green')
         obj.echo("Once you have upgraded your metadata service, please "
                  "re-execute your command.")
         raise IncorrectMetadataServiceVersion("Try again with a more recent "
                                                "version of metadata service "
-                                               "(>=2.0.0).")
+                                               "(>=2.0.2).")
 
 def state_machine_name(name):
     if SFN_STATE_MACHINE_PREFIX is not None:
