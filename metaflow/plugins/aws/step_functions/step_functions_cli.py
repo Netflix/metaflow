@@ -121,7 +121,7 @@ def check_metadata_service_version(obj):
     if version == 'local':
         return
     elif version is not None and LooseVersion(version) >= LooseVersion('2.0.2'):
-        # Metaflow metadata service needs to be at least at version 2.0.0
+        # Metaflow metadata service needs to be at least at version 2.0.2
         return
     else:
         obj.echo("")
