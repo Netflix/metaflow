@@ -9,7 +9,10 @@ behavior with additional arguments, like '--max-workers'. For this example,
 'max-workers' is used to limit the number of parallel genre specific statistics
 computations.
 You can then access the data artifacts (even the local CSV file) from anywhere
-because the data is being stored in AWS S3.**
+because the data is being stored in AWS S3.
+This tutorial uses `pandas` which may not be available in your environment. 
+Use the 'conda' package manager with the `conda-forge` channel added to run 
+this tutorial in any environment**
 
 #### Showcasing:
 - '--with batch' command line option
