@@ -17,13 +17,13 @@ except:
     import io
     BytesIO = io.BytesIO
 
-LIST_DEFAULT_SUFFIXES = DEFAULT_SUFFIXES.split(',')
+DEFAULT_SUFFIXES_LIST = DEFAULT_SUFFIXES.split(',')
 
 
 class MetaflowPackage(object):
 
-    def __init__(self, flow, environment, logger, suffixes=LIST_DEFAULT_SUFFIXES):
-        self.suffixes = list(set().union(suffixes, LIST_DEFAULT_SUFFIXES))
+    def __init__(self, flow, environment, logger, suffixes=DEFAULT_SUFFIXES_LIST):
+        self.suffixes = list(set().union(suffixes, DEFAULT_SUFFIXES_LIST))
         self.environment = environment
         self.metaflow_root = os.path.dirname(__file__)
         environment.init_environment(logger)
