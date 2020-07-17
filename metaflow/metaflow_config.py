@@ -183,3 +183,4 @@ else:
     for n, o in extension_module.__dict__.items():
         if not n.startswith('__'):
             globals()[n] = o
+
