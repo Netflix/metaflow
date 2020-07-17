@@ -12,9 +12,9 @@ except ImportError:
         FLOW_DECORATORS=[],
         STEP_DECORATORS=[],
         ENVIRONMENTS=[],
-        SIDECAR={},
-        LOGGING_SIDECAR={},
-        MONITOR_SIDECAR={})
+        SIDECARS={},
+        LOGGING_SIDECARS={},
+        MONITOR_SIDECARS={})
 
 
 def get_plugin_cli():
@@ -30,10 +30,14 @@ def get_plugin_cli():
     return ext_plugins.get_plugin_cli() + [package_cli.cli, batch_cli.cli]
 
 
-def _merge_lists(decos, overrides, attr):
+def _merge_lists(base, overrides, attr):
+    # Merge two lists of classes by comparing them for equality using 'attr'.
+    # This function prefers anything in 'overrides'. In other words, if a class
+    # is present in overrides and matches (according to the equality criterium) a class in
+    # base, it will be used instead of the one in base.
     l = list(overrides)
     existing = set([getattr(o, attr) for o in overrides])
-    l.extend([d for d in decos if getattr(d, attr) not in existing])
+    l.extend([d for d in base if getattr(d, attr) not in existing])
     return l
 
 
@@ -46,12 +50,12 @@ from .aws.batch.batch_decorator import BatchDecorator, ResourcesDecorator
 from .conda.conda_step_decorator import CondaStepDecorator
 
 STEP_DECORATORS = _merge_lists([CatchDecorator,
-                   TimeoutDecorator,
-                   EnvironmentDecorator,
-                   ResourcesDecorator,
-                   RetryDecorator,
-                   BatchDecorator,
-                   CondaStepDecorator], ext_plugins.STEP_DECORATORS, 'name')
+                                TimeoutDecorator,
+                                EnvironmentDecorator,
+                                ResourcesDecorator,
+                                RetryDecorator,
+                                BatchDecorator,
+                                CondaStepDecorator], ext_plugins.STEP_DECORATORS, 'name')
 
 # Add Conda environment
 from .conda.conda_environment import CondaEnvironment
@@ -66,19 +70,19 @@ from .conda.conda_flow_decorator import CondaFlowDecorator
 FLOW_DECORATORS = _merge_lists([CondaFlowDecorator], ext_plugins.FLOW_DECORATORS, 'name')
 
 # Sidecars
-SIDECAR = ext_plugins.SIDECAR
+SIDECARS = ext_plugins.SIDECARS
 
 # Add logger
 from .debug_logger import DebugEventLogger
-LOGGING_SIDECAR = {'debugLogger': DebugEventLogger, 
-                   'nullSidecarLogger': None}
-LOGGING_SIDECAR.update(ext_plugins.LOGGING_SIDECAR)
+LOGGING_SIDECARS = {'debugLogger': DebugEventLogger,
+                    'nullSidecarLogger': None}
+LOGGING_SIDECARS.update(ext_plugins.LOGGING_SIDECARS)
 
 # Add monitor
 from .debug_monitor import DebugMonitor
-MONITOR_SIDECAR = {'debugMonitor': DebugMonitor,
-                   'nullSidecarMonitor': None}
-MONITOR_SIDECAR.update(ext_plugins.MONITOR_SIDECAR)
+MONITOR_SIDECARS = {'debugMonitor': DebugMonitor,
+                    'nullSidecarMonitor': None}
+MONITOR_SIDECARS.update(ext_plugins.MONITOR_SIDECARS)
 
-SIDECAR.update(LOGGING_SIDECAR)
-SIDECAR.update(MONITOR_SIDECAR)
+SIDECARS.update(LOGGING_SIDECARS)
+SIDECARS.update(MONITOR_SIDECARS)
