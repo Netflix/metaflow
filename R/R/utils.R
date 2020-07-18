@@ -246,6 +246,34 @@ list_flows <- function() {
     extract_ids()
 }
 
+#' Run a test to check if Metaflow R is installed properly 
+#'  
+#' @export
+test <- function(){
+  start <- function(self){
+    self$my_var <- "hello world"
+  }
+
+  a <- function(self){
+    print(self$my_var)
+  }
+
+  end <- function(self){
+    print("Metaflow is installed successfully.")
+  }
+
+  metaflow("HelloWorldFlow") %>%
+    step(step="start", 
+         r_function=start, 
+         next_step="a") %>%
+    step(step="a", 
+         r_function=a,  
+         next_step="end") %>%
+    step(step="end", 
+         r_function=end) %>% 
+    run()
+}
+
 #' Install Metaflow python dependencies
 #' 
 #' @export
