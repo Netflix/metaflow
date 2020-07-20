@@ -4,6 +4,7 @@ import time
 import shutil
 import random
 import subprocess
+from io import RawIOBase, BytesIO, BufferedIOBase
 from itertools import starmap
 from tempfile import mkdtemp, NamedTemporaryFile
 
@@ -241,6 +242,7 @@ class S3(object):
             # 3. use the client only with full URLs
             self._s3root = None
 
+        self._s3_client = None
         self._tmpdir = mkdtemp(dir=tmproot, prefix='metaflow.s3.')
 
     def __enter__(self):
@@ -249,15 +251,27 @@ class S3(object):
     def __exit__(self, *args):
         self.close()
 
+    def __del__(self):
+        self.close()
+
     def close(self):
         """
         Delete all temporary files downloaded in this context.
         """
         try:
             if not debug.s3client:
-                shutil.rmtree(self._tmpdir)
+                if self._tmpdir:
+                    shutil.rmtree(self._tmpdir)
+                    self._tmpdir = None
         except:
             pass
+
+    def reset_client(self, new_client=None, hard_reset=False):
+        if new_client:
+            self._s3_client = new_client
+        if hard_reset or self._s3_client is None:
+            from metaflow.datastore.util.s3util import get_s3_client
+            self._s3_client, _ = get_s3_client()
 
     def _url(self, key):
         # NOTE: All URLs are handled as Unicode objects (unicde in py2,
@@ -465,23 +479,34 @@ class S3(object):
         Returns:
             an S3 URL corresponding to the object stored.
         """
-
-        if not is_stringish(obj):
-            raise MetaflowS3InvalidObject(\
-                "Object corresponding to the key '%s' is not a string "
-                "or a bytes object." % key)
+        if isinstance(obj, (RawIOBase, BufferedIOBase)):
+            if not obj.readable() or not obj.seekable():
+                raise MetaflowS3InvalidObject(
+                    "Object corresponding to the key '%s' is not readable or seekable" %
+                    key)
+            blob = obj
+        else:
+            if not is_stringish(obj):
+                raise MetaflowS3InvalidObject(\
+                    "Object corresponding to the key '%s' is not a string "
+                    "or a bytes object." % key)
+            blob = to_fileobj(obj)
+        # We override the close functionality to prevent closing of the
+        # file if it is used multiple times when uploading (since upload_fileobj
+        # will/may close it on failure)
+        real_close = blob.close
+        blob.close = lambda: None
 
         url = self._url(key)
         src = urlparse(url)
-
         def _upload(s3, tmp):
-            # we need to recreate the StringIO object for retries since
-            # apparently upload_fileobj will/may close() it
-            blob = to_fileobj(obj)
+            # We make sure we are at the beginning in case we are retrying
+            blob.seek(0)
             s3.upload_fileobj(blob, src.netloc, src.path.lstrip('/'))
 
         if overwrite:
             self._one_boto_op(_upload, url)
+            real_close()
             return url
         else:
             def _head(s3, tmp):
@@ -490,7 +515,9 @@ class S3(object):
             try:
                 self._one_boto_op(_head, url)
             except MetaflowS3NotFound as err:
-                self._one_boto_op(_upload, url)    
+                self._one_boto_op(_upload, url)
+            finally:
+                real_close()
             return url
 
     def put_many(self, key_objs, overwrite=True):
@@ -507,18 +534,24 @@ class S3(object):
         """
         def _store():
             for key, obj in key_objs:
-                if is_stringish(obj):
-                    with NamedTemporaryFile(dir=self._tmpdir,
-                                            delete=False,
-                                            mode='wb',
-                                            prefix='metaflow.s3.put_many.') as tmp:
-                        tmp.write(to_bytes(obj))
-                        tmp.close()
-                        yield tmp.name, self._url(key), key
+                if isinstance(obj, (RawIOBase, BufferedIOBase)):
+                    if not obj.readable() or not obj.seekable():
+                        raise MetaflowS3InvalidObject(
+                            "Object corresponding to the key '%s' is not readable or seekable" %
+                            key)
                 else:
-                    raise MetaflowS3InvalidObject(
-                        "Object corresponding to the key '%s' is not a string "
-                        "or a bytes object." % key)
+                    if not is_stringish(obj):
+                        raise MetaflowS3InvalidObject(\
+                            "Object corresponding to the key '%s' is not a string "
+                            "or a bytes object." % key)
+                    obj = to_fileobj(obj)
+                with NamedTemporaryFile(dir=self._tmpdir,
+                                        delete=False,
+                                        mode='wb',
+                                        prefix='metaflow.s3.put_many.') as tmp:
+                    tmp.write(obj.read())
+                    tmp.close()
+                    yield tmp.name, self._url(key), key
 
         return self._put_many_files(_store(), overwrite)
 
@@ -549,8 +582,8 @@ class S3(object):
                                      prefix='metaflow.s3.one_file.',
                                      delete=False)
             try:
-                s3, _ = get_s3_client()
-                op(s3, tmp.name)
+                self.reset_client()
+                op(self._s3_client, tmp.name)
                 return tmp.name
             except ClientError as err:
                 error_code = s3op.normalize_client_error(err)
@@ -565,6 +598,7 @@ class S3(object):
                 # TODO specific error message for out of disk space
                 error = str(ex)
             os.unlink(tmp.name)
+            self.reset_client(hard_reset = True)
             # add some jitter to make sure retries are not synchronized
             time.sleep(2**i + random.randint(0, 10))
         raise MetaflowS3Exception("S3 operation failed.\n"\
