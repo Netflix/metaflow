@@ -40,10 +40,13 @@ runtime_args <- function(arg){
   return (!startsWith(arg, "--flowRDS"))
 }
 
+r_version <- paste(R.version$major, R.version$minor, sep=".")
+
 mf$R$run(
   flow_script, r_functions,
   flowRDS_file,
   Filter(runtime_args, commandArgs(trailingOnly = TRUE)),
   c(commandArgs(trailingOnly = FALSE), flowRDS_arg),
-  metaflow_location(flowRDS = flowRDS_file)
+  metaflow_location(flowRDS = flowRDS_file),
+  r_version
 )

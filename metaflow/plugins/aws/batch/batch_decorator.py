@@ -115,8 +115,11 @@ class BatchDecorator(StepDecorator):
             if BATCH_CONTAINER_IMAGE:
                 self.attributes['image'] = BATCH_CONTAINER_IMAGE
             else:
-                self.attributes['image'] = 'python:%s.%s' % (platform.python_version_tuple()[0],
-                    platform.python_version_tuple()[1])
+                if R.use_r():
+                    self.attributes['image'] = R.container_image()
+                else:
+                    self.attributes['image'] = 'python:%s.%s' % (platform.python_version_tuple()[0],
+                        platform.python_version_tuple()[1])
         if not BatchDecorator._get_registry(self.attributes['image']):
             if BATCH_CONTAINER_REGISTRY:
                 self.attributes['image'] = '%s/%s' % (BATCH_CONTAINER_REGISTRY.rstrip('/'), 

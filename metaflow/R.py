@@ -7,6 +7,7 @@ from .util import to_bytes
 R_FUNCTIONS = {}
 R_PACKAGE_PATHS = None
 RDS_FILE_PATH = None
+R_VERSION = None
 
 def call_r(func_name, args):
     R_FUNCTIONS[func_name](*args)
@@ -35,17 +36,36 @@ def entrypoint():
 def use_r():
     return R_PACKAGE_PATHS is not None
 
+def container_image():
+    rocker_ml_tags = ["3.5.2", "3.5.3", "3.6.0", "3.6.1", "4.0.0", "4.0.1", "4.0.2"]
+
+    rocker_tag = R_VERSION
+    if R_VERSION not in rocker_ml_tags:
+        r_version= ".".join(R_VERSION.split(".")[0:2])
+        if (r_version < "3.5"):
+            rocker_tag = "3.5.2"
+        elif (r_version == "3.5"):
+            rocker_tag = "3.5.3"
+        elif (r_version == "3.6"):
+            rocker_tag = "3.6.1"
+        else:
+            rocker_tag = "4.0.2"
+
+    return "rocker/ml:%s" % rocker_tag 
+
 def working_dir():
     if use_r(): 
         return R_PACKAGE_PATHS['wd']
     return None
 
-def run(flow_script, r_functions, rds_file, metaflow_args, full_cmdline, r_paths):
-    global R_FUNCTIONS, R_PACKAGE_PATHS, RDS_FILE_PATH
+def run(flow_script, r_functions, rds_file, metaflow_args, full_cmdline, r_paths, r_version):
+    global R_FUNCTIONS, R_PACKAGE_PATHS, RDS_FILE_PATH, R_VERSION
 
     R_FUNCTIONS = r_functions
     R_PACKAGE_PATHS = r_paths
     RDS_FILE_PATH = rds_file
+    R_VERSION = r_version
+
     # there's some reticulate(?) sillyness which causes metaflow_args
     # not to be a list if it has only one item. Here's a workaround
     if not isinstance(metaflow_args, list):

@@ -279,7 +279,7 @@ test <- function(){
 #' @export
 install <- function() {
   system("python3 -m pip install git+https://github.com/Netflix/metaflow.git@R-dev --user")
-  system("python3 -m pip install numpy>=1.18.4 --user")
+  system("python3 -m pip install 'numpy>=1.18.4' --user")
 
   metaflow_load()
   metaflow_attach()

@@ -5,6 +5,7 @@ import sys
 from .util import get_username, to_unicode
 from . import metaflow_version
 from metaflow.exception import MetaflowException
+from . import R
 
 version_cache = None
 
@@ -77,10 +78,15 @@ class MetaflowEnvironment(object):
         return "Local environment"
 
     def get_package_commands(self, code_package_url):
+        if R.use_r():
+            # rocker/ml image does not support pip install ... --user
+            pip_install = "%s -m pip install awscli click requests boto3 -qqq" % self._python() 
+        else:
+            pip_install = "%s -m pip install awscli click requests boto3 --user -qqq" % self._python()  
+
         cmds = ["set -e",
                 "echo \'Setting up task environment.\'",
-                "%s -m pip install awscli click requests boto3 \
-                    --user -qqq" % self._python(),
+                pip_install,
                 "mkdir metaflow",
                 "cd metaflow",
                 "mkdir .metaflow", # mute local datastore creation log
@@ -118,4 +124,7 @@ class MetaflowEnvironment(object):
         return self._python()
 
     def _python(self):
-        return "python"
+        if R.use_r():
+            return "python3"
+        else:
+            return "python"
