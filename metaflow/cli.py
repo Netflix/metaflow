@@ -30,8 +30,8 @@ from .pylint_wrapper import PyLint
 from .event_logger import EventLogger
 from .monitor import Monitor
 
-import kfp
-from kfp import dsl
+from .plugins.kfp.kfp import get_ordered_steps, create_flow_pipeline, create_run_on_kfp
+from .plugins.kfp.constants import DEFAULT_RUN_NAME, DEFAULT_EXPERIMENT_NAME, DEFAULT_FLOW_CODE_URL, DEFAULT_KFP_YAML_OUTPUT_PATH, RUN_LINK_PREFIX
 
 ERASE_TO_EOL = '\033[K'
 HIGHLIGHT = 'red'
@@ -40,12 +40,6 @@ INDENT = ' ' * 4
 LOGGER_TIMESTAMP = 'magenta'
 LOGGER_COLOR = 'green'
 LOGGER_BAD_COLOR = 'red'
-
-# Defaults for running MF on KFP
-DEFAULT_FLOW_CODE_URL = 'https://gist.githubusercontent.com/mon95/98d9d88571a0307a53b637d841295702/raw/df8bc1fa363f629271cfc1d34f3c2f7ca0b2e2cf/helloworld.py'
-DEFAULT_KFP_YAML_OUTPUT_PATH = 'kfp_pipeline.yaml'
-DEFAULT_RUN_NAME = 'run_mf_on_kfp'
-DEFAULT_EXPERIMENT_NAME = 'mf-on-kfp-experiments'
 
 try:
     # Python 2
@@ -109,82 +103,6 @@ def logger(body='', system_msg=False, head='', bad=False, timestamp=True):
                 bold=system_msg,
                 fg=LOGGER_BAD_COLOR if bad else None)
 
-
-def get_ordered_steps(graph, type='linear'):
-    """
-    Returns the ordered step names in the graph (FlowGraph) from start step to end step as a list of strings containing the
-    step names.
-
-    Note: All MF graphs start at the "start" step and end with the "end" step (both of which are mandatory).
-    """
-
-    ordered_steps = ['start']
-    current_node_name = 'start'
-
-    # This is not an ideal way to iterate over the graph, but it's the (easy+)right thing to do for now.
-    # This may need to change as work on improvements.
-    while current_node_name != 'end':
-        for node in graph:
-            if node.name == current_node_name:
-                if current_node_name != 'end':
-                    current_node_name = node.out_funcs[0]
-                    ordered_steps.append(current_node_name)
-                    break
-    return ordered_steps
-
-
-def run_step_op(step_name, code_url=DEFAULT_FLOW_CODE_URL):
-    """
-    Method to create a kfp container op to run a single step (here, we also execute our custom pre-start step
-    for setup as we aren't maintaining state) and then execute the given step.
-    """
-
-    python_cmd = """ "python helloworld.py --datastore-root ", $1, " step {} --run-id ", $2, " --task-id ", $4, " --input-paths", $2"/"$5"/"$6 """.format(
-        step_name)
-    command_inside_awk = """ {{ print {0} }}""".format(python_cmd)
-    final_run_cmd = """ python helloworld.py pre-start | awk 'END{}' | sh """.format(command_inside_awk)
-
-    return dsl.ContainerOp(
-
-        name='StepRunner-{}'.format(step_name),
-        image='ai-docker.artifactory.zgtools.net/artificial-intelligence/ai-platform/aip-infrastructure/dockerfiles/python-debian/python-debian:2.1.6b34e4f3',
-        command=['sh', '-c'],
-        arguments=[
-            'curl -o helloworld.py {}' \
-            ' && pip install git+https://github.com/zillow/metaflow.git@c722fceffa3011ecab68ce319cff98107cc49532' \
-            ' && export USERNAME="kfp-user" ' \
-            ' && {}'.format(code_url, final_run_cmd)
-            ])
-
-
-def create_flow_pipeline(ordered_steps, flow_code_url=DEFAULT_FLOW_CODE_URL, pipeline_file_path=DEFAULT_KFP_YAML_OUTPUT_PATH):
-    steps = ordered_steps
-    code_url = flow_code_url
-    print(f"\nCreating the pipeline definition to run the flow on KFP...\n")
-    print(f"\nCode URL of the flow to be converted to KFP: {flow_code_url}\n")
-
-    @dsl.pipeline(
-        name='Pipeline running MF steps',
-        description='Pipeline to experiment with MF on KFP (i.e, converting entire flow to KFP)'
-    )
-    def run_flow_pipeline():
-        """
-        This pipeline runs the entire flow on KFP by spawning the necessary tasks
-        by invoking run_step_op for every step in the flow and handling the order of steps.
-        """
-
-        # Store the list of steps in reverse order
-        run_step_ops = []
-        for step in reversed(steps):
-            run_step_ops.append(run_step_op(step, code_url))
-
-        # Each step in the list can only be executed after the next step in the list, i.e., list[-1] is executed first, followed
-        # by list[-2] and so on.
-        for i in range(len(steps) - 1):
-            run_step_ops[i].after(run_step_ops[i + 1])
-
-    kfp.compiler.Compiler().compile(run_flow_pipeline, pipeline_file_path)
-    return pipeline_file_path
 
 @click.group()
 def cli(ctx):
@@ -517,6 +435,10 @@ def step(obj,
                       max_user_code_retries)
 
     echo('Success', fg='green', bold=True, indent=True)
+
+    # Note: Leaving below statement as we use it to run and test the flow easily using CLI (locally) and to demo
+    # the ability to orchestrate without using the MF local orchestrator.
+    # TODO: Remove this once we've fully tested out MF on KFP
     # FORMAT: ($1)datastore_root location \t ($2)run_id \t ($3)next_step_to_run \t ($4)task_id(of next step) \t ($5)current step \t ($6)task_id(of current step)
     if step_name != 'end': # End is the final step
         print(obj.datastore.datastore_root, run_id, obj.flow._graph[step_name].out_funcs[0], int(task_id)+1, step_name, task_id)
@@ -676,6 +598,7 @@ def run(obj,
 
     if namespace is not None:
         namespace(user_namespace or None)
+
     before_run(obj, tags, decospecs + obj.environment.decospecs())
 
     runtime = NativeRuntime(obj.flow,
@@ -694,18 +617,14 @@ def run(obj,
     write_latest_run_id(obj, runtime.run_id)
     write_run_id(run_id_file, runtime.run_id)
 
-    # import pickle
-    #
-    # with open('graph.pkl', 'wb') as gh:
-    #     pickle.dump(obj.graph, gh)
-
     parameters.set_parameters(obj.flow, kwargs)
     runtime.persist_parameters()
     runtime.execute()
 
 
 @parameters.add_custom_parameters
-@cli.command(help='Run the initial part of the workflow (i.e., save parameters locally).')
+@cli.command(help='Set up the initial part of the workflow by instantiating a local runtime and persisting parameters. '
+                  'This is to be executed before the start step and other steps of the workflow can be executed')
 @common_run_options
 @click.option('--namespace',
               'user_namespace',
@@ -729,6 +648,7 @@ def pre_start(obj,
 
     if namespace is not None:
         namespace(user_namespace or None)
+
     before_run(obj, tags, decospecs + obj.environment.decospecs())
 
     runtime = NativeRuntime(obj.flow,
@@ -750,67 +670,60 @@ def pre_start(obj,
     parameters.set_parameters(obj.flow, kwargs)
     runtime.persist_parameters()
 
-    # FORMAT: ($1)datastore_root location \t ($2)run_id \t ($3)next_step_to_run \t ($4)task_id(of next step) \t ($5)current step \t ($6)task_id(of current step)
+    # NOTE: We are currently using this output to specify the necessary arguments to the next step.
+    # This can only be removed when we achieve the following:
+    # 1) transition to using s3 as a datastore,
+    # 2) Use a KFP run_id
+    # TODO: Remove once above criteria are met.
+    # OUTPUT FORMAT: ($1)datastore_root location \t ($2)run_id \t ($3)next_step_to_run \t ($4)task_id(of next step) \t ($5)current step \t ($6)task_id(of current step)
     print(f"{obj.datastore.datastore_root}\t{runtime.run_id}\tstart\t1\t_parameters\t0")
-    # runtime.execute()
 
-@parameters.add_custom_parameters
-@cli.command(help='Generate the KFP YAML to run the workflow on Kubeflow Pipelines.')
-@common_run_options
+
+@cli.command(help='Create a run on KF pipelines. This method converts the MF flow to a KFP run and outputs a link to the KFP run. '
+                  'Note: This command will not work as expected if your local environment is not configured to '
+                   'connect to a KFP cluster')
+@click.option('--code-url',
+              'code_url',
+              default=DEFAULT_FLOW_CODE_URL,
+              help="the code URL of the flow to be executed on KFP")
+@click.option('--experiment-name',
+              'experiment_name',
+              default=DEFAULT_EXPERIMENT_NAME,
+              help="the associated experiment name for the run"
+              )
+@click.option('--run-name',
+              'run_name',
+              default=DEFAULT_RUN_NAME,
+              help="name assigned to the new KFP run"
+              )
+@click.pass_obj
+def run_on_kfp(obj,
+        code_url=DEFAULT_FLOW_CODE_URL,
+        experiment_name=DEFAULT_EXPERIMENT_NAME,
+        run_name=DEFAULT_RUN_NAME
+        ):
+
+    run_pipeline_result = create_run_on_kfp(obj.graph, code_url, experiment_name, run_name)
+    echo(f"\nRun created successfully!\n")
+    echo(f"Run link: {RUN_LINK_PREFIX}{run_pipeline_result.run_id}")
+
+
+@cli.command(help='Generate the KFP YAML which is used to run the workflow on Kubeflow Pipelines.')
 @click.option('--output-path',
-              'pipeline_output_path',
+              'output_path',
               default=DEFAULT_KFP_YAML_OUTPUT_PATH,
               help="the output path (or filename) of the generated KFP pipeline yaml file")
 @click.option('--code-url',
               'code_url',
               default=DEFAULT_FLOW_CODE_URL,
               help="the code URL of the flow to be executed on KFP")
-@click.option('--create-new-run',
-              show_default=True,
-              default=False,
-              help="specify whether to create a new run (Note: This option will not work as expected if your local environment is not configured to connect to the Zillow KFP cluster)"
-              )
-@click.option('--run-name',
-              'run_name',
-              default=DEFAULT_RUN_NAME,
-              help="specify whether to create a new run (Default: False) "
-                   "Note: This option will fail if your local environment is not configured to "
-                   "connect to the KFP cluster"
-              )
-@click.option('--namespace',
-              'user_namespace',
-              default=None,
-              help="Change namespace from the default (your username) to "
-                   "the specified tag. Note that this option does not alter "
-                   "tags assigned to the objects produced by this run, just "
-                   "what existing objects are visible in the client API. You "
-                   "can enable the global namespace with an empty string."
-                   "--namespace=")
 @click.pass_obj
-def run_on_kfp(obj,
-        tags=None,
-        max_workers=None,
-        max_num_splits=None,
-        max_log_size=None,
-        decospecs=None,
-        run_id_file=None,
-        user_namespace=None,
-        pipeline_output_path=DEFAULT_KFP_YAML_OUTPUT_PATH,
-        code_url=DEFAULT_FLOW_CODE_URL,
-        create_new_run=False,
-        run_name=DEFAULT_RUN_NAME,
-        **kwargs):
-    # from convert_to_kfp import create_flow_pipeline, get_ordered_steps
-    pipeline_path = create_flow_pipeline(get_ordered_steps(obj.graph), code_url, pipeline_output_path)
-    if create_new_run:
-        run_pipeline_result = kfp.Client().create_run_from_pipeline_package(pipeline_file=pipeline_output_path,
-                                                        arguments={},
-                                                        experiment_name=DEFAULT_EXPERIMENT_NAME,
-                                                        run_name=run_name)
-        print(f"\nRun created successfully!\n")
-        print(f"Run link: https://kubeflow.corp.zillow-analytics-dev.zg-int.net/pipeline/#/runs/details/{run_pipeline_result.run_id}")
-    else:
-        print(f"\nDone converting to KFP YAML. Upload the file `{pipeline_path}` to the KFP UI to run!")
+def generate_kfp_yaml(obj,
+                     output_path=DEFAULT_KFP_YAML_OUTPUT_PATH,
+                     code_url=DEFAULT_FLOW_CODE_URL,
+                     ):
+    pipeline_path = create_flow_pipeline(get_ordered_steps(obj.graph), code_url, output_path)
+    echo(f"\nDone converting to KFP YAML. Upload the file `{pipeline_path}` to the KFP UI to run!")
 
 def write_run_id(run_id_file, run_id):
     if run_id_file is not None:
