@@ -29,7 +29,8 @@ class ProjectDecorator(FlowDecorator):
                  "not specified.")
     }
 
-    def flow_init(self, flow, graph, environment, datastore, logger, echo, options):
+    def flow_init(
+            self, flow, graph, environment, flow_datastore, logger, echo, options):
         self._option_values = options
         project_name = self.attributes.get('name')
         project_flow_name, branch_name = format_name(flow.name,

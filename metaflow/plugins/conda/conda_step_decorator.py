@@ -121,7 +121,7 @@ class CondaStepDecorator(StepDecorator):
                 }
             else:
                 payload = cached_deps[env_id]
-            if self.datastore.TYPE == 's3' and 'cache_urls' not in payload:
+            if self.flow_datastore.TYPE == 's3' and 'cache_urls' not in payload:
                 payload['cache_urls'] = self._cache_env()
             write_to_conda_manifest(ds_root, self.flow.name, env_id, payload)
             CondaStepDecorator.environments = CondaStepDecorator.conda.environments(self.flow.name)
@@ -195,7 +195,7 @@ class CondaStepDecorator(StepDecorator):
         self.metaflow_home = tempfile.mkdtemp(dir='/tmp')
         os.symlink(path_to_metaflow, os.path.join(self.metaflow_home, 'metaflow'))
 
-    def step_init(self, flow, graph, step, decos, environment, datastore, logger):
+    def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         if environment.TYPE != 'conda':
             raise InvalidEnvironmentException('The *@conda* decorator requires '
                                               '--environment=conda')
@@ -206,7 +206,7 @@ class CondaStepDecorator(StepDecorator):
         self.architecture = self._architecture(decos)
         self.step = step
         self.flow = flow
-        self.datastore = datastore
+        self.flow_datastore = flow_datastore
         self.base_attributes = self._get_base_attributes()
         os.environ['PYTHONNOUSERSITE'] = '1'
 
@@ -214,12 +214,13 @@ class CondaStepDecorator(StepDecorator):
         if self.is_enabled():
             self._prepare_step_environment(step, self.local_root)
 
-    def runtime_task_created(self, datastore, task_id, split_index, input_paths, is_cloned):
+    def runtime_task_created(self, task_datastore, task_id, split_index, input_paths, is_cloned):
         if self.is_enabled():
             self.env_id = self._prepare_step_environment(self.step, self.local_root)
 
     def task_pre_step(
-            self, step_name, ds, meta, run_id, task_id, flow, graph, retry_count, max_retries):
+            self, step_name, task_datastore, meta, run_id, task_id, flow, graph, retry_count,
+            max_retries):
         meta.register_metadata(run_id, step_name, task_id,
                                    [MetaDatum(field='conda_env_id',
                                               value=self._env_id(),

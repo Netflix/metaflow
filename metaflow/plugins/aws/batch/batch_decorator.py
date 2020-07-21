@@ -121,13 +121,14 @@ class BatchDecorator(StepDecorator):
                 self.attributes['image'] = '%s/%s' % (BATCH_CONTAINER_REGISTRY.rstrip('/'), 
                     self.attributes['image'])
 
-    def step_init(self, flow, graph, step, decos, environment, datastore, logger):
-        if datastore.TYPE != 's3':
+    def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
+        if flow_datastore.TYPE != 's3':
             raise BatchException('The *@batch* decorator requires --datastore=s3.')
 
         self.logger = logger
         self.environment = environment
         self.step = step
+        self.flow_datastore = flow_datastore
         for deco in decos:
             if isinstance(deco, ResourcesDecorator):
                 for k, v in deco.attributes.items():
@@ -147,9 +148,9 @@ class BatchDecorator(StepDecorator):
         self.run_id = run_id
 
     def runtime_task_created(
-        self, datastore, task_id, split_index, input_paths, is_cloned):
+        self, task_datastore, task_id, split_index, input_paths, is_cloned):
         if not is_cloned:
-            self._save_package_once(datastore, self.package)
+            self._save_package_once(self.flow_datastore, self.package)
 
     def runtime_step_cli(self, cli_args, retry_count, max_user_code_retries):
         if retry_count <= max_user_code_retries:
@@ -163,18 +164,11 @@ class BatchDecorator(StepDecorator):
             if not R.use_r():
                 cli_args.entrypoint[0] = sys.executable
 
-    def task_pre_step(self,
-                      step_name,
-                      ds,
-                      metadata,
-                      run_id,
-                      task_id,
-                      flow,
-                      graph,
-                      retry_count,
-                      max_retries):
+    def task_pre_step(
+            self, step_name, task_datastore, metadata, run_id, task_id, flow, graph, retry_count,
+            max_retries):
         if metadata.TYPE == 'local':
-            self.ds_root = ds.root
+            self.ds_root = task_datastore.root
         else:
             self.ds_root = None
         meta = {}
