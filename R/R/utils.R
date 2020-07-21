@@ -331,3 +331,33 @@ metaflow_attach <- function() {
   packageStartupMessage(sprintf("metaflow (python) version %s", py_mf_version))
   invisible()
 }
+
+#' Return the default container image to use for remote execution.
+#' By default we user docker images maintained on https://hub.docker.com/r/rocker/ml.
+#' 
+#' @export
+container_image <- function(){
+  rocker_image_tags <- c("3.5.2", "3.5.3", "3.6.0", 
+      "3.6.1", "4.0.0", "4.0.1", "4.0.2")
+
+  local_r_version <- paste(R.version$major, R.version$minor, sep=".")
+
+  rocker_tag <- local_r_version 
+  if (!local_r_version %in% rocker_image_tags){
+    version_split <- strsplit(local_r_version, split='[.]')[[1]]
+    r_version <- paste(version_split[1], version_split[2], sep=".") 
+
+    # if there's no exact match, find the best match of R versions.
+    if (r_version < "3.5"){
+      rocker_tag <- "3.5.2"
+    } else if (r_version == "3.5"){
+      rocker_tag <- "3.5.3"
+    } else if (r_version == "3.6"){
+      rocker_tag <- "3.6.1"
+    } else {
+      rocker_tag <- "4.0.2"
+    }
+  }
+
+  return(paste0("rocker/ml:", rocker_tag))
+}
