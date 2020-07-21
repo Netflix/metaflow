@@ -28,6 +28,8 @@ runtime_args <- function(arg) {
   return(!startsWith(arg, "--flowRDS"))
 }
 
+mf <- reticulate::import("metaflow", delay_load = TRUE)
+
 mf$R$run(
   flow_script, r_functions,
   flowRDS_file,

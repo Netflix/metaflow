@@ -6,19 +6,19 @@
 #'
 #' @export
 set_namespace <- function(ns = NULL) {
-  mf$namespace(ns)
+  pkg.env$mf$namespace(ns)
 }
 
 #' Return the current namespace (tag).
 #'
 #' @export
 get_namespace <- function() {
-  mf$get_namespace()
+  pkg.env$mf$get_namespace()
 }
 
 #' Set the default namespace.
 #'
 #' @export
 set_default_namespace <- function() {
-  mf$default_namespace()
+  pkg.env$mf$default_namespace()
 }

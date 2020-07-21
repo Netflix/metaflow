@@ -62,7 +62,7 @@ run_client <- R6::R6Class("RunClient",
         super$initialize(run)
       } else if (nargs() == 1) {
         pathspec <- arguments[[1]]
-        run <- mf$Run(pathspec)
+        run <- pkg.env$mf$Run(pathspec)
         super$initialize(run)
       } else {
         stop("Wrong number of arguments. Please see help document for run_client")

@@ -32,7 +32,7 @@ flow_client <- R6::R6Class("FlowClient",
     #' @return FlowClient R6 object
     #' @param flow_id, name/id of the flow such as "HelloWorldFlow"
     initialize = function(flow_id) {
-      flow <- mf$Flow(flow_id)
+      flow <- pkg.env$mf$Flow(flow_id)
       super$initialize(flow)
     },
 

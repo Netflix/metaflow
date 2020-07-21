@@ -179,7 +179,7 @@ merge_artifacts <- function(flow, inputs, exclude = list()) {
 #' }
 #' @export
 current <- function(value) {
-  mf$current[[value]]
+  pkg.env$mf$current[[value]]
 }
 
 escape_bool <- function(x) {
@@ -249,7 +249,7 @@ extract_str <- function(x) {
 #'
 #' @export
 list_flows <- function() {
-  mf$Metaflow()$flows %>%
+  pkg.env$mf$Metaflow()$flows %>%
     extract_ids()
 }
 
@@ -298,31 +298,40 @@ install <- function() {
   metaflow_attach()
 }
 
+metaflow_configs <- function() {
+  return(list(
+    default = list(
+      metaflow_path = expression(reticulate::py_discover_config("metaflow")$required_module_path)
+    ),
+    batch = list(
+      metaflow_path = expression(path.expand(paste0(getwd(), "/metaflow")))
+    )
+  ))
+}
+
+pkg.env <- new.env()
+
 metaflow_load <- function() {
-  reticulate::use_python(system("which python3", intern = TRUE), required = TRUE)
+  reticulate::use_python(Sys.which("python3"), required = TRUE)
 
   config_name <- Sys.getenv("R_CONFIG_ACTIVE", unset = "default")
-  source(system.file("config.R", package = "metaflow"))
+  configs <- metaflow_configs()
   config <- list()
   for (key in names(configs[[config_name]])) {
     config[[key]] <- eval(configs[[config_name]][[key]])
   }
 
   if (config_name == "batch") {
-    mf <<- reticulate::import_from_path("metaflow", path = config$metaflow_path)
+    pkg.env$mf <- reticulate::import_from_path("metaflow", path = config$metaflow_path)
   } else {
-    mf <<- reticulate::import("metaflow", delay_load = TRUE)
+    pkg.env$mf <- reticulate::import("metaflow", delay_load = TRUE)
   }
 
   invisible()
 }
 
-python_3 <- function() {
-  system("which python3", intern = TRUE)
-}
-
 py_version <- function() {
-  reticulate::use_python(python_3(), required = TRUE)
+  reticulate::use_python(Sys.which("python3"), required = TRUE)
   mf <- reticulate::import("metaflow", delay_load = TRUE)
   version <- mf$metaflow_version$get_version()
   c(python_version = substr(version, 1, 5))

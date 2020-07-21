@@ -43,7 +43,7 @@ task_client <- R6::R6Class("TaskClient",
         super$initialize(task)
       } else if (nargs() == 1) {
         pathspec <- arguments[[1]]
-        task <- mf$Task(pathspec)
+        task <- pkg.env$mf$Task(pathspec)
         super$initialize(task)
       } else {
         stop("Wrong number of arguments. Please see help document for task_client")

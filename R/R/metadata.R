@@ -10,7 +10,7 @@
 #' example, you can specify local@<path> or service@<url>.
 #' @export
 set_metadata <- function(ms = NULL) {
-  mf$metadata(ms)
+  pkg.env$mf$metadata(ms)
 }
 
 #' Returns the current Metadata provider.
@@ -23,7 +23,7 @@ set_metadata <- function(ms = NULL) {
 #' providers or local paths for local providers.
 #' @export
 get_metadata <- function() {
-  mf$get_metadata()
+  pkg.env$mf$get_metadata()
 }
 
 #' Resets the Metadata provider to the default value.
@@ -32,5 +32,5 @@ get_metadata <- function() {
 #' @return String type. The result of get_metadata() after resetting the provider.
 #' @export
 reset_default_metadata <- function() {
-  mf$default_metadata()
+  pkg.env$mf$default_metadata()
 }

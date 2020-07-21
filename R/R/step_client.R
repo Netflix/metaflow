@@ -48,7 +48,7 @@ step_client <- R6::R6Class("StepClient",
         super$initialize(step)
       } else if (nargs() == 1) {
         pathspec <- arguments[[1]]
-        step <- mf$Step(pathspec)
+        step <- pkg.env$mf$Step(pathspec)
         super$initialize(step)
       } else {
         stop("Wrong number of arguments. Please see help document for step_client.")
