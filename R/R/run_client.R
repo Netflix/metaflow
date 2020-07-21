@@ -26,7 +26,7 @@
 #' r$step("end")
 #' r$artifact("script_name")
 #' r$summary()
-#' } 
+#' }
 #'
 #' @export
 run_client <- R6::R6Class("RunClient",
@@ -34,12 +34,12 @@ run_client <- R6::R6Class("RunClient",
   public = list(
     #' @description Initialize the object from a \code{FlowClient} object and \code{run_id}
     #' @return \code{RunClient} R6 object
-    #' @param ... The argument list can be either (1) a single \code{pathspec} string such as "HelloFlow/123" 
+    #' @param ... The argument list can be either (1) a single \code{pathspec} string such as "HelloFlow/123"
     #' or (2) \code{(flow, run_id)}, where
     #' a \code{flow} is a parent \code{FlowClient} object which contains the run, and \code{run_id} is the identifier of the run.
     initialize = function(...) {
       arguments <- list(...)
-      if (nargs() == 2){
+      if (nargs() == 2) {
         flow <- arguments[[1]]
         run_id <- arguments[[2]]
         if (!is.character(run_id)) {
@@ -60,7 +60,7 @@ run_client <- R6::R6Class("RunClient",
         idx <- which(flow$get_values() == run_id)
         run <- import_builtins()$list(flow$get_obj())[[idx]]
         super$initialize(run)
-      } else if (nargs() == 1){
+      } else if (nargs() == 1) {
         pathspec <- arguments[[1]]
         run <- mf$Run(pathspec)
         super$initialize(run)
@@ -69,23 +69,23 @@ run_client <- R6::R6Class("RunClient",
       }
     },
 
-    #' @description Create a \code{StepClient} object under this \code{run} 
+    #' @description Create a \code{StepClient} object under this \code{run}
     #' @return StepClient R6 object
-    #' @param step_id identifier of the step, for example "start" or "end" 
+    #' @param step_id identifier of the step, for example "start" or "end"
     step = function(step_id) {
       step_client$new(self, step_id)
     },
 
     #' @description Fetch the data artifacts for the end step of this \code{run}.
-    #' @return metaflow artifact 
+    #' @return metaflow artifact
     #' @param name names of artifacts
     artifact = function(name) {
       blob <- super$get_obj()$data[[name]]
       return(mf_deserialize(blob))
     },
 
-    #' @description Summary of the \code{run} 
-    summary = function(){
+    #' @description Summary of the \code{run}
+    summary = function() {
       successful <- self$finished
       created_at <- substring(self$created_at, 1, 20)
       finished_at <- substring(self$finished_at, 1, 20)
@@ -96,12 +96,13 @@ run_client <- R6::R6Class("RunClient",
       } else {
         time <- paste0(round(as.numeric(difftime), 2), " ", unit)
       }
-      cat(cli::rule(left = paste0("Run Summary: ", self$id)), "\n",
+      cat(
+        cli::rule(left = paste0("Run Summary: ", self$id)), "\n",
         paste0(strrep(" ", 4), "Successful: ", strrep(" ", 11), successful, "\n"),
         paste0(strrep(" ", 4), "Created at: ", strrep(" ", 11), created_at, "\n"),
         paste0(strrep(" ", 4), "Finished at: ", strrep(" ", 10), finished_at, "\n"),
         paste0(strrep(" ", 4), "Time: ", strrep(" ", 17), time, "\n")
-      ) 
+      )
     }
   ),
 
@@ -123,9 +124,9 @@ run_client <- R6::R6Class("RunClient",
     parent = function() super$get_obj()$parent,
 
     #' @field tags A vector of strings representing tags assigned to this run object.
-    tags = function() import_builtins()$list(super$get_obj()$tags),  
+    tags = function() import_builtins()$list(super$get_obj()$tags),
 
-    #' @field code Get the code package of the run if it exists 
+    #' @field code Get the code package of the run if it exists
     code = function() super$get_obj()$code,
 
     #' @field end_task The task identifier, if available, corresponding to the end step of this run.
@@ -137,16 +138,19 @@ run_client <- R6::R6Class("RunClient",
     #' @field finished_at The finish time, if available, of this run.
     finished_at = function() super$get_obj()$finished_at,
 
-    #' @field successful The boolean flag identifying if the end task was successful. 
+    #' @field successful The boolean flag identifying if the end task was successful.
     successful = function() super$get_obj()$successful,
 
     #' @field steps The vector of all step identifiers of this run.
-    steps = function() super$get_values(), 
+    steps = function() super$get_values(),
 
     #' @field artifacts The vector of all data artifact identifiers produced by the end step of this run.
     artifacts = function() {
-      tryCatch(names(py_get_attr(super$get_obj()$data, "_artifacts", silent = TRUE)), 
-                      error = function(cond){return(NULL)})
+      tryCatch(names(py_get_attr(super$get_obj()$data, "_artifacts", silent = TRUE)),
+        error = function(cond) {
+          return(NULL)
+        }
+      )
     }
   ),
   lock_class = TRUE

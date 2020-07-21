@@ -22,16 +22,16 @@ reticulate::r_to_py
 #' @export
 reticulate::py_to_r
 
-simple_type <- function(obj){
-  if (is.atomic(obj)){
+simple_type <- function(obj) {
+  if (is.atomic(obj)) {
     return(TRUE)
-  }else if (is.list(obj)){
-    for (item in obj){
-      if (!simple_type(item)){
+  } else if (is.list(obj)) {
+    for (item in obj) {
+      if (!simple_type(item)) {
         return(FALSE)
       }
-    } 
-    return(TRUE) 
+    }
+    return(TRUE)
   } else {
     return(FALSE)
   }
@@ -43,9 +43,9 @@ simple_type <- function(obj){
 #' @param object object to serialize
 #' @return metaflow data format object
 mf_serialize <- function(object) {
-  if (simple_type(object)){
+  if (simple_type(object)) {
     return(object)
-  } else{
+  } else {
     return(serialize(object, NULL))
   }
 }
@@ -58,60 +58,32 @@ mf_serialize <- function(object) {
 mf_deserialize <- function(object) {
   r_obj <- object
 
-  if (is.raw(object)){ 
+  if (is.raw(object)) {
     # for bytearray try to unserialize
-    tryCatch({
-      r_obj <- object %>% unserialize()
-    }, error = function(e) {
-      r_obj <- object
-    })
-  } 
-  
+    tryCatch(
+      {
+        r_obj <- object %>% unserialize()
+      },
+      error = function(e) {
+        r_obj <- object
+      }
+    )
+  }
+
   return(r_obj)
 }
 
 #' Overload getter for self object
 #'
 #' @param self the metaflow self object for each step function
-#' @param name attribute name 
+#' @param name attribute name
 #'
 #' @section Usage:
 #' \preformatted{
 #'  print(self$var)
 #' }
 #' @export
-'$.metaflow.flowspec.FlowSpec' <- function(self, name){
-   value <- NextMethod(name)
-   mf_deserialize(value)
-}
-
-#' Overload setter for self object
-#'
-#' @param self the metaflow self object for each step function
-#' @param name attribute name 
-#' @param value value to assign to the attribute
-#'
-#' @section Usage:
-#' \preformatted{
-#'  self$var <- "hello"
-#' }
-#' @export
-'$<-.metaflow.flowspec.FlowSpec' <- function(self, name, value){
-  value <- mf_serialize(value) 
-  NextMethod(name, value)
-}
-
-#' Overload getter for self object
-#'
-#' @param self the metaflow self object for each step function
-#' @param name attribute name 
-#'
-#' @section Usage:
-#' \preformatted{
-#'  print(self[["var"]])
-#' }
-#' @export
-'[[.metaflow.flowspec.FlowSpec' <- function(self, name){
+"$.metaflow.flowspec.FlowSpec" <- function(self, name) {
   value <- NextMethod(name)
   mf_deserialize(value)
 }
@@ -119,7 +91,38 @@ mf_deserialize <- function(object) {
 #' Overload setter for self object
 #'
 #' @param self the metaflow self object for each step function
-#' @param name attribute name 
+#' @param name attribute name
+#' @param value value to assign to the attribute
+#'
+#' @section Usage:
+#' \preformatted{
+#'  self$var <- "hello"
+#' }
+#' @export
+"$<-.metaflow.flowspec.FlowSpec" <- function(self, name, value) {
+  value <- mf_serialize(value)
+  NextMethod(name, value)
+}
+
+#' Overload getter for self object
+#'
+#' @param self the metaflow self object for each step function
+#' @param name attribute name
+#'
+#' @section Usage:
+#' \preformatted{
+#'  print(self[["var"]])
+#' }
+#' @export
+"[[.metaflow.flowspec.FlowSpec" <- function(self, name) {
+  value <- NextMethod(name)
+  mf_deserialize(value)
+}
+
+#' Overload setter for self object
+#'
+#' @param self the metaflow self object for each step function
+#' @param name attribute name
 #' @param value value to assign to the attribute
 #'
 #' @section Usage:
@@ -127,15 +130,15 @@ mf_deserialize <- function(object) {
 #'  self[["var"]] <- "hello"
 #' }
 #' @export
-'[[<-.metaflow.flowspec.FlowSpec' <- function(self, name, value){
-  value <- mf_serialize(value) 
+"[[<-.metaflow.flowspec.FlowSpec" <- function(self, name, value) {
+  value <- mf_serialize(value)
   NextMethod(name, value)
 }
 
 #' Helper utility to gather inputs in a join step
 #'
 #' @param inputs inputs from parent branches
-#' @param input field to extract from inputs from 
+#' @param input field to extract from inputs from
 #' parent branches into vector
 #' @section usage:
 #' \preformatted{
@@ -193,8 +196,8 @@ escape_quote <- function(x) {
 
 space <- function(len, type = "h") {
   switch(type,
-         "h" = strrep(" ", len),
-         "v" = strrep("\n", len)
+    "h" = strrep(" ", len),
+    "v" = strrep("\n", len)
   )
 }
 
@@ -213,7 +216,7 @@ python_3 <- function() {
   system("which python3", intern = TRUE)
 }
 
-#' Return installation path of metaflow R library 
+#' Return installation path of metaflow R library
 #' @param flowRDS path of the RDS file containing the flow object
 #' @export
 metaflow_location <- function(flowRDS) {
@@ -229,8 +232,12 @@ extract_ids <- function(obj) {
     chr <- as.character(x)
     gsub("'", "", regmatches(chr, gregexpr("'([^']*)'", chr))[[1]])
   }
-  unlist(lapply(import_builtins()$list(obj), 
-    function(x){sub(".*/", "", extract_str(x))}))
+  unlist(lapply(
+    import_builtins()$list(obj),
+    function(x) {
+      sub(".*/", "", extract_str(x))
+    }
+  ))
 }
 
 extract_str <- function(x) {
@@ -246,36 +253,42 @@ list_flows <- function() {
     extract_ids()
 }
 
-#' Run a test to check if Metaflow R is installed properly 
-#'  
+#' Run a test to check if Metaflow R is installed properly
+#'
 #' @export
-test <- function(){
-  start <- function(self){
+test <- function() {
+  start <- function(self) {
     self$my_var <- "hello world"
   }
 
-  a <- function(self){
+  a <- function(self) {
     print(self$my_var)
   }
 
-  end <- function(self){
+  end <- function(self) {
     print("Metaflow is installed successfully.")
   }
 
   metaflow("HelloWorldFlow") %>%
-    step(step="start", 
-         r_function=start, 
-         next_step="a") %>%
-    step(step="a", 
-         r_function=a,  
-         next_step="end") %>%
-    step(step="end", 
-         r_function=end) %>% 
+    step(
+      step = "start",
+      r_function = start,
+      next_step = "a"
+    ) %>%
+    step(
+      step = "a",
+      r_function = a,
+      next_step = "end"
+    ) %>%
+    step(
+      step = "end",
+      r_function = end
+    ) %>%
     run()
 }
 
 #' Install Metaflow python dependencies
-#' 
+#'
 #' @export
 install <- function() {
   system("python3 -m pip install git+https://github.com/Netflix/metaflow.git@R-dev --user")
@@ -285,13 +298,13 @@ install <- function() {
   metaflow_attach()
 }
 
-metaflow_load <- function(){
+metaflow_load <- function() {
   reticulate::use_python(system("which python3", intern = TRUE), required = TRUE)
 
   config_name <- Sys.getenv("R_CONFIG_ACTIVE", unset = "default")
   source(system.file("config.R", package = "metaflow"))
-  config <- list() 
-  for (key in names(configs[[config_name]])){
+  config <- list()
+  for (key in names(configs[[config_name]])) {
     config[[key]] <- eval(configs[[config_name]][[key]])
   }
 
@@ -310,7 +323,7 @@ python_3 <- function() {
 
 py_version <- function() {
   reticulate::use_python(python_3(), required = TRUE)
-  mf <- reticulate::import('metaflow', delay_load = TRUE)
+  mf <- reticulate::import("metaflow", delay_load = TRUE)
   version <- mf$metaflow_version$get_version()
   c(python_version = substr(version, 1, 5))
 }
@@ -334,25 +347,27 @@ metaflow_attach <- function() {
 
 #' Return the default container image to use for remote execution.
 #' By default we user docker images maintained on https://hub.docker.com/r/rocker/ml.
-#' 
+#'
 #' @export
-container_image <- function(){
-  rocker_image_tags <- c("3.5.2", "3.5.3", "3.6.0", 
-      "3.6.1", "4.0.0", "4.0.1", "4.0.2")
+container_image <- function() {
+  rocker_image_tags <- c(
+    "3.5.2", "3.5.3", "3.6.0",
+    "3.6.1", "4.0.0", "4.0.1", "4.0.2"
+  )
 
-  local_r_version <- paste(R.version$major, R.version$minor, sep=".")
+  local_r_version <- paste(R.version$major, R.version$minor, sep = ".")
 
-  rocker_tag <- local_r_version 
-  if (!local_r_version %in% rocker_image_tags){
-    version_split <- strsplit(local_r_version, split='[.]')[[1]]
-    r_version <- paste(version_split[1], version_split[2], sep=".") 
+  rocker_tag <- local_r_version
+  if (!local_r_version %in% rocker_image_tags) {
+    version_split <- strsplit(local_r_version, split = "[.]")[[1]]
+    r_version <- paste(version_split[1], version_split[2], sep = ".")
 
     # if there's no exact match, find the best match of R versions.
-    if (r_version < "3.5"){
+    if (r_version < "3.5") {
       rocker_tag <- "3.5.2"
-    } else if (r_version == "3.5"){
+    } else if (r_version == "3.5") {
       rocker_tag <- "3.5.3"
-    } else if (r_version == "3.6"){
+    } else if (r_version == "3.6") {
       rocker_tag <- "3.6.1"
     } else {
       rocker_tag <- "4.0.2"

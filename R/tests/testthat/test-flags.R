@@ -5,7 +5,9 @@ parameter_arguments <- c("--alpha 100", "--date 20190101")
 
 test_that("split_flags", {
   skip_if_no_metaflow()
-  expected <- lapply(arguments, function(x){strsplit(x, split = " ")}) %>%
+  expected <- lapply(arguments, function(x) {
+    strsplit(x, split = " ")
+  }) %>%
     unlist()
   actual <- split_flags(arguments)
   expect_equal(actual, expected)

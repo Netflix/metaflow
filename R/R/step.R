@@ -1,5 +1,5 @@
 #' Assign a step to the flow
-#' @include utils.R 
+#' @include utils.R
 #'
 #' @param flow metaflow object
 #' @param ... decorators
@@ -12,7 +12,7 @@
 #' @section Usage:
 #' \preformatted{
 #' step(flow, step = "start", r_function = start, next_step = "b")
-#' step(flow, decorator("batch"), step = "start", 
+#' step(flow, decorator("batch"), step = "start",
 #'    r_function = start, next_step = "a", foreach = "parameters")
 #' step(flow, step = "start", r_function = start, next_step = c("a", "b"))
 #' step(flow, step = "c", r_function = c, next_step = "d", join = TRUE)
@@ -59,30 +59,30 @@ step_decorator <- paste0(space(4), "@step")
 
 step_def <- paste0(space(4), "def")
 
-add_R_object_to_flow <- function(flow, obj, name){
+add_R_object_to_flow <- function(flow, obj, name) {
   fun <- list(obj)
   names(fun) <- name
   flow$add_function(fun)
 }
 
 # wrap user's function to fix zero as the return value for user's r_functions to avoid reticulate failures.
-# Note: R functions by default return execution results of the last line if there's no explicit return(..). 
-# With our call_r hooks in python, reticulate will try to convert each r_function return value into python. 
+# Note: R functions by default return execution results of the last line if there's no explicit return(..).
+# With our call_r hooks in python, reticulate will try to convert each r_function return value into python.
 # A print statement at the last line would sometimes unintentionally return an S4 object to python,
-# which leads to reticulate error, for example the the overloaded print function in R library glmnet. 
-wrap_function <- function(func){
+# which leads to reticulate error, for example the the overloaded print function in R library glmnet.
+wrap_function <- function(func) {
   # we only need body of the wrapped_func so no need to handle the arguments
-  wrapped_func <- function(){
-    original_func <- function(){
+  wrapped_func <- function() {
+    original_func <- function() {
     }
     original_func()
     return(0)
   }
 
-  # insert function body of original f into the 
+  # insert function body of original f into the
   # original_func sub function inside masked_func
-  if (length(body(func)) > 1){
-    for (i in 2:length(body(func))){
+  if (length(body(func)) > 1) {
+    for (i in 2:length(body(func))) {
       body(wrapped_func)[[2]][[3]][[3]][[i]] <- body(func)[[i]]
     }
   }
@@ -117,11 +117,11 @@ fmt_next_step <- function(x, foreach = NULL) {
 fmt_r_function <- function(x, join = NULL) {
   fmt <- paste0(space(8), paste0("call_r('", x, "', (self,))", collapse = ""))
   if (!is.null(join)) {
-    fmt_inputs <- paste0(space(8), "r_inputs = {node._current_step : node for node in inputs} if len(inputs[0].foreach_stack()) == 0 else list(inputs)", collapse="")
+    fmt_inputs <- paste0(space(8), "r_inputs = {node._current_step : node for node in inputs} if len(inputs[0].foreach_stack()) == 0 else list(inputs)", collapse = "")
     fmt <- gsub(",))", ", r_inputs))", fmt)
-    line <- c(fmt_inputs, space(1, type = "v"), fmt, space(1, type = "v")) 
+    line <- c(fmt_inputs, space(1, type = "v"), fmt, space(1, type = "v"))
   } else {
-    line <- c(fmt, space(1, type="v"))
+    line <- c(fmt, space(1, type = "v"))
   }
   line
 }

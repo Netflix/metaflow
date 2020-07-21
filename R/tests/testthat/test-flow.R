@@ -52,7 +52,7 @@ test_that("get_functions() works", {
     step(step = "end")
   actual <- TestFlow$get_functions()
   expected <- list(start = function(self) {
-    original_func <- function(){
+    original_func <- function() {
       print("start")
     }
     original_func()
@@ -72,14 +72,14 @@ test_that("get_functions() works", {
   actual <- TestFlow$get_functions()
   expected <- list(
     start = function(self) {
-      original_func <- function(){
+      original_func <- function() {
         print("start")
       }
       original_func()
       return(0)
     },
     end = function(self) {
-      original_func <- function(){
+      original_func <- function() {
         print("end")
       }
       original_func()

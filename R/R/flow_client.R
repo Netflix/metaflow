@@ -37,22 +37,24 @@ flow_client <- R6::R6Class("FlowClient",
     },
 
     #' @description Get a RunClient R6 object of any run in this flow based on run_id
-    #' @return RunClient R6 object 
+    #' @return RunClient R6 object
     #' @param run_id, id of the specific run within this flow
     run = function(run_id) {
       run_client$new(self, run_id)
     },
 
     #' @description Get a list of run_ids which has the specific tag
-    #' @return A list of run_client R6 object 
+    #' @return A list of run_client R6 object
     #' @param ... the specific tags (string) we need to have for the runs
     runs_with_tags = function(...) {
       run_objs <- import_builtins()$list(super$get_obj()$runs(...))
-      return(invisible(lapply(run_objs, function(run){run_client$new(self, run$id)})))
+      return(invisible(lapply(run_objs, function(run) {
+        run_client$new(self, run$id)
+      })))
     },
 
     #' @description Summary of this flow
-    summary = function(){
+    summary = function() {
       created_at <- self$created_at
       latest_run <- self$latest_run
       last_successful_run <- self$latest_successful_run
@@ -67,7 +69,7 @@ flow_client <- R6::R6Class("FlowClient",
     }
   ),
   active = list(
-    #' @field super_ Access the R6 metaflow object base class  
+    #' @field super_ Access the R6 metaflow object base class
     super_ = function() super,
 
     #' @field pathspec The path spec that uniquely identifies this flow object
@@ -79,7 +81,7 @@ flow_client <- R6::R6Class("FlowClient",
     parent = function() super$get_obj()$parent,
 
     #' @field tags The vector of tags assigned to this object.
-    tags = function() import_builtins()$list(super$get_obj()$tags),  
+    tags = function() import_builtins()$list(super$get_obj()$tags),
 
     #' @field created_at The time of creation of this flow object.
     created_at = function() super$get_obj()$created_at,
@@ -87,7 +89,7 @@ flow_client <- R6::R6Class("FlowClient",
     #' @field finished_at The finish time, if available, of this flow.
     finished_at = function() super$get_obj()$finished_at,
 
-    #' @field latest_run The latest run identifier of this flow. 
+    #' @field latest_run The latest run identifier of this flow.
     latest_run = function() super$get_obj()$latest_run$id,
 
     #' @field latest_successful_run  The latest successful run identifier of this flow.

@@ -2,7 +2,7 @@
 #'
 #' Decorates the \code{step} with the parameters present in its arguments.
 #'
-#' For this method to work properly, the arguments \code{...} should be named, and decorator 
+#' For this method to work properly, the arguments \code{...} should be named, and decorator
 #' type is the first argument.
 #'
 #' @param x Type of decorator (e.g, resources, catch, retry, timeout, batch ...)

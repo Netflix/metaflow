@@ -45,4 +45,4 @@ metaflow("HousingFlow") %>%
     next_step = "end"
   ) %>%
   step(step = "end") %>%
-  run(package_suffixes = c(".R", ".py", ".csv"), metadata='local', datastore='local')
+  run(package_suffixes = c(".R", ".py", ".csv"), metadata = "local", datastore = "local")

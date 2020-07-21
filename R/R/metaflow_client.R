@@ -1,6 +1,6 @@
-#' Instantiate Metaflow flow/run/step/task client  
+#' Instantiate Metaflow flow/run/step/task client
 #' @description A R6 Class representing a MetaflowClient used to inspect flow/run/step/task artifacts.
-#' This is a factory class that provides convenience for creating Flow/Run/Step/Task Client objects. 
+#' This is a factory class that provides convenience for creating Flow/Run/Step/Task Client objects.
 #'
 #' @docType class
 #' @importFrom R6 R6Class
@@ -16,10 +16,10 @@
 #'
 #' f <- client$flow("HelloWorldFlow")
 #'
-#' r <- client$run(f, run_id) 
+#' r <- client$run(f, run_id)
 #' r <- client$flow('HelloWorldFlow')$run(run_id)
 #'
-#' s <- client$step(r, step_id) 
+#' s <- client$step(r, step_id)
 #' s <- client$flow('HelloWorldFlow')$run(run_id)$step(step_id)
 #'
 #' t <- client$task(s, task_id)
@@ -28,13 +28,13 @@
 #' }
 #' @export
 mf_client <- R6::R6Class(
-  'MetaflowClient',
+  "MetaflowClient",
   public = list(
     #' @description
     #' Create a metaflow FlowClient R6 object based on flow_id.
     #' @return R6 object representing the FlowClient object
     #' @param flow_id the name/id of the flow for inspection, for example "HelloWorldFlow"
-    flow = function(flow_id){
+    flow = function(flow_id) {
       flow_client$new(flow_id)
     },
 
@@ -42,8 +42,8 @@ mf_client <- R6::R6Class(
     #' Create a metaflow RunClient R6 object from a FlowClient R6 object and run_id
     #' @return R6 object representing the RunClient object
     #' @param flow_client R6 object
-    #' @param run_id run id 
-    run = function(flow_client, run_id){
+    #' @param run_id run id
+    run = function(flow_client, run_id) {
       run_client$new(flow_client, run_id)
     },
 
@@ -52,7 +52,7 @@ mf_client <- R6::R6Class(
     #' @return R6 object representing the StepClient object
     #' @param run_client run_client
     #' @param step_id step id
-    step = function(run_client, step_id){
+    step = function(run_client, step_id) {
       step_client$new(run_client, step_id)
     },
 
@@ -61,7 +61,7 @@ mf_client <- R6::R6Class(
     #' @return R6 object representing the StepClient object
     #' @param step_client step client
     #' @param task_id task id
-    task = function(step_client, task_id){
+    task = function(step_client, task_id) {
       task_client$new(step_client, task_id)
     }
   )
@@ -82,7 +82,7 @@ mf_client <- R6::R6Class(
 metaflow_object <- R6::R6Class(
   "metaflow_object",
   public = list(
-    #' @description Initialize a metaflow object 
+    #' @description Initialize a metaflow object
     #' @param obj the python metaflow object
     initialize = function(obj = NA) {
       if (!inherits(obj, "metaflow.client.core.MetaflowObject")) {
@@ -107,7 +107,7 @@ metaflow_object <- R6::R6Class(
       private$obj_$is_in_namespace()
     },
 
-    #' @description Get the python metaflow object 
+    #' @description Get the python metaflow object
     #' @return python (reticulate) metaflow object
     get_obj = function() private$obj_,
 
@@ -137,7 +137,7 @@ metaflow_object <- R6::R6Class(
     pathspec = function() private$pathspec_,
 
     #' @field tags The vector of tags assigned to this object.
-    tags = function() private$tags_    
+    tags = function() private$tags_
   )
 )
 

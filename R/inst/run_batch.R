@@ -1,8 +1,8 @@
 Sys.setenv(R_CONFIG_ACTIVE = "batch")
 
-install_dep <- function(dep){
-  if (!suppressWarnings(require(dep, character.only = TRUE))) {  
-    suppressMessages(install.packages(dep, quiet = TRUE, repos='http://cran.us.r-project.org'))
+install_dep <- function(dep) {
+  if (!suppressWarnings(require(dep, character.only = TRUE))) {
+    suppressMessages(install.packages(dep, quiet = TRUE, repos = "http://cran.us.r-project.org"))
   }
 }
 
@@ -10,34 +10,36 @@ install_dep <- function(dep){
 invisible(lapply(c("R6", "reticulate", "magrittr", "cli", "lubridate"), install_dep))
 
 # the remote code package places the R package under the metaflow-r folder
-suppressMessages(install.packages("./metaflow-r", quiet=TRUE, repos=NULL, type="source"))
+suppressMessages(install.packages("./metaflow-r", quiet = TRUE, repos = NULL, type = "source"))
 
 suppressMessages(library(metaflow, warn.conflicts = FALSE))
 
 flowRDS_file <- "flow.RDS"
-flowRDS_arg <- Filter(function(arg){startsWith(arg, '--flowRDS')}, commandArgs())
-if (length(flowRDS_arg) == 1){
+flowRDS_arg <- Filter(function(arg) {
+  startsWith(arg, "--flowRDS")
+}, commandArgs())
+if (length(flowRDS_arg) == 1) {
   flowRDS_file <- strsplit(flowRDS_arg[1], "=")[[1]][2]
 } else {
   stop("missing --flowRDS file command in the command line arguments")
 }
 
-if (!file.exists(flowRDS_file)){
+if (!file.exists(flowRDS_file)) {
   stop(sprintf("Cannot locate flow RDS file: %s", flowRDS_file))
 }
 
 flow <- readRDS(flowRDS_file)
 
-rfuncs <- flow$get_functions() 
-r_functions <- reticulate::dict(rfuncs, convert=TRUE)
+rfuncs <- flow$get_functions()
+r_functions <- reticulate::dict(rfuncs, convert = TRUE)
 flow_script <- flow$get_flow()
 
 for (fname in names(rfuncs)) {
   assign(fname, rfuncs[[fname]], envir = .GlobalEnv)
 }
 
-runtime_args <- function(arg){
-  return (!startsWith(arg, "--flowRDS"))
+runtime_args <- function(arg) {
+  return(!startsWith(arg, "--flowRDS"))
 }
 
 mf$R$run(

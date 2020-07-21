@@ -13,7 +13,7 @@
 #'
 #' @section Usage:
 #' \preformatted{
-#' s <- step_client$new(run, step_id) 
+#' s <- step_client$new(run, step_id)
 #' s <- step_client$new("HelloWorldFlow/123/start")
 #'
 #' s$id
@@ -34,14 +34,14 @@ step_client <- R6::R6Class("StepClient",
     #' \code{run} is a parent \code{RunClient} object which contains the step, and \code{step_id} is the name/id of the step such as "start".
     initialize = function(...) {
       arguments <- list(...)
-      if (nargs() == 2){
-        run <- arguments[[1]] 
+      if (nargs() == 2) {
+        run <- arguments[[1]]
         step_id <- arguments[[2]]
         if (!step_id %in% run$get_values()) {
           stop(
             "Not a valid step id",
             call. = FALSE
-        )
+          )
         }
         idx <- which(run$get_values() == step_id)
         step <- import_builtins()$list(run$get_obj())[[idx]]
@@ -53,7 +53,6 @@ step_client <- R6::R6Class("StepClient",
       } else {
         stop("Wrong number of arguments. Please see help document for step_client.")
       }
-
     },
 
     #' @description create a \code{TaskClient} object of the current step
@@ -64,7 +63,7 @@ step_client <- R6::R6Class("StepClient",
     },
 
     #' @description summary of the current step
-    summary = function(){
+    summary = function() {
       tasks <- length(self$tasks)
       created_at <- substring(self$created_at, 1, 20)
       finished_at <- substring(self$finished_at, 1, 20)
@@ -86,7 +85,7 @@ step_client <- R6::R6Class("StepClient",
   ),
 
   active = list(
-    #' @field super_ Access the R6 metaflow object base class  
+    #' @field super_ Access the R6 metaflow object base class
     super_ = function() super,
 
     #' @field id The identifier of this step object.
@@ -103,11 +102,11 @@ step_client <- R6::R6Class("StepClient",
     parent = function() super$get_obj()$parent,
 
     #' @field tags A vector of strings representing tags assigned to this step object.
-    tags = function() import_builtins()$list(super$get_obj()$tags),  
+    tags = function() import_builtins()$list(super$get_obj()$tags),
 
     #' @field finished_at The finish time, if available, of this step.
     finished_at = function() super$get_obj()$finished_at,
-    
+
     #' @field a_task Any task id of the current step
     a_task = function() super$get_obj()$task$id,
 

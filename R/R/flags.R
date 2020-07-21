@@ -9,8 +9,8 @@ parse_flags <- function(arguments = commandArgs(TRUE)) {
   config_name <- Sys.getenv("R_CONFIG_ACTIVE", unset = "default")
 
   source(system.file("config.R", package = "metaflow"))
-  loaded_configs <- list() 
-  for (key in names(configs[[config_name]])){
+  loaded_configs <- list()
+  for (key in names(configs[[config_name]])) {
     loaded_configs[[key]] <- eval(configs[[config_name]][[key]])
   }
 
@@ -19,7 +19,7 @@ parse_flags <- function(arguments = commandArgs(TRUE)) {
 
 parse_arguments <- function(arguments = NULL) {
   # if arguments are null look for commandArgs
-  if (is.null(arguments)){
+  if (is.null(arguments)) {
     arguments <- commandArgs(TRUE)
   }
   arguments <- split_flags(arguments)
@@ -96,7 +96,6 @@ parse_arguments <- function(arguments = NULL) {
     }
   }
   values
-  
 }
 
 parse_logs <- function(arguments) {
@@ -119,7 +118,9 @@ parse_batch <- function(arguments) {
 
 
 split_flags <- function(arguments) {
-  lapply(arguments, function(x){strsplit(x, split=" ")[[1]]}) %>%
+  lapply(arguments, function(x) {
+    strsplit(x, split = " ")[[1]]
+  }) %>%
     unlist()
 }
 
@@ -141,7 +142,7 @@ split_parameters <- function(flags) {
     valid_params <- ""
   } else {
     valid_params <- unlist(lapply(seq_along(parameters), function(x) {
-      paste(paste0("--", names(parameters[x]), " ", unlist(parameters[x])), collapse=" ")
+      paste(paste0("--", names(parameters[x]), " ", unlist(parameters[x])), collapse = " ")
     })) %>%
       paste(collapse = " ")
   }

@@ -1,12 +1,12 @@
-install_deps <- function(){
-  if (!require(caret)){
-    install.packages("caret", repos="https://cloud.r-project.org")
+install_deps <- function() {
+  if (!require(caret)) {
+    install.packages("caret", repos = "https://cloud.r-project.org")
   }
-  if (!require(gbm)){
-    install.packages("gbm", repos="https://cloud.r-project.org")
+  if (!require(gbm)) {
+    install.packages("gbm", repos = "https://cloud.r-project.org")
   }
-  if (!require(data.table)){
-    install.packages("data.table", repos="https://cloud.r-project.org")
+  if (!require(data.table)) {
+    install.packages("data.table", repos = "https://cloud.r-project.org")
   }
 }
 
@@ -15,7 +15,7 @@ load_training_data <- function(self) {
   install_deps()
 
   suppressPackageStartupMessages(library(data.table))
-  self$data <- fread("./resources/sample-house-data.csv") 
+  self$data <- fread("./resources/sample-house-data.csv")
 }
 
 clean_data_set <- function(self) {
@@ -28,8 +28,8 @@ clean_data_set <- function(self) {
   char_cols <- names(data)[(sapply(data, class) == "character")]
   for (col in char_cols) set(data, j = col, value = factor(data[[col]]))
 
-  self$labels <- data[, price] 
-  self$features <- data[, !"price", with = FALSE] 
+  self$labels <- data[, price]
+  self$features <- data[, !"price", with = FALSE]
 }
 
 parameter_grid <- function(self) {
@@ -64,9 +64,9 @@ fit_models <- function(self) {
     n.trees = param$n.trees,
     n.minobsinnode = param$n.minobsinnode
   )
-  x <- self$features 
-    
-  y <- self$labels 
+  x <- self$features
+
+  y <- self$labels
   gbmfit <- train(
     x = x,
     y = y,
@@ -76,7 +76,7 @@ fit_models <- function(self) {
     verbose = FALSE
   )
   self$model <- gbmfit$finalModel
-  self$fit <- gbmfit$results 
+  self$fit <- gbmfit$results
   print(self$fit)
 }
 
@@ -87,7 +87,7 @@ join <- function(self, inputs) {
   suppressPackageStartupMessages(library(data.table))
   suppressPackageStartupMessages(library(caret))
 
-  fits <- gather_inputs(inputs, "fit") 
+  fits <- gather_inputs(inputs, "fit")
   fits <- rbindlist(fits)
   self$fits <- fits
   self$models <- gather_inputs(inputs, "model")
@@ -99,11 +99,11 @@ select_best_fit <- function(self) {
 
   suppressPackageStartupMessages(library(data.table))
   suppressPackageStartupMessages(library(caret))
-  fits <- self$fits 
+  fits <- self$fits
   models <- self$models
   best_fit_idx <- which.min(fits$RMSE)
   best_fit_model <- models[[best_fit_idx]]
-  self$best_fit <- best_fit_model 
+  self$best_fit <- best_fit_model
 }
 
 score_data <- function(self) {

@@ -10,7 +10,7 @@
 #' @details Command line arguments:
 #' * package_suffixes: any file suffixes to include in the run
 #'     * ex: c('.csv', '.R', '.py')
-#' * datastore: 'local' (default) or 's3' 
+#' * datastore: 'local' (default) or 's3'
 #' * metadata:  'local' (default) or 'service'
 #' * batch: request flow to run on batch (default FALSE)
 #' * resume: resume flow from last failed step
@@ -28,13 +28,16 @@
 #' }
 #' @export
 run <- function(flow = NULL, ...) {
-  flow_file = tempfile(flow$get_name(), tmpdir=".", fileext=".RDS")
-  tryCatch({
-    saveRDS(flow, flow_file)
-  }, error=function(e){
-    stop(sprintf("Cannot create temporary RDS file %s", flow_file))
-  })
-  
+  flow_file <- tempfile(flow$get_name(), tmpdir = ".", fileext = ".RDS")
+  tryCatch(
+    {
+      saveRDS(flow, flow_file)
+    },
+    error = function(e) {
+      stop(sprintf("Cannot create temporary RDS file %s", flow_file))
+    }
+  )
+
   cmd <- run_cmd(flow_file = flow_file, ...)
   message(paste0("Flow cli:\n", cmd))
   status_code <- system(cmd)
@@ -62,7 +65,7 @@ run_cmd <- function(flow_file, ...) {
   } else {
     run <- "run"
   }
-  
+
   if ("batch" %in% names(flags)) {
     if (is.logical(flags$batch)) {
       if (flags$batch) {
@@ -105,7 +108,7 @@ run_cmd <- function(flow_file, ...) {
   parameters <- split_parameters(flags)
   if ("with" %in% names(flags)) {
     with <- unlist(lapply(seq_along(flags$with), function(x) {
-      paste(paste0("--with ", unlist(flags$with[x])), collapse=" ")
+      paste(paste0("--with ", unlist(flags$with[x])), collapse = " ")
     })) %>%
       paste(collapse = " ")
   } else {
@@ -113,39 +116,41 @@ run_cmd <- function(flow_file, ...) {
   }
   if ("tag" %in% names(flags)) {
     tag <- unlist(lapply(seq_along(flags$tag), function(x) {
-      paste(paste0("--tag ", unlist(flags$tag[x])), collapse=" ")
+      paste(paste0("--tag ", unlist(flags$tag[x])), collapse = " ")
     })) %>%
       paste(collapse = " ")
   } else {
     tag <- ""
   }
 
-  if ("package_suffixes" %in% names(flags)){
-    package_suffixes <- paste0("--package-suffixes=", paste(flags$package_suffixes, collapse=","))
+  if ("package_suffixes" %in% names(flags)) {
+    package_suffixes <- paste0("--package-suffixes=", paste(flags$package_suffixes, collapse = ","))
   } else {
     package_suffixes <- ""
   }
 
   flow_RDS <- paste0("--flowRDS=", flow_file)
-  cmd <- paste("Rscript", run_path, 
-            flow_RDS,
-            "--no-pylint",
-            package_suffixes,
-            with,
-            batch,
-            run,
-            tag,
-            parameters,
-            max_workers,
-            max_num_splits,
-            other_args)
-          
-  if (batch %in% c("batch list", "batch kill")){
+  cmd <- paste(
+    "Rscript", run_path,
+    flow_RDS,
+    "--no-pylint",
+    package_suffixes,
+    with,
+    batch,
+    run,
+    tag,
+    parameters,
+    max_workers,
+    max_num_splits,
+    other_args
+  )
+
+  if (batch %in% c("batch list", "batch kill")) {
     cmd <- paste("Rscript", run_path, flow_RDS, batch)
   }
 
   if ("logs" %in% names(flags)) {
-    logs <- paste("logs", flags$logs, sep=" ")
+    logs <- paste("logs", flags$logs, sep = " ")
     cmd <- paste("Rscript", run_path, flow_RDS, logs)
   }
 
@@ -153,13 +158,13 @@ run_cmd <- function(flow_file, ...) {
     show <- "show"
     cmd <- paste("Rscript", run_path, flow_RDS, show)
   }
-  
+
   if ("help" %in% names(flags) && flags$help) {
     # if help is specified by the run(...) R functions
-    if ("help" %in% names(run_options) && run_options$help){
+    if ("help" %in% names(run_options) && run_options$help) {
       help_cmd <- "--help"
-    } else { # if help is specified in command line 
-      help_cmd <- paste(commandArgs(trailingOnly=TRUE), collapse=" ")
+    } else { # if help is specified in command line
+      help_cmd <- paste(commandArgs(trailingOnly = TRUE), collapse = " ")
     }
     cmd <- paste("Rscript", run_path, flow_RDS, help_cmd)
   }

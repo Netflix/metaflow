@@ -7,13 +7,13 @@
 #'
 #' @param flow metaflow object
 #' @param parameter name of the parameter
-#' @param required logical (defaults to FALSE) denoting if 
+#' @param required logical (defaults to FALSE) denoting if
 #' paramter is required as an argument to \code{run} the flow
 #' @param help optional help text
 #' @param default optional default value of the parameter
 #' @param type optional type of the parameter
 #' @param is_flag optional logical (defaults to FALSE) flag to denote is_flag
-#' @param separator optional separator for string parameters. 
+#' @param separator optional separator for string parameters.
 #' Useful in defining an iterable as a delimited string inside a parameter
 #' @section Usage:
 #' \preformatted{
@@ -50,7 +50,7 @@ parameter <- function(flow, parameter, required = FALSE, help = NULL,
       default <- paste0("'", default, "'")
     } else if (is.logical(default)) {
       default <- escape_bool(default)
-    } else if (is.function(default)){
+    } else if (is.function(default)) {
       function_name <- as.character(substitute(default))
       fun <- list(default)
       names(fun) <- function_name
