@@ -33,7 +33,7 @@ class RetryDecorator(StepDecorator):
     defaults = {'times': '3',
                 'minutes_between_retries': '2'}
 
-    def step_init(self, flow, graph, step, decos, environment, datastore, logger):
+    def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         # The total number of attempts must not exceed MAX_ATTEMPTS.
         # attempts = normal task (1) + retries (N) + @catch fallback (1)
         if int(self.attributes['times']) + 2 > MAX_ATTEMPTS:

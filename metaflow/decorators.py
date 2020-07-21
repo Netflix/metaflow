@@ -134,7 +134,7 @@ class FlowDecorator(Decorator):
         self._flow_decorators.append(self)
         super(FlowDecorator, self).__init__(*args, **kwargs)
 
-    def flow_init(self, flow, graph,  environment, datastore, logger, echo, options):
+    def flow_init(self, flow, graph, environment, flow_datastore, logger, echo, options):
         """
         Called when all decorators have been created for this flow.
         """
@@ -202,7 +202,7 @@ class StepDecorator(Decorator):
                   pass them around with every lifecycle call. 
     """
 
-    def step_init(self, flow, graph, step_name, decorators, environment, datastore, logger):
+    def step_init(self, flow, graph, step_name, decorators, environment, flow_datastore, logger):
         """
         Called when all decorators have been created for this step
         """
@@ -231,7 +231,7 @@ class StepDecorator(Decorator):
         pass
 
     def runtime_task_created(self,
-                             datastore,
+                             task_datastore,
                              task_id,
                              split_index,
                              input_paths,
@@ -255,7 +255,7 @@ class StepDecorator(Decorator):
 
     def task_pre_step(self,
                       step_name,
-                      datastore,
+                      task_datastore,
                       metadata,
                       run_id,
                       task_id,
@@ -418,17 +418,17 @@ def _attach_decorators_to_step(step, decospecs):
             deco = decos[deconame]._parse_decorator_spec(decospec)
             step.decorators.append(deco)
 
-def _init_flow_decorators(flow, graph, environment, datastore, logger, echo, deco_options):
+def _init_flow_decorators(flow, graph, environment, flow_datastore, logger, echo, deco_options):
     for deco in flow._flow_decorators.values():
         opts = {option: deco_options[option] for option in deco.options}
-        deco.flow_init(flow, graph, environment, datastore, logger, echo, opts)
+        deco.flow_init(flow, graph, environment, flow_datastore, logger, echo, opts)
 
 
-def _init_step_decorators(flow, graph, environment, datastore, logger):
+def _init_step_decorators(flow, graph, environment, flow_datastore, logger):
     for step in flow:
         for deco in step.decorators:
             deco.step_init(flow, graph, step.__name__,
-                           step.decorators, environment, datastore, logger)
+                           step.decorators, environment, flow_datastore, logger)
 
 
 def step(f):
