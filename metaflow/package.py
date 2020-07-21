@@ -3,20 +3,12 @@ import sys
 import tarfile
 import json
 from hashlib import sha1
+from io import BytesIO
 from itertools import chain
 
 from .metaflow_config import DEFAULT_SUFFIXES
 from .util import to_unicode
 from . import R
-
-try:
-    # python2
-    import cStringIO
-    BytesIO = cStringIO.StringIO
-except:
-    # python3
-    import io
-    BytesIO = io.BytesIO
 
 DEFAULT_SUFFIXES_LIST = DEFAULT_SUFFIXES.split(',')
 

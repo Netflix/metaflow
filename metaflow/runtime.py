@@ -12,6 +12,8 @@ import fcntl
 import time
 import select
 import subprocess
+
+from io import BytesIO
 from functools import partial
 
 from . import get_namespace
@@ -26,14 +28,6 @@ from .debug import debug
 from .decorators import flow_decorators
 
 from .util import to_unicode, compress_list
-try:
-    # python2
-    import cStringIO
-    BytesIO = cStringIO.StringIO
-except:
-    # python3
-    import io
-    BytesIO = io.BytesIO
 
 MAX_WORKERS=16
 MAX_NUM_SPLITS=100
