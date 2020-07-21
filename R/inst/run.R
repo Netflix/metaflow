@@ -17,7 +17,7 @@ if (!file.exists(flowRDS_file)) {
 flow <- readRDS(flowRDS_file)
 
 rfuncs <- flow$get_functions()
-r_functions <- dict(rfuncs, convert = TRUE)
+r_functions <- reticulate::dict(rfuncs, convert = TRUE)
 flow_script <- flow$get_flow()
 
 for (fname in names(rfuncs)) {
