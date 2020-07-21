@@ -101,7 +101,7 @@ Initialize a \code{TaskClient} object
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{...}}{The argument list can be either (1) a single \code{pathspec} string such as "HelloFlow/123/start/293812" 
+\item{\code{...}}{The argument list can be either (1) a single \code{pathspec} string such as "HelloFlow/123/start/293812"
 or (2) \code{(step, task_id)}, where
 a \code{step} is a parent \code{StepClient} object which contains the run, and \code{task_id} is the identifier of the task.}
 }

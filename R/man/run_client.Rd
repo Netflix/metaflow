@@ -96,7 +96,7 @@ Initialize the object from a \code{FlowClient} object and \code{run_id}
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{...}}{The argument list can be either (1) a single \code{pathspec} string such as "HelloFlow/123" 
+\item{\code{...}}{The argument list can be either (1) a single \code{pathspec} string such as "HelloFlow/123"
 or (2) \code{(flow, run_id)}, where
 a \code{flow} is a parent \code{FlowClient} object which contains the run, and \code{run_id} is the identifier of the run.}
 }

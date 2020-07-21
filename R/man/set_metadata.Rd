@@ -15,7 +15,7 @@ example, you can specify local@<path> or service@<url>.}
 a string of the description of the metadata selected
 }
 \description{
-This call has a global effect. 
-Selecting the local metadata will, for example, not allow access to information 
+This call has a global effect.
+Selecting the local metadata will, for example, not allow access to information
 stored in remote metadata providers
 }

@@ -7,8 +7,8 @@
 get_metadata()
 }
 \value{
-String type. Information about the Metadata provider currently selected. 
-This information typically returns provider specific information (like URL for remote 
+String type. Information about the Metadata provider currently selected.
+This information typically returns provider specific information (like URL for remote
 providers or local paths for local providers.
 }
 \description{

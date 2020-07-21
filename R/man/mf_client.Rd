@@ -21,10 +21,10 @@ client <- mf_flow$new()
 
 f <- client$flow("HelloWorldFlow")
 
-r <- client$run(f, run_id) 
+r <- client$run(f, run_id)
 r <- client$flow('HelloWorldFlow')$run(run_id)
 
-s <- client$step(r, step_id) 
+s <- client$step(r, step_id)
 s <- client$flow('HelloWorldFlow')$run(run_id)$step(step_id)
 
 t <- client$task(s, task_id)

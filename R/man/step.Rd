@@ -37,7 +37,7 @@ Assign a step to the flow
 
 \preformatted{
 step(flow, step = "start", r_function = start, next_step = "b")
-step(flow, decorator("batch"), step = "start", 
+step(flow, decorator("batch"), step = "start",
    r_function = start, next_step = "a", foreach = "parameters")
 step(flow, step = "start", r_function = start, next_step = c("a", "b"))
 step(flow, step = "c", r_function = c, next_step = "d", join = TRUE)

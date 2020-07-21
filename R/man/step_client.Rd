@@ -17,7 +17,7 @@ Instances of this class contain all tasks related to a step.
 \section{Usage}{
 
 \preformatted{
-s <- step_client$new(run, step_id) 
+s <- step_client$new(run, step_id)
 s <- step_client$new("HelloWorldFlow/123/start")
 
 s$id

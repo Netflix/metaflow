@@ -9,7 +9,7 @@ gather_inputs(inputs, input)
 \arguments{
 \item{inputs}{inputs from parent branches}
 
-\item{input}{field to extract from inputs from 
+\item{input}{field to extract from inputs from
 parent branches into vector}
 }
 \description{

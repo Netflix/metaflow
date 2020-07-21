@@ -10,6 +10,6 @@ reset_default_metadata()
 String type. The result of get_metadata() after resetting the provider.
 }
 \description{
-The default value of the Metadata provider is determined through a 
+The default value of the Metadata provider is determined through a
 combination of environment variables.
 }

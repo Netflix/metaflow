@@ -7,9 +7,9 @@
 \alias{metaflow-r}
 \title{metaflow: R Binding for Metaflow}
 \description{
-R binding for Metaflow. Metaflow is a human-friendly Python/R library 
-that helps scientists and engineers build and manage real-life data science projects. 
-Metaflow was originally developed at Netflix to boost productivity of data scientists 
+R binding for Metaflow. Metaflow is a human-friendly Python/R library
+that helps scientists and engineers build and manage real-life data science projects.
+Metaflow was originally developed at Netflix to boost productivity of data scientists
 who work on a wide variety of projects from classical statistics to state-of-the-art deep learning.
 }
 \seealso{

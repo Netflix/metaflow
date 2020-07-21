@@ -19,7 +19,7 @@ These are captured whether running from interactive session or via `Rscript`
 Command line arguments:
 * package_suffixes: any file suffixes to include in the run
     * ex: c('.csv', '.R', '.py')
-* datastore: 'local' (default) or 's3' 
+* datastore: 'local' (default) or 's3'
 * metadata:  'local' (default) or 'service'
 * batch: request flow to run on batch (default FALSE)
 * resume: resume flow from last failed step

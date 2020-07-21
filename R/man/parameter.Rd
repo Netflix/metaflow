@@ -20,12 +20,12 @@ parameter(
 
 \item{parameter}{name of the parameter}
 
-\item{required}{logical (defaults to FALSE) denoting if 
+\item{required}{logical (defaults to FALSE) denoting if
 paramter is required as an argument to \code{run} the flow}
 
 \item{help}{optional help text}
 
-\item{separator}{optional separator for string parameters. 
+\item{separator}{optional separator for string parameters.
 Useful in defining an iterable as a delimited string inside a parameter}
 
 \item{default}{optional default value of the parameter}
