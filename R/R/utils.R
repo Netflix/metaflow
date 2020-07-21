@@ -1,6 +1,6 @@
 #' Pipe operator
 #'
-#' See \code{magrittr::\link[magrittr]{\%>\%}} for details.
+#' Check \code{??magrittr::`\%>\%`} for details.
 #'
 #' @name %>%
 #' @rdname pipe
@@ -9,18 +9,6 @@
 #' @importFrom magrittr %>%
 #' @usage lhs \%>\% rhs
 NULL
-
-#' @importFrom reticulate dict
-#' @export
-reticulate::dict
-
-#' @importFrom reticulate r_to_py
-#' @export
-reticulate::r_to_py
-
-#' @importFrom reticulate py_to_r
-#' @export
-reticulate::py_to_r
 
 simple_type <- function(obj) {
   if (is.atomic(obj)) {
