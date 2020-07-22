@@ -30,7 +30,7 @@ from .pylint_wrapper import PyLint
 from .event_logger import EventLogger
 from .monitor import Monitor
 
-from .plugins.kfp.kfp import get_ordered_steps, create_flow_pipeline, create_run_on_kfp
+from .plugins.kfp.kfp import create_run_on_kfp, create_kfp_pipeline_yaml
 from .plugins.kfp.constants import DEFAULT_RUN_NAME, DEFAULT_EXPERIMENT_NAME, DEFAULT_FLOW_CODE_URL, DEFAULT_KFP_YAML_OUTPUT_PATH, RUN_LINK_PREFIX
 
 ERASE_TO_EOL = '\033[K'
@@ -676,7 +676,7 @@ def pre_start(obj,
     # 2) Use a KFP run_id
     # TODO: Remove once above criteria are met.
     # OUTPUT FORMAT: ($1)datastore_root location \t ($2)run_id \t ($3)next_step_to_run \t ($4)task_id(of next step) \t ($5)current step \t ($6)task_id(of current step)
-    print(f"{obj.datastore.datastore_root}\t{runtime.run_id}\tstart\t1\t_parameters\t0")
+    print("{0}\t{1}\tstart\t1\t_parameters\t0".format(obj.datastore.datastore_root, runtime.run_id))
 
 
 @cli.command(help='Create a run on KF pipelines. This method converts the MF flow to a KFP run and outputs a link to the KFP run. '
@@ -704,8 +704,8 @@ def run_on_kfp(obj,
         ):
 
     run_pipeline_result = create_run_on_kfp(obj.graph, code_url, experiment_name, run_name)
-    echo(f"\nRun created successfully!\n")
-    echo(f"Run link: {RUN_LINK_PREFIX}{run_pipeline_result.run_id}")
+    echo("\nRun created successfully!\n")
+    echo("Run link: {0}{1}".format(RUN_LINK_PREFIX, run_pipeline_result.run_id))
 
 
 @cli.command(help='Generate the KFP YAML which is used to run the workflow on Kubeflow Pipelines.')
@@ -722,8 +722,8 @@ def generate_kfp_yaml(obj,
                      output_path=DEFAULT_KFP_YAML_OUTPUT_PATH,
                      code_url=DEFAULT_FLOW_CODE_URL,
                      ):
-    pipeline_path = create_flow_pipeline(get_ordered_steps(obj.graph), code_url, output_path)
-    echo(f"\nDone converting to KFP YAML. Upload the file `{pipeline_path}` to the KFP UI to run!")
+    pipeline_path = create_kfp_pipeline_yaml(obj.graph, code_url, output_path)
+    echo("\nDone converting to KFP YAML. Upload the file `{0}` to the KFP UI to run!".format(pipeline_path))
 
 def write_run_id(run_id_file, run_id):
     if run_id_file is not None:

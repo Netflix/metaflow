@@ -3,7 +3,7 @@ from kfp import dsl
 
 from .constants import DEFAULT_RUN_NAME, DEFAULT_EXPERIMENT_NAME, DEFAULT_FLOW_CODE_URL, DEFAULT_KFP_YAML_OUTPUT_PATH
 
-def get_ordered_steps(graph, type='linear'):
+def get_ordered_steps(graph):
     """
     Returns the ordered step names in the graph (FlowGraph) from start step to end step as a list of strings containing the
     step names.
@@ -28,7 +28,7 @@ def get_ordered_steps(graph, type='linear'):
     return ordered_steps
 
 
-def run_step_op(step_name, code_url=DEFAULT_FLOW_CODE_URL):
+def step_container_op(step_name, code_url=DEFAULT_FLOW_CODE_URL):
     """
     Method to create a kfp container op to run a single step (here, we also execute our custom pre-start step
     for setup as we aren't maintaining state) and then execute the given step.
@@ -55,8 +55,7 @@ def run_step_op(step_name, code_url=DEFAULT_FLOW_CODE_URL):
             ])
 
 
-def create_flow_pipeline(ordered_steps, flow_code_url=DEFAULT_FLOW_CODE_URL, pipeline_file_path=DEFAULT_KFP_YAML_OUTPUT_PATH,
-                         return_pipeline_function=False):
+def create_flow_pipeline(ordered_steps, flow_code_url=DEFAULT_FLOW_CODE_URL):
     """
     Function that creates the KFP flow pipeline and returns the path to the YAML file containing the pipeline specification.
     """
@@ -70,38 +69,45 @@ def create_flow_pipeline(ordered_steps, flow_code_url=DEFAULT_FLOW_CODE_URL, pip
         name='Pipeline running MF steps',
         description='Pipeline to experiment with MF on KFP (i.e, converting entire flow to KFP)'
     )
-    def run_flow_pipeline():
+    def kfp_pipeline_from_flow():
         """
         This function runs the entire flow on KFP by spawning the necessary tasks
         by invoking run_step_op for every step in the flow and handling the order of steps.
         """
 
         # Store the list of steps in reverse order
-        run_step_ops = [run_step_op(step, code_url) for step in reversed(steps)]
+        run_step_ops = [step_container_op(step, code_url) for step in reversed(steps)]
 
         # Each step in the list can only be executed after the next step in the list, i.e., list[-1] is executed first, followed
         # by list[-2] and so on.
         for i in range(len(steps) - 1):
             run_step_ops[i].after(run_step_ops[i + 1])
 
-    if return_pipeline_function:
-        return run_flow_pipeline
-
-    kfp.compiler.Compiler().compile(run_flow_pipeline, pipeline_file_path)
-    return pipeline_file_path
+    return kfp_pipeline_from_flow
 
 
 def create_run_on_kfp(flowgraph, code_url, experiment_name, run_name):
     """
-    Creates a new run on KFP using the `kfp.Client()`. This creates a new run without creating the pipeline
-    YAML by directly using the pipeline function to create a run.
+    Creates a new run on KFP using the `kfp.Client()`. Note: Intermediate pipeline YAML is not generated as this creates
+    the run directly using the pipeline function returned by `create_flow_pipeline`
 
     """
 
-    pipeline_func = create_flow_pipeline(get_ordered_steps(flowgraph), code_url, DEFAULT_KFP_YAML_OUTPUT_PATH,
-                                         return_pipeline_function=True)
+    pipeline_func = create_flow_pipeline(get_ordered_steps(flowgraph), code_url)
     run_pipeline_result = kfp.Client().create_run_from_pipeline_func(pipeline_func,
                                                                      arguments={},
                                                                      experiment_name=experiment_name,
                                                                      run_name=run_name)
     return run_pipeline_result
+
+
+def create_kfp_pipeline_yaml(flowgraph, code_url, pipeline_file_path=DEFAULT_KFP_YAML_OUTPUT_PATH):
+    """
+    Creates a new KFP pipeline YAML using `kfp.compiler.Compiler()`. Note: Intermediate pipeline YAML is saved
+    at `pipeline_file_path`
+
+    """
+    pipeline_func = create_flow_pipeline(get_ordered_steps(flowgraph), code_url)
+
+    kfp.compiler.Compiler().compile(pipeline_func, pipeline_file_path)
+    return pipeline_file_path
