@@ -71,17 +71,17 @@ def create_flow_pipeline(ordered_steps, flow_code_url=DEFAULT_FLOW_CODE_URL):
     )
     def kfp_pipeline_from_flow():
         """
-        This function runs the entire flow on KFP by spawning the necessary tasks
-        by invoking run_step_op for every step in the flow and handling the order of steps.
+        This function converts the flow steps to kfp container op equivalents
+        by invoking `step_container_op` for every step in the flow and handling the order of steps.
         """
 
         # Store the list of steps in reverse order
-        run_step_ops = [step_container_op(step, code_url) for step in reversed(steps)]
+        step_container_ops = [step_container_op(step, code_url) for step in reversed(steps)]
 
         # Each step in the list can only be executed after the next step in the list, i.e., list[-1] is executed first, followed
         # by list[-2] and so on.
         for i in range(len(steps) - 1):
-            run_step_ops[i].after(run_step_ops[i + 1])
+            step_container_ops[i].after(step_container_ops[i + 1])
 
     return kfp_pipeline_from_flow
 
