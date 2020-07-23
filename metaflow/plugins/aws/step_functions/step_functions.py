@@ -82,6 +82,13 @@ class StepFunctions(object):
                 'You need to launch this workflow manually.'
 
     def deploy(self):
+        if SFN_IAM_ROLE is None:
+            raise StepFunctionsException("No IAM role found for AWS Step "
+                                         "Functions. You can create one "
+                                         "following the instructions listed at "
+                                         "[url] and re-configure Metaflow "
+                                         "using *metaflow configure aws* on "
+                                         "your terminal.")
         try:
             self._state_machine_arn = self._client.push(
                     name = self.name, 
@@ -93,6 +100,15 @@ class StepFunctions(object):
 
     def schedule(self):
         # Scheduling is currently enabled via AWS Event Bridge.
+        if EVENTS_SFN_ACCESS_IAM_ROLE is None:
+            raise StepFunctionsSchedulingException("No IAM role found for AWS "
+                                                   "Events Bridge. You can "
+                                                   "create one following the "
+                                                   "instructions listed at "
+                                                   "[url] and re-configure "
+                                                   "Metaflow using *metaflow "
+                                                   "configure aws* on your "
+                                                   "terminal.")
         try:
             EventBridgeClient(self.name) \
                 .cron(self._cron) \
@@ -518,6 +534,14 @@ class StepFunctions(object):
                         'foreach' for n in node.out_funcs)) or \
             (node.type == 'join' and \
                 self.graph[node.split_parents[-1]].type == 'foreach'):
+            if SFN_DYNAMO_DB_TABLE is None:
+                raise StepFunctionsException("An AWS DynamoDB table is needed "
+                                             "to support foreach in your flow. "
+                                             "You can create one following the "
+                                             "instructions listed at [url] and "
+                                             "re-configure Metaflow using "
+                                             "*metaflow configure aws* on your "
+                                             "terminal.")
             env['METAFLOW_SFN_DYNAMO_DB_TABLE'] = SFN_DYNAMO_DB_TABLE
 
         # Resolve AWS Batch resource requirements.
