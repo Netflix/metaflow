@@ -62,7 +62,7 @@ def create_flow_pipeline(ordered_steps, flow_code_url=DEFAULT_FLOW_CODE_URL):
     steps = ordered_steps
     code_url = flow_code_url
     print("\nCreating the pipeline definition needed to run the flow on KFP...\n")
-    print("\nCode URL of the flow to be converted to KFP: {0}\n", flow_code_url)
+    print("\nCode URL of the flow to be converted to KFP: {0}\n".format(flow_code_url))
 
     @dsl.pipeline(
         name='MF on KFP Pipeline',
