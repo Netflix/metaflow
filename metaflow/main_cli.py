@@ -435,11 +435,12 @@ def aws(ctx, profile):
         ctx.abort()
 
     # Verify that the user has configured AWS credentials on their computer.
-    if not click.confirm('\nMetaflow relies on AWS access credentials present '
-                         'on your computer to access resources on AWS.\nBefore '
-                         'proceeding further, please confirm that you have '
-                         'already configured these access credentials on this '
-                         'computer.',
+    if not click.confirm('\nMetaflow relies on ' +  
+                         yellow('AWS access credentials') + 
+                         ' present on your computer to access resources on AWS.'
+                         '\nBefore proceeding further, please confirm that you '
+                         'have already configured these access credentials on '
+                         'this computer.',
                          default=True):
         echo('There are many ways to setup your AWS access credentials. You '
              'can get started by following this guide: ',
@@ -456,8 +457,9 @@ def aws(ctx, profile):
     env = {}
 
     # Configure Amazon S3 as the datastore.
-    if click.confirm('\nMetaflow can use Amazon S3 as the storage backend for '
-                     'all code and data artifacts on AWS.\nAmazon S3 is a '
+    if click.confirm('\nMetaflow can use ' +
+                     yellow('Amazon S3 as the storage backend') +
+                     ' for all code and data artifacts on AWS.\nAmazon S3 is a '
                      'strict requirement if you intend to execute your flows '
                      'on AWS Batch and/or schedule them on AWS Step Functions.'
                      '\nWould you like to configure Amazon S3 as the default '
@@ -490,11 +492,12 @@ def aws(ctx, profile):
                              show_default=True)
 
         # Configure AWS Batch for compute.
-        if click.confirm('\nMetaflow can scale your flows by executing your '
-                         'steps on AWS Batch.\nAWS Batch is a strict '
-                         'requirement if you intend to schedule your flows on '
-                         'AWS Step Functions.\nWould you like to configure '
-                         'AWS Batch as your compute backend?',
+        if click.confirm('\nMetaflow can scale your flows by ' +
+                         yellow('executing your steps on AWS Batch') + 
+                         '.\nAWS Batch is a strict requirement if you intend '
+                         'to schedule your flows on AWS Step Functions.\nWould '
+                         'you like to configure AWS Batch as your compute '
+                         'backend?',
                          default=empty_profile or 
                             'METAFLOW_BATCH_JOB_QUEUE' in existing_env,
                          abort=False):
@@ -536,12 +539,14 @@ def aws(ctx, profile):
                                  show_default=True)
 
             # Configure AWS Step Functions for scheduling.
-            if click.confirm('\nMetaflow can schedule your flows on AWS Step ' +
-                             'Functions and trigger them at a specific ' +
-                             'cadence using AWS Events Bridge.\nTo support ' +
-                             'flows involving foreach steps, you would need ' +
-                             'access to AWS DynamoDB.\nWould you like to ' +
-                             'configure AWS Step Functions for scheduling?',
+            if click.confirm('\nMetaflow can ' +
+                             yellow('schedule your flows on AWS Step '
+                                    'Functions') + 
+                             ' and trigger them at a specific cadence using '
+                             'AWS Events Bridge.\nTo support flows involving '
+                             'foreach steps, you would need access to AWS '
+                             'DynamoDB.\nWould you like to configure AWS Step '
+                             'Functions for scheduling?',
                              default=empty_profile or
                                 'METAFLOW_SFN_IAM_ROLE' in existing_env,
                              abort=False):
@@ -572,8 +577,9 @@ def aws(ctx, profile):
                                      show_default=True)
 
     # Configure Metadata service for tracking.
-    if click.confirm('\nMetaflow can use a remote Metadata Service to track '
-                     'and persist flow execution metadata.\nConfiguring the '
+    if click.confirm('\nMetaflow can use a ' +
+                     yellow('remote Metadata Service to track') + 
+                     ' and persist flow execution metadata.\nConfiguring the '
                      'service is a requirement if you intend to schedule your '
                      'flows with AWS Step Functions.\nWould you like to '
                      'configure the Metadata Service?',
