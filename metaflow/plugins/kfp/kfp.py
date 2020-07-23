@@ -30,8 +30,7 @@ def get_ordered_steps(graph):
 
 def step_container_op(step_name, code_url=DEFAULT_FLOW_CODE_URL):
     """
-    Method to create a kfp container op to run a single step (here, we also execute our custom pre-start step
-    for setup as we aren't maintaining state) and then execute the given step.
+    Method to create a kfp container op that corresponds to a single step in the flow.
 
     TODO: This does not maintain state. The custom pre-start command used below would be removed once we have state accessible across KFP steps.
     TODO: The public docker is a copy of the internal docker image we were using (borrowed from aip-kfp-example). Check if any stage here may need to be further modified later.
@@ -62,12 +61,12 @@ def create_flow_pipeline(ordered_steps, flow_code_url=DEFAULT_FLOW_CODE_URL):
 
     steps = ordered_steps
     code_url = flow_code_url
-    print(f"\nCreating the pipeline definition to run the flow on KFP...\n")
-    print(f"\nCode URL of the flow to be converted to KFP: {flow_code_url}\n")
+    print("\nCreating the pipeline definition needed to run the flow on KFP...\n")
+    print("\nCode URL of the flow to be converted to KFP: {0}\n", flow_code_url)
 
     @dsl.pipeline(
-        name='Pipeline running MF steps',
-        description='Pipeline to experiment with MF on KFP (i.e, converting entire flow to KFP)'
+        name='MF on KFP Pipeline',
+        description='Pipeline defining KFP equivalent of the Metaflow flow'
     )
     def kfp_pipeline_from_flow():
         """
