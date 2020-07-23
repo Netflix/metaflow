@@ -30,6 +30,9 @@ from .pylint_wrapper import PyLint
 from .event_logger import EventLogger
 from .monitor import Monitor
 
+from .plugins.kfp.kfp import create_run_on_kfp, create_kfp_pipeline_yaml
+from .plugins.kfp.constants import DEFAULT_RUN_NAME, DEFAULT_EXPERIMENT_NAME, DEFAULT_FLOW_CODE_URL, DEFAULT_KFP_YAML_OUTPUT_PATH, RUN_LINK_PREFIX
+
 ERASE_TO_EOL = '\033[K'
 HIGHLIGHT = 'red'
 INDENT = ' ' * 4
@@ -433,6 +436,13 @@ def step(obj,
 
     echo('Success', fg='green', bold=True, indent=True)
 
+    # Note: Leaving below statement as we use it to run and test the flow easily using CLI (locally) and to demo
+    # the ability to orchestrate without using the MF local orchestrator.
+    # TODO: Remove this once we've fully tested out MF on KFP
+    # FORMAT: ($1)datastore_root location \t ($2)run_id \t ($3)next_step_to_run \t ($4)task_id(of next step) \t ($5)current step \t ($6)task_id(of current step)
+    if step_name != 'end': # End is the final step
+        print(obj.datastore.datastore_root, run_id, obj.flow._graph[step_name].out_funcs[0], int(task_id)+1, step_name, task_id)
+
 @parameters.add_custom_parameters
 @cli.command(help="Internal command to initialize a run.")
 @click.option('--run-id',
@@ -588,6 +598,7 @@ def run(obj,
 
     if namespace is not None:
         namespace(user_namespace or None)
+
     before_run(obj, tags, decospecs + obj.environment.decospecs())
 
     runtime = NativeRuntime(obj.flow,
@@ -610,6 +621,109 @@ def run(obj,
     runtime.persist_parameters()
     runtime.execute()
 
+
+@parameters.add_custom_parameters
+@cli.command(help='Set up the initial part of the workflow by instantiating a local runtime and persisting parameters. '
+                  'This is to be executed before the start step and other steps of the workflow can be executed')
+@common_run_options
+@click.option('--namespace',
+              'user_namespace',
+              default=None,
+              help="Change namespace from the default (your username) to "
+                   "the specified tag. Note that this option does not alter "
+                   "tags assigned to the objects produced by this run, just "
+                   "what existing objects are visible in the client API. You "
+                   "can enable the global namespace with an empty string."
+                   "--namespace=")
+@click.pass_obj
+def pre_start(obj,
+        tags=None,
+        max_workers=None,
+        max_num_splits=None,
+        max_log_size=None,
+        decospecs=None,
+        run_id_file=None,
+        user_namespace=None,
+        **kwargs):
+
+    if namespace is not None:
+        namespace(user_namespace or None)
+
+    before_run(obj, tags, decospecs + obj.environment.decospecs())
+
+    runtime = NativeRuntime(obj.flow,
+                            obj.graph,
+                            obj.datastore,
+                            obj.metadata,
+                            obj.environment,
+                            obj.package,
+                            obj.logger,
+                            obj.entrypoint,
+                            obj.event_logger,
+                            obj.monitor,
+                            max_workers=max_workers,
+                            max_num_splits=max_num_splits,
+                            max_log_size=max_log_size * 1024 * 1024)
+    write_latest_run_id(obj, runtime.run_id)
+    write_run_id(run_id_file, runtime.run_id)
+
+    parameters.set_parameters(obj.flow, kwargs)
+    runtime.persist_parameters()
+
+    # NOTE: We are currently using this output to specify the necessary arguments to the next step.
+    # This can only be removed when we achieve the following:
+    # 1) transition to using s3 as a datastore,
+    # 2) Use a KFP run_id
+    # TODO: Remove once above criteria are met.
+    # OUTPUT FORMAT: ($1)datastore_root location \t ($2)run_id \t ($3)next_step_to_run \t ($4)task_id(of next step) \t ($5)current step \t ($6)task_id(of current step)
+    print("{0}\t{1}\tstart\t1\t_parameters\t0".format(obj.datastore.datastore_root, runtime.run_id))
+
+
+@cli.command(help='Create a run on KF pipelines. This method converts the MF flow to a KFP run and outputs a link to the KFP run. '
+                  'Note: This command will not work as expected if your local environment is not configured to '
+                   'connect to a KFP cluster')
+@click.option('--code-url',
+              'code_url',
+              default=DEFAULT_FLOW_CODE_URL,
+              help="the code URL of the flow to be executed on KFP")
+@click.option('--experiment-name',
+              'experiment_name',
+              default=DEFAULT_EXPERIMENT_NAME,
+              help="the associated experiment name for the run"
+              )
+@click.option('--run-name',
+              'run_name',
+              default=DEFAULT_RUN_NAME,
+              help="name assigned to the new KFP run"
+              )
+@click.pass_obj
+def run_on_kfp(obj,
+        code_url=DEFAULT_FLOW_CODE_URL,
+        experiment_name=DEFAULT_EXPERIMENT_NAME,
+        run_name=DEFAULT_RUN_NAME
+        ):
+
+    run_pipeline_result = create_run_on_kfp(obj.graph, code_url, experiment_name, run_name)
+    echo("\nRun created successfully!\n")
+    echo("Run link: {0}{1}".format(RUN_LINK_PREFIX, run_pipeline_result.run_id))
+
+
+@cli.command(help='Generate the KFP YAML which is used to run the workflow on Kubeflow Pipelines.')
+@click.option('--output-path',
+              'output_path',
+              default=DEFAULT_KFP_YAML_OUTPUT_PATH,
+              help="the output path (or filename) of the generated KFP pipeline yaml file")
+@click.option('--code-url',
+              'code_url',
+              default=DEFAULT_FLOW_CODE_URL,
+              help="the code URL of the flow to be executed on KFP")
+@click.pass_obj
+def generate_kfp_yaml(obj,
+                     output_path=DEFAULT_KFP_YAML_OUTPUT_PATH,
+                     code_url=DEFAULT_FLOW_CODE_URL,
+                     ):
+    pipeline_path = create_kfp_pipeline_yaml(obj.graph, code_url, output_path)
+    echo("\nDone converting to KFP YAML. Upload the file `{0}` to the KFP UI to run!".format(pipeline_path))
 
 def write_run_id(run_id_file, run_id):
     if run_id_file is not None:

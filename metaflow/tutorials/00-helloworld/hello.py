@@ -15,7 +15,9 @@ class HelloFlow(FlowSpec):
         is the first step in the flow.
 
         """
-        print("HelloFlow is starting.")
+        print("\n\n_______________________________________")
+        print("START step:\n We are now inside the START step - Hello World!\n")
+        print("___________________________________________")
         self.next(self.hello)
 
     @step
@@ -24,7 +26,10 @@ class HelloFlow(FlowSpec):
         A step for metaflow to introduce itself.
 
         """
-        print("Metaflow says: Hi!")
+        print("\n\n_______________________________________")
+        print("HELLO step:\n We are now inside the HELLO step!\n")
+        print("METAFLOW says Hi!")
+        print("___________________________________________")
         self.next(self.end)
 
     @step
@@ -34,8 +39,10 @@ class HelloFlow(FlowSpec):
         last step in the flow.
 
         """
+        print("\n\n_______________________________________")
+        print("END step:\n We have reached the END step!\n")
         print("HelloFlow is all done.")
-
+        print("___________________________________________")
 
 if __name__ == '__main__':
     HelloFlow()
