@@ -6,6 +6,9 @@ import platform
 import requests
 import shutil
 import tempfile
+
+from .utils import PluginHelper
+
 try:
     from urlparse import urlparse
 except:
@@ -116,7 +119,7 @@ class CondaStepDecorator(StepDecorator):
                 payload = {
                     'explicit': exact_deps,
                     'deps': [d.decode('ascii') for d in deps],
-                    'urls': urls,
+                    'urls': [PluginHelper.sanitize_conda_package_url(u) for u in urls],
                     'order': order
                 }
             else:
@@ -138,8 +141,9 @@ class CondaStepDecorator(StepDecorator):
         files = []
         to_download = []
         for package_info in self.conda.package_info(env_id):
-            url = urlparse(package_info['url'])
-            path = os.path.join(CONDA_PACKAGE_S3ROOT, 
+            url_sanitized = PluginHelper.sanitize_conda_package_url(package_info["url"])
+            url = urlparse(url_sanitized)
+            path = os.path.join(CONDA_PACKAGE_S3ROOT,
                                 url.netloc,
                                 url.path.lstrip('/'),
                                 package_info['md5'],

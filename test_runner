@@ -10,7 +10,9 @@ install_deps() {
 }
 
 run_tests() {
-  cd test/core && PYTHONPATH=`pwd`/../../ python3 run_tests.py --num-parallel 8
+  cd test/core \
+  && python3 -m unittest discover extra_unit_tests \
+  && PYTHONPATH=`pwd`/../../ python3 run_tests.py --num-parallel 8
 }
 
 install_deps && run_tests
