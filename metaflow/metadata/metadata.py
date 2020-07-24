@@ -4,6 +4,7 @@ import time
 from collections import namedtuple
 from datetime import datetime
 
+from metaflow import current
 from metaflow.exception import MetaflowInternalError
 from metaflow.util import get_username, resolve_identity
 
@@ -439,6 +440,9 @@ class MetadataProvider(object):
             'runtime:' + env['runtime'],
             'python_version:' + env['python_version_code'],
             'date:' + datetime.utcnow().strftime('%Y-%m-%d')]
+        if 'project_name' in current:
+            tags.append('project:' + current.project_name)
+            tags.append('project_branch:' + current.branch_name)
         if env['metaflow_version']:
             tags.append('metaflow_version:' + env['metaflow_version'])
         if 'metaflow_r_version' in env:

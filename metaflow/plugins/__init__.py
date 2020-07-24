@@ -82,11 +82,12 @@ METADATA_PROVIDERS = _merge_lists(
 # Add an entry here if you need a new flow-level annotation. Be
 # careful with the choice of name though - they become top-level
 # imports from the metaflow package.
+from .project_decorators import ProjectDecorator
 from .conda.conda_flow_decorator import CondaFlowDecorator
 from .aws.step_functions.schedule_decorator import ScheduleDecorator
 
 FLOW_DECORATORS = _merge_lists(
-    [CondaFlowDecorator, ScheduleDecorator], ext_plugins.FLOW_DECORATORS, 'name')
+    [CondaFlowDecorator, ProjectDecorator, ScheduleDecorator], ext_plugins.FLOW_DECORATORS, 'name')
 
 # Auth providers
 from .aws.aws_client import get_aws_client

@@ -79,6 +79,7 @@ class FlowFormatter(object):
 
         yield 0, '# -*- coding: utf-8 -*-'
         yield 0, 'from metaflow import FlowSpec, step, Parameter, JSONType'
+        yield 0, 'from metaflow import project'
         yield 0, 'from metaflow_test import assert_equals, '\
                                            'assert_exception, '\
                                            'ExpectationFailed, '\

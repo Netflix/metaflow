@@ -6,10 +6,16 @@ class CurrentSingletonTest(MetaflowTest):
     """
     PRIORITY = 1
 
+    HEADER = "@project(name='current_singleton')"
+
     @steps(0, ['start'])
     def step_start(self):
         from uuid import uuid4
         from metaflow import current
+        self.project_names = {current.project_name}
+        self.branch_names = {current.branch_name}
+        self.project_flow_names = {current.project_flow_name}
+        self.is_production = {current.is_production}
         self.flow_names = {current.flow_name}
         self.run_ids = {current.run_id}
         self.origin_run_ids = {current.origin_run_id}
@@ -28,6 +34,12 @@ class CurrentSingletonTest(MetaflowTest):
         # merge all incoming branches
         # join step needs to reassign all artifacts.
         from itertools import chain
+
+        self.project_names = set(chain(*(i.project_names for i in inputs)))
+        self.branch_names = set(chain(*(i.branch_names for i in inputs)))
+        self.project_flow_names = set(chain(*(i.project_flow_names for i in inputs)))
+        self.is_production = set(chain(*(i.is_production for i in inputs)))
+
         self.flow_names = set(chain(*(i.flow_names for i in inputs)))
         self.run_ids = set(chain(*(i.run_ids for i in inputs)))
         self.origin_run_ids = set(chain(*(i.origin_run_ids for i in inputs)))
@@ -39,6 +51,10 @@ class CurrentSingletonTest(MetaflowTest):
             self.task_data.update(i.task_data)
 
         # add data for the join step
+        self.project_names.add(current.project_name)
+        self.branch_names.add(current.branch_name)
+        self.project_flow_names.add(current.project_flow_name)
+        self.is_production.add(current.is_production)
         self.step_name = current.step_name
         self.flow_names.add(current.flow_name)
         self.run_ids.add(current.run_id)
@@ -54,6 +70,10 @@ class CurrentSingletonTest(MetaflowTest):
         from uuid import uuid4
         from metaflow import current
 
+        self.project_names.add(current.project_name)
+        self.branch_names.add(current.branch_name)
+        self.project_flow_names.add(current.project_flow_name)
+        self.is_production.add(current.is_production)
         self.flow_names.add(current.flow_name)
         self.run_ids.add(current.run_id)
         self.origin_run_ids.add(current.origin_run_id)
@@ -70,6 +90,9 @@ class CurrentSingletonTest(MetaflowTest):
             # very basic sanity check for CLI
             for step in flow:
                 checker.assert_artifact(step.name, 'step_name', step.name)
+                checker.assert_artifact(step.name,
+                                        'project_names',
+                                        {'current_singleton'})
         else:
             from metaflow import Task
             task_data = run.data.task_data
@@ -80,6 +103,11 @@ class CurrentSingletonTest(MetaflowTest):
                     assert_equals(task.data.step_name, step.id)
                     pathspec = '/'.join(task.pathspec.split('/')[-4:])
                     assert_equals(task.data.uuid, task_data[pathspec])
+            assert_equals(run.data.project_names, {'current_singleton'})
+            assert_equals(run.data.branch_names, {'user.tester'})
+            assert_equals(run.data.project_flow_names,\
+                {'current_singleton.user.tester.CurrentSingletonTestFlow'})
+            assert_equals(run.data.is_production, {False})
             assert_equals(run.data.flow_names, {run.parent.id})
             assert_equals(run.data.run_ids, {run.id})
             assert_equals(run.data.origin_run_ids, {None})

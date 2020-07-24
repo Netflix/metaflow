@@ -14,6 +14,8 @@ os.environ['METAFLOW_RUN_NONDEFAULT_PARAM'] = 'False'
 
 def str_func(ctx):
     import os
+    from metaflow import current
+    assert_equals(current.project_name, 'dynamic_parameters_project')
     assert_equals(ctx.parameter_name, 'str_param')
     assert_equals(ctx.flow_name, 'DynamicParameterTestFlow')
     assert_equals(ctx.user_name, os.environ['USER'])
@@ -29,6 +31,8 @@ def str_func(ctx):
 def json_func(ctx):
     import json
     return json.dumps({'a': [8]})
+
+@project(name='dynamic_parameters_project')
 """
 
     @steps(0, ['singleton'], required=True)
