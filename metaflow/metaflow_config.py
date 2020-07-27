@@ -1,9 +1,9 @@
-import os
 import json
 import logging
-import pkg_resources
+import os
 import sys
 
+import pkg_resources
 
 from metaflow.exception import MetaflowException
 
@@ -54,10 +54,10 @@ DATASTORE_SYSROOT_LOCAL = from_conf('METAFLOW_DATASTORE_SYSROOT_LOCAL')
 DATASTORE_SYSROOT_S3 = from_conf('METAFLOW_DATASTORE_SYSROOT_S3')
 # S3 datatools root location
 DATATOOLS_S3ROOT = from_conf(
-    'METAFLOW_DATATOOLS_S3ROOT', 
+    'METAFLOW_DATATOOLS_S3ROOT',
         '%s/data' % from_conf('METAFLOW_DATASTORE_SYSROOT_S3'))
 
-# S3 endpoint url 
+# S3 endpoint url
 S3_ENDPOINT_URL = from_conf('METAFLOW_S3_ENDPOINT_URL', None)
 S3_VERIFY_CERTIFICATE = from_conf('METAFLOW_S3_VERIFY_CERTIFICATE', None)
 
@@ -99,7 +99,7 @@ BATCH_METADATA_SERVICE_HEADERS = METADATA_SERVICE_HEADERS
 ###
 # Conda package root location on S3
 CONDA_PACKAGE_S3ROOT = from_conf(
-    'METAFLOW_CONDA_PACKAGE_S3ROOT', 
+    'METAFLOW_CONDA_PACKAGE_S3ROOT',
         '%s/conda' % from_conf('METAFLOW_DATASTORE_SYSROOT_S3'))
 
 ###
@@ -140,6 +140,8 @@ if AWS_SANDBOX_ENABLED:
 # Decreasing this limit is very unsafe, as it can lead to wrong results
 # being read from old tasks.
 MAX_ATTEMPTS = 6
+
+METAFLOW_AWS_ARN = from_conf('METAFLOW_AWS_ARN', "arn:aws:iam::170606514770:role/dev-zestimate-role")
 
 
 # the naughty, naughty driver.py imported by lib2to3 produces
@@ -198,4 +200,56 @@ def get_authenticated_boto3_client(module, params={}):
             except requests.exceptions.HTTPError as e:
                 raise MetaflowException(repr(e))
         return boto3.session.Session(**cached_aws_sandbox_creds).client(module, **params)
+
+    if METAFLOW_AWS_ARN:
+        import logging
+        from datetime import datetime
+
+        import boto3
+        from botocore.credentials import AssumeRoleCredentialFetcher, DeferredRefreshableCredentials
+        from botocore.session import Session
+        from dateutil.tz import tzlocal
+
+        _logger = logging.getLogger(__name__)
+
+        def get_aws_session(role_arn: str) -> Session:
+            """
+            Args:
+                role_arn: AWS ARN
+            Returns: boto3 Session
+            """
+            source_session = boto3.Session()
+
+            # Use profile to fetch assume role credentials
+            fetcher = AssumeRoleCredentialFetcher(
+                client_creator=source_session._session.create_client,
+                source_credentials=source_session.get_credentials(),
+                role_arn=role_arn,
+            )
+
+            # Create new session with assumed role and auto-refresh
+            botocore_session = Session()
+            botocore_session._credentials = DeferredRefreshableCredentials(
+                method="assume-role",
+                refresh_using=fetcher.fetch_credentials,
+                time_fetcher=lambda: datetime.now(tzlocal()),
+            )
+
+            return botocore_session
+
+        def get_aws_client(role_arn: str, service: str):
+            """
+            Args:s
+                role_arn: AWS ARN
+                service: AWS service, example: "s3"
+
+            Returns: Returns an AWS client
+
+            """
+            botocore_session = get_aws_session(role_arn)
+
+            session = boto3.Session(botocore_session=botocore_session, region_name="us-west-2")
+            return session.client(service)
+
+        return get_aws_client(METAFLOW_AWS_ARN, "s3")
     return boto3.client(module, **params)

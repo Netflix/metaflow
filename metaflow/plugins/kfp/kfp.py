@@ -2,6 +2,7 @@ import kfp
 from kfp import dsl
 
 from .constants import DEFAULT_RUN_NAME, DEFAULT_EXPERIMENT_NAME, DEFAULT_FLOW_CODE_URL, DEFAULT_KFP_YAML_OUTPUT_PATH
+from typing import NamedTuple
 
 def get_ordered_steps(graph):
     """
@@ -28,35 +29,166 @@ def get_ordered_steps(graph):
     return ordered_steps
 
 
-def step_container_op(step_name, code_url=DEFAULT_FLOW_CODE_URL):
+def step_op_func(step_name: str,
+                 code_url: str,
+                 ds_root: str,
+                 run_id: str,
+                 task_id: str,
+                 prev_step_name: str,
+                 prev_task_id: str) -> NamedTuple('StepOutput', [('ds_root', str),
+                                                         ('run_id', str),
+                                                         ('next_step', str),
+                                                         ('next_task_id', str),
+                                                         ('current_step', str),
+                                                         ('current_task_id', str)]
+                                                      ):
     """
-    Method to create a kfp container op that corresponds to a single step in the flow.
+    Function used to create a KFP container op (see: `step_container_op`) that corresponds to a single step in the flow.
 
-    TODO: This does not maintain state. The custom pre-start command used below would be removed once we have state accessible across KFP steps.
-    TODO: The public docker is a copy of the internal docker image we were using (borrowed from aip-kfp-example). Check if any stage here may need to be further modified later.
+    """
+    import subprocess
+    from collections import namedtuple
+
+    print("\n----------RUNNING: CODE DOWNLOAD from URL---------")
+    subprocess.call(["curl -o helloworld.py {}".format(code_url)], shell=True)
+
+    print("\n----------RUNNING: KFP Installation---------------")
+    subprocess.call(["pip3 install kfp"], shell=True) # TODO: Remove this once KFP is added to dependencies
+
+    print("\n----------RUNNING: METAFLOW INSTALLATION----------")
+    subprocess.call(["pip3 install --user --upgrade git+https://github.com/zillow/metaflow.git@state-integ-s3"],
+                    shell=True)
+
+    print("\n----------RUNNING: MAIN STEP COMMAND--------------")
+    S3_BUCKET = "s3://workspace-zillow-analytics-stage/aip/metaflow"
+    S3_AWS_ARN = "arn:aws:iam::170606514770:role/dev-zestimate-role"
+
+    define_s3_env_vars = 'export METAFLOW_DATASTORE_SYSROOT_S3="{}" && export METAFLOW_AWS_ARN="{}" '.format(S3_BUCKET,
+                                                                                                             S3_AWS_ARN)
+    define_username = 'export USERNAME="kfp-user"'
+    python_cmd = "python helloworld.py --datastore s3 --datastore-root {0} step {1} --run-id {2} " \
+                 "--task-id {3} --input-paths {2}/{4}/{5}".format(ds_root, step_name, run_id,
+                                                                  task_id, prev_step_name, prev_task_id)
+    final_run_cmd = f'{define_username} && {define_s3_env_vars} && {python_cmd}'
+
+    print("RUNNING COMMAND: ", final_run_cmd)
+    proc = subprocess.run(final_run_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+    proc_output = proc.stdout
+    proc_error = proc.stderr
+
+    step_output = namedtuple('StepOutput',
+                             ['ds_root', 'run_id', 'next_step', 'next_task_id', 'current_step', 'current_task_id'])
+
+    # END is the final step and no outputs need to be returned
+    if step_name.lower() == 'end':
+        print("_______________ FLOW RUN COMPLETE ________________")
+        return step_output('None', 'None', 'None', 'None', 'None', 'None')
+
+    # TODO: Check why MF echo statements are getting redirected to stderr
+    if len(proc_error) > 1:
+        print("_______________STDERR:_____________________________")
+        print(proc_error)
+
+    if len(proc_output) > 1:
+        print("_______________STDOUT:_____________________________")
+        print(proc_output)
+        # Read in the outputs (in the penultimate line) containing args needed for the next step.
+        # Note: Output format is: ['ds_root', 'run_id', 'next_step', 'next_task_id', 'current_step', 'current_task_id']
+        outputs = (proc_output.split("\n")[-2]).split()
+        print(step_output(outputs[0], outputs[1], outputs[2], outputs[3], outputs[4], outputs[5]))
+    else:
+        raise RuntimeWarning("This step did not generate the correct args for next step to run. This might disrupt "
+                             "the workflow")
+
+    # TODO: Metadata needed for client API to run needs to be persisted outside before this
+    print("--------------- RUNNING: CLEANUP OF TEMP DIR----------")
+    subprocess.call(["rm -r /opt/zillow/.metaflow"], shell=True)
+
+    print("_______________ Done _________________________________")
+    return step_output(outputs[0], outputs[1], outputs[2], outputs[3], outputs[4], outputs[5])
+
+def pre_start_op_func(code_url)  -> NamedTuple('StepOutput', [('ds_root', str), ('run_id', str), ('next_step', str), ('next_task_id', str), ('current_step', str), ('current_task_id', str)]):
+    """
+    Function used to create a KFP container op (see `pre_start_container_op`)that corresponds to the `pre-start` step of metaflow
+
     """
 
-    python_cmd = """ "python helloworld.py --datastore-root ", $1, " step {} --run-id ", $2, " --task-id ", $4, " --input-paths", $2"/"$5"/"$6 """.format(
-        step_name)
-    command_inside_awk = """ {{ print {0} }}""".format(python_cmd)
-    final_run_cmd = """ python helloworld.py pre-start | awk 'END{}' | sh """.format(command_inside_awk)
+    import subprocess
+    from collections import namedtuple
 
-    return dsl.ContainerOp(
+    print("\n----------RUNNING: CODE DOWNLOAD from URL---------")
+    subprocess.call(["curl -o helloworld.py {}".format(code_url)], shell=True)
 
-        name='StepRunner-{}'.format(step_name),
-        image='ssreejith3/mf_on_kfp:python-curl-git',
-        command= ['sh', '-c'],
-        arguments=[
-            'curl -o helloworld.py {}' \
-            ' && pip install git+https://github.com/zillow/metaflow.git@c722fceffa3011ecab68ce319cff98107cc49532' \
-            ' && export USERNAME="kfp-user" ' \
-            ' && {}'.format(code_url, final_run_cmd)
-            ])
+    print("\n----------RUNNING: KFP Installation---------------")
+    subprocess.call(["pip3 install kfp"], shell=True) # TODO: Remove this once KFP is added to dependencies
+
+    print("\n----------RUNNING: METAFLOW INSTALLATION----------")
+    subprocess.call(["pip3 install --user --upgrade git+https://github.com/zillow/metaflow.git@state-integ-s3"],
+                    shell=True)
+
+    print("\n----------RUNNING: MAIN STEP COMMAND--------------")
+    S3_BUCKET = "s3://workspace-zillow-analytics-stage/aip/metaflow"
+    S3_AWS_ARN = "arn:aws:iam::170606514770:role/dev-zestimate-role"
+
+    define_s3_env_vars = 'export METAFLOW_DATASTORE_SYSROOT_S3="{}" && export METAFLOW_AWS_ARN="{}" '.format(S3_BUCKET,
+                                                                                                          S3_AWS_ARN)
+    define_username = 'export USERNAME="kfp-user"'
+    python_cmd = 'python helloworld.py --datastore="s3" --datastore-root="{}" pre-start'.format(S3_BUCKET)
+    final_run_cmd = f'{define_username} && {define_s3_env_vars} && {python_cmd}'
+
+    print("RUNNING COMMAND: ", final_run_cmd)
+    proc = subprocess.run(final_run_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+    proc_output = proc.stdout
+    proc_error = proc.stderr
+
+    step_output = namedtuple('StepOutput',
+                             ['ds_root', 'run_id', 'next_step', 'next_task_id', 'current_step', 'current_task_id'])
+
+    # TODO: Check why MF echo statements are getting redirected to stderr
+    if len(proc_error) > 1:
+        print("_____________ STDERR:_____________________________")
+        print(proc_error)
+
+    if len(proc_output) > 1:
+        print("______________ STDOUT:____________________________")
+        print(proc_output)
+        # Read in the outputs (in the penultimate line) containing args needed for the next step.
+        # Note: Output format is: ['ds_root', 'run_id', 'next_step', 'next_task_id', 'current_step', 'current_task_id']
+        outputs = (proc_output.split("\n")[-2]).split() # this contains the args needed for next step to run
+    else:
+        raise RuntimeWarning("This step did not generate the correct args for next step to run. This might disrupt the workflow")
+
+    # TODO: Metadata needed for client API to run needs to be persisted outside before this
+    print("--------------- RUNNING: CLEANUP OF TEMP DIR----------")
+    subprocess.call(["rm -r /opt/zillow/.metaflow"], shell=True)
+
+    print("_______________ Done __________________________")
+    return step_output(outputs[0], outputs[1], outputs[2], outputs[3], outputs[4], outputs[5])
+
+def step_container_op():
+    """
+    Container op that corresponds to a step defined in the Metaflow flowgraph.
+
+    Note: The public docker image is a copy of the internal docker image we were using (borrowed from aip-kfp-example).
+    """
+
+    step_op =  kfp.components.func_to_container_op(step_op_func, base_image='ssreejith3/mf_on_kfp:python-curl-git')
+    return step_op
+
+def pre_start_container_op():
+    """
+    Container op that corresponds to the 'pre-start' step of Metaflow.
+
+    Note: The public docker image is a copy of the internal docker image we were using (borrowed from aip-kfp-example).
+    """
+
+    pre_start_op = kfp.components.func_to_container_op(pre_start_op_func, base_image='ssreejith3/mf_on_kfp:python-curl-git')
+    return pre_start_op
 
 
 def create_flow_pipeline(ordered_steps, flow_code_url=DEFAULT_FLOW_CODE_URL):
     """
-    Function that creates the KFP flow pipeline and returns the path to the YAML file containing the pipeline specification.
+    Function used to create the KFP flow pipeline. Return the function defining the KFP equivalent of the flow
     """
 
     steps = ordered_steps
@@ -74,16 +206,25 @@ def create_flow_pipeline(ordered_steps, flow_code_url=DEFAULT_FLOW_CODE_URL):
         by invoking `step_container_op` for every step in the flow and handling the order of steps.
         """
 
-        # Store the list of steps in reverse order
-        step_container_ops = [step_container_op(step, code_url) for step in reversed(steps)]
+        step_container_ops = []
+        pre_start_op = (pre_start_container_op())(code_url)
+        step_container_ops.append(pre_start_op)
 
-        # Each step in the list can only be executed after the next step in the list, i.e., list[-1] is executed first, followed
-        # by list[-2] and so on.
-        for i in range(len(steps) - 1):
-            step_container_ops[i].after(step_container_ops[i + 1])
+        for step in steps:
+            prev_step_outputs = step_container_ops[-1].outputs
+            step_container_ops.append(
+                (step_container_op())(step, code_url,
+                      prev_step_outputs['ds_root'],
+                      prev_step_outputs['run_id'],
+                      prev_step_outputs['next_task_id'],
+                      prev_step_outputs['current_step'],
+                      prev_step_outputs['current_task_id']
+                      )
+                )
+            step_container_ops[-1].set_display_name(step)
+            step_container_ops[-1].after(step_container_ops[-2])
 
     return kfp_pipeline_from_flow
-
 
 def create_run_on_kfp(flowgraph, code_url, experiment_name, run_name):
     """

@@ -18,6 +18,7 @@ class HelloFlow(FlowSpec):
         print("\n\n_______________________________________")
         print("START step:\n We are now inside the START step - Hello World!\n")
         print("___________________________________________")
+        self.x = 100
         self.next(self.hello)
 
     @step
@@ -29,6 +30,7 @@ class HelloFlow(FlowSpec):
         print("\n\n_______________________________________")
         print("HELLO step:\n We are now inside the HELLO step!\n")
         print("METAFLOW says Hi!")
+        print("Metaflow on KFP: Reading state...\nself.x = ", self.x)
         print("___________________________________________")
         self.next(self.end)
 

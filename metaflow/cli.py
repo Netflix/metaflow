@@ -678,7 +678,6 @@ def pre_start(obj,
     # OUTPUT FORMAT: ($1)datastore_root location \t ($2)run_id \t ($3)next_step_to_run \t ($4)task_id(of next step) \t ($5)current step \t ($6)task_id(of current step)
     print("{0}\t{1}\tstart\t1\t_parameters\t0".format(obj.datastore.datastore_root, runtime.run_id))
 
-
 @cli.command(help='Create a run on KF pipelines. This method converts the MF flow to a KFP run and outputs a link to the KFP run. '
                   'Note: This command will not work as expected if your local environment is not configured to '
                    'connect to a KFP cluster')
@@ -882,6 +881,8 @@ def start(ctx,
                                                   ctx.obj.monitor)
     ctx.obj.datastore = DATASTORES[datastore]
     ctx.obj.datastore_root = datastore_root
+
+    echo("Datastore: {0}\nDatastoreRoot:{1}".format(ctx.obj.datastore, ctx.obj.datastore_root))
 
     current._set_env(flow_name=ctx.obj.flow.name, is_running=False)
     if ctx.invoked_subcommand not in ('run', 'resume'):
