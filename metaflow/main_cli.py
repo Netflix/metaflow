@@ -474,7 +474,7 @@ def aws(ctx, profile):
         env['METAFLOW_DATASTORE_SYSROOT_S3'] =\
             click.prompt(cyan('[METAFLOW_DATASTORE_SYSROOT_S3]') + 
                          ' Amazon S3 folder for Metaflow artifact storage ' +
-                         '(s3://<bucket>/<prefix>)',
+                         '(s3://<bucket>/<prefix>).',
                          default=\
                             existing_env.get('METAFLOW_DATASTORE_SYSROOT_S3'),
                          show_default=True)
@@ -483,7 +483,7 @@ def aws(ctx, profile):
                 click.prompt(cyan('[METAFLOW_DATATOOLS_SYSROOT_S3]') + 
                              yellow(' (optional)') + 
                              ' Amazon S3 folder for Metaflow datatools ' +
-                             '(s3://<bucket>/<prefix>)',
+                             '(s3://<bucket>/<prefix>).',
                              default=\
                                 existing_env.get('METAFLOW_DATATOOLS_SYSROOT_S3',
                                     os.path.join(
@@ -543,7 +543,7 @@ def aws(ctx, profile):
                              yellow('schedule your flows on AWS Step '
                                     'Functions') + 
                              ' and trigger them at a specific cadence using '
-                             'AWS Events Bridge.\nTo support flows involving '
+                             'Amazon EventBridge.\nTo support flows involving '
                              'foreach steps, you would need access to AWS '
                              'DynamoDB.\nWould you like to configure AWS Step '
                              'Functions for scheduling?',
@@ -562,7 +562,7 @@ def aws(ctx, profile):
                 # Configure IAM role for AWS Events Bridge.
                 env['METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE'] =\
                         click.prompt(cyan('[METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE]') + 
-                                     ' IAM role for AWS Events Bridge to ' +
+                                     ' IAM role for Amazon EventBridge to ' +
                                      'access AWS Step Functions.',
                                      default=\
                                         existing_env.get('METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE'),
@@ -570,7 +570,7 @@ def aws(ctx, profile):
                 # Configure AWS DynamoDB Table for AWS Step Functions.
                 env['METAFLOW_SFN_DYNAMO_DB_TABLE'] =\
                         click.prompt(cyan('[METAFLOW_SFN_DYNAMO_DB_TABLE]') + 
-                                    ' AWS DynamoDB Table Name for tracking '+
+                                    ' AWS DynamoDB table name for tracking '+
                                     'AWS Step Functions execution metadata.',
                                      default=\
                                         existing_env.get('METAFLOW_SFN_DYNAMO_DB_TABLE'),
@@ -593,14 +593,14 @@ def aws(ctx, profile):
         # Set URL for the Metadata Service.
         env['METAFLOW_SERVICE_URL'] =\
                 click.prompt(cyan('[METAFLOW_SERVICE_URL]') +
-                             ' URL for Metadata Service.',
+                             ' URL for Metaflow Service.',
                              default=existing_env.get('METAFLOW_SERVICE_URL'),
                              show_default=True)
         # Set internal URL for the Metadata Service.
         env['METAFLOW_SERVICE_INTERNAL_URL'] =\
                 click.prompt(cyan('[METAFLOW_SERVICE_INTERNAL_URL]') +
                              yellow(' (optional)') +
-                             ' URL for Metadata Service ' +
+                             ' URL for Metaflow Service ' +
                              '(Accessible only within VPC).',
                              default=\
                                 existing_env.get('METAFLOW_SERVICE_INTERNAL_URL',
@@ -610,7 +610,7 @@ def aws(ctx, profile):
         env['METAFLOW_SERVICE_AUTH_KEY'] =\
                 click.prompt(cyan('[METAFLOW_SERVICE_AUTH_KEY]') + 
                              yellow(' (optional)') +
-                             ' Auth Key for Metadata Service.',
+                             ' Auth Key for Metaflow Service.',
                              default=\
                                 existing_env.get('METAFLOW_SERVICE_AUTH_KEY', ''),
                              show_default=True)

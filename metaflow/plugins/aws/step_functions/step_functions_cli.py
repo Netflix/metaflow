@@ -17,7 +17,7 @@ class IncorrectProductionToken(MetaflowException):
     headline = "Incorrect production token"
 
 class IncorrectMetadataServiceVersion(MetaflowException):
-    headline = "Incorrect version for metadata service"
+    headline = "Incorrect version for metaflow service"
 
 @click.group()
 def cli():
@@ -125,15 +125,16 @@ def check_metadata_service_version(obj):
         return
     else:
         obj.echo("")
-        obj.echo("You are running a version of the metadata service "
+        obj.echo("You are running a version of the metaflow service "
                  "that currently doesn't support AWS Step Functions. ")
         obj.echo("For more information on how to upgrade your "
                  "service to a compatible version (>= 2.0.2), visit:")
-        obj.echo("    [url]", fg='green')
+        obj.echo("    https://admin-docs.metaflow.org/metaflow-on-aws/operation"
+                 "s-guide/metaflow-service-migration-guide", fg='green')
         obj.echo("Once you have upgraded your metadata service, please "
                  "re-execute your command.")
         raise IncorrectMetadataServiceVersion("Try again with a more recent "
-                                               "version of metadata service "
+                                               "version of metaflow service "
                                                "(>=2.0.2).")
 
 def state_machine_name(name):

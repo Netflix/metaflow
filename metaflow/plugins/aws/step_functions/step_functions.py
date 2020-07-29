@@ -86,9 +86,12 @@ class StepFunctions(object):
             raise StepFunctionsException("No IAM role found for AWS Step "
                                          "Functions. You can create one "
                                          "following the instructions listed at "
-                                         "[url] and re-configure Metaflow "
-                                         "using *metaflow configure aws* on "
-                                         "your terminal.")
+                                         "*https://admin-docs.metaflow.org/meta"
+                                         "flow-on-aws/deployment-guide/manual-d"
+                                         "eployment#scheduling* and "
+                                         "re-configure Metaflow using "
+                                         "*metaflow configure aws* on your "
+                                         "terminal.")
         try:
             self._state_machine_arn = self._client.push(
                     name = self.name, 
@@ -105,10 +108,13 @@ class StepFunctions(object):
                                                    "Events Bridge. You can "
                                                    "create one following the "
                                                    "instructions listed at "
-                                                   "[url] and re-configure "
-                                                   "Metaflow using *metaflow "
-                                                   "configure aws* on your "
-                                                   "terminal.")
+                                                   "*https://admin-docs.metaflo"
+                                                   "w.org/metaflow-on-aws/deplo"
+                                                   "yment-guide/manual-deployme"
+                                                   "nt#scheduling* and "
+                                                   "re-configure Metaflow "
+                                                   "using *metaflow configure "
+                                                   "aws* on your terminal.")
         try:
             EventBridgeClient(self.name) \
                 .cron(self._cron) \
@@ -538,7 +544,10 @@ class StepFunctions(object):
                 raise StepFunctionsException("An AWS DynamoDB table is needed "
                                              "to support foreach in your flow. "
                                              "You can create one following the "
-                                             "instructions listed at [url] and "
+                                             "instructions listed at *https://a"
+                                             "dmin-docs.metaflow.org/metaflow-o"
+                                             "n-aws/deployment-guide/manual-dep"
+                                             "loyment#scheduling* and "
                                              "re-configure Metaflow using "
                                              "*metaflow configure aws* on your "
                                              "terminal.")
