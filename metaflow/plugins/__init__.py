@@ -8,9 +8,11 @@ def get_plugin_cli():
     # Add new CLI commands in this list
     from . import package_cli
     from .aws.batch import batch_cli
+    from .aws.step_functions import step_functions_cli
 
     return [package_cli.cli,
-            batch_cli.cli]
+            batch_cli.cli,
+            step_functions_cli.cli]
 
 # Add new decorators in this list
 from .catch_decorator import CatchDecorator
@@ -18,6 +20,7 @@ from .timeout_decorator import TimeoutDecorator
 from .environment_decorator import EnvironmentDecorator
 from .retry_decorator import RetryDecorator
 from .aws.batch.batch_decorator import BatchDecorator, ResourcesDecorator
+from .aws.step_functions.step_functions_decorator import StepFunctionsInternalDecorator
 from .conda.conda_step_decorator import CondaStepDecorator
 
 STEP_DECORATORS = [CatchDecorator,
@@ -26,6 +29,7 @@ STEP_DECORATORS = [CatchDecorator,
                    ResourcesDecorator,
                    RetryDecorator,
                    BatchDecorator,
+                   StepFunctionsInternalDecorator,
                    CondaStepDecorator]
 
 # Add Conda environment
@@ -38,7 +42,8 @@ ENVIRONMENTS = [CondaEnvironment]
 # careful with the choice of name though - they become top-level
 # imports from the metaflow package.
 from .conda.conda_flow_decorator import CondaFlowDecorator
-FLOW_DECORATORS = [CondaFlowDecorator]
+from .aws.step_functions.schedule_decorator import ScheduleDecorator
+FLOW_DECORATORS = [CondaFlowDecorator, ScheduleDecorator]
 
 # Sidecars
 SIDECAR = {}

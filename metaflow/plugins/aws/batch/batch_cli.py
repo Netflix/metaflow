@@ -32,25 +32,25 @@ def cli():
     pass
 
 
-@cli.group(help="Commands related to Batch.")
+@cli.group(help="Commands related to AWS Batch.")
 def batch():
     pass
 
 
 def _execute_cmd(func, flow_name, run_id, user, my_runs, echo):
     if user and my_runs:
-        raise CommandException("--user and --my-runs are mutually exclusive")
+        raise CommandException("--user and --my-runs are mutually exclusive.")
 
     if run_id and my_runs:
-        raise CommandException("--run_id and --my-runs are mutually exclusive")
+        raise CommandException("--run_id and --my-runs are mutually exclusive.")
 
     if my_runs:
         user = util.get_username()
 
-    latest_run = False
+    latest_run = True
 
     if user and not run_id:
-        latest_run = True
+        latest_run = False
 
     if not run_id and latest_run:
         run_id = util.get_latest_run_id(echo, flow_name)
@@ -87,12 +87,14 @@ def _sync_metadata(echo, metadata, datastore_root, attempt):
         except err as e:  # noqa F841
             pass
 
-@batch.command(help="List running Batch tasks of this flow")
-@click.option(
-    "--my-runs", default=False, is_flag=True, help="Run the command over all tasks."
-)
-@click.option("--user", default=None, help="List tasks for the given user.")
-@click.option("--run-id", default=None, help="List tasks corresponding to the run id.")
+
+@batch.command(help="List unfinished AWS Batch tasks of this flow")
+@click.option("--my-runs", default=False, is_flag=True,
+    help="List all my unfinished tasks.")
+@click.option("--user", default=None,
+    help="List unfinished tasks for the given user.")
+@click.option("--run-id", default=None,
+    help="List unfinished tasks corresponding to the run id.")
 @click.pass_context
 def list(ctx, run_id, user, my_runs):
     batch = Batch(ctx.obj.metadata, ctx.obj.environment)
@@ -101,12 +103,13 @@ def list(ctx, run_id, user, my_runs):
     )
 
 
-@batch.command(help="Terminate running Batch tasks of this flow.")
-@click.option("--my-runs", default=False, is_flag=True, help="Kill all running tasks.")
-@click.option("--user", default=None, help="List tasks for the given user.")
-@click.option(
-    "--run-id", default=None, help="Terminate tasks corresponding to the run id."
-)
+@batch.command(help="Terminate unfinished AWS Batch tasks of this flow.")
+@click.option("--my-runs", default=False, is_flag=True,
+    help="Kill all my unfinished tasks.")
+@click.option("--user", default=None,
+    help="Terminate unfinished tasks for the given user.")
+@click.option("--run-id", default=None,
+    help="Terminate unfinished tasks corresponding to the run id.")
 @click.pass_context
 def kill(ctx, run_id, user, my_runs):
     batch = Batch(ctx.obj.metadata, ctx.obj.environment)
@@ -116,8 +119,8 @@ def kill(ctx, run_id, user, my_runs):
 
 
 @batch.command(
-    help="Execute a single task using Batch. This command "
-    "calls the top-level step command inside a Batch "
+    help="Execute a single task using AWS Batch. This command "
+    "calls the top-level step command inside a AWS Batch "
     "job with the given options. Typically you do not "
     "call this command directly; it is used internally "
     "by Metaflow."
@@ -125,17 +128,17 @@ def kill(ctx, run_id, user, my_runs):
 @click.argument("step-name")
 @click.argument("code-package-sha")
 @click.argument("code-package-url")
-@click.option("--executable", help="Executable requirement for Batch.")
+@click.option("--executable", help="Executable requirement for AWS Batch.")
 @click.option(
-    "--image", help="Docker image requirement for Batch. In name:version format."
+    "--image", help="Docker image requirement for AWS Batch. In name:version format."
 )
 @click.option(
-    "--iam_role", help="IAM role requirement for Batch"
+    "--iam_role", help="IAM role requirement for AWS Batch"
 )
-@click.option("--cpu", help="CPU requirement for Batch.")
-@click.option("--gpu", help="GPU requirement for Batch.")
-@click.option("--memory", help="Memory requirement for Batch.")
-@click.option("--queue", help="Job execution queue for Batch.")
+@click.option("--cpu", help="CPU requirement for AWS Batch.")
+@click.option("--gpu", help="GPU requirement for AWS Batch.")
+@click.option("--memory", help="Memory requirement for AWS Batch.")
+@click.option("--queue", help="Job execution queue for AWS Batch.")
 @click.option("--run-id", help="Passed to the top-level 'step'.")
 @click.option("--task-id", help="Passed to the top-level 'step'.")
 @click.option("--input-paths", help="Passed to the top-level 'step'.")
@@ -153,7 +156,7 @@ def kill(ctx, run_id, user, my_runs):
 @click.option(
     "--run-time-limit",
     default=5 * 24 * 60 * 60,
-    help="Run time limit in seconds for the Batch job. " "Default is 5 days.",
+    help="Run time limit in seconds for the AWS Batch job. " "Default is 5 days.",
 )
 @click.pass_context
 def step(
@@ -235,7 +238,7 @@ def step(
 
     if retry_count:
         ctx.obj.echo_always(
-            "Sleeping %d minutes before the next Batch retry" % minutes_between_retries
+            "Sleeping %d minutes before the next AWS Batch retry" % minutes_between_retries
         )
         time.sleep(minutes_between_retries * 60)
     batch = Batch(ctx.obj.metadata, ctx.obj.environment)

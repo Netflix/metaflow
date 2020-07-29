@@ -10,6 +10,7 @@ from metaflow.datastore.util.s3util import get_s3_client
 from metaflow.decorators import StepDecorator
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
+from metaflow.metadata import MetaDatum
 
 from metaflow import util
 
@@ -28,11 +29,9 @@ except:  # noqa E722
 class ResourcesDecorator(StepDecorator):
     """
     Step decorator to specify the resources needed when executing this step.
-
     This decorator passes this information along to Batch when requesting resources
     to execute this step.
     This decorator is ignored if the execution of the step does not happen on Batch.
-
     To use, annotate your step as follows:
     ```
     @resources(cpu=32)
@@ -40,7 +39,6 @@ class ResourcesDecorator(StepDecorator):
     def myStep(self):
         ...
     ```
-
     Parameters
     ----------
     cpu : int
@@ -60,12 +58,10 @@ class ResourcesDecorator(StepDecorator):
 class BatchDecorator(StepDecorator):
     """
     Step decorator to specify that this step should execute on Batch.
-
     This decorator indicates that your step should execute on Batch. Note that you can
     apply this decorator automatically to all steps using the ```--with batch``` argument
     when calling run. Step level decorators are overrides and will force a step to execute
     on Batch regardless of the ```--with``` specification.
-
     To use, annotate your step as follows:
     ```
     @batch
@@ -73,7 +69,6 @@ class BatchDecorator(StepDecorator):
     def myStep(self):
         ...
     ```
-
     Parameters
     ----------
     cpu : int
@@ -110,6 +105,7 @@ class BatchDecorator(StepDecorator):
 
     def __init__(self, attributes=None, statically_defined=False):
         super(BatchDecorator, self).__init__(attributes, statically_defined)
+
         if not self.attributes['image']:
             if BATCH_CONTAINER_IMAGE:
                 self.attributes['image'] = BATCH_CONTAINER_IMAGE
@@ -136,6 +132,9 @@ class BatchDecorator(StepDecorator):
                     if not (my_val is None and v is None):
                         self.attributes[k] = str(max(int(my_val or 0), int(v or 0)))
         self.run_time_limit = get_run_time_limit_for_task(decos)
+        if self.run_time_limit < 60:
+            raise BatchException('The timeout for step *{step}* should be at '
+                'least 60 seconds for execution on AWS Batch'.format(step=step))
 
     def runtime_init(self, flow, graph, package, run_id):
         self.flow = flow
@@ -159,12 +158,28 @@ class BatchDecorator(StepDecorator):
             cli_args.command_options['run-time-limit'] = self.run_time_limit
             cli_args.entrypoint[0] = sys.executable
 
-    def task_pre_step(
-            self, step_name, ds, meta, run_id, task_id, flow, graph, retry_count, max_retries):
-        if meta.TYPE == 'local':
+    def task_pre_step(self,
+                      step_name,
+                      ds,
+                      metadata,
+                      run_id,
+                      task_id,
+                      flow,
+                      graph,
+                      retry_count,
+                      max_retries):
+        if metadata.TYPE == 'local':
             self.ds_root = ds.root
         else:
             self.ds_root = None
+        meta = {}
+        meta['aws-batch-job-id'] = os.environ['AWS_BATCH_JOB_ID']
+        meta['aws-batch-job-attempt'] = os.environ['AWS_BATCH_JOB_ATTEMPT']
+        meta['aws-batch-ce-name'] = os.environ['AWS_BATCH_CE_NAME']
+        meta['aws-batch-jq-name'] = os.environ['AWS_BATCH_JQ_NAME']    
+        entries = [MetaDatum(field=k, value=v, type=k) for k, v in meta.items()]
+        # Register book-keeping metadata for debugging.
+        metadata.register_metadata(run_id, step_name, task_id, entries)
 
     def task_finished(self, step_name, flow, graph, is_task_ok, retry_count, max_retries):
         if self.ds_root:
