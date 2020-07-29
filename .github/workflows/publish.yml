@@ -74,9 +74,9 @@ jobs:
       if: matrix.lang == 'R'
       run: cd R/tests; Rscript testthat.R
 
-    - name: Run canary tests
+    - name: Run tutorials tests
       if: matrix.lang == 'R'
-      run: cd R/tests/canaries; bash run_canaries.sh
+      run: cd R/tests; bash test_tutorials.sh
 
     - name: Run integration tests
       if: matrix.lang == 'R'
