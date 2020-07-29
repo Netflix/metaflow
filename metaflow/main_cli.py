@@ -276,7 +276,8 @@ def overwrite_config(profile):
     if os.path.exists(path):
         if not click.confirm(
             click.style('We found an existing configuration for your ' +
-                        'profile. Would you like to overwrite it?', fg='red', bold=True)):
+                        'profile. Do you want to modify the existing ' +
+                        'configuration?', fg='red', bold=True)):
             echo('You can configure a different named profile by using the '
                  '--profile argument. You can activate this profile by setting '
                  'the environment variable METAFLOW_PROFILE to the named '
@@ -457,17 +458,19 @@ def aws(ctx, profile):
     env = {}
 
     # Configure Amazon S3 as the datastore.
-    if click.confirm('\nMetaflow can use ' +
-                     yellow('Amazon S3 as the storage backend') +
-                     ' for all code and data artifacts on AWS.\nAmazon S3 is a '
-                     'strict requirement if you intend to execute your flows '
-                     'on AWS Batch and/or schedule them on AWS Step Functions.'
-                     '\nWould you like to configure Amazon S3 as the default '
-                     'storage backend?',
-                     default=empty_profile or \
-                        existing_env.get('METAFLOW_DEFAULT_DATASTORE', '') ==\
-                            's3',
-                     abort=False):
+    use_s3_as_datastore = click.confirm('\nMetaflow can use ' +
+                            yellow('Amazon S3 as the storage backend') +
+                            ' for all code and data artifacts on ' +
+                            'AWS.\nAmazon S3 is a strict requirement if you ' +
+                            'intend to execute your flows on AWS Batch ' +
+                            'and/or schedule them on AWS Step ' +
+                            'Functions.\nWould you like to configure Amazon ' +
+                            'S3 as the default storage backend?',
+                            default=empty_profile or \
+                            existing_env.get(
+                                'METAFLOW_DEFAULT_DATASTORE', '') == 's3',
+                            abort=False)
+    if use_s3_as_datastore:
         # Set Amazon S3 as default datastore.
         env['METAFLOW_DEFAULT_DATASTORE'] = 's3'
         # Set Amazon S3 folder for datastore.
@@ -491,7 +494,47 @@ def aws(ctx, profile):
                                             'data')),
                              show_default=True)
 
-        # Configure AWS Batch for compute.
+    # Configure Metadata service for tracking.
+    if click.confirm('\nMetaflow can use a ' +
+                     yellow('remote Metadata Service to track') + 
+                     ' and persist flow execution metadata.\nConfiguring the '
+                     'service is a requirement if you intend to schedule your '
+                     'flows with AWS Step Functions.\nWould you like to '
+                     'configure the Metadata Service?',
+                     default=empty_profile or\
+                        existing_env.get('METAFLOW_DEFAULT_METADATA', '') ==\
+                            'service' or\
+                        'METAFLOW_SFN_IAM_ROLE' in env,
+                     abort=False):
+        # Set Metadata Service as default.
+        env['METAFLOW_DEFAULT_METADATA'] = 'service'
+        # Set URL for the Metadata Service.
+        env['METAFLOW_SERVICE_URL'] =\
+                click.prompt(cyan('[METAFLOW_SERVICE_URL]') +
+                             ' URL for Metaflow Service.',
+                             default=existing_env.get('METAFLOW_SERVICE_URL'),
+                             show_default=True)
+        # Set internal URL for the Metadata Service.
+        env['METAFLOW_SERVICE_INTERNAL_URL'] =\
+                click.prompt(cyan('[METAFLOW_SERVICE_INTERNAL_URL]') +
+                             yellow(' (optional)') +
+                             ' URL for Metaflow Service ' +
+                             '(Accessible only within VPC).',
+                             default=\
+                                existing_env.get('METAFLOW_SERVICE_INTERNAL_URL',
+                                    env['METAFLOW_SERVICE_URL']),
+                             show_default=True)
+        # Set Auth Key for the Metadata Service.
+        env['METAFLOW_SERVICE_AUTH_KEY'] =\
+                click.prompt(cyan('[METAFLOW_SERVICE_AUTH_KEY]') + 
+                             yellow(' (optional)') +
+                             ' Auth Key for Metaflow Service.',
+                             default=\
+                                existing_env.get('METAFLOW_SERVICE_AUTH_KEY', ''),
+                             show_default=True)
+
+    # Configure AWS Batch for compute.
+    if use_s3_as_datastore:
         if click.confirm('\nMetaflow can scale your flows by ' +
                          yellow('executing your steps on AWS Batch') + 
                          '.\nAWS Batch is a strict requirement if you intend '
@@ -575,43 +618,4 @@ def aws(ctx, profile):
                                      default=\
                                         existing_env.get('METAFLOW_SFN_DYNAMO_DB_TABLE'),
                                      show_default=True)
-
-    # Configure Metadata service for tracking.
-    if click.confirm('\nMetaflow can use a ' +
-                     yellow('remote Metadata Service to track') + 
-                     ' and persist flow execution metadata.\nConfiguring the '
-                     'service is a requirement if you intend to schedule your '
-                     'flows with AWS Step Functions.\nWould you like to '
-                     'configure the Metadata Service?',
-                     default=empty_profile or\
-                        existing_env.get('METAFLOW_DEFAULT_METADATA', '') ==\
-                            'service' or\
-                        'METAFLOW_SFN_IAM_ROLE' in env,
-                     abort=False):
-        # Set Metadata Service as default.
-        env['METAFLOW_DEFAULT_METADATA'] = 'service'
-        # Set URL for the Metadata Service.
-        env['METAFLOW_SERVICE_URL'] =\
-                click.prompt(cyan('[METAFLOW_SERVICE_URL]') +
-                             ' URL for Metaflow Service.',
-                             default=existing_env.get('METAFLOW_SERVICE_URL'),
-                             show_default=True)
-        # Set internal URL for the Metadata Service.
-        env['METAFLOW_SERVICE_INTERNAL_URL'] =\
-                click.prompt(cyan('[METAFLOW_SERVICE_INTERNAL_URL]') +
-                             yellow(' (optional)') +
-                             ' URL for Metaflow Service ' +
-                             '(Accessible only within VPC).',
-                             default=\
-                                existing_env.get('METAFLOW_SERVICE_INTERNAL_URL',
-                                    env['METAFLOW_SERVICE_URL']),
-                             show_default=True)
-        # Set Auth Key for the Metadata Service.
-        env['METAFLOW_SERVICE_AUTH_KEY'] =\
-                click.prompt(cyan('[METAFLOW_SERVICE_AUTH_KEY]') + 
-                             yellow(' (optional)') +
-                             ' Auth Key for Metaflow Service.',
-                             default=\
-                                existing_env.get('METAFLOW_SERVICE_AUTH_KEY', ''),
-                             show_default=True)
     persist_env({k: v for k, v in env.items() if v}, profile)
