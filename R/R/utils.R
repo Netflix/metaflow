@@ -280,7 +280,10 @@ test <- function() {
 #' @export
 install <- function() {
   system("python3 -m pip install git+https://github.com/Netflix/metaflow.git@R-dev --user")
-  system("python3 -m pip install 'numpy>=1.18.4' --user")
+  # numpy is needed to handle native R matrix
+  system("python3 -m pip install numpy --user")
+  # pandas is needed to handle native R data.frame
+  system("python3 -m pip install pandas --user")
 
   metaflow_load()
   metaflow_attach()
