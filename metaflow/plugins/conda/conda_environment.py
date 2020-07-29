@@ -99,3 +99,12 @@ class CondaEnvironment(MetaflowEnvironment):
             'explicit': info[env_id]['explicit'],
             'deps': info[env_id]['deps']}
         return new_info
+
+    def get_environment_info(self):
+        # We want to simply wrap the default environment, not necessarily the base class
+        # environment so we specifically call that one
+        from ...plugins import ENVIRONMENTS
+        from metaflow.metaflow_config import DEFAULT_ENVIRONMENT
+        base_env = [e for e in ENVIRONMENTS + [MetaflowEnvironment]
+            if e.TYPE == DEFAULT_ENVIRONMENT][0](self.flow)
+        return base_env.get_environment_info()
