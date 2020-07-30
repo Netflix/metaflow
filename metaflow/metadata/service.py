@@ -200,7 +200,7 @@ class ServiceMetadataProvider(MetadataProvider):
                 raise
 
     @classmethod
-    def _request(cls, monitor, path, data=None):
+    def _request(cls, monitor, path, data=None, retry_409_path=None):
         if cls.INFO is None:
             raise MetaflowException('Missing Metaflow Service URL. '
                 'Specify with METAFLOW_SERVICE_URL environment variable')
@@ -231,6 +231,19 @@ class ServiceMetadataProvider(MetadataProvider):
             else:
                 if resp.status_code < 300:
                     return resp.json()
+                elif resp.status_code == 409 and data is not None:
+                    # a special case: the post fails due to a conflict
+                    # this could occur when we missed a success response
+                    # from the first POST request but the request
+                    # actually went though, so a subsequent POST
+                    # returns 409 (conflict) or we end up with a
+                    # conflict while running on AWS Step Functions
+                    # instead of retrying the post we retry with a get since
+                    # the record is guaranteed to exist
+                    if retry_409_path:
+                        return self._request(retry_409_path)
+                    else:
+                        return
                 elif resp.status_code != 503:
                     raise ServiceException('Metadata request (%s) failed (code %s): %s'
                                            % (path, resp.status_code, resp.text),
