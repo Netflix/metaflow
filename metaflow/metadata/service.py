@@ -178,7 +178,7 @@ class ServiceMetadataProvider(MetadataProvider):
                 task_id,
                 tags + self.sticky_tags,
                 sys_tags + self.sticky_sys_tags)
-            return self._request(self._monitor, create_path, data)
+            return self._request(self._monitor, create_path, data, obj_path)
 
         always_create = False
         obj_path = self._obj_path(self._flow_name, run_id, step_name, task_id)
@@ -241,7 +241,7 @@ class ServiceMetadataProvider(MetadataProvider):
                     # instead of retrying the post we retry with a get since
                     # the record is guaranteed to exist
                     if retry_409_path:
-                        return self._request(retry_409_path)
+                        return self._request(monitor, retry_409_path)
                     else:
                         return
                 elif resp.status_code != 503:
