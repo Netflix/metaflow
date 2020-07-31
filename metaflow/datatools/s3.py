@@ -166,6 +166,10 @@ class S3Object(object):
 
 class S3(object):
 
+    @classmethod
+    def get_root_from_config(cls, echo, create_on_absent=True):
+        return DATATOOLS_S3ROOT
+
     def __init__(self,
                  tmproot='.',
                  bucket=None,

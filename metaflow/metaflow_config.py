@@ -53,9 +53,16 @@ DATASTORE_SYSROOT_LOCAL = from_conf('METAFLOW_DATASTORE_SYSROOT_LOCAL')
 # S3 bucket and prefix to store artifacts for 's3' datastore.
 DATASTORE_SYSROOT_S3 = from_conf('METAFLOW_DATASTORE_SYSROOT_S3')
 # S3 datatools root location
+DATATOOLS_SUFFIX = from_conf('METAFLOW_DATATOOLS_SUFFIX', 'data')
 DATATOOLS_S3ROOT = from_conf(
     'METAFLOW_DATATOOLS_S3ROOT', 
-        '%s/data' % from_conf('METAFLOW_DATASTORE_SYSROOT_S3'))
+        '%s/%s' % (from_conf('METAFLOW_DATASTORE_SYSROOT_S3'), DATATOOLS_SUFFIX)
+            if from_conf('METAFLOW_DATASTORE_SYSROOT_S3') else None)
+# Local datatools root location
+DATATOOLS_LOCALROOT = from_conf(
+    'METAFLOW_DATATOOLS_LOCALROOT',
+        '%s/%s' % (from_conf('METAFLOW_DATASTORE_SYSROOT_LOCAL'), DATATOOLS_SUFFIX)
+            if from_conf('METAFLOW_DATASTORE_SYSROOT_LOCAL') else None)
 
 # S3 endpoint url 
 S3_ENDPOINT_URL = from_conf('METAFLOW_S3_ENDPOINT_URL', None)
@@ -82,7 +89,8 @@ if METADATA_SERVICE_AUTH_KEY is not None:
 ###
 # AWS Batch configuration
 ###
-# IAM role for AWS Batch container with S3 access
+# IAM role for AWS Batch container with Amazon S3 access 
+# (and AWS DynamoDb access for AWS StepFunctions, if enabled)
 ECS_S3_ACCESS_IAM_ROLE = from_conf('METAFLOW_ECS_S3_ACCESS_IAM_ROLE')
 # Job queue for AWS Batch
 BATCH_JOB_QUEUE = from_conf('METAFLOW_BATCH_JOB_QUEUE')
@@ -93,6 +101,21 @@ BATCH_CONTAINER_REGISTRY = from_conf("METAFLOW_BATCH_CONTAINER_REGISTRY")
 # Metadata service URL for AWS Batch
 BATCH_METADATA_SERVICE_URL = from_conf('METAFLOW_SERVICE_INTERNAL_URL', METADATA_SERVICE_URL)
 BATCH_METADATA_SERVICE_HEADERS = METADATA_SERVICE_HEADERS
+
+###
+# AWS Step Functions configuration
+###
+# IAM role for AWS Step Functions with AWS Batch and AWS DynamoDb access
+# https://docs.aws.amazon.com/step-functions/latest/dg/batch-iam.html
+SFN_IAM_ROLE = from_conf("METAFLOW_SFN_IAM_ROLE")
+# AWS DynamoDb Table name (with partition key - `pathspec` of type string)
+SFN_DYNAMO_DB_TABLE = from_conf("METAFLOW_SFN_DYNAMO_DB_TABLE")
+# IAM role for AWS Events with AWS Step Functions access
+# https://docs.aws.amazon.com/eventbridge/latest/userguide/auth-and-access-control-eventbridge.html
+EVENTS_SFN_ACCESS_IAM_ROLE = from_conf("METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE")
+# Prefix for AWS Step Functions state machines. Set to stack name for Metaflow
+# sandbox.
+SFN_STATE_MACHINE_PREFIX = None
 
 ###
 # Conda configuration
@@ -130,6 +153,7 @@ if AWS_SANDBOX_ENABLED:
     os.environ['AWS_DEFAULT_REGION'] = AWS_SANDBOX_REGION
     BATCH_METADATA_SERVICE_URL = AWS_SANDBOX_INTERNAL_SERVICE_URL
     METADATA_SERVICE_HEADERS['x-api-key'] = AWS_SANDBOX_API_KEY
+    SFN_STATE_MACHINE_PREFIX = from_conf('METAFLOW_AWS_SANDBOX_STACK_NAME')
 
 
 # MAX_ATTEMPTS is the maximum number of attempts, including the first
@@ -197,5 +221,6 @@ def get_authenticated_boto3_client(module, params={}):
                 cached_aws_sandbox_creds = r.json()
             except requests.exceptions.HTTPError as e:
                 raise MetaflowException(repr(e))
-        return boto3.session.Session(**cached_aws_sandbox_creds).client(module, **params)
+        return boto3.session.Session(**cached_aws_sandbox_creds) \
+            .client(module, **params)
     return boto3.client(module, **params)

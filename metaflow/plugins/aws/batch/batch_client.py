@@ -39,6 +39,11 @@ class BatchClient(object):
             for job in page['jobSummaryList']
         )
 
+    def describe_jobs(self, jobIds):
+        for jobIds in [jobIds[i:i+100] for i in range(0, len(jobIds), 100)]:
+            for jobs in self._client.describe_jobs(jobs=jobIds)['jobs']:
+                yield jobs
+
     def job(self):
         return BatchJob(self._client)
 
@@ -48,7 +53,7 @@ class BatchClient(object):
 
 
 class BatchJobException(MetaflowException):
-    headline = 'Batch job error'
+    headline = 'AWS Batch job error'
 
 
 class BatchJob(object):
@@ -67,13 +72,15 @@ class BatchJob(object):
                 'Unable to launch AWS Batch job. No IAM role specified.'
             )
         if 'jobDefinition' not in self.payload:
-            self.payload['jobDefinition'] = self._register_job_definition(self._image, self._iam_role)
+            self.payload['jobDefinition'] = \
+                self._register_job_definition(self._image, self._iam_role)
         response = self._client.submit_job(**self.payload)
         job = RunningJob(response['jobId'], self._client)
         return job.update()
 
     def _register_job_definition(self, image, job_role):
-        def_name = 'metaflow_%s' % hashlib.sha224((image + job_role).encode('utf-8')).hexdigest()
+        def_name = 'metaflow_%s' % \
+            hashlib.sha224((image + job_role).encode('utf-8')).hexdigest()
         payload = {'jobDefinitionName': def_name, 'status': 'ACTIVE'}
         response = self._client.describe_job_definitions(**payload)
         if len(response['jobDefinitions']) > 0:
@@ -92,16 +99,17 @@ class BatchJob(object):
         response = self._client.register_job_definition(**payload)
         return response['jobDefinitionArn']
 
+    def job_def(self, image, iam_role):
+        self.payload['jobDefinition'] = \
+            self._register_job_definition(image, iam_role)
+        return self
+
     def job_name(self, job_name):
         self.payload['jobName'] = job_name
         return self
 
     def job_queue(self, job_queue):
         self.payload['jobQueue'] = job_queue
-        return self
-
-    def job_def(self, image, iam_role):
-        self.payload['jobDefinition'] = self._register_job_definition(image, iam_role)
         return self
 
     def image(self, image):
@@ -147,9 +155,17 @@ class BatchJob(object):
     def environment_variable(self, name, value):
         if 'environment' not in self.payload['containerOverrides']:
             self.payload['containerOverrides']['environment'] = []
-        self.payload['containerOverrides']['environment'].append(
-            {'name': name, 'value': str(value)}
-        )
+        value = str(value)
+        if value.startswith("$$.") or value.startswith("$."):
+            # Context Object substitution for AWS Step Functions
+            # https://docs.aws.amazon.com/step-functions/latest/dg/input-output-contextobject.html
+            self.payload['containerOverrides']['environment'].append(
+                {'name': name, 'value.$': value}
+            )
+        else:
+            self.payload['containerOverrides']['environment'].append(
+                {'name': name, 'value': value}
+            )
         return self
 
     def timeout_in_secs(self, timeout_in_secs):
