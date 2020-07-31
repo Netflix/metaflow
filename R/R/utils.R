@@ -276,16 +276,23 @@ test <- function() {
 }
 
 #' Install Metaflow python dependencies
-#'
+#' @param user_install Whether or not to install into the user directory for pip install. Default to TRUE. 
+#' @param upgrade Whether or not to upgrade metaflow python package. Default to FALSE.  
 #' @export
-install <- function(user_install=TRUE) {
+install <- function(user_install=TRUE, upgrade=FALSE) {
   if (user_install){
     user_flag = "--user"
   } else {
     user_flag = ""
   }
 
-  system(paste("python3 -m pip install git+https://github.com/Netflix/metaflow.git@R-dev", user_flag))
+  if (upgrade){
+    upgrade_flag = "--upgrade"
+  } else{
+    upgrade_flag = ""
+  }
+
+  system(paste("python3 -m pip install", upgrade_flag,  "git+https://github.com/Netflix/metaflow.git@R-dev", user_flag))
   # numpy is needed to handle native R matrix
   system(paste("python3 -m pip install numpy", user_flag))
   # pandas is needed to handle native R data.frame
