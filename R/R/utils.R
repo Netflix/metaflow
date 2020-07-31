@@ -278,12 +278,18 @@ test <- function() {
 #' Install Metaflow python dependencies
 #'
 #' @export
-install <- function() {
-  system("python3 -m pip install git+https://github.com/Netflix/metaflow.git@R-dev --user")
+install <- function(user_install=TRUE) {
+  if (user_install){
+    user_flag = "--user"
+  } else {
+    user_flag = ""
+  }
+
+  system(paste("python3 -m pip install git+https://github.com/Netflix/metaflow.git@R-dev", user_flag))
   # numpy is needed to handle native R matrix
-  system("python3 -m pip install numpy --user")
+  system(paste("python3 -m pip install numpy", user_flag))
   # pandas is needed to handle native R data.frame
-  system("python3 -m pip install pandas --user")
+  system(paste("python3 -m pip install pandas", user_flag))
 
   metaflow_load()
   metaflow_attach()
