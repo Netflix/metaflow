@@ -4,7 +4,12 @@
 \alias{install}
 \title{Install Metaflow python dependencies}
 \usage{
-install()
+install(user_install = TRUE, upgrade = FALSE)
+}
+\arguments{
+\item{user_install}{Whether or not to install into the user directory for pip install. Default to TRUE.}
+
+\item{upgrade}{Whether or not to upgrade metaflow python package. Default to FALSE.}
 }
 \description{
 Install Metaflow python dependencies
