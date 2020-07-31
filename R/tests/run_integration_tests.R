@@ -65,14 +65,8 @@ run_tests <- function(context) {
 run_tests_all_contexts <- function() {
   contexts <- fromJSON(file = "./contexts.json")
 
-  if (Sys.getenv("LOCAL_TEST") == "1") {
-    target_context_name <- c("all-local")
-  } else {
-    target_context_name <- NULL
-  }
-
   for (context in contexts$contexts) {
-    if (is.null(target_context_name) || (context$name %in% target_context_name)) {
+    if (!context$diabled)
       run_tests(context)
     }
   }

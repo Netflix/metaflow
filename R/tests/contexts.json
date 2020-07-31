@@ -19,7 +19,7 @@
         },
         {
             "name": "batch",
-            "disabled": false,
+            "disabled": true,
             "env": {
                 "USER": "tester"
             },
