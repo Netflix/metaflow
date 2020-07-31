@@ -160,7 +160,7 @@ merge_artifacts <- function(flow, inputs, exclude = list()) {
 #'
 #' @param value one of flow_name, run_id, origin_run_id,
 #'              step_name, task_id, pathspec, namespace,
-#'              username
+#'              username, retry_count
 #' @examples
 #' \dontrun{
 #' current("flow_name")
@@ -246,31 +246,17 @@ list_flows <- function() {
 #' @export
 test <- function() {
   start <- function(self) {
-    self$my_var <- "hello world"
-  }
-
-  a <- function(self) {
-    print(self$my_var)
-  }
-
-  end <- function(self) {
-    print("Metaflow is installed successfully.")
+    print("Your Metaflow installation looks good!")
   }
 
   metaflow("HelloWorldFlow") %>%
     step(
       step = "start",
       r_function = start,
-      next_step = "a"
-    ) %>%
-    step(
-      step = "a",
-      r_function = a,
       next_step = "end"
     ) %>%
     step(
-      step = "end",
-      r_function = end
+      step = "end"
     ) %>%
     run()
 }
@@ -341,11 +327,11 @@ metaflow_attach <- function() {
   R_mf_version <- metaflow_version("metaflow")
   py_mf_version <- py_version()
   packageStartupMessage(sprintf("metaflow (R) version %s", R_mf_version))
-  packageStartupMessage(sprintf("metaflow (python) version %s", py_mf_version))
+  packageStartupMessage(sprintf("metaflow (Python) version %s", py_mf_version))
   invisible()
 }
 
-#' Return the default container image to use for remote execution.
+#' Return the default container image to use for remote execution on AWS Batch.
 #' By default we user docker images maintained on https://hub.docker.com/r/rocker/ml.
 #'
 #' @export
@@ -370,7 +356,7 @@ container_image <- function() {
     } else if (r_version == "3.6") {
       rocker_tag <- "3.6.1"
     } else {
-      rocker_tag <- "4.0.2"
+      rocker_tag <- "latest"
     }
   }
 

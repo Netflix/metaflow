@@ -3,7 +3,7 @@
 #' Decorates the \code{step} with the parameters present in its arguments.
 #'
 #' For this method to work properly, the arguments \code{...} should be named, and decorator
-#' type is the first argument.
+#' type should be the first argument.
 #'
 #' @param x Type of decorator (e.g, resources, catch, retry, timeout, batch ...)
 #' @param ... Named arguments for the decorator (e.g, cpu=1, memory=1000 ...). Note that memory unit is in MB.

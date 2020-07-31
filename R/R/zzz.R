@@ -4,7 +4,7 @@
       metaflow_attach()
     },
     error = function(e) {
-      packageStartupMessage("  Please install Metaflow python dependencies by running 'metaflow::install()' in R *** ")
+      packageStartupMessage("  * Call 'metaflow::install()' to finish installation * ")
     }
   )
   invisible(NULL)
