@@ -436,13 +436,6 @@ def step(obj,
 
     echo('Success', fg='green', bold=True, indent=True)
 
-    # Note: Leaving below statement as we use it to run and test the flow easily using CLI (locally) and to demo
-    # the ability to orchestrate without using the MF local orchestrator.
-    # TODO: Remove this once we've fully tested out MF on KFP
-    # FORMAT: ($1)datastore_root location \t ($2)run_id \t ($3)next_step_to_run \t ($4)task_id(of next step) \t ($5)current step \t ($6)task_id(of current step)
-    if step_name != 'end': # End is the final step
-        print(obj.datastore.datastore_root, run_id, obj.flow._graph[step_name].out_funcs[0], int(task_id)+1, step_name, task_id)
-
 @parameters.add_custom_parameters
 @cli.command(help="Internal command to initialize a run.")
 @click.option('--run-id',
@@ -618,9 +611,9 @@ def run(obj,
     write_run_id(run_id_file, runtime.run_id)
 
     parameters.set_parameters(obj.flow, kwargs)
+
     runtime.persist_parameters()
     runtime.execute()
-
 
 @parameters.add_custom_parameters
 @cli.command(help='Set up the initial part of the workflow by instantiating a local runtime and persisting parameters. '
@@ -677,6 +670,7 @@ def pre_start(obj,
     # TODO: Remove once above criteria are met.
     # OUTPUT FORMAT: ($1)datastore_root location \t ($2)run_id \t ($3)next_step_to_run \t ($4)task_id(of next step) \t ($5)current step \t ($6)task_id(of current step)
     print("{0}\t{1}\tstart\t1\t_parameters\t0".format(obj.datastore.datastore_root, runtime.run_id))
+
 
 @cli.command(help='Create a run on KF pipelines. This method converts the MF flow to a KFP run and outputs a link to the KFP run. '
                   'Note: This command will not work as expected if your local environment is not configured to '
