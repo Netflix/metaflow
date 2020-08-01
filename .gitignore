@@ -17,3 +17,5 @@ R/.Rproj.user
 R/*.Rproj
 R/.Rbuildignore
 .Rproj.user
+
+.DS_Store
