@@ -288,24 +288,21 @@ install <- function(user_install=TRUE, upgrade=FALSE) {
   metaflow_attach()
 }
 
-metaflow_configs <- function() {
-  return(list(
-    default = list(
-      metaflow_path = expression(reticulate::py_discover_config("metaflow")$required_module_path)
-    ),
-    batch = list(
-      metaflow_path = expression(path.expand(paste0(getwd(), "/metaflow")))
-    )
-  ))
-}
-
 pkg.env <- new.env()
+pkg.env$configs <- list(
+  default = list(
+    metaflow_path = expression(reticulate::py_discover_config("metaflow")$required_module_path)
+  ),
+  batch = list(
+    metaflow_path = expression(path.expand(paste0(getwd(), "/metaflow")))
+  )
+)
 
 metaflow_load <- function() {
   reticulate::use_python(Sys.which("python3"), required = TRUE)
 
   config_name <- Sys.getenv("R_CONFIG_ACTIVE", unset = "default")
-  configs <- metaflow_configs()
+  configs <- pkg.env$configs
   config <- list()
   for (key in names(configs[[config_name]])) {
     config[[key]] <- eval(configs[[config_name]][[key]])

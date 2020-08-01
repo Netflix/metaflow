@@ -8,7 +8,7 @@ flags <- function(...) {
 parse_flags <- function(arguments = commandArgs(TRUE)) {
   config_name <- Sys.getenv("R_CONFIG_ACTIVE", unset = "default")
 
-  configs <- metaflow_configs()
+  configs <- pkg.env$configs 
   loaded_configs <- list()
   for (key in names(configs[[config_name]])) {
     loaded_configs[[key]] <- eval(configs[[config_name]][[key]])
