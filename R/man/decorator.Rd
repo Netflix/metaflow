@@ -19,7 +19,7 @@ Decorates the \code{step} with the parameters present in its arguments.
 }
 \details{
 For this method to work properly, the arguments \code{...} should be named, and decorator
-type is the first argument.
+type should be the first argument.
 }
 \section{Usage}{
 

@@ -372,3 +372,25 @@ container_image <- function() {
 
   return(paste0("rocker/ml:", rocker_tag))
 }
+
+#' Pull the R tutorials to the current folder
+#' @export
+pull_tutorials <- function(){
+  tutorials_folder <- system.file("tutorials", package = "metaflow")
+  file.copy(tutorials_folder, ".", recursive=TRUE)
+  invisible()
+}
+
+#' Print out Metaflow version and reticulate info 
+#' @export
+version_info <- function(){
+  R_mf_version <- metaflow_version("metaflow")
+  py_mf_version <- py_version()
+  message(sprintf("metaflow (R) version %s", R_mf_version))
+  message(sprintf("metaflow (Python) version %s\n", py_mf_version))
+
+  message("reticulate::py_config() output:")
+  print(reticulate::py_config())
+
+  invisible()
+}

@@ -5,7 +5,7 @@
 \alias{metaflow-package}
 \alias{_PACKAGE}
 \alias{metaflow-r}
-\title{metaflow: Metaflow}
+\title{metaflow: Metaflow for R-Lang}
 \description{
 R binding for Metaflow. Metaflow is a human-friendly Python/R library
 that helps scientists and engineers build and manage real-life data science projects.

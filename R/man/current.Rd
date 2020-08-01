@@ -9,7 +9,7 @@ current(value)
 \arguments{
 \item{value}{one of flow_name, run_id, origin_run_id,
 step_name, task_id, pathspec, namespace,
-username}
+username, retry_count}
 }
 \description{
 Helper utility to access current IDs of interest

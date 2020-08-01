@@ -2,12 +2,12 @@
 % Please edit documentation in R/utils.R
 \name{container_image}
 \alias{container_image}
-\title{Return the default container image to use for remote execution.
+\title{Return the default container image to use for remote execution on AWS Batch.
 By default we user docker images maintained on https://hub.docker.com/r/rocker/ml.}
 \usage{
 container_image()
 }
 \description{
-Return the default container image to use for remote execution.
+Return the default container image to use for remote execution on AWS Batch.
 By default we user docker images maintained on https://hub.docker.com/r/rocker/ml.
 }
