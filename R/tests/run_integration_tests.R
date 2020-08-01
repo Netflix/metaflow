@@ -66,7 +66,7 @@ run_tests_all_contexts <- function() {
   contexts <- fromJSON(file = "./contexts.json")
 
   for (context in contexts$contexts) {
-    if (!context$diabled){
+    if (!context$disabled){
       run_tests(context)
     }
   }
