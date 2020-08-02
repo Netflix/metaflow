@@ -28,6 +28,7 @@ metaflow("HelloAWSFlow") %>%
          r_function = start, 
          next_step = "hello") %>%
     step(step = "hello", 
+         decorator("retry", times=2),
          decorator("batch", cpu=2, memory=2048),
          r_function = hello,  
          next_step = "end") %>%
