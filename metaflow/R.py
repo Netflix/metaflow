@@ -8,6 +8,8 @@ R_FUNCTIONS = {}
 R_PACKAGE_PATHS = None
 RDS_FILE_PATH = None
 R_CONTAINER_IMAGE = None
+METAFLOW_R_VERSION = None 
+METAFLOW_PY_DEPS = None 
 
 def call_r(func_name, args):
     R_FUNCTIONS[func_name](*args)
@@ -42,6 +44,9 @@ def container_image():
 def metaflow_r_version():
     return METAFLOW_R_VERSION
 
+def metaflow_py_deps():
+    return METAFLOW_PY_DEPS
+
 def working_dir():
     if use_r(): 
         return R_PACKAGE_PATHS['wd']
@@ -54,18 +59,21 @@ def run(flow_script,
         full_cmdline,
         r_paths,
         r_container_image,
-        metaflow_r_version):
+        metaflow_r_version,
+        metaflow_py_deps):
     global R_FUNCTIONS, \
         R_PACKAGE_PATHS, \
         RDS_FILE_PATH, \
         R_CONTAINER_IMAGE, \
-        METAFLOW_R_VERSION
+        METAFLOW_R_VERSION, \
+        METAFLOW_PY_DEPS
 
     R_FUNCTIONS = r_functions
     R_PACKAGE_PATHS = r_paths
     RDS_FILE_PATH = rds_file
     R_CONTAINER_IMAGE = r_container_image
     METAFLOW_R_VERSION = metaflow_r_version
+    METAFLOW_PY_DEPS = metaflow_py_deps
 
     # there's some reticulate(?) sillyness which causes metaflow_args
     # not to be a list if it has only one item. Here's a workaround

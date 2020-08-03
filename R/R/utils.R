@@ -295,6 +295,7 @@ install <- function(user_install=TRUE, upgrade=FALSE) {
 }
 
 pkg.env <- new.env()
+
 pkg.env$configs <- list(
   default = list(
     metaflow_path = expression(reticulate::py_discover_config("metaflow")$required_module_path)
@@ -303,6 +304,7 @@ pkg.env$configs <- list(
     metaflow_path = expression(path.expand(paste0(getwd(), "/metaflow")))
   )
 )
+
 
 metaflow_load <- function() {
   reticulate::use_python(Sys.which("python3"), required = TRUE)
@@ -323,6 +325,15 @@ metaflow_load <- function() {
   invisible()
 }
 
+#' Python packages needed for R. 
+#' numpy is needed to handle native R matrix
+#' pandas is needed to handle R data frame 
+#' @export
+py_dependencies <- function() {
+  return("numpy pandas")
+}
+
+#' Return Metaflow python version
 py_version <- function() {
   reticulate::use_python(Sys.which("python3"), required = TRUE)
   mf <- reticulate::import("metaflow", delay_load = TRUE)
