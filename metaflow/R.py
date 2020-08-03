@@ -66,7 +66,7 @@ def run(flow_script,
         r_paths,
         r_container_image,
         metaflow_r_version,
-        metaflow_py_deps):
+        metaflow_py_deps,
         r_version,
         r_version_code):
     global R_FUNCTIONS, \
