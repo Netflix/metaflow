@@ -25,15 +25,6 @@ simple_type <- function(obj) {
   }
 }
 
-get_object_class <- function(obj){
-  tryCatch({
-    r_class <- class(obj) 
-  }, error = {
-    r_class <- "unknown_class"
-  })
-  return(r_class)
-}
-
 #' Helper utility to serialize R object to metaflow
 #' data format
 #'
@@ -41,28 +32,10 @@ get_object_class <- function(obj){
 #' @return metaflow data format object
 mf_serialize <- function(object) {
   if (simple_type(object)) {
-    r_obj <- object
-    r_class <- get_object_class(object)
+    return(object)
   } else {
-    r_obj <- serialize(object, NULL)
-    r_class <- "mf_serialized"
+    return(serialize(object, NULL))
   }
-  return(list(r_obj=r_obj, r_class=r_class))
-}
-
-# recursively convert py object to r object
-convert_py_to_r <- function(r_obj){
-  if ("python.builtin.object" %in% class(r_obj)){
-    r_obj <- reticulate::py_to_r(r_obj)
-  }
-
-  if (all(class(r_obj) == c("list"))){
-    for (name in names(r_obj)){
-      r_obj[[name]] <- convert_py_to_r(r_obj[[name]])
-    }
-  }
-
-  return(r_obj)
 }
 
 #' Helper utility to deserialize objects from metaflow
@@ -71,18 +44,18 @@ convert_py_to_r <- function(r_obj){
 #' @param object object to deserialize
 #' @return R object
 mf_deserialize <- function(object) {
-  if (all(object$r_class == c("mf_serialized"))){
-    r_obj <- unserialize(object$r_obj) 
-  } else {
-    r_obj <- convert_py_to_r(object$r_obj)
+  r_obj <- object
 
-    if (all(object$r_class == c("data.frame"))){
-      r_obj <- as.data.frame(r_obj)
-    }
-
-    if (all(object$r_class == c("data.table", "data.frame"))){
-      data.table::setDT(r_obj)
-    }
+  if (is.raw(object)) {
+    # for bytearray try to unserialize
+    tryCatch(
+      {
+        r_obj <- object %>% unserialize()
+      },
+      error = function(e) {
+        r_obj <- object
+      }
+    )
   }
 
   return(r_obj)
