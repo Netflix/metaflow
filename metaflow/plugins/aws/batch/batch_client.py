@@ -333,6 +333,8 @@ class RunningJob(object):
             elif not self.is_done:
                 self.wait_for_running()
 
+        if log_stream is None:
+            return 
         exception = None
         for i in range(self.NUM_RETRIES + 1):
             try:
