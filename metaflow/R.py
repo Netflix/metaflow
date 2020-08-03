@@ -44,16 +44,14 @@ def container_image():
 def metaflow_r_version():
     return METAFLOW_R_VERSION
 
-<<<<<<< HEAD
 def metaflow_py_deps():
     return METAFLOW_PY_DEPS
-=======
+    
 def r_version():
     return R_VERSION
 
 def r_version_code():
     return R_VERSION_CODE
->>>>>>> 086e35853d0dda7af372349d499036f54cb3a0ce
 
 def working_dir():
     if use_r(): 
@@ -68,35 +66,26 @@ def run(flow_script,
         r_paths,
         r_container_image,
         metaflow_r_version,
-<<<<<<< HEAD
         metaflow_py_deps):
-=======
         r_version,
         r_version_code):
->>>>>>> 086e35853d0dda7af372349d499036f54cb3a0ce
     global R_FUNCTIONS, \
         R_PACKAGE_PATHS, \
         RDS_FILE_PATH, \
         R_CONTAINER_IMAGE, \
         METAFLOW_R_VERSION, \
-<<<<<<< HEAD
-        METAFLOW_PY_DEPS
-=======
+        METAFLOW_PY_DEPS, \
         R_VERSION, \
         R_VERSION_CODE
->>>>>>> 086e35853d0dda7af372349d499036f54cb3a0ce
 
     R_FUNCTIONS = r_functions
     R_PACKAGE_PATHS = r_paths
     RDS_FILE_PATH = rds_file
     R_CONTAINER_IMAGE = r_container_image
     METAFLOW_R_VERSION = metaflow_r_version
-<<<<<<< HEAD
     METAFLOW_PY_DEPS = metaflow_py_deps
-=======
     R_VERSION = r_version
     R_VERSION_CODE = r_version_code
->>>>>>> 086e35853d0dda7af372349d499036f54cb3a0ce
 
     # there's some reticulate(?) sillyness which causes metaflow_args
     # not to be a list if it has only one item. Here's a workaround

@@ -305,7 +305,6 @@ pkg.env$configs <- list(
   )
 )
 
-
 metaflow_load <- function() {
   reticulate::use_python(Sys.which("python3"), required = TRUE)
 
