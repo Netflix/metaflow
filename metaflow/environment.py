@@ -5,6 +5,7 @@ import sys
 from .util import get_username, to_unicode
 from . import metaflow_version
 from metaflow.exception import MetaflowException
+from . import R
 
 version_cache = None
 
@@ -77,10 +78,11 @@ class MetaflowEnvironment(object):
         return "Local environment"
 
     def get_package_commands(self, code_package_url):
+        R_deps = R.metaflow_py_deps() if R.use_r() else ""
+
         cmds = ["set -e",
                 "echo \'Setting up task environment.\'",
-                "%s -m pip install awscli click requests boto3 --user -qqq" 
-                    % self._python(),
+                "%s -m pip install awscli click requests boto3 %s -qqq" % (self._python(), R_deps),
                 "mkdir metaflow",
                 "cd metaflow",
                 "mkdir .metaflow", # mute local datastore creation log
@@ -112,14 +114,22 @@ class MetaflowEnvironment(object):
                'runtime': os.environ.get('METAFLOW_RUNTIME_NAME', 'dev'),
                'app': os.environ.get('APP'),
                'environment_type': self.TYPE,
+               'use_r': R.use_r(),
                'python_version': sys.version,
                'python_version_code': '%d.%d.%d' % sys.version_info[:3],
                'metaflow_version': version_cache,
                'script': os.path.basename(os.path.abspath(sys.argv[0]))}
+        if R.use_r():
+            env['metaflow_r_version'] = R.metaflow_r_version()
+            env['r_version'] = R.r_version()
+            env['r_version_code'] = R.r_version_code()
         return env
 
     def executable(self, step_name):
         return self._python()
 
     def _python(self):
-        return "python"
+        if R.use_r():
+            return "python3"
+        else:
+            return "python"
