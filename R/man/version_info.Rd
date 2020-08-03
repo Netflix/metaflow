@@ -2,10 +2,10 @@
 % Please edit documentation in R/utils.R
 \name{version_info}
 \alias{version_info}
-\title{Print out Metaflow version and reticulate info}
+\title{Print out Metaflow version}
 \usage{
 version_info()
 }
 \description{
-Print out Metaflow version and reticulate info
+Print out Metaflow version
 }

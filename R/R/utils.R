@@ -282,12 +282,14 @@ install <- function(user_install=TRUE, upgrade=FALSE) {
     upgrade_flag = ""
   }
 
-  system(paste("python3 -m pip install", upgrade_flag,  "git+https://github.com/Netflix/metaflow.git@R-dev", user_flag))
-  # numpy is needed to handle native R matrix
-  system(paste("python3 -m pip install numpy", user_flag))
-  # pandas is needed to handle native R data.frame
-  system(paste("python3 -m pip install pandas", user_flag))
-
+  # numpy and pandas are needed to handle native R matrix and data.frame
+  # TODO: Swap metaflow git pip install with proper pip install
+  system(paste("python3 -m pip install", upgrade_flag,
+               "git+https://github.com/Netflix/metaflow.git@R-dev",
+               "numpy",
+               "pandas",
+               user_flag))
+  #system("python3 -m pip install -e ./..")
   metaflow_load()
   metaflow_attach()
 }
@@ -325,12 +327,14 @@ py_version <- function() {
   reticulate::use_python(Sys.which("python3"), required = TRUE)
   mf <- reticulate::import("metaflow", delay_load = TRUE)
   version <- mf$metaflow_version$get_version()
-  c(python_version = substr(version, 1, 5))
+  c(python_version = version)
 }
 
-metaflow_version <- function(x) {
+#' Return Metaflow R version
+#' @export
+r_version <- function() {
   # utils library usually comes with the standard installation of R
-  version <- as.character(unclass(utils::packageVersion(x))[[1]])
+  version <- as.character(unclass(utils::packageVersion("metaflow"))[[1]])
   if (length(version) > 3) {
     version[4:length(version)] <- as.character(version[4:length(version)])
   }
@@ -338,10 +342,8 @@ metaflow_version <- function(x) {
 }
 
 metaflow_attach <- function() {
-  R_mf_version <- metaflow_version("metaflow")
-  py_mf_version <- py_version()
-  packageStartupMessage(sprintf("metaflow (R) version %s", R_mf_version))
-  packageStartupMessage(sprintf("metaflow (Python) version %s", py_mf_version))
+  packageStartupMessage(sprintf("Metaflow (R) %s loaded", r_version()))
+  packageStartupMessage(sprintf("Metaflow (Python) %s loaded", py_version()))
   invisible()
 }
 
@@ -385,16 +387,11 @@ pull_tutorials <- function(){
   invisible()
 }
 
-#' Print out Metaflow version and reticulate info 
+#' Print out Metaflow version
 #' @export
 version_info <- function(){
-  R_mf_version <- metaflow_version("metaflow")
-  py_mf_version <- py_version()
-  message(sprintf("metaflow (R) version %s", R_mf_version))
-  message(sprintf("metaflow (Python) version %s\n", py_mf_version))
-
-  message("reticulate::py_config() output:")
-  print(reticulate::py_config())
+  message(sprintf("Metaflow (R) %s", r_version()))
+  message(sprintf("Metaflow (Python) %s", py_version()))
 
   invisible()
 }
