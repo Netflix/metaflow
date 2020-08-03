@@ -52,5 +52,10 @@ mf$R$run(
   metaflow_location(flowRDS = flowRDS_file),
   container_image(),
   r_version(),
+<<<<<<< HEAD
   py_dependencies()
+=======
+  paste(R.version.string),
+  paste(getRversion())
+>>>>>>> 086e35853d0dda7af372349d499036f54cb3a0ce
 )
