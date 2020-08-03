@@ -141,8 +141,7 @@ if AWS_SANDBOX_ENABLED:
 # being read from old tasks.
 MAX_ATTEMPTS = 6
 
-METAFLOW_AWS_ARN = from_conf('METAFLOW_AWS_ARN', "arn:aws:iam::170606514770:role/dev-zestimate-role")
-
+METAFLOW_AWS_ARN = from_conf('METAFLOW_AWS_ARN')
 
 # the naughty, naughty driver.py imported by lib2to3 produces
 # spam messages to the root logger. This is what is required

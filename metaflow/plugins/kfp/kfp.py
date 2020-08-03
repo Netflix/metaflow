@@ -1,9 +1,11 @@
 import kfp
 from kfp import dsl
 
-from .constants import DEFAULT_FLOW_CODE_URL, DEFAULT_KFP_YAML_OUTPUT_PATH
+from .constants import DEFAULT_FLOW_CODE_URL, DEFAULT_KFP_YAML_OUTPUT_PATH, DEFAULT_DOWNLOADED_FLOW_FILENAME
 from typing import NamedTuple
 from collections import deque
+
+StepOutput = NamedTuple('StepOutput', [('ds_root', str), ('run_id', str)])
 
 def step_op_func(python_cmd_template, step_name: str,
                  code_url: str,
@@ -15,15 +17,20 @@ def step_op_func(python_cmd_template, step_name: str,
 
     """
     import subprocess
+    MODIFIED_METAFLOW_URL = 'git+https://github.com/zillow/metaflow.git@state-integ-s3'
+    DEFAULT_DOWNLOADED_FLOW_FILENAME = 'downloaded_flow.py'
 
     print("\n----------RUNNING: CODE DOWNLOAD from URL---------")
-    subprocess.call(["curl -o helloworld.py {}".format(code_url)], shell=True)
+    subprocess.call(
+        ["curl -o {downloaded_file_name} {code_url}".format(downloaded_file_name=DEFAULT_DOWNLOADED_FLOW_FILENAME,
+                                                            code_url=code_url)], shell=True)
 
     print("\n----------RUNNING: KFP Installation---------------")
-    subprocess.call(["pip3 install kfp"], shell=True) # TODO: Remove this once KFP is added to dependencies
+    subprocess.call(["pip3 install kfp"], shell=True)  # TODO: Remove this once KFP is added to dependencies
 
     print("\n----------RUNNING: METAFLOW INSTALLATION----------")
-    subprocess.call(["pip3 install --user --upgrade git+https://github.com/zillow/metaflow.git@state-integ-s3"],
+    subprocess.call(["pip3 install --user --upgrade {modified_metaflow_git_url}".format(
+        modified_metaflow_git_url=MODIFIED_METAFLOW_URL)],
                     shell=True)
 
     print("\n----------RUNNING: MAIN STEP COMMAND--------------")
@@ -45,7 +52,6 @@ def step_op_func(python_cmd_template, step_name: str,
     # END is the final step and no outputs need to be returned
     if step_name.lower() == 'end':
         print("_______________ FLOW RUN COMPLETE ________________")
-        # return step_output('None', 'None', 'None', 'None', 'None', 'None')
 
     # TODO: Check why MF echo statements are getting redirected to stderr
     if len(proc_error) > 1:
@@ -66,22 +72,27 @@ def step_op_func(python_cmd_template, step_name: str,
 
     print("_______________ Done _________________________________")
 
-def pre_start_op_func(code_url)  -> NamedTuple('StepOutput', [('ds_root', str), ('run_id', str)]):
+def pre_start_op_func(code_url: str)  -> StepOutput:
     """
     Function used to create a KFP container op (see `pre_start_container_op`)that corresponds to the `pre-start` step of metaflow
 
     """
     import subprocess
     from collections import namedtuple
+    MODIFIED_METAFLOW_URL = 'git+https://github.com/zillow/metaflow.git@state-integ-s3'
+    DEFAULT_DOWNLOADED_FLOW_FILENAME = 'downloaded_flow.py'
 
     print("\n----------RUNNING: CODE DOWNLOAD from URL---------")
-    subprocess.call(["curl -o helloworld.py {}".format(code_url)], shell=True)
+    subprocess.call(
+        ["curl -o {downloaded_file_name} {code_url}".format(downloaded_file_name=DEFAULT_DOWNLOADED_FLOW_FILENAME,
+                                                            code_url=code_url)], shell=True)
 
     print("\n----------RUNNING: KFP Installation---------------")
-    subprocess.call(["pip3 install kfp"], shell=True) # TODO: Remove this once KFP is added to dependencies
+    subprocess.call(["pip3 install kfp"], shell=True)  # TODO: Remove this once KFP is added to dependencies
 
     print("\n----------RUNNING: METAFLOW INSTALLATION----------")
-    subprocess.call(["pip3 install --user --upgrade git+https://github.com/zillow/metaflow.git@state-integ-s3"],
+    subprocess.call(["pip3 install --user --upgrade {modified_metaflow_git_url}".format(
+        modified_metaflow_git_url=MODIFIED_METAFLOW_URL)],
                     shell=True)
 
     print("\n----------RUNNING: MAIN STEP COMMAND--------------")
@@ -91,7 +102,8 @@ def pre_start_op_func(code_url)  -> NamedTuple('StepOutput', [('ds_root', str), 
     define_s3_env_vars = 'export METAFLOW_DATASTORE_SYSROOT_S3="{}" && export METAFLOW_AWS_ARN="{}" '.format(S3_BUCKET,
                                                                                                           S3_AWS_ARN)
     define_username = 'export USERNAME="kfp-user"'
-    python_cmd = 'python helloworld.py --datastore="s3" --datastore-root="{}" pre-start'.format(S3_BUCKET)
+    python_cmd = 'python {0} --datastore="s3" --datastore-root="{1}" pre-start'.format(DEFAULT_DOWNLOADED_FLOW_FILENAME,
+                                                                                       S3_BUCKET)
     final_run_cmd = f'{define_username} && {define_s3_env_vars} && {python_cmd}'
 
     print("RUNNING COMMAND: ", final_run_cmd)
@@ -99,7 +111,7 @@ def pre_start_op_func(code_url)  -> NamedTuple('StepOutput', [('ds_root', str), 
     proc_output = proc.stdout
     proc_error = proc.stderr
 
-    step_output = namedtuple('StepOutput',
+    StepOutput = namedtuple('StepOutput',
                              ['ds_root', 'run_id'])
 
     # TODO: Check why MF echo statements are getting redirected to stderr
@@ -110,6 +122,9 @@ def pre_start_op_func(code_url)  -> NamedTuple('StepOutput', [('ds_root', str), 
     if len(proc_output) > 1:
         print("______________ STDOUT:____________________________")
         print(proc_output)
+
+        # Read in the outputs (in the penultimate line) containing args needed for the next steps.
+        # Note: Output format is: ['ds_root', 'run_id']
         outputs = (proc_output.split("\n")[-2]).split() # this contains the args needed for next steps to run
 
     else:
@@ -120,7 +135,7 @@ def pre_start_op_func(code_url)  -> NamedTuple('StepOutput', [('ds_root', str), 
     subprocess.call(["rm -r /opt/zillow/.metaflow"], shell=True)
 
     print("_______________ Done __________________________")
-    return step_output(outputs[0], outputs[1])
+    return StepOutput(outputs[0], outputs[1])
 
 def step_container_op():
     """
@@ -154,7 +169,10 @@ def create_command_templates_from_graph(graph):
     # gets a task id of 1, next step gets a task id of 2 and so on with 'end' step having the highest task id.
     """
     def build_cmd_template(step_name, task_id, input_paths):
-        python_cmd = "python helloworld.py --datastore s3 --datastore-root {{ds_root}} step {step_name} --run-id {{run_id}} --task-id {task_id} --input-paths {input_paths}".format(step_name=step_name, task_id=task_id, input_paths=input_paths )
+        python_cmd = "python {downloaded_file_name} --datastore s3 --datastore-root {{ds_root}} " \
+                     "step {step_name} --run-id {{run_id}} --task-id {task_id} " \
+                     "--input-paths {input_paths}".format(downloaded_file_name=DEFAULT_DOWNLOADED_FLOW_FILENAME,
+                                                            step_name=step_name, task_id=task_id, input_paths=input_paths)
         return python_cmd
 
     steps_deque = deque(['start']) # deque to process the DAG in level order
