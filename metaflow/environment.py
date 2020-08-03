@@ -112,10 +112,15 @@ class MetaflowEnvironment(object):
                'runtime': os.environ.get('METAFLOW_RUNTIME_NAME', 'dev'),
                'app': os.environ.get('APP'),
                'environment_type': self.TYPE,
+               'use_r': R.use_r(),
                'python_version': sys.version,
                'python_version_code': '%d.%d.%d' % sys.version_info[:3],
                'metaflow_version': version_cache,
                'script': os.path.basename(os.path.abspath(sys.argv[0]))}
+        if R.use_r():
+            env['metaflow_r_version'] = R.metaflow_r_version()
+            env['r_version'] = R.r_version()
+            env['r_version_code'] = R.r_version_code()
         return env
 
     def executable(self, step_name):

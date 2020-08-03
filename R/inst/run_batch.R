@@ -54,5 +54,7 @@ mf$R$run(
   c(commandArgs(trailingOnly = FALSE), flowRDS_arg),
   metaflow_location(flowRDS = flowRDS_file),
   container_image(),
-  r_version()
+  r_version(),
+  paste(R.version.string),
+  paste(getRversion())
 )
