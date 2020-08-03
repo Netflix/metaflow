@@ -14,6 +14,10 @@ simple_type <- function(obj) {
   if (is.atomic(obj)) {
     return(TRUE)
   } else if (is.list(obj)) {
+    if ("data.table" %in% class(obj)){
+      return(FALSE)
+    }
+
     for (item in obj) {
       if (!simple_type(item)) {
         return(FALSE)
