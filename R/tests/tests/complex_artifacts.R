@@ -5,13 +5,13 @@ test$priority <- 1
 test$single <- decorated_function(
   function(self) {
     if (!suppressWarnings(require(data.table))) {
-      install.packages("data.table", quiet = TRUE, repos = "http://cran.us.r-project.org")
+      install.packages("data.table", quiet = TRUE, repos = "https://cloud.r-project.org/")
     }
     if (!suppressWarnings(require(Matrix))) {
-      install.packages("Matrix", quiet = TRUE, repos = "http://cran.us.r-project.org")
+      install.packages("Matrix", quiet = TRUE, repos = "https://cloud.r-project.org/")
     }
     if (!suppressWarnings(require(glmnet, war))) {
-      install.packages("glmnet", quiet = TRUE, repos = "http://cran.us.r-project.org")
+      install.packages("glmnet", quiet = TRUE, repos = "https://cloud.r-project.org/")
     }
 
     self$special <- c(NaN, Inf)

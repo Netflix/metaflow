@@ -2,7 +2,7 @@ Sys.setenv(R_CONFIG_ACTIVE = "batch")
 
 install_dep <- function(dep) {
   if (!suppressWarnings(require(dep, character.only = TRUE))) {
-    suppressMessages(install.packages(dep, quiet = TRUE, repos = "http://cran.us.r-project.org"))
+    suppressMessages(install.packages(dep, quiet = TRUE, repos = "https://cloud.r-project.org/"))
   }
 }
 
