@@ -441,9 +441,9 @@ class MetadataProvider(object):
             'date:' + datetime.utcnow().strftime('%Y-%m-%d')]
         if env['metaflow_version']:
             tags.append('metaflow_version:' + env['metaflow_version'])
-        if env['metaflow_r_version']:
+        if 'metaflow_r_version' in env:
             tags.append('metaflow_r_version:' + env['metaflow_r_version'])
-        if env['r_version_code']:
+        if 'r_version_code' in env:
             tags.append('r_version:' + env['r_version_code'])
         return tags
 
