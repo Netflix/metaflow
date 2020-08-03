@@ -71,10 +71,7 @@ convert_py_to_r <- function(r_obj){
 #' @param object object to deserialize
 #' @return R object
 mf_deserialize <- function(object) {
-  if (!all(class(object) == c("list"))){
-    # this object is a parameter created on python side
-    r_obj <- object
-  } else if (all(object$r_class == c("mf_serialized"))){
+  if (all(object$r_class == c("mf_serialized"))){
     r_obj <- unserialize(object$r_obj) 
   } else {
     r_obj <- convert_py_to_r(object$r_obj)
