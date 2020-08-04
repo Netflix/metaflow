@@ -13,6 +13,7 @@ from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.metadata import MetaDatum
 
 from metaflow import util
+from metaflow import R
 
 from .batch import Batch, BatchException
 from metaflow.metaflow_config import ECS_S3_ACCESS_IAM_ROLE, BATCH_JOB_QUEUE, \
@@ -110,8 +111,11 @@ class BatchDecorator(StepDecorator):
             if BATCH_CONTAINER_IMAGE:
                 self.attributes['image'] = BATCH_CONTAINER_IMAGE
             else:
-                self.attributes['image'] = 'python:%s.%s' % (platform.python_version_tuple()[0],
-                    platform.python_version_tuple()[1])
+                if R.use_r():
+                    self.attributes['image'] = R.container_image()
+                else:
+                    self.attributes['image'] = 'python:%s.%s' % (platform.python_version_tuple()[0],
+                        platform.python_version_tuple()[1])
         if not BatchDecorator._get_registry(self.attributes['image']):
             if BATCH_CONTAINER_REGISTRY:
                 self.attributes['image'] = '%s/%s' % (BATCH_CONTAINER_REGISTRY.rstrip('/'), 
@@ -156,7 +160,8 @@ class BatchDecorator(StepDecorator):
             cli_args.command_args.append(self.package_url)
             cli_args.command_options.update(self.attributes)
             cli_args.command_options['run-time-limit'] = self.run_time_limit
-            cli_args.entrypoint[0] = sys.executable
+            if not R.use_r():
+                cli_args.entrypoint[0] = sys.executable
 
     def task_pre_step(self,
                       step_name,

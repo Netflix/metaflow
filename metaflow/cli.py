@@ -30,6 +30,7 @@ from .environment import MetaflowEnvironment
 from .pylint_wrapper import PyLint
 from .event_logger import EventLogger
 from .monitor import Monitor
+from .R import use_r, metaflow_r_version
 
 ERASE_TO_EOL = '\033[K'
 HIGHLIGHT = 'red'
@@ -739,8 +740,11 @@ def start(ctx,
         echo = echo_always
 
     ctx.obj.version = metaflow_version.get_version()
+    version = ctx.obj.version
+    if use_r():
+        version = metaflow_r_version()
 
-    echo('Metaflow %s' % ctx.obj.version, fg='magenta', bold=True, nl=False)
+    echo('Metaflow %s' % version, fg='magenta', bold=True, nl=False)
     echo(" executing *%s*" % ctx.obj.flow.name, fg='magenta', nl=False)
     echo(" for *%s*" % resolve_identity(), fg='magenta')
 

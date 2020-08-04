@@ -15,6 +15,7 @@ from metaflow.datastore.local import LocalDataStore
 from metaflow.datastore.util.s3util import get_s3_client
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow import util
+from metaflow import R
 from metaflow.exception import (
     CommandException,
     METAFLOW_EXIT_DISALLOW_RETRY,
@@ -180,9 +181,13 @@ def step(
     if ctx.obj.datastore.datastore_root is None:
         ctx.obj.datastore.datastore_root = ctx.obj.datastore.get_datastore_root_from_config(echo)
 
-    if executable is None:
-        executable = ctx.obj.environment.executable(step_name)
-    entrypoint = "%s -u %s" % (executable, os.path.basename(sys.argv[0]))
+    if R.use_r():
+        entrypoint = R.entrypoint()
+    else:
+        if executable is None:
+            executable = ctx.obj.environment.executable(step_name)
+        entrypoint = '%s -u %s' % (executable,
+                                   os.path.basename(sys.argv[0]))
 
     top_args = " ".join(util.dict_to_cli_options(ctx.parent.parent.params))
 
