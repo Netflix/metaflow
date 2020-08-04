@@ -324,14 +324,6 @@ metaflow_load <- function() {
   invisible()
 }
 
-#' Python packages needed for R. 
-#' numpy is needed to handle native R matrix
-#' pandas is needed to handle R data frame 
-#' @export
-py_dependencies <- function() {
-  return("numpy pandas")
-}
-
 #' Return Metaflow python version
 py_version <- function() {
   reticulate::use_python(Sys.which("python3"), required = TRUE)
