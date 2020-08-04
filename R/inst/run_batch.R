@@ -1,7 +1,7 @@
 Sys.setenv(R_CONFIG_ACTIVE = "batch")
 
 install_dep <- function(dep) {
-  if (!suppressWarnings(require(dep, character.only = TRUE))) {
+  if (!suppressMessages(require(dep, character.only = TRUE))) {
     suppressMessages(install.packages(dep, quiet = TRUE, repos = "https://cloud.r-project.org/"))
   }
 }
@@ -14,8 +14,7 @@ system("python3 -m pip install numpy pandas -qqq")
 
 # the remote code package places the R package under the metaflow-r folder
 suppressMessages(install.packages("./metaflow-r", quiet = TRUE, repos = NULL, type = "source"))
-
-suppressMessages(library(metaflow, warn.conflicts = FALSE, quietly = TRUE))
+suppressWarnings(suppressMessages(library(metaflow, warn.conflicts = FALSE, quietly = TRUE)))
 
 flowRDS_file <- "flow.RDS"
 flowRDS_arg <- Filter(function(arg) {
