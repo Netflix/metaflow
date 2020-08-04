@@ -10,12 +10,12 @@ install_dep <- function(dep) {
 invisible(lapply(c("R6", "reticulate", "magrittr", "cli", "lubridate"), install_dep))
 
 # install numpy and pandas in Python to handle R matrix and data.frame 
-system("python3 -m pip install numpy pandas")
+system("python3 -m pip install numpy pandas -qqq")
 
 # the remote code package places the R package under the metaflow-r folder
 suppressMessages(install.packages("./metaflow-r", quiet = TRUE, repos = NULL, type = "source"))
 
-suppressMessages(library(metaflow, warn.conflicts = FALSE))
+suppressMessages(library(metaflow, warn.conflicts = FALSE, quietly = TRUE))
 
 flowRDS_file <- "flow.RDS"
 flowRDS_arg <- Filter(function(arg) {
