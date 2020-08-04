@@ -17,7 +17,7 @@ except:
     import io
     BytesIO = io.BytesIO
 
-DEFAULT_SUFFIXES = ['.py', '.R']
+DEFAULT_SUFFIXES = ['.py', '.R', '.RDS']
 
 
 class MetaflowPackage(object):
