@@ -126,8 +126,8 @@ run_client <- R6::R6Class("RunClient",
     #' @field tags A vector of strings representing tags assigned to this run object.
     tags = function() import_builtins()$list(super$get_obj()$tags),
 
-    #' @field code Get the code package of the run if it exists
-    code = function() super$get_obj()$code,
+    ##' @field code Get the code package of the run if it exists
+    #code = function() super$get_obj()$code,
 
     #' @field end_task The task identifier, if available, corresponding to the end step of this run.
     end_task = function() super$get_obj()$end_task$id,
