@@ -175,6 +175,20 @@ def create_command_templates_from_graph(graph):
     # each step. But, using this ordering does keep the organization of data more understandable and natural (i.e., `start`
     # gets a task id of 1, next step gets a task id of 2 and so on with 'end' step having the highest task id.
     """
+
+    """
+    Returns the python command template to be used for each step.
+    
+    This method returns a string with placeholders for `datastore_root` and `run_id`
+    which get populated based on the outputs of our initial setup (i.e., when these values are known) in 
+    the pipeline.
+    The rest of the command string is populated using the passed arguments which are known before the run starts.
+    
+    An example constructed command template (to run a step named `hello`):
+    "python downloaded_flow.py --datastore s3 --datastore-root {ds_root} " \
+                     "step hello --run-id {run_id} --task-id 2 " \
+                     "--input-paths {run_id}/start/1"
+    """
     def build_cmd_template(step_name, task_id, input_paths):
         python_cmd = "python {downloaded_file_name} --datastore s3 --datastore-root {{ds_root}} " \
                      "step {step_name} --run-id {{run_id}} --task-id {task_id} " \
@@ -196,28 +210,28 @@ def create_command_templates_from_graph(graph):
         cur_step = steps_deque.popleft()
         cur_task_id += 1
         task_id_map[cur_step] = cur_task_id
+        cur_node = graph.nodes[cur_step]
 
         # Generate the correct input_path for each step. Note: input path depends on a step's parents (i.e., in_funcs)
         # Format of the input-paths for reference:
-        # non-join nodes: run-id/parent-step/parent-task-id,
-        # branch-join node: run-id/:p1/p1-task-id,p2/p2-task-id,...
+        # non-join nodes: "run-id/parent-step/parent-task-id",
+        # branch-join node: "run-id/:p1/p1-task-id,p2/p2-task-id,..."
         # foreach node: TODO: foreach is not considered here
         if cur_task_id == 1: # start step
             cur_input_path = '{run_id}/_parameters/0' # this is the standard input path for the `start` step
         else:
-            if graph.nodes[cur_step].type != 'join':
-                parent_step = graph.nodes[cur_step].in_funcs[0]
-                cur_input_path = '{run_id}/'+ parent_step + '/' + str(task_id_map[parent_step])
-            else:
+            if cur_node.type == 'join':
                 cur_input_path = '{run_id}/:'
-                for parent in graph.nodes[cur_step].in_funcs:
+                for parent in cur_node.in_funcs:
                     cur_input_path += parent + '/' + str(task_id_map[parent]) + ','
                 cur_input_path = cur_input_path.strip(',')
+            else:
+                parent_step = cur_node.in_funcs[0]
+                cur_input_path = '{run_id}/'+ parent_step + '/' + str(task_id_map[parent_step])
 
         command_template_map[cur_step] = build_cmd_template(cur_step, cur_task_id, cur_input_path)
 
-        out_funcs = graph.nodes[cur_step].out_funcs
-        for step in out_funcs:
+        for step in cur_node.out_funcs:
             if step not in seen_steps:
                 steps_deque.append(step)
                 seen_steps.add(step)
@@ -260,7 +274,7 @@ def create_flow_from_graph(flowgraph, flow_code_url=DEFAULT_FLOW_CODE_URL):
         container_op_map['start'].after(pre_start_op)
 
         for step, cmd in command_template_map.items():
-            if step not in container_op_map.keys():
+            if step != 'start':
                 container_op_map[step] = (step_container_op())(
                                             command_template_map[step],
                                             step,
@@ -268,6 +282,10 @@ def create_flow_from_graph(flowgraph, flow_code_url=DEFAULT_FLOW_CODE_URL):
                                             ds_root,
                                             run_id).add_env_variable(S3_BUCKET).add_env_variable(S3_AWS_ARN)
                 container_op_map[step].set_display_name(step)
+
+        # Define ordering of container op execution
+        for step in graph.nodes.keys():
+            if step != 'start':
                 for parent in graph.nodes[step].in_funcs:
                     container_op_map[step].after(container_op_map[parent])
 
