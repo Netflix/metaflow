@@ -238,8 +238,8 @@ def create_flow_from_graph(flowgraph, flow_code_url=DEFAULT_FLOW_CODE_URL):
                     'with branch and join nodes'
     )
     def kfp_pipeline_from_flow():
-        S3_BUCKET = V1EnvVar(name="S3_BUCKET", value=S3_BUCKET_VALUE) # "s3://workspace-zillow-analytics-stage/aip/metaflow")
-        S3_AWS_ARN = V1EnvVar(name="S3_AWS_ARN", value=S3_AWS_ARN_VALUE) #"arn:aws:iam::170606514770:role/dev-zestimate-role")
+        S3_BUCKET = V1EnvVar(name="S3_BUCKET", value=S3_BUCKET_VALUE)
+        S3_AWS_ARN = V1EnvVar(name="S3_AWS_ARN", value=S3_AWS_ARN_VALUE)
         pre_start_op = (pre_start_container_op())(code_url).add_env_variable(S3_BUCKET).add_env_variable(S3_AWS_ARN)
         outputs = pre_start_op.outputs
 
