@@ -50,19 +50,20 @@ jobs:
       if: matrix.lang == 'R' && matrix.os == 'ubuntu-latest'
       run: sudo apt-get update; sudo apt-get install -y libcurl4-openssl-dev qpdf
 
-    - name: Install R 3.6 dependencies
+    - name: Install R 3.6 Rlang dependencies
       if: matrix.lang == 'R'
       run: |
         python3 -m pip install . 
         Rscript -e 'install.packages("devtools", repos="https://cloud.r-project.org", Ncpus=8)'
         Rscript -e 'devtools::install_deps("R", dependencies=TRUE, repos="https://cloud.r-project.org", upgrade="default")'
-        R CMD INSTALL R 
+        R CMD INSTALL R
+        Rscript -e 'install.packages(c("data.table", "caret", "glmnet", "Matrix", "rjson"), repos="https://cloud.r-project.org", Ncpus=8)'   
 
-    - name: Setup tinytex on ubuntu-latest
+    - name: Install latex for CRAN compatibility checks
       if: matrix.lang == 'R' && matrix.os == 'ubuntu-latest'
       uses: r-lib/actions/setup-tinytex@v1
 
-    - name: Run R CMD check on ubuntu-latest
+    - name: Check CRAN compatibility
       if: matrix.lang == 'R' && matrix.os == 'ubuntu-latest'
       run: |
         cd R/
