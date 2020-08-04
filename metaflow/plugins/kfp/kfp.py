@@ -1,7 +1,10 @@
 import kfp
 from kfp import dsl
+from kubernetes.client.models import V1EnvVar
 
 from .constants import DEFAULT_FLOW_CODE_URL, DEFAULT_KFP_YAML_OUTPUT_PATH, DEFAULT_DOWNLOADED_FLOW_FILENAME
+from .constants import S3_AWS_ARN as S3_AWS_ARN_VALUE
+from .constants import S3_BUCKET as S3_BUCKET_VALUE
 from typing import NamedTuple
 from collections import deque
 
@@ -17,6 +20,8 @@ def step_op_func(python_cmd_template, step_name: str,
 
     """
     import subprocess
+    import os
+
     MODIFIED_METAFLOW_URL = 'git+https://github.com/zillow/metaflow.git@state-integ-s3'
     DEFAULT_DOWNLOADED_FLOW_FILENAME = 'downloaded_flow.py'
 
@@ -34,8 +39,8 @@ def step_op_func(python_cmd_template, step_name: str,
                     shell=True)
 
     print("\n----------RUNNING: MAIN STEP COMMAND--------------")
-    S3_BUCKET = "s3://workspace-zillow-analytics-stage/aip/metaflow"
-    S3_AWS_ARN = "arn:aws:iam::170606514770:role/dev-zestimate-role"
+    S3_BUCKET = os.getenv("S3_BUCKET")
+    S3_AWS_ARN = os.getenv("S3_AWS_ARN")
 
     define_s3_env_vars = 'export METAFLOW_DATASTORE_SYSROOT_S3="{}" && export METAFLOW_AWS_ARN="{}" '.format(S3_BUCKET,
                                                                                                              S3_AWS_ARN)
@@ -78,7 +83,9 @@ def pre_start_op_func(code_url: str)  -> StepOutput:
 
     """
     import subprocess
+    import os
     from collections import namedtuple
+
     MODIFIED_METAFLOW_URL = 'git+https://github.com/zillow/metaflow.git@state-integ-s3'
     DEFAULT_DOWNLOADED_FLOW_FILENAME = 'downloaded_flow.py'
 
@@ -96,8 +103,8 @@ def pre_start_op_func(code_url: str)  -> StepOutput:
                     shell=True)
 
     print("\n----------RUNNING: MAIN STEP COMMAND--------------")
-    S3_BUCKET = "s3://workspace-zillow-analytics-stage/aip/metaflow"
-    S3_AWS_ARN = "arn:aws:iam::170606514770:role/dev-zestimate-role"
+    S3_BUCKET = os.getenv("S3_BUCKET")
+    S3_AWS_ARN = os.getenv("S3_AWS_ARN")
 
     define_s3_env_vars = 'export METAFLOW_DATASTORE_SYSROOT_S3="{}" && export METAFLOW_AWS_ARN="{}" '.format(S3_BUCKET,
                                                                                                           S3_AWS_ARN)
@@ -231,7 +238,9 @@ def create_flow_from_graph(flowgraph, flow_code_url=DEFAULT_FLOW_CODE_URL):
                     'with branch and join nodes'
     )
     def kfp_pipeline_from_flow():
-        pre_start_op = (pre_start_container_op())(code_url)
+        S3_BUCKET = V1EnvVar(name="S3_BUCKET", value=S3_BUCKET_VALUE) # "s3://workspace-zillow-analytics-stage/aip/metaflow")
+        S3_AWS_ARN = V1EnvVar(name="S3_AWS_ARN", value=S3_AWS_ARN_VALUE) #"arn:aws:iam::170606514770:role/dev-zestimate-role")
+        pre_start_op = (pre_start_container_op())(code_url).add_env_variable(S3_BUCKET).add_env_variable(S3_AWS_ARN)
         outputs = pre_start_op.outputs
 
         container_op_map = {}
@@ -240,13 +249,24 @@ def create_flow_from_graph(flowgraph, flow_code_url=DEFAULT_FLOW_CODE_URL):
 
         # Initial setup
         pre_start_op.set_display_name('InitialSetup')
-        container_op_map['start'] = (step_container_op())(command_template_map['start'], 'start', code_url, ds_root, run_id)
+        container_op_map['start'] = (step_container_op())(
+                                        command_template_map['start'],
+                                        'start',
+                                        code_url,
+                                        ds_root,
+                                        run_id
+                                        ).add_env_variable(S3_BUCKET).add_env_variable(S3_AWS_ARN)
         container_op_map['start'].set_display_name('start')
         container_op_map['start'].after(pre_start_op)
 
         for step, cmd in command_template_map.items():
             if step not in container_op_map.keys():
-                container_op_map[step] = (step_container_op())(command_template_map[step], step, code_url, ds_root, run_id)
+                container_op_map[step] = (step_container_op())(
+                                            command_template_map[step],
+                                            step,
+                                            code_url,
+                                            ds_root,
+                                            run_id).add_env_variable(S3_BUCKET).add_env_variable(S3_AWS_ARN)
                 container_op_map[step].set_display_name(step)
                 for parent in graph.nodes[step].in_funcs:
                     container_op_map[step].after(container_op_map[parent])
