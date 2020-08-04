@@ -565,7 +565,7 @@ def aws(ctx, profile):
                                  yellow(' (optional)') +
                                  ' Default Docker image repository for AWS ' +
                                  'Batch jobs. If nothing is specified, ' +
-                                 'dockerhub (https://hub.docker.com/) is ' +
+                                 'dockerhub (hub.docker.com/) is ' +
                                  'used as default.',
                                  default=\
                                     existing_env.get('METAFLOW_BATCH_CONTAINER_REGISTRY', ''),
