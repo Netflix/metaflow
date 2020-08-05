@@ -7,6 +7,7 @@ from os.path import expanduser
 
 from metaflow.datastore.local import LocalDataStore
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, DEFAULT_METADATA
+from metaflow.util import to_unicode
 
 
 def makedirs(path):
@@ -406,7 +407,7 @@ def sandbox(profile):
         import base64, zlib
         from metaflow.util import to_bytes
         env_dict =\
-            json.loads(zlib.decompress(base64.b64decode(to_bytes(encoded_str))))
+            json.loads(to_unicode(zlib.decompress(base64.b64decode(to_bytes(encoded_str)))))
     except:
         # TODO: Add the URL for contact us page in the error?
         raise click.BadArgumentUsage('Could not decode the sandbox '\
