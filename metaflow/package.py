@@ -26,6 +26,13 @@ class MetaflowPackage(object):
         self.suffixes = list(set().union(suffixes, DEFAULT_SUFFIXES))
         self.environment = environment
         self.metaflow_root = os.path.dirname(__file__)
+        try:
+            import metaflow_custom
+        except ImportError:
+            self.metaflow_custom_root = None
+        else:
+            self.metaflow_custom_root = os.path.dirname(metaflow_custom.__file__)
+
         environment.init_environment(logger)
         for step in flow:
             for deco in step.decorators:
@@ -59,6 +66,10 @@ class MetaflowPackage(object):
         # Metaflow package itself
         for path_tuple in self._walk(self.metaflow_root, exclude_hidden=False):
             yield path_tuple
+        # Metaflow customization if any
+        if self.metaflow_custom_root:
+            for path_tuple in self._walk(self.metaflow_custom_root, exclude_hidden=False):
+                yield path_tuple
         # the package folders for environment
         for path_tuple in self.environment.add_to_package():
             yield path_tuple
