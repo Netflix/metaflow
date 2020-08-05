@@ -74,7 +74,6 @@ jobs:
       run: |
         cd R/tests
         Rscript testthat.R
-        bash test_tutorials.sh
         Rscript run_integration_tests.R
 
     - name: Execute Python tests
