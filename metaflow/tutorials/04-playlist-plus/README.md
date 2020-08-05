@@ -11,11 +11,10 @@ isolated and reproducible environments for individual steps.**
 - Metaflow's conda based dependency management.
 
 #### Before playing this episode:
-This tutorial requires the 'conda' package manager to be installed with the
-conda-forge channel added.
-
-1. Download Miniconda at https://docs.conda.io/en/latest/miniconda.html
-2. ```conda config --add channels conda-forge```
+1. This tutorial requires the 'conda' package manager to be installed with the
+   conda-forge channel added.
+   a. Download Miniconda at https://docs.conda.io/en/latest/miniconda.html
+   b. ```conda config --add channels conda-forge```
 
 #### To play this episode:
 1. ```cd metaflow-tutorials```

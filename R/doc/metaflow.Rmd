@@ -1,0 +1,16 @@
+---
+title: "metaflow"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{metaflow}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+Please refer to \url{docs.metaflow.org} for detailed documentation and tutorials.

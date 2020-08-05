@@ -1,0 +1,35 @@
+---
+title: "Episode 02: Is this Data Science?"
+output:
+  html_document:
+    df_print: paged
+---
+
+MovieStatsFlow loads the movie metadata CSV file into a Pandas Dataframe and computes some movie genre specific statistics. You can use this notebook and the Metaflow client to eyeball the results and make some simple plots.
+
+```{r}
+suppressPackageStartupMessages(library(metaflow))
+message("Current metadata provider: ", get_metadata())
+message("Current namespace: ", get_namespace())
+```
+
+## Get the movie statistics from the latest run of MovieStatsFlow
+
+```{r}
+flow <- flow_client$new("MovieStatsFlow")
+run_id <- flow$latest_successful_run
+run <- run_client$new(flow, run_id)
+
+df <- run$artifact("stats")
+print(head(df))
+```
+
+
+
+## Create a bar plot of median gross box office of top 5 movies
+```{r}
+df <- df[order(df$median, decreasing = TRUE), ]
+print(head(df))
+
+barplot(df$median[1:5], names.arg=df$genres[1:5])
+```

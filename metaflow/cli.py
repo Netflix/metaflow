@@ -2,11 +2,12 @@ import os
 import sys
 import inspect
 import traceback
-from functools import partial, wraps
+from functools import wraps
 from datetime import datetime
 
 import click
 
+from . import current
 from . import lint
 from . import plugins
 from . import parameters
@@ -21,7 +22,7 @@ from .graph import FlowGraph
 from .datastore import DATASTORES
 from .runtime import NativeRuntime
 from .package import MetaflowPackage
-from .plugins import LOGGING_SIDECAR, MONITOR_SIDECAR
+from .plugins import LOGGING_SIDECARS, MONITOR_SIDECARS
 from .metadata import METADATAPROVIDERS
 from .metaflow_config import DEFAULT_DATASTORE, DEFAULT_METADATA
 from .plugins import ENVIRONMENTS
@@ -29,6 +30,7 @@ from .environment import MetaflowEnvironment
 from .pylint_wrapper import PyLint
 from .event_logger import EventLogger
 from .monitor import Monitor
+from .R import use_r, metaflow_r_version
 
 ERASE_TO_EOL = '\033[K'
 HIGHLIGHT = 'red'
@@ -375,6 +377,12 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None):
               default=None,
               help="Run id of the origin flow, if this task is part of a flow "
               "being resumed.")
+@click.option('--with',
+              'decospecs',
+              multiple=True,
+              help="Add a decorator to this task. You can specify this "
+              "option multiple times to attach multiple decorators "
+              "to this task.")
 @click.pass_obj
 def step(obj,
          step_name,
@@ -387,7 +395,8 @@ def step(obj,
          retry_count=None,
          max_user_code_retries=None,
          clone_only=None,
-         clone_run_id=None):
+         clone_run_id=None,
+         decospecs=None):
     if user_namespace is not None:
         namespace(user_namespace or None)
 
@@ -402,9 +411,13 @@ def step(obj,
          fg='magenta',
          bold=False)
 
+    if decospecs:
+        decorators._attach_decorators_to_step(func, decospecs)
+
     obj.datastore.datastore_root = obj.datastore_root
     if obj.datastore.datastore_root is None:
-        obj.datastore.datastore_root = obj.datastore.get_datastore_root_from_config(obj.echo)
+        obj.datastore.datastore_root = \
+            obj.datastore.get_datastore_root_from_config(obj.echo)
 
     obj.metadata.add_sticky_tags(tags=tags)
     paths = decompress_list(input_paths) if input_paths else []
@@ -433,7 +446,7 @@ def step(obj,
 
     echo('Success', fg='green', bold=True, indent=True)
 
-@parameters.add_custom_parameters
+@parameters.add_custom_parameters(deploy_mode=False)
 @cli.command(help="Internal command to initialize a run.")
 @click.option('--run-id',
               default=None,
@@ -454,7 +467,8 @@ def init(obj, run_id=None, task_id=None, **kwargs):
     # variables.
 
     if obj.datastore.datastore_root is None:
-        obj.datastore.datastore_root = obj.datastore.get_datastore_root_from_config(obj.echo)
+        obj.datastore.datastore_root = \
+            obj.datastore.get_datastore_root_from_config(obj.echo)
 
     runtime = NativeRuntime(obj.flow,
                             obj.graph,
@@ -563,7 +577,7 @@ def resume(obj,
     write_run_id(run_id_file, runtime.run_id)
 
 
-@parameters.add_custom_parameters
+@parameters.add_custom_parameters(deploy_mode=True)
 @cli.command(help='Run the workflow locally.')
 @common_run_options
 @click.option('--namespace',
@@ -634,7 +648,8 @@ def before_run(obj, tags, decospecs):
     #obj.environment.init_environment(obj.logger)
 
     if obj.datastore.datastore_root is None:
-        obj.datastore.datastore_root = obj.datastore.get_datastore_root_from_config(obj.echo)
+        obj.datastore.datastore_root = \
+            obj.datastore.get_datastore_root_from_config(obj.echo)
 
     decorators._init_decorators(
         obj.flow, obj.graph, obj.environment, obj.datastore, obj.logger)
@@ -643,7 +658,6 @@ def before_run(obj, tags, decospecs):
     # Package working directory only once per run.
     # We explicitly avoid doing this in `start` since it is invoked for every
     # step in the run.
-    # TODO(crk): Capture time taken to package and log to keystone.
     obj.package = MetaflowPackage(obj.flow, obj.environment, obj.logger, obj.package_suffixes)
 
 
@@ -699,12 +713,12 @@ def version(obj):
 @click.option('--event-logger',
               default='nullSidecarLogger',
               show_default=True,
-              type=click.Choice(LOGGING_SIDECAR),
+              type=click.Choice(LOGGING_SIDECARS),
               help='type of event logger used')
 @click.option('--monitor',
               default='nullSidecarMonitor',
               show_default=True,
-              type=click.Choice(MONITOR_SIDECAR),
+              type=click.Choice(MONITOR_SIDECARS),
               help='Monitoring backend type')
 @click.pass_context
 def start(ctx,
@@ -726,8 +740,11 @@ def start(ctx,
         echo = echo_always
 
     ctx.obj.version = metaflow_version.get_version()
+    version = ctx.obj.version
+    if use_r():
+        version = metaflow_r_version()
 
-    echo('Metaflow %s' % ctx.obj.version, fg='magenta', bold=True, nl=False)
+    echo('Metaflow %s' % version, fg='magenta', bold=True, nl=False)
     echo(" executing *%s*" % ctx.obj.flow.name, fg='magenta', nl=False)
     echo(" for *%s*" % resolve_identity(), fg='magenta')
 
@@ -767,9 +784,21 @@ def start(ctx,
                                                   ctx.obj.event_logger,
                                                   ctx.obj.monitor)
     ctx.obj.datastore = DATASTORES[datastore]
-    ctx.obj.datastore_root = datastore_root
 
+    if datastore_root is None:
+        datastore_root = \
+          ctx.obj.datastore.get_datastore_root_from_config(ctx.obj.echo)
+    ctx.obj.datastore_root = ctx.obj.datastore.datastore_root = datastore_root
+
+    if decospecs:
+        decorators._attach_decorators(ctx.obj.flow, decospecs)
+
+    # initialize current and parameter context for deploy-time parameters
     current._set_env(flow_name=ctx.obj.flow.name, is_running=False)
+    parameters.set_parameter_context(ctx.obj.flow.name,
+                                        ctx.obj.logger,
+                                        ctx.obj.datastore)
+
     if ctx.invoked_subcommand not in ('run', 'resume'):
         # run/resume are special cases because they can add more decorators with --with,
         # so they have to take care of themselves.
@@ -849,8 +878,6 @@ def main(flow, args=None, handle_exceptions=True, entrypoint=None):
 
     state = CliState(flow)
     state.entrypoint = entrypoint
-
-    parameters.set_parameter_context(flow.name)
 
     try:
         if args is None:
