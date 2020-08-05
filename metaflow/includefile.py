@@ -185,7 +185,7 @@ class LocalFile():
         try:
             with open(path, mode='r') as _:
                 pass
-        except OSError:
+        except (IOError, OSError):
             return False, None, "Could not open file '%s'" % path
         return True, None, None
 
@@ -248,7 +248,7 @@ class FilePathClass(click.ParamType):
 class IncludeFile(Parameter):
 
     def __init__(
-            self, name, required=False, is_text=True, encoding=None, help=None, **kwargs):
+            self, name, required=False, is_text=True, encoding=None, help='', **kwargs):
         # Defaults are DeployTimeField
         v = kwargs.get('default')
         if v is not None:
@@ -271,6 +271,12 @@ class IncludeFile(Parameter):
             type=FilePathClass(is_text, encoding), **kwargs)
 
     def load_parameter(self, val):
+        # From MF 2.1.0, we store parameters by pickling a dictionary describing the
+        # included file (its location, etc). Prior to this, IncludeFile parameters were stored
+        # directly as is (as bytes or str). We therefore check if this is a new style parameter
+        # (val is a dictionary) or an old one (val is not a dictionary)
+        if not isinstance(val, dict):
+            return val
         ok, file_type, err = LocalFile.is_file_handled(val)
         if not ok:
             raise MetaflowException("Parameter '%s' could not be loaded: %s" % (self.name, err))
@@ -331,7 +337,7 @@ class Uploader():
         buf.seek(0)
         with self._client_class() as client:
             url = client.put(path, buf.getvalue(), overwrite=False)
-            logger('File persisted at %s' % url)
+            logger('File persisted to %s' % url)
             return Uploader.encode_url(Uploader.file_type, url, is_text=is_text, encoding=encoding)
 
     def load(self, value):
