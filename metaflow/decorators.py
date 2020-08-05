@@ -348,24 +348,33 @@ def _attach_decorators(flow, decospecs):
     effect as if you defined the decorators statically in the source for
     every step. Used by --with command line parameter.
     """
+    # Attach the decorator to all steps that don't have this decorator
+    # already. This means that statically defined decorators are always
+    # preferred over runtime decorators.
+    #
+    # Note that each step gets its own instance of the decorator class,
+    # so decorator can maintain step-specific state.
+    for step in flow:
+        _attach_decorators_to_step(step, decospecs)
+
+def _attach_decorators_to_step(step, decospecs):
+    """
+    Attach decorators to a step during runtime. This has the same
+    effect as if you defined the decorators statically in the source for
+    the step.
+    """
     from .plugins import STEP_DECORATORS
     decos = {decotype.name: decotype for decotype in STEP_DECORATORS}
     for decospec in decospecs:
         deconame = decospec.split(':')[0]
         if deconame not in decos:
             raise UnknownStepDecoratorException(deconame)
-
-        # Attach the decorator to all steps that don't have this decorator
+        # Attach the decorator to step if it doesn't have the decorator
         # already. This means that statically defined decorators are always
         # preferred over runtime decorators.
-        #
-        # Note that each step gets its own instance of the decorator class,
-        # so decorator can maintain step-specific state.
-        for step in flow:
-            if deconame not in [deco.name for deco in step.decorators]:
-                deco = decos[deconame]._parse_decorator_spec(decospec)
-                step.decorators.append(deco)
-
+        if deconame not in [deco.name for deco in step.decorators]:
+            deco = decos[deconame]._parse_decorator_spec(decospec)
+            step.decorators.append(deco)
 
 def _init_decorators(flow, graph, environment, datastore, logger):
     for deco in flow._flow_decorators.values():
