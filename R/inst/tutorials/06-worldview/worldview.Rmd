@@ -1,0 +1,38 @@
+---
+title: "Episode 06: Way up here."
+output: html_notebook
+---
+
+This notebook shows how you can see some basic information about all Metaflow flows that you've run.
+
+## Check metadata provider and your namespace
+We will be able to see all flows registered with this metadata provider across all namespaces. If you're sharing the AWS metadata provider with your colleagues, you will be able to see all of your colleagues' flows as well.
+```{r}
+suppressPackageStartupMessages(library(metaflow))
+message("Current metadata provider: ", get_metadata())
+```
+
+## List all flows with their latest completion time and status
+```{r}
+set_namespace(NULL)
+flow_names <- metaflow::list_flows()
+for (name in unlist(flow_names)){
+  flow <- flow_client$new(name)
+  
+  run <- run_client$new(flow, flow$latest_run)
+  
+  message("Run id: ", run$id, " Last run: ", run$finished_at, " Successful: ", run$successful)
+}
+```
+
+
+## Give some detailed information on HelloAWSFlow
+```{r}
+flow <- flow_client$new("HelloAWSFlow")
+for (run_id in flow$runs){
+  run <- run_client$new(flow, run_id)
+  message("Run id: ", run$id, " Successful: ", run$successful)
+  message("Tags: ")
+  print(run$tags)
+}
+```

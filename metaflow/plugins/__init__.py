@@ -27,8 +27,12 @@ def get_plugin_cli():
     # Add new CLI commands in this list
     from . import package_cli
     from .aws.batch import batch_cli
+    from .aws.step_functions import step_functions_cli
 
-    return ext_plugins.get_plugin_cli() + [package_cli.cli, batch_cli.cli]
+    return ext_plugins.get_plugin_cli() + [
+        package_cli.cli,
+        batch_cli.cli,
+        step_function_cli.cli]
 
 
 def _merge_lists(base, overrides, attr):
@@ -48,6 +52,7 @@ from .timeout_decorator import TimeoutDecorator
 from .environment_decorator import EnvironmentDecorator
 from .retry_decorator import RetryDecorator
 from .aws.batch.batch_decorator import BatchDecorator, ResourcesDecorator
+from .aws.step_functions.step_functions_decorator import StepFunctionsInternalDecorator
 from .conda.conda_step_decorator import CondaStepDecorator
 
 STEP_DECORATORS = _merge_lists([CatchDecorator,
@@ -56,6 +61,7 @@ STEP_DECORATORS = _merge_lists([CatchDecorator,
                                 ResourcesDecorator,
                                 RetryDecorator,
                                 BatchDecorator,
+                                StepFunctionsInternalDecorator,
                                 CondaStepDecorator], ext_plugins.STEP_DECORATORS, 'name')
 
 # Add Conda environment
@@ -68,7 +74,10 @@ ENVIRONMENTS = _merge_lists([CondaEnvironment], ext_plugins.ENVIRONMENTS, 'TYPE'
 # careful with the choice of name though - they become top-level
 # imports from the metaflow package.
 from .conda.conda_flow_decorator import CondaFlowDecorator
-FLOW_DECORATORS = _merge_lists([CondaFlowDecorator], ext_plugins.FLOW_DECORATORS, 'name')
+from .aws.step_functions.schedule_decorator import ScheduleDecorator
+
+FLOW_DECORATORS = _merge_lists(
+    [CondaFlowDecorator, ScheduleDecorator], ext_plugins.FLOW_DECORATORS, 'name')
 
 # Auth providers
 from .aws.aws_client import get_aws_client

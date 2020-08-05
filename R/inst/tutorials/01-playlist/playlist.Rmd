@@ -1,0 +1,31 @@
+---
+title: "Episode 01-playlist: Let's build you a movie playlist"
+output: html_notebook
+---
+
+PlayListFlow is a movie playlist generator, and this notebook shows how you can use the Metaflow client to access data from the versioned Metaflow runs. In this example, you can view all the historical playlists.
+
+```{r}
+suppressPackageStartupMessages(library(metaflow))
+message("Current metadata provider: ", get_metadata())
+message("Current namespace: ", get_namespace())
+```
+
+## Print your latest generated playlist
+```{r}
+flow <- flow_client$new("PlayListFlow")
+
+run_id <- flow$latest_successful_run
+message("Using run: ", run_id)
+
+run <- run_client$new(flow, run_id)
+
+message("Bonus pick: ", run$artifact("bonus"))
+
+message("Playlist generated on ", run$finished_at)
+message("Playlist for movies in genre: ", run$artifact("genre"))
+
+playlist <- run$artifact("playlist")
+print(head(playlist))
+```
+
