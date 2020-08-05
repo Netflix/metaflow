@@ -93,7 +93,7 @@ class FlowSpec(object):
 
     def _get_parameters(self):
         for var in dir(self):
-            if var[0] == '_':
+            if var[0] == '_' or var in self._EPHEMERAL:
                 continue
             try:
                 val = getattr(self, var)
