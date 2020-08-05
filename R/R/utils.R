@@ -373,6 +373,8 @@ container_image <- function() {
       rocker_tag <- "3.5.3"
     } else if (r_version == "3.6") {
       rocker_tag <- "3.6.1"
+    } else if (r_version == "4.0") {
+      rocker_tag <- "4.0.2"
     } else {
       rocker_tag <- "latest"
     }

@@ -21,7 +21,7 @@
 #' t$finished_at
 #' t$artifacts
 #' t$artifact(t$artifacts)
-#' t$summay()
+#' t$summary()
 #' }
 #'
 #' @export
