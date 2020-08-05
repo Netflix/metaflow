@@ -283,9 +283,8 @@ install <- function(user_install=TRUE, upgrade=FALSE) {
   }
 
   # numpy and pandas are needed to handle native R matrix and data.frame
-  # TODO: Swap metaflow git pip install with proper pip install
   system(paste("python3 -m pip install", upgrade_flag,
-               "git+https://github.com/Netflix/metaflow.git@R-dev",
+               "'metaflow>=2.2.0'",
                "numpy",
                "pandas",
                user_flag))
