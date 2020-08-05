@@ -44,7 +44,7 @@ def container_image():
 
 def metaflow_r_version():
     return METAFLOW_R_VERSION
-    
+
 def r_version():
     return R_VERSION
 
