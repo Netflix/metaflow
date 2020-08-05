@@ -31,7 +31,7 @@ def get_plugin_cli():
     return ext_plugins.get_plugin_cli() + [
         package_cli.cli,
         batch_cli.cli,
-        step_function_cli.cli]
+        step_functions_cli.cli]
 
 
 def _merge_lists(base, overrides, attr):
