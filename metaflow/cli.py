@@ -876,7 +876,8 @@ def start(ctx,
     ctx.obj.datastore = DATASTORES[datastore]
     ctx.obj.datastore_root = datastore_root
 
-    echo("Datastore: {0}\nDatastoreRoot:{1}".format(ctx.obj.datastore, ctx.obj.datastore_root))
+    echo("Datastore: {0}".format(ctx.obj.datastore))
+    echo("DatastoreRoot: {0}".format(ctx.obj.datastore_root))
 
     current._set_env(flow_name=ctx.obj.flow.name, is_running=False)
     if ctx.invoked_subcommand not in ('run', 'resume'):

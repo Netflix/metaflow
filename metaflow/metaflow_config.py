@@ -7,6 +7,7 @@ import pkg_resources
 
 from metaflow.exception import MetaflowException
 
+
 # Disable multithreading security on MacOS
 if sys.platform == "darwin":
     os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
@@ -175,6 +176,7 @@ def get_pinned_conda_libs():
 
 cached_aws_sandbox_creds = None
 
+
 def get_authenticated_boto3_client(module, params={}):
     from metaflow.exception import MetaflowException
     import requests
@@ -201,54 +203,26 @@ def get_authenticated_boto3_client(module, params={}):
         return boto3.session.Session(**cached_aws_sandbox_creds).client(module, **params)
 
     if METAFLOW_AWS_ARN:
-        import logging
         from datetime import datetime
-
-        import boto3
         from botocore.credentials import AssumeRoleCredentialFetcher, DeferredRefreshableCredentials
         from botocore.session import Session
         from dateutil.tz import tzlocal
 
-        _logger = logging.getLogger(__name__)
+        source_session = boto3.Session()
+        # Use profile to fetch assume role credentials
+        fetcher = AssumeRoleCredentialFetcher(
+            client_creator=source_session._session.create_client,
+            source_credentials=source_session.get_credentials(),
+            role_arn=METAFLOW_AWS_ARN
+        )
+        botocore_session = Session()
+        botocore_session._credentials = DeferredRefreshableCredentials(
+            method="assume-role",
+            refresh_using=fetcher.fetch_credentials,
+            time_fetcher=lambda: datetime.now(tzlocal()),
+        )
 
-        def get_aws_session(role_arn: str) -> Session:
-            """
-            Args:
-                role_arn: AWS ARN
-            Returns: boto3 Session
-            """
-            source_session = boto3.Session()
+        session = boto3.Session(botocore_session=botocore_session, region_name="us-west-2")
+        return session.client("s3")
 
-            # Use profile to fetch assume role credentials
-            fetcher = AssumeRoleCredentialFetcher(
-                client_creator=source_session._session.create_client,
-                source_credentials=source_session.get_credentials(),
-                role_arn=role_arn,
-            )
-
-            # Create new session with assumed role and auto-refresh
-            botocore_session = Session()
-            botocore_session._credentials = DeferredRefreshableCredentials(
-                method="assume-role",
-                refresh_using=fetcher.fetch_credentials,
-                time_fetcher=lambda: datetime.now(tzlocal()),
-            )
-
-            return botocore_session
-
-        def get_aws_client(role_arn: str, service: str):
-            """
-            Args:s
-                role_arn: AWS ARN
-                service: AWS service, example: "s3"
-
-            Returns: Returns an AWS client
-
-            """
-            botocore_session = get_aws_session(role_arn)
-
-            session = boto3.Session(botocore_session=botocore_session, region_name="us-west-2")
-            return session.client(service)
-
-        return get_aws_client(METAFLOW_AWS_ARN, "s3")
     return boto3.client(module, **params)
