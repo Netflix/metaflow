@@ -1,5 +1,7 @@
 import json
 
+from metaflow.util import to_unicode
+
 """
 MetaflowDatastoreSet allows you to prefetch multiple (read) datastores into a
 cache and lets you access them.
@@ -30,7 +32,7 @@ class MetaflowDatastoreSet(object):
                                attempt=attempt,
                                event_logger=event_logger,
                                monitor=monitor,
-                               data_obj=json.loads(data_blob),
+                               data_obj=json.loads(to_unicode(data_blob)),
                                artifact_cache=artifact_cache)
                       for step_name, task_id, attempt, data_blob in data_blobs]
         if prefetch_data_artifacts:
