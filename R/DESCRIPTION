@@ -1,0 +1,47 @@
+Package: metaflow
+Type: Package
+Title: Metaflow for R-Lang
+Version: 2.2.0
+Author: Jason Ge [aut] <jge@netflix.com>, 
+  Savin Goyal [aut, cre] <savin@netflix.com>
+Maintainer: Jason Ge <help@metaflow.org>
+Description: Metaflow is a human-friendly R package 
+  that helps scientists and engineers build and manage real-life data science projects. 
+  Metaflow was originally developed at Netflix to boost productivity of data scientists 
+  who work on a wide variety of projects from classical statistics to state-of-the-art deep learning.
+Encoding: UTF-8
+License: Apache License (>= 2.0) | file LICENSE
+LazyData: true
+URL: https://metaflow.org/,
+  https://docs.metaflow.org/,
+  https://github.com/Netflix/metaflow
+BugReports: https://github.com/Netflix/metaflow/issues
+Imports:
+  magrittr,
+  R6,
+  reticulate (>= 1.10)
+Suggests:
+    cli,
+    lubridate,
+    testthat,
+    knitr,
+    rmarkdown
+RoxygenNote: 7.1.1
+Collate: 
+    'decorators.R'
+    'flags.R'
+    'flow.R'
+    'metaflow_client.R'
+    'metaflow.R'
+    'flow_client.R'
+    'metadata.R'
+    'namespace.R'
+    'parameter.R'
+    'run.R'
+    'utils.R'
+    'run_client.R'
+    'step.R'
+    'step_client.R'
+    'task_client.R'
+    'zzz.R'
+VignetteBuilder: knitr

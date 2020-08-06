@@ -172,6 +172,10 @@ class S3Object(object):
 
 class S3(object):
 
+    @classmethod
+    def get_root_from_config(cls, echo, create_on_absent=True):
+        return DATATOOLS_S3ROOT
+
     def __init__(self,
                  tmproot='.',
                  bucket=None,
@@ -204,7 +208,7 @@ class S3(object):
         """
 
         if not boto_found:
-            MetaflowException("You need to install 'boto3' in order to use S3.")
+            raise MetaflowException("You need to install 'boto3' in order to use S3.")
 
         if run:
             # 1. use a (current) run ID with optional customizations

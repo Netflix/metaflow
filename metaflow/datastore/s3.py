@@ -16,10 +16,10 @@ except:
     # python3
     from urllib.parse import urlparse
 
+from .. import metaflow_config
 from .datastore import MetaflowDataStore, DataException, only_if_not_done
 from ..metadata import MetaDatum
 from .util.s3util import aws_retry, get_s3_client
-from .. import metaflow_config
 
 # We need UncloseableBytesIO for put_s3_object which may need
 # to consume a BytesIO buffer multiple times. Blocking close()
