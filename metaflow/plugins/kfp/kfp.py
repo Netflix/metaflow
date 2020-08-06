@@ -5,6 +5,8 @@ from kubernetes.client.models import V1EnvVar
 from .constants import DEFAULT_FLOW_CODE_URL, DEFAULT_KFP_YAML_OUTPUT_PATH, DEFAULT_DOWNLOADED_FLOW_FILENAME
 from .constants import S3_AWS_ARN as S3_AWS_ARN_VALUE
 from .constants import S3_BUCKET as S3_BUCKET_VALUE
+from .constants import S3_AWS_REGION as S3_AWS_REGION_VALUE
+
 from typing import NamedTuple
 from collections import deque
 
@@ -17,7 +19,6 @@ def step_op_func(python_cmd_template, step_name: str,
                ):
     """
     Function used to create a KFP container op (see: `step_container_op`) that corresponds to a single step in the flow.
-
     """
     import subprocess
     import os
@@ -41,9 +42,10 @@ def step_op_func(python_cmd_template, step_name: str,
     print("\n----------RUNNING: MAIN STEP COMMAND--------------")
     S3_BUCKET = os.getenv("S3_BUCKET")
     S3_AWS_ARN = os.getenv("S3_AWS_ARN")
+    S3_AWS_REGION = os.getenv("S3_AWS_REGION")
 
-    define_s3_env_vars = 'export METAFLOW_DATASTORE_SYSROOT_S3="{}" && export METAFLOW_AWS_ARN="{}" '.format(S3_BUCKET,
-                                                                                                             S3_AWS_ARN)
+    define_s3_env_vars = 'export METAFLOW_DATASTORE_SYSROOT_S3="{}" && export METAFLOW_AWS_ARN="{}" ' \
+                         '&& export METAFLOW_AWS_S3_REGION="{}"'.format(S3_BUCKET, S3_AWS_ARN, S3_AWS_REGION)
     define_username = 'export USERNAME="kfp-user"'
     python_cmd = python_cmd_template.format(ds_root=ds_root, run_id=run_id)
 
@@ -58,7 +60,6 @@ def step_op_func(python_cmd_template, step_name: str,
     if step_name.lower() == 'end':
         print("_______________ FLOW RUN COMPLETE ________________")
 
-    # TODO: Check why MF echo statements are getting redirected to stderr
     if len(proc_error) > 1:
         print("_______________STDERR:_____________________________")
         print(proc_error)
@@ -81,7 +82,6 @@ def step_op_func(python_cmd_template, step_name: str,
 def initial_setup_op_func(code_url: str)  -> StepOutput:
     """
     Function used to create a KFP container op (see `initial_setup_container_op`)that corresponds to the `pre-start` step of metaflow
-
     """
     import subprocess
     import os
@@ -106,9 +106,10 @@ def initial_setup_op_func(code_url: str)  -> StepOutput:
     print("\n----------RUNNING: MAIN STEP COMMAND--------------")
     S3_BUCKET = os.getenv("S3_BUCKET")
     S3_AWS_ARN = os.getenv("S3_AWS_ARN")
+    S3_AWS_REGION = os.getenv("S3_AWS_REGION")
 
-    define_s3_env_vars = 'export METAFLOW_DATASTORE_SYSROOT_S3="{}" && export METAFLOW_AWS_ARN="{}" '.format(S3_BUCKET,
-                                                                                                          S3_AWS_ARN)
+    define_s3_env_vars = 'export METAFLOW_DATASTORE_SYSROOT_S3="{}" && export METAFLOW_AWS_ARN="{}" ' \
+                         '&& export METAFLOW_AWS_S3_REGION="{}"'.format(S3_BUCKET, S3_AWS_ARN, S3_AWS_REGION)
     define_username = 'export USERNAME="kfp-user"'
     python_cmd = 'python {0} --datastore="s3" --datastore-root="{1}" pre-start'.format(DEFAULT_DOWNLOADED_FLOW_FILENAME,
                                                                                        S3_BUCKET)
@@ -122,7 +123,6 @@ def initial_setup_op_func(code_url: str)  -> StepOutput:
     StepOutput = namedtuple('StepOutput',
                              ['ds_root', 'run_id'])
 
-    # TODO: Check why MF echo statements are getting redirected to stderr
     if len(proc_error) > 1:
         print("_____________ STDERR:_____________________________")
         print(proc_error)
@@ -168,16 +168,17 @@ def initial_setup_container_op():
     return init_setup_op
 
 
-def add_env_variables(container_op):
+def add_env_variables_transformer(container_op):
     """
     Add environment variables to the container op.
-
     """
 
     S3_BUCKET = V1EnvVar(name="S3_BUCKET", value=S3_BUCKET_VALUE)
     S3_AWS_ARN = V1EnvVar(name="S3_AWS_ARN", value=S3_AWS_ARN_VALUE)
+    S3_AWS_REGION = V1EnvVar(name="S3_AWS_REGION", value=S3_AWS_REGION_VALUE)
     container_op.add_env_variable(S3_BUCKET)
     container_op.add_env_variable(S3_AWS_ARN)
+    container_op.add_env_variable(S3_AWS_REGION)
     return container_op
 
 
@@ -295,7 +296,7 @@ def create_kfp_pipeline_from_flow_graph(flow_graph, code_url=DEFAULT_FLOW_CODE_U
                                             run_id).set_display_name(step)
 
         # Add environment variables to all ops
-        dsl.get_pipeline_conf().add_op_transformer(add_env_variables)
+        dsl.get_pipeline_conf().add_op_transformer(add_env_variables_transformer)
 
         # Define ordering of container op execution
         for step in flow_graph.nodes.keys():
@@ -311,7 +312,6 @@ def create_run_on_kfp(flow_graph, code_url, experiment_name, run_name):
     """
     Creates a new run on KFP using the `kfp.Client()`. Note: Intermediate pipeline YAML is not generated as this creates
     the run directly using the pipeline function returned by `create_flow_pipeline`
-
     """
 
     pipeline_func = create_kfp_pipeline_from_flow_graph(flow_graph, code_url)
@@ -326,7 +326,6 @@ def create_kfp_pipeline_yaml(flow_graph, code_url, pipeline_file_path=DEFAULT_KF
     """
     Creates a new KFP pipeline YAML using `kfp.compiler.Compiler()`. Note: Intermediate pipeline YAML is saved
     at `pipeline_file_path`
-
     """
     pipeline_func = create_kfp_pipeline_from_flow_graph(flow_graph, code_url)
 

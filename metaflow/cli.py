@@ -403,7 +403,8 @@ def step(obj,
         raise CommandException("Function *%s* is not a step." % step_name)
     echo('Executing a step, *%s*' % step_name,
          fg='magenta',
-         bold=False)
+         bold=False,
+         err=False)
 
     obj.datastore.datastore_root = obj.datastore_root
     if obj.datastore.datastore_root is None:
@@ -434,7 +435,7 @@ def step(obj,
                       retry_count,
                       max_user_code_retries)
 
-    echo('Success', fg='green', bold=True, indent=True)
+    echo('Success', fg='green', bold=True, indent=True, err=False)
 
 @parameters.add_custom_parameters
 @cli.command(help="Internal command to initialize a run.")
@@ -611,7 +612,6 @@ def run(obj,
     write_run_id(run_id_file, runtime.run_id)
 
     parameters.set_parameters(obj.flow, kwargs)
-
     runtime.persist_parameters()
     runtime.execute()
 
@@ -834,9 +834,9 @@ def start(ctx,
 
     ctx.obj.version = metaflow_version.get_version()
 
-    echo('Metaflow %s' % ctx.obj.version, fg='magenta', bold=True, nl=False)
-    echo(" executing *%s*" % ctx.obj.flow.name, fg='magenta', nl=False)
-    echo(" for *%s*" % resolve_identity(), fg='magenta')
+    echo('Metaflow %s' % ctx.obj.version, fg='magenta', bold=True, nl=False, err=False)
+    echo(" executing *%s*" % ctx.obj.flow.name, fg='magenta', nl=False, err=False)
+    echo(" for *%s*" % resolve_identity(), fg='magenta', err=False)
 
     if decospecs:
         decorators._attach_decorators(ctx.obj.flow, decospecs)
@@ -876,8 +876,8 @@ def start(ctx,
     ctx.obj.datastore = DATASTORES[datastore]
     ctx.obj.datastore_root = datastore_root
 
-    echo("Datastore: {0}".format(ctx.obj.datastore))
-    echo("DatastoreRoot: {0}".format(ctx.obj.datastore_root))
+    echo("Datastore: {0}".format(ctx.obj.datastore), err=False)
+    echo("DatastoreRoot: {0}".format(ctx.obj.datastore_root), err=False)
 
     current._set_env(flow_name=ctx.obj.flow.name, is_running=False)
     if ctx.invoked_subcommand not in ('run', 'resume'):

@@ -15,3 +15,4 @@ RUN_LINK_PREFIX = "https://kubeflow.corp.zillow-analytics-dev.zg-int.net/pipelin
 # TODO: Switch out of using this role
 S3_BUCKET = "s3://workspace-zillow-analytics-stage/aip/metaflow"
 S3_AWS_ARN = "arn:aws:iam::170606514770:role/dev-zestimate-role"
+S3_AWS_REGION = "us-west-2"

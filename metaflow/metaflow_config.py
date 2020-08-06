@@ -143,6 +143,7 @@ if AWS_SANDBOX_ENABLED:
 MAX_ATTEMPTS = 6
 
 METAFLOW_AWS_ARN = from_conf('METAFLOW_AWS_ARN')
+METAFLOW_AWS_S3_REGION = from_conf('METAFLOW_AWS_S3_REGION')
 
 # the naughty, naughty driver.py imported by lib2to3 produces
 # spam messages to the root logger. This is what is required
@@ -222,7 +223,7 @@ def get_authenticated_boto3_client(module, params={}):
             time_fetcher=lambda: datetime.now(tzlocal()),
         )
 
-        session = boto3.Session(botocore_session=botocore_session, region_name="us-west-2")
+        session = boto3.Session(botocore_session=botocore_session, region_name=METAFLOW_AWS_S3_REGION)
         return session.client("s3")
 
     return boto3.client(module, **params)
