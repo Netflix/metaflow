@@ -1,0 +1,10 @@
+{
+    "name": "single-and-branch",
+    "graph": {
+        "start": {"branch": ["a", "b"], "quals": ["split-and"]},
+        "a": {"linear": "join"},
+        "b": {"linear": "join"},
+        "join": {"linear": "end", "join": true, "quals": ["join-and"]},
+        "end": {}
+    }
+}

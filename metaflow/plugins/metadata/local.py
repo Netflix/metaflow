@@ -34,6 +34,9 @@ class LocalMetadataProvider(MetadataProvider):
             return '<No %s directory found in current working tree>' % DATASTORE_LOCAL_DIR
         return os.path.dirname(v)
 
+    def version(self):
+        return 'local'
+
     def new_run_id(self, tags=[], sys_tags=[]):
         # We currently just use the timestamp to create an ID. We can be reasonably certain
         # that it is unique and this makes it possible to do without coordination or
