@@ -3,9 +3,11 @@ on:
   push:
     branches:
     - master
+    - feature/kfp
   pull_request:
     branches:
     - master
+    - feature/kfp      
 jobs:
   test:
     name: Test on ${{ matrix.os }}
@@ -15,14 +17,14 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     steps:
     - uses: actions/checkout@v2
-    - name: Set up Python 2.x
-      uses: actions/setup-python@v1
-      with:
-        python-version: '2.x'
-    - name: Install Python 2.x dependencies
-      run: |
-        python2 -m pip install --upgrade pip
-        python2 -m pip install tox
+#    - name: Set up Python 2.x
+#      uses: actions/setup-python@v1
+#      with:
+#        python-version: '2.x'
+#    - name: Install Python 2.x dependencies
+#      run: |
+#        python2 -m pip install --upgrade pip
+#        python2 -m pip install tox
     - name: Set up Python 3.x
       uses: actions/setup-python@v1
       with:
