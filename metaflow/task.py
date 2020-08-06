@@ -54,8 +54,9 @@ class MetaflowTask(object):
         for var, param in self.flow._get_parameters():
             # make the parameter a read-only property
             # note x=x binds the current value of x to the closure
-            def property_setter(_, cls=self.flow.__class__, var=var, parameter_ds=parameter_ds):
-                v = parameter_ds[var]
+            def property_setter(
+                    _, cls=self.flow.__class__, param=param, var=var, parameter_ds=parameter_ds):
+                v = param.load_parameter(parameter_ds[var])
                 setattr(cls, var, property(fget=lambda _, val=v: val))
                 return v
 

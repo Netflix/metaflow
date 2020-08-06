@@ -12,11 +12,12 @@ except NameError:
     basestring = str
 
 from metaflow.exception import MetaflowException
-from ..aws_client import get_aws_client
+from metaflow.metaflow_config import DEFAULT_AUTH
+from ... import AUTH_PROVIDERS
 
 class BatchClient(object):
     def __init__(self):
-        self._client = get_aws_client('batch')
+        self._client = AUTH_PROVIDERS[DEFAULT_AUTH]('batch')
 
     def active_job_queues(self):
         paginator = self._client.get_paginator('describe_job_queues')
@@ -39,6 +40,11 @@ class BatchClient(object):
             for job in page['jobSummaryList']
         )
 
+    def describe_jobs(self, jobIds):
+        for jobIds in [jobIds[i:i+100] for i in range(0, len(jobIds), 100)]:
+            for jobs in self._client.describe_jobs(jobs=jobIds)['jobs']:
+                yield jobs
+
     def job(self):
         return BatchJob(self._client)
 
@@ -48,7 +54,7 @@ class BatchClient(object):
 
 
 class BatchJobException(MetaflowException):
-    headline = 'Batch job error'
+    headline = 'AWS Batch job error'
 
 
 class BatchJob(object):
@@ -67,13 +73,15 @@ class BatchJob(object):
                 'Unable to launch AWS Batch job. No IAM role specified.'
             )
         if 'jobDefinition' not in self.payload:
-            self.payload['jobDefinition'] = self._register_job_definition(self._image, self._iam_role)
+            self.payload['jobDefinition'] = \
+                self._register_job_definition(self._image, self._iam_role)
         response = self._client.submit_job(**self.payload)
         job = RunningJob(response['jobId'], self._client)
         return job.update()
 
     def _register_job_definition(self, image, job_role):
-        def_name = 'metaflow_%s' % hashlib.sha224((image + job_role).encode('utf-8')).hexdigest()
+        def_name = 'metaflow_%s' % \
+            hashlib.sha224((image + job_role).encode('utf-8')).hexdigest()
         payload = {'jobDefinitionName': def_name, 'status': 'ACTIVE'}
         response = self._client.describe_job_definitions(**payload)
         if len(response['jobDefinitions']) > 0:
@@ -92,16 +100,17 @@ class BatchJob(object):
         response = self._client.register_job_definition(**payload)
         return response['jobDefinitionArn']
 
+    def job_def(self, image, iam_role):
+        self.payload['jobDefinition'] = \
+            self._register_job_definition(image, iam_role)
+        return self
+
     def job_name(self, job_name):
         self.payload['jobName'] = job_name
         return self
 
     def job_queue(self, job_queue):
         self.payload['jobQueue'] = job_queue
-        return self
-
-    def job_def(self, image, iam_role):
-        self.payload['jobDefinition'] = self._register_job_definition(image, iam_role)
         return self
 
     def image(self, image):
@@ -147,9 +156,17 @@ class BatchJob(object):
     def environment_variable(self, name, value):
         if 'environment' not in self.payload['containerOverrides']:
             self.payload['containerOverrides']['environment'] = []
-        self.payload['containerOverrides']['environment'].append(
-            {'name': name, 'value': str(value)}
-        )
+        value = str(value)
+        if value.startswith("$$.") or value.startswith("$."):
+            # Context Object substitution for AWS Step Functions
+            # https://docs.aws.amazon.com/step-functions/latest/dg/input-output-contextobject.html
+            self.payload['containerOverrides']['environment'].append(
+                {'name': name, 'value.$': value}
+            )
+        else:
+            self.payload['containerOverrides']['environment'].append(
+                {'name': name, 'value': value}
+            )
         return self
 
     def timeout_in_secs(self, timeout_in_secs):
@@ -317,6 +334,8 @@ class RunningJob(object):
             elif not self.is_done:
                 self.wait_for_running()
 
+        if log_stream is None:
+            return 
         exception = None
         for i in range(self.NUM_RETRIES + 1):
             try:
@@ -403,7 +422,7 @@ class BatchWaiter(object):
 
 class BatchLogs(object):
     def __init__(self, group, stream, pos=0, sleep_on_no_data=0):
-        self._client = get_aws_client('logs')
+        self._client = AUTH_PROVIDERS[DEFAULT_AUTH]('logs')
         self._group = group
         self._stream = stream
         self._pos = pos
@@ -412,23 +431,28 @@ class BatchLogs(object):
         self._token = None
 
     def _get_events(self):
-        if self._token:
-            response = self._client.get_log_events(
-                logGroupName=self._group,
-                logStreamName=self._stream,
-                startTime=self._pos,
-                nextToken=self._token,
-                startFromHead=True,
-            )
-        else:
-            response = self._client.get_log_events(
-                logGroupName=self._group,
-                logStreamName=self._stream,
-                startTime=self._pos,
-                startFromHead=True,
-            )
-        self._token = response['nextForwardToken']
-        return response['events']
+        try:
+            if self._token:
+                response = self._client.get_log_events(
+                    logGroupName=self._group,
+                    logStreamName=self._stream,
+                    startTime=self._pos,
+                    nextToken=self._token,
+                    startFromHead=True,
+                )
+            else:
+                response = self._client.get_log_events(
+                    logGroupName=self._group,
+                    logStreamName=self._stream,
+                    startTime=self._pos,
+                    startFromHead=True,
+                )
+            self._token = response['nextForwardToken']
+            return response['events']
+        except self._client.exceptions.ResourceNotFoundException as e:
+            # The logs might be delayed by a bit, so we can simply try
+            # again next time.
+            return []
 
     def __iter__(self):
         while True:

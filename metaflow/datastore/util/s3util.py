@@ -19,8 +19,9 @@ def get_s3_client():
                                 "is required by S3 datastore. Install boto "
                                 "first.")
     get_client = AUTH_PROVIDERS[DEFAULT_AUTH]
-    # If DEFAULT_AUTH does not support s3, this should error. Not checking for
-    # a specific value for DEFAULT_AUTH as multiple values may provide support for S3
+    # If DEFAULT_AUTH does not support s3, this should error. We do not check for
+    # specific values of DEFAULT_AUTH as multiple auth methods may be backed by S3
+    # particularly for custom enterprise systems.
     return get_client(
         's3',
         { 'endpoint_url': S3_ENDPOINT_URL, 'verify': S3_VERIFY_CERTIFICATE }), ClientError

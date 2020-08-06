@@ -10,3 +10,12 @@ dist/
 .tox/
 
 .ipynb_checkpoints/
+
+
+R/cran_check/
+R/.Rproj.user
+R/*.Rproj
+R/.Rbuildignore
+.Rproj.user
+
+.DS_Store

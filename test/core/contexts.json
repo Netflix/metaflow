@@ -23,7 +23,10 @@
                 "--tag", "\u523a\u8eab means sashimi",
                 "--tag", "multiple tags should be ok"
             ],
-            "checks": ["python2-cli", "python3-cli"]
+            "checks": ["python2-cli", "python3-cli"],
+            "disabled_tests": [
+                "LargeArtifactTest"
+            ]
         },
         {
             "name": "python3-all-local",
@@ -48,7 +51,10 @@
                 "--tag", "\u523a\u8eab means sashimi",
                 "--tag", "multiple tags should be ok"
             ],
-            "checks": ["python2-cli", "python3-cli"]
+            "checks": ["python2-cli", "python3-cli"],
+            "disabled_tests": [
+                "LargeArtifactTest"
+            ]
         },
         {
             "name": "dev-local",

@@ -290,9 +290,9 @@ class FlowSpec(object):
             Incoming steps to the join point
         exclude : List[str], optional
             If specified, do not consider merging artifacts with a name in `exclude`.
-            Cannot specify if include is also specified
+            Cannot specify if `include` is also specified
         include : List[str], optional
-            If specified, only merge artifacts specified. Cannot specify if exclude is
+            If specified, only merge artifacts specified. Cannot specify if `exclude` is
             also specified
 
         Raises
