@@ -4,6 +4,8 @@ import os
 
 from functools import partial
 
+from util import is_stringish
+
 # Set
 #
 # - METAFLOW_DEBUG_SUBCOMMAND=1
@@ -30,7 +32,7 @@ class Debug(object):
             setattr(self, typ, op != self.noop)
 
     def log(self, typ, args):
-        if isinstance(args, str):
+        if util.is_stringish(args):
             s = args
         else:
             s = ' '.join(args)
