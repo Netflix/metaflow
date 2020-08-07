@@ -13,10 +13,10 @@ except NameError:
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import DEFAULT_AUTH
-from ... import AUTH_PROVIDERS
 
 class BatchClient(object):
     def __init__(self):
+        from ... import AUTH_PROVIDERS
         self._client = AUTH_PROVIDERS[DEFAULT_AUTH]('batch')
 
     def active_job_queues(self):
@@ -422,6 +422,7 @@ class BatchWaiter(object):
 
 class BatchLogs(object):
     def __init__(self, group, stream, pos=0, sleep_on_no_data=0):
+        from ... import AUTH_PROVIDERS
         self._client = AUTH_PROVIDERS[DEFAULT_AUTH]('logs')
         self._group = group
         self._stream = stream
