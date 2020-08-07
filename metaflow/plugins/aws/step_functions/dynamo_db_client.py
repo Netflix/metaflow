@@ -3,12 +3,11 @@ import os
 
 from metaflow.metaflow_config import DEFAULT_AUTH, \
                                     SFN_DYNAMO_DB_TABLE
-from ... import AUTH_PROVIDERS
-
 
 class DynamoDbClient(object):
 
     def __init__(self):
+        from ... import AUTH_PROVIDERS
         self._client = AUTH_PROVIDERS[DEFAULT_AUTH](
             'dynamodb',
             params={'region_name': self._get_instance_region()})

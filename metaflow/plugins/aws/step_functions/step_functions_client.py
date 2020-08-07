@@ -1,10 +1,10 @@
 from metaflow.metaflow_config import AWS_SANDBOX_ENABLED, AWS_SANDBOX_REGION, DEFAULT_AUTH
-from ... import AUTH_PROVIDERS
 
 
 class StepFunctionsClient(object):
 
     def __init__(self):
+        from ... import AUTH_PROVIDERS
         self._client = AUTH_PROVIDERS[DEFAULT_AUTH]('stepfunctions')
 
     def search(self, name):
@@ -76,6 +76,7 @@ class StepFunctionsClient(object):
 
     def get_state_machine_arn(self, name):
         if AWS_SANDBOX_ENABLED:
+            from ... import AUTH_PROVIDERS
             # We can't execute list_state_machines within the sandbox,
             # but we can construct the statemachine arn since we have
             # explicit access to the region.
