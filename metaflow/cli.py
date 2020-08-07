@@ -4,6 +4,7 @@ import inspect
 import traceback
 from functools import wraps
 from datetime import datetime
+import posixpath
 
 import click
 
@@ -699,7 +700,7 @@ def run_on_kfp(obj,
 
     run_pipeline_result = create_run_on_kfp(obj.graph, code_url, experiment_name, run_name)
     echo("\nRun created successfully!\n")
-    echo("Run link: {0}{1}".format(KFP_RUN_URL_PREFIX, run_pipeline_result.run_id))
+    echo("Run link: {0}".format(posixpath.join(KFP_RUN_URL_PREFIX, run_pipeline_result.run_id)))
 
 
 @cli.command(help='Generate the KFP YAML which is used to run the workflow on Kubeflow Pipelines.')
