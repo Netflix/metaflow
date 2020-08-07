@@ -1,11 +1,12 @@
-import os
 import json
 import logging
-import pkg_resources
+import os
 import sys
 
+import pkg_resources
 
 from metaflow.exception import MetaflowException
+
 
 # Disable multithreading security on MacOS
 if sys.platform == "darwin":
@@ -54,10 +55,10 @@ DATASTORE_SYSROOT_LOCAL = from_conf('METAFLOW_DATASTORE_SYSROOT_LOCAL')
 DATASTORE_SYSROOT_S3 = from_conf('METAFLOW_DATASTORE_SYSROOT_S3')
 # S3 datatools root location
 DATATOOLS_S3ROOT = from_conf(
-    'METAFLOW_DATATOOLS_S3ROOT', 
+    'METAFLOW_DATATOOLS_S3ROOT',
         '%s/data' % from_conf('METAFLOW_DATASTORE_SYSROOT_S3'))
 
-# S3 endpoint url 
+# S3 endpoint url
 S3_ENDPOINT_URL = from_conf('METAFLOW_S3_ENDPOINT_URL', None)
 S3_VERIFY_CERTIFICATE = from_conf('METAFLOW_S3_VERIFY_CERTIFICATE', None)
 
@@ -99,7 +100,7 @@ BATCH_METADATA_SERVICE_HEADERS = METADATA_SERVICE_HEADERS
 ###
 # Conda package root location on S3
 CONDA_PACKAGE_S3ROOT = from_conf(
-    'METAFLOW_CONDA_PACKAGE_S3ROOT', 
+    'METAFLOW_CONDA_PACKAGE_S3ROOT',
         '%s/conda' % from_conf('METAFLOW_DATASTORE_SYSROOT_S3'))
 
 ###
@@ -141,6 +142,13 @@ if AWS_SANDBOX_ENABLED:
 # being read from old tasks.
 MAX_ATTEMPTS = 6
 
+METAFLOW_AWS_ARN = from_conf('METAFLOW_AWS_ARN')
+METAFLOW_AWS_S3_REGION = from_conf('METAFLOW_AWS_S3_REGION')
+
+# Note: `KFP_RUN_URL_PREFIX` is the URL prefix for KFP runs on your KFP cluster. The prefix includes
+# all parts of the URL except the run_id at the end which we append once the run is created.
+# For eg, this would look like: "https://<your-kf-cluster-url>/pipeline/#/runs/details/"
+KFP_RUN_URL_PREFIX = from_conf('KFP_RUN_URL_PREFIX')
 
 # the naughty, naughty driver.py imported by lib2to3 produces
 # spam messages to the root logger. This is what is required
@@ -174,6 +182,7 @@ def get_pinned_conda_libs():
 
 cached_aws_sandbox_creds = None
 
+
 def get_authenticated_boto3_client(module, params={}):
     from metaflow.exception import MetaflowException
     import requests
@@ -198,4 +207,28 @@ def get_authenticated_boto3_client(module, params={}):
             except requests.exceptions.HTTPError as e:
                 raise MetaflowException(repr(e))
         return boto3.session.Session(**cached_aws_sandbox_creds).client(module, **params)
+
+    if METAFLOW_AWS_ARN:
+        from datetime import datetime
+        from botocore.credentials import AssumeRoleCredentialFetcher, DeferredRefreshableCredentials
+        from botocore.session import Session
+        from dateutil.tz import tzlocal
+
+        source_session = boto3.Session()
+        # Use profile to fetch assume role credentials
+        fetcher = AssumeRoleCredentialFetcher(
+            client_creator=source_session._session.create_client,
+            source_credentials=source_session.get_credentials(),
+            role_arn=METAFLOW_AWS_ARN
+        )
+        botocore_session = Session()
+        botocore_session._credentials = DeferredRefreshableCredentials(
+            method="assume-role",
+            refresh_using=fetcher.fetch_credentials,
+            time_fetcher=lambda: datetime.now(tzlocal()),
+        )
+
+        session = boto3.Session(botocore_session=botocore_session, region_name=METAFLOW_AWS_S3_REGION)
+        return session.client("s3")
+
     return boto3.client(module, **params)

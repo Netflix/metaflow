@@ -4,6 +4,7 @@ import inspect
 import traceback
 from functools import wraps
 from datetime import datetime
+import posixpath
 
 import click
 
@@ -31,7 +32,8 @@ from .event_logger import EventLogger
 from .monitor import Monitor
 
 from .plugins.kfp.kfp import create_run_on_kfp, create_kfp_pipeline_yaml
-from .plugins.kfp.constants import DEFAULT_RUN_NAME, DEFAULT_EXPERIMENT_NAME, DEFAULT_FLOW_CODE_URL, DEFAULT_KFP_YAML_OUTPUT_PATH, RUN_LINK_PREFIX
+from .plugins.kfp.constants import DEFAULT_RUN_NAME, DEFAULT_EXPERIMENT_NAME, DEFAULT_FLOW_CODE_URL, DEFAULT_KFP_YAML_OUTPUT_PATH
+from metaflow.metaflow_config import KFP_RUN_URL_PREFIX
 
 ERASE_TO_EOL = '\033[K'
 HIGHLIGHT = 'red'
@@ -403,7 +405,8 @@ def step(obj,
         raise CommandException("Function *%s* is not a step." % step_name)
     echo('Executing a step, *%s*' % step_name,
          fg='magenta',
-         bold=False)
+         bold=False,
+         err=False)
 
     obj.datastore.datastore_root = obj.datastore_root
     if obj.datastore.datastore_root is None:
@@ -434,14 +437,7 @@ def step(obj,
                       retry_count,
                       max_user_code_retries)
 
-    echo('Success', fg='green', bold=True, indent=True)
-
-    # Note: Leaving below statement as we use it to run and test the flow easily using CLI (locally) and to demo
-    # the ability to orchestrate without using the MF local orchestrator.
-    # TODO: Remove this once we've fully tested out MF on KFP
-    # FORMAT: ($1)datastore_root location \t ($2)run_id \t ($3)next_step_to_run \t ($4)task_id(of next step) \t ($5)current step \t ($6)task_id(of current step)
-    if step_name != 'end': # End is the final step
-        print(obj.datastore.datastore_root, run_id, obj.flow._graph[step_name].out_funcs[0], int(task_id)+1, step_name, task_id)
+    echo('Success', fg='green', bold=True, indent=True, err=False)
 
 @parameters.add_custom_parameters
 @cli.command(help="Internal command to initialize a run.")
@@ -621,7 +617,6 @@ def run(obj,
     runtime.persist_parameters()
     runtime.execute()
 
-
 @parameters.add_custom_parameters
 @cli.command(help='Set up the initial part of the workflow by instantiating a local runtime and persisting parameters. '
                   'This is to be executed before the start step and other steps of the workflow can be executed')
@@ -705,7 +700,7 @@ def run_on_kfp(obj,
 
     run_pipeline_result = create_run_on_kfp(obj.graph, code_url, experiment_name, run_name)
     echo("\nRun created successfully!\n")
-    echo("Run link: {0}{1}".format(RUN_LINK_PREFIX, run_pipeline_result.run_id))
+    echo("Run link: {0}".format(posixpath.join(KFP_RUN_URL_PREFIX, run_pipeline_result.run_id)))
 
 
 @cli.command(help='Generate the KFP YAML which is used to run the workflow on Kubeflow Pipelines.')
@@ -841,9 +836,9 @@ def start(ctx,
 
     ctx.obj.version = metaflow_version.get_version()
 
-    echo('Metaflow %s' % ctx.obj.version, fg='magenta', bold=True, nl=False)
-    echo(" executing *%s*" % ctx.obj.flow.name, fg='magenta', nl=False)
-    echo(" for *%s*" % resolve_identity(), fg='magenta')
+    echo('Metaflow %s' % ctx.obj.version, fg='magenta', bold=True, nl=False, err=False)
+    echo(" executing *%s*" % ctx.obj.flow.name, fg='magenta', nl=False, err=False)
+    echo(" for *%s*" % resolve_identity(), fg='magenta', err=False)
 
     if decospecs:
         decorators._attach_decorators(ctx.obj.flow, decospecs)
@@ -882,6 +877,9 @@ def start(ctx,
                                                   ctx.obj.monitor)
     ctx.obj.datastore = DATASTORES[datastore]
     ctx.obj.datastore_root = datastore_root
+
+    echo("Datastore: {0}".format(ctx.obj.datastore), err=False)
+    echo("DatastoreRoot: {0}".format(ctx.obj.datastore_root), err=False)
 
     current._set_env(flow_name=ctx.obj.flow.name, is_running=False)
     if ctx.invoked_subcommand not in ('run', 'resume'):
