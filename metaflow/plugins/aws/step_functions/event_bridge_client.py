@@ -1,12 +1,12 @@
 import json
 
 from metaflow.metaflow_config import DEFAULT_AUTH
-from ... import AUTH_PROVIDERS
 
 
 class EventBridgeClient(object):
 
     def __init__(self, name):
+        from ... import AUTH_PROVIDERS
         self._client = AUTH_PROVIDERS[DEFAULT_AUTH]('events')
         self.name = name
 
