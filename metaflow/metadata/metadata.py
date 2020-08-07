@@ -4,7 +4,7 @@ import time
 from collections import namedtuple
 from datetime import datetime
 
-from metaflow import current
+from metaflow.current import current
 from metaflow.exception import MetaflowInternalError
 from metaflow.util import get_username, resolve_identity
 
