@@ -5,10 +5,6 @@ from kubernetes.client.models import V1EnvVar
 from .constants import DEFAULT_FLOW_CODE_URL, DEFAULT_KFP_YAML_OUTPUT_PATH, DEFAULT_DOWNLOADED_FLOW_FILENAME
 from metaflow.metaflow_config import METAFLOW_AWS_ARN, METAFLOW_AWS_S3_REGION, DATASTORE_SYSROOT_S3
 
-# from .constants import S3_AWS_ARN as S3_AWS_ARN_VALUE
-# from .constants import S3_BUCKET as S3_BUCKET_VALUE
-# from .constants import S3_AWS_REGION as S3_AWS_REGION_VALUE
-
 from typing import NamedTuple
 from collections import deque
 
