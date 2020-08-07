@@ -4,7 +4,7 @@ import os
 
 from functools import partial
 
-from util import is_stringish
+from .util import is_stringish
 
 # Set
 #
