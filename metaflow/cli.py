@@ -31,7 +31,8 @@ from .event_logger import EventLogger
 from .monitor import Monitor
 
 from .plugins.kfp.kfp import create_run_on_kfp, create_kfp_pipeline_yaml
-from .plugins.kfp.constants import DEFAULT_RUN_NAME, DEFAULT_EXPERIMENT_NAME, DEFAULT_FLOW_CODE_URL, DEFAULT_KFP_YAML_OUTPUT_PATH, RUN_LINK_PREFIX
+from .plugins.kfp.constants import DEFAULT_RUN_NAME, DEFAULT_EXPERIMENT_NAME, DEFAULT_FLOW_CODE_URL, DEFAULT_KFP_YAML_OUTPUT_PATH
+from metaflow.metaflow_config import KFP_RUN_URL_PREFIX
 
 ERASE_TO_EOL = '\033[K'
 HIGHLIGHT = 'red'
@@ -698,7 +699,7 @@ def run_on_kfp(obj,
 
     run_pipeline_result = create_run_on_kfp(obj.graph, code_url, experiment_name, run_name)
     echo("\nRun created successfully!\n")
-    echo("Run link: {0}{1}".format(RUN_LINK_PREFIX, run_pipeline_result.run_id))
+    echo("Run link: {0}{1}".format(KFP_RUN_URL_PREFIX, run_pipeline_result.run_id))
 
 
 @cli.command(help='Generate the KFP YAML which is used to run the workflow on Kubeflow Pipelines.')

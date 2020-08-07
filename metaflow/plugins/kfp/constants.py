@@ -8,6 +8,3 @@ DEFAULT_DOWNLOADED_FLOW_FILENAME = 'downloaded_flow.py'
 DEFAULT_KFP_YAML_OUTPUT_PATH = 'kfp_pipeline.yaml'
 DEFAULT_RUN_NAME = 'run_mf_on_kfp'
 DEFAULT_EXPERIMENT_NAME = 'mf-on-kfp-experiments'
-
-# TODO: This should (probably) be moved outside
-RUN_LINK_PREFIX = "https://kubeflow.corp.zillow-analytics-dev.zg-int.net/pipeline/#/runs/details/"

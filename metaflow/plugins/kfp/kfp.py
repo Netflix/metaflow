@@ -70,9 +70,7 @@ def step_op_func(python_cmd_template, step_name: str,
         raise RuntimeWarning("This step did not generate the correct args for next step to run. This might disrupt "
                              "the workflow")
 
-    # TODO: Metadata needed for client API to run needs to be persisted outside before this
-    print("--------------- RUNNING: CLEANUP OF TEMP DIR----------")
-    subprocess.call(["rm -r /opt/zillow/.metaflow"], shell=True)
+    # TODO: Metadata needed for client API to run needs to be persisted outside before return
 
     print("_______________ Done _________________________________")
 
@@ -136,9 +134,7 @@ def initial_setup_op_func(code_url: str)  -> StepOutput:
     else:
         raise RuntimeWarning("This step did not generate the correct args for next step to run. This might disrupt the workflow")
 
-    # TODO: Metadata needed for client API to run needs to be persisted outside before this
-    print("--------------- RUNNING: CLEANUP OF TEMP DIR----------")
-    subprocess.call(["rm -r /opt/zillow/.metaflow"], shell=True)
+    # TODO: Metadata needed for client API to run needs to be persisted outside before return
 
     print("_______________ Done __________________________")
     return StepOutput(outputs[0], outputs[1])
