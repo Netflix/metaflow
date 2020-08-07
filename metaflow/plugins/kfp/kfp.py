@@ -3,9 +3,11 @@ from kfp import dsl
 from kubernetes.client.models import V1EnvVar
 
 from .constants import DEFAULT_FLOW_CODE_URL, DEFAULT_KFP_YAML_OUTPUT_PATH, DEFAULT_DOWNLOADED_FLOW_FILENAME
-from .constants import S3_AWS_ARN as S3_AWS_ARN_VALUE
-from .constants import S3_BUCKET as S3_BUCKET_VALUE
-from .constants import S3_AWS_REGION as S3_AWS_REGION_VALUE
+from metaflow.metaflow_config import METAFLOW_AWS_ARN, METAFLOW_AWS_S3_REGION, DATASTORE_SYSROOT_S3
+
+# from .constants import S3_AWS_ARN as S3_AWS_ARN_VALUE
+# from .constants import S3_BUCKET as S3_BUCKET_VALUE
+# from .constants import S3_AWS_REGION as S3_AWS_REGION_VALUE
 
 from typing import NamedTuple
 from collections import deque
@@ -173,12 +175,9 @@ def add_env_variables_transformer(container_op):
     Add environment variables to the container op.
     """
 
-    S3_BUCKET = V1EnvVar(name="S3_BUCKET", value=S3_BUCKET_VALUE)
-    S3_AWS_ARN = V1EnvVar(name="S3_AWS_ARN", value=S3_AWS_ARN_VALUE)
-    S3_AWS_REGION = V1EnvVar(name="S3_AWS_REGION", value=S3_AWS_REGION_VALUE)
-    container_op.add_env_variable(S3_BUCKET)
-    container_op.add_env_variable(S3_AWS_ARN)
-    container_op.add_env_variable(S3_AWS_REGION)
+    container_op.add_env_variable(V1EnvVar(name="S3_BUCKET", value=DATASTORE_SYSROOT_S3))
+    container_op.add_env_variable(V1EnvVar(name="S3_AWS_ARN", value=METAFLOW_AWS_ARN))
+    container_op.add_env_variable(V1EnvVar(name="S3_AWS_REGION", value=METAFLOW_AWS_S3_REGION))
     return container_op
 
 
