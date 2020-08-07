@@ -21,7 +21,7 @@ def step_op_func(python_cmd_template, step_name: str,
     import subprocess
     import os
 
-    MODIFIED_METAFLOW_URL = 'git+https://github.com/zillow/metaflow.git@branch-and-join'
+    MODIFIED_METAFLOW_URL = 'git+https://github.com/zillow/metaflow.git@kfp-run-id' # branch-and-join'
     DEFAULT_DOWNLOADED_FLOW_FILENAME = 'downloaded_flow.py'
 
     print("\n----------RUNNING: CODE DOWNLOAD from URL---------")
@@ -75,7 +75,7 @@ def step_op_func(python_cmd_template, step_name: str,
     print("_______________ Done _________________________________")
 
 
-def initial_setup_op_func(code_url: str)  -> StepOutput:
+def initial_setup_op_func(code_url: str, kfp_run_id: str)  -> StepOutput:
     """
     Function used to create a KFP container op (see `initial_setup_container_op`)that corresponds to the `pre-start` step of metaflow
     """
@@ -83,7 +83,7 @@ def initial_setup_op_func(code_url: str)  -> StepOutput:
     import os
     from collections import namedtuple
 
-    MODIFIED_METAFLOW_URL = 'git+https://github.com/zillow/metaflow.git@branch-and-join'
+    MODIFIED_METAFLOW_URL = 'git+https://github.com/zillow/metaflow.git@kfp-run-id' # branch-and-join'
     DEFAULT_DOWNLOADED_FLOW_FILENAME = 'downloaded_flow.py'
 
     print("\n----------RUNNING: CODE DOWNLOAD from URL---------")
@@ -107,8 +107,8 @@ def initial_setup_op_func(code_url: str)  -> StepOutput:
     define_s3_env_vars = 'export METAFLOW_DATASTORE_SYSROOT_S3="{}" && export METAFLOW_AWS_ARN="{}" ' \
                          '&& export METAFLOW_AWS_S3_REGION="{}"'.format(S3_BUCKET, S3_AWS_ARN, S3_AWS_REGION)
     define_username = 'export USERNAME="kfp-user"'
-    python_cmd = 'python {0} --datastore="s3" --datastore-root="{1}" pre-start'.format(DEFAULT_DOWNLOADED_FLOW_FILENAME,
-                                                                                       S3_BUCKET)
+    python_cmd = 'python {0} --datastore="s3" --datastore-root="{1}" pre-start --run-id={2}'.format(DEFAULT_DOWNLOADED_FLOW_FILENAME,
+                                                                                       S3_BUCKET, kfp_run_id)
     final_run_cmd = f'{define_username} && {define_s3_env_vars} && {python_cmd}'
 
     print("RUNNING COMMAND: ", final_run_cmd)
@@ -263,7 +263,7 @@ def create_kfp_pipeline_from_flow_graph(flow_graph, code_url=DEFAULT_FLOW_CODE_U
     )
     def kfp_pipeline_from_flow():
         # Initial setup
-        initial_setup_op = (initial_setup_container_op())(code_url).set_display_name('InitialSetup')
+        initial_setup_op = (initial_setup_container_op())(code_url, dsl.RUN_ID_PLACEHOLDER).set_display_name('InitialSetup')
         ds_root = initial_setup_op.outputs['ds_root']
         run_id = initial_setup_op.outputs['run_id']
 

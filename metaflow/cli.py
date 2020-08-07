@@ -621,6 +621,10 @@ def run(obj,
 @cli.command(help='Set up the initial part of the workflow by instantiating a local runtime and persisting parameters. '
                   'This is to be executed before the start step and other steps of the workflow can be executed')
 @common_run_options
+@click.option('--run-id',
+              'run_id',
+              default=None,
+              help="run id to be used for this run")
 @click.option('--namespace',
               'user_namespace',
               default=None,
@@ -639,6 +643,7 @@ def pre_start(obj,
         decospecs=None,
         run_id_file=None,
         user_namespace=None,
+        run_id=None,
         **kwargs):
 
     if namespace is not None:
@@ -656,6 +661,7 @@ def pre_start(obj,
                             obj.entrypoint,
                             obj.event_logger,
                             obj.monitor,
+                            run_id=run_id,
                             max_workers=max_workers,
                             max_num_splits=max_num_splits,
                             max_log_size=max_log_size * 1024 * 1024)
