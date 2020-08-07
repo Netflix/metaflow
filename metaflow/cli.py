@@ -617,68 +617,6 @@ def run(obj,
     runtime.persist_parameters()
     runtime.execute()
 
-@parameters.add_custom_parameters
-@cli.command(help='Set up the initial part of the workflow by instantiating a local runtime and persisting parameters. '
-                  'This is to be executed before the start step and other steps of the workflow can be executed')
-@common_run_options
-@click.option('--run-id',
-              'run_id',
-              default=None,
-              help="run id to be used for this run")
-@click.option('--namespace',
-              'user_namespace',
-              default=None,
-              help="Change namespace from the default (your username) to "
-                   "the specified tag. Note that this option does not alter "
-                   "tags assigned to the objects produced by this run, just "
-                   "what existing objects are visible in the client API. You "
-                   "can enable the global namespace with an empty string."
-                   "--namespace=")
-@click.pass_obj
-def pre_start(obj,
-        tags=None,
-        max_workers=None,
-        max_num_splits=None,
-        max_log_size=None,
-        decospecs=None,
-        run_id_file=None,
-        user_namespace=None,
-        run_id=None,
-        **kwargs):
-
-    if namespace is not None:
-        namespace(user_namespace or None)
-
-    before_run(obj, tags, decospecs + obj.environment.decospecs())
-
-    runtime = NativeRuntime(obj.flow,
-                            obj.graph,
-                            obj.datastore,
-                            obj.metadata,
-                            obj.environment,
-                            obj.package,
-                            obj.logger,
-                            obj.entrypoint,
-                            obj.event_logger,
-                            obj.monitor,
-                            run_id=run_id,
-                            max_workers=max_workers,
-                            max_num_splits=max_num_splits,
-                            max_log_size=max_log_size * 1024 * 1024)
-    write_latest_run_id(obj, runtime.run_id)
-    write_run_id(run_id_file, runtime.run_id)
-
-    parameters.set_parameters(obj.flow, kwargs)
-    runtime.persist_parameters()
-
-    # NOTE: We are currently using this output to specify the necessary arguments to the next step.
-    # This can only be removed when we achieve the following:
-    # 1) transition to using s3 as a datastore,
-    # 2) Use a KFP run_id
-    # TODO: Remove once above criteria are met.
-    # OUTPUT FORMAT: ($1)datastore_root location \t ($2)run_id \t ($3)next_step_to_run \t ($4)task_id(of next step) \t ($5)current step \t ($6)task_id(of current step)
-    print("{0}\t{1}\tstart\t1\t_parameters\t0".format(obj.datastore.datastore_root, runtime.run_id))
-
 
 @cli.command(help='Create a run on KF pipelines. This method converts the MF flow to a KFP run and outputs a link to the KFP run. '
                   'Note: This command will not work as expected if your local environment is not configured to '

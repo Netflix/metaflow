@@ -123,7 +123,7 @@ def start_op_func(start_command_template: str, code_url: str, run_id: str):
     print("\n----------RUNNING: MAIN STEP COMMAND----------------")
     start_cmd = start_command_template.format(ds_root=S3_BUCKET, run_id=run_id)
     final_run_cmd = f'{define_username} && {define_s3_env_vars} && {start_cmd}'
-    print("RUNNING COMMAND: ", final_init_cmd)
+    print("RUNNING COMMAND: ", final_run_cmd)
     execute(final_run_cmd)
 
     # TODO: Metadata needed for client API to run needs to be persisted outside before return
@@ -182,8 +182,7 @@ def create_command_templates_from_graph(graph):
         Returns the python command template to be used for each step.
 
         This method returns a string with placeholders for `datastore_root` and `run_id`
-        which get populated based on the outputs of our initial setup (i.e., when these values are known) in
-        the pipeline.
+        which get populated using the provided config and the kfp run ID respectively.
         The rest of the command string is populated using the passed arguments which are known before the run starts.
 
         An example constructed command template (to run a step named `hello`):
@@ -256,18 +255,19 @@ def create_kfp_pipeline_from_flow_graph(flow_graph, code_url=DEFAULT_FLOW_CODE_U
         # Start step (start is a special step as additional initialisation is done internally)
         step_to_container_op_map = {}
         step_to_container_op_map['start'] = (start_container_op())(step_to_command_template_map['start'],
-                                                  code_url,
-                                                  dsl.RUN_ID_PLACEHOLDER)\
-            .set_display_name('start')
+                                                                      code_url,
+                                                                      dsl.RUN_ID_PLACEHOLDER
+                                                                    ).set_display_name('start')
 
         # Define container ops for remaining steps
         for step, cmd in step_to_command_template_map.items():
             if step != 'start':
                 step_to_container_op_map[step] = (step_container_op())(
-                                            step_to_command_template_map[step],
-                                            step,
-                                            code_url,
-                                            dsl.RUN_ID_PLACEHOLDER).set_display_name(step)
+                                                    step_to_command_template_map[step],
+                                                    step,
+                                                    code_url,
+                                                    dsl.RUN_ID_PLACEHOLDER
+                                                ).set_display_name(step)
 
         # Add environment variables to all ops
         dsl.get_pipeline_conf().add_op_transformer(add_env_variables_transformer)
