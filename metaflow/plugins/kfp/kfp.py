@@ -9,8 +9,8 @@ from collections import deque
 
 def step_op_func(python_cmd_template, step_name: str,
                  code_url: str,
-                 run_id: str,
-               ):
+                 kfp_run_id: str,
+                 ):
     """
     Function used to create a KFP container op (see: `step_container_op`) that corresponds to a single step in the flow.
     """
@@ -33,6 +33,7 @@ def step_op_func(python_cmd_template, step_name: str,
         modified_metaflow_git_url=MODIFIED_METAFLOW_URL)], shell=True)
 
     print("\n----------RUNNING: MAIN STEP COMMAND--------------")
+    # TODO: Map username to KFP specific user/profile/namespace
     S3_BUCKET = os.getenv("S3_BUCKET")
     S3_AWS_ARN = os.getenv("S3_AWS_ARN")
     S3_AWS_REGION = os.getenv("S3_AWS_REGION")
@@ -40,9 +41,11 @@ def step_op_func(python_cmd_template, step_name: str,
     define_s3_env_vars = 'export METAFLOW_DATASTORE_SYSROOT_S3="{}" && export METAFLOW_AWS_ARN="{}" ' \
                          '&& export METAFLOW_AWS_S3_REGION="{}"'.format(S3_BUCKET, S3_AWS_ARN, S3_AWS_REGION)
     define_username = 'export USERNAME="kfp-user"'
-    python_cmd = python_cmd_template.format(ds_root=S3_BUCKET, run_id=run_id)
+    python_cmd = python_cmd_template.format(ds_root=S3_BUCKET, run_id=kfp_run_id)
 
-    final_run_cmd = f'{define_username} && {define_s3_env_vars} && {python_cmd}'
+    final_run_cmd = "{define_username} && {define_s3_env_vars} && {python_cmd}".format(define_username=define_username,
+                                                                                       define_s3_env_vars=define_s3_env_vars,
+                                                                                       python_cmd=python_cmd)
 
     print("RUNNING COMMAND: ", final_run_cmd)
     proc = subprocess.run(final_run_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
@@ -65,7 +68,7 @@ def step_op_func(python_cmd_template, step_name: str,
         print("_______________ FLOW RUN COMPLETE ________________")
 
 
-def start_op_func(start_command_template: str, code_url: str, run_id: str):
+def start_op_func(start_command_template: str, code_url: str, kfp_run_id: str):
     """
     Function used to create a KFP container op corresponding to the 'start' step of the flow.
     This function also defines the execution of an init step which is needed before the 'start' step
@@ -106,6 +109,7 @@ def start_op_func(start_command_template: str, code_url: str, run_id: str):
         modified_metaflow_git_url=MODIFIED_METAFLOW_URL)], shell=True)
 
     print("\n----------RUNNING: INIT COMMAND-------------------")
+    # TODO: Map username to KFP specific user/profile/namespace
     S3_BUCKET = os.getenv("S3_BUCKET")
     S3_AWS_ARN = os.getenv("S3_AWS_ARN")
     S3_AWS_REGION = os.getenv("S3_AWS_REGION")
@@ -114,15 +118,19 @@ def start_op_func(start_command_template: str, code_url: str, run_id: str):
                          '&& export METAFLOW_AWS_S3_REGION="{}"'.format(S3_BUCKET, S3_AWS_ARN, S3_AWS_REGION)
     define_username = 'export USERNAME="kfp-user"'
     init_cmd = 'python {0} --datastore="s3" --datastore-root="{1}" init --run-id={2} --task-id=0'.format(DEFAULT_DOWNLOADED_FLOW_FILENAME,
-                                                                                                           S3_BUCKET, run_id)
-    final_init_cmd = f'{define_username} && {define_s3_env_vars} && {init_cmd}'
+                                                                                                         S3_BUCKET, kfp_run_id)
+    final_init_cmd = "{define_username} && {define_s3_env_vars} && {init_cmd}".format(define_username=define_username,
+                                                                                      define_s3_env_vars=define_s3_env_vars,
+                                                                                      init_cmd=init_cmd)
 
     print("RUNNING COMMAND: ", final_init_cmd)
     execute(final_init_cmd)
 
     print("\n----------RUNNING: MAIN STEP COMMAND----------------")
-    start_cmd = start_command_template.format(ds_root=S3_BUCKET, run_id=run_id)
-    final_run_cmd = f'{define_username} && {define_s3_env_vars} && {start_cmd}'
+    start_cmd = start_command_template.format(ds_root=S3_BUCKET, run_id=kfp_run_id)
+    final_run_cmd = "{define_username} && {define_s3_env_vars} && {start_cmd}".format(define_username=define_username,
+                                                                                      define_s3_env_vars=define_s3_env_vars,
+                                                                                      start_cmd=start_cmd)
     print("RUNNING COMMAND: ", final_run_cmd)
     execute(final_run_cmd)
 
@@ -256,7 +264,7 @@ def create_kfp_pipeline_from_flow_graph(flow_graph, code_url=DEFAULT_FLOW_CODE_U
         step_to_container_op_map = {}
         step_to_container_op_map['start'] = (start_container_op())(step_to_command_template_map['start'],
                                                                       code_url,
-                                                                      dsl.RUN_ID_PLACEHOLDER
+                                                                      'kfp-' + dsl.RUN_ID_PLACEHOLDER
                                                                     ).set_display_name('start')
 
         # Define container ops for remaining steps
@@ -266,7 +274,7 @@ def create_kfp_pipeline_from_flow_graph(flow_graph, code_url=DEFAULT_FLOW_CODE_U
                                                     step_to_command_template_map[step],
                                                     step,
                                                     code_url,
-                                                    dsl.RUN_ID_PLACEHOLDER
+                                                    'kfp-'+dsl.RUN_ID_PLACEHOLDER
                                                 ).set_display_name(step)
 
         # Add environment variables to all ops
