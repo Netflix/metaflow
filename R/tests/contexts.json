@@ -1,0 +1,40 @@
+{
+    "contexts": [
+        {
+            "name": "all-local",
+            "disabled": false,
+            "env": {
+                "USER": "tester"
+            },
+            "python": "python3",
+            "top_options": [
+                "package_suffixes = c('.R', '.py', '.csv')",
+                "metadata='local'",
+                "datastore='local'"
+            ],
+            "run_options": [
+                "--tag", "\u523a\u8eab means sashimi",
+                "--tag", "multiple tags should be ok"
+            ]
+        },
+        {
+            "name": "batch",
+            "disabled": true,
+            "env": {
+                "USER": "tester"
+            },
+            "python": "python3",
+            "top_options": [
+                "batch = TRUE", 
+                "max_workers = 16",
+                "package_suffixes = c('.R', '.py', '.csv')",
+                "metadata='service'",
+                "datastore='s3'"
+            ],
+            "run_options": [
+                "--tag", "\u523a\u8eab means sashimi",
+                "--tag", "multiple tags should be ok"
+            ]
+        }
+    ]
+}

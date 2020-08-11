@@ -18,11 +18,11 @@ from .batch_client import BatchClient
 
 
 class BatchException(MetaflowException):
-    headline = 'Batch error'
+    headline = 'AWS Batch error'
 
 
 class BatchKilledException(MetaflowException):
-    headline = 'Batch task killed'
+    headline = 'AWS Batch task killed'
 
 
 class Batch(object):
@@ -41,58 +41,67 @@ class Batch(object):
 
     def _search_jobs(self, flow_name, run_id, user):
         if user is None:
-            regex = '-{flow_name}-{run_id}-'.format(flow_name=flow_name, run_id=run_id)
+            regex = '-{flow_name}-'.format(flow_name=flow_name)
         else:
-            regex = '{user}-{flow_name}-{run_id}-'.format(
-                user=user, flow_name=flow_name, run_id=run_id
+            regex = '{user}-{flow_name}-'.format(
+                user=user, flow_name=flow_name
             )
         jobs = []
         for job in self._client.unfinished_jobs():
             if regex in job['jobName']:
-                jobs.append(job)
-        return jobs
+                jobs.append(job['jobId'])
+        if run_id is not None:
+            run_id = run_id[run_id.startswith('sfn-') and len('sfn-'):]
+        for job in self._client.describe_jobs(jobs):
+            parameters = job['parameters']
+            match = (user is None or parameters['metaflow.user'] == user) and \
+                    (parameters['metaflow.flow_name'] == flow_name) and \
+                    (run_id is None or parameters['metaflow.run_id'] == run_id)
+            if match:
+                yield job
 
     def _job_name(self, user, flow_name, run_id, step_name, task_id, retry_count):
         return '{user}-{flow_name}-{run_id}-{step_name}-{task_id}-{retry_count}'.format(
             user=user,
             flow_name=flow_name,
-            run_id=run_id,
+            run_id=str(run_id) if run_id is not None else '',
             step_name=step_name,
-            task_id=task_id,
-            retry_count=retry_count,
+            task_id=str(task_id) if task_id is not None else '',
+            retry_count=str(retry_count) if retry_count is not None else ''
         )
 
     def list_jobs(self, flow_name, run_id, user, echo):
         jobs = self._search_jobs(flow_name, run_id, user)
-        if jobs:
-            for job in jobs:
-                echo(
-                    '{name} [{id}] ({status})'.format(
-                        name=job['jobName'], id=job['jobId'], status=job['status']
-                    )
+        found = False
+        for job in jobs:
+            found = True
+            echo(
+                '{name} [{id}] ({status})'.format(
+                    name=job['jobName'], id=job['jobId'], status=job['status']
                 )
-        else:
-            echo('No running Batch jobs found.')
+            )
+        if not found:
+            echo('No running AWS Batch jobs found.')
 
     def kill_jobs(self, flow_name, run_id, user, echo):
         jobs = self._search_jobs(flow_name, run_id, user)
-
-        if jobs:
-            for job in jobs:
-                try:
-                    self._client.attach_job(job['jobId']).kill()
-                    echo(
-                        'Killing Batch job: {name} [{id}] ({status})'.format(
-                            name=job['jobName'], id=job['jobId'], status=job['status']
-                        )
+        found = False
+        for job in jobs:
+            found = True
+            try:
+                self._client.attach_job(job['jobId']).kill()
+                echo(
+                    'Killing AWS Batch job: {name} [{id}] ({status})'.format(
+                        name=job['jobName'], id=job['jobId'], status=job['status']
                     )
-                except Exception as e:
-                    echo(
-                        'Failed to terminate Batch job %s [%s]'
-                        % (job['jobId'], repr(e))
-                    )
-        else:
-            echo('No running Batch jobs found.')
+                )
+            except Exception as e:
+                echo(
+                    'Failed to terminate AWS Batch job %s [%s]'
+                    % (job['jobId'], repr(e))
+                )
+        if not found:
+            echo('No running AWS Batch jobs found.')
 
     def create_job(
         self,
@@ -112,12 +121,12 @@ class Batch(object):
         attrs={}
     ):
         job_name = self._job_name(
-            attrs['metaflow.user'],
-            attrs['metaflow.flow_name'],
-            attrs['metaflow.run_id'],
-            attrs['metaflow.step_name'],
-            attrs['metaflow.task_id'],
-            attrs['metaflow.retry_count'],
+            attrs.get('metaflow.user'),
+            attrs.get('metaflow.flow_name'),
+            attrs.get('metaflow.run_id'),
+            attrs.get('metaflow.step_name'),
+            attrs.get('metaflow.task_id'),
+            attrs.get('metaflow.retry_count')
         )
         job = self._client.job()
         job \
@@ -171,31 +180,31 @@ class Batch(object):
         memory=None,
         run_time_limit=None,
         env={},
-        attrs={}
-    ):
+        attrs={},
+        ):
         if queue is None:
             queue = next(self._client.active_job_queues(), None)
             if queue is None:
                 raise BatchException(
-                    'Unable to launch Batch job. No job queue '
+                    'Unable to launch AWS Batch job. No job queue '
                     ' specified and no valid & enabled queue found.'
                 )
         job = self.create_job(
-                step_name,
-                step_cli,
-                code_package_sha,
-                code_package_url,
-                code_package_ds,
-                image,
-                queue,
-                iam_role,
-                cpu,
-                gpu,
-                memory,
-                run_time_limit,
-                env,
-                attrs
-            )
+                        step_name,
+                        step_cli,
+                        code_package_sha,
+                        code_package_url,
+                        code_package_ds,
+                        image,
+                        queue,
+                        iam_role,
+                        cpu,
+                        gpu,
+                        memory,
+                        run_time_limit,
+                        env,
+                        attrs
+        )
         self.job = job.execute()
 
     def wait(self, echo=None):
