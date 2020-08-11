@@ -33,14 +33,14 @@ def step_op_func(python_cmd_template, step_name: str,
         modified_metaflow_git_url=MODIFIED_METAFLOW_URL)], shell=True)
 
     print("\n----------RUNNING: MAIN STEP COMMAND--------------")
-    # TODO: Map username to KFP specific user/profile/namespace
+
     S3_BUCKET = os.getenv("S3_BUCKET")
     S3_AWS_ARN = os.getenv("S3_AWS_ARN")
     S3_AWS_REGION = os.getenv("S3_AWS_REGION")
 
     define_s3_env_vars = 'export METAFLOW_DATASTORE_SYSROOT_S3="{}" && export METAFLOW_AWS_ARN="{}" ' \
                          '&& export METAFLOW_AWS_S3_REGION="{}"'.format(S3_BUCKET, S3_AWS_ARN, S3_AWS_REGION)
-    define_username = 'export USERNAME="kfp-user"'
+    define_username = 'export USERNAME="kfp-user"' # TODO: Map username to KFP specific user/profile/namespace
     python_cmd = python_cmd_template.format(ds_root=S3_BUCKET, run_id=kfp_run_id)
 
     final_run_cmd = "{define_username} && {define_s3_env_vars} && {python_cmd}".format(define_username=define_username,
@@ -109,14 +109,14 @@ def start_op_func(start_command_template: str, code_url: str, kfp_run_id: str):
         modified_metaflow_git_url=MODIFIED_METAFLOW_URL)], shell=True)
 
     print("\n----------RUNNING: INIT COMMAND-------------------")
-    # TODO: Map username to KFP specific user/profile/namespace
+
     S3_BUCKET = os.getenv("S3_BUCKET")
     S3_AWS_ARN = os.getenv("S3_AWS_ARN")
     S3_AWS_REGION = os.getenv("S3_AWS_REGION")
 
     define_s3_env_vars = 'export METAFLOW_DATASTORE_SYSROOT_S3="{}" && export METAFLOW_AWS_ARN="{}" ' \
                          '&& export METAFLOW_AWS_S3_REGION="{}"'.format(S3_BUCKET, S3_AWS_ARN, S3_AWS_REGION)
-    define_username = 'export USERNAME="kfp-user"'
+    define_username = 'export USERNAME="kfp-user"' # TODO: Map username to KFP specific user/profile/namespace
     init_cmd = 'python {0} --datastore="s3" --datastore-root="{1}" init --run-id={2} --task-id=0'.format(DEFAULT_DOWNLOADED_FLOW_FILENAME,
                                                                                                          S3_BUCKET, kfp_run_id)
     final_init_cmd = "{define_username} && {define_s3_env_vars} && {init_cmd}".format(define_username=define_username,
