@@ -260,7 +260,7 @@ def create_kfp_pipeline_from_flow_graph(flow_graph, code_url=DEFAULT_FLOW_CODE_U
                     'with branch and join nodes'
     )
     def kfp_pipeline_from_flow():
-        kfp_run_id = 'kfp-'+dsl.RUN_ID_PLACEHOLDER
+        kfp_run_id = 'kfp-' + dsl.RUN_ID_PLACEHOLDER
         # Start step (start is a special step as additional initialisation is done internally)
         step_to_container_op_map = {}
         step_to_container_op_map['start'] = (start_container_op())(step_to_command_template_map['start'],
