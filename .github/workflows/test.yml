@@ -59,16 +59,6 @@ jobs:
         R CMD INSTALL R
         Rscript -e 'install.packages(c("data.table", "caret", "glmnet", "Matrix", "rjson"), repos="https://cloud.r-project.org", Ncpus=8)'   
 
-    - name: Install latex for CRAN compatibility checks
-      if: matrix.lang == 'R' && matrix.os == 'ubuntu-latest'
-      uses: r-lib/actions/setup-tinytex@v1
-
-    - name: Check CRAN compatibility
-      if: matrix.lang == 'R' && matrix.os == 'ubuntu-latest'
-      run: |
-        cd R/
-        bash ./check_as_cran.sh
-
     - name: Execute R tests
       if: matrix.lang == 'R'
       run: |
