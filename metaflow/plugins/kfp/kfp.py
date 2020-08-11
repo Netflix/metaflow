@@ -5,23 +5,19 @@ from kubernetes.client.models import V1EnvVar
 from .constants import DEFAULT_FLOW_CODE_URL, DEFAULT_KFP_YAML_OUTPUT_PATH, DEFAULT_DOWNLOADED_FLOW_FILENAME
 from metaflow.metaflow_config import METAFLOW_AWS_ARN, METAFLOW_AWS_S3_REGION, DATASTORE_SYSROOT_S3
 
-from typing import NamedTuple
 from collections import deque
-
-StepOutput = NamedTuple('StepOutput', [('ds_root', str), ('run_id', str)])
 
 def step_op_func(python_cmd_template, step_name: str,
                  code_url: str,
-                 ds_root: str,
-                 run_id: str,
-               ):
+                 kfp_run_id: str,
+                 ):
     """
     Function used to create a KFP container op (see: `step_container_op`) that corresponds to a single step in the flow.
     """
     import subprocess
     import os
 
-    MODIFIED_METAFLOW_URL = 'git+https://github.com/zillow/metaflow.git@branch-and-join'
+    MODIFIED_METAFLOW_URL = 'git+https://github.com/zillow/metaflow.git@kfp-run-id'
     DEFAULT_DOWNLOADED_FLOW_FILENAME = 'downloaded_flow.py'
 
     print("\n----------RUNNING: CODE DOWNLOAD from URL---------")
@@ -34,29 +30,27 @@ def step_op_func(python_cmd_template, step_name: str,
 
     print("\n----------RUNNING: METAFLOW INSTALLATION----------")
     subprocess.call(["pip3 install --user --upgrade {modified_metaflow_git_url}".format(
-        modified_metaflow_git_url=MODIFIED_METAFLOW_URL)],
-                    shell=True)
+        modified_metaflow_git_url=MODIFIED_METAFLOW_URL)], shell=True)
 
     print("\n----------RUNNING: MAIN STEP COMMAND--------------")
+
     S3_BUCKET = os.getenv("S3_BUCKET")
     S3_AWS_ARN = os.getenv("S3_AWS_ARN")
     S3_AWS_REGION = os.getenv("S3_AWS_REGION")
 
     define_s3_env_vars = 'export METAFLOW_DATASTORE_SYSROOT_S3="{}" && export METAFLOW_AWS_ARN="{}" ' \
                          '&& export METAFLOW_AWS_S3_REGION="{}"'.format(S3_BUCKET, S3_AWS_ARN, S3_AWS_REGION)
-    define_username = 'export USERNAME="kfp-user"'
-    python_cmd = python_cmd_template.format(ds_root=ds_root, run_id=run_id)
+    define_username = 'export USERNAME="kfp-user"' # TODO: Map username to KFP specific user/profile/namespace
+    python_cmd = python_cmd_template.format(ds_root=S3_BUCKET, run_id=kfp_run_id)
 
-    final_run_cmd = f'{define_username} && {define_s3_env_vars} && {python_cmd}'
+    final_run_cmd = "{define_username} && {define_s3_env_vars} && {python_cmd}".format(define_username=define_username,
+                                                                                       define_s3_env_vars=define_s3_env_vars,
+                                                                                       python_cmd=python_cmd)
 
     print("RUNNING COMMAND: ", final_run_cmd)
     proc = subprocess.run(final_run_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     proc_output = proc.stdout
     proc_error = proc.stderr
-
-    # END is the final step and no outputs need to be returned
-    if step_name.lower() == 'end':
-        print("_______________ FLOW RUN COMPLETE ________________")
 
     if len(proc_error) > 1:
         print("_______________STDERR:_____________________________")
@@ -66,24 +60,40 @@ def step_op_func(python_cmd_template, step_name: str,
         print("_______________STDOUT:_____________________________")
         print(proc_output)
 
-    else:
-        raise RuntimeWarning("This step did not generate the correct args for next step to run. This might disrupt "
-                             "the workflow")
-
     # TODO: Metadata needed for client API to run needs to be persisted outside before return
 
     print("_______________ Done _________________________________")
+    # END is the final step
+    if step_name.lower() == 'end':
+        print("_______________ FLOW RUN COMPLETE ________________")
 
 
-def initial_setup_op_func(code_url: str)  -> StepOutput:
+def start_op_func(start_command_template: str, code_url: str, kfp_run_id: str):
     """
-    Function used to create a KFP container op (see `initial_setup_container_op`)that corresponds to the `pre-start` step of metaflow
+    Function used to create a KFP container op corresponding to the 'start' step of the flow.
+    This function also defines the execution of an init step which is needed before the 'start' step
+    executes in order to persist parameters of the flow (i.e., class level variables).
     """
     import subprocess
     import os
-    from collections import namedtuple
 
-    MODIFIED_METAFLOW_URL = 'git+https://github.com/zillow/metaflow.git@branch-and-join'
+    def execute(cmd):
+        """
+        Helper function to run the given command and print `stderr` and `stdout`.
+        """
+        proc = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        proc_output = proc.stdout
+        proc_error = proc.stderr
+
+        if len(proc_error) > 1:
+            print("_____________ STDERR:_____________________________")
+            print(proc_error)
+
+        if len(proc_output) > 1:
+            print("______________ STDOUT:____________________________")
+            print(proc_output)
+
+    MODIFIED_METAFLOW_URL = 'git+https://github.com/zillow/metaflow.git@kfp-run-id'
     DEFAULT_DOWNLOADED_FLOW_FILENAME = 'downloaded_flow.py'
 
     print("\n----------RUNNING: CODE DOWNLOAD from URL---------")
@@ -96,48 +106,37 @@ def initial_setup_op_func(code_url: str)  -> StepOutput:
 
     print("\n----------RUNNING: METAFLOW INSTALLATION----------")
     subprocess.call(["pip3 install --user --upgrade {modified_metaflow_git_url}".format(
-        modified_metaflow_git_url=MODIFIED_METAFLOW_URL)],
-                    shell=True)
+        modified_metaflow_git_url=MODIFIED_METAFLOW_URL)], shell=True)
 
-    print("\n----------RUNNING: MAIN STEP COMMAND--------------")
+    print("\n----------RUNNING: INIT COMMAND-------------------")
+
     S3_BUCKET = os.getenv("S3_BUCKET")
     S3_AWS_ARN = os.getenv("S3_AWS_ARN")
     S3_AWS_REGION = os.getenv("S3_AWS_REGION")
 
     define_s3_env_vars = 'export METAFLOW_DATASTORE_SYSROOT_S3="{}" && export METAFLOW_AWS_ARN="{}" ' \
                          '&& export METAFLOW_AWS_S3_REGION="{}"'.format(S3_BUCKET, S3_AWS_ARN, S3_AWS_REGION)
-    define_username = 'export USERNAME="kfp-user"'
-    python_cmd = 'python {0} --datastore="s3" --datastore-root="{1}" pre-start'.format(DEFAULT_DOWNLOADED_FLOW_FILENAME,
-                                                                                       S3_BUCKET)
-    final_run_cmd = f'{define_username} && {define_s3_env_vars} && {python_cmd}'
+    define_username = 'export USERNAME="kfp-user"' # TODO: Map username to KFP specific user/profile/namespace
+    init_cmd = 'python {0} --datastore="s3" --datastore-root="{1}" init --run-id={2} --task-id=0'.format(DEFAULT_DOWNLOADED_FLOW_FILENAME,
+                                                                                                         S3_BUCKET, kfp_run_id)
+    final_init_cmd = "{define_username} && {define_s3_env_vars} && {init_cmd}".format(define_username=define_username,
+                                                                                      define_s3_env_vars=define_s3_env_vars,
+                                                                                      init_cmd=init_cmd)
 
+    print("RUNNING COMMAND: ", final_init_cmd)
+    execute(final_init_cmd)
+
+    print("\n----------RUNNING: MAIN STEP COMMAND----------------")
+    start_cmd = start_command_template.format(ds_root=S3_BUCKET, run_id=kfp_run_id)
+    final_run_cmd = "{define_username} && {define_s3_env_vars} && {start_cmd}".format(define_username=define_username,
+                                                                                      define_s3_env_vars=define_s3_env_vars,
+                                                                                      start_cmd=start_cmd)
     print("RUNNING COMMAND: ", final_run_cmd)
-    proc = subprocess.run(final_run_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-    proc_output = proc.stdout
-    proc_error = proc.stderr
-
-    StepOutput = namedtuple('StepOutput',
-                             ['ds_root', 'run_id'])
-
-    if len(proc_error) > 1:
-        print("_____________ STDERR:_____________________________")
-        print(proc_error)
-
-    if len(proc_output) > 1:
-        print("______________ STDOUT:____________________________")
-        print(proc_output)
-
-        # Read in the outputs (in the penultimate line) containing args needed for the next steps.
-        # Note: Output format is: ['ds_root', 'run_id']
-        outputs = (proc_output.split("\n")[-2]).split() # this contains the args needed for next steps to run
-
-    else:
-        raise RuntimeWarning("This step did not generate the correct args for next step to run. This might disrupt the workflow")
+    execute(final_run_cmd)
 
     # TODO: Metadata needed for client API to run needs to be persisted outside before return
 
     print("_______________ Done __________________________")
-    return StepOutput(outputs[0], outputs[1])
 
 
 def step_container_op():
@@ -151,15 +150,15 @@ def step_container_op():
     return step_op
 
 
-def initial_setup_container_op():
+def start_container_op():
     """
-    Container op that corresponds to the 'pre-start' step of Metaflow.
+    Container op that corresponds to the 'start' step of Metaflow.
 
     Note: The public docker image is a copy of the internal docker image we were using (borrowed from aip-kfp-example).
     """
 
-    init_setup_op = kfp.components.func_to_container_op(initial_setup_op_func, base_image='ssreejith3/mf_on_kfp:python-curl-git')
-    return init_setup_op
+    start_op = kfp.components.func_to_container_op(start_op_func, base_image='ssreejith3/mf_on_kfp:python-curl-git')
+    return start_op
 
 
 def add_env_variables_transformer(container_op):
@@ -191,8 +190,7 @@ def create_command_templates_from_graph(graph):
         Returns the python command template to be used for each step.
 
         This method returns a string with placeholders for `datastore_root` and `run_id`
-        which get populated based on the outputs of our initial setup (i.e., when these values are known) in
-        the pipeline.
+        which get populated using the provided config and the kfp run ID respectively.
         The rest of the command string is populated using the passed arguments which are known before the run starts.
 
         An example constructed command template (to run a step named `hello`):
@@ -262,29 +260,23 @@ def create_kfp_pipeline_from_flow_graph(flow_graph, code_url=DEFAULT_FLOW_CODE_U
                     'with branch and join nodes'
     )
     def kfp_pipeline_from_flow():
-        # Initial setup
-        initial_setup_op = (initial_setup_container_op())(code_url).set_display_name('InitialSetup')
-        ds_root = initial_setup_op.outputs['ds_root']
-        run_id = initial_setup_op.outputs['run_id']
-
+        kfp_run_id = 'kfp-' + dsl.RUN_ID_PLACEHOLDER
+        # Start step (start is a special step as additional initialisation is done internally)
         step_to_container_op_map = {}
-        step_to_container_op_map['start'] = (step_container_op())(
-                                        step_to_command_template_map['start'],
-                                        'start',
-                                        code_url,
-                                        ds_root,
-                                        run_id
-                                        ).after(initial_setup_op).set_display_name('start')
+        step_to_container_op_map['start'] = (start_container_op())(step_to_command_template_map['start'],
+                                                                      code_url,
+                                                                      kfp_run_id
+                                                                    ).set_display_name('start')
 
-        # Define container ops for all steps
+        # Define container ops for remaining steps
         for step, cmd in step_to_command_template_map.items():
             if step != 'start':
                 step_to_container_op_map[step] = (step_container_op())(
-                                            step_to_command_template_map[step],
-                                            step,
-                                            code_url,
-                                            ds_root,
-                                            run_id).set_display_name(step)
+                                                    step_to_command_template_map[step],
+                                                    step,
+                                                    code_url,
+                                                    kfp_run_id
+                                                ).set_display_name(step)
 
         # Add environment variables to all ops
         dsl.get_pipeline_conf().add_op_transformer(add_env_variables_transformer)
@@ -294,7 +286,6 @@ def create_kfp_pipeline_from_flow_graph(flow_graph, code_url=DEFAULT_FLOW_CODE_U
             if step != 'start':
                 for parent in flow_graph.nodes[step].in_funcs:
                     step_to_container_op_map[step].after(step_to_container_op_map[parent])
-
 
     return kfp_pipeline_from_flow
 
