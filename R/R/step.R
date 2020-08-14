@@ -31,6 +31,9 @@ step <- function(flow, ..., step, r_function = NULL, foreach = NULL, join = FALS
   }
   if (!is.null(r_function)) {
     function_name <- as.character(substitute(r_function))
+    if (length(function_name) > 1) { # likely an anonymous function
+      function_name <- paste0(step, "_function")
+    }
     body(r_function) <- wrap_function(r_function)
     if (join) {
       .step <- c(.step, fmt_r_function(function_name, join = TRUE))
