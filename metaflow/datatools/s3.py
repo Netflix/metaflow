@@ -7,7 +7,8 @@ import subprocess
 from itertools import starmap
 from tempfile import mkdtemp, NamedTemporaryFile
 
-from .. import current, FlowSpec
+from .. import FlowSpec
+from ..current import current
 from ..metaflow_config import DATATOOLS_S3ROOT
 from ..util import is_stringish,\
                    to_bytes,\
