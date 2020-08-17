@@ -141,7 +141,7 @@ class Conda(object):
         return None
 
     def _env_lock_file(self, env_id):
-        return os.path.join(self._info()['conda_prefix'], 'mf_env-creation.lock')
+        return os.path.join(self._info()['envs_dirs'][0], 'mf_env-creation.lock')
 
     def _call_conda(self, args, architecture=None):
         try:
