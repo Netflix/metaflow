@@ -1,6 +1,6 @@
 from metaflow_test import MetaflowTest, ExpectationFailed, steps
 
-class MergeArtifactsTest(MetaflowTest):
+class MergeArtifactsIncludeTest(MetaflowTest):
     PRIORITY = 1
 
     @steps(0, ['start'])
@@ -22,43 +22,29 @@ class MergeArtifactsTest(MetaflowTest):
     @steps(0, ['join'], required=True)
     def merge_things(self, inputs):
         from metaflow.current import current
-        from metaflow.exception import UnhandledInMergeArtifactsException, MetaflowException
+        from metaflow.exception import MissingInMergeArtifactsException
 
-        # Test to make sure non-merged values are reported
-        assert_exception(lambda: self.merge_artifacts(inputs), UnhandledInMergeArtifactsException)
-
-        # Test to make sure nothing is set if failed merge_artifacts
-        assert(not hasattr(self, 'non_modified_passdown'))
-        assert(not hasattr(self, 'manual_merge_required'))
-
-        # Test to make sure that only one of exclude/include is used
-        assert_exception(lambda: self.merge_artifacts(
-            inputs,
-            exclude=['ignore_me'],
-            include=['non_modified_passdown']), MetaflowException)
-
-        # Test to make sure nothing is set if failed merge_artifacts
-        assert(not hasattr(self, 'non_modified_passdown'))
-        assert(not hasattr(self, 'manual_merge_required'))
-
-        # Test actual merge (ignores set values and excluded names, merges common and non modified)
         self.manual_merge_required = current.task_id
-        self.merge_artifacts(inputs, exclude=['ignore_me'])
+        # Test to see if we raise an exception if include specifies non-merged things
+        assert_exception(lambda: self.merge_artifacts(
+            inputs, include=['manual_merge_required', 'foobar']), MissingInMergeArtifactsException)
+
+        # Test to make sure nothing is set if failed merge_artifacts
+        assert(not hasattr(self, 'non_modified_passdown'))
+
+        # Merge include non_modified_passdown
+        self.merge_artifacts(inputs, include=['non_modified_passdown'])
 
         # Ensure that everything we expect is passed down
         assert_equals(self.non_modified_passdown, 'a')
-        assert_equals(self.modified_to_same_value, 'e')
         assert_equals(self.manual_merge_required, current.task_id)
         assert(not hasattr(self, 'ignore_me'))
+        assert(not hasattr(self, 'modified_to_same_value'))
 
     @steps(0, ['end'])
     def end(self):
-        from metaflow.exception import MetaflowException
-        # This is not a join so test exception for calling in non-join
-        assert_exception(lambda: self.merge_artifacts([]), MetaflowException)
         # Check that all values made it through
         assert_equals(self.non_modified_passdown, 'a')
-        assert_equals(self.modified_to_same_value, 'e')
         assert(hasattr(self, 'manual_merge_required'))
 
     @steps(3, ['all'])
