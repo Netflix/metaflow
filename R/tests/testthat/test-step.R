@@ -94,5 +94,8 @@ test_that("we can define a step with an anonymous function", {
       r_function = function(step) step$x <- 3 
     )
   functions <- flow$get_functions()
-  expect_true("anonymous_function_step_function" %in% names(functions))
+  hash <- py_hash(function(step) step$x <- 3)
+  expect_true(
+    paste0("anonymous_function_step_function_", hash) %in% names(functions)
+  )
 })
