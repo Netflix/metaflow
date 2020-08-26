@@ -90,9 +90,10 @@ test_that("we can define a step with an anonymous function", {
   skip_if_no_metaflow()
   flow <- metaflow("TestFlow") %>%
     step(
-      step = "anonymous_function_step",
+      step = "anonymous",
       r_function = function(step) step$x <- 3 
     )
+  expected_function_name <- "anonymous_function_7542958bbcd6fa74bdf17e888b956426"
   functions <- flow$get_functions()
-  expect_true("anonymous_function_step_function" %in% names(functions))
+  expect_true(expected_function_name %in% names(functions))
 })
