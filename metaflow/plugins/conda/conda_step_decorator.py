@@ -79,7 +79,8 @@ class CondaStepDecorator(StepDecorator):
                         False] if x is not None)
 
     def _lib_deps(self):
-        deps = get_pinned_conda_libs()
+        deps = get_pinned_conda_libs(self._python_version())
+
         base_deps = self.base_attributes['libraries']
         deps.update(base_deps)
         step_deps = self.attributes['libraries']
