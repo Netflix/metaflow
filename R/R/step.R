@@ -32,7 +32,7 @@ step <- function(flow, ..., step, r_function = NULL, foreach = NULL, join = FALS
   if (!is.null(r_function)) {
     function_name <- as.character(substitute(r_function))
     if (length(function_name) > 1) { # likely an anonymous function
-      function_name <- paste(step, "function", py_hash(r_function), sep = "_")
+      function_name <- paste0(step, "_function")
     }
     body(r_function) <- wrap_function(r_function)
     if (join) {
@@ -42,7 +42,7 @@ step <- function(flow, ..., step, r_function = NULL, foreach = NULL, join = FALS
     }
     add_R_object_to_flow(flow, r_function, function_name)
   }
-  
+
   if (!is.null(next_step)) {
     if (!is.null(foreach)) {
       .step <- c(.step, fmt_next_step(next_step, foreach))
@@ -81,7 +81,7 @@ wrap_function <- function(func) {
     original_func()
     return(0)
   }
-  
+
   # insert function body of original f into the
   # original_func sub function inside masked_func
   if (length(body(func)) > 1) {
@@ -127,26 +127,4 @@ fmt_r_function <- function(x, join = NULL) {
     line <- c(fmt, space(1, type = "v"))
   }
   line
-}
-
-#' Hash an R function
-#' 
-#' There is no support for hashing in base R. The \verb{digest} package is
-#' usually used, but in order to avoid introduing another dependency we call the
-#' inbuilt Python hash function. To avoid hyphenating function names, we return
-#' the absolute of the hash. Note also that the hash will change between
-#' sessions (see
-#' \url{https://docs.python.org/3/reference/datamodel.html#object.__hash__}).
-#'
-#' The hashes produced by this function won't necessarily match those produced
-#' by Python. Base R supports only 32-bit integers, so anything beyond 32 bits
-#' will overflow.
-#'
-#' @param fun Function 
-#' @return Positive integer
-#' @keywords internal
-py_hash <- function(fun) {
-  builtins <- reticulate::import_builtins()
-  hash <- builtins$hash(paste(deparse(fun), collapse = ""))
-  abs(hash)
 }
