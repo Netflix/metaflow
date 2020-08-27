@@ -90,6 +90,28 @@ run_cmd <- function(flow_file, ...) {
     batch <- ""
   }
 
+  if ("step_functions" %in% names(flags)) {
+    sfn_cmd <- paste("step-functions", flags$step_functions)
+    for (subcommand in c("authorize", "generate_new_token", 
+                         "only_json", "running", "succeeded", 
+                         "failed", "timed_out", "aborted")){
+      if (subcommand %in% names(flags)){
+        subcommand_valid <- gsub("_", "-", subcommand)
+        sfn_cmd <- paste(sfn_cmd, paste0("--", subcommand_valid))
+      }
+    }
+
+    for (subcommand in c("new_token", "tag", "namespace", 
+                         "max_workers", "workflow_timeout")){
+      if (subcommand %in% names(flags)){
+        subcommand_valid <- gsub("_", "-", subcommand)
+        sfn_cmd <- paste(sfn_cmd, paste0("--", subcommand_valid), flags[[subcommand]])
+      }
+    }
+  } else {
+    sfn_cmd <- ""
+  }
+
   if ("max_workers" %in% names(flags)) {
     max_workers <- paste0("--max-workers=", flags$max_workers)
   } else {
@@ -105,7 +127,9 @@ run_cmd <- function(flow_file, ...) {
   } else {
     other_args <- ""
   }
+
   parameters <- split_parameters(flags)
+
   if ("with" %in% names(flags)) {
     with <- unlist(lapply(seq_along(flags$with), function(x) {
       paste(paste0("--with ", unlist(flags$with[x])), collapse = " ")
@@ -114,6 +138,7 @@ run_cmd <- function(flow_file, ...) {
   } else {
     with <- ""
   }
+
   if ("tag" %in% names(flags)) {
     tag <- unlist(lapply(seq_along(flags$tag), function(x) {
       paste(paste0("--tag ", unlist(flags$tag[x])), collapse = " ")
@@ -159,6 +184,10 @@ run_cmd <- function(flow_file, ...) {
     cmd <- paste("Rscript", run_path, flow_RDS, show)
   }
 
+  if ("step_functions" %in% names(flags)){
+    cmd <- paste("Rscript", run_path, flow_RDS, sfn_cmd)
+  }
+
   if ("help" %in% names(flags) && flags$help) {
     # if help is specified by the run(...) R functions
     if ("help" %in% names(run_options) && run_options$help) {
@@ -169,5 +198,8 @@ run_cmd <- function(flow_file, ...) {
     cmd <- paste("Rscript", run_path, flow_RDS, help_cmd)
   }
 
+  print(flags)
+
+  print(cmd)
   cmd
 }

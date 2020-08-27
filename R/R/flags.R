@@ -38,6 +38,26 @@ parse_arguments <- function(arguments = NULL) {
       }
       next
     }
+
+    if (argument == "step-functions"){
+      i <- i + 1
+      if (i <= n){
+        if (arguments[i] == "trigger"){
+          i <- i + 1
+          if (i <= n){
+            values$step_functions <- paste("trigger", arguments[i])
+          } else {
+            values$step_functions <- "trigger"
+          } 
+        } else {
+          values$step_functions <- arguments[i]
+        }
+      } else {
+        values$step_functions <- "" 
+      }
+      next
+    }
+
     if (!grepl("^--", argument)) {
       if (grepl("batch", argument)) {
         values$batch <- parse_batch(arguments)
@@ -135,7 +155,9 @@ split_parameters <- function(flags) {
     "authorize",
     "my_runs", "run_id", "user",
     "origin_run_id", "with",
-    "tag"
+    "tag", "only_json", "generate_new_token",
+    "running", "succeeded", "failed", 
+    "timed_out", "aborted"
   )
   parameters <- flags[parameters]
   if (length(parameters) == 0) {
