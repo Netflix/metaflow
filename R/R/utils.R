@@ -1,20 +1,8 @@
-#' Pipe operator
-#'
-#' Check \code{??magrittr::`\%>\%`} for details.
-#'
-#' @name %>%
-#' @rdname pipe
-#' @keywords internal
-#' @export
-#' @importFrom magrittr %>%
-#' @usage lhs \%>\% rhs
-NULL
-
 simple_type <- function(obj) {
   if (is.atomic(obj)) {
     return(TRUE)
   } else if (is.list(obj)) {
-    if ("data.table" %in% class(obj)){
+    if ("data.table" %in% class(obj)) {
       return(FALSE)
     }
 
@@ -204,10 +192,6 @@ wrap_argument <- function(x) {
   x
 }
 
-python_3 <- function() {
-  system("which python3", intern = TRUE)
-}
-
 #' Return installation path of metaflow R library
 #' @param flowRDS path of the RDS file containing the flow object
 #' @export
@@ -265,64 +249,6 @@ test <- function() {
     run()
 }
 
-#' Install Metaflow python dependencies
-#' @param user Whether or not to install into the user directory for pip install. Default to TRUE. 
-#' @param upgrade Whether or not to upgrade metaflow python package. Default to FALSE.  
-#' @export
-install <- function(user=TRUE, upgrade=FALSE) {
-  if (user){
-    user_flag = "--user"
-  } else {
-    user_flag = ""
-  }
-
-  if (upgrade){
-    upgrade_flag = "--upgrade"
-  } else{
-    upgrade_flag = ""
-  }
-
-  # numpy and pandas are needed to handle native R matrix and data.frame
-  system(paste("python3 -m pip install", upgrade_flag,
-               "'metaflow>=2.2.0'",
-               "numpy",
-               "pandas",
-               user_flag))
-  #system("python3 -m pip install -e ./..")
-  metaflow_load()
-  metaflow_attach()
-}
-
-pkg.env <- new.env()
-
-pkg.env$configs <- list(
-  default = list(
-    metaflow_path = expression(reticulate::py_discover_config("metaflow")$required_module_path)
-  ),
-  batch = list(
-    metaflow_path = expression(path.expand(paste0(getwd(), "/metaflow")))
-  )
-)
-
-metaflow_load <- function() {
-  reticulate::use_python(Sys.which("python3"), required = TRUE)
-
-  config_name <- Sys.getenv("R_CONFIG_ACTIVE", unset = "default")
-  configs <- pkg.env$configs
-  config <- list()
-  for (key in names(configs[[config_name]])) {
-    config[[key]] <- eval(configs[[config_name]][[key]])
-  }
-
-  if (config_name == "batch") {
-    pkg.env$mf <- reticulate::import_from_path("metaflow", path = config$metaflow_path)
-  } else {
-    pkg.env$mf <- reticulate::import("metaflow", delay_load = TRUE)
-  }
-
-  invisible()
-}
-
 #' Return Metaflow python version
 py_version <- function() {
   reticulate::use_python(Sys.which("python3"), required = TRUE)
@@ -345,7 +271,7 @@ r_version <- function() {
 metaflow_attach <- function() {
   packageStartupMessage(sprintf("Metaflow (R) %s loaded", r_version()))
   packageStartupMessage(sprintf("Metaflow (Python) %s loaded", py_version()))
-  invisible()
+  invisible(NULL)
 }
 
 #' Return the default container image to use for remote execution on AWS Batch.

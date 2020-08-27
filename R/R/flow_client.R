@@ -3,7 +3,6 @@
 #' Instances of this class contain all runs related to a flow.
 #'
 #' @docType class
-#' @importFrom R6 R6Class
 #' @include metaflow-package.R
 #' @include metaflow_client.R
 #'
