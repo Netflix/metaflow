@@ -33,7 +33,7 @@ Collate:
     'flags.R'
     'flow.R'
     'metaflow_client.R'
-    'metaflow.R'
+    'metaflow-package.R'
     'flow_client.R'
     'metadata.R'
     'namespace.R'

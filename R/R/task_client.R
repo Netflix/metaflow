@@ -5,7 +5,7 @@
 #' @docType class
 #' @importFrom R6 R6Class
 #' @importFrom reticulate import_builtins
-#' @include metaflow.R
+#' @include metaflow-package.R
 #' @include metaflow_client.R
 #'
 #' @return Object of \code{\link{R6Class}} with fields/methods for introspection.

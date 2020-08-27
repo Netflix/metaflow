@@ -5,7 +5,7 @@
 #' @docType class
 #' @importFrom R6 R6Class
 #' @importFrom reticulate import_builtins py_get_attr
-#' @include metaflow.R
+#' @include metaflow-package.R
 #' @include metaflow_client.R
 #' @include utils.R
 #'
