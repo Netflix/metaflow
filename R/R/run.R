@@ -41,7 +41,7 @@ run <- function(flow = NULL, ...) {
   cmd <- run_cmd(flow_file = flow_file, ...)
   message(paste0("Flow cli:\n", cmd))
   status_code <- system(cmd)
-  #invisible(file.remove(flow_file))
+  invisible(file.remove(flow_file))
   return(invisible(status_code))
 }
 

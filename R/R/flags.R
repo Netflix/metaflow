@@ -42,16 +42,7 @@ parse_arguments <- function(arguments = NULL) {
     if (argument == "step-functions"){
       i <- i + 1
       if (i <= n){
-        if (arguments[i] == "trigger"){
-          i <- i + 1
-          if (i <= n){
-            values$step_functions <- paste("trigger", arguments[i])
-          } else {
-            values$step_functions <- "trigger"
-          } 
-        } else {
-          values$step_functions <- arguments[i]
-        }
+        values$step_functions <- arguments[i]
       } else {
         values$step_functions <- "" 
       }

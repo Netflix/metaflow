@@ -93,8 +93,6 @@ def run(flow_script,
     module = imp.load_source('metaflowR', tmp.name)
     flow = module.FLOW(use_cli=False)
 
-    print(tmp.name)
-
     from . import exception 
     from . import cli 
     try:
@@ -104,14 +102,14 @@ def run(flow_script,
                  entrypoint=full_cmdline[:-len(metaflow_args)])
     except exception.MetaflowException as e:
         cli.print_metaflow_exception(e)
-        #os.remove(tmp.name)
+        os.remove(tmp.name)
         os._exit(1)
     except Exception as e:
         import sys
         print(e)
         sys.stdout.flush()
-        #os.remove(tmp.name)
+        os.remove(tmp.name)
         os._exit(1)
     finally:
-        #os.remove(tmp.name)
+        os.remove(tmp.name)
         pass
