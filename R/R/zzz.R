@@ -22,8 +22,8 @@ pkg.env$configs <- list(
   
   if (!ensure_metaflow()) {
     packageStartupMessage("* Metaflow Python dependencies not found *\n",
-                          "    - Call `install_metaflow()` to install dependencies into a new conda or virtualenv\n",
-                          "    - Set `METAFLOW_PYTHON` environment variable to point to a custom metaflow installation.")
+                          "    - Call `install_metaflow()` to install into a new conda or virtualenv\n",
+                          "    - Set `METAFLOW_PYTHON` environment variable to use a custom metaflow installation.")
   } else {
     metaflow_load()
   }

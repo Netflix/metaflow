@@ -39,7 +39,6 @@ install_metaflow()
 }
 }
 \seealso{
-[altiar: Installation](https://vegawidget.github.io/metaflow/articles/installation.html),
 [reticulate: Using reticulate in an R Package](https://rstudio.github.io/reticulate/articles/package.html),
 [reticulate: Installing Python Packages](https://rstudio.github.io/reticulate/articles/python_packages.html)
 }
