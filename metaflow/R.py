@@ -112,4 +112,3 @@ def run(flow_script,
         os._exit(1)
     finally:
         os.remove(tmp.name)
-        pass
