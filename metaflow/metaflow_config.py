@@ -188,30 +188,21 @@ def get_version(pkg):
 # PINNED_CONDA_LIBS are the libraries that metaflow depends on for execution
 # and are needed within a conda environment
 def get_pinned_conda_libs(python_version):
-    if python_version.startswith(("2.7", "3.6", "3.7", "3.8")):
-        return {
-            'click': '7.1.2',
-            'requests': '2.24.0',
-            'boto3': '1.14.47',
-            'coverage': '4.5.4'
-        }
-    elif python_version.startswith("3.5"):
+    if python_version.startswith("3.5"):
         return {
             'click': '7.1.2',
             'requests': '2.24.0',
             'boto3': '1.9.88',
             'coverage': '4.5.1'
         }
-    elif python_version in ["2", "3"]:
-        raise MetaflowException(
-            "Please specify complete python version number, " +
-            "for example 2.7, 3.7, 3.7.8")
     else:
-        raise MetaflowException(
-            "Unsupported python version for Metaflow conda setup: %s" 
-            % python_version)
-
-
+        return {
+            'click': '7.1.2',
+            'requests': '2.24.0',
+            'boto3': '1.14.47',
+            'coverage': '4.5.4'
+        }
+        
 cached_aws_sandbox_creds = None
 
 def get_authenticated_boto3_client(module, params={}):
