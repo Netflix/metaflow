@@ -197,9 +197,5 @@ run_cmd <- function(flow_file, ...) {
     }
     cmd <- paste("Rscript", run_path, flow_RDS, help_cmd)
   }
-
-  print(flags)
-
-  print(cmd)
   cmd
 }
