@@ -186,7 +186,8 @@ run_cmd <- function(flow_file, ...) {
   }
 
   if ("step_functions" %in% names(flags)){
-    cmd <- paste("Rscript", run_path, flow_RDS, sfn_cmd, 
+    cmd <- paste("Rscript", run_path, flow_RDS, 
+                 "--no-pylint", package_suffixes, sfn_cmd, 
                     parameters,  other_args)
   }
 
@@ -197,7 +198,7 @@ run_cmd <- function(flow_file, ...) {
     } else { # if help is specified in command line
       help_cmd <- paste(commandArgs(trailingOnly = TRUE), collapse = " ")
     }
-    cmd <- paste("Rscript", run_path, flow_RDS, help_cmd)
+    cmd <- paste("Rscript", run_path, flow_RDS, "--no-pylint", help_cmd)
   }
   cmd
 }
