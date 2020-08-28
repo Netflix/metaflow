@@ -150,7 +150,7 @@ split_parameters <- function(flags) {
     "only_json", "generate_new_token",
     "running", "succeeded", "failed", 
     "timed_out", "aborted", "namespace",
-    "new_token", "workflow_timeout",
+    "new_token", "workflow_timeout"
   )
   parameters <- flags[parameters]
   if (length(parameters) == 0) {
