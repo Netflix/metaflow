@@ -142,13 +142,15 @@ split_parameters <- function(flags) {
     "package_suffixes", "no-pylint",
     "help", "resume",
     "max_num_splits", "max_workers",
-    "other_args", "show",
-    "authorize",
-    "my_runs", "run_id", "user",
-    "origin_run_id", "with",
-    "tag", "only_json", "generate_new_token",
+    "other_args", "show", "user",
+    "my_runs", "run_id", 
+    "origin_run_id", "with", "tag",
+    # step-functions subcommands and options
+    "authorize", "step_functions", 
+    "only_json", "generate_new_token",
     "running", "succeeded", "failed", 
-    "timed_out", "aborted"
+    "timed_out", "aborted", "namespace",
+    "new_token", "workflow_timeout",
   )
   parameters <- flags[parameters]
   if (length(parameters) == 0) {

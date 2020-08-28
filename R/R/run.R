@@ -122,6 +122,7 @@ run_cmd <- function(flow_file, ...) {
   } else {
     max_num_splits <- ""
   }
+
   if ("other_args" %in% names(flags)) {
     other_args <- paste(flags$other_args)
   } else {
@@ -185,7 +186,8 @@ run_cmd <- function(flow_file, ...) {
   }
 
   if ("step_functions" %in% names(flags)){
-    cmd <- paste("Rscript", run_path, flow_RDS, sfn_cmd)
+    cmd <- paste("Rscript", run_path, flow_RDS, sfn_cmd, 
+                    parameters,  other_args)
   }
 
   if ("help" %in% names(flags) && flags$help) {
