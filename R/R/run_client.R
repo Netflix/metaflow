@@ -3,7 +3,7 @@
 #' Instances of this class contain all steps related to a run.
 #'
 #' @docType class
-#' @include metaflow-package.R
+#' @include package.R
 #' @include metaflow_client.R
 #' @include utils.R
 #'

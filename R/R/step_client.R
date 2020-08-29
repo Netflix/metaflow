@@ -3,7 +3,7 @@
 #' Instances of this class contain all tasks related to a step.
 #'
 #' @docType class
-#' @include metaflow-package.R
+#' @include package.R
 #' @include metaflow_client.R
 #'
 #' @return Object of \code{\link{R6Class}} with fields/methods for introspection.
