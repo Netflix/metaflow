@@ -6,19 +6,18 @@
 \usage{
 install_metaflow(
   method = c("conda", "virtualenv"),
-  envname = "metaflow",
+  envname = "metaflow-r",
   version = NULL,
-  restart_session = TRUE,
   ...
 )
 }
 \arguments{
-\item{method}{`character`, indicates to use `"conda"` or `"virtualenv"`}
+\item{method}{`character`, indicates to use `"conda"` or `"virtualenv"`.}
 
-\item{envname}{`character`, name of environment into which to install}
+\item{envname}{`character`, name of environment into which to install.}
 
-\item{version}{`character`, version of Metaflow to install. For general use of this package,
-this is set automatically, so you should not need to specify this.}
+\item{version}{`character`, version of Metaflow to install. The default version
+is the latest available on PyPi.}
 
 \item{...}{other arguments sent to [reticulate::conda_install()] or
 [reticulate::virtualenv_install()]}

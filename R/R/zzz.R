@@ -17,17 +17,21 @@ pkg.env$configs <- list(
 
 .onLoad <- function(libname, pkgname) {
   metaflow_python <- Sys.getenv("METAFLOW_PYTHON", unset = NA)
-  if (!is.na(metaflow_python))
+  if (!is.na(metaflow_python)) {
     Sys.setenv(RETICULATE_PYTHON = metaflow_python)
-  
-  if (!ensure_metaflow()) {
-    packageStartupMessage("* Metaflow Python dependencies not found *\n",
-                          "    - Call `install_metaflow()` to install into a new conda or virtualenv\n",
-                          "    - Set `METAFLOW_PYTHON` environment variable to use a custom metaflow installation.")
+  }
+
+  if (!ensure_metaflow("metaflow-r")) {
+    packageStartupMessage(
+      "* Metaflow Python dependencies not found *\n",
+      "  Available options:\n",
+      "    - Call `install_metaflow()` to install into a new conda or virtualenv\n",
+      "    - Set `METAFLOW_PYTHON` environment variable to the path of your python executable.\n",
+      "      Note that Metaflow needs to be available at this location."
+    )
   } else {
     metaflow_load()
   }
-  
 }
 
 metaflow_load <- function() {
@@ -44,4 +48,3 @@ metaflow_load <- function() {
   }
   invisible(NULL)
 }
-
