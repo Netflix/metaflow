@@ -64,7 +64,7 @@ class CacheStore(object):
 
         self._init_gc(self.root)
 
-    def warn(ex, msg):
+    def warn(self, ex, msg):
         self.echo("IO ERROR: (%s) %s" % (ex, msg))
 
     def _init_temp(self, root):
@@ -113,7 +113,6 @@ class CacheStore(object):
     def _gc_objects(self, quarantine=GC_MARKER_QUARANTINE):
 
         def mark_for_deletion(path, size):
-            print("MARK", path)
             self.safe_fileop(os.utime, path, (TIMESTAMP_FOR_DELETABLE,
                                               TIMESTAMP_FOR_DELETABLE))
             self.gc_queue[path] = (time.time(), size)
@@ -173,17 +172,27 @@ class CacheStore(object):
                 self.warn(ex, msg)
             else:
                 if stream_key:
-                    src = stream_path(self.root, action_name, stream_key)
+                    src = stream_path(self.root, stream_key)
                     dst = os.path.join(tmp, key_filename(stream_key))
                     # make sure that the new symlink points at a valid (empty!)
                     # file by creating a dummy destination file
-                    self.ensure_path(dst)
+                    self.ensure_path(src)
                     open_res = self.safe_fileop(open, dst, 'w')
                     if open_res:
                         _, f = open_res
                         f.close()
-                        self.safe_fileop(os.symlink, src, dst)
-                        self.active_streams[tmp] = src
+                        try:
+                            os.symlink(dst, src)
+                        except Exception as ex:
+                            # two actions may be streaming the same object
+                            # simultaneously. We don't consider an existing
+                            # symlink (errno 17) to be an error.
+                            if ex.errno != 17:
+                                err = "Could not create a symlink %s->%s"\
+                                      % (src, dst)
+                                self.warn(ex, err)
+                        else:
+                            self.active_streams[tmp] = src
                         return tmp
                 else:
                     return tmp

@@ -1,18 +1,30 @@
 import os
+import math
 import time
+import json
 
 from .cache_server import server_request, subprocess_cmd_and_env
-from .cache_store import object_path, is_safely_readable
+from .cache_store import object_path, stream_path, is_safely_readable
+
+FOREVER = 60 * 60 * 24 * 3650
 
 PING_FREQUENCY = 1
+BUSY_LOOP_FREQUENCY = 0.2
 
 class CacheServerUnreachable(Exception):
+    pass
+
+class CacheStreamMissing(Exception):
+    pass
+
+class CacheStreamTimeout(Exception):
     pass
 
 class CacheFuture(object):
 
     def __init__(self, keys, stream_key, client, action_cls, root):
         self.stream_key = stream_key
+        self.stream_path = stream_path(root, stream_key) if stream_key else None
         self.action = action_cls
         self.client = client
         self.keys = keys
@@ -43,14 +55,52 @@ class CacheFuture(object):
         if self.key_objs:
             return self.action.response(self.key_objs)
 
-    def stream(self, timeout):
-        # if a symlink if found, we can use it
-        # if a symlink is missing or invalid, we should fall back
-        # to the corresponding non-streaming key
-        def _stream():
-            pass
-        if self.is_streamable:
-            return self.client.stream(self.action.stream_response(_stream()))
+    def stream(self, timeout=FOREVER):
+        end = time.time() + timeout
+
+        def _readlines(stream):
+            tail = ''
+            while True:
+                buf = stream.readline()
+                if buf == '':
+                    self.client.sleep(BUSY_LOOP_FREQUENCY)
+                    # we check timeout only when EOF is reached to avoid
+                    # making time() system call for every line read
+                    if time.time() > end:
+                        raise CacheStreamTimeout()
+                elif buf == '\n' and not tail:
+                    # an empty line marks the end of stream
+                    break
+                elif buf[-1] == '\n':
+                    try:
+                        msg = json.loads(tail + buf)
+                    except:
+                        err = "Corrupted message: '%s'" % tail + buf
+                        raise CacheStreamCorrupted(err)
+                    else:
+                        tail = ''
+                        yield msg
+                else:
+                    tail += buf
+
+
+        if self.stream_key:
+            stream_object = self.key_paths[self.stream_key]
+            stream = self.wait_paths([self.stream_path, stream_object], timeout)
+            if stream is None:
+                raise CacheStreamMissing()
+
+            return self.action.stream_response(_readlines(stream))
+
+    def wait_paths(self, paths, timeout):
+        for _ in range(int(math.ceil(timeout / BUSY_LOOP_FREQUENCY))):
+            for path in paths:
+                if is_safely_readable(path):
+                    try:
+                        return open(path)
+                    except:
+                        pass
+            self.client.sleep(0.2)
 
 class CacheClient(object):
 
@@ -95,7 +145,8 @@ class CacheClient(object):
             return True
 
     def _send(self, op, **kwargs):
-        self.send_request(server_request(op, **kwargs))
+        req = server_request(op, **kwargs)
+        self.send_request(json.dumps(req).encode('utf-8') + b'\n')
 
     def _action(self, cls):
         def _call(*args, **kwargs):
@@ -104,7 +155,6 @@ class CacheClient(object):
             future = CacheFuture(keys, stream_key, self, cls, self._root)
             if future.is_ready:
                 # cache hit
-                print('HIT!')
                 return future
             else:
                 # cache miss
