@@ -15,12 +15,23 @@ class CacheAsyncClient(CacheClient):
                                                           stdin=PIPE)
         asyncio.create_task(self._heartbeat())
 
+    async def check(self):
+        ret = await self.Check()
+        await ret.wait()
+        ret.get()
+
+    async def stop_server(self):
+        if self._is_alive:
+            self._is_alive = False
+            self._proc.terminate()
+            await self._proc.wait()
+
     async def send_request(self, blob):
         try:
             self._proc.stdin.write(blob)
             await self._proc.stdin.drain()
-        except BrokenPipeError: # FIXME check error
-            self.is_alive = False
+        except ConnectionResetError:
+            self._is_alive = False
             raise CacheServerUnreachable()
 
     async def wait_iter(self, it, timeout):
@@ -28,7 +39,7 @@ class CacheAsyncClient(CacheClient):
         for obj in it:
             if obj is None:
                 await asyncio.sleep(WAIT_FREQUENCY)
-                if not self.is_alive:
+                if not self._is_alive:
                     raise CacheServerUnreachable()
                 elif time.time() > end:
                     raise CacheClientTimeout()
@@ -49,7 +60,7 @@ class CacheAsyncClient(CacheClient):
         return ret
 
     async def _heartbeat(self):
-        while self.is_alive:
+        while self._is_alive:
             try:
                 await self.ping()
             except CacheServerUnreachable:

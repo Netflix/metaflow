@@ -4,7 +4,7 @@ from subprocess import Popen, PIPE
 from .cache_client import CacheClient, CacheServerUnreachable
 
 WAIT_FREQUENCY = 0.2
-HEARTBEAT_FREQUENCY = 10
+HEARTBEAT_FREQUENCY = 1
 
 class CacheSyncClient(CacheClient):
 
@@ -12,12 +12,23 @@ class CacheSyncClient(CacheClient):
         self._proc = Popen(cmdline, env=env, stdin=PIPE)
         self._prev_heartbeat = 0
 
+    def check(self):
+        ret = self.Check()
+        ret.wait()
+        ret.get()
+
+    def stop_server(self):
+        if self._isalive:
+            self._is_alive = False
+            self._proc.terminate()
+            self._proc.wait()
+
     def send_request(self, blob):
         try:
             self._proc.stdin.write(blob)
             self._proc.stdin.flush()
         except BrokenPipeError:
-            self.is_alive = False
+            self._is_alive = False
             raise CacheServerUnreachable()
 
     def wait_iter(self, it, timeout):

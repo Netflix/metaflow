@@ -5,6 +5,7 @@ import json
 
 from .cache_server import server_request, subprocess_cmd_and_env
 from .cache_store import object_path, stream_path, is_safely_readable
+from .cache_action import Check
 
 FOREVER = 60 * 60 * 24 * 3650
 
@@ -116,6 +117,7 @@ class CacheClient(object):
 
     def __init__(self, root, action_classes, max_actions=16, max_size=10000):
 
+        action_classes.append(Check)
         for cls in action_classes:
             setattr(self, cls.__name__, self._action(cls))
 
@@ -138,8 +140,13 @@ class CacheClient(object):
             'actions': [[c.__module__, c.__name__] for c in self._action_classes]
         }
         return self.request_and_return([self.start_server(cmdline, env),
-                                        self._send('init', message=msg)],
+                                        self._send('init', message=msg),
+                                        self.check()],
                                        None)
+
+    def stop(self):
+        return self.stop_server()
+
     @property
     def is_alive(self):
         return self._is_alive
@@ -179,6 +186,19 @@ class CacheClient(object):
         """
         Start cache_server subprocess, defined by `cmdline` and
         environment `env`.
+        """
+        raise NotImplementedError
+
+    def check():
+        """
+        Call and wait on the Check action to ensure that the server is
+        running.
+        """
+        raise NotImplementedError
+
+    def stop_server(self):
+        """
+        Stop the server subprocess.
         """
         raise NotImplementedError
 
