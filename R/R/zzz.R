@@ -10,7 +10,7 @@ pkg.env$configs <- list(
 )
 
 .onAttach <- function(libname, pkgname) {
-  if (py_module_available("metaflow")) {
+  if (check_python_dependencies()) {
     metaflow_attach()
   }
 }

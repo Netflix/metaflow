@@ -82,7 +82,7 @@ check_python_dependencies <- function() {
   )
 }
 
-check_environment <- function(envname) {
+check_environment <- function(envname = "metaflow-r") {
   conda_check <- envname %in% conda_list()$name
   virtualenv_check <- envname %in% virtualenv_list()
   c(conda = conda_check, virtualenv = virtualenv_check)
