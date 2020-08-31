@@ -11,7 +11,5 @@
 NULL
 
 #' @import reticulate
-#' 
 #' @importFrom R6 R6Class
-#' @importFrom rstudioapi restartSession hasFun
 NULL

@@ -27,7 +27,7 @@ pkg.env$configs <- list(
       "  Available options:\n",
       "    - Call `install_metaflow()` to install into a new conda or virtualenv\n",
       "    - Set `METAFLOW_PYTHON` environment variable to the path of your python executable.\n",
-      "      Note that Metaflow needs to be available at this location."
+      "      Note: Metaflow needs to be available in the environment specified by `METAFLOW_PYTHON`"
     )
   } else {
     metaflow_load()
