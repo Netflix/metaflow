@@ -8,7 +8,6 @@
 #' Python package.
 #'
 #' @param method `character`, indicates to use `"conda"` or `"virtualenv"`.
-#' @param envname `character`, name of environment into which to install.
 #' @param version `character`, version of Metaflow to install. The default version
 #' is the latest available on PyPi.
 #' @param ... other arguments sent to [reticulate::conda_install()] or
@@ -24,9 +23,9 @@
 #' }
 #' @export
 install_metaflow <- function(method = c("conda", "virtualenv"),
-                             envname = "metaflow-r",
                              version = NULL,
                              ...) {
+  envname <- "metaflow-r"
 
   # validate stage, method arguments
   method <- match.arg(method)
@@ -62,7 +61,7 @@ install_metaflow <- function(method = c("conda", "virtualenv"),
   invisible(NULL)
 }
 
-ensure_metaflow <- function(envname) {
+ensure_metaflow <- function(envname = "metaflow-r") {
   metaflow_python <- Sys.getenv("METAFLOW_PYTHON", unset = NA)
   if (is.na(metaflow_python)) {
     env_set <- check_environment(envname)
