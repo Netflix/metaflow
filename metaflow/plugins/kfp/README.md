@@ -9,7 +9,14 @@
 `~/.metaflowconfig/`) and set the required values. Required fields to run on KFP are shared below*.
 2. Create your runs on KFP using the following command template: 
 ```
-python 00-helloworld/hello.py run-on-kfp --experiment-name "MF-on-KFP-P2" --run-name "hello_run" --code-url https://raw.githubusercontent.com/zillow/metaflow/mf-on-kfp-2/metaflow/tutorials/00-helloworld/hello.py --namespace [your_namespace] --userid [your_userid]
+export METAFLOW_PROFILE=<your-metaflow-profile-name> && 
+python <program-name.py> [run-on-kfp|generate-kfp-yaml] (--code-url <link-to-code>)
+```
+
+##### Option 2:
+You can export the required variables* individually and run the python command:
+
+*Required keys in `config_<profile-name>.json` to run on KFP are mentioned below:
 
 ```
 {
@@ -47,6 +54,8 @@ python 00-helloworld/hello.py run-on-kfp
     --experiment-name "MF-on-KFP-P2" 
     --run-name "hello_run" 
     --code-url https://raw.githubusercontent.com/zillow/metaflow/mf-on-kfp-2/metaflow/tutorials/00-helloworld/hello.py
+    --namespace [your_namespace]
+    --userid [your_userid]
 ```
 
 To `generate-kfp-yaml` using this profile:
