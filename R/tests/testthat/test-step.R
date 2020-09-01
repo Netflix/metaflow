@@ -93,7 +93,7 @@ test_that("we can define a step with an anonymous function", {
       step = "anonymous",
       r_function = function(step) step$x <- 3 
     )
-  expected_function_name <- "anonymous_function_7542958bbcd6fa74bdf17e888b956426"
+  expected_function_name <- "anonymous_function_616fb45ef54cbfa9"
   functions <- flow$get_functions()
   expect_true(expected_function_name %in% names(functions))
 })

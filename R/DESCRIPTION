@@ -20,7 +20,7 @@ Imports:
     magrittr,
     R6,
     reticulate (>= 1.10),
-    digest
+    digest (>= 0.4.0)
 Suggests:
     cli,
     lubridate,
