@@ -10,10 +10,11 @@ if (!require(glmnet)) {
 if (!require(caret)) {
   install.packages("caret", repos = "https://cloud.r-project.org")
 }
-
 if (!require(caret)) {
   install.packages("rjson", repos = "https://cloud.r-project.org")
 }
+
+Sys.setenv("METAFLOW_PYTHON" = system("which python3", intern = TRUE))
 
 library(rjson)
 source("formatter.R")

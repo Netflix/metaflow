@@ -61,8 +61,6 @@ jobs:
 
     - name: Execute R tests
       if: matrix.lang == 'R'
-      env:
-        METAFLOW_PYTHON: /Users/runner/hostedtoolcache/Python/3.8.5/x64/bin/python3.8
       run: |
         cd R/tests
         Rscript testthat.R
