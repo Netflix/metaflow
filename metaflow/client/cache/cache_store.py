@@ -64,6 +64,9 @@ class CacheStore(object):
 
         self._init_gc(self.root)
 
+    def object_path(self, key):
+        return object_path(self.root, key)
+
     def warn(self, ex, msg):
         self.echo("IO ERROR: (%s) %s" % (ex, msg))
 

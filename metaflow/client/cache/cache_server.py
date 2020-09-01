@@ -18,7 +18,8 @@ from .cache_action import CacheAction,\
                           import_action_class
 
 from .cache_store import CacheStore,\
-                         key_filename
+                         key_filename,\
+                         is_safely_readable
 
 class CacheServerException(Exception):
     pass
@@ -123,11 +124,17 @@ class Worker(object):
 
     def start(self):
 
+        keys = self.request['keys']
+        ex_paths = map(self.filestore.object_path, keys)
+        ex_keys = {key: path for key, path in zip(keys, ex_paths)
+                   if is_safely_readable(path)}
+
         with open(os.path.join(self.tempdir, 'request.json'), 'w') as f:
             stream = self.request['stream_key']
             request = {
                 'message': self.request['message'],
-                'keys': {key: key_filename(key) for key in self.request['keys']},
+                'keys': {key: key_filename(key) for key in keys},
+                'existing_keys': ex_keys,
                 'stream_key': key_filename(stream) if stream else None
             }
             json.dump(request, f)
@@ -184,7 +191,7 @@ class Scheduler(object):
             prio = msg['priority']
             action = msg['action']
 
-            echo("MESSAGE: %s" % msg)
+            #echo("MESSAGE: %s" % msg)
 
             if op == 'ping':
                 pass

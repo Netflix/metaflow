@@ -5,6 +5,14 @@ import click
 
 from metaflow.client.cache.cache_action import import_action_class_spec
 
+def best_effort_read(key_paths):
+    for key, path in key_paths:
+        try:
+            with open(path, 'rb') as f:
+                yield key, f.read()
+        except:
+            pass
+
 @click.command()
 @click.option("--request-file",
               default='request.json',
@@ -19,6 +27,7 @@ def cli(action_spec, request_file=None):
         req = json.load(f)
 
     try:
+        # prepare stream
         stream = None
         if req['stream_key']:
             stream = open(req['stream_key'], 'a', buffering=1)
@@ -27,8 +36,18 @@ def cli(action_spec, request_file=None):
         else:
             stream_output = None
 
+        # prepare keys
         keys = list(req['keys'])
-        res = action_cls.execute(req['message'], keys, stream_output)
+        ex_keys = dict(best_effort_read(req['existing_keys'].items()))
+
+        # execute action
+        res = action_cls.execute(\
+            message=req['message'],
+            keys=keys,
+            existing_keys=ex_keys,
+            stream_output=stream_output)
+
+        # write outputs to keys
         for key, val in res.items():
             blob = val if isinstance(val, bytes) else val.encode('utf-8')
             with open(req['keys'][key], 'wb') as f:
