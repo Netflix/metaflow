@@ -251,9 +251,7 @@ test <- function() {
 
 #' Return Metaflow python version
 py_version <- function() {
-  reticulate::use_python(Sys.which("python3"), required = TRUE)
-  mf <- reticulate::import("metaflow", delay_load = TRUE)
-  version <- mf$metaflow_version$get_version()
+  version <- pkg.env$mf$metaflow_version$get_version()
   c(python_version = version)
 }
 

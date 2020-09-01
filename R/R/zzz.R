@@ -21,7 +21,7 @@ pkg.env$configs <- list(
     Sys.setenv(RETICULATE_PYTHON = metaflow_python)
   }
 
-  if (!ensure_metaflow("metaflow-r")) {
+  if (!check_python_dependencies()) {
     packageStartupMessage(
       "* Metaflow Python dependencies not found *\n",
       "  Available options:\n",
@@ -30,6 +30,7 @@ pkg.env$configs <- list(
       "      Note: Metaflow needs to be available in the environment specified by `METAFLOW_PYTHON`"
     )
   } else {
+    ensure_metaflow()
     metaflow_load()
   }
 }

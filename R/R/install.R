@@ -66,12 +66,12 @@ ensure_metaflow <- function(envname = "metaflow-r") {
   if (is.na(metaflow_python)) {
     env_set <- check_environment(envname)
     if (env_set[["conda"]] || all(env_set)) {
-      use_condaenv(envname, required = TRUE)
+      use_condaenv(envname)
     } else if (env_set[["virtualenv"]]) {
-      use_virtualenv(envname, required = TRUE)
+      use_virtualenv(envname)
     }
   }
-  check_python_dependencies()
+  invisible(NULL)
 }
 
 check_python_dependencies <- function() {
@@ -82,7 +82,7 @@ check_python_dependencies <- function() {
   )
 }
 
-check_environment <- function(envname = "metaflow-r") {
+check_environment <- function(envname) {
   conda_check <- envname %in% conda_list()$name
   virtualenv_check <- envname %in% virtualenv_list()
   c(conda = conda_check, virtualenv = virtualenv_check)
