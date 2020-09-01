@@ -290,17 +290,18 @@ def create_kfp_pipeline_from_flow_graph(flow_graph, code_url=DEFAULT_FLOW_CODE_U
     return kfp_pipeline_from_flow
 
 
-def create_run_on_kfp(flow_graph, code_url, experiment_name, run_name):
+def create_run_on_kfp(flow_graph, code_url, experiment_name, run_name, namespace, userid):
     """
     Creates a new run on KFP using the `kfp.Client()`. Note: Intermediate pipeline YAML is not generated as this creates
     the run directly using the pipeline function returned by `create_flow_pipeline`
     """
 
     pipeline_func = create_kfp_pipeline_from_flow_graph(flow_graph, code_url)
-    run_pipeline_result = kfp.Client().create_run_from_pipeline_func(pipeline_func,
+    run_pipeline_result = kfp.Client(userid=userid).create_run_from_pipeline_func(pipeline_func,
                                                                      arguments={},
                                                                      experiment_name=experiment_name,
-                                                                     run_name=run_name)
+                                                                     run_name=run_name,
+                                                                     namespace=namespace)
     return run_pipeline_result
 
 

@@ -649,14 +649,26 @@ def run(obj,
               default=DEFAULT_RUN_NAME,
               help="name assigned to the new KFP run"
               )
+@click.option('--namespace',
+              'namespace',
+              default="sample_namespace",
+              help="namespace of your run in KFP."
+              )
+@click.option('--userid',
+              'userid',
+              default="sample_userid",
+              help="your user ID (your ZG email)."
+              )
 @click.pass_obj
 def run_on_kfp(obj,
         code_url=DEFAULT_FLOW_CODE_URL,
         experiment_name=DEFAULT_EXPERIMENT_NAME,
-        run_name=DEFAULT_RUN_NAME
+        run_name=DEFAULT_RUN_NAME,
+        namespace="sample_namespace",
+        userid="sample_userid"
         ):
 
-    run_pipeline_result = create_run_on_kfp(obj.graph, code_url, experiment_name, run_name)
+    run_pipeline_result = create_run_on_kfp(obj.graph, code_url, experiment_name, run_name, namespace, userid)
     echo("\nRun created successfully!\n")
     echo("Run link: {0}".format(posixpath.join(KFP_RUN_URL_PREFIX, run_pipeline_result.run_id)))
 
