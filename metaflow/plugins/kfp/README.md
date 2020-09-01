@@ -4,7 +4,7 @@
 
 **To run from the terminal**:
 ```
-python 00-helloworld/hello.py run-on-kfp --experiment-name "MF-on-KFP-P2" --run-name "hello_run" --code-url https://raw.githubusercontent.com/zillow/metaflow/mf-on-kfp-2/metaflow/tutorials/00-helloworld/hello.py
+python 00-helloworld/hello.py run-on-kfp --experiment-name "MF-on-KFP-P2" --run-name "hello_run" --code-url https://raw.githubusercontent.com/zillow/metaflow/mf-on-kfp-2/metaflow/tutorials/00-helloworld/hello.py --namespace [your_namespace] --userid [your_userid]
 ```
 
 **To generate just the pipeline YAML file**:
