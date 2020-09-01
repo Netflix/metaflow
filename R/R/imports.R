@@ -10,6 +10,6 @@
 #' @usage lhs \%>\% rhs
 NULL
 
-#' @import reticulate
 #' @importFrom R6 R6Class
+#' @import reticulate
 NULL

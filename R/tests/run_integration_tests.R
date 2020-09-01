@@ -21,7 +21,7 @@ source("utils.R")
 
 run_tests <- function(context) {
   graph_files <- list.files(path = "./graphs", pattern = "\\.json$", full.names = TRUE)
-  test_files <- list.files(path = "./tests/", pattern = "\\.R$", full.names = TRUE)
+  test_files <- list.files(path = "./tests", pattern = "\\.R$", full.names = TRUE)
 
   for (graph_fname in graph_files) {
     for (test_fname in test_files) {
@@ -66,7 +66,7 @@ run_tests_all_contexts <- function() {
   contexts <- fromJSON(file = "./contexts.json")
 
   for (context in contexts$contexts) {
-    if (!context$disabled){
+    if (!context$disabled) {
       run_tests(context)
     }
   }
