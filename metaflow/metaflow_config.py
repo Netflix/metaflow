@@ -232,7 +232,7 @@ def get_authenticated_boto3_client(module, params={}):
                 raise MetaflowException(repr(e))
         return boto3.session.Session(**cached_aws_sandbox_creds).client(module, **params)
 
-    print("SKIPPING ASSUME ROLE OPERATION with role: {METAFLOW_AWS_ARN}.")
+    print(f"SKIPPING ASSUME ROLE OPERATION with role: {METAFLOW_AWS_ARN}.")
 
     # if METAFLOW_AWS_ARN:
     #     from datetime import datetime
