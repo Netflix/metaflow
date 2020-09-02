@@ -232,29 +232,27 @@ def get_authenticated_boto3_client(module, params={}):
                 raise MetaflowException(repr(e))
         return boto3.session.Session(**cached_aws_sandbox_creds).client(module, **params)
 
-    print(f"SKIPPING ASSUME ROLE OPERATION with role: {METAFLOW_AWS_ARN}.")
+    if METAFLOW_AWS_ARN:
+        from datetime import datetime
+        from botocore.credentials import AssumeRoleCredentialFetcher, DeferredRefreshableCredentials
+        from botocore.session import Session
+        from dateutil.tz import tzlocal
 
-    # if METAFLOW_AWS_ARN:
-    #     from datetime import datetime
-    #     from botocore.credentials import AssumeRoleCredentialFetcher, DeferredRefreshableCredentials
-    #     from botocore.session import Session
-    #     from dateutil.tz import tzlocal
+        source_session = boto3.Session()
+        # Use profile to fetch assume role credentials
+        fetcher = AssumeRoleCredentialFetcher(
+            client_creator=source_session._session.create_client,
+            source_credentials=source_session.get_credentials(),
+            role_arn=METAFLOW_AWS_ARN
+        )
+        botocore_session = Session()
+        botocore_session._credentials = DeferredRefreshableCredentials(
+            method="assume-role",
+            refresh_using=fetcher.fetch_credentials,
+            time_fetcher=lambda: datetime.now(tzlocal()),
+        )
 
-    #     source_session = boto3.Session()
-    #     # Use profile to fetch assume role credentials
-    #     fetcher = AssumeRoleCredentialFetcher(
-    #         client_creator=source_session._session.create_client,
-    #         source_credentials=source_session.get_credentials(),
-    #         role_arn=METAFLOW_AWS_ARN
-    #     )
-    #     botocore_session = Session()
-    #     botocore_session._credentials = DeferredRefreshableCredentials(
-    #         method="assume-role",
-    #         refresh_using=fetcher.fetch_credentials,
-    #         time_fetcher=lambda: datetime.now(tzlocal()),
-    #     )
-
-    #     session = boto3.Session(botocore_session=botocore_session, region_name=METAFLOW_AWS_S3_REGION)
-    #     return session.client("s3")
+        session = boto3.Session(botocore_session=botocore_session, region_name=METAFLOW_AWS_S3_REGION)
+        return session.client("s3")
 
     return boto3.client(module, **params)
