@@ -13,6 +13,7 @@ from metaflow.parameters import deploy_time_eval
 from metaflow.util import compress_list, dict_to_cli_options, to_pascalcase
 from metaflow.metaflow_config import SFN_IAM_ROLE, \
     EVENTS_SFN_ACCESS_IAM_ROLE, SFN_DYNAMO_DB_TABLE
+from metaflow import R
 
 from .step_functions_client import StepFunctionsClient
 from .event_bridge_client import EventBridgeClient
@@ -606,7 +607,11 @@ class StepFunctions(object):
 
         script_name = os.path.basename(sys.argv[0])
         executable = self.environment.executable(node.name)
-        entrypoint = [executable, script_name]
+
+        if R.use_r():
+            entrypoint = [R.entrypoint()]
+        else:
+            entrypoint = [executable, script_name]
 
         # Use AWS Batch job identifier as the globally unique task identifier.
         task_id = '${AWS_BATCH_JOB_ID}'
