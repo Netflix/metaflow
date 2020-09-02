@@ -31,9 +31,13 @@ step <- function(flow, ..., step, r_function = NULL, foreach = NULL, join = FALS
   }
   if (!is.null(r_function)) {
     function_name <- as.character(substitute(r_function))
-    function_hash <- digest::digest(deparse(r_function), algo = "spookyhash")
-    if (length(function_name) > 1) { # likely an anonymous function
-      function_name <- paste(step, "function", function_hash, sep = "_")
+    # If r_function is anonymous then function_name will be a vector of its
+    # components. In this case we give the function a pseudonym prefixed by the
+    # step name and suffixed with a hash of the function.
+    if (length(function_name) > 1) { 
+      function_hash <- digest::digest(deparse(r_function), algo = "sha256")
+      trunc_function_hash <- substr(function_hash, 1, 16)
+      function_name <- paste(step, "function", trunc_function_hash, sep = "_")
     }
     body(r_function) <- wrap_function(r_function)
     if (join) {
