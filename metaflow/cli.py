@@ -1,4 +1,3 @@
-import os
 import sys
 import inspect
 import traceback
@@ -13,12 +12,13 @@ from . import parameters
 from . import decorators
 from . import metaflow_version
 from . import namespace
-from . import current
+from .current import current
 from .util import resolve_identity, decompress_list, write_latest_run_id, get_latest_run_id
 from .task import MetaflowTask
 from .exception import CommandException, MetaflowException
 from .graph import FlowGraph
-from .datastore import DATASTORES
+from .datastore import DATASTORES, FlowDataStore, TaskDataStoreSet
+
 from .runtime import NativeRuntime
 from .package import MetaflowPackage
 from .plugins import ENVIRONMENTS, LOGGING_SIDECARS, METADATA_PROVIDERS, MONITOR_SIDECARS
@@ -198,14 +198,6 @@ def dump(obj,
               'max_value_size': max_value_size,
               'include': {t for t in include.split(',') if t}}
 
-    if obj.datastore.datastore_root is None:
-        obj.datastore.datastore_root = obj.datastore.get_datastore_root_from_config(
-            obj.echo, create_on_absent=False)
-    if obj.datastore.datastore_root is None:
-        raise CommandException(
-            "Could not find the location of the datastore -- did you correctly set the "
-            "METAFLOW_DATASTORE_SYSROOT_%s environment variable" % (obj.datastore.TYPE).upper())
-
     # Pathspec can either be run_id/step_name or run_id/step_name/task_id.
     parts = input_path.split('/')
     if len(parts) == 2:
@@ -217,16 +209,10 @@ def dump(obj,
         raise CommandException("input_path should either be run_id/step_name"
                                "or run_id/step_name/task_id")
 
-    from metaflow.datastore.datastore_set import MetaflowDatastoreSet
-
-    datastore_set = MetaflowDatastoreSet(
-                        obj.datastore,
-                        obj.flow.name,
+    datastore_set = TaskDataStoreSet(
+                        obj.flow_datastore,
                         run_id,
                         steps=[step_name],
-                        metadata=obj.metadata,
-                        monitor=obj.monitor,
-                        event_logger=obj.event_logger,
                         prefetch_data_artifacts=kwargs.get('include'))
     if task_id:
         ds_list = [datastore_set.get_with_pathspec(input_path)]
@@ -293,23 +279,8 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None):
         raise CommandException("input_path should either be run_id/step_name"
                                "or run_id/step_name/task_id")
 
-    if obj.datastore.datastore_root is None:
-        obj.datastore.datastore_root = obj.datastore.get_datastore_root_from_config(
-            obj.echo, create_on_absent=False)
-    if obj.datastore.datastore_root is None:
-        raise CommandException(
-            "Could not find the location of the datastore -- did you correctly set the "
-            "METAFLOW_DATASTORE_SYSROOT_%s environment variable" % (obj.datastore.TYPE).upper())
-
-    from metaflow.datastore.datastore_set import MetaflowDatastoreSet
-    datastore_set = MetaflowDatastoreSet(
-                        obj.datastore,
-                        obj.flow.name,
-                        run_id,
-                        steps=[step_name],
-                        metadata=obj.metadata,
-                        monitor=obj.monitor,
-                        event_logger=obj.event_logger)
+    datastore_set = TaskDataStoreSet(
+        obj.flow_datastore, run_id, steps=[step_name])
     if task_id:
         ds_list = [datastore_set.get_with_pathspec(input_path)]
     else:
@@ -412,16 +383,11 @@ def step(obj,
     if decospecs:
         decorators._attach_decorators_to_step(func, decospecs)
 
-    obj.datastore.datastore_root = obj.datastore_root
-    if obj.datastore.datastore_root is None:
-        obj.datastore.datastore_root = \
-            obj.datastore.get_datastore_root_from_config(obj.echo)
-
     obj.metadata.add_sticky_tags(tags=tags)
     paths = decompress_list(input_paths) if input_paths else []
 
     task = MetaflowTask(obj.flow,
-                        obj.datastore,
+                        obj.flow_datastore,
                         obj.metadata,
                         obj.environment,
                         obj.logger,
@@ -464,13 +430,9 @@ def init(obj, run_id=None, task_id=None, **kwargs):
     # user-specified parameters are often defined as environment
     # variables.
 
-    if obj.datastore.datastore_root is None:
-        obj.datastore.datastore_root = \
-            obj.datastore.get_datastore_root_from_config(obj.echo)
-
     runtime = NativeRuntime(obj.flow,
                             obj.graph,
-                            obj.datastore,
+                            obj.flow_datastore,
                             obj.metadata,
                             obj.environment,
                             obj.package,
@@ -564,7 +526,7 @@ def resume(obj,
 
     runtime = NativeRuntime(obj.flow,
                             obj.graph,
-                            obj.datastore,
+                            obj.flow_datastore,
                             obj.metadata,
                             obj.environment,
                             obj.package,
@@ -612,7 +574,7 @@ def run(obj,
 
     runtime = NativeRuntime(obj.flow,
                             obj.graph,
-                            obj.datastore,
+                            obj.flow_datastore,
                             obj.metadata,
                             obj.environment,
                             obj.package,
@@ -653,12 +615,8 @@ def before_run(obj, tags, decospecs):
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
     #obj.environment.init_environment(obj.logger)
 
-    if obj.datastore.datastore_root is None:
-        obj.datastore.datastore_root = \
-            obj.datastore.get_datastore_root_from_config(obj.echo)
-
     decorators._init_step_decorators(
-        obj.flow, obj.graph, obj.environment, obj.datastore, obj.logger)
+        obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger)
     obj.metadata.add_sticky_tags(tags=tags)
 
     # Package working directory only once per run.
@@ -779,19 +737,6 @@ def start(ctx,
                            if e.TYPE == environment][0](ctx.obj.flow)
     ctx.obj.environment.validate_environment(echo)
 
-    ctx.obj.datastore = DATASTORES[datastore]
-    ctx.obj.datastore_root = datastore_root
-
-    # It is important to initialize flow decorators early as some of the
-    # things they provide may be used by some of the objects initialize after.
-    decorators._init_flow_decorators(ctx.obj.flow,
-                                     ctx.obj.graph,
-                                     ctx.obj.environment,
-                                     ctx.obj.datastore,
-                                     ctx.obj.logger,
-                                     echo,
-                                     deco_options)
-
     ctx.obj.monitor = Monitor(monitor, ctx.obj.environment, ctx.obj.flow.name)
     ctx.obj.monitor.start()
 
@@ -800,12 +745,36 @@ def start(ctx,
                                                   ctx.obj.flow,
                                                   ctx.obj.event_logger,
                                                   ctx.obj.monitor)
-    ctx.obj.datastore = DATASTORES[datastore]
+
+    ctx.obj.datastore_impl = DATASTORES[datastore]
 
     if datastore_root is None:
         datastore_root = \
-          ctx.obj.datastore.get_datastore_root_from_config(ctx.obj.echo)
-    ctx.obj.datastore_root = ctx.obj.datastore.datastore_root = datastore_root
+          ctx.obj.datastore_impl.get_datastore_root_from_config(ctx.obj.echo)
+    if datastore_root is None:
+        raise CommandException(
+            "Could not find the location of the datastore -- did you correctly set the "
+            "METAFLOW_DATASTORE_SYSROOT_%s environment variable" % datastore.upper())
+
+    ctx.obj.datastore_impl.datastore_root = datastore_root
+
+    FlowDataStore.default_backend_class = ctx.obj.datastore_impl
+    ctx.obj.flow_datastore = FlowDataStore(
+        ctx.obj.flow.name,
+        ctx.obj.environment,
+        ctx.obj.metadata,
+        ctx.obj.event_logger,
+        ctx.obj.monitor)
+
+    # It is important to initialize flow decorators early as some of the
+    # things they provide may be used by some of the objects initialize after.
+    decorators._init_flow_decorators(ctx.obj.flow,
+                                     ctx.obj.graph,
+                                     ctx.obj.environment,
+                                     ctx.obj.flow_datastore,
+                                     ctx.obj.logger,
+                                     echo,
+                                     deco_options)
 
     if decospecs:
         decorators._attach_decorators(ctx.obj.flow, decospecs)
@@ -814,7 +783,7 @@ def start(ctx,
     current._set_env(flow_name=ctx.obj.flow.name, is_running=False)
     parameters.set_parameter_context(ctx.obj.flow.name,
                                         ctx.obj.logger,
-                                        ctx.obj.datastore)
+                                        ctx.obj.flow_datastore)
 
     if ctx.invoked_subcommand not in ('run', 'resume'):
         # run/resume are special cases because they can add more decorators with --with,
@@ -822,7 +791,7 @@ def start(ctx,
         decorators._attach_decorators(
             ctx.obj.flow, ctx.obj.environment.decospecs())
         decorators._init_step_decorators(
-            ctx.obj.flow, ctx.obj.graph, ctx.obj.environment, ctx.obj.datastore, ctx.obj.logger)
+            ctx.obj.flow, ctx.obj.graph, ctx.obj.environment, ctx.obj.flow_datastore, ctx.obj.logger)
         #TODO (savin): Enable lazy instantiation of package
         ctx.obj.package = None
     if ctx.invoked_subcommand is None:

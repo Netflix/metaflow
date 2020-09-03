@@ -12,12 +12,12 @@ except:
     from urllib.parse import urlparse
 
 
-from metaflow.datastore.local import LocalDataStore
 from metaflow.decorators import StepDecorator
 from metaflow.environment import InvalidEnvironmentException
 from metaflow.metadata import MetaDatum
 from metaflow.metaflow_config import get_pinned_conda_libs, CONDA_PACKAGE_S3ROOT
 from metaflow.util import get_metaflow_root
+from metaflow.datastore import LocalBackend
 from metaflow.datatools import S3
 
 from . import read_conda_manifest, write_to_conda_manifest
@@ -202,7 +202,7 @@ class CondaStepDecorator(StepDecorator):
                                               '--environment=conda')
         def _logger(line, **kwargs):
             logger(line)
-        self.local_root = LocalDataStore.get_datastore_root_from_config(_logger)
+        self.local_root = LocalBackend.get_datastore_root_from_config(_logger)
         environment.set_local_root(self.local_root)
         self.architecture = self._architecture(decos)
         self.step = step
