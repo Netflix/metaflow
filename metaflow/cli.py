@@ -674,7 +674,7 @@ def run_on_kfp(obj,
     if namespace_arg is None or userid_arg is None: # env variables could be None as well
         raise Exception("Both KFP namespace and userid must be specified, either through the CLI or as env vars.")
 
-    run_pipeline_result = create_run_on_kfp(obj.graph, code_url, experiment_name, run_name, namespace, userid)
+    run_pipeline_result = create_run_on_kfp(obj.graph, code_url, experiment_name, run_name, namespace_arg, userid_arg)
     echo("\nRun created successfully!\n")
     echo("Run link: {0}".format(posixpath.join(KFP_RUN_URL_PREFIX, run_pipeline_result.run_id)))
 
