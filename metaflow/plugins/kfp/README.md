@@ -32,10 +32,16 @@ You can export the required variables* individually and run the python command:
     "METAFLOW_AWS_ARN" : "...", # required to be able to read s3 data when running within KFP
     "METAFLOW_AWS_S3_REGION" : "...", # specify s3 region being used
 
-    "KFP_RUN_URL_PREFIX" : "https://kubeflow.corp.zillow-analytics-dev.zg-int.net/pipeline/#/runs/details" # prefix of the URL preceeding the run-id to generate correct links to the generated runs on your cluster
+    "KFP_RUN_URL_PREFIX" : "https://kubeflow.corp.dev.zg-aip.net" # prefix of the URL preceeding the run-id to generate correct links to the generated runs on your cluster
+
+    "KFP_SDK_NAMESPACE": "rent-zestimate"
+    "KFP_SDK_USERID": "[YOUR_NAME]@zillowgroup.com"
 }
 ```
 
+NOTE: make sure you have access to the `rent-zestimate` namespace. Please talk to @Sharon Lyu to obtain access if needed. Also, if you provide either the
+KFP namespace or the user ID both in the config file/environment vars (option 1) and in the CLI (option 2), the CLI argument will be selected. This will allow
+for faster iteration for the AS. In the examples here, we have provided these arguments both in the CLI and as environment vars/config file values.
 
 ##### Example using a METAFLOW_PROFILE named `sree` (option 1):
 
@@ -49,7 +55,10 @@ Contents of the config file:
     "METAFLOW_AWS_ARN" : "arn:aws:iam::170606514770:role/dev-zestimate-role",
     "METAFLOW_AWS_S3_REGION" : "us-west-2",
 
-    "KFP_RUN_URL_PREFIX" : "https://kubeflow.corp.zillow-analytics-dev.zg-int.net/pipeline/#/runs/details"
+    "KFP_RUN_URL_PREFIX" : "https://kubeflow.corp.dev.zg-aip.net"
+
+    "KFP_SDK_NAMESPACE": "rent-zestimate"
+    "KFP_SDK_USERID": "sreehari@zillowgroup.com"
 }
 ```
 
@@ -60,15 +69,16 @@ python 00-helloworld/hello.py run-on-kfp
     --experiment-name "MF-on-KFP-P2" 
     --run-name "hello_run" 
     --code-url https://raw.githubusercontent.com/zillow/metaflow/mf-on-kfp-2/metaflow/tutorials/00-helloworld/hello.py
-    --namespace [your_namespace]
-    --userid [your_userid]
+    --namespace "rent-zestimate"
+    --userid "sreehari@zillowgroup.com"
 ```
 
 To `generate-kfp-yaml` using this profile:
 ```
 export METAFLOW_PROFILE=sree && 
 python 00-helloworld/hello.py generate-kfp-yaml
-      --code-url https://raw.githubusercontent.com/zillow/metaflow/mf-on-kfp-2/metaflow/tutorials/00-helloworld/hello.py  
+      --code-url https://raw.githubusercontent.com/zillow/metaflow/mf-on-kfp-2/metaflow/tutorials/00-helloworld/hello.py
+      --namespace "rent-zestimate" --userid "sreehari@zillowgroup.com" 
 ```
 
 
@@ -77,9 +87,10 @@ python 00-helloworld/hello.py generate-kfp-yaml
 export METAFLOW_AWS_ARN="arn:aws:iam::170606514770:role/dev-zestimate-role" && 
 export METAFLOW_AWS_S3_REGION="us-west-2" && 
 export METAFLOW_DATASTORE_SYSROOT_S3="s3://workspace-zillow-analytics-stage/aip/metaflow" && 
-export KFP_RUN_URL_PREFIX="https://kubeflow.corp.zillow-analytics-dev.zg-int.net/pipeline/#/runs/details/" && 
+export KFP_RUN_URL_PREFIX="https://kubeflow.corp.dev.zg-aip.net" && 
 python 00-helloworld/hello.py run-on-kfp 
     --code-url="https://raw.githubusercontent.com/zillow/metaflow/state-integ-s3/metaflow/tutorials/00-helloworld/hello.py"
+    --namespace "rent-zestimate" --userid "sreehari@zillowgroup.com"
 ```
 
 #### What's happening inside the step_container_op:
