@@ -49,6 +49,7 @@ DEFAULT_METADATA = from_conf('METAFLOW_DEFAULT_METADATA', 'local')
 # Per run configuration
 ###
 KFP_SDK_NAMESPACE = from_conf('KFP_SDK_NAMESPACE')
+KFP_SDK_API_NAMESPACE = from_conf('KFP_SDK_API_NAMESPACE')
 KFP_SDK_USERID = from_conf('KFP_SDK_USERID')
 
 ###
