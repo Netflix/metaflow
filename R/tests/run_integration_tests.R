@@ -14,8 +14,6 @@ if (!require(caret)) {
   install.packages("rjson", repos = "https://cloud.r-project.org")
 }
 
-Sys.setenv("METAFLOW_PYTHON" = system("which python3", intern = TRUE))
-
 library(rjson)
 source("formatter.R")
 source("utils.R")
