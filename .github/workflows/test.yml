@@ -63,8 +63,7 @@ jobs:
       if: matrix.lang == 'R'
       run: |
         cd R/tests
-        Rscript testthat.R
-        Rscript run_integration_tests.R
+        Rscript run_tests.R
 
     - name: Execute Python tests
       if: matrix.lang == 'python'
