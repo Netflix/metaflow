@@ -4,6 +4,12 @@
 
 #### Steps to run Metaflow on Kubeflow: 
 
+#### Installing the correct forked version of Metaflow AND KFP
+Currently, to run Metaflow on our internal KFP, you need to install the correct versions of both.
+
+To install KFP: `pip3 install --user --upgrade git+https://github.com/alexlatchford/pipelines/tree/alexla/AIP-1676`
+To install Metaflow: `pip3 install --user --upgrade git+https://github.com/zillow/metaflow.git@bug/add_namespace_to_kfp_run`
+
 ##### Option 1:
 1. Configure a metaflow profile. To do this, create a file named as `config_<your-metaflow-profile-name>.json` under 
 `~/.metaflowconfig/`) and set the required values. Required fields to run on KFP are shared below*.
