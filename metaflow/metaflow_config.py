@@ -45,6 +45,12 @@ def from_conf(name, default=None):
 DEFAULT_DATASTORE = from_conf('METAFLOW_DEFAULT_DATASTORE', 'local')
 DEFAULT_METADATA = from_conf('METAFLOW_DEFAULT_METADATA', 'local')
 
+##
+# KFP core information
+###
+KFP_SDK_NAMESPACE = from_conf('KFP_SDK_NAMESPACE')
+KFP_SDK_USERID = from_conf('KFP_SDK_USERID')
+
 ###
 # Datastore configuration
 ###
@@ -232,6 +238,8 @@ def get_authenticated_boto3_client(module, params={}):
                 raise MetaflowException(repr(e))
         return boto3.session.Session(**cached_aws_sandbox_creds).client(module, **params)
 
+    # We will no longer assume role because our current role is sufficient.
+    """
     if METAFLOW_AWS_ARN:
         from datetime import datetime
         from botocore.credentials import AssumeRoleCredentialFetcher, DeferredRefreshableCredentials
@@ -254,5 +262,6 @@ def get_authenticated_boto3_client(module, params={}):
 
         session = boto3.Session(botocore_session=botocore_session, region_name=METAFLOW_AWS_S3_REGION)
         return session.client("s3")
+    """
 
     return boto3.client(module, **params)

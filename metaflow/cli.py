@@ -35,7 +35,7 @@ from .R import use_r, metaflow_r_version
 
 from .plugins.kfp.kfp import create_run_on_kfp, create_kfp_pipeline_yaml
 from .plugins.kfp.constants import DEFAULT_RUN_NAME, DEFAULT_EXPERIMENT_NAME, DEFAULT_FLOW_CODE_URL, DEFAULT_KFP_YAML_OUTPUT_PATH
-from metaflow.metaflow_config import KFP_RUN_URL_PREFIX
+from metaflow.metaflow_config import KFP_RUN_URL_PREFIX, KFP_SDK_NAMESPACE, KFP_SDK_USERID
 
 ERASE_TO_EOL = '\033[K'
 HIGHLIGHT = 'red'
@@ -651,12 +651,12 @@ def run(obj,
               )
 @click.option('--namespace',
               'namespace',
-              default="sample_namespace",
+              default=None,
               help="namespace of your run in KFP."
               )
 @click.option('--userid',
               'userid',
-              default="sample_userid",
+              default=None,
               help="your user ID (your ZG email)."
               )
 @click.pass_obj
@@ -664,9 +664,15 @@ def run_on_kfp(obj,
         code_url=DEFAULT_FLOW_CODE_URL,
         experiment_name=DEFAULT_EXPERIMENT_NAME,
         run_name=DEFAULT_RUN_NAME,
-        namespace="sample_namespace",
-        userid="sample_userid"
+        namespace=None,
+        userid=None
         ):
+    
+    namespace_arg = namespace if namespace is not None else KFP_SDK_NAMESPACE
+    userid_arg = userid if userid is not None else KFP_SDK_USERID
+
+    if namespace_arg is None or userid_arg is None: # env variables could be None as well
+        raise Exception("Both KFP namespace and userid must be specified, either through the CLI or as env vars.")
 
     run_pipeline_result = create_run_on_kfp(obj.graph, code_url, experiment_name, run_name, namespace, userid)
     echo("\nRun created successfully!\n")
