@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 version = '2.2.0'
 
 """
-Instructions on how to install ZG versions MF and KFP
+Instructions on how to install ZG versions of MF and KFP
 
 To use this file to install the ZG forked version of Metaflow,
 you must first install the the ZG forked version of KFP:
@@ -19,7 +19,7 @@ version of Metaflow usng this `setup.py` file:
 
 python3 setup.py install_lib
 
-Note: if `kfp` is present in the `install_requires` list.
+Note: `kfp` is present in the `install_requires` list below.
 If you install KFP from the commands above, this setup file will locate it
 and use that KFP version rather than pip installing from pypi.
 """
