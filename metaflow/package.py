@@ -3,19 +3,11 @@ import sys
 import tarfile
 import json
 from hashlib import sha1
+from io import BytesIO
 from itertools import chain
 
 from .util import to_unicode
 from . import R
-
-try:
-    # python2
-    import cStringIO
-    BytesIO = cStringIO.StringIO
-except:
-    # python3
-    import io
-    BytesIO = io.BytesIO
 
 DEFAULT_SUFFIXES = ['.py', '.R', '.RDS']
 

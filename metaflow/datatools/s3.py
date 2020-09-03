@@ -7,7 +7,8 @@ import subprocess
 from itertools import starmap
 from tempfile import mkdtemp, NamedTemporaryFile
 
-from .. import current, FlowSpec
+from .. import FlowSpec
+from ..current import current
 from ..metaflow_config import DATATOOLS_S3ROOT
 from ..util import is_stringish,\
                    to_bytes,\
@@ -27,7 +28,13 @@ except:
     from urllib.parse import urlparse
 
 from metaflow.datastore.util.s3util import get_s3_client
-from botocore.exceptions import ClientError
+
+try:
+    import boto3
+    from botocore.exceptions import ClientError
+    boto_found = True
+except:
+    boto_found = False
 
 NUM_S3OP_RETRIES = 8
 
@@ -200,6 +207,9 @@ class S3(object):
 
             tmproot: (optional) Root path for temporary files (default: '.')
         """
+
+        if not boto_found:
+            raise MetaflowException("You need to install 'boto3' in order to use S3.")
 
         if run:
             # 1. use a (current) run ID with optional customizations

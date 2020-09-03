@@ -19,14 +19,9 @@ from .util import to_unicode
 
 try:
     # python2
-    import cStringIO
-    BytesIO = cStringIO.StringIO
-
     from urlparse import urlparse
 except:
     # python3
-    BytesIO = io.BytesIO
-
     from urllib.parse import urlparse
 
 # TODO: This local "client" and the general notion of dataclients should probably
@@ -323,7 +318,7 @@ class Uploader():
                                     'large to be properly handled by Python 2.7' % path)
         sha = sha1(cur_obj.current()).hexdigest()
         path = os.path.join(self._client_class.get_root_from_config(logger, True), flow_name, sha)
-        buf = BytesIO()
+        buf = io.BytesIO()
         with gzip.GzipFile(
                 fileobj=buf, mode='wb', compresslevel=3) as f:
             f.write(cur_obj.current())

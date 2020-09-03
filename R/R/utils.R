@@ -266,11 +266,11 @@ test <- function() {
 }
 
 #' Install Metaflow python dependencies
-#' @param user_install Whether or not to install into the user directory for pip install. Default to TRUE. 
+#' @param user Whether or not to install into the user directory for pip install. Default to TRUE. 
 #' @param upgrade Whether or not to upgrade metaflow python package. Default to FALSE.  
 #' @export
-install <- function(user_install=TRUE, upgrade=FALSE) {
-  if (user_install){
+install <- function(user=TRUE, upgrade=FALSE) {
+  if (user){
     user_flag = "--user"
   } else {
     user_flag = ""

@@ -105,9 +105,16 @@ class CommandException(MetaflowException):
 class MetaflowDataMissing(MetaflowException):
     headline = "Data missing"
 
-class MergeArtifactsException(MetaflowException):
+class UnhandledInMergeArtifactsException(MetaflowException):
     headline = "Unhandled artifacts in merge"
 
     def __init__(self, msg, unhandled):
-        super(MergeArtifactsException, self).__init__(msg)
+        super(UnhandledInMergeArtifactsException, self).__init__(msg)
+        self.artifact_names = unhandled
+
+class MissingInMergeArtifactsException(MetaflowException):
+    headline = "Missing artifacts in merge"
+
+    def __init__(self, msg, unhandled):
+        super(MissingInMergeArtifactsException, self).__init__(msg)
         self.artifact_names = unhandled

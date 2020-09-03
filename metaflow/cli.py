@@ -8,7 +8,6 @@ import posixpath
 
 import click
 
-from . import current
 from . import lint
 from . import plugins
 from . import parameters
