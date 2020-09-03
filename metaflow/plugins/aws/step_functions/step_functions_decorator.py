@@ -12,7 +12,7 @@ class StepFunctionsInternalDecorator(StepDecorator):
 
     def task_pre_step(self,
                       step_name,
-                      datastore,
+                      task_datastore,
                       metadata,
                       run_id,
                       task_id,

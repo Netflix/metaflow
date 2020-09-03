@@ -1,8 +1,8 @@
 import os
 import sys
 import tarfile
+import time
 import json
-from hashlib import sha1
 from io import BytesIO
 from itertools import chain
 
@@ -26,13 +26,15 @@ class MetaflowPackage(object):
         else:
             self.metaflow_custom_root = os.path.dirname(metaflow_custom.__file__)
 
+        self.flow_name = flow.name
+        self.create_time = time.time()
         environment.init_environment(logger)
         for step in flow:
             for deco in step.decorators:
                 deco.package_init(flow,
                                   step.__name__,
                                   environment)
-        self.blob, self.sha = self._make()
+        self.blob = self._make()
 
     def _walk(self, root, exclude_hidden=True):
         root = to_unicode(root)  # handle files/folder with non ascii chars
@@ -96,14 +98,15 @@ class MetaflowPackage(object):
             return tarinfo
 
         buf = BytesIO()
-        with tarfile.TarFile(fileobj=buf, mode='w') as tar:
+        with tarfile.open(fileobj=buf, mode='w:gz', compresslevel=3) as tar:
             self._add_info(tar)
             for path, arcname in self.path_tuples():
                 tar.add(path, arcname=arcname,
                         recursive=False, filter=no_mtime)
 
         blob = buf.getvalue()
-        return blob, sha1(blob).hexdigest()
+        return blob
 
     def __str__(self):
-        return '<code package %s>' % self.sha
+        return '<code package for flow %s (created @ %s)>' % \
+            (self.flow_name, time.strftime("%a, %d %b %Y %H:%M:%S", self.create_time))

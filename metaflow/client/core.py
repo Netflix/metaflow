@@ -3,6 +3,7 @@ from datetime import datetime
 import time
 import tarfile
 import json
+from io import BytesIO
 from collections import namedtuple
 from itertools import chain
 
@@ -25,13 +26,37 @@ except:  # noqa E722
     # python3
     import pickle
 
+# IMPORTANT NOTE ON THE CLIENT
+#
+# The client is not fully consistent particularly when you use the client to
+# query current runs. The previous version of the client accessed data directly
+# through whatever datastore existed (S3, etc) but could be partially
+# inconsistent because, it could, for example, return data from a previous
+# attempt while a new attempt was currently running (ie: depending on when you
+# use the client, you could get different values for the same data artifact).
+# This could happen because the client used the Metadata Service to retrieve the
+# artifacts to be read from the datastore and this information is only updated
+# at the *end* of an attempt.
+#
+# This current client goes through the datastore to access data artifacts
+# (well, it goes through the FileCache which uses the datastore). This means,
+# in particular, that it can render some things eventually consistent like the
+# attempt file and the DONE file (since it may try to read them before they
+# are written). This has *no* impact on Metaflow's execution since Metaflow
+# *never* reads those files (ie: the consistency model is irrelevant). It only
+# creates them and, at worse, this causes files that have been created to be
+# seen as not there (yet). In other words, this new client is differently
+# non-consistent but does not impact the consistency behavior of Metaflow.
+# Users should not rely, for this client and the previous version of it, on a
+# consistent view of runs particularly if they are accessing running tasks.
+
 Metadata = namedtuple('Metadata', ['name',
                                    'value',
                                    'created_at',
                                    'type',
                                    'task'])
 
-filecache = FileCache()
+filecache = None
 current_namespace = False
 
 current_metadata = False
@@ -583,17 +608,23 @@ class MetaflowCode(object):
     """
 
     def __init__(self, flow_name, code_package):
+        global filecache
         self._flow_name = flow_name
         info = json.loads(code_package)
         self._path = info['location']
         self._ds_type = info['ds_type']
         self._sha = info['sha']
-        with filecache.get_data(self._ds_type, self._flow_name, self._sha) as f:
-            self._tar = tarfile.TarFile(fileobj=f)
-            # The JSON module in Python3 deals with Unicode. Tar gives bytes.
-            info_str = self._tar.extractfile('INFO').read().decode('utf-8')
-            self._info = json.loads(info_str)
-            self._flowspec = self._tar.extractfile(self._info['script']).read()
+        # We check if we have a filecache.
+        if filecache is None:
+            filecache = FileCache()
+        code_obj = BytesIO(
+            filecache.get_data(
+                self._ds_type, self._flow_name, self._path, self._sha))
+        self._tar = tarfile.open(fileobj=code_obj, mode='r:gz')
+        # The JSON module in Python3 deals with Unicode. Tar gives bytes.
+        info_str = self._tar.extractfile('INFO').read().decode('utf-8')
+        self._info = json.loads(info_str)
+        self._flowspec = self._tar.extractfile(self._info['script']).read()
 
     @property
     def path(self):
@@ -656,7 +687,7 @@ class DataArtifact(MetaflowObject):
     data : object
         The unpickled representation of the data contained in this artifact
     sha : string
-        SHA encoding representing the unique identity of this artifact
+        Encoding representing the unique identity of this artifact
     finished_at : datetime
         Alias for created_at
     """
@@ -674,11 +705,35 @@ class DataArtifact(MetaflowObject):
         object
             Object contained in this artifact
         """
+        global filecache
         ds_type = self._object['ds_type']
-        sha = self._object['sha']
-        with filecache.get_data(ds_type, self.path_components[0], sha) as f:
-            obj = pickle.load(f)
-            return obj
+        location = self._object['location']
+        components = self.path_components
+        if filecache is None:
+            # TODO: We will pass the proper environment to properly
+            # extract artifacts
+            filecache = FileCache()
+        # We "create" the metadata information that the datastore needs
+        # to access this object.
+        # TODO: This needs to be cleaned up. Ideally, we need a function
+        # converting the data stored in the datastore to metadata and vice
+        # versa to be together.
+        # TODO: We should store more information in the metadata as well.
+        # This will be important in particular when determining if we need an
+        # environment to unpickle the artifact
+        meta = {
+            'objects': {self._object['name']: self._object['sha']},
+            'info': {self._object['name']: {
+                'size': 0, 'type': None, 'encoding': self._object['content_type']}}
+        }
+        if location.startswith(':root:'):
+            # New artifacts have the ds_root encoded in the metadata
+            return filecache.get_artifact(
+                ds_type, location[6:], meta, *components)
+        else:
+            # Older artifacts have a location information which we can use.
+            return filecache.get_artifact_by_location(
+                ds_type, location, meta, *components)
 
     # TODO add
     # @property
@@ -693,7 +748,7 @@ class DataArtifact(MetaflowObject):
         """
         Unique identifier for this artifact.
 
-        This is the SHA1 hash of the artifact.
+        This is a unique hash of the artifact (historically SHA1 hash)
 
         Returns
         -------
@@ -1025,15 +1080,20 @@ class Task(MetaflowObject):
         return env.get_client_info(self.path_components[0], self.metadata_dict)
 
     def _load_log(self, logtype, as_unicode=True):
+        global filecache
         ret_val = None
         log_info = self.metadata_dict.get('log_location_%s' % logtype)
         if log_info:
             log_info = json.loads(log_info)
+            location = log_info['location']
             ds_type = log_info['ds_type']
             attempt = log_info['attempt']
             components = self.path_components
-            with filecache.get_log(ds_type, logtype, int(attempt), *components) as f:
-                ret_val = f.read()
+            # Check if we have a filecache.
+            if filecache is None:
+                filecache = FileCache()
+            ret_val = filecache.get_log(
+                ds_type, location, logtype, int(attempt), *components)
         if as_unicode and (ret_val is not None):
             return ret_val.decode(encoding='utf8')
         else:
