@@ -17,8 +17,6 @@ def step_op_func(python_cmd_template, step_name: str,
     import subprocess
     import os
 
-    print("METAFLOW_AWS_ARN: {METAFLOW_AWS_ARN}")
-
     MODIFIED_METAFLOW_URL = 'git+https://github.com/zillow/metaflow.git@bug/add_namespace_to_kfp_run'
     DEFAULT_DOWNLOADED_FLOW_FILENAME = 'downloaded_flow.py'
 

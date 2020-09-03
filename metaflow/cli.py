@@ -651,12 +651,12 @@ def run(obj,
               )
 @click.option('--namespace',
               'namespace',
-              default=None,
+              default=KFP_SDK_NAMESPACE,
               help="namespace of your run in KFP."
               )
 @click.option('--userid',
               'userid',
-              default=None,
+              default=KFP_SDK_USERID,
               help="your user ID (your ZG email)."
               )
 @click.pass_obj
@@ -664,19 +664,12 @@ def run_on_kfp(obj,
         code_url=DEFAULT_FLOW_CODE_URL,
         experiment_name=DEFAULT_EXPERIMENT_NAME,
         run_name=DEFAULT_RUN_NAME,
-        namespace=None,
-        userid=None
+        namespace=KFP_SDK_NAMESPACE,
+        userid=KFP_SDK_USERID
         ):
-    
-    namespace_arg = namespace if namespace is not None else KFP_SDK_NAMESPACE
-    userid_arg = userid if userid is not None else KFP_SDK_USERID
-
-    if namespace_arg is None or userid_arg is None: # env variables could be None as well
-        raise Exception("Both KFP namespace and userid must be specified, either through the CLI or as env vars.")
-
-    run_pipeline_result = create_run_on_kfp(obj.graph, code_url, experiment_name, run_name, namespace_arg, userid_arg)
+    run_pipeline_result = create_run_on_kfp(obj.graph, code_url, experiment_name, run_name, namespace, userid)
     echo("\nRun created successfully!\n")
-    echo("Run link: {0}".format(posixpath.join(KFP_RUN_URL_PREFIX, run_pipeline_result.run_id)))
+    echo("Run link: {0}".format(posixpath.join(KFP_RUN_URL_PREFIX, "_/pipeline/#/runs/details", run_pipeline_result.run_id)))
 
 
 @cli.command(help='Generate the KFP YAML which is used to run the workflow on Kubeflow Pipelines.')
