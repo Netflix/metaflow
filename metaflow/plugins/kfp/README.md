@@ -7,7 +7,12 @@
 #### Installing the correct forked version of Metaflow AND KFP
 Currently, to run Metaflow on our internal KFP, you need to install the correct versions of both.
 
-To install KFP: `pip3 install --user --upgrade git+https://github.com/alexlatchford/pipelines/tree/alexla/AIP-1676`
+To install KFP:
+```
+    - git clone -b alexla/AIP-1676 https://github.com/alexlatchford/pipelines
+    - cd pipelines/sdk/python
+    - pip3 install -e .
+```
 To install Metaflow: `pip3 install --user --upgrade git+https://github.com/zillow/metaflow.git@bug/add_namespace_to_kfp_run`
 
 ##### Option 1:
@@ -39,9 +44,11 @@ You can export the required variables* individually and run the python command:
 }
 ```
 
-NOTE: make sure you have access to the `rent-zestimate` namespace. Please talk to @Sharon Lyu to obtain access if needed. Also, if you provide either the
-KFP namespace or the user ID both in the config file/environment vars (option 1) and in the CLI (option 2), the CLI argument will be selected. This will allow
-for faster iteration for the AS. In the examples here, we have provided these arguments both in the CLI and as environment vars/config file values.
+NOTE: Also, if you provide either the KFP namespace or the user ID both in the config file/as environment vars (option 1) and in the CLI (option 2), 
+the CLI argument will be selected. This will allow for faster iteration for the AS. In the examples here, we have provided these arguments both 
+in the CLI and as environment vars/config file values. Regarding the `api_namespace`, you can either provide it either through environment variables 
+or through the CLI, and the CLI value will take precedence. However, if you don't provide it at either place, it will be defaulted to "kubeflow".
+
 
 ##### Example using a METAFLOW_PROFILE named `sree` (option 1):
 

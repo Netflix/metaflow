@@ -676,8 +676,6 @@ def run_on_kfp(obj,
 
     if namespace is None or userid is None:
         raise Exception("Both namespace and userid must be defined, either through the CLI or as environment variables.")
-    if api_namespace is None: # we will default this to "kubeflow" because it will be a rarely used parameter
-        api_namespace = "kubeflow"
     
     run_pipeline_result = create_run_on_kfp(obj.graph, code_url, experiment_name, run_name, namespace, api_namespace, userid)
     echo("\nRun created successfully!\n")

@@ -46,11 +46,11 @@ DEFAULT_DATASTORE = from_conf('METAFLOW_DEFAULT_DATASTORE', 'local')
 DEFAULT_METADATA = from_conf('METAFLOW_DEFAULT_METADATA', 'local')
 
 ##
-# Per run configuration
+# KFP configuration
 ###
 KFP_SDK_NAMESPACE = from_conf('KFP_SDK_NAMESPACE')
-KFP_SDK_API_NAMESPACE = from_conf('KFP_SDK_API_NAMESPACE')
 KFP_SDK_USERID = from_conf('KFP_SDK_USERID')
+KFP_SDK_API_NAMESPACE = from_conf('KFP_SDK_API_NAMESPACE') if from_conf('KFP_SDK_API_NAMESPACE') is not None else "kubeflow"
 
 ###
 # Datastore configuration
