@@ -662,7 +662,7 @@ def run(obj,
 @click.option('--userid',
               'userid',
               default=KFP_SDK_USERID,
-              help="your user ID (your ZG email)."
+              help="your user ID (your email)."
               )
 @click.pass_obj
 def run_on_kfp(obj,
