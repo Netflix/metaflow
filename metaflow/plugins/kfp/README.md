@@ -39,12 +39,12 @@ You can export the required variables* individually and run the python command:
 
     "KFP_RUN_URL_PREFIX" : "https://kubeflow.corp.dev.zg-aip.net" # prefix of the URL preceeding the run-id to generate correct links to the generated runs on your cluster
 
-    "KFP_SDK_NAMESPACE": "rent-zestimate"
+    "KFP_SDK_NAMESPACE": "example_namespace"
     "KFP_SDK_USERID": "[YOUR_NAME]@email.com"
 }
 ```
 
-NOTE: Also, if you provide either the KFP namespace or the user ID both in the config file/as environment vars (option 1) and in the CLI (option 2), 
+NOTE: If you provide either the KFP namespace or the user ID both in the config file/as environment vars (option 1) and in the CLI (option 2), 
 the CLI argument will be selected. This will allow for faster iteration for the AS. In the examples here, we have provided these arguments both 
 in the CLI and as environment vars/config file values. Regarding the `api_namespace`, you can either provide it either through environment variables 
 or through the CLI, and the CLI value will take precedence. However, if you don't provide it at either place, it will be defaulted to "kubeflow".
@@ -64,8 +64,8 @@ Contents of the config file:
 
     "KFP_RUN_URL_PREFIX" : "https://kubeflow.corp.dev.zg-aip.net"
 
-    "KFP_SDK_NAMESPACE": "rent-zestimate"
-    "KFP_SDK_USERID": "sreehari@zillowgroup.com"
+    "KFP_SDK_NAMESPACE": "example_namespace"
+    "KFP_SDK_USERID": "example@email.com"
 }
 ```
 
@@ -76,8 +76,8 @@ python 00-helloworld/hello.py run-on-kfp
     --experiment-name "MF-on-KFP-P2" 
     --run-name "hello_run" 
     --code-url https://raw.githubusercontent.com/zillow/metaflow/mf-on-kfp-2/metaflow/tutorials/00-helloworld/hello.py
-    --namespace "rent-zestimate"
-    --userid "sreehari@zillowgroup.com"
+    --namespace "example_namespace"
+    --userid "example@email.com"
 ```
 
 To `generate-kfp-yaml` using this profile:
@@ -85,7 +85,7 @@ To `generate-kfp-yaml` using this profile:
 export METAFLOW_PROFILE=sree && 
 python 00-helloworld/hello.py generate-kfp-yaml
       --code-url https://raw.githubusercontent.com/zillow/metaflow/mf-on-kfp-2/metaflow/tutorials/00-helloworld/hello.py
-      --namespace "rent-zestimate" --userid "sreehari@zillowgroup.com" 
+      --namespace "example_namespace" --userid "example@email.com"
 ```
 
 
@@ -97,7 +97,7 @@ export METAFLOW_DATASTORE_SYSROOT_S3="s3://workspace-zillow-analytics-stage/aip/
 export KFP_RUN_URL_PREFIX="https://kubeflow.corp.dev.zg-aip.net" && 
 python 00-helloworld/hello.py run-on-kfp 
     --code-url="https://raw.githubusercontent.com/zillow/metaflow/state-integ-s3/metaflow/tutorials/00-helloworld/hello.py"
-    --namespace "rent-zestimate" --userid "sreehari@zillowgroup.com"
+    --namespace "example_namespace" --userid "example@email.com"
 ```
 
 #### What's happening inside the step_container_op:
