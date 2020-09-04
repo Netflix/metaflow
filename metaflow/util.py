@@ -5,6 +5,7 @@ import tempfile
 import zlib
 import base64
 from functools import wraps
+from io import BytesIO
 from itertools import takewhile
 import re
 
@@ -12,8 +13,6 @@ from metaflow.exception import MetaflowUnknownUser, MetaflowInternalError
 
 try:
     # python2
-    import cStringIO
-    BytesIO = cStringIO.StringIO
     unicode_type = unicode
     bytes_type = str
     from urllib import quote, unquote
@@ -32,8 +31,6 @@ try:
 
 except:
     # python3
-    import io
-    BytesIO = io.BytesIO
     unicode_type = str
     bytes_type = bytes
     from urllib.parse import quote, unquote

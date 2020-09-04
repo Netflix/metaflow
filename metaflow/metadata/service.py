@@ -241,7 +241,7 @@ class ServiceMetadataProvider(MetadataProvider):
                     # instead of retrying the post we retry with a get since
                     # the record is guaranteed to exist
                     if retry_409_path:
-                        return self._request(monitor, retry_409_path)
+                        return cls._request(monitor, retry_409_path)
                     else:
                         return
                 elif resp.status_code != 503:
