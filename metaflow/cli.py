@@ -35,7 +35,7 @@ from .R import use_r, metaflow_r_version
 
 from .plugins.kfp.kfp import create_run_on_kfp, create_kfp_pipeline_yaml
 from .plugins.kfp.constants import DEFAULT_RUN_NAME, DEFAULT_EXPERIMENT_NAME, DEFAULT_FLOW_CODE_URL, DEFAULT_KFP_YAML_OUTPUT_PATH
-from metaflow.metaflow_config import KFP_RUN_URL_PREFIX, KFP_SDK_NAMESPACE, KFP_SDK_API_NAMESPACE, KFP_SDK_USERID
+from metaflow.metaflow_config import KFP_RUN_URL_PREFIX, KFP_SDK_NAMESPACE, KFP_SDK_API_NAMESPACE, METAFLOW_USER
 
 ERASE_TO_EOL = '\033[K'
 HIGHLIGHT = 'red'
@@ -661,7 +661,7 @@ def run(obj,
               )
 @click.option('--userid',
               'userid',
-              default=KFP_SDK_USERID,
+              default=METAFLOW_USER,
               help="your user ID (your email)."
               )
 @click.pass_obj
@@ -671,7 +671,7 @@ def run_on_kfp(obj,
         run_name=DEFAULT_RUN_NAME,
         namespace=KFP_SDK_NAMESPACE,
         api_namespace=KFP_SDK_API_NAMESPACE,
-        userid=KFP_SDK_USERID
+        userid=METAFLOW_USER
         ):
 
     if namespace is None or userid is None:
