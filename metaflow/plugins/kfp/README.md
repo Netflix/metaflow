@@ -35,7 +35,7 @@ You can export the required variables* individually and run the python command:
     "KFP_RUN_URL_PREFIX" : "https://kubeflow.corp.dev.zg-aip.net" # prefix of the URL preceeding the run-id to generate correct links to the generated runs on your cluster
 
     "KFP_SDK_NAMESPACE": "rent-zestimate"
-    "KFP_SDK_USERID": "[YOUR_NAME]@zillowgroup.com"
+    "KFP_SDK_USERID": "[YOUR_NAME]@email.com"
 }
 ```
 
