@@ -1,27 +1,14 @@
 from setuptools import setup, find_packages
 
-version = '2.2.0'
+version = '2.2.2'
 
 """
-Instructions on how to install ZG versions of MF and KFP
+To use this version of Metaflow (which includes KFP integration), you
+must first install the compatible version of KFP:
 
-To use this file to install the ZG forked version of Metaflow,
-you must first install the the ZG forked version of KFP:
-
-git clone https://github.com/alexlatchford/pipelines
-cd pipelines; git checkout alexla/AIP-1676
-cd sdk/python
-python3 setup.py build_py
-
-This KFP version will ensure you're able to pass in namespace and userid,
-which are required for authorization reasons. Then, install this
-version of Metaflow usng this `setup.py` file:
-
-python3 setup.py install_lib
-
-Note: `kfp` is present in the `install_requires` list below.
-If you install KFP from the commands above, this setup file will locate it
-and use that KFP version rather than pip installing from pypi.
+  - git clone -b alexla/AIP-1676 https://github.com/alexlatchford/pipelines
+  - cd sdk/python
+  - pip3 install -e .
 """
 
 setup(name='metaflow',
@@ -42,7 +29,6 @@ setup(name='metaflow',
         'requests',
         'boto3',
         'pylint<2.5.0',
-        'kfp'
       ],
       tests_require = [
         'coverage'
