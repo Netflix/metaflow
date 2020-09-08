@@ -6,7 +6,8 @@ import traceback
 
 from . import cmd_with_io
 from .parameters import Parameter
-from .exception import MetaflowException, MetaflowInternalError, MergeArtifactsException
+from .exception import MetaflowException, MetaflowInternalError, \
+    MissingInMergeArtifactsException, UnhandledInMergeArtifactsException
 from .graph import FlowGraph
 
 # For Python 3 compatibility
@@ -253,7 +254,7 @@ class FlowSpec(object):
                                                                   frame.index + 1))
             return self._cached_input[stack_index]
 
-    def merge_artifacts(self, inputs, exclude=[]):
+    def merge_artifacts(self, inputs, exclude=[], include=[]):
         """
         Merge the artifacts coming from each merge branch (from inputs)
 
@@ -288,32 +289,51 @@ class FlowSpec(object):
         inputs : List[Steps]
             Incoming steps to the join point
         exclude : List[str], optional
+            If specified, do not consider merging artifacts with a name in `exclude`.
+            Cannot specify if `include` is also specified
+        include : List[str], optional
+            If specified, only merge artifacts specified. Cannot specify if `exclude` is
+            also specified
 
         Raises
         ------
         MetaflowException
             This exception is thrown if this is not called in a join step
-        MergeArtifactsException
+        UnhandledInMergeArtifactsException
             This exception is thrown in case of unresolved conflicts
+        MissingInMergeArtifactsException
+            This exception is thrown in case an artifact specified in `include cannot
+            be found
         """
         node = self._graph[self._current_step]
         if node.type != 'join':
             msg = "merge_artifacts can only be called in a join and step *{step}* "\
                   "is not a join".format(step=self._current_step)
             raise MetaflowException(msg)
+        if len(exclude) > 0 and len(include) > 0:
+            msg = "`exclude` and `include` are mutually exclusive in merge_artifacts"
+            raise MetaflowException(msg)
 
         to_merge = {}
         unresolved = []
         for inp in inputs:
             # available_vars is the list of variables from inp that should be considered
-            available_vars = ((var, sha) for var, sha in inp._datastore.items()
-                              if (var not in exclude) and (not hasattr(self, var)))
+            if include:
+                available_vars = ((var, sha) for var, sha in inp._datastore.items()
+                                  if (var in include) and (not hasattr(self, var)))
+            else:
+                available_vars = ((var, sha) for var, sha in inp._datastore.items()
+                                if (var not in exclude) and (not hasattr(self, var)))
             for var, sha in available_vars:
                 _, previous_sha = to_merge.setdefault(var, (inp, sha))
                 if previous_sha != sha:
                     # We have a conflict here
                     unresolved.append(var)
-
+        # Check if everything in include is present in to_merge
+        missing = []
+        for v in include:
+            if v not in to_merge and not hasattr(self, v):
+                missing.append(v)
         if unresolved:
             # We have unresolved conflicts so we do not set anything and error out
             msg = "Step *{step}* cannot merge the following artifacts due to them "\
@@ -321,7 +341,16 @@ class FlowSpec(object):
                   "be sure to explictly set those artifacts (using "\
                   "self.<artifact_name> = ...) prior to calling merge_artifacts."\
                   .format(step=self._current_step, artifacts=', '.join(unresolved))
-            raise MergeArtifactsException(msg, unresolved)
+            raise UnhandledInMergeArtifactsException(msg, unresolved)
+        if missing:
+            msg = "Step *{step}* specifies that [{include}] should be merged but "\
+                  "[{missing}] are not present.\nTo remedy this issue, make sure "\
+                  "that the values specified in only come from at least one branch"\
+                  .format(
+                      step=self._current_step,
+                      include=', '.join(include),
+                      missing=', '.join(missing))
+            raise MissingInMergeArtifactsException(msg, missing)
         # If things are resolved, we go and fetch from the datastore and set here
         for var, (inp, _) in to_merge.items():
             setattr(self, var, getattr(inp, var))

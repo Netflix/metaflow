@@ -2,6 +2,7 @@ from setuptools import setup, find_packages
 
 version = '2.2.2'
 
+
 """
 To use this version of Metaflow (which includes KFP integration), you
 must first install the compatible version of KFP:
@@ -10,6 +11,8 @@ must first install the compatible version of KFP:
   - cd pipelines/sdk/python
   - pip3 install -e .
 """
+
+
 
 setup(name='metaflow',
       version=version,

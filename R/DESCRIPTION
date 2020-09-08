@@ -17,9 +17,10 @@ URL: https://metaflow.org/,
   https://github.com/Netflix/metaflow
 BugReports: https://github.com/Netflix/metaflow/issues
 Imports:
-  magrittr,
-  R6,
-  reticulate (>= 1.10)
+    magrittr,
+    R6,
+    reticulate (>= 1.10),
+    digest (>= 0.4.0)
 Suggests:
     cli,
     lubridate,
