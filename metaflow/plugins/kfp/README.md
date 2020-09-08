@@ -13,7 +13,7 @@ To install KFP:
     - cd pipelines/sdk/python
     - pip3 install -e .
 ```
-To install Metaflow: `pip3 install --user --upgrade git+https://github.com/zillow/metaflow.git@bug/add_namespace_to_kfp_run`
+To install Metaflow: `pip3 install --user --upgrade git+https://github.com/zillow/metaflow.git@feature/kfp`
 
 ##### Option 1:
 1. Configure a metaflow profile. To do this, create a file named as `config_<your-metaflow-profile-name>.json` under 
