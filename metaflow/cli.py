@@ -34,7 +34,7 @@ from .R import use_r, metaflow_r_version
 
 from .plugins.kfp.kfp import create_run_on_kfp, create_kfp_pipeline_yaml
 from .plugins.kfp.constants import DEFAULT_RUN_NAME, DEFAULT_EXPERIMENT_NAME, DEFAULT_FLOW_CODE_URL, DEFAULT_KFP_YAML_OUTPUT_PATH
-from metaflow.metaflow_config import KFP_RUN_URL_PREFIX
+from metaflow.metaflow_config import KFP_RUN_URL_PREFIX, KFP_SDK_NAMESPACE, KFP_SDK_API_NAMESPACE, METAFLOW_USER
 
 ERASE_TO_EOL = '\033[K'
 HIGHLIGHT = 'red'
@@ -648,16 +648,37 @@ def run(obj,
               default=DEFAULT_RUN_NAME,
               help="name assigned to the new KFP run"
               )
+@click.option('--namespace',
+              'namespace',
+              default=KFP_SDK_NAMESPACE,
+              help="namespace of your run in KFP."
+              )
+@click.option('--api-namespace',
+              'api_namespace',
+              default=KFP_SDK_API_NAMESPACE,
+              help="namespace where the API service is run."
+              )
+@click.option('--userid',
+              'userid',
+              default=METAFLOW_USER,
+              help="your user ID (your email)."
+              )
 @click.pass_obj
 def run_on_kfp(obj,
         code_url=DEFAULT_FLOW_CODE_URL,
         experiment_name=DEFAULT_EXPERIMENT_NAME,
-        run_name=DEFAULT_RUN_NAME
+        run_name=DEFAULT_RUN_NAME,
+        namespace=KFP_SDK_NAMESPACE,
+        api_namespace=KFP_SDK_API_NAMESPACE,
+        userid=METAFLOW_USER
         ):
 
-    run_pipeline_result = create_run_on_kfp(obj.graph, code_url, experiment_name, run_name)
+    if namespace is None or userid is None:
+        raise Exception("Both namespace and userid must be defined, either through the CLI or as environment variables.")
+    
+    run_pipeline_result = create_run_on_kfp(obj.graph, code_url, experiment_name, run_name, namespace, api_namespace, userid)
     echo("\nRun created successfully!\n")
-    echo("Run link: {0}".format(posixpath.join(KFP_RUN_URL_PREFIX, run_pipeline_result.run_id)))
+    echo("Run link: {0}".format(posixpath.join(KFP_RUN_URL_PREFIX, "_/pipeline/#/runs/details", run_pipeline_result.run_id)))
 
 
 @cli.command(help='Generate the KFP YAML which is used to run the workflow on Kubeflow Pipelines.')

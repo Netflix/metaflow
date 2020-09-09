@@ -17,7 +17,7 @@ def step_op_func(python_cmd_template, step_name: str,
     import subprocess
     import os
 
-    MODIFIED_METAFLOW_URL = 'git+https://github.com/zillow/metaflow.git@kfp-run-id'
+    MODIFIED_METAFLOW_URL = 'git+https://github.com/zillow/metaflow.git@bug/add_namespace_to_kfp_run'
     DEFAULT_DOWNLOADED_FLOW_FILENAME = 'downloaded_flow.py'
 
     print("\n----------RUNNING: CODE DOWNLOAD from URL---------")
@@ -93,7 +93,7 @@ def start_op_func(start_command_template: str, code_url: str, kfp_run_id: str):
             print("______________ STDOUT:____________________________")
             print(proc_output)
 
-    MODIFIED_METAFLOW_URL = 'git+https://github.com/zillow/metaflow.git@kfp-run-id'
+    MODIFIED_METAFLOW_URL = 'git+https://github.com/zillow/metaflow.git@bug/add_namespace_to_kfp_run'
     DEFAULT_DOWNLOADED_FLOW_FILENAME = 'downloaded_flow.py'
 
     print("\n----------RUNNING: CODE DOWNLOAD from URL---------")
@@ -290,17 +290,18 @@ def create_kfp_pipeline_from_flow_graph(flow_graph, code_url=DEFAULT_FLOW_CODE_U
     return kfp_pipeline_from_flow
 
 
-def create_run_on_kfp(flow_graph, code_url, experiment_name, run_name):
+def create_run_on_kfp(flow_graph, code_url, experiment_name, run_name, namespace, api_namespace, userid):
     """
     Creates a new run on KFP using the `kfp.Client()`. Note: Intermediate pipeline YAML is not generated as this creates
     the run directly using the pipeline function returned by `create_flow_pipeline`
     """
 
     pipeline_func = create_kfp_pipeline_from_flow_graph(flow_graph, code_url)
-    run_pipeline_result = kfp.Client().create_run_from_pipeline_func(pipeline_func,
+    run_pipeline_result = kfp.Client(namespace=api_namespace, userid=userid).create_run_from_pipeline_func(pipeline_func,
                                                                      arguments={},
                                                                      experiment_name=experiment_name,
-                                                                     run_name=run_name)
+                                                                     run_name=run_name,
+                                                                     namespace=namespace)
     return run_pipeline_result
 
 
