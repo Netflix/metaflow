@@ -83,7 +83,12 @@ check_python_dependencies <- function() {
 }
 
 check_environment <- function(envname) {
-  conda_check <- envname %in% conda_list()$name
+  conda_try <- try(conda_binary(), silent = TRUE)
+  if (class(conda_try) != "try-error") {
+    conda_check <- envname %in% conda_list()$name
+  } else {
+    conda_check <- FALSE
+  }
   virtualenv_check <- envname %in% virtualenv_list()
   list(conda = conda_check, virtualenv = virtualenv_check)
 }
