@@ -187,15 +187,22 @@ def get_version(pkg):
 
 # PINNED_CONDA_LIBS are the libraries that metaflow depends on for execution
 # and are needed within a conda environment
-def get_pinned_conda_libs():
-    return {
-        'click': '7.0',
-        'requests': '2.22.0',
-        'boto3': '1.9.235',
-        'coverage': '4.5.3'
-    }
-
-
+def get_pinned_conda_libs(python_version):
+    if python_version.startswith("3.5"):
+        return {
+            'click': '7.1.2',
+            'requests': '2.24.0',
+            'boto3': '1.9.88',
+            'coverage': '4.5.1'
+        }
+    else:
+        return {
+            'click': '7.1.2',
+            'requests': '2.24.0',
+            'boto3': '1.14.47',
+            'coverage': '4.5.4'
+        }
+        
 cached_aws_sandbox_creds = None
 
 def get_authenticated_boto3_client(module, params={}):
@@ -224,3 +231,15 @@ def get_authenticated_boto3_client(module, params={}):
         return boto3.session.Session(**cached_aws_sandbox_creds) \
             .client(module, **params)
     return boto3.client(module, **params)
+
+
+# Check if there is a an extension to Metaflow to load and override everything
+try:
+    import metaflow_custom.config.metaflow_config as extension_module
+except ImportError:
+    pass
+else:
+    # We load into globals whatever we have in extension_module
+    for n, o in extension_module.__dict__.items():
+        if not n.startswith('__'):
+            globals()[n] = o

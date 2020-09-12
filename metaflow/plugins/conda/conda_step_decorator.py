@@ -79,7 +79,8 @@ class CondaStepDecorator(StepDecorator):
                         False] if x is not None)
 
     def _lib_deps(self):
-        deps = get_pinned_conda_libs()
+        deps = get_pinned_conda_libs(self._python_version())
+
         base_deps = self.base_attributes['libraries']
         deps.update(base_deps)
         step_deps = self.attributes['libraries']
@@ -230,6 +231,12 @@ class CondaStepDecorator(StepDecorator):
             python_path = self.metaflow_home
             if os.environ.get('PYTHONPATH') is not None:
                 python_path = os.pathsep.join([os.environ['PYTHONPATH'], python_path])
+
+            env_path = os.path.dirname(self.conda.python(self.env_id))
+            if os.environ.get('PATH') is not None:
+                env_path = os.pathsep.join([env_path, os.environ['PATH']])
+            
+            cli_args.env['PATH'] = env_path
             cli_args.env['PYTHONPATH'] = python_path
             cli_args.env['_METAFLOW_CONDA_ENV'] = self.env_id
             cli_args.entrypoint[0] = self.conda.python(self.env_id)
