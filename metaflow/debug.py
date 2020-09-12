@@ -32,7 +32,7 @@ class Debug(object):
             setattr(self, typ, op != self.noop)
 
     def log(self, typ, args):
-        if util.is_stringish(args):
+        if is_stringish(args):
             s = args
         else:
             s = ' '.join(args)

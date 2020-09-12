@@ -31,6 +31,14 @@ step <- function(flow, ..., step, r_function = NULL, foreach = NULL, join = FALS
   }
   if (!is.null(r_function)) {
     function_name <- as.character(substitute(r_function))
+    # If r_function is anonymous then function_name will be a vector of its
+    # components. In this case we give the function a pseudonym prefixed by the
+    # step name and suffixed with a hash of the function.
+    if (length(function_name) > 1) { 
+      function_hash <- digest::digest(deparse(r_function), algo = "sha256")
+      trunc_function_hash <- substr(function_hash, 1, 16)
+      function_name <- paste(step, "function", trunc_function_hash, sep = "_")
+    }
     body(r_function) <- wrap_function(r_function)
     if (join) {
       .step <- c(.step, fmt_r_function(function_name, join = TRUE))
@@ -69,7 +77,7 @@ add_R_object_to_flow <- function(flow, obj, name) {
 # Note: R functions by default return execution results of the last line if there's no explicit return(..).
 # With our call_r hooks in python, reticulate will try to convert each r_function return value into python.
 # A print statement at the last line would sometimes unintentionally return an S4 object to python,
-# which leads to reticulate error, for example the the overloaded print function in R library glmnet.
+# which leads to reticulate error, for example the overloaded print function in R library glmnet.
 wrap_function <- function(func) {
   # we only need body of the wrapped_func so no need to handle the arguments
   wrapped_func <- function() {

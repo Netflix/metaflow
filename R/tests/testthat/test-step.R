@@ -85,3 +85,15 @@ test_that("test function format", {
   actual <- fmt_r_function("test_fun", join = TRUE)
   expected <- c("        call_r('test_fun', (self, list(inputs)))", "\n")
 })
+
+test_that("we can define a step with an anonymous function", {
+  skip_if_no_metaflow()
+  flow <- metaflow("TestFlow") %>%
+    step(
+      step = "anonymous",
+      r_function = function(step) step$x <- 3 
+    )
+  expected_function_name <- "anonymous_function_616fb45ef54cbfa9"
+  functions <- flow$get_functions()
+  expect_true(expected_function_name %in% names(functions))
+})
