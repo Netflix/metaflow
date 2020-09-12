@@ -185,7 +185,9 @@ class Parameter(object):
         kwargs = self.kwargs
         if isinstance(kwargs.get('default'), DeployTimeField) and not deploy_mode:
             ret = dict(kwargs)
-            ret['help'] = kwargs.get('help', '') + \
+            help_msg = kwargs.get('help')
+            help_msg = '' if help_msg is None else help_msg
+            ret['help'] = help_msg + \
                 "[default: deploy-time value of '%s']" % self.name
             ret['default'] = None
             ret['required'] = False

@@ -77,7 +77,7 @@ add_R_object_to_flow <- function(flow, obj, name) {
 # Note: R functions by default return execution results of the last line if there's no explicit return(..).
 # With our call_r hooks in python, reticulate will try to convert each r_function return value into python.
 # A print statement at the last line would sometimes unintentionally return an S4 object to python,
-# which leads to reticulate error, for example the the overloaded print function in R library glmnet.
+# which leads to reticulate error, for example the overloaded print function in R library glmnet.
 wrap_function <- function(func) {
   # we only need body of the wrapped_func so no need to handle the arguments
   wrapped_func <- function() {
