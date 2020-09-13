@@ -46,8 +46,29 @@ install_metaflow <- function(method = c("conda", "virtualenv"),
   packages <- c(metaflow_pkg_version, "numpy", "pandas")
 
   # create environment if not present
-  if (method == "conda" && !envname %in% reticulate::conda_list()$name) {
-    reticulate::conda_create(envname)
+  if (method == "conda"){
+      conda <- tryCatch(reticulate::conda_binary(conda), 
+                        error = function(e) NULL)
+      have_conda <- !is.null(conda)
+      if (!have_conda) {
+        message("No conda was found in the system.")
+        message("Would you like to download and install Miniconda?")
+        message("Miniconda is an open source environment management system for Python.")
+        message("See https://docs.conda.io/en/latest/miniconda.html for more details.")
+        ans <- utils::menu(c("Yes", "No"), 
+                    title = "Would you like to install Miniconda?")
+        if (ans == 1) {
+          reticulate::install_miniconda()
+          conda <- tryCatch(reticulate::conda_binary("auto"), error = function(e) NULL)
+        } else {
+          stop("Conda environment installation failed (no conda binary found)\n", 
+                call. = FALSE)
+        } 
+      }
+
+      if (!envname %in% reticulate::conda_list()$name){
+        reticulate::conda_create(envname)
+      }
   } else if (method == "virtualenv" && !envname %in% reticulate::virtualenv_list()) {
     reticulate::virtualenv_create(envname)
   }
