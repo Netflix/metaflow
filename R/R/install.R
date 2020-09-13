@@ -46,13 +46,13 @@ install_metaflow <- function(method = c("conda", "virtualenv"),
   packages <- c(metaflow_pkg_version, "numpy", "pandas")
 
   # create environment if not present
-  if (method == "conda" && !envname %in% conda_list()$name) {
-    conda_create(envname)
-  } else if (method == "virtualenv" && !envname %in% virtualenv_list()) {
-    virtualenv_create(envname)
+  if (method == "conda" && !envname %in% reticulate::conda_list()$name) {
+    reticulate::conda_create(envname)
+  } else if (method == "virtualenv" && !envname %in% reticulate::virtualenv_list()) {
+    reticulate::virtualenv_create(envname)
   }
 
-  py_install(
+  reticulate::py_install(
     packages = packages,
     envname = envname,
     ...
@@ -61,14 +61,14 @@ install_metaflow <- function(method = c("conda", "virtualenv"),
   invisible(NULL)
 }
 
-ensure_metaflow <- function(envname = "metaflow-r") {
+activate_metaflow_env <- function(envname = "metaflow-r") {
   metaflow_python <- Sys.getenv("METAFLOW_PYTHON", unset = NA)
   if (is.na(metaflow_python)) {
     env_set <- check_environment(envname)
     if (env_set[["conda"]] || all(env_set[["conda"]], env_set[["virtualenv"]])) {
-      use_condaenv(envname)
+      reticulate::use_condaenv(envname, required=TRUE)
     } else if (env_set[["virtualenv"]]) {
-      use_virtualenv(envname)
+      reticulate::use_virtualenv(envname, required=TRUE)
     }
   }
   invisible(NULL)
@@ -76,19 +76,19 @@ ensure_metaflow <- function(envname = "metaflow-r") {
 
 check_python_dependencies <- function() {
   all(
-    py_module_available("numpy"),
-    py_module_available("pandas"),
-    py_module_available("metaflow")
+    reticulate::py_module_available("numpy"),
+    reticulate::py_module_available("pandas"),
+    reticulate::py_module_available("metaflow")
   )
 }
 
 check_environment <- function(envname) {
-  conda_try <- try(conda_binary(), silent = TRUE)
+  conda_try <- try(reticulate::conda_binary(), silent = TRUE)
   if (class(conda_try) != "try-error") {
-    conda_check <- envname %in% conda_list()$name
+    conda_check <- envname %in% reticulate::conda_list()$name
   } else {
     conda_check <- FALSE
   }
-  virtualenv_check <- envname %in% virtualenv_list()
+  virtualenv_check <- envname %in% reticulate::virtualenv_list()
   list(conda = conda_check, virtualenv = virtualenv_check)
 }

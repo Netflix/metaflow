@@ -10,6 +10,10 @@ pkg.env$configs <- list(
 )
 
 .onAttach <- function(libname, pkgname) {
+  # activate Metaflow conda/virtualenv if they're available
+  # need to call this before check_python_dependencies()
+  activate_metaflow_env()
+
   if (check_python_dependencies()) {
     metaflow_attach()
   }
@@ -21,6 +25,10 @@ pkg.env$configs <- list(
     Sys.setenv(RETICULATE_PYTHON = metaflow_python)
   }
 
+  # activate Metaflow conda/virtualenv if they're available
+  # need to call this before check_python_dependencies()
+  activate_metaflow_env()
+
   if (!check_python_dependencies()) {
     packageStartupMessage(
       "* Metaflow Python dependencies not found *\n",
@@ -30,7 +38,6 @@ pkg.env$configs <- list(
       "      Note: Metaflow needs to be available in the environment specified by `METAFLOW_PYTHON`"
     )
   } else {
-    ensure_metaflow()
     metaflow_load()
   }
 }
@@ -43,9 +50,9 @@ metaflow_load <- function() {
     config[[key]] <- eval(configs[[config_name]][[key]])
   }
   if (config_name == "batch") {
-    pkg.env$mf <- import_from_path("metaflow", path = config$metaflow_path)
+    pkg.env$mf <- reticulate::import_from_path("metaflow", path = config$metaflow_path)
   } else {
-    pkg.env$mf <- import("metaflow", delay_load = TRUE)
+    pkg.env$mf <- reticulate::import("metaflow", delay_load = TRUE)
   }
   invisible(NULL)
 }
