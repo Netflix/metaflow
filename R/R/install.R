@@ -47,7 +47,7 @@ install_metaflow <- function(method = c("conda", "virtualenv"),
 
   # create environment if not present
   if (method == "conda"){
-      conda <- tryCatch(reticulate::conda_binary(conda), 
+      conda <- tryCatch(reticulate::conda_binary(), 
                         error = function(e) NULL)
       have_conda <- !is.null(conda)
       if (!have_conda) {
