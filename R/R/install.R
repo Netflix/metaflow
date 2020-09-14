@@ -82,17 +82,23 @@ install_metaflow <- function(method = c("conda", "virtualenv"),
   invisible(NULL)
 }
 
-activate_metaflow_env <- function(envname = "metaflow-r") {
+activate_metaflow_env <- function(envname) {
   metaflow_python <- Sys.getenv("METAFLOW_PYTHON", unset = NA)
   if (is.na(metaflow_python)) {
     env_set <- check_environment(envname)
     if (env_set[["conda"]] || all(env_set[["conda"]], env_set[["virtualenv"]])) {
       reticulate::use_condaenv(envname, required=TRUE)
+      return(TRUE)
     } else if (env_set[["virtualenv"]]) {
       reticulate::use_virtualenv(envname, required=TRUE)
+      return(TRUE)
+    } else{
+      return(FALSE)
     }
+  } else {
+    reticulate::use_python(metaflow_python, required=TRUE)
   }
-  invisible(NULL)
+  return(TRUE)
 }
 
 check_python_dependencies <- function() {

@@ -9,13 +9,18 @@ pkg.env$configs <- list(
   )
 )
 
+pkg.env$envname = "metaflow-r"
+
+
 .onAttach <- function(libname, pkgname) {
   # activate Metaflow conda/virtualenv if they're available
   # need to call this before check_python_dependencies()
-  activate_metaflow_env()
+  env_activated <- activate_metaflow_env(pkg.env$envname)
 
-  if (check_python_dependencies()) {
+  if (env_activated && check_python_dependencies()) {
     metaflow_attach()
+  } else {
+    print_metaflow_install_options()
   }
 }
 
@@ -27,19 +32,21 @@ pkg.env$configs <- list(
 
   # activate Metaflow conda/virtualenv if they're available
   # need to call this before check_python_dependencies()
-  activate_metaflow_env()
+  env_activated <- activate_metaflow_env(pkg.env$envname)
 
-  if (!check_python_dependencies()) {
-    packageStartupMessage(
+  if (env_activated && check_python_dependencies()) {
+    metaflow_load()
+  }
+}
+
+print_metaflow_install_options <- function(){
+  packageStartupMessage(
       "* Metaflow Python dependencies not found *\n",
       "  Available options:\n",
       "    - Call `install_metaflow()` to install into a new conda or virtualenv\n",
       "    - Set `METAFLOW_PYTHON` environment variable to the path of your python executable.\n",
       "      Note: Metaflow needs to be available in the environment specified by `METAFLOW_PYTHON`"
-    )
-  } else {
-    metaflow_load()
-  }
+  )
 }
 
 metaflow_load <- function() {
