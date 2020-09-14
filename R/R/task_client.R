@@ -37,7 +37,7 @@ task_client <- R6::R6Class("TaskClient",
         step <- arguments[[1]]
         task_id <- arguments[[2]]
         idx <- which(step$get_values() == task_id)
-        task <- import_builtins()$list(step$get_obj())[[idx]]
+        task <- reticulate::import_builtins()$list(step$get_obj())[[idx]]
         super$initialize(task)
       } else if (nargs() == 1) {
         pathspec <- arguments[[1]]
@@ -94,7 +94,7 @@ task_client <- R6::R6Class("TaskClient",
     parent = function() super$get_obj()$parent,
 
     #' @field tags A vector of strings representing tags assigned to this task object.
-    tags = function() import_builtins()$list(super$get_obj()$tags),
+    tags = function() reticulate::import_builtins()$list(super$get_obj()$tags),
 
     #' @field exception The exception that caused this task to fail.
     exception = function() super$get_obj()$exception,

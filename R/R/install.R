@@ -25,7 +25,7 @@
 install_metaflow <- function(method = c("conda", "virtualenv"),
                              version = NULL,
                              ...) {
-  envname <- "metaflow-r"
+  envname <- pkg.env$envname
 
   # validate stage, method arguments
   method <- match.arg(method)
@@ -79,43 +79,10 @@ install_metaflow <- function(method = c("conda", "virtualenv"),
     ...
   )
 
+  # activate Metaflow environment
+  pkg.env$activated <- activate_metaflow_env(pkg.env$envname)
+  # load metaflow python library
+  metaflow_load()
+
   invisible(NULL)
-}
-
-activate_metaflow_env <- function(envname) {
-  metaflow_python <- Sys.getenv("METAFLOW_PYTHON", unset = NA)
-  if (is.na(metaflow_python)) {
-    env_set <- check_environment(envname)
-    if (env_set[["conda"]] || all(env_set[["conda"]], env_set[["virtualenv"]])) {
-      reticulate::use_condaenv(envname, required=TRUE)
-      return(TRUE)
-    } else if (env_set[["virtualenv"]]) {
-      reticulate::use_virtualenv(envname, required=TRUE)
-      return(TRUE)
-    } else{
-      return(FALSE)
-    }
-  } else {
-    reticulate::use_python(metaflow_python, required=TRUE)
-  }
-  return(TRUE)
-}
-
-check_python_dependencies <- function() {
-  all(
-    reticulate::py_module_available("numpy"),
-    reticulate::py_module_available("pandas"),
-    reticulate::py_module_available("metaflow")
-  )
-}
-
-check_environment <- function(envname) {
-  conda_try <- try(reticulate::conda_binary(), silent = TRUE)
-  if (class(conda_try) != "try-error") {
-    conda_check <- envname %in% reticulate::conda_list()$name
-  } else {
-    conda_check <- FALSE
-  }
-  virtualenv_check <- envname %in% reticulate::virtualenv_list()
-  list(conda = conda_check, virtualenv = virtualenv_check)
 }
