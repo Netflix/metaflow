@@ -6,6 +6,14 @@ from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import METADATA_SERVICE_NUM_RETRIES, METADATA_SERVICE_HEADERS, \
     METADATA_SERVICE_URL
 from .metadata import MetadataProvider
+from metaflow.sidecar import SidecarSubProcess
+from metaflow.sidecar_messages import MessageTypes, Message
+
+
+# Define message enums
+class HeartbeatTypes(object):
+    RUN = 1
+    TASK = 2
 
 
 class ServiceException(MetaflowException):
@@ -19,9 +27,15 @@ class ServiceException(MetaflowException):
 
 class ServiceMetadataProvider(MetadataProvider):
     TYPE = 'service'
+    HB_URL_KEY = 'hb_url'
 
     def __init__(self, environment, flow, event_logger, monitor):
         super(ServiceMetadataProvider, self).__init__(environment, flow, event_logger, monitor)
+        self.mli_url_task_template = METADATA_SERVICE_URL + \
+                                     '/flows/{flow_id}/tasks/{task_id}/heartbeat'
+        self.mli_url_run_template = METADATA_SERVICE_URL + \
+                                    '/flows/{flow_id}/runs/{run_id}/heartbeat'
+        self.sidecar_process = None
 
     @classmethod
     def compute_info(cls, val):
@@ -77,6 +91,45 @@ class ServiceMetadataProvider(MetadataProvider):
         
     def get_runtime_environment(self, runtime_name):
         return {}
+
+    def _start_heartbeat(self, heartbeat_type, flow_id, run_id, step_name=None, task_id=None):
+        if self._already_started():
+            raise Exception("heartbeat already started")
+        # start sidecar
+        self.sidecar_process = SidecarSubProcess("heartbeat")
+        # create init message
+        payload = {}
+        if heartbeat_type == HeartbeatTypes.TASK:
+            # create task heartbeat
+            data = {'flow_id': flow_id, 'task_id': task_id}
+            payload[self.HB_URL_KEY] = self.mli_url_task_template.format(**data)
+        elif heartbeat_type == HeartbeatTypes.RUN:
+            # create run heartbeat
+            data = {'flow_id': flow_id, 'run_id': run_id}
+
+            payload[self.HB_URL_KEY] = self.mli_url_run_template.format(**data)
+        else:
+            raise Exception("invalid heartbeat type")
+
+        msg = Message(MessageTypes.LOG_EVENT, payload)
+        self.sidecar_process.msg_handler(msg)
+
+    def start_run_heartbeat(self, flow_id, run_id):
+        self._start_heartbeat(HeartbeatTypes.RUN, flow_id, run_id)
+
+    def start_task_heartbeat(self, flow_id, run_id, step_name, task_id):
+        self._start_heartbeat(HeartbeatTypes.TASK,
+                              flow_id,
+                              run_id,
+                              step_name,
+                              task_id)
+
+    def _already_started(self):
+        return self.sidecar_process is not None
+
+    def stop_heartbeat(self):
+        msg = Message(MessageTypes.SHUTDOWN, None)
+        self.sidecar_process.msg_handler(msg)
 
     def register_data_artifacts(self,
                                 run_id,

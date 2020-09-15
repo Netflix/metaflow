@@ -46,7 +46,9 @@ from .aws.step_functions.schedule_decorator import ScheduleDecorator
 FLOW_DECORATORS = [CondaFlowDecorator, ScheduleDecorator]
 
 # Sidecars
-SIDECAR = {}
+from metaflow.metadata.heartbeat import MetadataHeartBeat
+
+SIDECAR = {'heartbeat': MetadataHeartBeat}
 
 # Add logger
 from .debug_logger import DebugEventLogger
