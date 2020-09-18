@@ -31,7 +31,7 @@ install_metaflow <- function(method = c("conda", "virtualenv"),
   if (method == "conda" && env_set[["virtualenv"]]){
     message("Installing Metaflow python backend using conda but it has been installed in virtualenv.")
     message("We do not allow python backend in both conda and virtualenv.")
-    message("1. To reinstall python backend in virtualenv: install_metaflow(method='virtualenv')")
+    message("1. To reinstall or upgrade python backend in virtualenv: install_metaflow(method='virtualenv')")
     message("2. To remove python backend in virtualenv: remove_metaflow(method='virtualenv')")
     stop("Installing python backend in both conda and virtualenv is not allowed.")
   }
@@ -39,7 +39,7 @@ install_metaflow <- function(method = c("conda", "virtualenv"),
   if (method == "virtualenv" && env_set[["conda"]]){
     message("Installing Metaflow python backend using virtualenv but it has been installed in conda.")
     message("We do not allow python backend in both conda and virtualenv.")
-    message("1. To reinstall python backend in conda: install_metaflow(method='conda')")
+    message("1. To reinstall or upgrade python backend in conda: install_metaflow(method='conda')")
     message("2. To remove python backend in conda: remove_metaflow(method='conda')")
     stop("Installing python backend in both conda and virtualenv is not allowed.")
   }
@@ -120,7 +120,7 @@ remove_metaflow <- function(method = c("conda", "virtualenv"),
                             prompt = TRUE){
   # validate stage, method arguments
   method <- match.arg(method)
-  envname = pkg.env$envname
+  envname <- pkg.env$envname
 
   if (method == "conda"){
     conda <- tryCatch(reticulate::conda_binary(), 
@@ -151,7 +151,7 @@ remove_metaflow <- function(method = c("conda", "virtualenv"),
       message("A virtualenv environment ", envname, " will be removed\n")
       ans <- ifelse(prompt, utils::menu(c("No", "Yes"), title = "Proceed?"), 2)
       if (ans == 1) stop("virtualenv removal is cancelled by user", call. = FALSE)
-      python <- reticulate::virtualenv_remove(envname = envname)
+      python <- reticulate::virtualenv_remove(envname = envname, confirm = FALSE)
       message("\nRemoval complete. Please restart the current R session.\n\n")
     } 
   }
