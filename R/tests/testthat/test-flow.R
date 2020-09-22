@@ -3,7 +3,7 @@ context("test-flow.R")
 test_that("header() formatted correctly", {
   skip_if_no_metaflow()
   actual <- header("TestFlow")
-  expected <- "from metaflow import FlowSpec, step, Parameter, retry, environment, batch, catch, resources\nfrom metaflow.R import call_r\n\n\nclass TestFlow(FlowSpec):\n"
+  expected <- "from metaflow import FlowSpec, step, Parameter, retry, environment, batch, catch, resources, schedule\nfrom metaflow.R import call_r\n\n\nclass TestFlow(FlowSpec):\n"
   expect_equal(actual, expected)
 })
 
@@ -27,7 +27,7 @@ test_that("get_flow() returns correct string", {
     ) %>%
     step(step = "end")
   actual <- TestFlow$get_flow()
-  expected <- "from metaflow import FlowSpec, step, Parameter, retry, environment, batch, catch, resources\nfrom metaflow.R import call_r\n\n\nclass TestFlow(FlowSpec):\n\n    @step\n    def start(self):\n        self.next(self.middle)\n\n    @step\n    def middle(self):\n        self.next(self.end)\n\n    @step\n    def end(self):\n        pass\n\n\nFLOW=TestFlow\nif __name__ == '__main__':\n    TestFlow()"
+  expected <- "from metaflow import FlowSpec, step, Parameter, retry, environment, batch, catch, resources, schedule\nfrom metaflow.R import call_r\n\n\nclass TestFlow(FlowSpec):\n\n    @step\n    def start(self):\n        self.next(self.middle)\n\n    @step\n    def middle(self):\n        self.next(self.end)\n\n    @step\n    def end(self):\n        pass\n\n\nFLOW=TestFlow\nif __name__ == '__main__':\n    TestFlow()"
   expect_equal(actual, expected)
   TestFlow$get_flow(save = TRUE)
   actual <- readChar("flow.py", nchars = nchar(expected))
