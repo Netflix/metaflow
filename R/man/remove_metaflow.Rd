@@ -4,11 +4,9 @@
 \alias{remove_metaflow}
 \title{Remove Metaflow Python package.}
 \usage{
-remove_metaflow(method = c("conda", "virtualenv"), prompt = TRUE)
+remove_metaflow(prompt = TRUE)
 }
 \arguments{
-\item{method}{`character`, indicates to use `"conda"` or `"virtualenv"`. Default to 'conda'.}
-
 \item{prompt}{`bool`, whether to ask for user prompt before removal. Default to TRUE.}
 }
 \description{
@@ -17,7 +15,6 @@ Remove Metaflow Python package.
 \examples{
 \dontrun{
 # not run because it requires Python
-remove_metaflow(method='conda')
-remove_metaflow(method='virtualenv')
+remove_metaflow()
 }
 }

@@ -31,26 +31,16 @@ install_metaflow <- function(method = c("conda", "virtualenv"),
   if (method == "conda" && env_set[["virtualenv"]]){
     message("Installing Metaflow python backend using conda but it has been installed in virtualenv.")
     message("We do not allow python backend in both conda and virtualenv.")
-<<<<<<< HEAD
     message("1. To reinstall python backend in virtualenv: install_metaflow(method='virtualenv')")
     message("2. To remove python backend: remove_metaflow()")
-=======
-    message("1. To reinstall or upgrade python backend in virtualenv: install_metaflow(method='virtualenv')")
-    message("2. To remove python backend in virtualenv: remove_metaflow(method='virtualenv')")
->>>>>>> e8aa6d419a5c48dd8e396f63c65ce03b1056cc3e
     stop("Installing python backend in both conda and virtualenv is not allowed.")
   }
 
   if (method == "virtualenv" && env_set[["conda"]]){
     message("Installing Metaflow python backend using virtualenv but it has been installed in conda.")
     message("We do not allow python backend in both conda and virtualenv.")
-<<<<<<< HEAD
     message("1. To reinstall python backend in conda: install_metaflow(method='conda')")
     message("2. To remove python backend: remove_metaflow()")
-=======
-    message("1. To reinstall or upgrade python backend in conda: install_metaflow(method='conda')")
-    message("2. To remove python backend in conda: remove_metaflow(method='conda')")
->>>>>>> e8aa6d419a5c48dd8e396f63c65ce03b1056cc3e
     stop("Installing python backend in both conda and virtualenv is not allowed.")
   }
 
@@ -116,14 +106,12 @@ install_metaflow <- function(method = c("conda", "virtualenv"),
 
 #' Remove Metaflow Python package.
 #'
-#' @param method `character`, indicates to use `"conda"` or `"virtualenv"`. Default to 'conda'.
 #' @param prompt `bool`, whether to ask for user prompt before removal. Default to TRUE.
 #'
 #' @examples
 #' \dontrun{
 #' # not run because it requires Python
-#' remove_metaflow(method='conda')
-#' remove_metaflow(method='virtualenv')
+#' remove_metaflow()
 #' }
 #' @export 
 remove_metaflow <- function(prompt = TRUE){
@@ -155,7 +143,7 @@ remove_metaflow <- function(prompt = TRUE){
     message("\nRemoval complete. Please restart the current R session.\n\n")
   }
 
-  if (!env[["conda"]] && !env[["virtualenv"]]){
+  if (!env_set[["conda"]] && !env_set[["virtualenv"]]){
     stop("Metaflow python environment ", envname, 
       " is not detected in virtualenv or conda. Skip the removal.")
   }
