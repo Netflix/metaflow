@@ -3,6 +3,7 @@
 """
 import time
 import requests
+import json
 
 from threading import Thread
 from metaflow.sidecar_messages import MessageTypes, Message
@@ -47,7 +48,7 @@ class MetadataHeartBeat(object):
         if self.hb_url is not None:
             response = \
                 requests.post(url=self.hb_url, data="{}", headers=self.headers)
-            return response.json().get('wait_time_in_seconds')
+            return json.loads(response.json()).get('wait_time_in_seconds')
 
     def shutdown(self):
         # attempts sending on last heartbeat

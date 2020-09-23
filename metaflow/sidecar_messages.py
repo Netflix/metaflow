@@ -22,7 +22,11 @@ class Message(object):
 
 
 def deserialize(json_msg):
+    dict = {
+        1: MessageTypes.SHUTDOWN,
+        2: MessageTypes.LOG_EVENT
+    }
     parsed_json_msg = json.loads(json_msg)
-    return Message(MessageTypes(parsed_json_msg['msg_type']),
+    return Message(dict[parsed_json_msg['msg_type']],
                    parsed_json_msg['payload'])
 
