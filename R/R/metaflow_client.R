@@ -91,7 +91,7 @@ metaflow_object <- R6::R6Class(
       private$created_at_ <- obj$created_at
       private$parent_ <- obj$parent$id
       private$pathspec_ <- obj$pathspec
-      private$tags_ <- import_builtins()$list(obj$tags)
+      private$tags_ <- reticulate::import_builtins()$list(obj$tags)
 
       # TODO: handle after Core Convergence
       # The OSS version of MetaflowObject class does not have url_path property

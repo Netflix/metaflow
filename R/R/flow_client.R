@@ -46,7 +46,7 @@ flow_client <- R6::R6Class("FlowClient",
     #' @return A list of run_client R6 object
     #' @param ... the specific tags (string) we need to have for the runs
     runs_with_tags = function(...) {
-      run_objs <- import_builtins()$list(super$get_obj()$runs(...))
+      run_objs <- reticulate::import_builtins()$list(super$get_obj()$runs(...))
       return(invisible(lapply(run_objs, function(run) {
         run_client$new(self, run$id)
       })))
@@ -80,7 +80,7 @@ flow_client <- R6::R6Class("FlowClient",
     parent = function() super$get_obj()$parent,
 
     #' @field tags The vector of tags assigned to this object.
-    tags = function() import_builtins()$list(super$get_obj()$tags),
+    tags = function() reticulate::import_builtins()$list(super$get_obj()$tags),
 
     #' @field created_at The time of creation of this flow object.
     created_at = function() super$get_obj()$created_at,

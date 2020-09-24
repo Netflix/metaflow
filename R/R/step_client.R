@@ -42,7 +42,7 @@ step_client <- R6::R6Class("StepClient",
           )
         }
         idx <- which(run$get_values() == step_id)
-        step <- import_builtins()$list(run$get_obj())[[idx]]
+        step <- reticulate::import_builtins()$list(run$get_obj())[[idx]]
         super$initialize(step)
       } else if (nargs() == 1) {
         pathspec <- arguments[[1]]
@@ -100,7 +100,7 @@ step_client <- R6::R6Class("StepClient",
     parent = function() super$get_obj()$parent,
 
     #' @field tags A vector of strings representing tags assigned to this step object.
-    tags = function() import_builtins()$list(super$get_obj()$tags),
+    tags = function() reticulate::import_builtins()$list(super$get_obj()$tags),
 
     #' @field finished_at The finish time, if available, of this step.
     finished_at = function() super$get_obj()$finished_at,

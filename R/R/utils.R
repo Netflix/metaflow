@@ -209,7 +209,7 @@ extract_ids <- function(obj) {
     gsub("'", "", regmatches(chr, gregexpr("'([^']*)'", chr))[[1]])
   }
   unlist(lapply(
-    import_builtins()$list(obj),
+    reticulate::import_builtins()$list(obj),
     function(x) {
       sub(".*/", "", extract_str(x))
     }
@@ -229,10 +229,7 @@ list_flows <- function() {
     extract_ids()
 }
 
-#' Run a test to check if Metaflow R is installed properly
-#'
-#' @export
-test <- function() {
+test_helloworld_flow<- function(){
   start <- function(self) {
     print("Your Metaflow installation looks good!")
   }
@@ -247,6 +244,17 @@ test <- function() {
       step = "end"
     ) %>%
     run()
+}
+
+#' Run a test to check if Metaflow R is installed properly
+#'
+#' @export
+test <- function() {
+  if (!pkg.env$activated || !check_python_dependencies()){
+    print_metaflow_install_options()
+  } else {
+    test_helloworld_flow()
+  }
 }
 
 #' Return Metaflow python version
@@ -264,12 +272,6 @@ r_version <- function() {
     version[4:length(version)] <- as.character(version[4:length(version)])
   }
   paste0(version, collapse = ".")
-}
-
-metaflow_attach <- function() {
-  packageStartupMessage(sprintf("Metaflow (R) %s loaded", r_version()))
-  packageStartupMessage(sprintf("Metaflow (Python) %s loaded", py_version()))
-  invisible(NULL)
 }
 
 #' Return the default container image to use for remote execution on AWS Batch.

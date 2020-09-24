@@ -25,7 +25,24 @@
 install_metaflow <- function(method = c("conda", "virtualenv"),
                              version = NULL,
                              ...) {
-  envname <- "metaflow-r"
+  envname <- pkg.env$envname
+
+  env_set <- check_environment(envname)
+  if (method == "conda" && env_set[["virtualenv"]]){
+    message("Installing Metaflow python backend using conda but it has been installed in virtualenv.")
+    message("We do not allow python backend in both conda and virtualenv.")
+    message("1. To reinstall python backend in virtualenv: install_metaflow(method='virtualenv')")
+    message("2. To remove python backend: remove_metaflow()")
+    stop("Installing python backend in both conda and virtualenv is not allowed.")
+  }
+
+  if (method == "virtualenv" && env_set[["conda"]]){
+    message("Installing Metaflow python backend using virtualenv but it has been installed in conda.")
+    message("We do not allow python backend in both conda and virtualenv.")
+    message("1. To reinstall python backend in conda: install_metaflow(method='conda')")
+    message("2. To remove python backend: remove_metaflow()")
+    stop("Installing python backend in both conda and virtualenv is not allowed.")
+  }
 
   # validate stage, method arguments
   method <- match.arg(method)
@@ -46,49 +63,88 @@ install_metaflow <- function(method = c("conda", "virtualenv"),
   packages <- c(metaflow_pkg_version, "numpy", "pandas")
 
   # create environment if not present
-  if (method == "conda" && !envname %in% conda_list()$name) {
-    conda_create(envname)
-  } else if (method == "virtualenv" && !envname %in% virtualenv_list()) {
-    virtualenv_create(envname)
+  if (method == "conda"){
+      conda <- tryCatch(reticulate::conda_binary(), 
+                        error = function(e) NULL)
+      have_conda <- !is.null(conda)
+      if (!have_conda) {
+        message("No conda was found in the system.")
+        message("Would you like to download and install Miniconda?")
+        message("Miniconda is an open source environment management system for Python.")
+        message("See https://docs.conda.io/en/latest/miniconda.html for more details.")
+        ans <- utils::menu(c("Yes", "No"), 
+                    title = "Would you like to install Miniconda?")
+        if (ans == 1) {
+          reticulate::install_miniconda()
+          conda <- tryCatch(reticulate::conda_binary("auto"), error = function(e) NULL)
+        } else {
+          stop("Conda environment installation failed (no conda binary found)\n", 
+                call. = FALSE)
+        } 
+      }
+
+      if (!envname %in% reticulate::conda_list()$name){
+        reticulate::conda_create(envname)
+      }
+  } else if (method == "virtualenv" && !envname %in% reticulate::virtualenv_list()) {
+    reticulate::virtualenv_create(envname)
   }
 
-  py_install(
+  reticulate::py_install(
     packages = packages,
     envname = envname,
     ...
   )
 
+  # activate Metaflow environment
+  pkg.env$activated <- activate_metaflow_env(pkg.env$envname)
+  # load metaflow python library
+  metaflow_load()
+
   invisible(NULL)
 }
 
-ensure_metaflow <- function(envname = "metaflow-r") {
-  metaflow_python <- Sys.getenv("METAFLOW_PYTHON", unset = NA)
-  if (is.na(metaflow_python)) {
-    env_set <- check_environment(envname)
-    if (env_set[["conda"]] || all(env_set[["conda"]], env_set[["virtualenv"]])) {
-      use_condaenv(envname)
-    } else if (env_set[["virtualenv"]]) {
-      use_virtualenv(envname)
+#' Remove Metaflow Python package.
+#'
+#' @param prompt `bool`, whether to ask for user prompt before removal. Default to TRUE.
+#'
+#' @examples
+#' \dontrun{
+#' # not run because it requires Python
+#' remove_metaflow()
+#' }
+#' @export 
+remove_metaflow <- function(prompt = TRUE){
+  # validate stage, method arguments
+  envname = pkg.env$envname
+
+  env_set <- check_environment(envname)
+
+  if (env_set[["conda"]]){
+    conda <- tryCatch(reticulate::conda_binary(), 
+                        error = function(e) NULL)
+    have_conda <- !is.null(conda)
+    if (!have_conda) {
+      message("Conda binary is not found. Skip metaflow removal from conda.")
+    } else {
+      message("A conda environment ", envname, " will be removed\n")
+      ans <- ifelse(prompt, utils::menu(c("No", "Yes"), title = "Proceed?"), 2)
+      if (ans == 1) stop("conda env removal is cancelled by user", call. = FALSE)
+      python <- reticulate::conda_remove(envname = envname)
+      message("\nRemoval complete. Please restart the current R session.\n\n")
     }
+  } 
+  
+  if (env_set[["virtualenv"]]) {
+    message("A virtualenv environment ", envname, " will be removed\n")
+    ans <- ifelse(prompt, utils::menu(c("No", "Yes"), title = "Proceed?"), 2)
+    if (ans == 1) stop("virtualenv removal is cancelled by user", call. = FALSE)
+    python <- reticulate::virtualenv_remove(envname = envname, confirm = FALSE)
+    message("\nRemoval complete. Please restart the current R session.\n\n")
   }
-  invisible(NULL)
-}
 
-check_python_dependencies <- function() {
-  all(
-    py_module_available("numpy"),
-    py_module_available("pandas"),
-    py_module_available("metaflow")
-  )
-}
-
-check_environment <- function(envname) {
-  conda_try <- try(conda_binary(), silent = TRUE)
-  if (class(conda_try) != "try-error") {
-    conda_check <- envname %in% conda_list()$name
-  } else {
-    conda_check <- FALSE
+  if (!env_set[["conda"]] && !env_set[["virtualenv"]]){
+    stop("Metaflow python environment ", envname, 
+      " is not detected in virtualenv or conda. Skip the removal.")
   }
-  virtualenv_check <- envname %in% virtualenv_list()
-  list(conda = conda_check, virtualenv = virtualenv_check)
 }

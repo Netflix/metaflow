@@ -18,7 +18,7 @@ Instances of this class contain all steps related to a run.
 
 \preformatted{
 r <- run_client$new(flow, run_id)
-r <- new_client$new("HelloFlow/12")
+r <- run_client$new("HelloFlow/12")
 
 r$id
 r$tags

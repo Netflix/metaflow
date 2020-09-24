@@ -9,7 +9,3 @@
 #' @importFrom magrittr %>%
 #' @usage lhs \%>\% rhs
 NULL
-
-#' @importFrom R6 R6Class
-#' @import reticulate
-NULL
