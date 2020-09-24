@@ -1,4 +1,4 @@
-from metaflow import FlowSpec, step
+from metaflow import FlowSpec, step, resources
 
 
 class HelloFlow(FlowSpec):
@@ -21,6 +21,7 @@ class HelloFlow(FlowSpec):
         self.x = 100
         self.next(self.hello)
 
+    @resources(cpu=0.5, memory=150)
     @step
     def hello(self):
         """
@@ -45,6 +46,7 @@ class HelloFlow(FlowSpec):
         print("END step:\n We have reached the END step!\n")
         print("HelloFlow is all done.")
         print("___________________________________________")
+
 
 if __name__ == '__main__':
     HelloFlow()

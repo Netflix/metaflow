@@ -9,10 +9,12 @@ from typing import NamedTuple
 
 import kfp
 from metaflow.metaflow_config import DATASTORE_SYSROOT_S3
+from kfp.dsl import ContainerOp
 
 from .constants import DEFAULT_KFP_YAML_OUTPUT_PATH
 from ... import R
 from ...graph import DAGNode
+from ...plugins.resources_decorator import ResourcesDecorator
 
 
 class KfpComponent(object):
@@ -114,6 +116,61 @@ class KubeflowPipelines(object):
             max_error_retries = max(max_error_retries, error_retries)
 
         return max_user_code_retries, max_user_code_retries + max_error_retries
+
+    @staticmethod
+    def _get_resource_requirements(node):
+        """
+        Get resource request or limit for a Metaflow step (node).
+        If @resources is also present, the maximum value is used for resource request, and lowest
+        value is used for resource limit.
+
+        Eventually resource request and limits link back to kubernetes, see
+        https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+
+        Supported parameters: 'cpu', 'cpu_limit', 'gpu', 'gpu_vendor', 'memory', 'memory_limit'
+        Keys with no suffix set resource request (minimum);
+        keys with 'limit' suffix sets resource limit (maximum).
+
+        Default unit for memory is megabyte.
+
+        Example using resource decorator:
+            @resource(cpu=0.5, cpu_limit=2, gpu=1, memory=300)
+            @step
+            def my_kfp_step(): ...
+        """
+
+        resource = dict()
+        for deco in node.decorators:
+            if isinstance(deco, ResourcesDecorator):
+                for k, v in deco.attributes.items():
+                    my_val = resource.get(k)
+
+                    if v is not None:
+                        if my_val is not None:
+                            # Resource decorator should only be used once to avoid confusion
+                            # This only happens when user statically define same resource
+                            # requirement with more than one resource decorator for a single step.
+                            # Decorators attached during runtime doesn't fall into this category
+                            # for being dropped by metaflow.decorators._attach_decorators_to_step.
+                            # TODO before merging: should this print or raise error?
+                            print(
+                                f"Resource requirement {k} is set more than once. "
+                                f"The first request with value {my_val} is taken "
+                                f"over the second request with value {v}."
+                            )
+
+                        else:
+                            v = str(v)
+
+                            if k == "gpu" and v == "0":  # Ignore 0 gpu request
+                                continue
+
+                            if k in ["memory", "memory_limit"] and v.isnumeric():
+                                v += "M"  # Metaflow default unit for memory is Megabyte
+
+                            resource[k] = v
+
+        return resource
 
     def create_kfp_components_from_graph(self):
         """
@@ -345,6 +402,21 @@ class KubeflowPipelines(object):
                     context,
                     index=index,
                 ).set_display_name(node.name)
+
+                resource = KubeflowPipelines._get_resource_requirements(node)
+                if "memory" in resource:
+                    visited[node.name].set_memory_request(resource["memory"])
+                if "memory_limit" in resource:
+                    visited[node.name].set_memory_limit(resource["memory_limit"])
+                if "cpu" in resource:
+                    visited[node.name].set_cpu_request(resource["cpu"])
+                if "cpu_limit" in resource:
+                    visited[node.name].set_cpu_limit(resource["cpu_limit"])
+                if "gpu" in resource:
+                    # TODO(yunw)(AIP-2048): Support mixture of GPU from different vendors.
+                    visited[node.name].set_gpu_limit(
+                        resource["gpu"], vendor=resource["gpu_vendor"]
+                    )
 
                 if node.type == "foreach":
                     with kfp.dsl.ParallelFor(
