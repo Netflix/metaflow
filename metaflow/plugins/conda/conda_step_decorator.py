@@ -176,7 +176,7 @@ class CondaStepDecorator(StepDecorator):
 
     def _architecture(self, decos):
         for deco in decos:
-            if deco.name == 'batch':
+            if deco.name == 'batch' or deco.name == 'kfp_internal':
                 # force conda resolution for linux-64 architectures
                 return 'linux-64'
         bit = '32'

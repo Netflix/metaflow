@@ -1,18 +1,13 @@
+import os
+
 from setuptools import setup, find_packages
 
 version = '2.2.3'
 
-
-"""
-To use this version of Metaflow (which includes KFP integration), you
-must first install the compatible version of KFP:
-
-  - git clone -b alexla/AIP-1676 https://github.com/alexlatchford/pipelines
-  - cd pipelines/sdk/python
-  - pip3 install -e .
-"""
-
-
+# TODO: once this branch is merged or in pip use, remove this
+os.system(
+    "pip3 install 'git+https://github.com/alexlatchford/pipelines@alexla/AIP-1676#egg=kfp&subdirectory=sdk/python'"
+)
 
 setup(name='metaflow',
       version=version,

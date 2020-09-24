@@ -32,9 +32,6 @@ from .event_logger import EventLogger
 from .monitor import Monitor
 from .R import use_r, metaflow_r_version
 
-from .plugins.kfp.kfp import create_run_on_kfp, create_kfp_pipeline_yaml
-from .plugins.kfp.constants import DEFAULT_RUN_NAME, DEFAULT_EXPERIMENT_NAME, DEFAULT_FLOW_CODE_URL, DEFAULT_KFP_YAML_OUTPUT_PATH
-from metaflow.metaflow_config import KFP_RUN_URL_PREFIX, KFP_SDK_NAMESPACE, KFP_SDK_API_NAMESPACE, METAFLOW_USER
 
 ERASE_TO_EOL = '\033[K'
 HIGHLIGHT = 'red'
@@ -630,73 +627,6 @@ def run(obj,
     runtime.persist_parameters()
     runtime.execute()
 
-
-@cli.command(help='Create a run on KF pipelines. This method converts the MF flow to a KFP run and outputs a link to the KFP run. '
-                  'Note: This command will not work as expected if your local environment is not configured to '
-                   'connect to a KFP cluster')
-@click.option('--code-url',
-              'code_url',
-              default=DEFAULT_FLOW_CODE_URL,
-              help="the code URL of the flow to be executed on KFP")
-@click.option('--experiment-name',
-              'experiment_name',
-              default=DEFAULT_EXPERIMENT_NAME,
-              help="the associated experiment name for the run"
-              )
-@click.option('--run-name',
-              'run_name',
-              default=DEFAULT_RUN_NAME,
-              help="name assigned to the new KFP run"
-              )
-@click.option('--namespace',
-              'namespace',
-              default=KFP_SDK_NAMESPACE,
-              help="namespace of your run in KFP."
-              )
-@click.option('--api-namespace',
-              'api_namespace',
-              default=KFP_SDK_API_NAMESPACE,
-              help="namespace where the API service is run."
-              )
-@click.option('--userid',
-              'userid',
-              default=METAFLOW_USER,
-              help="your user ID (your email)."
-              )
-@click.pass_obj
-def run_on_kfp(obj,
-        code_url=DEFAULT_FLOW_CODE_URL,
-        experiment_name=DEFAULT_EXPERIMENT_NAME,
-        run_name=DEFAULT_RUN_NAME,
-        namespace=KFP_SDK_NAMESPACE,
-        api_namespace=KFP_SDK_API_NAMESPACE,
-        userid=METAFLOW_USER
-        ):
-
-    if namespace is None or userid is None:
-        raise Exception("Both namespace and userid must be defined, either through the CLI or as environment variables.")
-    
-    run_pipeline_result = create_run_on_kfp(obj.graph, code_url, experiment_name, run_name, namespace, api_namespace, userid)
-    echo("\nRun created successfully!\n")
-    echo("Run link: {0}".format(posixpath.join(KFP_RUN_URL_PREFIX, "_/pipeline/#/runs/details", run_pipeline_result.run_id)))
-
-
-@cli.command(help='Generate the KFP YAML which is used to run the workflow on Kubeflow Pipelines.')
-@click.option('--output-path',
-              'output_path',
-              default=DEFAULT_KFP_YAML_OUTPUT_PATH,
-              help="the output path (or filename) of the generated KFP pipeline yaml file")
-@click.option('--code-url',
-              'code_url',
-              default=DEFAULT_FLOW_CODE_URL,
-              help="the code URL of the flow to be executed on KFP")
-@click.pass_obj
-def generate_kfp_yaml(obj,
-                     output_path=DEFAULT_KFP_YAML_OUTPUT_PATH,
-                     code_url=DEFAULT_FLOW_CODE_URL,
-                     ):
-    pipeline_path = create_kfp_pipeline_yaml(obj.graph, code_url, output_path)
-    echo("\nDone converting to KFP YAML. Upload the file `{0}` to the KFP UI to run!".format(pipeline_path))
 
 def write_run_id(run_id_file, run_id):
     if run_id_file is not None:

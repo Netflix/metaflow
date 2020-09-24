@@ -10,6 +10,7 @@ from itertools import takewhile
 import re
 
 from metaflow.exception import MetaflowUnknownUser, MetaflowInternalError
+from metaflow.metaflow_config import METAFLOW_USER
 
 try:
     # python2
@@ -137,6 +138,9 @@ def get_username():
     could not be determined.
     """
     # note: the order of the list matters
+    if METAFLOW_USER:
+        return METAFLOW_USER
+
     ENVVARS = ['METAFLOW_USER', 'SUDO_USER', 'USERNAME', 'USER']
     for var in ENVVARS:
         user = os.environ.get(var)

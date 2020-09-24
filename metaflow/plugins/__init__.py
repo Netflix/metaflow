@@ -9,10 +9,12 @@ def get_plugin_cli():
     from . import package_cli
     from .aws.batch import batch_cli
     from .aws.step_functions import step_functions_cli
+    from .kfp import kfp_cli
 
     return [package_cli.cli,
             batch_cli.cli,
-            step_functions_cli.cli]
+            step_functions_cli.cli,
+            kfp_cli.cli]
 
 # Add new decorators in this list
 from .catch_decorator import CatchDecorator
@@ -22,6 +24,7 @@ from .retry_decorator import RetryDecorator
 from .aws.batch.batch_decorator import BatchDecorator, ResourcesDecorator
 from .aws.step_functions.step_functions_decorator import StepFunctionsInternalDecorator
 from .conda.conda_step_decorator import CondaStepDecorator
+from .kfp.kfp_decorator import KfpInternalDecorator
 
 STEP_DECORATORS = [CatchDecorator,
                    TimeoutDecorator,
@@ -30,7 +33,8 @@ STEP_DECORATORS = [CatchDecorator,
                    RetryDecorator,
                    BatchDecorator,
                    StepFunctionsInternalDecorator,
-                   CondaStepDecorator]
+                   CondaStepDecorator,
+                   KfpInternalDecorator]
 
 # Add Conda environment
 from .conda.conda_environment import CondaEnvironment

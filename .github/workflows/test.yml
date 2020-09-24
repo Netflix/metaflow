@@ -40,7 +40,10 @@ jobs:
     - name: Install Python 3.x dependencies
       run: |
         python3 -m pip install --upgrade pip
-        python3 -m pip install tox numpy
+        python3 -m pip install tox numpy black
+
+    - name: Python Code Format Check
+      run: black --target-version py27 --diff --check ./metaflow/plugins/kfp/*.py
 
     - name: Set up R 3.6
       if: matrix.lang == 'R'

@@ -44,12 +44,12 @@ def from_conf(name, default=None):
 ###
 DEFAULT_DATASTORE = from_conf('METAFLOW_DEFAULT_DATASTORE', 'local')
 DEFAULT_METADATA = from_conf('METAFLOW_DEFAULT_METADATA', 'local')
+METAFLOW_USER = from_conf('METAFLOW_USER')
 
 ##
 # KFP configuration
 ###
 KFP_SDK_NAMESPACE = from_conf('KFP_SDK_NAMESPACE', 'kubeflow')
-METAFLOW_USER = from_conf('METAFLOW_USER')
 KFP_SDK_API_NAMESPACE = from_conf('KFP_SDK_API_NAMESPACE', 'kubeflow')
 
 ###
@@ -173,8 +173,6 @@ if AWS_SANDBOX_ENABLED:
 # being read from old tasks.
 MAX_ATTEMPTS = 6
 
-METAFLOW_AWS_ARN = from_conf('METAFLOW_AWS_ARN')
-METAFLOW_AWS_S3_REGION = from_conf('METAFLOW_AWS_S3_REGION')
 
 # Note: `KFP_RUN_URL_PREFIX` is the URL prefix for KFP runs on your KFP cluster. The prefix includes
 # all parts of the URL except the run_id at the end which we append once the run is created.
