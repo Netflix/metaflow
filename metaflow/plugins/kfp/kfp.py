@@ -333,6 +333,7 @@ class KubeflowPipelines(object):
                     kfp_component.step_command,
                     kfp_run_id,
                     context,
+                    self.flow.name,
                     index=index,
                 ).set_display_name(node.name)
 
@@ -364,7 +365,7 @@ class KubeflowPipelines(object):
 
 
 def step_op_func(
-    cmd_template, kfp_run_id, contexts, index=None
+    cmd_template, kfp_run_id, contexts, flow_name, index=None
 ) -> NamedTuple("context", [("task_out_dict", dict), ("split_indexes", list)]):
     """
     Function used to create a KFP container op that corresponds to a single step in the flow.
@@ -375,6 +376,9 @@ def step_op_func(
     from subprocess import Popen, PIPE, STDOUT
     import json
     from typing import NamedTuple
+    import boto3
+
+    print("BOTO3: ", boto3.__file__)
 
     print("----")
     print("context")
@@ -386,6 +390,7 @@ def step_op_func(
     cmd = cmd_template.format(
         run_id=kfp_run_id, parent_task_id=context_dict.get("task_id", "")
     )
+    print("cmd template: ", cmd_template)
 
     print("RUNNING COMMAND: ", cmd)
     print("----")
@@ -397,14 +402,19 @@ def step_op_func(
         ["/bin/sh", "-c", cmd],
         stdin=PIPE,
         stdout=PIPE,
-        stderr=STDOUT,
+        stderr=PIPE,
         universal_newlines=True,
         env=dict(os.environ, USERNAME="kfp-user", METAFLOW_RUN_ID=kfp_run_id),
-    ) as process, StringIO() as string_buffer:
+    ) as process, StringIO() as string_buffer, StringIO() as stderr_buffer:
         for line in process.stdout:
             print(line, end="")
             string_buffer.write(line)
         buffer_output = string_buffer.getvalue()
+        for line in process.stderr:
+            print(line, end="")
+            stderr_buffer.write(line)
+        stderr_output = stderr_buffer.getvalue()
+
     print("___ DONE ___")
 
     if process.returncode != 0:
@@ -414,7 +424,36 @@ def step_op_func(
         os.path.join(tempfile.gettempdir(), "kfp_metaflow_out_dict.json"), "r"
     ) as file:
         task_out_dict = json.load(file)
+    
+    print(f"KFP run ID: {kfp_run_id}, task_out_dict: {task_out_dict}")
 
+    print("STDOUT: ", buffer_output)
+    print("STDERR: ", stderr_output)
+
+    stdout_file = open("0.stdout.log", "w")
+    _ = stdout_file.write(buffer_output)
+    stdout_file.close()
+
+    stderr_file = open("0.stderr.log", "w")
+    _ = stderr_file.write(stderr_output)
+    stderr_file.close()
+
+    save_logs_cmd_template = f"python -m awscli s3 cp {{log_file}} s3://kfp-example-aip-dev/metaflow/{flow_name}/{kfp_run_id}/{task_out_dict['step_name']}/{task_out_dict['task_id']}/{{log_file}}"
+    save_logs_command = f"python -m awscli s3 cp 0.stdout.log s3://kfp-example-aip-dev/metaflow/{flow_name}/{kfp_run_id}/{task_out_dict['step_name']}/{task_out_dict['task_id']}/0.stdout.log"
+    # log_stdout_cmd = save_logs_cmd_template.format("0.stdout.log")
+    # log_stderr_cmd = save_logs_cmd_template.format("0.stderr.log")
+    # save_logs_command = f"{log_stdout_cmd} && {log_stderr_cmd}"
+
+    print("Logging command: ", save_logs_command)
+    with Popen(
+        ["/bin/sh", "-c", save_logs_command],
+        stdin=PIPE,
+        stdout=PIPE,
+        stderr=STDOUT,
+        universal_newlines=True
+    ) as process:
+        print("Logging stdout: ", process.stdout)
+    
     StepMetaflowContext = NamedTuple(
         "context", [("task_out_dict", dict), ("split_indexes", list)]
     )
