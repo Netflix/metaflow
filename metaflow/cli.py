@@ -836,17 +836,31 @@ def _check(graph, flow, environment, pylint=True, warnings=False, **kwargs):
         fname = inspect.getfile(flow.__class__)
         pylint = PyLint(fname)
         if pylint.has_pylint():
-            pylint.run(warnings=warnings, pylint_config=environment.pylint_config(), logger=echo_always)
-            echo('Pylint is happy!',
-                 fg='green',
-                 bold=True,
-                 indent=True)
+            pylint_is_happy, pylint_exception_msg = pylint.run(
+                        warnings=warnings, 
+                        pylint_config=environment.pylint_config(), 
+                        logger=echo_always)
+
+            if pylint_is_happy:    
+                echo('Pylint is happy!',
+                    fg='green',
+                    bold=True,
+                    indent=True)
+            else:
+                echo("Pylint couldn't analyze your code.\n\tPylint exception: %s" 
+                        % pylint_exception_msg,
+                    fg='red',
+                    bold=True,
+                    indent=True)
+                echo("Skipping Pylint checks.",
+                    fg='red',
+                    bold=True,
+                    indent=True)
         else:
             echo("Pylint not found, so extra checks are disabled.",
                  fg='green',
                  indent=True,
                  bold=False)
-
 
 def print_metaflow_exception(ex):
     echo_always(ex.headline, indent=True, nl=False, bold=True)
