@@ -439,10 +439,10 @@ def step_op_func(
     stderr_file.close()
 
     save_logs_cmd_template = f"python -m awscli s3 cp {{log_file}} s3://kfp-example-aip-dev/metaflow/{flow_name}/{kfp_run_id}/{task_out_dict['step_name']}/{task_out_dict['task_id']}/{{log_file}}"
-    save_logs_command = f"python -m awscli s3 cp 0.stdout.log s3://kfp-example-aip-dev/metaflow/{flow_name}/{kfp_run_id}/{task_out_dict['step_name']}/{task_out_dict['task_id']}/0.stdout.log"
-    # log_stdout_cmd = save_logs_cmd_template.format("0.stdout.log")
-    # log_stderr_cmd = save_logs_cmd_template.format("0.stderr.log")
-    # save_logs_command = f"{log_stdout_cmd} && {log_stderr_cmd}"
+    # save_logs_command = f"python -m awscli s3 cp 0.stdout.log s3://kfp-example-aip-dev/metaflow/{flow_name}/{kfp_run_id}/{task_out_dict['step_name']}/{task_out_dict['task_id']}/0.stdout.log"
+    log_stdout_cmd = save_logs_cmd_template.format(log_file="0.stdout.log")
+    log_stderr_cmd = save_logs_cmd_template.format(log_file="0.stderr.log")
+    save_logs_command = f"{log_stderr_cmd} >/dev/null && {log_stdout_cmd} >/dev/null"
 
     print("Logging command: ", save_logs_command)
     with Popen(
@@ -452,7 +452,7 @@ def step_op_func(
         stderr=STDOUT,
         universal_newlines=True
     ) as process:
-        print("Logging stdout: ", process.stdout)
+        print("Finished saving logs to S3.")
     
     StepMetaflowContext = NamedTuple(
         "context", [("task_out_dict", dict), ("split_indexes", list)]
