@@ -137,7 +137,7 @@ remove_metaflow <- function(prompt = TRUE){
     ans <- ifelse(prompt, utils::menu(c("No", "Yes"), title = "Proceed?"), 2)
     if (ans == 1) stop("Cancelled. Aborting Metaflow removal.", call. = FALSE)
     python <- reticulate::virtualenv_remove(envname = envname, confirm = FALSE)
-    message("\nRemoval complete. Please restart the current Rsession.\n\n")
+    message("\nRemoval complete. Please restart the current R session.\n\n")
   }
 
   if (!env_set[["conda"]] && !env_set[["virtualenv"]]){
