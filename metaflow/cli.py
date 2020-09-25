@@ -22,8 +22,8 @@ from .datastore import DATASTORES
 from .runtime import NativeRuntime
 from .package import MetaflowPackage
 from .plugins import ENVIRONMENTS, LOGGING_SIDECARS, METADATA_PROVIDERS, MONITOR_SIDECARS
-from .metaflow_config import DEFAULT_DATASTORE, DEFAULT_ENVIRONMENT, DEFAULT_EVENTLOGGER, \
-    DEFAULT_METADATA, DEFAULT_MONITOR, DEFAULT_SUFFIXES
+from .metaflow_config import DEFAULT_DATASTORE, DEFAULT_ENVIRONMENT, DEFAULT_EVENT_LOGGER, \
+    DEFAULT_METADATA, DEFAULT_MONITOR, DEFAULT_PACKAGE_SUFFIXES
 from .environment import MetaflowEnvironment
 from .pylint_wrapper import PyLint
 from .event_logger import EventLogger
@@ -700,7 +700,7 @@ def version(obj):
 @click.option('--package-suffixes',
               help='A comma-separated list of file suffixes to include '
                    'in the code package.',
-              default=DEFAULT_SUFFIXES,
+              default=DEFAULT_PACKAGE_SUFFIXES,
               show_default=True)
 @click.option('--with',
               'decospecs',
@@ -717,7 +717,7 @@ def version(obj):
               show_default=True,
               help='Measure code coverage using coverage.py.')
 @click.option('--event-logger',
-              default=DEFAULT_EVENTLOGGER,
+              default=DEFAULT_EVENT_LOGGER,
               show_default=True,
               type=click.Choice(LOGGING_SIDECARS),
               help='type of event logger used')
