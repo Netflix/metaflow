@@ -73,7 +73,7 @@ Flow <- R6::R6Class("Flow",
 )
 
 header <- function(flow, flow_decorators = NULL) {
-  imports <- paste0(c("FlowSpec", "step", "Parameter", "retry", "environment", "batch", "catch", "resources"), collapse = ", ")
+  imports <- paste0(c("FlowSpec", "step", "Parameter", "retry", "environment", "batch", "catch", "resources", "schedule"), collapse = ", ")
   paste0(
     "from metaflow import ", imports, space(1, type = "v"),
     "from metaflow.R import call_r", space(3, type = "v"),

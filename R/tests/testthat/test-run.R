@@ -35,6 +35,6 @@ test_that("test run_cmd correctly parses help", {
   actual <- run_cmd("flow.RDS", help = TRUE) %>%
     as.character() %>%
     extract_args()
-  expected <- c("--flowRDS=flow.RDS", "--help")
+  expected <- c("--flowRDS=flow.RDS", "--no-pylint", "--help")
   expect_equal(actual, expected)
 })

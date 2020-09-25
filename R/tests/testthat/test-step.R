@@ -10,7 +10,7 @@ test_that("test join step", {
       next_step = "end"
     )
   actual <- TestFlow$get_flow()
-  expected <- "from metaflow import FlowSpec, step, Parameter, retry, environment, batch, catch, resources\nfrom metaflow.R import call_r\n\n\nclass TestFlow(FlowSpec):\n\n    @step\n    def join(self, inputs):\n        self.next(self.end)\n\n\nFLOW=TestFlow\nif __name__ == '__main__':\n    TestFlow()"
+  expected <- "from metaflow import FlowSpec, step, Parameter, retry, environment, batch, catch, resources, schedule\nfrom metaflow.R import call_r\n\n\nclass TestFlow(FlowSpec):\n\n    @step\n    def join(self, inputs):\n        self.next(self.end)\n\n\nFLOW=TestFlow\nif __name__ == '__main__':\n    TestFlow()"
   expect_equal(actual, expected)
 })
 
@@ -23,7 +23,7 @@ test_that("test foreach step", {
       next_step = "end"
     )
   actual <- TestFlow$get_flow()
-  expected <- "from metaflow import FlowSpec, step, Parameter, retry, environment, batch, catch, resources\nfrom metaflow.R import call_r\n\n\nclass TestFlow(FlowSpec):\n\n    @step\n    def join(self):\n        self.next(self.end, foreach='parameters')\n\n\nFLOW=TestFlow\nif __name__ == '__main__':\n    TestFlow()"
+  expected <- "from metaflow import FlowSpec, step, Parameter, retry, environment, batch, catch, resources, schedule\nfrom metaflow.R import call_r\n\n\nclass TestFlow(FlowSpec):\n\n    @step\n    def join(self):\n        self.next(self.end, foreach='parameters')\n\n\nFLOW=TestFlow\nif __name__ == '__main__':\n    TestFlow()"
   expect_equal(actual, expected)
 })
 
@@ -40,7 +40,7 @@ test_that("test join + r_function step", {
       next_step = "end"
     )
   actual <- TestFlow$get_flow()
-  expected <- "from metaflow import FlowSpec, step, Parameter, retry, environment, batch, catch, resources\nfrom metaflow.R import call_r\n\n\nclass TestFlow(FlowSpec):\n\n    @step\n    def join(self, inputs):\n        r_inputs = {node._current_step : node for node in inputs} if len(inputs[0].foreach_stack()) == 0 else list(inputs)\n        call_r('join_fun', (self, r_inputs))\n        self.next(self.end)\n\n\nFLOW=TestFlow\nif __name__ == '__main__':\n    TestFlow()"
+  expected <- "from metaflow import FlowSpec, step, Parameter, retry, environment, batch, catch, resources, schedule\nfrom metaflow.R import call_r\n\n\nclass TestFlow(FlowSpec):\n\n    @step\n    def join(self, inputs):\n        r_inputs = {node._current_step : node for node in inputs} if len(inputs[0].foreach_stack()) == 0 else list(inputs)\n        call_r('join_fun', (self, r_inputs))\n        self.next(self.end)\n\n\nFLOW=TestFlow\nif __name__ == '__main__':\n    TestFlow()"
   expect_equal(actual, expected)
 })
 
