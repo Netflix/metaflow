@@ -5,7 +5,6 @@ import sys
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import S3_ENDPOINT_URL, S3_VERIFY_CERTIFICATE
-from botocore.exceptions import ClientError
 
 S3_NUM_RETRIES = 7
 
