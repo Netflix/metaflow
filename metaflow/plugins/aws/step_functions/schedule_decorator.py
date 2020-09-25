@@ -8,7 +8,7 @@ class ScheduleDecorator(FlowDecorator):
                 'daily': True,
                 'hourly': False}
 
-    def flow_init(self, flow, graph,  environment, datastore, logger):
+    def flow_init(self, flow, graph,  environment, datastore, logger, echo, options):
         # Currently supports quartz cron expressions in UTC as defined in
         # https://docs.aws.amazon.com/eventbridge/latest/userguide/scheduled-events.html#cron-expressions
         if self.attributes['cron']:
