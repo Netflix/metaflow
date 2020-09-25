@@ -6,11 +6,11 @@ from hashlib import sha1
 from io import BytesIO
 from itertools import chain
 
-from .metaflow_config import DEFAULT_SUFFIXES
+from .metaflow_config import DEFAULT_PACKAGE_SUFFIXES
 from .util import to_unicode
 from . import R
 
-DEFAULT_SUFFIXES_LIST = DEFAULT_SUFFIXES.split(',')
+DEFAULT_SUFFIXES_LIST = DEFAULT_PACKAGE_SUFFIXES.split(',')
 
 
 class MetaflowPackage(object):

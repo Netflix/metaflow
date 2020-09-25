@@ -12,7 +12,6 @@ except ImportError:
         FLOW_DECORATORS=[],
         STEP_DECORATORS=[],
         ENVIRONMENTS=[],
-        DATA_PROVIDERS={},
         METADATA_PROVIDERS=[],
         AWS_CLIENT_PROVIDERS={},
         SIDECARS={},
@@ -68,8 +67,6 @@ STEP_DECORATORS = _merge_lists([CatchDecorator,
 # Add Conda environment
 from .conda.conda_environment import CondaEnvironment
 ENVIRONMENTS = _merge_lists([CondaEnvironment], ext_plugins.ENVIRONMENTS, 'TYPE')
-
-DATA_PROVIDERS = ext_plugins.DATA_PROVIDERS
 
 # Metadata providers
 from .metadata import LocalMetadataProvider, ServiceMetadataProvider
