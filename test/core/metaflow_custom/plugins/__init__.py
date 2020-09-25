@@ -2,7 +2,8 @@ def get_plugin_cli():
     return []
 
 
-FLOW_DECORATORS = []
+from .flow_options import FlowDecoratorWithOptions
+FLOW_DECORATORS = [FlowDecoratorWithOptions]
 
 from .test_step_decorator import TestStepDecorator
 STEP_DECORATORS = [TestStepDecorator]
