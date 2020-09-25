@@ -4,15 +4,14 @@ import time
 import sys
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import DEFAULT_AWS_CLIENT_PROVIDER, S3_ENDPOINT_URL, S3_VERIFY_CERTIFICATE
+from metaflow.metaflow_config import S3_ENDPOINT_URL, S3_VERIFY_CERTIFICATE
 from botocore.exceptions import ClientError
 
 S3_NUM_RETRIES = 7
 
 def get_s3_client():
-    from metaflow.plugins import AWS_CLIENT_PROVIDERS
-    get_client = AWS_CLIENT_PROVIDERS[DEFAULT_AWS_CLIENT_PROVIDER]
-    return get_client(
+    from metaflow.plugins.aws.aws_client import get_aws_client
+    return get_aws_client(
         's3',
         with_error=True,
         params={'endpoint_url': S3_ENDPOINT_URL, 'verify': S3_VERIFY_CERTIFICATE })

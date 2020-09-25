@@ -13,7 +13,6 @@ except ImportError:
         STEP_DECORATORS=[],
         ENVIRONMENTS=[],
         METADATA_PROVIDERS=[],
-        AWS_CLIENT_PROVIDERS={},
         SIDECARS={},
         LOGGING_SIDECARS={},
         MONITOR_SIDECARS={})
@@ -81,11 +80,6 @@ METADATA_PROVIDERS = _merge_lists(
 from .conda.conda_flow_decorator import CondaFlowDecorator
 from .aws.step_functions.schedule_decorator import ScheduleDecorator
 FLOW_DECORATORS = _merge_lists([CondaFlowDecorator, ScheduleDecorator], ext_plugins.FLOW_DECORATORS, 'name')
-
-# AWS client providers
-from .aws.aws_client import get_aws_client
-AWS_CLIENT_PROVIDERS = {'aws': get_aws_client}
-AWS_CLIENT_PROVIDERS.update(ext_plugins.AWS_CLIENT_PROVIDERS)
 
 # Sidecars
 SIDECARS = ext_plugins.SIDECARS

@@ -1,13 +1,11 @@
 import json
 
-from metaflow.metaflow_config import DEFAULT_AWS_CLIENT_PROVIDER
-
 
 class EventBridgeClient(object):
 
     def __init__(self, name):
-        from ... import AWS_CLIENT_PROVIDERS
-        self._client = AWS_CLIENT_PROVIDERS[DEFAULT_AWS_CLIENT_PROVIDER]('events')
+        from ..aws_client import get_aws_client
+        self._client = get_aws_client('events')
         self.name = name
 
     def cron(self, cron):

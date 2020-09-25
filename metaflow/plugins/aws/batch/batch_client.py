@@ -12,12 +12,11 @@ except NameError:
     basestring = str
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import DEFAULT_AWS_CLIENT_PROVIDER
 
 class BatchClient(object):
     def __init__(self):
-        from ... import AWS_CLIENT_PROVIDERS
-        self._client = AWS_CLIENT_PROVIDERS[DEFAULT_AWS_CLIENT_PROVIDER]('batch')
+        from ..aws_client import get_aws_client
+        self._client = get_aws_client('batch')
 
     def active_job_queues(self):
         paginator = self._client.get_paginator('describe_job_queues')
@@ -422,8 +421,8 @@ class BatchWaiter(object):
 
 class BatchLogs(object):
     def __init__(self, group, stream, pos=0, sleep_on_no_data=0):
-        from ... import AWS_CLIENT_PROVIDERS
-        self._client = AWS_CLIENT_PROVIDERS[DEFAULT_AWS_CLIENT_PROVIDER]('logs')
+        from ..aws_client import get_aws_client
+        self._client = get_aws_client('logs')
         self._group = group
         self._stream = stream
         self._pos = pos

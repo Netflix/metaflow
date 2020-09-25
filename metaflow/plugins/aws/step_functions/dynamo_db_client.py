@@ -1,15 +1,14 @@
 import json
 import os
 
-from metaflow.metaflow_config import DEFAULT_AWS_CLIENT_PROVIDER, \
-                                    SFN_DYNAMO_DB_TABLE
+from metaflow.metaflow_config import SFN_DYNAMO_DB_TABLE
 
 
 class DynamoDbClient(object):
 
     def __init__(self):
-        from ... import AWS_CLIENT_PROVIDERS
-        self._client = AWS_CLIENT_PROVIDERS[DEFAULT_AWS_CLIENT_PROVIDER](
+        from ..aws_client import get_aws_client
+        self._client = get_aws_client(
             'dynamodb',
             params={'region_name': self._get_instance_region()})
         self.name = SFN_DYNAMO_DB_TABLE
