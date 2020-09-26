@@ -69,8 +69,12 @@ install_metaflow <- function(method = c("conda", "virtualenv"),
         message("No conda was found in the system.")
         message("Miniconda is an open source environment management system for Python.")
         message("See https://docs.conda.io/en/latest/miniconda.html for more details.")
-        ans <- ifelse(prompt, utils::menu(c("Yes", "No"), 
-                title = "Would you like to download and install Miniconda?"), 1)
+        if (interactive()) {
+          ans <- ifelse(prompt, utils::menu(c("Yes", "No"),
+                        title = "Would you like to download and install Miniconda?"), 1)
+        } else {
+          ans <- 1
+        }
         if (ans == 1) {
           reticulate::install_miniconda()
           conda <- tryCatch(reticulate::conda_binary("auto"), error = function(e) NULL)
