@@ -4,10 +4,17 @@
 \alias{install_metaflow}
 \title{Install Metaflow Python package}
 \usage{
-install_metaflow(method = c("conda", "virtualenv"), version = NULL, ...)
+install_metaflow(
+  method = c("conda", "virtualenv"),
+  prompt = TRUE,
+  version = NULL,
+  ...
+)
 }
 \arguments{
 \item{method}{`character`, indicates to use `"conda"` or `"virtualenv"`.}
+
+\item{prompt}{boolean, whether or not to prompt user for confirmation before installation. Default is TRUE.}
 
 \item{version}{`character`, version of Metaflow to install. The default version
 is the latest available on PyPi.}
