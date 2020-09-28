@@ -187,8 +187,12 @@ class KubeflowPipelines(object):
                         parent_task_id=str(step_to_task_id_map[parent_step]),
                     )
 
-            step_to_kfp_component_map[current_step] = build_kfp_component(
-                current_node, current_step, current_task_id, cur_input_path
+            step_to_kfp_component_map[current_step] = (
+                build_kfp_component(
+                    current_node, current_step, current_task_id, cur_input_path
+                ), 
+                current_step, 
+                current_task_id
             )
 
             for step in current_node.out_funcs:
@@ -328,12 +332,14 @@ class KubeflowPipelines(object):
             visited = {}
 
             def build_kfp_dag(node: DAGNode, context, index=None):
-                kfp_component = step_to_kfp_component_map[node.name]
+                kfp_component, step_name, task_id = step_to_kfp_component_map[node.name]
                 visited[node.name] = step_op(
                     kfp_component.step_command,
                     kfp_run_id,
                     context,
                     self.flow.name,
+                    step_name,
+                    task_id,
                     index=index,
                 ).set_display_name(node.name)
 
@@ -365,7 +371,7 @@ class KubeflowPipelines(object):
 
 
 def step_op_func(
-    cmd_template, kfp_run_id, contexts, flow_name, index=None
+    cmd_template, kfp_run_id, contexts, flow_name, step_name, task_id, index=None
 ) -> NamedTuple("context", [("task_out_dict", dict), ("split_indexes", list)]):
     """
     Function used to create a KFP container op that corresponds to a single step in the flow.
@@ -376,9 +382,6 @@ def step_op_func(
     from subprocess import Popen, PIPE, STDOUT
     import json
     from typing import NamedTuple
-    import boto3
-
-    print("BOTO3: ", boto3.__file__)
 
     print("----")
     print("context")
@@ -390,7 +393,6 @@ def step_op_func(
     cmd = cmd_template.format(
         run_id=kfp_run_id, parent_task_id=context_dict.get("task_id", "")
     )
-    print("cmd template: ", cmd_template)
 
     print("RUNNING COMMAND: ", cmd)
     print("----")
@@ -398,6 +400,9 @@ def step_op_func(
     print("----")
 
     # TODO: Map username to KFP specific user/profile/namespace
+    # Note: we don't put this in a try catch block as below because
+    # Popen will not produce a error that will cause the Kubeflow step
+    # to stop
     with Popen(
         ["/bin/sh", "-c", cmd],
         stdin=PIPE,
@@ -405,54 +410,58 @@ def step_op_func(
         stderr=PIPE,
         universal_newlines=True,
         env=dict(os.environ, USERNAME="kfp-user", METAFLOW_RUN_ID=kfp_run_id),
-    ) as process, StringIO() as string_buffer, StringIO() as stderr_buffer:
+    ) as process, StringIO() as stdout_buffer, StringIO() as stderr_buffer:
         for line in process.stdout:
             print(line, end="")
-            string_buffer.write(line)
-        buffer_output = string_buffer.getvalue()
+            stdout_buffer.write(line)
+        stdout_output = stdout_buffer.getvalue()
         for line in process.stderr:
             print(line, end="")
             stderr_buffer.write(line)
         stderr_output = stderr_buffer.getvalue()
-
-    print("___ DONE ___")
-
-    if process.returncode != 0:
-        raise Exception("Returned: %s" % process.returncode)
-
-    with open(
-        os.path.join(tempfile.gettempdir(), "kfp_metaflow_out_dict.json"), "r"
-    ) as file:
-        task_out_dict = json.load(file)
     
-    print(f"KFP run ID: {kfp_run_id}, task_out_dict: {task_out_dict}")
+    # We put a try-catch block here because if the process above fails,
+    # this line will cause an error which will stop the Kubeflow step.
+    # We want to catch this error so the error logs can be captured
+    # and persisted to s3.
+    # TODO: this behavior is implicit. Any suggestion to make it explicit?
+    try:
+        with open(
+            os.path.join(tempfile.gettempdir(), "kfp_metaflow_out_dict.json"), "r"
+        ) as file:
+            task_out_dict = json.load(file)
+        print("___DONE___")
+    except:
+        print("Error. Persisting error logs to S3.")
 
-    print("STDOUT: ", buffer_output)
-    print("STDERR: ", stderr_output)
-
-    stdout_file = open("0.stdout.log", "w")
-    _ = stdout_file.write(buffer_output)
+    # Create two logs files, write the logs (strings) into them, and close
+    stdout_file, stderr_file = open("0.stdout.log", "w"), open("0.stderr.log", "w")
+    _, _ = stdout_file.write(stdout_output), stderr_file.write(stderr_output)
     stdout_file.close()
-
-    stderr_file = open("0.stderr.log", "w")
-    _ = stderr_file.write(stderr_output)
     stderr_file.close()
 
-    save_logs_cmd_template = f"python -m awscli s3 cp {{log_file}} s3://kfp-example-aip-dev/metaflow/{flow_name}/{kfp_run_id}/{task_out_dict['step_name']}/{task_out_dict['task_id']}/{{log_file}}"
-    # save_logs_command = f"python -m awscli s3 cp 0.stdout.log s3://kfp-example-aip-dev/metaflow/{flow_name}/{kfp_run_id}/{task_out_dict['step_name']}/{task_out_dict['task_id']}/0.stdout.log"
+    # TODO: obtain the string `s3://kfp-example-aip-dev/metaflow/` dynamically
+    save_logs_cmd_template = (
+        f"python -m awscli s3 cp {{log_file}} s3://kfp-example-aip-dev/metaflow/"
+        f"{flow_name}/{kfp_run_id}/{step_name}/"
+        f"{task_id}/{{log_file}}"
+    )
+    
     log_stdout_cmd = save_logs_cmd_template.format(log_file="0.stdout.log")
     log_stderr_cmd = save_logs_cmd_template.format(log_file="0.stderr.log")
-    save_logs_command = f"{log_stderr_cmd} >/dev/null && {log_stdout_cmd} >/dev/null"
+    save_logs_cmd = f"{log_stderr_cmd} >/dev/null && {log_stdout_cmd} >/dev/null"
 
-    print("Logging command: ", save_logs_command)
     with Popen(
-        ["/bin/sh", "-c", save_logs_command],
+        ["/bin/sh", "-c", save_logs_cmd],
         stdin=PIPE,
         stdout=PIPE,
         stderr=STDOUT,
         universal_newlines=True
-    ) as process:
-        print("Finished saving logs to S3.")
+    ) as _:
+        print("Finished saving logs to S3.") # we persist logs even if everything went fine
+    
+    if process.returncode != 0:
+        raise Exception("Returned: %s" % process.returncode)
     
     StepMetaflowContext = NamedTuple(
         "context", [("task_out_dict", dict), ("split_indexes", list)]
