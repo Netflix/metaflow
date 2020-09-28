@@ -67,8 +67,8 @@ install_metaflow <- function(method = c("conda", "virtualenv"),
     )
     have_conda <- !is.null(conda)
     if (!have_conda) {
-      message("No conda was found in the system.")
-      message("Miniconda is an open source environment management system for Python.")
+      message("No conda installation found.")
+      message("Miniconda is an open source package manager and environment management system.")
       message("See https://docs.conda.io/en/latest/miniconda.html for more details.")
       if (interactive()) {
         ans <- ifelse(prompt, utils::menu(c("Yes", "No"),
