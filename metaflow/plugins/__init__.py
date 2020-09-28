@@ -12,6 +12,7 @@ except ImportError:
         FLOW_DECORATORS=[],
         STEP_DECORATORS=[],
         ENVIRONMENTS=[],
+        METADATA_PROVIDERS=[],
         SIDECARS={},
         LOGGING_SIDECARS={},
         MONITOR_SIDECARS={})
@@ -66,6 +67,11 @@ STEP_DECORATORS = _merge_lists([CatchDecorator,
 from .conda.conda_environment import CondaEnvironment
 ENVIRONMENTS = _merge_lists([CondaEnvironment], ext_plugins.ENVIRONMENTS, 'TYPE')
 
+# Metadata providers
+from .metadata import LocalMetadataProvider, ServiceMetadataProvider
+
+METADATA_PROVIDERS = _merge_lists(
+    [LocalMetadataProvider, ServiceMetadataProvider], ext_plugins.METADATA_PROVIDERS, 'TYPE')
 
 # Every entry in this list becomes a class-level flow decorator.
 # Add an entry here if you need a new flow-level annotation. Be

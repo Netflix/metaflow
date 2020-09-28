@@ -1,12 +1,11 @@
 import json
 
-from metaflow.metaflow_config import get_authenticated_boto3_client
-
 
 class EventBridgeClient(object):
 
     def __init__(self, name):
-        self._client = get_authenticated_boto3_client('events')
+        from ..aws_client import get_aws_client
+        self._client = get_aws_client('events')
         self.name = name
 
     def cron(self, cron):

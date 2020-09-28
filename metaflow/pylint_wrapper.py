@@ -33,7 +33,13 @@ class PyLint(object):
         stderr = sys.stderr
         sys.stdout = StringIO()
         sys.stderr = StringIO()
-        run = self._run(args, None, False)
+        try:
+            pylint_is_happy = True
+            pylint_exception_msg = ""
+            run = self._run(args, None, False)
+        except Exception as e:
+            pylint_is_happy = False
+            pylint_exception_msg = repr(e)
         output = sys.stdout.getvalue()
         sys.stdout = stdout
         sys.stderr = stderr
@@ -45,6 +51,8 @@ class PyLint(object):
 
         if warnings:
             raise PyLintWarn('*Fix Pylint warnings listed above or say --no-pylint.*')
+
+        return pylint_is_happy, pylint_exception_msg
 
     def _filter_lines(self, output):
         for line in output.splitlines():
