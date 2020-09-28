@@ -3,7 +3,6 @@
 #' This is a factory class that provides convenience for creating Flow/Run/Step/Task Client objects.
 #'
 #' @docType class
-#' @importFrom R6 R6Class
 #'
 #' @return Object of \code{\link{R6Class}} with fields/methods for introspection.
 #' @format \code{\link{R6Class}} object.
@@ -74,7 +73,6 @@ mf_client <- R6::R6Class(
 #' @description A Reference Class to represent a metaflow object.
 #'
 #' @docType class
-#' @importFrom R6 R6Class
 #'
 #' @return Object of \code{\link{R6Class}} with fields/methods for introspection.
 #' @format \code{\link{R6Class}} object.
@@ -93,7 +91,7 @@ metaflow_object <- R6::R6Class(
       private$created_at_ <- obj$created_at
       private$parent_ <- obj$parent$id
       private$pathspec_ <- obj$pathspec
-      private$tags_ <- import_builtins()$list(obj$tags)
+      private$tags_ <- reticulate::import_builtins()$list(obj$tags)
 
       # TODO: handle after Core Convergence
       # The OSS version of MetaflowObject class does not have url_path property
