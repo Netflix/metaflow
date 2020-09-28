@@ -32,13 +32,13 @@ install_metaflow <- function(method = c("conda", "virtualenv"),
   env_set <- check_environment(envname)
   if (method == "conda" && env_set[["virtualenv"]]) {
     stop("An existing virtualenv <", envname, "> is detected for Metaflow installation.\n", 
-       "To continue, remove that environment by executing `metaflow::remove_metaflow_env()`",
+       "To continue, remove that environment by executing metaflow::remove_metaflow_env()",
        " and try installing Metaflow again.", call.=FALSE)
   }
 
   if (method == "virtualenv" && env_set[["conda"]]) {
     stop("An existing conda environment <", envname, "> is detected for Metaflow installation.\n", 
-       "To continue, remove that environment by executing `metaflow::remove_metaflow_env()`",
+       "To continue, remove that environment by executing metaflow::remove_metaflow_env()",
        " and try installing Metaflow again.", call.=FALSE)
   }
 
@@ -125,19 +125,11 @@ remove_metaflow_env <- function(prompt = TRUE) {
   env_set <- check_environment(envname)
 
   if (env_set[["conda"]]) {
-    conda <- tryCatch(reticulate::conda_binary(),
-      error = function(e) NULL
-    )
-    have_conda <- !is.null(conda)
-    if (!have_conda) {
-      message("No conda installation found. Aborting...")
-    } else {
-      message("Conda environment <", envname, "> will be deleted.\n")
-      ans <- ifelse(prompt, utils::menu(c("No", "Yes"), title = "Proceed?"), 2)
-      if (ans == 1) stop("Cancelled...", call. = FALSE)
-      python <- reticulate::conda_remove(envname = envname)
-      message("\nRemoval complete. Please restart the current R session.\n\n")
-    }
+    message("Conda environment <", envname, "> will be deleted.\n")
+    ans <- ifelse(prompt, utils::menu(c("No", "Yes"), title = "Proceed?"), 2)
+    if (ans == 1) stop("Cancelled...", call. = FALSE)
+    python <- reticulate::conda_remove(envname = envname)
+    message("\nRemoval complete. Please restart the current R session.\n\n")
   }
 
   if (env_set[["virtualenv"]]) {
