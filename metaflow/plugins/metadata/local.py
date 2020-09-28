@@ -4,7 +4,7 @@ import os
 import time
 
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
-from .metadata import MetadataProvider
+from metaflow.metadata import MetadataProvider
 
 
 class LocalMetadataProvider(MetadataProvider):
