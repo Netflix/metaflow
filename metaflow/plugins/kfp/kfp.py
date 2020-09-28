@@ -35,7 +35,7 @@ class KubeflowPipelines(object):
         namespace=None,
         api_namespace=None,
         username=None,
-        **kwargs
+        **kwargs,
     ):
         """
         Analogous to step_functions_cli.py
@@ -190,9 +190,9 @@ class KubeflowPipelines(object):
             step_to_kfp_component_map[current_step] = (
                 build_kfp_component(
                     current_node, current_step, current_task_id, cur_input_path
-                ), 
-                current_step, 
-                current_task_id
+                ),
+                current_step,
+                current_task_id,
             )
 
             for step in current_node.out_funcs:
@@ -419,7 +419,7 @@ def step_op_func(
             print(line, end="")
             stderr_buffer.write(line)
         stderr_output = stderr_buffer.getvalue()
-    
+
     # We put a try-catch block here because if the process above fails,
     # this line will cause an error which will stop the Kubeflow step.
     # We want to catch this error so the error logs can be captured
@@ -446,7 +446,7 @@ def step_op_func(
         f"{flow_name}/{kfp_run_id}/{step_name}/"
         f"{task_id}/{{log_file}}"
     )
-    
+
     log_stdout_cmd = save_logs_cmd_template.format(log_file="0.stdout.log")
     log_stderr_cmd = save_logs_cmd_template.format(log_file="0.stderr.log")
     save_logs_cmd = f"{log_stderr_cmd} >/dev/null && {log_stdout_cmd} >/dev/null"
@@ -456,13 +456,15 @@ def step_op_func(
         stdin=PIPE,
         stdout=PIPE,
         stderr=STDOUT,
-        universal_newlines=True
+        universal_newlines=True,
     ) as _:
-        print("Finished saving logs to S3.") # we persist logs even if everything went fine
-    
+        print(
+            "Finished saving logs to S3."
+        )  # we persist logs even if everything went fine
+
     if process.returncode != 0:
         raise Exception("Returned: %s" % process.returncode)
-    
+
     StepMetaflowContext = NamedTuple(
         "context", [("task_out_dict", dict), ("split_indexes", list)]
     )
