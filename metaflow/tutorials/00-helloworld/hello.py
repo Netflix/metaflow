@@ -1,4 +1,4 @@
-from metaflow import FlowSpec, step, resources
+from metaflow import FlowSpec, step
 
 
 class HelloFlow(FlowSpec):
@@ -21,7 +21,6 @@ class HelloFlow(FlowSpec):
         self.x = 100
         self.next(self.hello)
 
-    @resources(cpu=0.5, memory=150)
     @step
     def hello(self):
         """

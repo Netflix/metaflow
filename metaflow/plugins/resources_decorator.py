@@ -52,11 +52,18 @@ class ResourcesDecorator(StepDecorator):
              Defaults None - relying on Kubernetes defaults.
     """
     name = 'resources'
+
+    # Actual defaults are set in .aws.batch.batch_decorator.BatchDecorator and
+    # .kfp.kfp.KubeflowPipelines._get_resource_requirements respectively.
+    # The defaults here simply lists accepted attributes.
     defaults = {
-        "cpu": "1",
+        # AWS Batch and KFP supported attributes
+        "cpu": None,
+        "gpu": None,
+        "memory": None,
+
+        # Only KFP supported attributes
         "cpu_limit": None,
-        "gpu": "0",
-        "gpu_vendor": "nvidia",
-        "memory": "4000",
+        "gpu_vendor": None,
         "memory_limit": None,
     }
