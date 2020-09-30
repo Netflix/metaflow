@@ -19,7 +19,7 @@ a simple dashboard to monitor all of your Metaflow flows.**
 
 #### To play this episode:
 1. ```cd tutorials/02-statistics/```
-2. ```Rscript stats.R step-functions create --max-workers 4```
-3. ```Rscript stats.R step-functions trigger```
+2. ```Rscript stats.R --package-suffixes=.R,.csv step-functions create --max-workers 4```
+3. ```Rscript stats.R --package-suffixes=.R,.csv step-functions trigger```
 4. Open ```07-autopilot/stats.Rmd``` in your RStudio and re-run the cells. You can acccess
 the artifacts stored in AWS S3 from your local RStudio session. 
