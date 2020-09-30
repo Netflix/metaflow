@@ -17,7 +17,7 @@ $export METAFLOW_DEFAULT_METADATA=local
 ```
 
 #### To play this episode:
-1. ```cd metaflow-tutorials/R/02-statistics```
+1. ```cd tutorials/02-statistics```
 2. ```Rscript stats.R show```
 3. ```Rscript stats.R run```
 4. Open ```02-statistics/stats.Rmd``` in RStudio

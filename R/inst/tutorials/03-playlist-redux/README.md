@@ -14,9 +14,9 @@ $export METAFLOW_DEFAULT_METADATA=local
 ```
 
 #### To play this episode:
-1. ```cd metaflow-tutorials/R```
-2. ```Rscript 03-playlist-redux/playlist.R show```
-3. ```Rscript 03-playlist-redux/playlist.R run```
+1. ```cd tutorials/03-playlist-redux```
+2. ```Rscript playlist.R show```
+3. ```Rscript playlist.R run```
 
 In this ```PlayListReduxFlow```, we reuse the genre median gross box office statistics computed from ```MoviesStatsFlow```, pick the genre with the highest median gross box office, and create a randomized playlist of movies of this picked genre.
 

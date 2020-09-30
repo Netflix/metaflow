@@ -15,8 +15,8 @@ use the client to access information about any flow from anywhere.**
 1. Configure your sandbox: https://docs.metaflow.org/metaflow-on-aws/metaflow-sandbox
 
 #### To play this episode:
-1. ```cd metaflow-tutorials/R```
-2. ```Rscript 04-helloaws/helloaws.R run```
+1. ```cd tutorials/04-helloaws```
+2. ```Rscript helloaws.R run```
 3. Open ```helloaws.Rmd' in your local RStudio 
 
 ```R
