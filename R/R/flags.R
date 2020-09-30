@@ -146,7 +146,7 @@ split_parameters <- function(flags) {
     "my_runs", "run_id", 
     "origin_run_id", "with", "tag",
     # step-functions subcommands and options
-    "authorize", "step_functions", 
+    "step_functions", 
     "only_json", "generate_new_token",
     "running", "succeeded", "failed", 
     "timed_out", "aborted", "namespace",
