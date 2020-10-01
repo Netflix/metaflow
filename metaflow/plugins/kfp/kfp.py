@@ -425,18 +425,14 @@ def step_op_func(
         ["/bin/sh", "-c", cmd],
         stdin=PIPE,
         stdout=PIPE,
-        stderr=PIPE,
+        stderr=STDOUT,
         universal_newlines=True,
         env=dict(os.environ, USERNAME="kfp-user", METAFLOW_RUN_ID=kfp_run_id),
-    ) as process, StringIO() as stdout_buffer, StringIO() as stderr_buffer:
+    ) as process, StringIO() as stdout_buffer:
         for line in process.stdout:
             print(line, end="")
             stdout_buffer.write(line)
         stdout_output = stdout_buffer.getvalue()
-        for line in process.stderr:
-            print(line, end="")
-            stderr_buffer.write(line)
-        stderr_output = stderr_buffer.getvalue()
 
     # We put a try-catch block here because if the process above fails,
     # this line will cause an error which will stop the Kubeflow step.
@@ -452,11 +448,8 @@ def step_op_func(
     except:
         print("Error. Persisting error logs to S3.")
 
-    # Create two logs files, write the logs (strings) into them, and close
-    stdout_file, stderr_file = open("0.stdout.log", "w"), open("0.stderr.log", "w")
-    _, _ = stdout_file.write(stdout_output), stderr_file.write(stderr_output)
-    stdout_file.close()
-    stderr_file.close()
+    with open("0.stdout.log", "w") as stdout_file, open("0.stderr.log", "w") as stderr_file:
+        _ = stdout_file.write(stdout_output)
 
     # TODO: obtain the string `s3://kfp-example-aip-dev/metaflow/` dynamically
     save_logs_cmd_template = (
