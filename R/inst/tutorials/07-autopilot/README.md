@@ -1,4 +1,4 @@
-# Episode 08-autopilot: Scheduling Compute in the Cloud.
+# Episode 07-autopilot: Scheduling Compute in the Cloud.
 
 **This example revisits 'Episode 05-statistics-redux: Computing in the Cloud'. 
 With Metaflow, you don't need to make any code changes to schedule your flow
@@ -10,8 +10,8 @@ You can execute your flow on AWS Step Functions by using the
 a simple dashboard to monitor all of your Metaflow flows.**
 
 #### Showcasing:
-- 'step-functions create' command line option
-- 'step-functions trigger' command line option
+- `step-functions create` command line option
+- `step-functions trigger` command line option
 - Accessing data locally or remotely through the Metaflow Client API
 
 #### Before playing this episode:
