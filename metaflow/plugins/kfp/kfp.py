@@ -376,19 +376,19 @@ class KubeflowPipelines(object):
                         visited[step].after(visited[node.name])
 
             build_kfp_dag(self.graph["start"], context="")
-        
+
         return kfp_pipeline_from_flow
 
 
 def step_op_func(
-    datastore_root: str, 
-    cmd_template: str, 
-    kfp_run_id: str, 
+    datastore_root: str,
+    cmd_template: str,
+    kfp_run_id: str,
     context,
     flow_name: str,
     step_name: str,
-    task_id: str, 
-    index=None
+    task_id: str,
+    index=None,
 ) -> NamedTuple("context", [("task_out_dict", dict), ("split_indexes", list)]):
     """
     Function used to create a KFP container op that corresponds to a single step in the flow.
@@ -434,21 +434,9 @@ def step_op_func(
             stdout_buffer.write(line)
         stdout_output = stdout_buffer.getvalue()
 
-    # We put a try-catch block here because if the process above fails,
-    # this line will cause an error which will stop the Kubeflow step.
-    # We want to catch this error so the error logs can be captured
-    # and persisted to s3.
-    # TODO: this behavior is implicit. Any suggestion to make it explicit?
-    try:
-        with open(
-            os.path.join(tempfile.gettempdir(), "kfp_metaflow_out_dict.json"), "r"
-        ) as file:
-            task_out_dict = json.load(file)
-        print("___DONE___")
-    except:
-        print("Error. Persisting error logs to S3.")
-
-    with open("0.stdout.log", "w") as stdout_file, open("0.stderr.log", "w") as stderr_file:
+    with open("0.stdout.log", "w") as stdout_file, open(
+        "0.stderr.log", "w"
+    ) as stderr_file:
         _ = stdout_file.write(stdout_output)
 
     # TODO: obtain the string `s3://kfp-example-aip-dev/metaflow/` dynamically
@@ -475,6 +463,12 @@ def step_op_func(
 
     if process.returncode != 0:
         raise Exception("Returned: %s" % process.returncode)
+
+    with open(
+        os.path.join(tempfile.gettempdir(), "kfp_metaflow_out_dict.json"), "r"
+    ) as file:
+        task_out_dict = json.load(file)
+    print("___DONE___")
 
     StepMetaflowContext = NamedTuple(
         "context", [("task_out_dict", dict), ("split_indexes", list)]
