@@ -439,7 +439,6 @@ def step_op_func(
     ) as stderr_file:
         _ = stdout_file.write(stdout_output)
 
-    # TODO: obtain the string `s3://kfp-example-aip-dev/metaflow/` dynamically
     save_logs_cmd_template = (
         f"python -m awscli s3 cp {{log_file}} {datastore_root}/"
         f"{flow_name}/{kfp_run_id}/{step_name}/"
