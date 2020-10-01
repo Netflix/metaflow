@@ -1,11 +1,14 @@
+import inspect
 import os
+import random
 import string
 import sys
 from collections import deque
+from pathlib import Path
 from typing import NamedTuple
-import random
 
 import kfp
+from metaflow.metaflow_config import DATASTORE_SYSROOT_S3
 
 from .constants import DEFAULT_KFP_YAML_OUTPUT_PATH
 from ... import R
@@ -32,6 +35,8 @@ class KubeflowPipelines(object):
         environment,
         event_logger,
         monitor,
+        base_image=None,
+        s3_code_package=True,
         namespace=None,
         api_namespace=None,
         username=None,
@@ -52,6 +57,8 @@ class KubeflowPipelines(object):
         self.monitor = monitor
         self.namespace = namespace
         self.username = username
+        self.base_image = base_image
+        self.s3_code_package = s3_code_package
 
         self._client = kfp.Client(namespace=api_namespace, userid=username, **kwargs)
 
@@ -61,7 +68,7 @@ class KubeflowPipelines(object):
         """
         run_pipeline_result = self._client.create_run_from_pipeline_func(
             pipeline_func=self.create_kfp_pipeline_from_flow_graph(),
-            arguments={},
+            arguments={"datastore_root": DATASTORE_SYSROOT_S3},
             experiment_name=experiment_name,
             run_name=run_name,
             namespace=self.namespace,
@@ -78,12 +85,15 @@ class KubeflowPipelines(object):
         )
         return os.path.abspath(pipeline_file_path)
 
-    @staticmethod
-    def _command(code_package_url, environment, step_name, step_cli):
+    def _command(self, code_package_url, environment, step_name, step_cli):
         """
         Analogous to batch.py
         """
-        commands = environment.get_package_commands(code_package_url)
+        commands = (
+            environment.get_package_commands(code_package_url)
+            if self.s3_code_package
+            else ["cd " + str(Path(inspect.getabsfile(self.flow.__class__)).parent)]
+        )
         commands.extend(environment.bootstrap_commands(step_name))
         commands.append("echo 'Task is starting.'")
         commands.extend(step_cli)
@@ -141,7 +151,7 @@ class KubeflowPipelines(object):
 
             return KfpComponent(
                 node.name,
-                KubeflowPipelines._command(
+                self._command(
                     self.code_package_url, self.environment, step_name, [step_cli]
                 ),
                 total_retries,
@@ -244,7 +254,7 @@ class KubeflowPipelines(object):
                 "--metadata=%s" % self.metadata.TYPE,
                 "--environment=%s" % self.environment.TYPE,
                 "--datastore=s3",
-                "--datastore-root=%s" % self.datastore.datastore_root,
+                "--datastore-root={datastore_root}",
                 "--event-logger=%s" % self.event_logger.logger_type,
                 "--monitor=%s" % self.monitor.monitor_type,
                 "--no-pylint",
@@ -282,8 +292,8 @@ class KubeflowPipelines(object):
             "--quiet",
             "--metadata=%s" % self.metadata.TYPE,
             "--environment=%s" % self.environment.TYPE,
-            "--datastore=%s" % self.datastore.TYPE,
-            "--datastore-root=%s" % self.datastore.datastore_root,
+            "--datastore=s3",
+            "--datastore-root={datastore_root}",
             "--event-logger=%s" % self.event_logger.logger_type,
             "--monitor=%s" % self.monitor.monitor_type,
             "--no-pylint",
@@ -317,29 +327,29 @@ class KubeflowPipelines(object):
         import kfp
         from kfp import dsl
 
-        base_image = "hsezhiyan/metaflow-zillow:1.1"  # TODO: AIP-1980 and make an environment variable
         step_to_kfp_component_map = self.create_kfp_components_from_graph()
 
         # Container op that corresponds to a step defined in the Metaflow flowgraph.
         step_op = kfp.components.func_to_container_op(
-            step_op_func, base_image=base_image
+            step_op_func, base_image=self.base_image
         )
 
         @dsl.pipeline(name=self.name, description=self.graph.doc)
-        def kfp_pipeline_from_flow():
+        def kfp_pipeline_from_flow(datastore_root: str = DATASTORE_SYSROOT_S3):
             kfp_run_id = "kfp-" + dsl.RUN_ID_PLACEHOLDER
 
             visited = {}
 
-            def build_kfp_dag(node: DAGNode, context, index=None):
+            def build_kfp_dag(node: DAGNode, context: str, index=None):
                 kfp_component, step_name, task_id = step_to_kfp_component_map[node.name]
                 visited[node.name] = step_op(
+                    datastore_root,
                     kfp_component.step_command,
                     kfp_run_id,
                     context,
                     self.flow.name,
                     step_name,
-                    task_id,
+                    str(task_id),
                     index=index,
                 ).set_display_name(node.name)
 
@@ -365,33 +375,41 @@ class KubeflowPipelines(object):
 
                         visited[step].after(visited[node.name])
 
-            build_kfp_dag(self.graph["start"], {})
-
+            build_kfp_dag(self.graph["start"], context="")
+        
         return kfp_pipeline_from_flow
 
 
 def step_op_func(
-    cmd_template, kfp_run_id, contexts, flow_name, step_name, task_id, index=None
+    datastore_root: str, 
+    cmd_template: str, 
+    kfp_run_id: str, 
+    context,
+    flow_name: str,
+    step_name: str,
+    task_id: str, 
+    index=None
 ) -> NamedTuple("context", [("task_out_dict", dict), ("split_indexes", list)]):
     """
     Function used to create a KFP container op that corresponds to a single step in the flow.
     """
     import os
-    from io import StringIO
-    import tempfile
-    from subprocess import Popen, PIPE, STDOUT
     import json
+    import tempfile
+    from io import StringIO
+    from subprocess import Popen, PIPE, STDOUT
     from typing import NamedTuple
 
     print("----")
     print("context")
-    print(type(contexts))
-    print(contexts)
+    print(context)
     print("----")
-    context_dict = json.loads(contexts)
+    context_dict = json.loads("{}" if context == "" else context)
 
     cmd = cmd_template.format(
-        run_id=kfp_run_id, parent_task_id=context_dict.get("task_id", "")
+        run_id=kfp_run_id,
+        parent_task_id=context_dict.get("task_id", ""),
+        datastore_root=datastore_root,
     )
 
     print("RUNNING COMMAND: ", cmd)
@@ -442,7 +460,7 @@ def step_op_func(
 
     # TODO: obtain the string `s3://kfp-example-aip-dev/metaflow/` dynamically
     save_logs_cmd_template = (
-        f"python -m awscli s3 cp {{log_file}} s3://kfp-example-aip-dev/metaflow/"
+        f"python -m awscli s3 cp {{log_file}} {datastore_root}/"
         f"{flow_name}/{kfp_run_id}/{step_name}/"
         f"{task_id}/{{log_file}}"
     )
