@@ -425,19 +425,24 @@ def step_op_func(
         ["/bin/sh", "-c", cmd],
         stdin=PIPE,
         stdout=PIPE,
-        stderr=STDOUT,
+        stderr=PIPE,
         universal_newlines=True,
         env=dict(os.environ, USERNAME="kfp-user", METAFLOW_RUN_ID=kfp_run_id),
-    ) as process, StringIO() as stdout_buffer:
+    ) as process, StringIO() as stdout_buffer, StringIO() as stderr_buffer:
         for line in process.stdout:
             print(line, end="")
             stdout_buffer.write(line)
         stdout_output = stdout_buffer.getvalue()
+        for line in process.stderr:
+            print(line, end="")
+            stderr_buffer.write(line)
+        stderr_output = stderr_buffer.getvalue()
 
     with open("0.stdout.log", "w") as stdout_file, open(
         "0.stderr.log", "w"
     ) as stderr_file:
-        _ = stdout_file.write(stdout_output)
+        stdout_file.write(stdout_output)
+        stderr_file.write(stderr_output)
 
     save_logs_cmd_template = (
         f"python -m awscli s3 cp {{log_file}} {datastore_root}/"
