@@ -5,14 +5,16 @@ import string
 import sys
 from collections import deque
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, Union
 
 import kfp
 from metaflow.metaflow_config import DATASTORE_SYSROOT_S3
+from kfp.dsl import ContainerOp
 
 from .constants import DEFAULT_KFP_YAML_OUTPUT_PATH
 from ... import R
 from ...graph import DAGNode
+from ...plugins.resources_decorator import ResourcesDecorator
 
 
 class KfpComponent(object):
@@ -40,7 +42,7 @@ class KubeflowPipelines(object):
         namespace=None,
         api_namespace=None,
         username=None,
-        **kwargs
+        **kwargs,
     ):
         """
         Analogous to step_functions_cli.py
@@ -114,6 +116,45 @@ class KubeflowPipelines(object):
             max_error_retries = max(max_error_retries, error_retries)
 
         return max_user_code_retries, max_user_code_retries + max_error_retries
+
+    @staticmethod
+    def _get_resource_requirements(node):
+        """
+        Get resource request or limit for a Metaflow step (node) set by @resources decorator.
+
+        Supported parameters: 'cpu', 'cpu_limit', 'gpu', 'gpu_vendor', 'memory', 'memory_limit'
+        Keys with no suffix set resource request (minimum);
+        keys with 'limit' suffix sets resource limit (maximum).
+
+        Eventually resource request and limits link back to kubernetes, see
+        https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+
+        Default unit for memory is megabyte, aligning with existing resource decorator usage.
+
+        Example using resource decorator:
+            @resource(cpu=0.5, cpu_limit=2, gpu=1, memory=300)
+            @step
+            def my_kfp_step(): ...
+        """
+
+        def to_k8s_resource_format(resource: str, value: Union[int, float, str]):
+            value = str(value)
+
+            # Defaults memory unit to megabyte
+            if resource in ["memory", "memory_limit"] and value.isnumeric():
+                value = f"{value}M"
+            return value
+
+        resource_requirement = dict()
+        for deco in node.decorators:
+            if isinstance(deco, ResourcesDecorator):
+                for attr_key, attr_value in deco.attributes.items():
+                    if attr_value is not None:
+                        resource_requirement[attr_key] = to_k8s_resource_format(
+                            attr_key, attr_value
+                        )
+
+        return resource_requirement
 
     def create_kfp_components_from_graph(self):
         """
@@ -336,6 +377,30 @@ class KubeflowPipelines(object):
 
             visited = {}
 
+            def set_resource_requirements(
+                container_op: ContainerOp, resource_requirements: dict
+            ):
+                if "memory" in resource_requirements:
+                    container_op.container.set_memory_request(
+                        resource_requirements["memory"]
+                    )
+                if "memory_limit" in resource_requirements:
+                    container_op.container.set_memory_limit(
+                        resource_requirements["memory_limit"]
+                    )
+                if "cpu" in resource_requirements:
+                    container_op.container.set_cpu_request(resource_requirements["cpu"])
+                if "cpu_limit" in resource_requirements:
+                    container_op.container.set_cpu_limit(
+                        resource_requirements["cpu_limit"]
+                    )
+                if "gpu" in resource_requirements:
+                    # TODO(yunw)(AIP-2048): Support mixture of GPU from different vendors.
+                    container_op.container.set_gpu_limit(
+                        resource_requirements["gpu"],
+                        vendor=resource_requirements["gpu_vendor"],
+                    )
+
             def build_kfp_dag(node: DAGNode, context: str, index=None):
                 kfp_component = step_to_kfp_component_map[node.name]
                 visited[node.name] = step_op(
@@ -345,6 +410,11 @@ class KubeflowPipelines(object):
                     context,
                     index=index,
                 ).set_display_name(node.name)
+
+                set_resource_requirements(
+                    visited[node.name],
+                    KubeflowPipelines._get_resource_requirements(node),
+                )
 
                 if node.type == "foreach":
                     with kfp.dsl.ParallelFor(

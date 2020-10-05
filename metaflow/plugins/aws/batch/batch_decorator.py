@@ -19,6 +19,8 @@ from .batch import Batch, BatchException
 from metaflow.metaflow_config import ECS_S3_ACCESS_IAM_ROLE, BATCH_JOB_QUEUE, \
                     BATCH_CONTAINER_IMAGE, BATCH_CONTAINER_REGISTRY
 
+from metaflow.plugins.resources_decorator import ResourcesDecorator
+
 try:
     # python2
     from urlparse import urlparse
@@ -26,35 +28,6 @@ except:  # noqa E722
     # python3
     from urllib.parse import urlparse
 
-
-class ResourcesDecorator(StepDecorator):
-    """
-    Step decorator to specify the resources needed when executing this step.
-    This decorator passes this information along to Batch when requesting resources
-    to execute this step.
-    This decorator is ignored if the execution of the step does not happen on Batch.
-    To use, annotate your step as follows:
-    ```
-    @resources(cpu=32)
-    @step
-    def myStep(self):
-        ...
-    ```
-    Parameters
-    ----------
-    cpu : int
-        Number of CPUs required for this step. Defaults to 1
-    gpu : int
-        Number of GPUs required for this step. Defaults to 0
-    memory : int
-        Memory size (in MB) required for this step. Defaults to 4000
-    """
-    name = 'resources'
-    defaults = {
-        'cpu': '1',
-        'gpu': '0',
-        'memory': '4000',
-    }
 
 class BatchDecorator(StepDecorator):
     """
