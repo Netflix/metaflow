@@ -6,7 +6,7 @@ from metaflow.util import get_username
 from metaflow.metaflow_config import DATASTORE_SYSROOT_S3
 
 
-def create_template(name, node, cmds, env):
+def create_template(name, node, cmds, env, docker_image: str):
     """
     Creates a template to be executed through the DAG task.
     Foreach step is implemented as the 'steps' template which
@@ -28,7 +28,7 @@ def create_template(name, node, cmds, env):
             ]
         },
         'container': {
-            'image': 'python:alpine',
+            'image': docker_image,
             'command': ['/bin/sh'],
             'args': ['-c', cmds],
             'env': env,
@@ -99,7 +99,8 @@ class ArgoWorkflow:
                  datastore,
                  environment,
                  event_logger,
-                 monitor):
+                 monitor,
+                 image):
         self.name = name
         self.graph = graph
         self.code_package = code_package
@@ -109,6 +110,7 @@ class ArgoWorkflow:
         self.environment = environment
         self.event_logger = event_logger
         self.monitor = monitor
+        self.image = image
         self._workflow = self._compile()
 
     def to_yaml(self):
@@ -122,7 +124,7 @@ class ArgoWorkflow:
         tasks = []
         for name, node in self.graph.nodes.items():
             name = mangle_step_name(name)
-            templates.extend(create_template(name, node, self._command(node), self._env()))
+            templates.extend(create_template(name, node, self._command(node), self._env(), self.image))
             tasks.append(create_dag_task(name, node))
 
         templates.append({'name': 'entry', 'dag': {'tasks': tasks}})
