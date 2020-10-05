@@ -85,7 +85,7 @@ class KubeflowPipelines(object):
         )
         return os.path.abspath(pipeline_file_path)
 
-    def _command(self, code_package_url, environment, step_name, step_cli):
+    def _command(self, code_package_url, environment, step_name, step_cli, task_id):
         """
         Analogous to batch.py
         """
@@ -97,7 +97,25 @@ class KubeflowPipelines(object):
         commands.extend(environment.bootstrap_commands(step_name))
         commands.append("echo 'Task is starting.'")
         commands.extend(step_cli)
-        return " && ".join(commands)
+        subshell_commands = " && ".join(
+            commands
+        )  # run inside subshell to capture all stdout/stderr
+        # redirect stdout/stderr to separate files, using tee to display to UI
+        redirection_commands = "> >(tee -a 0.stdout.log) 2> >(tee -a 0.stderr.log >&2)"
+
+        def create_log_cmd(log_file):
+            save_logs_cmd_template = (
+                f"python -m awscli s3 cp {log_file} {{datastore_root}}/"
+                f"{self.flow.name}/{{run_id}}/{step_name}/"
+                f"{task_id}/{log_file}"
+            )
+            return save_logs_cmd_template
+
+        log_stdout_cmd = create_log_cmd(log_file="0.stdout.log")
+        log_stderr_cmd = create_log_cmd(log_file="0.stderr.log")
+        save_logs_cmd = f"{log_stderr_cmd} >/dev/null && {log_stdout_cmd} >/dev/null"
+
+        return f"({subshell_commands}) {redirection_commands}; {save_logs_cmd}"
 
     @staticmethod
     def _get_retries(node):
@@ -152,7 +170,11 @@ class KubeflowPipelines(object):
             return KfpComponent(
                 node.name,
                 self._command(
-                    self.code_package_url, self.environment, step_name, [step_cli]
+                    self.code_package_url,
+                    self.environment,
+                    step_name,
+                    [step_cli],
+                    task_id,
                 ),
                 total_retries,
             )
@@ -197,12 +219,8 @@ class KubeflowPipelines(object):
                         parent_task_id=str(step_to_task_id_map[parent_step]),
                     )
 
-            step_to_kfp_component_map[current_step] = (
-                build_kfp_component(
-                    current_node, current_step, current_task_id, cur_input_path
-                ),
-                current_step,
-                current_task_id,
+            step_to_kfp_component_map[current_step] = build_kfp_component(
+                current_node, current_step, current_task_id, cur_input_path
             )
 
             for step in current_node.out_funcs:
@@ -341,15 +359,13 @@ class KubeflowPipelines(object):
             visited = {}
 
             def build_kfp_dag(node: DAGNode, context: str, index=None):
-                kfp_component, step_name, task_id = step_to_kfp_component_map[node.name]
+                kfp_component = step_to_kfp_component_map[node.name]
+
                 visited[node.name] = step_op(
                     datastore_root,
                     kfp_component.step_command,
                     kfp_run_id,
                     context,
-                    self.flow.name,
-                    step_name,
-                    str(task_id),
                     index=index,
                 ).set_display_name(node.name)
 
@@ -385,9 +401,6 @@ def step_op_func(
     cmd_template: str,
     kfp_run_id: str,
     context,
-    flow_name: str,
-    step_name: str,
-    task_id: str,
     index=None,
 ) -> NamedTuple("context", [("task_out_dict", dict), ("split_indexes", list)]):
     """
@@ -422,56 +435,22 @@ def step_op_func(
     # Popen will not produce a error that will cause the Kubeflow step
     # to stop
     with Popen(
-        ["/bin/sh", "-c", cmd],
-        stdin=PIPE,
-        stdout=PIPE,
-        stderr=PIPE,
+        cmd,
+        shell=True,
         universal_newlines=True,
+        executable="/bin/bash",
         env=dict(os.environ, USERNAME="kfp-user", METAFLOW_RUN_ID=kfp_run_id),
-    ) as process, StringIO() as stdout_buffer, StringIO() as stderr_buffer:
-        for line in process.stdout:
-            print(line, end="")
-            stdout_buffer.write(line)
-        stdout_output = stdout_buffer.getvalue()
-        for line in process.stderr:
-            print(line, end="")
-            stderr_buffer.write(line)
-        stderr_output = stderr_buffer.getvalue()
+    ) as process:
+        print("Running command.")
+    process.wait()
 
-    with open("0.stdout.log", "w") as stdout_file, open(
-        "0.stderr.log", "w"
-    ) as stderr_file:
-        stdout_file.write(stdout_output)
-        stderr_file.write(stderr_output)
-
-    save_logs_cmd_template = (
-        f"python -m awscli s3 cp {{log_file}} {datastore_root}/"
-        f"{flow_name}/{kfp_run_id}/{step_name}/"
-        f"{task_id}/{{log_file}}"
-    )
-
-    log_stdout_cmd = save_logs_cmd_template.format(log_file="0.stdout.log")
-    log_stderr_cmd = save_logs_cmd_template.format(log_file="0.stderr.log")
-    save_logs_cmd = f"{log_stderr_cmd} >/dev/null && {log_stdout_cmd} >/dev/null"
-
-    with Popen(
-        ["/bin/sh", "-c", save_logs_cmd],
-        stdin=PIPE,
-        stdout=PIPE,
-        stderr=STDOUT,
-        universal_newlines=True,
-    ) as _:
-        print(
-            "Finished saving logs to S3."
-        )  # we persist logs even if everything went fine
-
-    if process.returncode != 0:
-        raise Exception("Returned: %s" % process.returncode)
-
-    with open(
-        os.path.join(tempfile.gettempdir(), "kfp_metaflow_out_dict.json"), "r"
-    ) as file:
-        task_out_dict = json.load(file)
+    try:
+        with open(
+            os.path.join(tempfile.gettempdir(), "kfp_metaflow_out_dict.json"), "r"
+        ) as file:
+            task_out_dict = json.load(file)
+    except FileNotFoundError:
+        print("There was an error with running the flow.")
     print("___DONE___")
 
     StepMetaflowContext = NamedTuple(
