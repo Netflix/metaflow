@@ -443,7 +443,7 @@ def step_op_func(
     ) as process:
         print("Running command.")
     process.wait()
-    
+
     try:
         with open(
             os.path.join(tempfile.gettempdir(), "kfp_metaflow_out_dict.json"), "r"
