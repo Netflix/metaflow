@@ -92,7 +92,8 @@ run_cmd <- function(flow_file, ...) {
 
   if ("step_functions" %in% names(flags)) {
     sfn_cmd <- paste("step-functions", flags$step_functions)
-    for (subcommand in c("authorize", "generate_new_token", 
+    # subcommands without an argument
+    for (subcommand in c("generate_new_token", 
                          "only_json", "running", "succeeded", 
                          "failed", "timed_out", "aborted")){
       if (subcommand %in% names(flags)){
@@ -101,7 +102,8 @@ run_cmd <- function(flow_file, ...) {
       }
     }
 
-    for (subcommand in c("new_token", "tag", "namespace", 
+    # subcommands following an argument
+    for (subcommand in c("authorize", "new_token", "tag", "namespace", 
                          "max_workers", "workflow_timeout")){
       if (subcommand %in% names(flags)){
         subcommand_valid <- gsub("_", "-", subcommand)
