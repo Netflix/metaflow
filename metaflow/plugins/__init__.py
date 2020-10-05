@@ -55,6 +55,7 @@ from .retry_decorator import RetryDecorator
 from .aws.batch.batch_decorator import BatchDecorator, ResourcesDecorator
 from .aws.step_functions.step_functions_decorator import StepFunctionsInternalDecorator
 from .conda.conda_step_decorator import CondaStepDecorator
+from .mlf.argo_decorator import ArgoDecorator
 
 STEP_DECORATORS = _merge_lists([CatchDecorator,
                                 TimeoutDecorator,
@@ -63,7 +64,8 @@ STEP_DECORATORS = _merge_lists([CatchDecorator,
                                 RetryDecorator,
                                 BatchDecorator,
                                 StepFunctionsInternalDecorator,
-                                CondaStepDecorator], ext_plugins.STEP_DECORATORS, 'name')
+                                CondaStepDecorator,
+                                ArgoDecorator], ext_plugins.STEP_DECORATORS, 'name')
 
 # Add Conda environment
 from .conda.conda_environment import CondaEnvironment

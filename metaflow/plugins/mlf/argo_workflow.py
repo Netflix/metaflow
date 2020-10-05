@@ -1,9 +1,13 @@
 import io
 import os
 import sys
-import shlex
 from metaflow.util import get_username
 from metaflow.metaflow_config import DATASTORE_SYSROOT_S3
+from metaflow.exception import MetaflowException
+
+
+class ArgoException(MetaflowException):
+    headline = 'Argo error'
 
 
 def create_template(name, node, cmds, env, docker_image: str):
@@ -12,6 +16,7 @@ def create_template(name, node, cmds, env, docker_image: str):
     Foreach step is implemented as the 'steps' template which
     require its own 'container' template to execute.
     """
+    cmds = "echo 'using docker {}' && {}".format(docker_image, cmds)
     t = {
         'name': name,
         'inputs': {
@@ -124,7 +129,11 @@ class ArgoWorkflow:
         tasks = []
         for name, node in self.graph.nodes.items():
             name = mangle_step_name(name)
-            templates.extend(create_template(name, node, self._command(node), self._env(), self.image))
+            docker_image = self.image
+            for decorator in node.decorators:
+                if decorator.attributes['image']:
+                    docker_image = decorator.attributes['image']
+            templates.extend(create_template(name, node, self._command(node), self._env(), docker_image))
             tasks.append(create_dag_task(name, node))
 
         templates.append({'name': 'entry', 'dag': {'tasks': tasks}})
@@ -144,7 +153,6 @@ class ArgoWorkflow:
             }
         }
 
-
     def _command(self, node):
         cmds = self.environment.get_package_commands(self.code_package_url)
         cmds.extend(self.environment.bootstrap_commands(node.name))
@@ -152,8 +160,7 @@ class ArgoWorkflow:
         cmds.extend([self._step_cli(node, self.code_package_url)])
         return " && ".join(cmds)
 
-
-    def _step_cli(self, node, code_package_url):
+    def _step_cli(self, node):
         cmds = []
         script_name = os.path.basename(sys.argv[0])
         executable = self.environment.executable(node.name)
@@ -196,7 +203,6 @@ class ArgoWorkflow:
         cmds.append(' '.join(entrypoint + top_level + step))
         return ' && '.join(cmds)
 
-
     def _env(self):
         env = {
             'AWS_ACCESS_KEY_ID': os.getenv('AWS_ACCESS_KEY_ID'),
@@ -204,4 +210,4 @@ class ArgoWorkflow:
             'METAFLOW_USER': get_username(),
             'METAFLOW_DATASTORE_SYSROOT_S3': DATASTORE_SYSROOT_S3,
         }
-        return [{'name': k, 'value': v} for k,v in env.items()]
+        return [{'name': k, 'value': v} for k, v in env.items()]

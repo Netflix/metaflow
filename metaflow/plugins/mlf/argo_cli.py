@@ -25,12 +25,14 @@ def argo(obj):
               help="Only print out YAML sent to MLF Argo Workflows.. Do not "
                    "deploy anything.")
 @click.option(
-    "--image", help="Docker image requirement in name:version format."
+    "--image",
+    help="Docker image requirement in name:version format.",
+    default="python:alpine"
 )
 @click.pass_obj
-def create(obj, only_yaml=False, image="python:alpine"):
+def create(obj, image, only_yaml=False):
     name = current.flow_name
-    obj.echo("Deploying *%s* to MLF Argo Workflows..." % name, bold=True)
+    obj.echo("creating *%s* yaml for MLF argo workflows ..." % name, bold=True)
 
     datastore = obj.datastore(obj.flow.name,
                               mode='w',
@@ -57,4 +59,8 @@ def create(obj, only_yaml=False, image="python:alpine"):
                         image)
 
     if only_yaml:
-        obj.echo_always(flow.to_yaml(), err=False, no_bold=True, nl=False)
+        yaml = flow.to_yaml()
+        obj.echo_always(yaml, err=False, no_bold=True, nl=False)
+        obj.echo_always("writing yaml to ../generated_workflow.yaml")
+        with open("../generated_workflow.yaml", "w") as f:
+            f.write(yaml)
