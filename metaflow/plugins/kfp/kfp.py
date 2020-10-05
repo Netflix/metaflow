@@ -443,14 +443,14 @@ def step_op_func(
     ) as process:
         print("Running command.")
     process.wait()
-
+    
     try:
         with open(
             os.path.join(tempfile.gettempdir(), "kfp_metaflow_out_dict.json"), "r"
         ) as file:
             task_out_dict = json.load(file)
     except FileNotFoundError:
-        print("There was an error with running the flow.")
+        raise Exception("Flow failed to execute properly.")
     print("___DONE___")
 
     StepMetaflowContext = NamedTuple(
