@@ -1,5 +1,6 @@
 import json
 import os
+import requests
 
 from metaflow.metaflow_config import SFN_DYNAMO_DB_TABLE
 
@@ -65,6 +66,16 @@ class DynamoDbClient(object):
         return response['Item']['parent_task_ids_for_foreach_join']['SS']
 
     def _get_instance_region(self):
-        return os.popen(
-            'curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone/'
-            ).read()[:-1]
+        try:
+            r = requests.post(
+                url = "http://169.254.169.254/latest/meta-data/placement/availability-zone/"
+            )
+            if r.status_code != 200:
+                raise RuntimeError("Failed to query AWS region from " +
+                        "http://169.254.169.254/latest/meta-data/placement/availability-zone/\n" +
+                        "Error code: " + str(r.status_code))
+            return r.text[:-1]
+        except Exception as e:
+            print(repr(e))
+            raise RuntimeError("Failed to query AWS region from " +
+                        "http://169.254.169.254/latest/meta-data/placement/availability-zone/")
