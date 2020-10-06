@@ -1,10 +1,11 @@
 import click
+import platform
 
 from metaflow import current
 from metaflow.datastore.datastore import TransformableObject
 from metaflow.package import MetaflowPackage
 from metaflow.exception import MetaflowException
-from .argo_workflow import ArgoWorkflow
+from metaflow.plugins.mlf.argo_workflow import ArgoWorkflow
 
 
 @click.group()
@@ -26,8 +27,7 @@ def argo(obj):
                    "deploy anything.")
 @click.option(
     "--image",
-    help="Docker image requirement in name:version format.",
-    default="python:alpine"
+    help="Docker image requirement in name:version format."
 )
 @click.pass_obj
 def create(obj, image, only_yaml=False):
@@ -40,24 +40,27 @@ def create(obj, image, only_yaml=False):
                               event_logger=obj.event_logger,
                               monitor=obj.monitor)
     if datastore.TYPE != 's3':
-        raise MetaflowException("AWS Step Functions requires --datastore=s3.")
+        raise MetaflowException("Argo workflows require --datastore=s3.")
 
     obj.package = MetaflowPackage(
         obj.flow, obj.environment, obj.logger, obj.package_suffixes)
     package_url = datastore.save_data(
         obj.package.sha, TransformableObject(obj.package.blob))
 
+    if not image:
+        image = 'python:%s.%s' % (platform.python_version_tuple()[0], platform.python_version_tuple()[1])
+
     workflow = ArgoWorkflow(name.lower(),
-                        obj.flow,
-                        obj.graph,
-                        obj.package,
-                        package_url,
-                        obj.metadata,
-                        obj.datastore,
-                        obj.environment,
-                        obj.event_logger,
-                        obj.monitor,
-                        image)
+                          obj.flow,
+                          obj.graph,
+                          obj.package,
+                          package_url,
+                          obj.metadata,
+                          obj.datastore,
+                          obj.environment,
+                          obj.event_logger,
+                          obj.monitor,
+                          image)
 
     if only_yaml:
         yaml = workflow.to_yaml()
