@@ -157,7 +157,7 @@ class ArgoWorkflow:
         cmds = self.environment.get_package_commands(self.code_package_url)
         cmds.extend(self.environment.bootstrap_commands(node.name))
         cmds.append("echo 'Task is starting.'")
-        cmds.extend([self._step_cli(node, self.code_package_url)])
+        cmds.extend([self._step_cli(node)])
         return " && ".join(cmds)
 
     def _step_cli(self, node):
