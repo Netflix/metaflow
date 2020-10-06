@@ -94,9 +94,17 @@ def mangle_step_name(name):
     return name.replace('_', '-')
 
 
+def _get_base_docker_image(base_image: str, flow_decorators: dict) -> str:
+    if 'argo_base' in flow_decorators:
+        if flow_decorators['argo_base'].attributes['image']:
+            base_image = flow_decorators['argo_base'].attributes['image']
+    return base_image
+
+
 class ArgoWorkflow:
     def __init__(self,
                  name,
+                 flow,
                  graph,
                  code_package,
                  code_package_url,
@@ -107,6 +115,7 @@ class ArgoWorkflow:
                  monitor,
                  image):
         self.name = name
+        self.flow = flow
         self.graph = graph
         self.code_package = code_package
         self.code_package_url = code_package_url
@@ -127,12 +136,14 @@ class ArgoWorkflow:
     def _compile(self):
         templates = []
         tasks = []
+        base_image = _get_base_docker_image(self.image, self.flow._flow_decorators)
+
         for name, node in self.graph.nodes.items():
             name = mangle_step_name(name)
-            docker_image = self.image
-            for decorator in node.decorators:
-                if decorator.attributes['image']:
-                    docker_image = decorator.attributes['image']
+            docker_image = base_image
+            for step_decorator in node.decorators:
+                if step_decorator.attributes['image']:
+                    docker_image = step_decorator.attributes['image']
             templates.extend(create_template(name, node, self._command(node), self._env(), docker_image))
             tasks.append(create_dag_task(name, node))
 
@@ -211,3 +222,4 @@ class ArgoWorkflow:
             'METAFLOW_DATASTORE_SYSROOT_S3': DATASTORE_SYSROOT_S3,
         }
         return [{'name': k, 'value': v} for k, v in env.items()]
+

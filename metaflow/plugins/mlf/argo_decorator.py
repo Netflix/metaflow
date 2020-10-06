@@ -1,8 +1,49 @@
 import platform
-import re
-from metaflow.datastore.datastore import TransformableObject
+from metaflow.decorators import FlowDecorator
 from metaflow.decorators import StepDecorator
 from .argo_workflow import ArgoException
+
+
+class ArgoFlowDecorator(FlowDecorator):
+    """
+    Flow decorator for argo workflows, that sets a default
+    for all steps in the flow.
+    To use, add this decorator directly on top of your Flow class:
+    ```
+    @argo_base(image=python:3.8-alpine)
+    class MyFlow(FlowSpec):
+        ...
+    ```
+
+    Any step level argo decorator will override any setting by this decorator.
+
+    Parameters
+    ----------
+    cpu : int
+        Number of CPUs required for this step. Defaults to 1. If @resources is also
+        present, the maximum value from all decorators is used
+    gpu : int
+        Number of GPUs required for this step. Defaults to 0. If @resources is also
+        present, the maximum value from all decorators is used
+    memory : int
+        Memory size (in MB) required for this step. Defaults to 4000. If @resources is
+        also present, the maximum value from all decorators is used
+    image : string
+        Docker image to use for argo template. If not specified, a default image mapping to
+        a base Python/ML container is used
+    """
+    name = 'argo_base'
+    defaults = {
+        'cpu': '1',
+        'gpu': '0',
+        'memory': '4000',
+        'image': None
+    }
+
+    # def flow_init(self, flow, graph, environment, datastore, logger):
+    #     if not self.attributes['image']:
+    #         self.attributes['image'] = 'python:%s.%s-alpine' % (platform.python_version_tuple()[0],
+    #                                                             platform.python_version_tuple()[1])
 
 
 class ResourcesDecorator(StepDecorator):
@@ -35,9 +76,9 @@ class ResourcesDecorator(StepDecorator):
     }
 
 
-class ArgoDecorator(StepDecorator):
+class ArgoStepDecorator(StepDecorator):
     """
-    Decorator for argo workflows
+    Step decorator for argo workflows
     ```
     @argo
     @step
@@ -71,11 +112,11 @@ class ArgoDecorator(StepDecorator):
     run_time_limit = None
 
     def __init__(self, attributes=None, statically_defined=False):
-        super(ArgoDecorator, self).__init__(attributes, statically_defined)
+        super(ArgoStepDecorator, self).__init__(attributes, statically_defined)
 
         if not self.attributes['image']:
             self.attributes['image'] = 'python:%s.%s-alpine' % (platform.python_version_tuple()[0],
-                                                              platform.python_version_tuple()[1])
+                                                                platform.python_version_tuple()[1])
 
     def step_init(self, flow, graph, step, decos, environment, datastore, logger):
         if datastore.TYPE != 's3':
@@ -87,23 +128,7 @@ class ArgoDecorator(StepDecorator):
         for deco in decos:
             if isinstance(deco, ResourcesDecorator):
                 for k, v in deco.attributes.items():
-                    # we use the larger of @resources and @argo attributes  TODO: do we need Resources?
+                    # we use the larger of @resources and @argo attributes  TODO: need ResourcesDecorator additionally?
                     my_val = self.attributes.get(k)
                     if not (my_val is None and v is None):
                         self.attributes[k] = str(max(int(my_val or 0), int(v or 0)))
-
-    @classmethod
-    def _save_package_once(cls, datastore, package):
-        if cls.package_url is None:
-            cls.package_url = datastore.save_data(package.sha, TransformableObject(package.blob))
-            cls.package_sha = package.sha
-
-    @classmethod
-    def _get_registry(cls, image):
-        pattern = re.compile('^(?:([^\/]+)\/)?(?:([^\/]+)\/)?([^@:\/]+)(?:[@:](.+))?$')
-        groups = pattern.match(image).groups()
-        registry = groups[0]
-        namespace = groups[1]
-        if not namespace and registry and not re.search(r'[:.]', registry):
-            return None
-        return registry

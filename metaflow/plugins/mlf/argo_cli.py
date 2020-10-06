@@ -47,7 +47,8 @@ def create(obj, image, only_yaml=False):
     package_url = datastore.save_data(
         obj.package.sha, TransformableObject(obj.package.blob))
 
-    flow = ArgoWorkflow(name.lower(),
+    workflow = ArgoWorkflow(name.lower(),
+                        obj.flow,
                         obj.graph,
                         obj.package,
                         package_url,
@@ -59,7 +60,7 @@ def create(obj, image, only_yaml=False):
                         image)
 
     if only_yaml:
-        yaml = flow.to_yaml()
+        yaml = workflow.to_yaml()
         obj.echo_always(yaml, err=False, no_bold=True, nl=False)
         obj.echo_always("writing yaml to ../generated_workflow.yaml")
         with open("../generated_workflow.yaml", "w") as f:
