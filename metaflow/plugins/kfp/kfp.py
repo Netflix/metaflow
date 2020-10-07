@@ -103,6 +103,10 @@ class KubeflowPipelines(object):
         # redirect stdout/stderr to separate files, using tee to display to UI
         redirection_commands = "> >(tee -a 0.stdout.log) 2> >(tee -a 0.stderr.log >&2)"
 
+        # Creating a template to save logs to S3. This is within a function because
+        # datastore_root is not available within the scope of this function, and needs
+        # to be provided in the `step_op` function. f strings (AFAK) don't support
+        # insertion of only a partial number of placeholder strings.
         def create_log_cmd(log_file):
             save_logs_cmd_template = (
                 f"python -m awscli s3 cp {log_file} {{datastore_root}}/"
@@ -115,7 +119,10 @@ class KubeflowPipelines(object):
         log_stderr_cmd = create_log_cmd(log_file="0.stderr.log")
         save_logs_cmd = f"{log_stderr_cmd} >/dev/null && {log_stdout_cmd} >/dev/null"
 
-        return f"({subshell_commands}) {redirection_commands}; {save_logs_cmd}"
+        # After the subshell/redirection commands, we capture the exit code because otherwise,
+        # due to the ';', the Popen process will always return an exit code of 0. After capturing
+        # the code, # we exit with this code manually (even if no errors are present).
+        return f"({subshell_commands}) {redirection_commands}; export exit_code=$?; {save_logs_cmd}; exit $exit_code"
 
     @staticmethod
     def _get_retries(node):
@@ -444,13 +451,14 @@ def step_op_func(
         print("Running command.")
     process.wait()
 
-    try:
-        with open(
-            os.path.join(tempfile.gettempdir(), "kfp_metaflow_out_dict.json"), "r"
-        ) as file:
-            task_out_dict = json.load(file)
-    except FileNotFoundError:
-        raise Exception("Flow failed to execute properly.")
+    if process.returncode != 0:
+        raise Exception("Returned: %s" % process.returncode)
+
+    with open(
+        os.path.join(tempfile.gettempdir(), "kfp_metaflow_out_dict.json"), "r"
+    ) as file:
+        task_out_dict = json.load(file)
+
     print("___DONE___")
 
     StepMetaflowContext = NamedTuple(
