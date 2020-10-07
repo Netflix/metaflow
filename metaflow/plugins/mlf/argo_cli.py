@@ -48,23 +48,19 @@ def create(obj, image, only_yaml=False):
         obj.package.sha, TransformableObject(obj.package.blob))
 
     if not image:
-        image = 'python:%s.%s' % (platform.python_version_tuple()[0], platform.python_version_tuple()[1])
+        image = 'python:%s.%s' % (platform.python_version_tuple()[:2])
 
     workflow = ArgoWorkflow(name.lower(),
-                          obj.flow,
-                          obj.graph,
-                          obj.package,
-                          package_url,
-                          obj.metadata,
-                          obj.datastore,
-                          obj.environment,
-                          obj.event_logger,
-                          obj.monitor,
-                          image)
+                            obj.flow,
+                            obj.graph,
+                            obj.package,
+                            package_url,
+                            obj.metadata,
+                            obj.datastore,
+                            obj.environment,
+                            obj.event_logger,
+                            obj.monitor,
+                            image)
 
     if only_yaml:
-        yaml = workflow.to_yaml()
-        obj.echo_always(yaml, err=False, no_bold=True, nl=False)
-        obj.echo_always("writing yaml to ../generated_workflow.yaml")
-        with open("../generated_workflow.yaml", "w") as f:
-            f.write(yaml)
+        obj.echo_always(workflow.to_yaml(), err=False, no_bold=True, nl=False)

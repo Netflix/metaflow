@@ -10,7 +10,7 @@ class ArgoException(MetaflowException):
     headline = 'Argo error'
 
 
-def create_template(name, node, cmds, env, docker_image: str):
+def create_template(name, node, cmds, env, docker_image):
     """
     Creates a template to be executed through the DAG task.
     Foreach step is implemented as the 'steps' template which
@@ -94,10 +94,27 @@ def mangle_step_name(name):
     return name.replace('_', '-')
 
 
-def _get_base_docker_image(base_image: str, flow_decorators: dict) -> str:
+def get_step_docker_image(base_image, flow_decorators, step):
+    """
+    docker image is inherited from: cmdline -> flow -> step
+    Parameters
+    ----------
+    base_image: specified in cmdline or default
+    flow_decorators: argo_base decorator
+    step: current step
+
+    Returns
+    -------
+    name of resulting docker_image
+    """
     if 'argo_base' in flow_decorators:
         if flow_decorators['argo_base'].attributes['image']:
             base_image = flow_decorators['argo_base'].attributes['image']
+
+    for step_decorator in step.decorators:
+        if 'image' in step_decorator.attributes and step_decorator.attributes['image']:
+            base_image = step_decorator.attributes['image']
+
     return base_image
 
 
@@ -136,14 +153,9 @@ class ArgoWorkflow:
     def _compile(self):
         templates = []
         tasks = []
-        base_image = _get_base_docker_image(self.image, self.flow._flow_decorators)
-
         for name, node in self.graph.nodes.items():
             name = mangle_step_name(name)
-            docker_image = base_image
-            for step_decorator in node.decorators:
-                if step_decorator.attributes['image']:
-                    docker_image = step_decorator.attributes['image']
+            docker_image = get_step_docker_image(self.image, self.flow._flow_decorators, node)
             templates.extend(create_template(name, node, self._command(node), self._env(), docker_image))
             tasks.append(create_dag_task(name, node))
 
@@ -222,4 +234,3 @@ class ArgoWorkflow:
             'METAFLOW_DATASTORE_SYSROOT_S3': DATASTORE_SYSROOT_S3,
         }
         return [{'name': k, 'value': v} for k, v in env.items()]
-
