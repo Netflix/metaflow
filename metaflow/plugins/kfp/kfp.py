@@ -40,7 +40,7 @@ class KubeflowPipelines(object):
         namespace=None,
         api_namespace=None,
         username=None,
-        **kwargs,
+        **kwargs
     ):
         """
         Analogous to step_functions_cli.py
@@ -367,7 +367,6 @@ class KubeflowPipelines(object):
 
             def build_kfp_dag(node: DAGNode, context: str, index=None):
                 kfp_component = step_to_kfp_component_map[node.name]
-
                 visited[node.name] = step_op(
                     datastore_root,
                     kfp_component.step_command,
@@ -438,9 +437,6 @@ def step_op_func(
     print("----")
 
     # TODO: Map username to KFP specific user/profile/namespace
-    # Note: we don't put this in a try catch block as below because
-    # Popen will not produce a error that will cause the Kubeflow step
-    # to stop
     with Popen(
         cmd,
         shell=True,
@@ -449,7 +445,6 @@ def step_op_func(
         env=dict(os.environ, USERNAME="kfp-user", METAFLOW_RUN_ID=kfp_run_id),
     ) as process:
         print("Running command.")
-    process.wait()
 
     if process.returncode != 0:
         raise Exception("Returned: %s" % process.returncode)
