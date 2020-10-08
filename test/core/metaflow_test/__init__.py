@@ -72,6 +72,7 @@ def assert_exception(func, exception):
 class MetaflowTest(object):
     PRIORITY = 999999999
     PARAMETERS = {}
+    INCLUDE_FILES = {}
     HEADER = ""
 
     def check_results(self, flow, checker):
