@@ -93,7 +93,7 @@ class MetaflowCheck(object):
     def cli_options(self):
         return sys.argv[3:]
 
-    def assert_artifact(step, name, value):
+    def assert_artifact(step, name, value, fields=None):
         raise NotImplementedError()
 
     def artifact_dict(step, name):
