@@ -87,7 +87,7 @@ class KubeflowPipelines(object):
         )
         return os.path.abspath(pipeline_file_path)
 
-    def _command(self, code_package_url, environment, step_name, step_cli):
+    def _command(self, code_package_url, environment, step_name, step_cli, task_id):
         """
         Analogous to batch.py
         """
@@ -99,7 +99,32 @@ class KubeflowPipelines(object):
         commands.extend(environment.bootstrap_commands(step_name))
         commands.append("echo 'Task is starting.'")
         commands.extend(step_cli)
-        return " && ".join(commands)
+        subshell_commands = " && ".join(
+            commands
+        )  # run inside subshell to capture all stdout/stderr
+        # redirect stdout/stderr to separate files, using tee to display to UI
+        redirection_commands = "> >(tee -a 0.stdout.log) 2> >(tee -a 0.stderr.log >&2)"
+
+        # Creating a template to save logs to S3. This is within a function because
+        # datastore_root is not available within the scope of this function, and needs
+        # to be provided in the `step_op` function. f strings (AFAK) don't support
+        # insertion of only a partial number of placeholder strings.
+        def create_log_cmd(log_file):
+            save_logs_cmd_template = (
+                f"python -m awscli s3 cp {log_file} {{datastore_root}}/"
+                f"{self.flow.name}/{{run_id}}/{step_name}/"
+                f"{task_id}/{log_file}"
+            )
+            return save_logs_cmd_template
+
+        log_stdout_cmd = create_log_cmd(log_file="0.stdout.log")
+        log_stderr_cmd = create_log_cmd(log_file="0.stderr.log")
+        save_logs_cmd = f"{log_stderr_cmd} >/dev/null && {log_stdout_cmd} >/dev/null"
+
+        # After the subshell/redirection commands, we capture the exit code because otherwise,
+        # due to the ';', the Popen process will always return an exit code of 0. After capturing
+        # the code, # we exit with this code manually (even if no errors are present).
+        return f"({subshell_commands}) {redirection_commands}; export exit_code=$?; {save_logs_cmd}; exit $exit_code"
 
     @staticmethod
     def _get_retries(node):
@@ -193,7 +218,11 @@ class KubeflowPipelines(object):
             return KfpComponent(
                 node.name,
                 self._command(
-                    self.code_package_url, self.environment, step_name, [step_cli]
+                    self.code_package_url,
+                    self.environment,
+                    step_name,
+                    [step_cli],
+                    task_id,
                 ),
                 total_retries,
             )
@@ -444,7 +473,11 @@ class KubeflowPipelines(object):
 
 
 def step_op_func(
-    datastore_root: str, cmd_template: str, kfp_run_id: str, context, index=None
+    datastore_root: str,
+    cmd_template: str,
+    kfp_run_id: str,
+    context,
+    index=None,
 ) -> NamedTuple("context", [("task_out_dict", dict), ("split_indexes", list)]):
     """
     Function used to create a KFP container op that corresponds to a single step in the flow.
@@ -475,18 +508,13 @@ def step_op_func(
 
     # TODO: Map username to KFP specific user/profile/namespace
     with Popen(
-        ["/bin/sh", "-c", cmd],
-        stdin=PIPE,
-        stdout=PIPE,
-        stderr=STDOUT,
+        cmd,
+        shell=True,
         universal_newlines=True,
+        executable="/bin/bash",
         env=dict(os.environ, USERNAME="kfp-user", METAFLOW_RUN_ID=kfp_run_id),
-    ) as process, StringIO() as string_buffer:
-        for line in process.stdout:
-            print(line, end="")
-            string_buffer.write(line)
-        buffer_output = string_buffer.getvalue()
-    print("___ DONE ___")
+    ) as process:
+        print("Running command.")
 
     if process.returncode != 0:
         raise Exception("Returned: %s" % process.returncode)
@@ -495,6 +523,8 @@ def step_op_func(
         os.path.join(tempfile.gettempdir(), "kfp_metaflow_out_dict.json"), "r"
     ) as file:
         task_out_dict = json.load(file)
+
+    print("___DONE___")
 
     StepMetaflowContext = NamedTuple(
         "context", [("task_out_dict", dict), ("split_indexes", list)]
