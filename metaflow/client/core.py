@@ -828,7 +828,7 @@ class Task(MetaflowObject):
     @property
     def data(self):
         """
-        Returns a container of data artifacts producted by this task.
+        Returns a container of data artifacts produced by this task.
 
         You can access data produced by this task as follows:
         ```
@@ -845,7 +845,7 @@ class Task(MetaflowObject):
     @property
     def artifacts(self):
         """
-        Returns a container of DataArtifacts producted by this task.
+        Returns a container of DataArtifacts produced by this task.
 
         You can access each DataArtifact by name like so:
         ```
@@ -1202,7 +1202,7 @@ class Run(MetaflowObject):
     @property
     def data(self):
         """
-        Returns a container of data artifacts producted by this run.
+        Returns a container of data artifacts produced by this run.
 
         You can access data produced by this run as follows:
         ```
