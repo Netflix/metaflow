@@ -4,19 +4,19 @@ import sys
 from metaflow.util import get_username
 from metaflow.metaflow_config import DATASTORE_SYSROOT_S3
 from metaflow.exception import MetaflowException
+from metaflow.plugins.aws.batch.batch_decorator import ResourcesDecorator
 
 
 class ArgoException(MetaflowException):
     headline = 'Argo error'
 
 
-def create_template(name, node, cmds, env, docker_image):
+def create_template(name, node, cmds, env, docker_image, resources):
     """
     Creates a template to be executed through the DAG task.
     Foreach step is implemented as the 'steps' template which
     require its own 'container' template to execute.
     """
-    cmds = "echo 'using docker {}' && {}".format(docker_image, cmds)
     t = {
         'name': name,
         'inputs': {
@@ -40,6 +40,12 @@ def create_template(name, node, cmds, env, docker_image):
         }
     }
 
+    if resources:
+        t['container']['resources'] = {
+            'requests': resources,
+            'limits': resources.copy()  # prevent creating yaml anchor and link
+        }
+
     if node.is_inside_foreach:
         # main steps template should be named by 'name'
         t['name'] = f'{name}-template'
@@ -52,6 +58,32 @@ def create_template(name, node, cmds, env, docker_image):
         return [t, steps]
 
     return [t]
+
+
+def create_resources(decorators):
+    resources = {}
+
+    for deco in decorators:
+        if isinstance(deco, ResourcesDecorator):
+            for key, val in deco.attributes.items():
+                if key == 'cpu':
+                    val = int(val)
+
+                # argo cluster treats memory as kb
+                if key == 'memory':
+                    val = str(val) + 'Mi'
+
+                elif key == 'gpu':
+                    key = 'nvidia.com/gpu'
+                    val = int(val)
+                    if val <= 0:
+                        continue
+
+                resources[key] = val
+
+            break
+
+    return resources
 
 
 def create_dag_task(name, node):
@@ -156,7 +188,9 @@ class ArgoWorkflow:
         for name, node in self.graph.nodes.items():
             name = mangle_step_name(name)
             docker_image = get_step_docker_image(self.image, self.flow._flow_decorators, node)
-            templates.extend(create_template(name, node, self._command(node), self._env(), docker_image))
+            resources = create_resources(node.decorators)
+            templates.extend(
+                create_template(name, node, self._command(node), self._env(), docker_image, resources))
             tasks.append(create_dag_task(name, node))
 
         templates.append({'name': 'entry', 'dag': {'tasks': tasks}})
