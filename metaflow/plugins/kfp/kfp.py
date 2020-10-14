@@ -127,9 +127,9 @@ class KubeflowPipelines(object):
         # exit code manually because combining bash commands with ';' always results
         # in an exit code of 0, whether or not certain commands failed.
         return (
-            f"({subshell_commands}) {redirection_commands}; export exit_code_1=$?; {save_logs_cmd}; "
-            f'export exit_code_2=$?; if [ "$exit_code_1" -ne 0 ]; then exit $exit_code_1; '
-            f'elif [ "$exit_code_2" -ne 0 ]; then exit $exit_code_2; else exit 0; fi'
+            f"({subshell_commands}) {redirection_commands}; export exit_code_1=$?; "
+            f"{save_logs_cmd}; export exit_code_2=$?; "
+            f'if [ "$exit_code_1" -ne 0 ]; then exit $exit_code_1; else exit $exit_code_2; fi'
         )
 
     @staticmethod
