@@ -24,7 +24,7 @@ class ArgoFlowDecorator(FlowDecorator):
     """
     name = 'argo_base'
     defaults = {
-        'image': None,
+        'image': None
     }
 
 
@@ -42,10 +42,14 @@ class ArgoStepDecorator(StepDecorator):
     image : string
         Docker image to use for argo template. If not specified, a default image mapping to
         a base Python/ML container is used
+    nodeSelector: json
+        node selector expression, e.g. {"gpu": "nvidia-tesla-k80"}
+
     """
     name = 'argo'
     defaults = {
         'image': None,
+        'nodeSelector': None
     }
 
     def __init__(self, attributes=None, statically_defined=False):

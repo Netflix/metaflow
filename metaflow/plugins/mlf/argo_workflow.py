@@ -11,7 +11,7 @@ class ArgoException(MetaflowException):
     headline = 'Argo error'
 
 
-def create_template(name, node, cmds, env, docker_image, resources):
+def create_template(name, node, cmds, env, docker_image, node_selector, resources):
     """
     Creates a template to be executed through the DAG task.
     Foreach step is implemented as the 'steps' template which
@@ -40,6 +40,8 @@ def create_template(name, node, cmds, env, docker_image, resources):
         }
     }
 
+    if node_selector:
+        t['nodeSelector'] = node_selector
     if resources:
         t['container']['resources'] = {
             'requests': resources,
@@ -84,6 +86,14 @@ def create_resources(decorators):
             break
 
     return resources
+
+
+def create_node_selector(decorators):
+    for deco in decorators:
+        if 'nodeSelector' in deco.attributes and deco.attributes['nodeSelector']:
+            return deco.attributes['nodeSelector']
+
+    return None
 
 
 def create_dag_task(name, node):
@@ -189,8 +199,9 @@ class ArgoWorkflow:
             name = mangle_step_name(name)
             docker_image = get_step_docker_image(self.image, self.flow._flow_decorators, node)
             resources = create_resources(node.decorators)
+            node_selector = create_node_selector(node.decorators)
             templates.extend(
-                create_template(name, node, self._command(node), self._env(), docker_image, resources))
+                create_template(name, node, self._command(node), self._env(), docker_image, node_selector, resources))
             tasks.append(create_dag_task(name, node))
 
         templates.append({'name': 'entry', 'dag': {'tasks': tasks}})
