@@ -1,3 +1,4 @@
+import json
 import os
 
 from ..metaflow_config import DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_LOCAL
@@ -92,9 +93,40 @@ class LocalBackend(DataStoreBackend):
         ----------
         path : string
             Path to the object
+
+        Returns
+        -------
+        bool
         """
         full_path = self.full_uri(path)
         return os.path.isfile(full_path)
+
+    def info_file(self, path):
+        """
+        Returns a tuple where the first element is True or False depending on
+        whether path refers to a valid file-like object (like is_file) and the
+        second element is a dictionary of metadata associated with the file or
+        None if the file does not exist or there is no metadata.
+
+        Parameters
+        ----------
+        path : string
+            Path to the object
+
+        Returns
+        -------
+        tuple
+            (bool, dict)
+        """
+        file_exists = self.is_file(path)
+        if file_exists:
+            full_meta_path = "%s_meta" % self.full_uri(path)
+            try:
+                with open(full_meta_path, 'r') as f:
+                    return True, json.load(f)
+            except OSError:
+                return True, None
+        return False, None
 
     def list_content(self, paths):
         """
@@ -145,8 +177,12 @@ class LocalBackend(DataStoreBackend):
 
         Parameters
         ----------
-        path_and_bytes : Dict: string -> RawIOBase or BufferedIOBase
-            Objects to store
+        path_and_bytes : Dict: string -> (RawIOBase or BufferedIOBase, dict)
+            Objects to store; the first element in the tuple is the actual data
+            to store and the dictionary is additional metadata to store. Keys
+            for the metadata must be ascii only string and elements can be
+            anything that can be converted to a string using json.dumps. If you
+            have no metadata, you can simply pass a RawIOBase or BufferedIOBase.
         overwrite : bool
             True if the objects can be overwritten. Defaults to False.
 
@@ -154,15 +190,21 @@ class LocalBackend(DataStoreBackend):
         -------
         None
         """
-        results = {}
-        for path, byte_obj in path_and_bytes.items():
+        for path, obj in path_and_bytes.items():
+            print("Storing %s for %s" % (str(obj), path))
+            if isinstance(obj, tuple):
+                byte_obj, metadata = obj
+            else:
+                byte_obj, metadata = obj, None
             full_path = self.full_uri(path)
             if not overwrite and os.path.exists(full_path):
                 raise DataException("Cannot overwrite file %s" % full_path)
             LocalBackend._makedirs(os.path.dirname(full_path))
             with open(full_path, mode='wb') as f:
                 f.write(byte_obj.read())
-        return results
+            if metadata:
+                with open("%s_meta" % full_path, mode='w') as f:
+                    json.dump(metadata, f)
 
     def load_bytes(self, paths):
         """
@@ -179,18 +221,27 @@ class LocalBackend(DataStoreBackend):
 
         Returns
         -------
-        Dict: string -> BufferedIOBase
+        Dict: string -> (BufferedIOBase, dict)
             A dictionary is returned where the key is the path fetched and the
-            value is a BufferedIOBase indicating the result of loading the path
+            value is a tuple containing:
+              - a BufferedIOBase indicating the result of loading the path.
+              - a dictionary containing any additional metadata that was stored
+              or None if no metadata was provided.
+            If the path could not be loaded, returns None for that path
         """
         results = {}
         for path in paths:
             full_path = self.full_uri(path)
+            file_result = None
+            metadata = None
             if os.path.exists(full_path):
                 try:
-                    results[path] = LazyFile(full_path)
-                except OSError as e:
-                    results[path] = None
-            else:
-                results[path] = None
+                    file_result = LazyFile(full_path)
+                except OSError:
+                    pass
+            if file_result:
+                if os.path.exists("%s_meta" % full_path):
+                    with open("%s_meta" % full_path, mode='r') as f:
+                        metadata = json.load(f)
+            results[path] = (file_result, metadata)
         return results

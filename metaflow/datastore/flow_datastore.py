@@ -152,7 +152,7 @@ class FlowDataStore(object):
                 elif fname == TaskDataStore.METADATA_DATA_SUFFIX:
                     # This somewhat breaks the abstraction since we are using
                     # load_bytes directly instead of load_metadata
-                    with result as r:
+                    with result[0] as r:
                         data_objs[(run, step, task, attempt)] = json.loads(
                             r.read())
         # We now figure out the latest attempt that started *and* finished.
@@ -205,8 +205,8 @@ class FlowDataStore(object):
         keys : List[str]
             Keys to retrieve
         force_raw : bool, optional
-            Backward compatible mode. Raw data will typically have a key
-            that starts with 'r_' but older datastores did not do this. If you
+            Backward compatible mode. Raw data will be properly identified with
+            metadata information but older datastores did not do this. If you
             know the data should be handled as raw data, set this to True,
             by default False
 

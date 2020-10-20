@@ -227,10 +227,7 @@ class BlobCache(object):
         self._cache_id = cache_id
 
     def load(self, key):
-        if key.startswith('r_'):
-            key_dir = key[2:4]
-        else:
-            key_dir = key[:2]
+        key_dir = key[:2]
         path = os.path.join(
             self._filecache.cache_dir, self._cache_id, key_dir, '%s.blob' % key)
         return self._filecache.read_file(path)
@@ -240,10 +237,7 @@ class BlobCache(object):
         # our cache with files).
 
         # First derive the path we store it at
-        if key.startswith('r_'):
-            key_dir = key[2:4]
-        else:
-            key_dir = key[:2]
+        key_dir = key[:2]
         path = os.path.join(
             self._filecache.cache_dir, self._cache_id, key_dir, '%s.blob' % key)
         self._filecache.create_file(path, value)
