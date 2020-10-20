@@ -96,7 +96,7 @@ class MetaflowPackage(object):
             return tarinfo
 
         buf = BytesIO()
-        with tarfile.TarFile(fileobj=buf, mode='w') as tar:
+        with tarfile.TarFile(fileobj=buf, mode='w', dereference=True) as tar:
             self._add_info(tar)
             for path, arcname in self.path_tuples():
                 tar.add(path, arcname=arcname,
