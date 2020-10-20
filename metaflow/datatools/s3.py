@@ -92,10 +92,8 @@ class S3Object(object):
         self._content_type = content_type
 
         self._metadata = None
-        if metadata is not None:
-            self._metadata = {}
-            for k, v in metadata.items():
-                self._metadata[k] = url_unquote(v)
+        if metadata is not None and 'metaflow-user-attributes' in metadata:
+            self._metadata = json.loads(metadata['metaflow-user-attributes'])
 
         if range_info and (range_info.request_length is None or\
                 range_info.request_length < 0):
@@ -754,10 +752,8 @@ class S3(object):
             if content_type:
                 extra_args['ContentType'] = content_type
             if metadata:
-                d = {}
-                for k, v in metadata.items():
-                    d[k] = url_quote(v).decode('ascii')
-                extra_args['Metadata'] = d
+                extra_args['Metadata'] = {
+                    'metaflow-user-attributes': json.dumps(metadata)}
         
         def _upload(s3, _):
             # We make sure we are at the beginning in case we are retrying
@@ -807,8 +803,8 @@ class S3(object):
                 }
                 metadata = getattr(key_obj, 'metadata', None)
                 if metadata:
-                    store_info['metadata'] = {k: url_quote(v).decode('ascii') for
-                        k, v in metadata.items()}
+                    store_info['metadata'] = {
+                        'metaflow-user-attributes': json.dumps(metadata)}
                 if isinstance(obj, (RawIOBase, BufferedIOBase)):
                     if not obj.readable() or not obj.seekable():
                         raise MetaflowS3InvalidObject(
@@ -857,8 +853,8 @@ class S3(object):
                 }
                 metadata = getattr(key_path, 'metadata', None)
                 if metadata:
-                    store_info['metadata'] = {k: url_quote(v).decode('ascii') for
-                        k, v in metadata.items()}
+                    store_info['metadata'] = {
+                        'metaflow-user-attributes': json.dumps(metadata)}
                 if not os.path.exists(path):
                     raise MetaflowS3NotFound("Local file not found: %s" % path)
                 yield path, self._url(key), store_info
