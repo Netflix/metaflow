@@ -37,7 +37,7 @@ class MetaflowPackage(object):
     def _walk(self, root, exclude_hidden=True):
         root = to_unicode(root)  # handle files/folder with non ascii chars
         prefixlen = len('%s/' % os.path.dirname(root))
-        for path, dirs, files in os.walk(root):
+        for path, dirs, files in os.walk(root, followlinks=True):
             if exclude_hidden and '/.' in path:
                 continue
             # path = path[2:] # strip the ./ prefix
