@@ -537,7 +537,7 @@ def _populate_prefixes(prefixes, inputs):
                     prefixes.append(
                         (url_unquote(s[0].strip()), url_unquote(s[1].strip())))
                 else:
-                    prefixes.append(url_unquote(s[0]), None)
+                    prefixes.append(url_unquote(s[0].strip()), None)
     return prefixes
 
 @cli.command(help='Download files from S3')
