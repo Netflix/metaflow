@@ -121,10 +121,16 @@ class KubeflowPipelines(object):
         log_stderr_cmd = create_log_cmd(log_file="0.stderr.log")
         save_logs_cmd = f"{log_stderr_cmd} >/dev/null && {log_stdout_cmd} >/dev/null"
 
-        # After the subshell/redirection commands, we capture the exit code because otherwise,
-        # due to the ';', the Popen process will always return an exit code of 0. After capturing
-        # the code, # we exit with this code manually (even if no errors are present).
-        return f"({subshell_commands}) {redirection_commands}; export exit_code=$?; {save_logs_cmd}; exit $exit_code"
+        # We capture the exit code at two places:
+        # Once after the subshell/redirection commands, and once after the saving logs
+        # command. If either of these exit codes are not 0, we exit with the nonzero
+        # exit code manually because combining bash commands with ';' always results
+        # in an exit code of 0, whether or not certain commands failed.
+        return (
+            f"({subshell_commands}) {redirection_commands}; export exit_code_1=$?; "
+            f"{save_logs_cmd}; export exit_code_2=$?; "
+            f'if [ "$exit_code_1" -ne 0 ]; then exit $exit_code_1; else exit $exit_code_2; fi'
+        )
 
     @staticmethod
     def _get_retries(node):
