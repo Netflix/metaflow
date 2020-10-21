@@ -903,7 +903,7 @@ class S3(object):
                                 delete=not debug.s3client,
                                 prefix='metaflow.s3.inputs.') as inputfile:
             inputfile.write(b'\n'.join(
-                [b' '.join([url_quote(prefix), url_quote(r) if r else b''])
+                [b' '.join([url_quote(prefix)] + ([url_quote(r)] if r else []))
                     for prefix, r in prefixes_and_ranges]))
             inputfile.flush()
             stdout, stderr = self._s3op_with_retries(op,
