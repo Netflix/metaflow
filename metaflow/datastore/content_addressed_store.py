@@ -151,8 +151,24 @@ class ContentAddressedStore(object):
                 with result as r:
                     if meta is None:
                         # Backward compatible mode
-                        unpack_code = getattr(
-                            self, '_unpack_backward_compatible')
+                        # We also need to deal with a short-lived backward
+                        # compatibility mode where the version was encoded
+                        # in the file itself
+                        magic = b'.MFBlob'
+                        # Pack format for header of non-raw blobs.
+                        # The integer corresponds to the version number of the encoding
+                        info_format = '<%dsi' % len(magic)
+                        file_magic, version = struct.unpack(
+                            info_format,
+                            r.read(struct.calcsize(info_format)))
+                        if file_magic == magic:
+                            unpack_code = getattr(
+                                self, '_unpack_v%d' % version, None)
+                        else:
+                            r.seek(0)
+                            # This is the backward compatible mode
+                            unpack_code = getattr(
+                                self, '_unpack_backward_compatible')
                     else:
                         version = meta.get('cas_version', -1)
                         if version == -1:
