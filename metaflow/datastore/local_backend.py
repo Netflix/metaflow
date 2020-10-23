@@ -191,7 +191,6 @@ class LocalBackend(DataStoreBackend):
         None
         """
         for path, obj in path_and_bytes.items():
-            print("Storing %s for %s" % (str(obj), path))
             if isinstance(obj, tuple):
                 byte_obj, metadata = obj
             else:
@@ -243,5 +242,7 @@ class LocalBackend(DataStoreBackend):
                 if os.path.exists("%s_meta" % full_path):
                     with open("%s_meta" % full_path, mode='r') as f:
                         metadata = json.load(f)
-            results[path] = (file_result, metadata)
+                results[path] = (file_result, metadata)
+            else:
+                results[path] = None
         return results
