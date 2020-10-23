@@ -38,7 +38,7 @@ def get_plugin_cli():
 def _merge_lists(base, overrides, attr):
     # Merge two lists of classes by comparing them for equality using 'attr'.
     # This function prefers anything in 'overrides'. In other words, if a class
-    # is present in overrides and matches (according to the equality criterium) a class in
+    # is present in overrides and matches (according to the equality criterion) a class in
     # base, it will be used instead of the one in base.
     l = list(overrides)
     existing = set([getattr(o, attr) for o in overrides])
