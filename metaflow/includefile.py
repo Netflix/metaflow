@@ -11,10 +11,11 @@ from shutil import move
 
 import click
 
+from . import parameters
 from .datastore.datastore import TransformableObject
 from .exception import MetaflowException
 from .metaflow_config import DATATOOLS_LOCALROOT, DATATOOLS_SUFFIX
-from .parameters import context_proto, DeployTimeField, Parameter
+from .parameters import DeployTimeField, Parameter
 from .util import to_unicode
 
 try:
@@ -226,8 +227,8 @@ class FilePathClass(click.ParamType):
             self.fail(err)
         if file_type is None:
             # Here, we need to store the file
-            param_ctx = context_proto._replace(parameter_name=self.parameter_name)
-            return LocalFile(self._is_text, self._encoding, value)(param_ctx)
+            return LocalFile(
+                self._is_text, self._encoding, value)(parameters.context_proto)
         else:
             # We will just store the URL in the datastore along with text/encoding info
             return Uploader.encode_url(
