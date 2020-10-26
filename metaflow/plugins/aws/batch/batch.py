@@ -142,6 +142,7 @@ class Batch(object):
             .gpu(gpu) \
             .memory(memory) \
             .timeout_in_secs(run_time_limit) \
+            .environment_variable('AWS_DEFAULT_REGION', self._client.region()) \
             .environment_variable('METAFLOW_CODE_SHA', code_package_sha) \
             .environment_variable('METAFLOW_CODE_URL', code_package_url) \
             .environment_variable('METAFLOW_CODE_DS', code_package_ds) \
