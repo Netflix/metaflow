@@ -186,7 +186,7 @@ class S3Backend(DataStoreBackend):
         if len(path_and_bytes) > 10:
             # Use datatools
             from ..datatools.s3 import S3PutObject
-            self.s3_datatool.put_many(starmap(S3PutObject, _convert), overwrite)
+            self.s3_datatool.put_many(starmap(S3PutObject, _convert()), overwrite)
         else:
             # Sequential upload
             for key, obj, _, metadata in _convert():
