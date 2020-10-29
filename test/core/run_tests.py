@@ -1,3 +1,4 @@
+import pprint
 import sys
 import os
 import json
@@ -66,6 +67,8 @@ def run_test(formatter, context, coverage_dir, debug, checks):
         cmd.extend(context['top_options'])
         cmd.extend((mode, '--run-id-file', 'run-id'))
         cmd.extend(context['run_options'])
+        if debug:
+            print("cmd", cmd)
         return cmd
 
     cwd = os.getcwd()
@@ -80,6 +83,9 @@ def run_test(formatter, context, coverage_dir, debug, checks):
             f.write(formatter.check_code)
         with open('.coveragerc', 'w') as f:
             f.write("[run]\ndisable_warnings = module-not-measured\n")
+
+        if debug:
+            print("tempdir", tempdir)
 
         path = os.path.join(tempdir, 'test_flow.py')
 
@@ -110,6 +116,8 @@ def run_test(formatter, context, coverage_dir, debug, checks):
                 return pre_ret, path
 
         # run flow
+        if debug:
+            pprint.pprint(env)
         flow_ret = subprocess.call(run_cmd('run'), env=env)
         if flow_ret:
             if formatter.should_resume:
