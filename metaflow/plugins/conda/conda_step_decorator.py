@@ -224,7 +224,8 @@ class CondaStepDecorator(StepDecorator):
         meta.register_metadata(run_id, step_name, task_id,
                                    [MetaDatum(field='conda_env_id',
                                               value=self._env_id(),
-                                              type='conda_env_id')])
+                                              type='conda_env_id',
+                                              tags=[])])
 
     def runtime_step_cli(self, cli_args, retry_count, max_user_code_retries):
         if self.is_enabled() and 'batch' not in cli_args.commands:

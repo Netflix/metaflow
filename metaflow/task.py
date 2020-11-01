@@ -257,10 +257,12 @@ class MetaflowTask(object):
                                         task_id,
                                         [MetaDatum(field='attempt',
                                                    value=str(retry_count),
-                                                   type='attempt'),
+                                                   type='attempt',
+                                                   tags=[]),
                                          MetaDatum(field='origin-run-id',
                                                    value=str(origin_run_id),
-                                                   type='origin-run-id')])
+                                                   type='origin-run-id',
+                                                   tags=[])])
 
         step_func = getattr(self.flow, step_name)
         node = self.flow._graph[step_name]
@@ -446,6 +448,17 @@ class MetaflowTask(object):
                 "runtime": round(end)
             }
             logger.log(msg)
+
+            self.metadata.register_metadata(run_id,
+                                            step_name,
+                                            task_id,
+                                            [MetaDatum(field='attempt_status',
+                                                       value=self.flow._task_ok,
+                                                       type='attempt',
+                                                       tags=["attempt_id:{0}".
+                                                       format(str(retry_count))
+                                                             ])
+                                             ])
 
             output.save_metadata('task_end', {})
             output.persist(self.flow)
