@@ -1,49 +1,31 @@
-![Metaflow_Logo_Horizontal_FullColor_Ribbon_Dark_RGB](https://user-images.githubusercontent.com/763451/89453116-96a57e00-d713-11ea-9fa6-82b29d4d6eff.png)
+## Metaflow-Argo plugin
 
-# Metaflow
+The aim of this plugin is to generate the yaml which is runnable in argo based on the metaflow pipeline.
 
-Metaflow is a human-friendly Python/R library that helps scientists and engineers build and manage real-life data science projects. Metaflow was originally developed at Netflix to boost productivity of data scientists who work on a wide variety of projects from classical statistics to state-of-the-art deep learning.
+In order to see how metaflow works and how you can setup argo in your local machine to run the generated-yaml 
+on argo, you can find a documentation on the following link:
 
-For more information, see [Metaflow's website](https://metaflow.org) and [documentation](https://docs.metaflow.org).
+1. [Metaflow](https://github.wdf.sap.corp/AI/metaflow-argo/wiki/Metaflow)
+2. [Argo](https://github.wdf.sap.corp/AI/metaflow-argo/wiki/Argo)
+3. [argo-plugin](https://github.wdf.sap.corp/AI/metaflow-argo/wiki/argo-plugin)
 
-## Getting Started
+### Getting Started
 
-Getting up and running with Metaflow is easy. 
+`git clone git@github.wdf.sap.corp:AI/metaflow-argo.git`
 
-### Python
-Install metaflow from [pypi](https://pypi.org/project/metaflow/):
+Install Metaflow from this repo which includes the argo plugin:\
+`python3 setup.py install`
 
-```sh
-pip install metaflow
-```
+Then you can run your metaflow pipline as follows:\
+`python3 <YOUR-SCRIPT>.py argo create -only-yaml > <FILE>.yaml`
 
-and access tutorials by typing:
+here is an example that includes argo decorator.\
+`python3 metaflow/tutorials/mnist/mnist-training.py argo create -only-yaml > mnist.yaml`
 
-```sh
-metaflow tutorials pull
-```
+At the end submit the generated yaml to argo dashboard.
 
-### R
-
-Install Metaflow from [github](https://github.com/Netflix/metaflow/tree/master/R):
-
-```R
-devtools::install_github("Netflix/metaflow", subdir="R")
-metaflow::install()
-```
-
-and access tutorials by typing:
-
-```R
-metaflow::pull_tutorials()
-```
-
-## Get in Touch
-There are several ways to get in touch with us:
-
-* Open an issue at: https://github.com/Netflix/metaflow 
-* Email us at: help@metaflow.org
-* Chat with us on: http://chat.metaflow.org 
-
-## Contributing
-We welcome contributions to Metaflow. Please see our [contribution guide](https://docs.metaflow.org/introduction/contributing-to-metaflow) for more details.
+## Points of Contact
+* Developer: [Roman Kindruk](roman.kindruk@sap.com)
+* Developer: [Karim Mohraz](karim.mohraz@sap.com)
+* Developer: [Martin Kraemer](martin.kraemer@sap.com)
+* Developer: [Zahra Zamansani](zahra.zamansani@sap.com)
