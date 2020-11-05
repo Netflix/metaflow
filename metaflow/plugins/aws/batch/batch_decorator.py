@@ -182,7 +182,7 @@ class BatchDecorator(StepDecorator):
         meta['aws-batch-job-attempt'] = os.environ['AWS_BATCH_JOB_ATTEMPT']
         meta['aws-batch-ce-name'] = os.environ['AWS_BATCH_CE_NAME']
         meta['aws-batch-jq-name'] = os.environ['AWS_BATCH_JQ_NAME']    
-        entries = [MetaDatum(field=k, value=v, type=k) for k, v in meta.items()]
+        entries = [MetaDatum(field=k, value=v, type=k, tags=[]) for k, v in meta.items()]
         # Register book-keeping metadata for debugging.
         metadata.register_metadata(run_id, step_name, task_id, entries)
 
