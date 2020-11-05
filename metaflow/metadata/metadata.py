@@ -187,7 +187,8 @@ class MetadataProvider(object):
         dict[string] -> string
             Environment variables from this metadata provider
         '''
-        raise NotImplementedError()
+        return {'METAFLOW_RUNTIME_NAME': runtime_name,
+                'USER': get_username()}
 
     def register_data_artifacts(self,
                                 run_id,

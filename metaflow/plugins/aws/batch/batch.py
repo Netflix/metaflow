@@ -159,8 +159,6 @@ class Batch(object):
             # is NOT set (see get_datastore_root_from_config in datastore/local.py).
         for name, value in env.items():
             job.environment_variable(name, value)
-        for name, value in self.metadata.get_runtime_environment('batch').items():
-            job.environment_variable(name, value)
         if attrs:
             for key, value in attrs.items():
                 job.parameter(key, value)
