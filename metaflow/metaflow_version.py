@@ -14,7 +14,7 @@ import json
 __all__ = ("get_version",)
 
 CURRENT_DIRECTORY = path.dirname(path.abspath(__file__))
-INFO_FILE = path.join(CURRENT_DIRECTORY, "INFO")
+INFO_FILE = path.join(path.dirname(CURRENT_DIRECTORY), "INFO")
 
 GIT_COMMAND = "git"
 
@@ -98,8 +98,8 @@ def format_git_describe(git_str, pep440=False):
 def read_info_version():
     """Read version information from INFO file"""
     try:
-        with open(INFO_FILE, "r") as infile:
-            return json.load(infile).get('metaflow_version')
+        with open(INFO_FILE, "r") as contents:
+            return json.load(contents).get('metaflow_version')
     except IOError:
         return None
 
