@@ -309,7 +309,8 @@ class Uploader():
         else:
             extra = ''
         logger(
-            'Including file %s of size %d%s %s' % (path, sz, unit[pos], extra))
+            'Including file %s of size %d%s %s' % (path, sz, unit[pos], extra),
+            err=True)
         try:
             cur_obj = TransformableObject(io.open(path, mode='rb').read())
         except IOError:
@@ -327,7 +328,7 @@ class Uploader():
         buf.seek(0)
         with self._client_class() as client:
             url = client.put(path, buf.getvalue(), overwrite=False)
-            logger('File persisted at %s' % url)
+            logger('File persisted at %s' % url, err=True)
             return Uploader.encode_url(Uploader.file_type, url, is_text=is_text, encoding=encoding)
 
     def load(self, value):

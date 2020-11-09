@@ -20,7 +20,8 @@ class CondaEnvironment(MetaflowEnvironment):
 
     def init_environment(self, logger):
         # Print a message for now
-        logger("Bootstrapping conda environment...(this could take a few minutes)")
+        logger("Bootstrapping conda environment..." +
+            "(this could take a few minutes)", err=True)
 
     def decospecs(self):
         # Apply conda decorator to all steps

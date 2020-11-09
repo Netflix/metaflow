@@ -90,15 +90,21 @@ def echo_always(line, **kwargs):
         click.secho(ERASE_TO_EOL, **kwargs)
 
 
-def logger(body='', system_msg=False, head='', bad=False, timestamp=True):
+def logger(body='',
+           system_msg=False,
+           head='',
+           bad=False,
+           timestamp=True,
+           err=False):
     if timestamp:
         tstamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-        click.secho(tstamp + ' ', fg=LOGGER_TIMESTAMP, nl=False)
+        click.secho(tstamp + ' ', fg=LOGGER_TIMESTAMP, nl=False, err=err)
     if head:
-        click.secho(head, fg=LOGGER_COLOR, nl=False)
+        click.secho(head, fg=LOGGER_COLOR, nl=False, err=err)
     click.secho(body,
                 bold=system_msg,
-                fg=LOGGER_BAD_COLOR if bad else None)
+                fg=LOGGER_BAD_COLOR if bad else None,
+                err=err)
 
 
 @click.group()
