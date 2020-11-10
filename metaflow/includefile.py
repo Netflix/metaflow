@@ -297,7 +297,7 @@ class Uploader():
             return {'type': 'base', 'url': value}
         return json.loads(value)
 
-    def store(self, flow_name, path, is_text, encoding, logger):
+    def store(self, flow_name, path, is_text, encoding, echo):
         sz = os.path.getsize(path)
         unit = ['B', 'KB', 'MB', 'GB', 'TB']
         pos = 0
@@ -308,9 +308,8 @@ class Uploader():
             extra = '(this may take a while)'
         else:
             extra = ''
-        logger(
-            'Including file %s of size %d%s %s' % (path, sz, unit[pos], extra),
-            err=True)
+        echo(
+            'Including file %s of size %d%s %s' % (path, sz, unit[pos], extra))
         try:
             cur_obj = TransformableObject(io.open(path, mode='rb').read())
         except IOError:
@@ -319,7 +318,9 @@ class Uploader():
             raise MetaflowException('Cannot read file at %s -- this is likely because it is too '
                                     'large to be properly handled by Python 2.7' % path)
         sha = sha1(cur_obj.current()).hexdigest()
-        path = os.path.join(self._client_class.get_root_from_config(logger, True), flow_name, sha)
+        path = os.path.join(self._client_class.get_root_from_config(echo, True),
+                            flow_name,
+                            sha)
         buf = io.BytesIO()
         with gzip.GzipFile(
                 fileobj=buf, mode='wb', compresslevel=3) as f:
@@ -328,7 +329,7 @@ class Uploader():
         buf.seek(0)
         with self._client_class() as client:
             url = client.put(path, buf.getvalue(), overwrite=False)
-            logger('File persisted at %s' % url, err=True)
+            echo('File persisted at %s' % url)
             return Uploader.encode_url(Uploader.file_type, url, is_text=is_text, encoding=encoding)
 
     def load(self, value):
