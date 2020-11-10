@@ -12,7 +12,7 @@ parentDir = os.path.split(myDir)[0]
 sys.path.insert(0, parentDir)
 
 from metaflow.sidecar_messages import MessageTypes, deserialize
-from metaflow.plugins import SIDECAR
+from metaflow.plugins import SIDECARS
 
 
 class WorkershutdownError(Exception):
@@ -45,7 +45,7 @@ def process_messages(worker):
 @click.argument('worker-type')
 def main(worker_type):
 
-    worker_process = SIDECAR.get(worker_type)
+    worker_process = SIDECARS.get(worker_type)
 
     if worker_process is not None:
         process_messages(worker_process())

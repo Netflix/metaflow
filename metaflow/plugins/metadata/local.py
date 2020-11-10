@@ -4,7 +4,7 @@ import os
 import time
 
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
-from .metadata import MetadataProvider
+from metaflow.metadata import MetadataProvider
 
 
 class LocalMetadataProvider(MetadataProvider):
@@ -61,9 +61,6 @@ class LocalMetadataProvider(MetadataProvider):
                          tags=[],
                          sys_tags=[]):
         self._register_code_package_metadata(run_id, step_name, task_id)
-
-    def get_runtime_environment(self, runtime_name):
-        return {}
 
     def register_data_artifacts(self,
                                 run_id,

@@ -255,7 +255,7 @@ def make_flow(
 
     # Attach KFP decorator to the flow
     decorators._attach_decorators(obj.flow, [KfpInternalDecorator.name])
-    decorators._init_decorators(
+    decorators._init_step_decorators(
         obj.flow, obj.graph, obj.environment, obj.datastore, obj.logger
     )
 

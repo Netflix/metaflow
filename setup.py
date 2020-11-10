@@ -2,7 +2,7 @@ import os
 
 from setuptools import setup, find_packages
 
-version = '2.2.3'
+version = '2.2.4'
 
 # TODO: once this branch is merged or in pip use, remove this
 os.system(
