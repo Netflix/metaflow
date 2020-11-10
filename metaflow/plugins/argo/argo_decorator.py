@@ -1,6 +1,10 @@
 from metaflow.decorators import FlowDecorator
 from metaflow.decorators import StepDecorator
-from .argo_workflow import ArgoException
+from metaflow.exception import MetaflowException
+
+
+class ArgoException(MetaflowException):
+    headline = 'Argo error'
 
 
 class ArgoFlowDecorator(FlowDecorator):

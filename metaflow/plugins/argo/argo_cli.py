@@ -1,11 +1,12 @@
 import click
 import platform
 
-from metaflow import current
+from metaflow import current, decorators
 from metaflow.datastore.datastore import TransformableObject
 from metaflow.package import MetaflowPackage
 from metaflow.exception import MetaflowException
 from .argo_workflow import ArgoWorkflow
+from metaflow.plugins import BatchDecorator
 
 
 @click.group()
@@ -41,6 +42,11 @@ def create(obj, image, only_yaml=False):
                               monitor=obj.monitor)
     if datastore.TYPE != 's3':
         raise MetaflowException("Argo workflows require --datastore=s3.")
+
+    # When using conda attach AWS Batch decorator to the flow. This results in 'linux-64' libraries to be packaged.
+    decorators._attach_decorators(obj.flow, [BatchDecorator.name])
+    decorators._init_step_decorators(
+            obj.flow, obj.graph, obj.environment, obj.datastore, obj.logger)
 
     obj.package = MetaflowPackage(
         obj.flow, obj.environment, obj.logger, obj.package_suffixes)

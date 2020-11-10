@@ -4,13 +4,9 @@ import sys
 import json
 from metaflow.util import get_username
 from metaflow.metaflow_config import DATASTORE_SYSROOT_S3
-from metaflow.exception import MetaflowException
 from metaflow.parameters import deploy_time_eval
+from metaflow.plugins.argo.argo_decorator import ArgoStepDecorator
 from metaflow.plugins.aws.batch.batch_decorator import ResourcesDecorator
-
-
-class ArgoException(MetaflowException):
-    headline = 'Argo error'
 
 
 def create_template(name, node, cmds, env, docker_image, node_selector, resources):
@@ -92,8 +88,9 @@ def create_resources(decorators):
 
 def create_node_selector(decorators):
     for deco in decorators:
-        if 'nodeSelector' in deco.attributes and deco.attributes['nodeSelector']:
-            return deco.attributes['nodeSelector']
+        if isinstance(deco, ArgoStepDecorator):
+            if 'nodeSelector' in deco.attributes and deco.attributes['nodeSelector']:
+                return deco.attributes['nodeSelector']
 
     return None
 
@@ -156,8 +153,9 @@ def get_step_docker_image(base_image, flow_decorators, step):
             base_image = flow_decorators['argo_base'].attributes['image']
 
     for step_decorator in step.decorators:
-        if 'image' in step_decorator.attributes and step_decorator.attributes['image']:
-            base_image = step_decorator.attributes['image']
+        if isinstance(step_decorator, ArgoStepDecorator):  # prevent Batch parameters from overwriting argo parameters
+            if 'image' in step_decorator.attributes and step_decorator.attributes['image']:
+                base_image = step_decorator.attributes['image']
 
     return base_image
 
