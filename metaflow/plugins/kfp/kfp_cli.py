@@ -133,6 +133,14 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
 @click.option(
     "--workflow-timeout", default=None, type=int, help="Workflow timeout in seconds."
 )
+@click.option(
+    "--wait-for-completion",
+    "wait_for_completion",
+    is_flag=True,
+    default=False,
+    help="Wait for KFP run to complete before process exits.",
+    show_default=True,
+)
 @click.pass_obj
 def run(
     obj,
@@ -147,6 +155,7 @@ def run(
     pipeline_name=None,
     max_parallelism=None,
     workflow_timeout=None,
+    wait_for_completion=False,
 ):
     """
     Analogous to step_functions_cli.py
@@ -196,6 +205,24 @@ def run(
         )
 
         obj.echo("Run link: {kfp_run_url}\n".format(kfp_run_url=kfp_run_url), fg="cyan")
+
+        if wait_for_completion:
+            response = flow._client.wait_for_run_completion(
+                run_pipeline_result.run_id, 500
+            )
+            if response.run.status == "Succeeded":
+                obj.echo(
+                    "Flow: {flow_name}, run link: {kfp_run_url}\n  SUCCEEDED!".format(
+                        flow_name=current.flow_name, kfp_run_url=kfp_run_url
+                    ),
+                    fg="green",
+                )
+            else:
+                raise Exception(
+                    "Flow: {flow_name}, run link: {kfp_run_url} FAILED!".format(
+                        flow_name=current.flow_name, kfp_run_url=kfp_run_url
+                    )
+                )
 
 
 def make_flow(

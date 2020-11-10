@@ -1,0 +1,192 @@
+# Barebones template to ensure pipeline is triggered
+include:
+  - project: 'analytics/artificial-intelligence/ai-platform/aip-infrastructure/ci-templates/ci-cd-template'
+    ref: '37d84c8a56036de2567f88f7ede7557566d3cb53' 
+    file: 'environments/devex.yml'
+  - project: 'analytics/artificial-intelligence/ai-platform/aip-infrastructure/ci-templates/ci-cd-template'
+    ref: '37d84c8a56036de2567f88f7ede7557566d3cb53'  
+    file: 'blocks/aws.yml'
+  - project: 'analytics/artificial-intelligence/ai-platform/aip-infrastructure/ci-templates/ci-cd-template'
+    ref: '37d84c8a56036de2567f88f7ede7557566d3cb53'
+    file: 'blocks/docker.yml'
+
+variables:
+  ARTIFACT_NAME: "metaflow_integration_testing"
+  ARTIFACT_MAJOR_VERSION: "1"
+  ARTIFACT_MINOR_VERSION: "0"
+  ARTIFACTORY_WEB_APP_URL: https://artifactory.zgtools.net/artifactory/webapp/#/packages/docker
+  _SHARED_ENV_FILE: 'shared.env'
+  _IMAGE_TAG_FILE: 'image_tag_file.txt'
+
+.base:job-with-artifacts:
+  artifacts:
+    paths:
+      - ${_SHARED_ENV_FILE}
+
+.init_docker_variables:
+  extends: .base:job-with-artifacts
+  script: &init-docker-variables
+    - 'touch ${_SHARED_ENV_FILE}'
+    - 'export _USER_ID=$(echo ${GITLAB_USER_EMAIL} | sed "s/@.*//")'
+    - 'echo "export _USER_ID=${_USER_ID}" >> ${_SHARED_ENV_FILE}; source ${_SHARED_ENV_FILE}'
+
+    # Setup required environment-variables
+    - 'echo "export _ARTIFACT_VERSION=${ARTIFACT_MAJOR_VERSION}.${ARTIFACT_MINOR_VERSION}" >> ${_SHARED_ENV_FILE}; source ${_SHARED_ENV_FILE}'
+    - 'echo "export _LOCAL_DOCKER_TAG=${ARTIFACT_NAME}:${_ARTIFACT_VERSION}" >> ${_SHARED_ENV_FILE}; source ${_SHARED_ENV_FILE}'
+
+    # Tag: major.minor.commit-sha.branch-name
+    - 'echo "export _EXPANDED_VERSION_DOCKER_IMAGE_NAME=${CI_PROJECT_NAMESPACE}/${ARTIFACT_NAME}" >> ${_SHARED_ENV_FILE}; source ${_SHARED_ENV_FILE}'
+    - 'echo "export _EXPANDED_VERSION_DOCKER_IMAGE_TAG=${_ARTIFACT_VERSION}.${CI_COMMIT_SHORT_SHA}.${CI_COMMIT_REF_SLUG}" >> ${_SHARED_ENV_FILE}; source ${_SHARED_ENV_FILE}'
+
+    # Tag: major.minor.branch-name
+    - 'echo "export _NAMED_VERSION_PROJECT_NAMESPACE=$(echo ${CI_PROJECT_NAMESPACE} | cut -d "/" -f 1)/docker-images/$(echo ${CI_PROJECT_NAMESPACE} | cut -d "/" -f 2-)" >> ${_SHARED_ENV_FILE}; source ${_SHARED_ENV_FILE}'
+    - 'echo "export _NAMED_VERSION_DOCKER_IMAGE_NAME=${_NAMED_VERSION_PROJECT_NAMESPACE}/${ARTIFACT_NAME}" >> ${_SHARED_ENV_FILE}; source ${_SHARED_ENV_FILE}'
+    - 'echo "export _NAMED_VERSION_DOCKER_IMAGE_TAG=${_ARTIFACT_VERSION}.${CI_COMMIT_REF_SLUG}" >> ${_SHARED_ENV_FILE}; source ${_SHARED_ENV_FILE}'
+
+.build_and_push_docker_image:
+  script: &build-and-push-docker-image
+    # Source the artifact from the init job to enable access to shared-env-variables
+    - 'source ${_SHARED_ENV_FILE}'
+    - 'cat ${_SHARED_ENV_FILE}'
+
+    # Build Artifact (i.e: Docker Image) in Gitlab current pipeline-job-container
+    - 'docker build --no-cache -f metaflow/plugins/kfp/dockerfiles/integration_testing_full_image/Dockerfile -t ${_LOCAL_DOCKER_TAG} .'
+
+    # Function definitions for logging and uploading to docker repository
+    - 'function log_upload_path {
+        DOCKER_IMAGE_NAME=$1;
+        DOCKER_IMAGE_TAG=$2;
+        echo "Project Image Repository -" $(echo ${ARTIFACTORY_WEB_APP_URL}/$(echo "${DOCKER_IMAGE_NAME}" | sed "s/\//~2F/g" | xargs -0 printf "%b"));
+      }'
+
+    - 'function docker_push {
+           LOCAL_DOCKER_TAG=$1;
+           DOCKER_IMAGE_NAME=$2;
+           DOCKER_IMAGE_TAG=$3;
+           export DOCKER_REPO_UPLOAD_PATH=${DOCKER_REPO_URL}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG};
+
+           docker tag ${LOCAL_DOCKER_TAG} ${DOCKER_REPO_UPLOAD_PATH};
+           docker push ${DOCKER_REPO_UPLOAD_PATH};
+           log_upload_path ${DOCKER_IMAGE_NAME} ${DOCKER_IMAGE_TAG};
+       }'
+
+    # Login to docker
+    - 'echo ${DOCKER_API_KEY} | docker login -u ${DOCKER_USERNAME} --password-stdin ${DOCKER_REPO_URL}'
+
+    # Push to artifactory repo (overwrites are NOT allowed to docker-images in this repo)
+    - 'echo "Will run docker push" ${_LOCAL_DOCKER_TAG} ${_EXPANDED_VERSION_DOCKER_IMAGE_NAME} ${_EXPANDED_VERSION_DOCKER_IMAGE_TAG}'
+    - STDERR=$(docker_push ${_LOCAL_DOCKER_TAG} ${_EXPANDED_VERSION_DOCKER_IMAGE_NAME} ${_EXPANDED_VERSION_DOCKER_IMAGE_TAG} 2>&1 >/dev/null) || true
+    - echo $STDERR
+    - |
+      if [ -z "$STDERR" ] || [[ $STDERR == *"manifest invalid"* ]]; then
+        echo "Successful!"
+      else
+        echo "Error in pushing image to Artifactory."
+        exit 1
+      fi
+  
+    - 'echo "built-image-url: ${DOCKER_REPO_URL}/${_EXPANDED_VERSION_DOCKER_IMAGE_NAME}:${_EXPANDED_VERSION_DOCKER_IMAGE_TAG}"'
+   
+.path_to_host_file_directory: # obtains the path to file on the host machine, which is needed to mount a Docker on Docker
+  script: &path-to-host-file-directory
+  - export CONTAINER_ID=$(docker ps -q -f "label=com.gitlab.gitlab-runner.job.id=$CI_JOB_ID" -f "label=com.gitlab.gitlab-runner.type=build")
+  - export MOUNT_NAME=$(docker inspect $CONTAINER_ID -f "{{ range .Mounts }}{{ if eq .Destination \"/builds\" }}{{ .Source }}{{end}}{{end}}")
+  - export SHARED_PATH=$MOUNT_NAME/$CI_PROJECT_PATH
+  
+build:
+  stage: build
+  script:
+    - *init-docker-variables
+    - *build-and-push-docker-image
+    - export BUILT_IMAGE_FULL_PATH=${DOCKER_REPO_URL}/${_EXPANDED_VERSION_DOCKER_IMAGE_NAME}:${_EXPANDED_VERSION_DOCKER_IMAGE_TAG}
+    - echo ${BUILT_IMAGE_FULL_PATH} > ${_IMAGE_TAG_FILE} # file _IMAGE_TAG_FILE contains the path to the image
+  artifacts:
+    paths:
+      - ${_IMAGE_TAG_FILE} # we pass this file as an artifact to be read in the testing stages
+
+test:internal:
+  extends: 
+    - .devex_internal_eks # sets up AWS environment variables
+    - .generate_kubeconfig # creates the .kube directory for the appropriate cluster
+  variables:
+    GIT_STRATEGY: none
+    PIPELINE_VERSION: "1.0"
+  stage: test
+  script:
+    - *path-to-host-file-directory
+    - export BUILT_IMAGE_FULL_PATH=$( cat ${_IMAGE_TAG_FILE} ) # reading the path to the Docker image on Artifactory
+    - cp -r /root/.kube .
+    - docker run 
+        -v ${SHARED_PATH}/.kube:/home/zservice/.kube
+        --rm 
+        -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID 
+        -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY 
+        -e AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN 
+        -e AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION 
+        ${BUILT_IMAGE_FULL_PATH}
+        bash -c "
+          export KFP_RUN_URL_PREFIX=https://kubeflow.corp.dev-k8s.zg-aip.net/ && 
+          export KFP_SDK_NAMESPACE=metaflow-integration-testing && 
+          export METAFLOW_DATASTORE_SYSROOT_S3=s3://aip-example-dev/metaflow/ && 
+          export METAFLOW_USER=${GITLAB_USER_EMAIL} &&
+          cd /home/zservice/metaflow/metaflow/plugins/kfp/tests && 
+          python -m pytest -s -n 2 run_integration_tests.py --image ${BUILT_IMAGE_FULL_PATH}
+        "
+
+test:nonprod:
+  extends: 
+    - .devex_nonprod_eks
+    - .generate_kubeconfig
+  variables:
+    GIT_STRATEGY: none
+    PIPELINE_VERSION: "1.0"
+  stage: test
+  script:
+    - *path-to-host-file-directory  
+    - export BUILT_IMAGE_FULL_PATH=$( cat ${_IMAGE_TAG_FILE} )
+    - cp -r /root/.kube .
+    - docker run
+        -v ${SHARED_PATH}/.kube:/home/zservice/.kube 
+        --rm
+        -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID 
+        -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY 
+        -e AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN 
+        -e AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION 
+        ${BUILT_IMAGE_FULL_PATH}
+        bash -c "
+          export KFP_RUN_URL_PREFIX=https://kubeflow.corp.stage-k8s.zg-aip.net/ && 
+          export KFP_SDK_NAMESPACE=metaflow-integration-testing-dev && 
+          export METAFLOW_DATASTORE_SYSROOT_S3=s3://aip-example-stage/metaflow/ && 
+          export METAFLOW_USER=${GITLAB_USER_EMAIL} &&
+          cd /home/zservice/metaflow/metaflow/plugins/kfp/tests && 
+          python -m pytest -s -n 2 run_integration_tests.py --image ${BUILT_IMAGE_FULL_PATH}
+        "
+
+test:prod:
+  extends: 
+    - .devex_prod_eks
+    - .generate_kubeconfig
+  variables:
+    GIT_STRATEGY: none
+    PIPELINE_VERSION: "1.0"
+  stage: test
+  script:
+    - *path-to-host-file-directory
+    - export BUILT_IMAGE_FULL_PATH=$( cat ${_IMAGE_TAG_FILE} )
+    - cp -r /root/.kube .
+    - docker run
+        -v ${SHARED_PATH}/.kube:/home/zservice/.kube 
+        --rm
+        -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID 
+        -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY 
+        -e AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN 
+        -e AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION  
+        ${BUILT_IMAGE_FULL_PATH}
+        bash -c "
+          export KFP_RUN_URL_PREFIX=https://kubeflow.corp.prod-k8s.zg-aip.net/ && 
+          export KFP_SDK_NAMESPACE=metaflow-integration-testing-prod && 
+          export METAFLOW_DATASTORE_SYSROOT_S3=s3://aip-example-prod/metaflow/ &&
+          export METAFLOW_USER=${GITLAB_USER_EMAIL} && 
+          cd /home/zservice/metaflow/metaflow/plugins/kfp/tests && 
+          python -m pytest -s -n 2 run_integration_tests.py --image ${BUILT_IMAGE_FULL_PATH}
+        "
