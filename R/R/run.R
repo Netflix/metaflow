@@ -90,6 +90,30 @@ run_cmd <- function(flow_file, ...) {
     batch <- ""
   }
 
+  if ("step_functions" %in% names(flags)) {
+    sfn_cmd <- paste("step-functions", flags$step_functions)
+    # subcommands without an argument
+    for (subcommand in c("generate_new_token", 
+                         "only_json", "running", "succeeded", 
+                         "failed", "timed_out", "aborted")){
+      if (subcommand %in% names(flags)){
+        subcommand_valid <- gsub("_", "-", subcommand)
+        sfn_cmd <- paste(sfn_cmd, paste0("--", subcommand_valid))
+      }
+    }
+
+    # subcommands following an argument
+    for (subcommand in c("authorize", "new_token", "tag", "namespace", 
+                         "max_workers", "workflow_timeout")){
+      if (subcommand %in% names(flags)){
+        subcommand_valid <- gsub("_", "-", subcommand)
+        sfn_cmd <- paste(sfn_cmd, paste0("--", subcommand_valid), flags[[subcommand]])
+      }
+    }
+  } else {
+    sfn_cmd <- ""
+  }
+
   if ("max_workers" %in% names(flags)) {
     max_workers <- paste0("--max-workers=", flags$max_workers)
   } else {
@@ -100,12 +124,15 @@ run_cmd <- function(flow_file, ...) {
   } else {
     max_num_splits <- ""
   }
+
   if ("other_args" %in% names(flags)) {
     other_args <- paste(flags$other_args)
   } else {
     other_args <- ""
   }
+
   parameters <- split_parameters(flags)
+
   if ("with" %in% names(flags)) {
     with <- unlist(lapply(seq_along(flags$with), function(x) {
       paste(paste0("--with ", unlist(flags$with[x])), collapse = " ")
@@ -114,6 +141,7 @@ run_cmd <- function(flow_file, ...) {
   } else {
     with <- ""
   }
+
   if ("tag" %in% names(flags)) {
     tag <- unlist(lapply(seq_along(flags$tag), function(x) {
       paste(paste0("--tag ", unlist(flags$tag[x])), collapse = " ")
@@ -159,6 +187,12 @@ run_cmd <- function(flow_file, ...) {
     cmd <- paste("Rscript", run_path, flow_RDS, show)
   }
 
+  if ("step_functions" %in% names(flags)){
+    cmd <- paste("Rscript", run_path, flow_RDS, 
+                 "--no-pylint", package_suffixes, sfn_cmd, 
+                    parameters,  other_args)
+  }
+
   if ("help" %in% names(flags) && flags$help) {
     # if help is specified by the run(...) R functions
     if ("help" %in% names(run_options) && run_options$help) {
@@ -166,8 +200,7 @@ run_cmd <- function(flow_file, ...) {
     } else { # if help is specified in command line
       help_cmd <- paste(commandArgs(trailingOnly = TRUE), collapse = " ")
     }
-    cmd <- paste("Rscript", run_path, flow_RDS, help_cmd)
+    cmd <- paste("Rscript", run_path, flow_RDS, "--no-pylint", help_cmd)
   }
-
   cmd
 }

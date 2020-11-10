@@ -1,21 +1,20 @@
 #!/usr/bin/env python
-"""Get version identification from git
+"""Get version identification for the package
 
 See the documentation of get_version for more information
 
 """
 
-# This file is imported from https://github.com/aebrahim/python-git-version
-
-from __future__ import print_function
+# This file is adapted from https://github.com/aebrahim/python-git-version
 
 from subprocess import check_output, CalledProcessError
 from os import path, name, devnull, environ, listdir
+import json
 
 __all__ = ("get_version",)
 
 CURRENT_DIRECTORY = path.dirname(path.abspath(__file__))
-VERSION_FILE = path.join(CURRENT_DIRECTORY, "VERSION")
+INFO_FILE = path.join(path.dirname(CURRENT_DIRECTORY), "INFO")
 
 GIT_COMMAND = "git"
 
@@ -96,24 +95,13 @@ def format_git_describe(git_str, pep440=False):
             return git_str.replace("-g", "+git")
 
 
-def read_release_version():
-    """Read version information from VERSION file"""
+def read_info_version():
+    """Read version information from INFO file"""
     try:
-        with open(VERSION_FILE, "r") as infile:
-            version = str(infile.read().strip())
-        if len(version) == 0:
-            version = None
-        return version
+        with open(INFO_FILE, "r") as contents:
+            return json.load(contents).get('metaflow_version')
     except IOError:
         return None
-
-
-def update_release_version():
-    """Update VERSION file"""
-    version = get_version(pep440=True)
-    with open(VERSION_FILE, "w") as outfile:
-        outfile.write(version)
-        outfile.write("\n")
 
 
 def get_version(pep440=False):
@@ -124,22 +112,21 @@ def get_version(pep440=False):
         a release as defined by PEP 440. When False, the githash (if
         available) will be appended to the version string.
 
-    The file VERSION holds the version information. If this is not a git
-    repository, then it is reasonable to assume that the version is not
-    being incremented and the version returned will be the release version as
-    read from the file.
-
-    However, if the script is located within an active git repository,
+    If the script is located within an active git repository,
     git-describe is used to get the version information.
 
-    The file VERSION will need to be changed by manually. This should be done
-    before running git tag (set to the same as the version in the tag).
+    Otherwise, the version logged by package installer is returned.
+
+    If even that information isn't available (likely when executing on a 
+    remote cloud instance), the version information is returned from INFO file
+    in the current directory.
 
     """
 
-    git_version = format_git_describe(call_git_describe(), pep440=pep440)
-    if git_version is None:  # not a git repository
+    version = format_git_describe(call_git_describe(), pep440=pep440)
+    if version is None:  # not a git repository
         import metaflow
-        return metaflow.__version__
-    else:
-        return git_version
+        version = metaflow.__version__
+    if version is None: # not a proper python package
+        version = read_info_version()
+    return version

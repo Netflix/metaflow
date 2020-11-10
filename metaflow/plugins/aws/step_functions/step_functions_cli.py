@@ -159,7 +159,7 @@ def make_flow(obj,
 
     # Attach AWS Batch decorator to the flow
     decorators._attach_decorators(obj.flow, [BatchDecorator.name])
-    decorators._init_decorators(
+    decorators._init_step_decorators(
             obj.flow, obj.graph, obj.environment, obj.datastore, obj.logger)
 
     obj.package = MetaflowPackage(

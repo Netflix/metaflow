@@ -5,7 +5,7 @@ import time
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import METADATA_SERVICE_NUM_RETRIES, METADATA_SERVICE_HEADERS, \
     METADATA_SERVICE_URL
-from .metadata import MetadataProvider
+from metaflow.metadata import MetadataProvider
 
 
 class ServiceException(MetaflowException):
@@ -73,11 +73,7 @@ class ServiceMetadataProvider(MetadataProvider):
                            sys_tags=sys_tags)
         finally:
             self._register_code_package_metadata(run_id, step_name, task_id)
-
         
-    def get_runtime_environment(self, runtime_name):
-        return {}
-
     def register_data_artifacts(self,
                                 run_id,
                                 step_name,
