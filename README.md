@@ -40,4 +40,5 @@ E.g.\
 You can find more documentation here:
 
 * [Metaflow](https://github.wdf.sap.corp/AI/metaflow-argo/wiki/Metaflow)
-* Local installation of [Argo](https://github.wdf.sap.corp/AI/metaflow-argo/wiki/Argo)
+* [Conda](https://github.wdf.sap.corp/AI/metaflow-argo/wiki/Conda)
+* [Local installation of Argo](https://github.wdf.sap.corp/AI/metaflow-argo/wiki/Argo)
