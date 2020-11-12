@@ -16,7 +16,6 @@ from ...environment import MetaflowEnvironment
 from ...graph import DAGNode, FlowGraph
 from ...plugins.resources_decorator import ResourcesDecorator
 from .kfp_constants import (
-    DEFAULT_KFP_YAML_OUTPUT_PATH,
     INPUT_PATHS_ENV_NAME,
     PASSED_IN_SPLIT_INDEXES_ENV_NAME,
     SPLIT_INDEX_ENV_NAME,
@@ -101,9 +100,7 @@ class KubeflowPipelines(object):
         )
         return run_pipeline_result
 
-    def create_kfp_pipeline_yaml(
-        self, pipeline_file_path=DEFAULT_KFP_YAML_OUTPUT_PATH
-    ) -> str:
+    def create_kfp_pipeline_yaml(self, pipeline_file_path) -> str:
         """
         Creates a new KFP pipeline YAML using `kfp.compiler.Compiler()`.
         Note: Intermediate pipeline YAML is saved at `pipeline_file_path`
@@ -490,6 +487,7 @@ class KubeflowPipelines(object):
             dsl.get_pipeline_conf().set_parallelism(self.max_parallelism)
             dsl.get_pipeline_conf().set_timeout(self.workflow_timeout)
 
+        kfp_pipeline_from_flow.__name__ = self.name
         return kfp_pipeline_from_flow
 
 
