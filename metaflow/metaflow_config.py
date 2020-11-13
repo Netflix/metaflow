@@ -56,6 +56,7 @@ METAFLOW_USER = from_conf('METAFLOW_USER')
 ###
 KFP_SDK_NAMESPACE = from_conf('KFP_SDK_NAMESPACE', 'kubeflow')
 KFP_SDK_API_NAMESPACE = from_conf('KFP_SDK_API_NAMESPACE', 'kubeflow')
+ARGO_DEFAULT_TTL = from_conf('ARGO_DEFAULT_TTL', None)
 
 ###
 # Datastore configuration
