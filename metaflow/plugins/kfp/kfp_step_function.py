@@ -4,6 +4,7 @@ def kfp_step_function(
     kfp_run_id: str,
     passed_in_split_indexes: str = '""',  # only if is_inside_foreach
     metaflow_service_url: str = "",
+    flow_parameters_json: str = None,  # json formatted string
 ) -> list:
     """
     Renders and runs the cmd_template containing Metaflow step/init commands to
@@ -20,19 +21,19 @@ def kfp_step_function(
         passed_in_split_indexes=passed_in_split_indexes,
     )
 
+    env = dict(
+        os.environ,
+        METAFLOW_USER="kfp-user",  # TODO: what should this be for a non-scheduled run?
+        METAFLOW_SERVICE_URL=metaflow_service_url,
+    )
+    if flow_parameters_json is not None:
+        env["METAFLOW_PARAMETERS"] = flow_parameters_json
+
     # TODO: Map username to KFP specific user/profile/namespace
     # Running Metaflow
     # KFP orchestrator -> running MF runtime (runs user code, handles state)
     with Popen(
-        cmd,
-        shell=True,
-        universal_newlines=True,
-        executable="/bin/bash",
-        env=dict(
-            os.environ,
-            METAFLOW_USER="kfp-user",  # TODO: what should this be for a non-scheduled run?
-            METAFLOW_SERVICE_URL=metaflow_service_url,
-        ),
+        cmd, shell=True, universal_newlines=True, executable="/bin/bash", env=env
     ) as process:
         pass
 
