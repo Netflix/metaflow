@@ -454,8 +454,13 @@ def step(obj,
               default=None,
               required=True,
               help='ID for this instance of the step.')
+@click.option('--tag',
+              'tags',
+              multiple=True,
+              default=None,
+              help="Tags for this instance of the step.")
 @click.pass_obj
-def init(obj, run_id=None, task_id=None, **kwargs):
+def init(obj, run_id=None, task_id=None, tags=None, **kwargs):
     # init is a separate command instead of an option in 'step'
     # since we need to capture user-specified parameters with
     # @add_custom_parameters. Adding custom parameters to 'step'
@@ -467,6 +472,8 @@ def init(obj, run_id=None, task_id=None, **kwargs):
     if obj.datastore.datastore_root is None:
         obj.datastore.datastore_root = \
             obj.datastore.get_datastore_root_from_config(obj.echo)
+
+    obj.metadata.add_sticky_tags(tags=tags)
 
     runtime = NativeRuntime(obj.flow,
                             obj.graph,
