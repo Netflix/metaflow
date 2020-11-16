@@ -642,7 +642,8 @@ class Task(object):
                                'ds_type': self._ds.TYPE,
                                'location': location,
                                'attempt': self.retries}),
-                           type='log_path')]
+                           type='log_path',
+                           tags=[])]
         self.metadata.register_metadata(self.run_id,
                                         self.step,
                                         self.task_id,

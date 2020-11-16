@@ -120,7 +120,7 @@ SFN_DYNAMO_DB_TABLE = from_conf("METAFLOW_SFN_DYNAMO_DB_TABLE")
 EVENTS_SFN_ACCESS_IAM_ROLE = from_conf("METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE")
 # Prefix for AWS Step Functions state machines. Set to stack name for Metaflow
 # sandbox.
-SFN_STATE_MACHINE_PREFIX = None
+SFN_STATE_MACHINE_PREFIX = from_conf("METAFLOW_SFN_STATE_MACHINE_PREFIX")
 
 ###
 # Conda configuration
