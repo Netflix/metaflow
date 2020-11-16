@@ -16,3 +16,5 @@ in an R Markdown Notebook.**
 3. ```Rscript playlist.R run```
 4. ```Rscript playlist.R run --genre comedy```
 5. Open ```playlist.Rmd``` in RStudio.
+
+RStudio instructions. You can replace the last `run()` in `playlist.R` with `run(genre="comedy")`, and run the episode by `source("playlist.R")`.

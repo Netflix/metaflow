@@ -19,6 +19,8 @@ use the client to access information about any flow from anywhere.**
 2. ```Rscript helloaws.R run```
 3. Open ```helloaws.Rmd' in your local RStudio 
 
+In RStudio, you can run the script by `source("helloaws.R")`.
+
 ```R
 #  A flow where Metaflow prints 'Hi'.
 #  Run this flow to validate that Metaflow is installed correctly.

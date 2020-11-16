@@ -18,6 +18,8 @@ $export METAFLOW_DEFAULT_METADATA=local
 2. ```Rscript playlist.R show```
 3. ```Rscript playlist.R run```
 
+In RStudio, you can run the script by directly run `source("playlist.R")`.
+
 In this ```PlayListReduxFlow```, we reuse the genre median gross box office statistics computed from ```MoviesStatsFlow```, pick the genre with the highest median gross box office, and create a randomized playlist of movies of this picked genre.
 
 ```R

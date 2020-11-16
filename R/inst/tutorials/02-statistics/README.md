@@ -21,3 +21,5 @@ $export METAFLOW_DEFAULT_METADATA=local
 2. ```Rscript stats.R show```
 3. ```Rscript stats.R run```
 4. Open ```02-statistics/stats.Rmd``` in RStudio
+
+In RStudio, you can run the episode by `source("stats.R")`.

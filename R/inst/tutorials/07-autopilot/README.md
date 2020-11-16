@@ -23,3 +23,13 @@ a simple dashboard to monitor all of your Metaflow flows.**
 3. ```Rscript stats.R --package-suffixes=.R,.csv step-functions trigger```
 4. Open ```07-autopilot/stats.Rmd``` in your RStudio and re-run the cells. You can acccess
 the artifacts stored in AWS S3 from your local RStudio session. 
+
+RStudio instructions. We can replace the last line `run()` by 
+```R
+run(package_suffixes=".R,.csv", step_functions="create", max_workers=4)
+```
+for SFN create, and 
+```R
+run(package_suffixes=".R,.csv", step_functions="trigger")
+```
+for SFN trigger. We can then directly run `source("stats.R`)` in RStudio. 
