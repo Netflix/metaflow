@@ -44,12 +44,7 @@ class KfpInternalDecorator(StepDecorator):
             MetaDatum(field=k, value=v, type=k, tags=[]) for k, v in meta.items()
         ]
 
-        # print('registering task and run')
-        # metadata.register_run_id(run_id)
-        # metadata.register_task_id(run_id, step_name, task_id)
-
         # Register book-keeping metadata for debugging.
-        print('register metadata')
         metadata.register_metadata(run_id, step_name, task_id, entries)
 
         if metadata.TYPE == "local":

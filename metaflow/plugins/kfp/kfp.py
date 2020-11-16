@@ -526,7 +526,6 @@ def _step_op_func(
             os.environ,
             METAFLOW_USER="kfp-user",  # TODO: what should this be for a non-scheduled run?
             METAFLOW_SERVICE_URL=metaflow_service_url
-            # METAFLOW_SERVICE_URL="http://metaflow-metadata-service.abdulrahmans.svc.cluster.local",
         ),
     ) as process:
         pass

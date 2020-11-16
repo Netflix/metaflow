@@ -18,7 +18,6 @@ from metaflow.plugins.kfp.kfp_constants import (
 )
 from metaflow.util import get_username
 
-from metaflow.runtime import Task
 
 class IncorrectMetadataServiceVersion(MetaflowException):
     headline = "Incorrect version for metaflow service"
@@ -45,8 +44,6 @@ def kubeflow_pipelines(obj):
 @click.pass_obj
 def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
     from metaflow.plugins.kfp.kfp import save_step_environment_variables
-
-    # Task(run_id=run_id, step=step_name, datastore=obj.datastore, )
 
     save_step_environment_variables(
         obj.datastore,
@@ -193,7 +190,6 @@ def run(
         )
         run_pipeline_result = flow.create_run_on_kfp(experiment_name, run_name)
 
-        obj.echo("\nAbdul Version!\n")
         obj.echo("\nRun created successfully!\n")
 
         obj.echo(
