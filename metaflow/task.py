@@ -252,6 +252,9 @@ class MetaflowTask(object):
             raise MetaflowInternalError("Too many task attempts (%d)! "
                                         "MAX_ATTEMPTS exceeded." % retry_count)
 
+        print('register metadata in task 255')
+        # self.metadata.register_task_id(run_id, step_name, task_id)
+        # self.metadata.new_task_id(run_id, step_name)
         self.metadata.register_metadata(run_id,
                                         step_name,
                                         task_id,
@@ -450,6 +453,7 @@ class MetaflowTask(object):
             logger.log(msg)
 
             attempt_ok = str(bool(int(self.flow._task_ok)))
+            print('register metadata in task 454')
             self.metadata.register_metadata(run_id,
                                             step_name,
                                             task_id,

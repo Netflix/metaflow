@@ -9,7 +9,7 @@ import yaml
 import kfp
 from kfp import dsl
 from kfp.dsl import ContainerOp
-from metaflow.metaflow_config import DATASTORE_SYSROOT_S3
+from metaflow.metaflow_config import DATASTORE_SYSROOT_S3, METADATA_SERVICE_URL
 
 from ... import R
 from ...environment import MetaflowEnvironment
@@ -432,6 +432,7 @@ class KubeflowPipelines(object):
                     step_to_kfp_component_map[node.name].cmd_template,
                     kfp_run_id=f"kfp-{dsl.RUN_ID_PLACEHOLDER}",
                     passed_in_split_indexes=passed_in_split_indexes,
+                    metaflow_service_url=METADATA_SERVICE_URL
                 )
 
                 KubeflowPipelines._set_container_settings(
@@ -496,6 +497,7 @@ def _step_op_func(
     cmd_template: str,
     kfp_run_id: str,
     passed_in_split_indexes: str = '""',  # only if is_inside_foreach
+    metaflow_service_url: str = ""
 ) -> list:
     """
     Renders and runs the cmd_template containing Metaflow step/init commands to
@@ -523,6 +525,8 @@ def _step_op_func(
         env=dict(
             os.environ,
             METAFLOW_USER="kfp-user",  # TODO: what should this be for a non-scheduled run?
+            METAFLOW_SERVICE_URL=metaflow_service_url
+            # METAFLOW_SERVICE_URL="http://metaflow-metadata-service.abdulrahmans.svc.cluster.local",
         ),
     ) as process:
         pass
