@@ -201,7 +201,6 @@ class ServiceMetadataProvider(MetadataProvider):
             raise MetaflowException('Missing Metaflow Service URL. '
                 'Specify with METAFLOW_SERVICE_URL environment variable')
         url = os.path.join(cls.INFO, path.lstrip('/'))
-
         for i in range(METADATA_SERVICE_NUM_RETRIES):
             try:
                 if data is None:

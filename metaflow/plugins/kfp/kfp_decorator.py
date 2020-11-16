@@ -43,7 +43,6 @@ class KfpInternalDecorator(StepDecorator):
         entries = [
             MetaDatum(field=k, value=v, type=k, tags=[]) for k, v in meta.items()
         ]
-
         # Register book-keeping metadata for debugging.
         metadata.register_metadata(run_id, step_name, task_id, entries)
 

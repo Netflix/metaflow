@@ -644,7 +644,6 @@ class Task(object):
                                'attempt': self.retries}),
                            type='log_path',
                            tags=[])]
-
         self.metadata.register_metadata(self.run_id,
                                         self.step,
                                         self.task_id,

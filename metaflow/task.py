@@ -450,7 +450,6 @@ class MetaflowTask(object):
             logger.log(msg)
 
             attempt_ok = str(bool(int(self.flow._task_ok)))
-
             self.metadata.register_metadata(run_id,
                                             step_name,
                                             task_id,
