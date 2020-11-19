@@ -17,6 +17,9 @@ variables:
   ARTIFACTORY_WEB_APP_URL: https://artifactory.zgtools.net/artifactory/webapp/#/packages/docker
   _SHARED_ENV_FILE: 'shared.env'
   _IMAGE_TAG_FILE: 'image_tag_file.txt'
+  DEPLOY_INTERNAL: "false"
+  DEPLOY_STAGE: "true" # want to mimic the example projects, which run on stage
+  DEPLOY_PROD: "false"
 
 .base:job-with-artifacts:
   artifacts:
@@ -132,6 +135,8 @@ test:internal:
           cd /home/zservice/metaflow/metaflow/plugins/kfp/tests && 
           python -m pytest -s -n 2 run_integration_tests.py --image ${BUILT_IMAGE_FULL_PATH}
         "
+  rules:
+    - if: '$DEPLOY_INTERNAL == "true"'
 
 test:nonprod:
   extends: 
@@ -161,6 +166,8 @@ test:nonprod:
           cd /home/zservice/metaflow/metaflow/plugins/kfp/tests && 
           python -m pytest -s -n 2 run_integration_tests.py --image ${BUILT_IMAGE_FULL_PATH}
         "
+  rules:
+    - if: '$DEPLOY_STAGE == "true"'
 
 test:prod:
   extends: 
@@ -190,3 +197,5 @@ test:prod:
           cd /home/zservice/metaflow/metaflow/plugins/kfp/tests && 
           python -m pytest -s -n 2 run_integration_tests.py --image ${BUILT_IMAGE_FULL_PATH}
         "
+  rules:
+    - if: '$DEPLOY_PROD == "true"'

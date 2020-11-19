@@ -8,8 +8,8 @@ import yaml
 
 import kfp
 from kfp import dsl
-from kfp.dsl import ContainerOp
-from metaflow.metaflow_config import DATASTORE_SYSROOT_S3, METADATA_SERVICE_URL
+from kfp.dsl import ContainerOp, PipelineConf
+from metaflow.metaflow_config import DATASTORE_SYSROOT_S3, ARGO_DEFAULT_TTL, METADATA_SERVICE_URL
 
 from ... import R
 from ...environment import MetaflowEnvironment
@@ -105,8 +105,15 @@ class KubeflowPipelines(object):
         Creates a new KFP pipeline YAML using `kfp.compiler.Compiler()`.
         Note: Intermediate pipeline YAML is saved at `pipeline_file_path`
         """
+        pipeline_conf = PipelineConf()
+        pipeline_conf.set_timeout(self.workflow_timeout)
+        if ARGO_DEFAULT_TTL is not None:  # if None, we use the Argo defaults
+            pipeline_conf.set_ttl_seconds_after_finished(ARGO_DEFAULT_TTL)
+
         kfp.compiler.Compiler().compile(
-            self.create_kfp_pipeline_from_flow_graph(), pipeline_file_path
+            self.create_kfp_pipeline_from_flow_graph(),
+            pipeline_file_path,
+            pipeline_conf=pipeline_conf,
         )
         return os.path.abspath(pipeline_file_path)
 
@@ -487,6 +494,8 @@ class KubeflowPipelines(object):
             dsl.get_pipeline_conf().add_op_transformer(pipeline_transform)
             dsl.get_pipeline_conf().set_parallelism(self.max_parallelism)
             dsl.get_pipeline_conf().set_timeout(self.workflow_timeout)
+            if ARGO_DEFAULT_TTL is not None:  # # if None, we use the Argo defaults
+                dsl.get_pipeline_conf().set_ttl_seconds_after_finished(ARGO_DEFAULT_TTL)
 
         kfp_pipeline_from_flow.__name__ = self.name
         return kfp_pipeline_from_flow
