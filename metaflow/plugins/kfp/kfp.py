@@ -9,7 +9,11 @@ import yaml
 import kfp
 from kfp import dsl
 from kfp.dsl import ContainerOp, PipelineConf
-from metaflow.metaflow_config import DATASTORE_SYSROOT_S3, ARGO_DEFAULT_TTL, METADATA_SERVICE_URL
+from metaflow.metaflow_config import (
+    DATASTORE_SYSROOT_S3,
+    ARGO_DEFAULT_TTL,
+    METADATA_SERVICE_URL,
+)
 
 from ... import R
 from ...environment import MetaflowEnvironment
