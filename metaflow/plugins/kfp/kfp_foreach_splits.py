@@ -13,7 +13,7 @@ from metaflow.plugins.kfp.kfp_constants import (
 )
 
 
-def graph_to_task_ids(graph: FlowGraph) -> Dict[str, int]:
+def graph_to_task_ids(graph: FlowGraph) -> Dict[str, str]:
     """
     Traverses the graph DAG in level order assigning each node
     a monotonically incrementing task_id.
@@ -22,7 +22,7 @@ def graph_to_task_ids(graph: FlowGraph) -> Dict[str, int]:
 
     Returns: node.name, or step_name -> task_id
     """
-    step_to_task_id: Dict[str, int] = {}
+    step_to_task_id: Dict[str, str] = {}
     steps_queue = ["start"]  # Queue to process the DAG in level order
     seen_steps = {"start"}  # Set of seen steps
     task_id = 0
@@ -30,7 +30,7 @@ def graph_to_task_ids(graph: FlowGraph) -> Dict[str, int]:
         current_step = steps_queue.pop(0)
         node = graph.nodes[current_step]
         task_id += 1
-        step_to_task_id[current_step] = task_id
+        step_to_task_id[current_step] = f"kfp{task_id}"
 
         for step in node.out_funcs:
             if step not in seen_steps:
@@ -65,7 +65,7 @@ class KfpForEachSplits(object):
         self.logger = logger
         self.node = graph[step_name]
         self.flow_root = datastore.make_path(graph.name, run_id)
-        self.step_to_task_id: Dict[str, int] = graph_to_task_ids(graph)
+        self.step_to_task_id: Dict[str, str] = graph_to_task_ids(graph)
         self.s3 = S3()
 
     def __enter__(self):
