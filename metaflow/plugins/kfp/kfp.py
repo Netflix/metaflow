@@ -10,8 +10,8 @@ import kfp
 from kfp import dsl
 from kfp.dsl import ContainerOp, PipelineConf
 from metaflow.metaflow_config import (
-    ARGO_DEFAULT_TTL,
     DATASTORE_SYSROOT_S3,
+    KFP_TTL_SECONDS_AFTER_FINISHED,
     METADATA_SERVICE_URL,
 )
 from metaflow.plugins.kfp.kfp_step_function import kfp_step_function
@@ -110,8 +110,10 @@ class KubeflowPipelines(object):
         """
         pipeline_conf = PipelineConf()
         pipeline_conf.set_timeout(self.workflow_timeout)
-        if ARGO_DEFAULT_TTL is not None:  # if None, we use the Argo defaults
-            pipeline_conf.set_ttl_seconds_after_finished(ARGO_DEFAULT_TTL)
+        if (
+            KFP_TTL_SECONDS_AFTER_FINISHED is not None
+        ):  # if None, we use the Argo defaults
+            pipeline_conf.set_ttl_seconds_after_finished(KFP_TTL_SECONDS_AFTER_FINISHED)
 
         kfp.compiler.Compiler().compile(
             self.create_kfp_pipeline_from_flow_graph(),
@@ -503,8 +505,12 @@ class KubeflowPipelines(object):
             dsl.get_pipeline_conf().add_op_transformer(pipeline_transform)
             dsl.get_pipeline_conf().set_parallelism(self.max_parallelism)
             dsl.get_pipeline_conf().set_timeout(self.workflow_timeout)
-            if ARGO_DEFAULT_TTL is not None:  # # if None, we use the Argo defaults
-                dsl.get_pipeline_conf().set_ttl_seconds_after_finished(ARGO_DEFAULT_TTL)
+            if (
+                KFP_TTL_SECONDS_AFTER_FINISHED is not None
+            ):  # if None, we use the Argo defaults
+                dsl.get_pipeline_conf().set_ttl_seconds_after_finished(
+                    KFP_TTL_SECONDS_AFTER_FINISHED
+                )
 
         kfp_pipeline_from_flow.__name__ = self.name
         return kfp_pipeline_from_flow
