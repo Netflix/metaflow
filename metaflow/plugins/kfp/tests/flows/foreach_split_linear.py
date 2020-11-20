@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from metaflow import FlowSpec, step
 
 
@@ -44,7 +43,6 @@ class ForeachSplitLinear(FlowSpec):
 
     @step
     def foreach_join_a_and_b(self, inputs):
-        # pprint.pprint([(input.x, input.y, input.z) for input in inputs])
         self.next(self.foreach_join_start)
 
     @step

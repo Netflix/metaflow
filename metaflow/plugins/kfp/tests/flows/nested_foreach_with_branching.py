@@ -1,25 +1,6 @@
 from metaflow import FlowSpec, step
 
 
-def truncate(var):
-    var = str(var)
-    if len(var) > 500:
-        var = "%s..." % var[:500]
-    return var
-
-
-class ExpectationFailed(Exception):
-    def __init__(self, expected, got):
-        super(ExpectationFailed, self).__init__(
-            "Expected result: %s, got %s" % (truncate(expected), truncate(got))
-        )
-
-
-def assert_equals(expected, got):
-    if expected != got:
-        raise ExpectationFailed(expected, got)
-
-
 class NestedForeachWithBranching(FlowSpec):
     """
     split -> foreach -> foreach -> foreach -> linear -> linear -> join -> join -> join -> join (with below split)
@@ -71,14 +52,14 @@ class NestedForeachWithBranching(FlowSpec):
         [x, y, z] = self.foreach_stack()
 
         # assert that lengths are correct
-        assert_equals(len(self.x), x[1])
-        assert_equals(len(self.y), y[1])
-        assert_equals(len(self.z), z[1])
+        assert len(self.x) == x[1]
+        assert len(self.y) == y[1]
+        assert len(self.z) == z[1]
 
         # assert that variables are correct given their indices
-        assert_equals(x[2], self.x[x[0]])
-        assert_equals(y[2], self.y[y[0]])
-        assert_equals(z[2], self.z[z[0]])
+        assert x[2] == self.x[x[0]]
+        assert y[2] == self.y[y[0]]
+        assert z[2] == self.z[z[0]]
 
         self.combo = x[2] + y[2] + z[2]
         self.next(self.foreach_inner_2)

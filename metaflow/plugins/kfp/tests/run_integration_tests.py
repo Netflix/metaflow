@@ -10,10 +10,10 @@ import kfp
 import pytest
 
 """
-From the folder `tests`, run: 
+To run these tests from your terminal, go to the tests directory and run: 
 `python -m pytest -s -n 3 run_integration_tests.py`
 
-This script runs all the flows in the `sample_flows` directory. It creates
+This script runs all the flows in the `flows` directory. It creates
 each kfp run, waits for the run to fully complete, and prints whether
 or not the run was successful. It also checks to make sure the logging
 functionality works.
@@ -49,9 +49,9 @@ def obtain_flow_file_paths(flow_dir_path: str) -> List[str]:
     return file_paths
 
 
-@pytest.mark.parametrize("flow_file_path", obtain_flow_file_paths("sample_flows"))
-def test_sample_flows(pytestconfig, flow_file_path: str) -> None:
-    full_path = join("sample_flows", flow_file_path)
+@pytest.mark.parametrize("flow_file_path", obtain_flow_file_paths("flows"))
+def test_flows(pytestconfig, flow_file_path: str) -> None:
+    full_path = join("flows", flow_file_path)
     # In the process below, stdout=PIPE because we only want to capture stdout.
     # The reason is that the click echo function prints to stderr, and contains
     # the main logs (run link, graph validation, package uploading, etc). We
@@ -60,16 +60,12 @@ def test_sample_flows(pytestconfig, flow_file_path: str) -> None:
     # run id and capture this to correctly test logging. See the
     # `check_valid_logs_process` process.
 
-    if pytestconfig.getoption("local"):
-        test_cmd = (
-            f"{_python()} {full_path} --datastore=s3 kfp run --wait-for-completion"
-        )
-    else:
-        test_cmd = (
-            f"{_python()} {full_path} --datastore=s3 kfp run --no-s3-code-package"
-            f" --wait-for-completion --base-image {pytestconfig.getoption('image')}"
-            f" --max-parallelism 3"
-        )
+    test_cmd = (
+        f"{_python()} {full_path} --datastore=s3 kfp run "
+        f"--wait-for-completion --max-parallelism 3 "
+    )
+    if pytestconfig.getoption("image"):
+        test_cmd += f"--no-s3-code-package --base-image {pytestconfig.getoption('image')}"
 
     run_and_wait_process = run(
         test_cmd,
