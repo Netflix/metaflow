@@ -32,8 +32,8 @@ You can export the required variables* individually and run the python command:
 {
     "METAFLOW_DATASTORE_SYSROOT_S3": "s3://<path-to-s3-bucket-root>",
     "METAFLOW_DEFAULT_DATASTORE": "s3",
-    "KFP_RUN_URL_PREFIX" : "https://kubeflow.corp.dev.zg-aip.net" # prefix of the URL preceeding the run-id to generate correct links to the generated runs on your cluster
-    "KFP_SDK_NAMESPACE": "example_namespace"
+    "KFP_RUN_URL_PREFIX" : "https://kubeflow.corp.dev.zg-aip.net/",
+    "KFP_SDK_NAMESPACE": "example_namespace",
     "KFP_SDK_USERID": "[YOUR_NAME]@email.com"
 }
 ```
