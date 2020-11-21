@@ -207,7 +207,7 @@ def run(
 
         if wait_for_completion:
             response = flow._client.wait_for_run_completion(
-                run_pipeline_result.run_id, 500
+                run_pipeline_result.run_id, 1200
             )
 
             if response.run.status == "Succeeded":

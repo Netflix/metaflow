@@ -18,7 +18,7 @@ variables:
   _SHARED_ENV_FILE: 'shared.env'
   _IMAGE_TAG_FILE: 'image_tag_file.txt'
   DEPLOY_INTERNAL: "false"
-  DEPLOY_STAGE: "true" # want to mimic the example projects, which run on stage
+  DEPLOY_NONPROD: "true" # want to mimic the example projects, which run on nonprod
   DEPLOY_PROD: "false"
 
 .base:job-with-artifacts:
@@ -167,7 +167,7 @@ test:nonprod:
           python -m pytest -s -n 2 run_integration_tests.py --image ${BUILT_IMAGE_FULL_PATH}
         "
   rules:
-    - if: '$DEPLOY_STAGE == "true"'
+    - if: '$DEPLOY_NONPROD == "true"'
 
 test:prod:
   extends: 

@@ -112,7 +112,7 @@ class KubeflowPipelines(object):
         pipeline_conf.set_timeout(self.workflow_timeout)
         if (
             KFP_TTL_SECONDS_AFTER_FINISHED is not None
-        ):  # if None, we use the Argo defaults
+        ):  # if None, KFP falls back to the Argo defaults
             pipeline_conf.set_ttl_seconds_after_finished(KFP_TTL_SECONDS_AFTER_FINISHED)
 
         kfp.compiler.Compiler().compile(
@@ -507,7 +507,7 @@ class KubeflowPipelines(object):
             dsl.get_pipeline_conf().set_timeout(self.workflow_timeout)
             if (
                 KFP_TTL_SECONDS_AFTER_FINISHED is not None
-            ):  # if None, we use the Argo defaults
+            ):  # if None, KFP falls back to the Argo defaults
                 dsl.get_pipeline_conf().set_ttl_seconds_after_finished(
                     KFP_TTL_SECONDS_AFTER_FINISHED
                 )
