@@ -1,4 +1,3 @@
-import io
 import os
 import sys
 import json
@@ -6,7 +5,7 @@ import json
 from metaflow.util import get_username
 from metaflow.metaflow_config import DATASTORE_SYSROOT_S3
 from metaflow.parameters import deploy_time_eval
-from metaflow.plugins.argo.argo_decorator import ArgoStepDecorator
+from metaflow.plugins.argo.argo_decorator import ArgoStepDecorator, ArgoInternalStepDecorator
 from metaflow.plugins.aws.batch.batch_decorator import ResourcesDecorator
 
 from .argo_client import ArgoClient
@@ -16,8 +15,6 @@ from .argo_decorator import ArgoException
 def create_template(name, node, cmds, env, docker_image, node_selector, resources):
     """
     Creates a template to be executed through the DAG task.
-    Foreach step is implemented as the 'steps' template which
-    require its own 'container' template to execute.
     """
     t = {
         'name': name,
@@ -42,24 +39,26 @@ def create_template(name, node, cmds, env, docker_image, node_selector, resource
         }
     }
 
+    if node.is_inside_foreach:
+        t['inputs']['parameters'].append({'name': 'split-index'})
+
+    if node.type == 'foreach':
+        t['outputs']['parameters'].append(
+            {
+                'name': 'num-splits',
+                'valueFrom': {'path': ArgoInternalStepDecorator.splits_file_path}
+
+            }
+        )
+
     if node_selector:
         t['nodeSelector'] = node_selector
+
     if resources:
         t['container']['resources'] = {
             'requests': resources,
             'limits': resources.copy()  # prevent creating yaml anchor and link
         }
-
-    if node.is_inside_foreach:
-        # main steps template should be named by 'name'
-        t['name'] = '{name}-template'.format(name=name)
-        steps = {
-            'name': name,
-            'steps': [
-                [{'name': name, 'template': t['name']}]
-            ]
-        }
-        return [t, steps]
 
     return [t]
 
@@ -99,14 +98,19 @@ def create_node_selector(decorators):
     return None
 
 
-def create_dag_task(name, node):
+def create_dag_task(graph, name, node):
     task = {
         'name': name,
         'template': name,
         'dependencies': [mangle_step_name(d) for d in node.in_funcs],
     }
 
-    paths = ['%s/{{tasks.%s.outputs.parameters.task-id}}' % (p, mangle_step_name(p)) for p in node.in_funcs]
+    if node.type == 'join' and graph[node.split_parents[-1]].type == 'foreach':
+        path_format = '%s/{{tasks.%s.outputs.parameters}}'  # contains json with argo aggregation of tasks_ids
+    else:
+        path_format = '%s/{{tasks.%s.outputs.parameters.task-id}}'
+    paths = [path_format % (p, mangle_step_name(p)) for p in node.in_funcs]
+
     if paths:
         input_paths = '{{workflow.name}}/'
         if len(paths) > 1:
@@ -121,6 +125,12 @@ def create_dag_task(name, node):
                 },
             ]
         }
+
+        if node.is_inside_foreach:
+            task['arguments']['parameters'].append({'name': 'split-index', 'value': '{{item}}'})
+            task['withParam'] = \
+                '{{tasks.%s.outputs.parameters.num-splits}}' % mangle_step_name(node.in_funcs[0])
+
     else:
         task['arguments'] = {
             'parameters': [
@@ -135,33 +145,34 @@ def create_dag_task(name, node):
 
 
 def mangle_step_name(name):
-    "Must consist of alpha-numeric characters or '-'"
+    """ Must consist of alpha-numeric characters or '-' """
     return name.replace('_', '-')
 
 
-def get_step_docker_image(base_image, flow_decorators, step):
+def get_step_docker_image(node, base_image, flow_decorators):
     """
     docker image is inherited from: cmdline -> flow -> step
     Parameters
     ----------
     base_image: specified in cmdline or default
     flow_decorators: argo_base decorator
-    step: current step
+    node: current step
 
     Returns
     -------
     name of resulting docker_image
     """
+    docker_image_name = base_image
     if 'argo_base' in flow_decorators:
         if flow_decorators['argo_base'].attributes['image']:
-            base_image = flow_decorators['argo_base'].attributes['image']
+            docker_image_name = flow_decorators['argo_base'].attributes['image']
 
-    for step_decorator in step.decorators:
+    for step_decorator in node.decorators:
         if isinstance(step_decorator, ArgoStepDecorator):  # prevent Batch parameters from overwriting argo parameters
             if 'image' in step_decorator.attributes and step_decorator.attributes['image']:
-                base_image = step_decorator.attributes['image']
+                docker_image_name = step_decorator.attributes['image']
 
-    return base_image
+    return docker_image_name
 
 
 class ArgoWorkflow:
@@ -211,7 +222,7 @@ class ArgoWorkflow:
             'spec': {
                 'arguments': {
                     'parameters': [
-                        {'name': n, 'value': json.dumps(v)} for n,v in parameters.items()
+                        {'name': n, 'value': json.dumps(v)} for n, v in parameters.items()
                     ]
                 },
                 'workflowTemplateRef': {
@@ -243,7 +254,7 @@ class ArgoWorkflow:
             raise ArgoException("The WorkflowTemplate *%s* doesn't exist "
                                 "on Argo." % name)
         try:
-            return client.list_workflows(name+'-', phases)
+            return client.list_workflows(name + '-', phases)
         except Exception as e:
             raise ArgoException(str(e))
 
@@ -276,12 +287,11 @@ class ArgoWorkflow:
                                              node,
                                              self._command(node, parameters),
                                              self._env(),
-                                             get_step_docker_image(self.image,
-                                                                   self.flow._flow_decorators,
-                                                                   node),
+                                             get_step_docker_image(node, self.image, self.flow._flow_decorators),
                                              create_node_selector(node.decorators),
                                              create_resources(node.decorators)))
-            tasks.append(create_dag_task(name, node))
+
+            tasks.append(create_dag_task(self.graph, name, node))
 
         templates.append({'name': 'entry', 'dag': {'tasks': tasks}})
         return templates
@@ -334,6 +344,15 @@ class ArgoWorkflow:
             cmds.append(' '.join(params))
             paths = '%s/_parameters/%s' % (run_id, task_id_params)
 
+        if node.type == 'join' and self.graph[node.split_parents[-1]].type == 'foreach':
+            # convert input-paths from argo aggregation json and save into $METAFLOW_PARENT_PATHS
+            # which will be used by --input-paths $METAFLOW_PARENT_PATHS
+            export_parent_tasks = 'METAFLOW_PARENT_PATHS=' \
+                                  '$(python -m metaflow.plugins.argo.convert_argo_aggregation %s)' % paths
+            paths = '$METAFLOW_PARENT_PATHS'
+
+            cmds.append(export_parent_tasks)
+
         top_level = [
             '--quiet',
             '--metadata=%s' % self.metadata.TYPE,
@@ -342,7 +361,8 @@ class ArgoWorkflow:
             '--datastore-root=%s' % self.datastore.datastore_root,
             '--event-logger=%s' % self.event_logger.logger_type,
             '--monitor=%s' % self.monitor.monitor_type,
-            '--no-pylint'
+            '--no-pylint',
+            '--with=argo_internal'
         ]
 
         step = [
@@ -352,6 +372,9 @@ class ArgoWorkflow:
             '--task-id %s' % task_id,
             '--input-paths %s' % paths,
         ]
+
+        if any(self.graph[n].type == 'foreach' for n in node.in_funcs):
+            step.append('--split-index {{inputs.parameters.split-index}}')
 
         cmds.append(' '.join(entrypoint + top_level + step))
         return ' && '.join(cmds)

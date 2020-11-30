@@ -1,3 +1,4 @@
+import json
 from metaflow.decorators import FlowDecorator
 from metaflow.decorators import StepDecorator
 from metaflow.exception import MetaflowException
@@ -62,3 +63,31 @@ class ArgoStepDecorator(StepDecorator):
     def step_init(self, flow, graph, step, decos, environment, datastore, logger):
         if datastore.TYPE != 's3':
             raise ArgoException('The *@argo* decorator requires --datastore=s3.')
+
+
+class ArgoInternalStepDecorator(StepDecorator):
+    name = 'argo_internal'
+    splits_file_path = '/tmp/num_splits'
+
+    def task_finished(self,
+                      step_name,
+                      flow,
+                      graph,
+                      is_task_ok,
+                      retry_count,
+                      max_user_code_retries):
+
+        if not is_task_ok:
+            # The task finished with an exception - execution won't
+            # continue so no need to do anything here.
+            return
+
+        # For foreaches, we need to export the cardinality of the fan-out
+        # into a file that can be read by argo output parameter and this be consumable in the next step
+        # TODO: nested foreach
+        if graph[step_name].type == 'foreach':
+            self._save_foreach_cardinality(flow._foreach_num_splits)
+
+    def _save_foreach_cardinality(self, num_splits):
+        with open(self.splits_file_path, 'w') as file:
+            json.dump(list(range(num_splits)), file)
