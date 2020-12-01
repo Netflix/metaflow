@@ -48,7 +48,7 @@ def create(obj, image, only_yaml=False):
         obj.package.sha, TransformableObject(obj.package.blob))
 
     if not image:
-        image = 'python:%s.%s' % (platform.python_version_tuple()[:2])
+        image = 'python:%s.%s' % platform.python_version_tuple()[:2]
 
     workflow = ArgoWorkflow(name.lower(),
                             obj.flow,

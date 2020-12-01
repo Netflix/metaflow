@@ -1,9 +1,11 @@
 import io
 import os
 import sys
+import json
 from metaflow.util import get_username
 from metaflow.metaflow_config import DATASTORE_SYSROOT_S3
 from metaflow.exception import MetaflowException
+from metaflow.parameters import deploy_time_eval
 from metaflow.plugins.aws.batch.batch_decorator import ResourcesDecorator
 
 
@@ -50,7 +52,7 @@ def create_template(name, node, cmds, env, docker_image, node_selector, resource
 
     if node.is_inside_foreach:
         # main steps template should be named by 'name'
-        t['name'] = f'{name}-template'
+        t['name'] = '{name}-template'.format(name=name)
         steps = {
             'name': name,
             'steps': [
@@ -193,19 +195,7 @@ class ArgoWorkflow:
         return s.getvalue()
 
     def _compile(self):
-        templates = []
-        tasks = []
-        for name, node in self.graph.nodes.items():
-            name = mangle_step_name(name)
-            docker_image = get_step_docker_image(self.image, self.flow._flow_decorators, node)
-            resources = create_resources(node.decorators)
-            node_selector = create_node_selector(node.decorators)
-            templates.extend(
-                create_template(name, node, self._command(node), self._env(), docker_image, node_selector, resources))
-            tasks.append(create_dag_task(name, node))
-
-        templates.append({'name': 'entry', 'dag': {'tasks': tasks}})
-
+        parameters = self._process_parameters()
         return {
             'apiVersion': 'argoproj.io/v1alpha1',
             'kind': 'Workflow',
@@ -217,24 +207,63 @@ class ArgoWorkflow:
             },
             'spec': {
                 'entrypoint': 'entry',
-                'templates': templates
+                'arguments': {
+                    'parameters': parameters
+                },
+                'templates': self._prepare_templates(parameters),
             }
         }
 
-    def _command(self, node):
+    def _prepare_templates(self, parameters):
+        templates = []
+        tasks = []
+        for name, node in self.graph.nodes.items():
+            name = mangle_step_name(name)
+            templates.extend(create_template(name,
+                                             node,
+                                             self._command(node, parameters),
+                                             self._env(),
+                                             get_step_docker_image(self.image,
+                                                                   self.flow._flow_decorators,
+                                                                   node),
+                                             create_node_selector(node.decorators),
+                                             create_resources(node.decorators)))
+            tasks.append(create_dag_task(name, node))
+
+        templates.append({'name': 'entry', 'dag': {'tasks': tasks}})
+        return templates
+
+    def _command(self, node, parameters):
         cmds = self.environment.get_package_commands(self.code_package_url)
         cmds.extend(self.environment.bootstrap_commands(node.name))
         cmds.append("echo 'Task is starting.'")
-        cmds.extend([self._step_cli(node)])
+        cmds.extend([self._step_cli(node, parameters)])
         return " && ".join(cmds)
 
-    def _step_cli(self, node):
+    def _process_parameters(self):
+        parameters = []
+        for var, param in self.flow._get_parameters():
+            p = {'name': param.name}
+            if 'default' in param.kwargs:
+                v = deploy_time_eval(param.kwargs.get('default'))
+                p['value'] = json.dumps(v)
+            parameters.append(p)
+        return parameters
+
+    def _step_cli(self, node, parameters):
         cmds = []
         script_name = os.path.basename(sys.argv[0])
         executable = self.environment.executable(node.name)
         entrypoint = [executable, script_name]
 
+        run_id = '{{workflow.name}}'
+        task_id = '{{pod.name}}'
+        paths = '{{inputs.parameters.input-paths}}'
+
         if node.name == 'start':
+            # We need a separate unique ID for the special _parameters task
+            task_id_params = '0'
+
             params = entrypoint + [
                 '--quiet',
                 '--metadata=%s' % self.metadata.TYPE,
@@ -244,10 +273,13 @@ class ArgoWorkflow:
                 '--monitor=%s' % self.monitor.monitor_type,
                 '--no-pylint',
                 'init',
-                '--run-id {{workflow.name}}',
-                '--task-id 0'
+                '--run-id %s' % run_id,
+                '--task-id %s' % task_id_params,
             ]
+            params.extend(['--%s={{workflow.parameters.%s}}' %
+                           (p['name'], p['name']) for p in parameters])
             cmds.append(' '.join(params))
+            paths = '%s/_parameters/%s' % (run_id, task_id_params)
 
         top_level = [
             '--quiet',
@@ -263,9 +295,9 @@ class ArgoWorkflow:
         step = [
             'step',
             node.name,
-            '--run-id {{workflow.name}}',
-            '--task-id {{pod.name}}',
-            '--input-paths {{inputs.parameters.input-paths}}',
+            '--run-id %s' % run_id,
+            '--task-id %s' % task_id,
+            '--input-paths %s' % paths,
         ]
 
         cmds.append(' '.join(entrypoint + top_level + step))
