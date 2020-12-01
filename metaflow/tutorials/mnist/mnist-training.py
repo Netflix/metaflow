@@ -1,106 +1,97 @@
 from metaflow import FlowSpec, Parameter, step, resources, argo, argo_base
 
 
-@argo_base(image='tensorflow/tensorflow:latest-gpu-py3')
+@argo_base(image='tensorflow/tensorflow:2.2.1-py3')
 class MnistFlow(FlowSpec):
 
     epochs = Parameter('epochs',
                        help='number of epochs',
                        default=30)
-
     batch_size = Parameter('batch_size',
                            default=512)
 
     @step
     def start(self):
         """
-        Load data from data repository e.g. S3
+        Load the dataset
         """
         import tensorflow as tf
-
-        (self.train_images, self.train_labels), (self.test_images, self.test_labels) = \
-            tf.keras.datasets.mnist.load_data('mnist.npz')
-
+        self.train, self.test = tf.keras.datasets.mnist.load_data('mnist.npz')
         self.next(self.preprocess_train_data, self.preprocess_test_data)
 
-    @argo(image='clearlinux/numpy-mp')
+
     @step
     def preprocess_train_data(self):
         """
-        option to preprocess e.g. normalize input data
-        Todo:persist preprocessed data
+        Pre-process the train data
         """
-        self.images = self.train_images
-        print("Number of train samples: {}".format(len(self.images)))
+        self.train_images, self.train_labels = self.train
+        print("Number of train samples: {}".format(len(self.train_images)))
+        self.next(self.training)
 
-        self.next(self.train)
 
-    @argo(image='clearlinux/numpy-mp')
     @step
     def preprocess_test_data(self):
         """
-        option to preprocess e.g. normalize input data
-        Todo:persist preprocessed data
+        Pre-process the test data
         """
-        self.images = self.test_images
-        print("Number of test samples: {}".format(len(self.images)))
+        self.test_images, self.test_labels = self.test
+        print("Number of test samples: {}".format(len(self.test_images)))
+        self.next(self.evaluate)
 
-        self.next(self.train)
 
-    @argo(nodeSelector={'gpu': 'nvidia-tesla-v100'})
+    @argo(image='tensorflow/tensorflow:2.2.1-gpu-py3', nodeSelector={'gpu': 'nvidia-tesla-v100'})
     @resources(gpu=1, cpu=2, memory=6000)
     @step
-    def train(self, inputs):
+    def training(self):
         """
-        collect preprocessed data and use for training
-        Todo: persist model
+        Train the model
         """
         import tensorflow as tf
         import h5py
-
-        train_images = inputs.preprocess_train_data.images
-        test_images = inputs.preprocess_test_data.images
-        self.merge_artifacts(inputs, exclude=['images', 'train_images', 'test_images'])
-
-        self.test_images = test_images
-
         model = tf.keras.models.Sequential([
             tf.keras.layers.Flatten(input_shape=(28, 28)),
             tf.keras.layers.Dense(128, activation='relu'),
             tf.keras.layers.Dropout(0.2),
             tf.keras.layers.Dense(10, activation='softmax')
         ])
-
         model.compile(optimizer='adam',
                       loss='sparse_categorical_crossentropy',
                       metrics=['accuracy'])
-
-        model.fit(train_images, self.train_labels, batch_size=self.batch_size, epochs=self.epochs)
-
+        model.fit(self.train_images,
+                  self.train_labels,
+                  batch_size=self.batch_size,
+                  epochs=self.epochs)
         with h5py.File('trained_model', driver='core', backing_store=False) as model_h5:
             # save to memory rather than disk until artifacts are supported
             model.save(model_h5)
             model_h5.flush()
             self.model = model_h5.id.get_file_image()
+        self.next(self.evaluate)
 
-        self.next(self.end)
 
-    @resources(gpu=1, cpu=2, memory=4000)
     @step
-    def end(self):
+    def evaluate(self, inputs):
         """
-        evaluate model
-        Todo: write metrics
-        """
+        Evaluate the model
+        """ 
         import tensorflow as tf
         import h5py
         import io
+        h5 = h5py.File(io.BytesIO(inputs.training.model), 'r')
+        model = tf.keras.models.load_model(h5)
+        self.results = model.evaluate(inputs.preprocess_test_data.test_images,
+                                      inputs.preprocess_test_data.test_labels)
+        self.next(self.end)
 
-        f = io.BytesIO(self.model)
-        model_stream = h5py.File(f, 'r')
-        model = tf.keras.models.load_model(model_stream)
 
-        self.results = model.evaluate(self.test_images, self.test_labels)
+    @argo(image='python:3-slim')
+    @step
+    def end(self):
+        """
+        Print results
+        """
+        print(self.results)
 
 
 if __name__ == '__main__':
