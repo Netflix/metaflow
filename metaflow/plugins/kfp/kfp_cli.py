@@ -73,6 +73,15 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
     show_default=True,
 )
 @click.option(
+    "--tag",
+    "tags",
+    multiple=True,
+    default=None,
+    help="Annotate all Metaflow objects produced by KFP Metaflow runs "
+    "with the given tag. You can specify this option multiple "
+    "times to attach multiple tags.",
+)
+@click.option(
     "--namespace",
     "namespace",
     default=KFP_SDK_NAMESPACE,
@@ -143,6 +152,7 @@ def run(
     obj,
     experiment_name=None,
     run_name=None,
+    tags=None,
     namespace=KFP_SDK_NAMESPACE,
     api_namespace=KFP_SDK_API_NAMESPACE,
     yaml_only=False,
@@ -161,7 +171,8 @@ def run(
     check_metadata_service_version(obj)
     flow = make_flow(
         obj,
-        pipeline_name if pipeline_path else obj.flow.name,
+        pipeline_name if pipeline_name else obj.flow.name,
+        tags,
         namespace,
         api_namespace,
         base_image,
@@ -223,6 +234,7 @@ def run(
 def make_flow(
     obj,
     name,
+    tags,
     namespace,
     api_namespace,
     base_image,
@@ -283,6 +295,7 @@ def make_flow(
         obj.monitor,
         base_image=base_image,
         s3_code_package=s3_code_package,
+        tags=tags,
         namespace=namespace,
         api_namespace=api_namespace,
         username=get_username(),

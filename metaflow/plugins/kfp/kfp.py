@@ -58,6 +58,7 @@ class KubeflowPipelines(object):
         monitor,
         base_image=None,
         s3_code_package=True,
+        tags=None,
         namespace=None,
         api_namespace=None,
         username=None,
@@ -78,6 +79,7 @@ class KubeflowPipelines(object):
         self.environment = environment
         self.event_logger = event_logger
         self.monitor = monitor
+        self.tags = tags
         self.namespace = namespace
         self.username = username
         self.base_image = base_image
@@ -386,7 +388,8 @@ class KubeflowPipelines(object):
 
         if any(self.graph[n].type == "foreach" for n in node.in_funcs):
             step.append(f"--split-index ${SPLIT_INDEX_ENV_NAME}")
-
+        if self.tags:
+            step.extend("--tag %s" % tag for tag in self.tags)
         if self.namespace:
             step.append("--namespace %s" % self.namespace)
 
