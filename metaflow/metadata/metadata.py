@@ -12,7 +12,7 @@ DataArtifact = namedtuple('DataArtifact',
                           'name ds_type url type sha')
 
 MetaDatum = namedtuple('MetaDatum',
-                       'field value type')
+                       'field value type tags')
 
 
 class MetadataProviderMeta(type):
@@ -187,7 +187,8 @@ class MetadataProvider(object):
         dict[string] -> string
             Environment variables from this metadata provider
         '''
-        raise NotImplementedError()
+        return {'METAFLOW_RUNTIME_NAME': runtime_name,
+                'USER': get_username()}
 
     def register_data_artifacts(self,
                                 run_id,
@@ -429,6 +430,7 @@ class MetadataProvider(object):
             'field_name': datum.field,
             'type': datum.type,
             'value': datum.value,
+            'tags': datum.tags,
             'user_name': user,
             'ts_epoch': int(round(time.time() * 1000))} for datum in metadata]
 
@@ -456,7 +458,8 @@ class MetadataProvider(object):
             metadata.append(MetaDatum(
                 field='code-package',
                 value=json.dumps({'ds_type': code_ds, 'sha': code_sha, 'location': code_url}),
-                type='code-package'))
+                type='code-package',
+                tags=[]))
         if metadata:
             self.register_metadata(run_id, step_name, task_id, metadata)
 
