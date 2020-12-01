@@ -103,45 +103,41 @@ def create_dag_task(graph, name, node):
         'name': name,
         'template': name,
         'dependencies': [mangle_step_name(d) for d in node.in_funcs],
+        'arguments': {
+            'parameters': [
+                {
+                    'name': 'input-paths',
+                    'value': input_paths(graph, node)
+                }
+            ]
+        }
     }
 
-    if node.type == 'join' and graph[node.split_parents[-1]].type == 'foreach':
-        path_format = '%s/{{tasks.%s.outputs.parameters}}'  # contains json with argo aggregation of tasks_ids
-    else:
-        path_format = '%s/{{tasks.%s.outputs.parameters.task-id}}'
-    paths = [path_format % (p, mangle_step_name(p)) for p in node.in_funcs]
-
-    if paths:
-        input_paths = '{{workflow.name}}/'
-        if len(paths) > 1:
-            input_paths += ':'
-        input_paths += ','.join(paths)
-
-        task['arguments'] = {
-            'parameters': [
-                {
-                    'name': 'input-paths',
-                    'value': input_paths,
-                },
-            ]
-        }
-
-        if node.is_inside_foreach:
-            task['arguments']['parameters'].append({'name': 'split-index', 'value': '{{item}}'})
-            task['withParam'] = \
-                '{{tasks.%s.outputs.parameters.num-splits}}' % mangle_step_name(node.in_funcs[0])
-
-    else:
-        task['arguments'] = {
-            'parameters': [
-                {
-                    'name': 'input-paths',
-                    'value': '{{workflow.name}}/_parameters/0',
-                },
-            ]
-        }
+    if node.is_inside_foreach:
+        task['arguments']['parameters'].append({'name': 'split-index', 'value': '{{item}}'})
+        task['withParam'] = \
+            '{{tasks.%s.outputs.parameters.num-splits}}' % mangle_step_name(node.in_funcs[0])
 
     return task
+
+
+def input_paths(graph, node):
+    if node.name == 'start':
+        return '{{workflow.name}}/_parameters/0'
+
+    elif node.type == 'join':
+        if graph[node.split_parents[-1]].type == 'foreach':
+            parent_step = node.in_funcs[0]
+            parent_dag_task = mangle_step_name(parent_step)
+            # {{tasks.TASK.outputs.parameters}} contains a "json" with all TASK's children params (task-ids)
+            return '{{workflow.name}}/%s/{{tasks.%s.outputs.parameters}}' % (parent_step, parent_dag_task)
+        else:
+            parents = ['%s/{{tasks.%s.outputs.parameters.task-id}}' % (p, mangle_step_name(p)) for p in node.in_funcs]
+            return '{{workflow.name}}/:%s' % ','.join(parents)
+
+    parent_step = node.in_funcs[0]
+    parent_dag_task = mangle_step_name(parent_step)
+    return '{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}' % (parent_step, parent_dag_task)
 
 
 def mangle_step_name(name):
