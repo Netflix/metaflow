@@ -62,9 +62,6 @@ class LocalMetadataProvider(MetadataProvider):
                          sys_tags=[]):
         self._register_code_package_metadata(run_id, step_name, task_id)
 
-    def get_runtime_environment(self, runtime_name):
-        return {}
-
     def register_data_artifacts(self,
                                 run_id,
                                 step_name,

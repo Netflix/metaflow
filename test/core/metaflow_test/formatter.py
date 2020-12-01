@@ -78,7 +78,7 @@ class FlowFormatter(object):
             tags.extend(tag.split('(')[0] for tag in step.tags)
 
         yield 0, '# -*- coding: utf-8 -*-'
-        yield 0, 'from metaflow import FlowSpec, step, Parameter, JSONType'
+        yield 0, 'from metaflow import FlowSpec, step, Parameter, IncludeFile, JSONType'
         yield 0, 'from metaflow_test import assert_equals, '\
                                            'assert_exception, '\
                                            'ExpectationFailed, '\
@@ -94,6 +94,10 @@ class FlowFormatter(object):
         for var, parameter in self.test.PARAMETERS.items():
             kwargs = ['%s=%s' % (k, v) for k, v in parameter.items()]
             yield 1, '%s = Parameter("%s", %s)' % (var, var, ','.join(kwargs))
+
+        for var, include in self.test.INCLUDE_FILES.items():
+            kwargs = ['%s=%s' % (k, v) for k, v in include.items()]
+            yield 1, '%s = IncludeFile("%s", %s)' % (var, var, ','.join(kwargs))
 
         for name, node in self.graphspec['graph'].items():
             step = self._choose_step(name, node)
