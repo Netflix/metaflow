@@ -1,7 +1,8 @@
 import click
 import platform
+import json
 
-from metaflow import current, decorators
+from metaflow import current, decorators, parameters, JSONType
 from metaflow.datastore.datastore import TransformableObject
 from metaflow.package import MetaflowPackage
 from metaflow.exception import MetaflowException
@@ -14,26 +15,30 @@ def cli():
     pass
 
 
-@cli.group(help="Commands related to MLF Argo Workflows.")
+@cli.group(help="Commands related to Argo Workflows.")
 @click.pass_obj
 def argo(obj):
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
 
 
-@argo.command(help="Generate yaml for an MLF argo workflow.")
-@click.option('--only-yaml',
+@argo.command(help="Deploy a new version of this workflow to "
+                    "Argo Workflow Templates.")
+@click.option("--image",
+              help="Docker image requirement in name:version format.")
+@click.option("--token",
+              default=None,
+              help="Authentication token to call Argo Server.")
+@click.option('--namespace',
+              default='default',
+              help="Deploy into the specified kubernetes namespace.")
+@click.option('--only-json',
               is_flag=True,
               default=False,
-              help="Only print out YAML sent to MLF Argo Workflows.. Do not "
+              help="Only print out JSON sent to Argo. Do not "
                    "deploy anything.")
-@click.option(
-    "--image",
-    help="Docker image requirement in name:version format."
-)
 @click.pass_obj
-def create(obj, image, only_yaml=False):
-    name = current.flow_name
-    obj.echo("creating *%s* yaml for MLF argo workflows ..." % name, bold=True)
+def create(obj, image, token, namespace, only_json=False):
+    obj.echo("Deploying *%s* to Argo Workflow Templates..." % current.flow_name, bold=True)
 
     datastore = obj.datastore(obj.flow.name,
                               mode='w',
@@ -56,7 +61,8 @@ def create(obj, image, only_yaml=False):
     if not image:
         image = 'python:%s.%s' % platform.python_version_tuple()[:2]
 
-    workflow = ArgoWorkflow(name.lower(),
+    name = current.flow_name.lower()
+    workflow = ArgoWorkflow(name,
                             obj.flow,
                             obj.graph,
                             obj.package,
@@ -68,5 +74,93 @@ def create(obj, image, only_yaml=False):
                             obj.monitor,
                             image)
 
-    if only_yaml:
-        obj.echo_always(workflow.to_yaml(), err=False, no_bold=True, nl=False)
+    if only_json:
+        obj.echo_always(workflow.to_json(), err=False, no_bold=True, nl=False)
+    else:
+        workflow.deploy(token, namespace)
+        obj.echo("WorkflowTemplate *{name}* pushed to "
+                 "Argo successfully.\n".format(name=name),
+                 bold=True)
+
+
+@parameters.add_custom_parameters(deploy_mode=False)
+@argo.command(help="Trigger the workflow from the Argo Workflow Template.")
+@click.option("--token",
+              default=None,
+              help="Authentication token to call Argo Server.")
+@click.option('--namespace',
+              default='default',
+              help="Submit the Workflow in the specified kubernetes namespace.")
+@click.pass_obj
+def trigger(obj, token, namespace, **kwargs):
+    def _convert_value(param):
+        v = kwargs.get(param.name)
+        return json.dumps(v) if param.kwargs.get('type') == JSONType else v
+
+    params = {p.name: _convert_value(p) for _, p in obj.flow._get_parameters()}
+    name = current.flow_name.lower()
+    response = ArgoWorkflow.trigger(token, namespace, name, params)
+    id = response['metadata']['name']
+    obj.echo("Workflow *{name}* triggered on Argo "
+        "(run-id *{id}*).".format(name=name, id=id), bold=True)
+
+@argo.command(help="List workflows on Argo Workflows.")
+@click.pass_obj
+@click.option("--token",
+              default=None,
+              help="Authentication token to call Argo Server.")
+@click.option('--namespace',
+              default='default',
+              help="List workflows in the specified kubernetes namespace.")
+@click.option("--pending", default=False, is_flag=True,
+              help="List workflows in the 'Pending' state on Argo Workflows.")
+@click.option("--running", default=False, is_flag=True,
+              help="List workflows in the 'Running' state on Argo Workflows.")
+@click.option("--succeeded", default=False, is_flag=True,
+              help="List workflows in the 'Succeeded' state on Argo Workflows.")
+@click.option("--failed", default=False, is_flag=True,
+              help="List workflows in the 'Failed' state on Argo Workflows.")
+@click.option("--error", default=False, is_flag=True,
+              help="List workflows in the 'Error' state on Argo Workflows.")
+def list_runs(obj, token, namespace, pending, running, succeeded, failed, error):
+    states = []
+    if pending:
+        states.append('Pending')
+    if running:
+        states.append('Running')
+    if succeeded:
+        states.append('Succeeded')
+    if failed:
+        states.append('Failed')
+    if error:
+        states.append('Error')
+
+    tmpl = current.flow_name.lower()
+    workflows = ArgoWorkflow.list(token, namespace, tmpl, states)
+    if not workflows:
+        if states:
+            status = ','.join(['*%s*' % s for s in states])
+            obj.echo('No %s workflows for *%s* found on Argo Workflows.' % (status, tmpl))
+        else:
+            obj.echo('No workflows for *%s* found on Argo Workflows.' % (tmpl))
+    for wf in workflows:
+        if wf['status']['finishedAt']:
+            obj.echo(
+                "*{id}* "
+                "startedAt:'{startedAt}' "
+                "stoppedAt:'{finishedAt}' "
+                "*{status}*".format(
+                    id=wf['metadata']['name'],
+                    status=wf['status']['phase'],
+                    startedAt=wf['status']['startedAt'],
+                    finishedAt=wf['status']['finishedAt'])
+            )
+        else:
+            obj.echo(
+                "*{id}* "
+                "startedAt:'{startedAt}' "
+                "*{status}*".format(
+                    id=wf['metadata']['name'],
+                    status=wf['status']['phase'],
+                    startedAt=wf['status']['startedAt'])
+            )

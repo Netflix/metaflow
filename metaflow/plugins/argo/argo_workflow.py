@@ -2,11 +2,15 @@ import io
 import os
 import sys
 import json
+
 from metaflow.util import get_username
 from metaflow.metaflow_config import DATASTORE_SYSROOT_S3
 from metaflow.parameters import deploy_time_eval
 from metaflow.plugins.argo.argo_decorator import ArgoStepDecorator
 from metaflow.plugins.aws.batch.batch_decorator import ResourcesDecorator
+
+from .argo_client import ArgoClient
+from .argo_decorator import ArgoException
 
 
 def create_template(name, node, cmds, env, docker_image, node_selector, resources):
@@ -186,19 +190,70 @@ class ArgoWorkflow:
         self.image = image
         self._workflow = self._compile()
 
-    def to_yaml(self):
-        from ruamel.yaml import YAML
-        s = io.StringIO()
-        YAML().dump(self._workflow, s)
-        return s.getvalue()
+    def to_json(self):
+        return json.dumps(self._workflow)
+
+    def deploy(self, auth, namespace):
+        client = ArgoClient(auth, namespace)
+        try:
+            client.create_template(self.name, self._workflow)
+        except Exception as e:
+            raise ArgoException(str(e))
+
+    @classmethod
+    def trigger(cls, auth, namespace, name, parameters):
+        workflow = {
+            'apiVersion': 'argoproj.io/v1alpha1',
+            'kind': 'Workflow',
+            'metadata': {
+                'generateName': name + '-'
+            },
+            'spec': {
+                'arguments': {
+                    'parameters': [
+                        {'name': n, 'value': json.dumps(v)} for n,v in parameters.items()
+                    ]
+                },
+                'workflowTemplateRef': {
+                    'name': name
+                }
+            }
+        }
+        client = ArgoClient(auth, namespace)
+        try:
+            template = client.get_template(name)
+        except Exception as e:
+            raise ArgoException(str(e))
+        if template is None:
+            raise ArgoException("The WorkflowTemplate *%s* doesn't exist on "
+                                "Argo. Please deploy your flow first." % name)
+        try:
+            return client.submit(workflow)
+        except Exception as e:
+            raise ArgoException(str(e))
+
+    @classmethod
+    def list(cls, auth, namespace, name, phases):
+        client = ArgoClient(auth, namespace)
+        try:
+            tmpl = client.get_template(name)
+        except Exception as e:
+            raise ArgoException(str(e))
+        if tmpl is None:
+            raise ArgoException("The WorkflowTemplate *%s* doesn't exist "
+                                "on Argo." % name)
+        try:
+            return client.list_workflows(name+'-', phases)
+        except Exception as e:
+            raise ArgoException(str(e))
 
     def _compile(self):
         parameters = self._process_parameters()
         return {
             'apiVersion': 'argoproj.io/v1alpha1',
-            'kind': 'Workflow',
+            'kind': 'WorkflowTemplate',
             'metadata': {
-                'generateName': self.name + '-',
+                'name': self.name,
                 'labels': {
                     'workflows.argoproj.io/archive-strategy': 'false',
                 }

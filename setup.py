@@ -19,8 +19,7 @@ setup(name='metaflow',
         'click>=7.0',
         'requests',
         'boto3',
-        'pylint<2.5.0',
-        'ruamel.yaml'
+        'pylint<2.5.0'
       ],
       tests_require = [
         'coverage'
