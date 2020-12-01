@@ -1,6 +1,4 @@
-import json
-import os
-
+import requests
 from metaflow.metaflow_config import SFN_DYNAMO_DB_TABLE
 
 
@@ -65,6 +63,13 @@ class DynamoDbClient(object):
         return response['Item']['parent_task_ids_for_foreach_join']['SS']
 
     def _get_instance_region(self):
-        return os.popen(
-            'curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone/'
-            ).read()[:-1]
+        metadata_url = "http://169.254.169.254/latest/meta-data/placement/availability-zone/"
+        r = requests.get(
+            url = metadata_url
+        )
+
+        if r.status_code != 200:
+            raise RuntimeError("Failed to query instance metadata. Url [%s]" % metadata_url +
+                        " Error code [%s]" % str(r.status_code))
+
+        return r.text[:-1]
