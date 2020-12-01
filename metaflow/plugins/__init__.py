@@ -28,11 +28,13 @@ def get_plugin_cli():
     from . import package_cli
     from .aws.batch import batch_cli
     from .aws.step_functions import step_functions_cli
+    from .mlf import argo_cli
 
     return ext_plugins.get_plugin_cli() + [
         package_cli.cli,
         batch_cli.cli,
-        step_functions_cli.cli]
+        step_functions_cli.cli,
+        argo_cli.cli]
 
 
 def _merge_lists(base, overrides, attr):
