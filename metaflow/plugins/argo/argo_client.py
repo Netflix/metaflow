@@ -10,7 +10,9 @@ class ArgoClient(object):
     def __init__(self, auth, namespace):
         self.server = from_conf('METAFLOW_ARGO_SERVER')
         self.auth = auth
-        self.namespace = namespace
+        if namespace is None:
+            namespace = 'default'
+        self.namespace = from_conf('METAFLOW_ARGO_NAMESPACE', default=namespace)
 
     def create_template(self, name, definition):
         """

@@ -29,7 +29,7 @@ def argo(obj):
               default=None,
               help="Authentication token to call Argo Server.")
 @click.option('--namespace',
-              default='default',
+              default=None,
               help="Deploy into the specified kubernetes namespace.")
 @click.option('--only-json',
               is_flag=True,
@@ -89,7 +89,7 @@ def create(obj, image, token, namespace, only_json=False):
               default=None,
               help="Authentication token to call Argo Server.")
 @click.option('--namespace',
-              default='default',
+              default=None,
               help="Submit the Workflow in the specified kubernetes namespace.")
 @click.pass_obj
 def trigger(obj, token, namespace, **kwargs):
@@ -97,7 +97,9 @@ def trigger(obj, token, namespace, **kwargs):
         v = kwargs.get(param.name)
         return json.dumps(v) if param.kwargs.get('type') == JSONType else v
 
-    params = {p.name: _convert_value(p) for _, p in obj.flow._get_parameters()}
+    params = {p.name: _convert_value(p)
+              for _, p in obj.flow._get_parameters()
+                if kwargs.get(p.name) is not None}
     name = current.flow_name.lower()
     response = ArgoWorkflow.trigger(token, namespace, name, params)
     id = response['metadata']['name']
@@ -110,7 +112,7 @@ def trigger(obj, token, namespace, **kwargs):
               default=None,
               help="Authentication token to call Argo Server.")
 @click.option('--namespace',
-              default='default',
+              default=None,
               help="List workflows in the specified kubernetes namespace.")
 @click.option("--pending", default=False, is_flag=True,
               help="List workflows in the 'Pending' state on Argo Workflows.")
