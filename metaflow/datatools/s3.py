@@ -6,7 +6,7 @@ import shutil
 import random
 import subprocess
 from io import RawIOBase, BytesIO, BufferedIOBase
-from itertools import starmap
+from itertools import chain, starmap
 from tempfile import mkdtemp, NamedTemporaryFile
 
 from .. import FlowSpec
@@ -46,7 +46,8 @@ S3GetObject = namedtuple_with_defaults(
     'S3GetObject', 'key offset length')
 
 S3PutObject = namedtuple_with_defaults(
-    'S3PutObject', 'key value content_type metadata')
+    'S3PutObject', 'key value path content_type metadata',
+    defaults=(None, None, None, None))
 
 RangeInfo = namedtuple_with_defaults(
     'RangeInfo', 'total_size request_offset request_length',
@@ -548,7 +549,7 @@ class S3(object):
                     raise MetaflowS3Exception("Did not get a response to HEAD")
         return list(starmap(S3Object, _head()))
 
-    def get(self, key=None, return_missing=False, return_info=False):
+    def get(self, key=None, return_missing=False, return_info=True):
         """
         Get a single object from S3.
 
@@ -559,7 +560,7 @@ class S3(object):
             return_missing: (optional, default False) if set to True, do
                             not raise an exception for a missing key but
                             return it as an S3Object with .exists == False.
-            return_info: (optional, default False) if set to True, fetch the
+            return_info: (optional, default True) if set to True, fetch the
                          content-type and user metadata associated with the object.
 
         Returns:
@@ -612,7 +613,7 @@ class S3(object):
                 metadata=info['metadata'])
         return S3Object(self._s3root, url, path)
 
-    def get_many(self, keys, return_missing=False, return_info=False):
+    def get_many(self, keys, return_missing=False, return_info=True):
         """
         Get many objects from S3 in parallel.
 
@@ -624,7 +625,7 @@ class S3(object):
             return_missing: (optional, default False) if set to True, do
                             not raise an exception for a missing key but
                             return it as an S3Object with .exists == False.
-            return_info: (optional, default False) if set to True, fetch the
+            return_info: (optional, default True) if set to True, fetch the
                          content-type and user metadata associated with the object.
 
         Returns:
@@ -795,8 +796,12 @@ class S3(object):
         """
         def _store():
             for key_obj in key_objs:
-                key = getattr(key_obj, 'key', key_obj[0])
-                obj = getattr(key_obj, 'value', key_obj[1])
+                if isinstance(key_obj, tuple):
+                    key = key_obj[0]
+                    obj = key_obj[1]
+                else:
+                    key = key_obj.key
+                    obj = key_obj.value
                 store_info = {
                     'key': key,
                     'content_type': getattr(key_obj, 'content_type', None)
@@ -834,10 +839,9 @@ class S3(object):
         Args:
             key_paths: (required) an iterator of (key, path) tuples. Instead of
                        (key, path) tuples, you can also pass any object that
-                       has the following properties 'key', 'value', 'content_type',
+                       has the following properties 'key', 'path', 'content_type',
                        'metadata' like the S3PutObject for example. 'key' and
-                       'value' are required but others are optional. In this case,
-                       'value' should point to the file path
+                       'path' are required but others are optional.
             overwrite: (optional) overwrites the key with obj, if it exists
 
         Returns:
@@ -845,8 +849,12 @@ class S3(object):
         """
         def _check():
             for key_path in key_paths:
-                key = getattr(key_path, 'key', key_path[0])
-                path = getattr(key_path, 'value', key_path[1])
+                if isinstance(key_path, tuple):
+                    key = key_path[0]
+                    path = key_path[1]
+                else:
+                    key = key_path.key
+                    path = key_path.path
                 store_info = {
                     'key': key,
                     'content_type': getattr(key_path, 'content_type', None),
@@ -919,18 +927,16 @@ class S3(object):
 
     def _put_many_files(self, url_info, overwrite):
         url_info = list(url_info)
-        def _update_and_return(d, d1):
-            d.update(d1)
-            return d
+        url_dicts = [dict(
+            chain([
+                ('local', os.path.realpath(local)),
+                ('url', url)], info.items())) for local, url, info in url_info]
 
         with NamedTemporaryFile(dir=self._tmpdir,
                                 mode='wb',
                                 delete=not debug.s3client,
                                 prefix='metaflow.s3.put_inputs.') as inputfile:
-            lines = map(to_bytes, (json.dumps(
-                _update_and_return(
-                    {'local': os.path.realpath(local), 'url': url},
-                    info)) for local, url, info in url_info))
+            lines = (to_bytes(json.dumps(x) for x in url_dicts))
             inputfile.write(b'\n'.join(lines))
             inputfile.flush()
             stdout, stderr = self._s3op_with_retries('put',

@@ -36,25 +36,19 @@ from metaflow.datastore.util.s3util import aws_retry
 
 NUM_WORKERS_DEFAULT = 64
 
-# Copied from metaflow.util but needs to be here for pickling to properly work
-# (else it thinks that S3Url is defined in metaflow.util)
-if sys.version_info.major >= 3 and sys.version_info.minor >= 7:
-    from collections import namedtuple
-    namedtuple_with_defaults = namedtuple
-else:
-    from collections import namedtuple
-    def namedtuple_with_defaults(typename, field_names, defaults=()):
-        T = namedtuple(typename, field_names)
-        T.__new__.__defaults__ = (None,) * len(T._fields)
-        prototype = T(*defaults)
-        T.__new__.__defaults__ = tuple(prototype)
-        return T
+class S3Url(object):
+    def __init__(self,
+        bucket, path, url, local, prefix,
+        content_type=None, metadata=None, range=None):
 
-S3Url = namedtuple_with_defaults(
-    'S3Url',
-    ['bucket', 'path', 'url', 'local', 'prefix', 'content_type',
-     'metadata', 'range'],
-    defaults=(None, None, None)) # Defaults are content_type, metadata and range
+        self.bucket = bucket
+        self.path = path
+        self.url = url
+        self.local = local
+        self.prefix = prefix
+        self.content_type = content_type
+        self.metadata = metadata
+        self.range = range
 
 # We use error codes instead of Exceptions, which are trickier to
 # handle reliably in a multi-process world
@@ -91,28 +85,7 @@ def worker(queue, mode):
             url = queue.get()
             if url is None:
                 break
-
-            if mode == 'info':
-                try:
-                    head = s3.head_object(Bucket=url.bucket, Key=url.path)
-                    to_output = {
-                        'error': None,
-                        'size': head['ContentLength'],
-                        'content_type': head['ContentType'],
-                        'metadata': head['Metadata']}
-                except ClientError as err:
-                    error_code = normalize_client_error(err)
-                    if error_code == 404:
-                        to_output = {'error': ERROR_URL_NOT_FOUND}
-                    elif error_code == 403:
-                        to_output = {'error': ERROR_URL_ACCESS_DENIED}
-                    else:
-                        to_output = {'error': error_code}
-                        raise
-                finally:
-                    with open(url.local, 'w') as f:
-                        json.dump(to_output, f)
-            elif mode == 'download':
+            if mode == 'download':
                 tmp = NamedTemporaryFile(dir='.', delete=False)
                 try:
                     if url.range is None:
@@ -129,8 +102,6 @@ def worker(queue, mode):
                         if code[0] == '2':
                             tmp.write(resp['Body'].read())
                         else:
-                            tmp.close()
-                            os.unlink(tmp.name)
                             # TODO: Better raised error
                             raise RuntimeError("Could not load file")
                     tmp.close()

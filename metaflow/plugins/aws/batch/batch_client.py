@@ -51,6 +51,9 @@ class BatchClient(object):
         job = RunningJob(job_id, self._client)
         return job.update()
 
+    def region(self):
+        return self._client._client_config.region_name
+
 
 class BatchJobException(MetaflowException):
     headline = 'AWS Batch job error'
