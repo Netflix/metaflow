@@ -20,8 +20,8 @@ def convert_input_paths(argo_json):
     task_ids = re.sub('[\[\]{}]', '', task_ids)
     task_ids = task_ids.split(',')
     tasks = [t.split(":")[1] for t in task_ids]
-    print("{}/{}/:{}".format(flow, run_id, ','.join(tasks)))
+    return '{}/{}/:{}'.format(flow, run_id, ','.join(tasks))
 
 
 if __name__ == '__main__':
-    convert_input_paths(sys.argv[1])
+    print(convert_input_paths(sys.argv[1]))
