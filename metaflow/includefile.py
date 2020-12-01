@@ -225,8 +225,8 @@ class FilePathClass(click.ParamType):
             self.fail(err)
         if file_type is None:
             # Here, we need to store the file
-            param_ctx = context_proto._replace(parameter_name=self.parameter_name)
-            return LocalFile(self._is_text, self._encoding, value)(param_ctx)
+            return LocalFile(
+                self._is_text, self._encoding, value)(context_proto)
         else:
             # We will just store the URL in the datastore along with text/encoding info
             return Uploader.encode_url(

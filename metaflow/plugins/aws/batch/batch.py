@@ -142,6 +142,7 @@ class Batch(object):
             .gpu(gpu) \
             .memory(memory) \
             .timeout_in_secs(run_time_limit) \
+            .environment_variable('AWS_DEFAULT_REGION', self._client.region()) \
             .environment_variable('METAFLOW_CODE_SHA', code_package_sha) \
             .environment_variable('METAFLOW_CODE_URL', code_package_url) \
             .environment_variable('METAFLOW_CODE_DS', code_package_ds) \
@@ -157,8 +158,6 @@ class Batch(object):
             # on the remote AWS Batch instance; this happens when METAFLOW_DATASTORE_SYSROOT_LOCAL 
             # is NOT set (see get_datastore_root_from_config in datastore/local_backend.py).
         for name, value in env.items():
-            job.environment_variable(name, value)
-        for name, value in self.metadata.get_runtime_environment('batch').items():
             job.environment_variable(name, value)
         if attrs:
             for key, value in attrs.items():

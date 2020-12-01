@@ -83,6 +83,7 @@ class StepFunctionsClient(object):
             from ..aws_client import get_aws_client
             account_id = get_aws_client('sts').get_caller_identity().get('Account')
             region = AWS_SANDBOX_REGION
+            # Sandboxes are in aws partition
             return 'arn:aws:states:%s:%s:stateMachine:%s' \
                                         % (region, account_id, name)
         else:
