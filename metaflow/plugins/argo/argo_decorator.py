@@ -1,6 +1,6 @@
 from metaflow.decorators import FlowDecorator
 from metaflow.decorators import StepDecorator
-from metaflow.plugins.mlf.argo_workflow import ArgoException
+from .argo_workflow import ArgoException
 
 
 class ArgoFlowDecorator(FlowDecorator):

@@ -5,7 +5,7 @@ from metaflow import current
 from metaflow.datastore.datastore import TransformableObject
 from metaflow.package import MetaflowPackage
 from metaflow.exception import MetaflowException
-from metaflow.plugins.mlf.argo_workflow import ArgoWorkflow
+from .argo_workflow import ArgoWorkflow
 
 
 @click.group()
