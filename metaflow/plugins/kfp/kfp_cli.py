@@ -1,8 +1,9 @@
 import posixpath
 
 import click
+import json
 
-from metaflow import current, decorators
+from metaflow import current, decorators, parameters, JSONType
 from metaflow.datastore.datastore import TransformableObject
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
@@ -54,6 +55,7 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
     )
 
 
+@parameters.add_custom_parameters(deploy_mode=True)
 @kubeflow_pipelines.command(
     help="Deploy a new version of this workflow to Kubeflow Pipelines."
 )
@@ -163,10 +165,22 @@ def run(
     max_parallelism=None,
     workflow_timeout=None,
     wait_for_completion=False,
+    **kwargs
 ):
     """
     Analogous to step_functions_cli.py
     """
+
+    def _convert_value(param: parameters.Parameter):
+        v = kwargs.get(param.name)
+        return json.dumps(v) if param.kwargs.get("type") == JSONType else v
+
+    flow_parameters = {
+        param.name: _convert_value(param)
+        for _, param in obj.flow._get_parameters()
+        if kwargs.get(param.name) is not None
+    }
+
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
     check_metadata_service_version(obj)
     flow = make_flow(
@@ -197,7 +211,9 @@ def run(
         obj.echo(
             "Deploying *%s* to Kubeflow Pipelines..." % current.flow_name, bold=True
         )
-        run_pipeline_result = flow.create_run_on_kfp(experiment_name, run_name)
+        run_pipeline_result = flow.create_run_on_kfp(
+            experiment_name, run_name, flow_parameters
+        )
 
         obj.echo("\nRun created successfully!\n")
 
