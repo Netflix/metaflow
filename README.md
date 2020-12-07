@@ -25,6 +25,6 @@ Runs [Metaflow](https://metaflow.org/) pipelines on [Argo Workflows](https://arg
 
 You can find more documentation here:
 
-* [Metaflow](https://github.wdf.sap.corp/AI/metaflow-argo/wiki/Metaflow)
+* [Metaflow](https://github.com/Netflix/metaflow)
 * [Conda](https://github.wdf.sap.corp/AI/metaflow-argo/wiki/Conda)
 * [Local installation of Argo](https://github.wdf.sap.corp/AI/metaflow-argo/wiki/Argo)
