@@ -134,10 +134,10 @@ test:internal:
           export METAFLOW_DATASTORE_SYSROOT_S3=s3://aip-example-dev/metaflow/ && 
           export METAFLOW_USER=${GITLAB_USER_EMAIL} &&
           cd /home/zservice/metaflow/metaflow/plugins/kfp/tests && 
-          python -m pytest -s -n 2 run_integration_tests.py --image ${BUILT_IMAGE_FULL_PATH} --cov-config=setup.cfg &&
-          mv /home/zservice/metaflow/metaflow/plugins/kfp/tests/htmlcov /home/zservice/public
+          python -m pytest -s -n 2 run_integration_tests.py --image ${BUILT_IMAGE_FULL_PATH} --cov-config=setup.cfg
         "
   artifacts:
+    when: always
     paths:
       - public
   rules:
@@ -170,10 +170,10 @@ test:nonprod:
           export METAFLOW_DATASTORE_SYSROOT_S3=s3://aip-example-stage/metaflow/ && 
           export METAFLOW_USER=${GITLAB_USER_EMAIL} &&
           cd /home/zservice/metaflow/metaflow/plugins/kfp/tests && 
-          python -m pytest -s -n 2 run_integration_tests.py --image ${BUILT_IMAGE_FULL_PATH} --cov-config=setup.cfg &&
-          mv /home/zservice/metaflow/metaflow/plugins/kfp/tests/htmlcov /home/zservice/public
+          python -m pytest -s -n 2 run_integration_tests.py --image ${BUILT_IMAGE_FULL_PATH} --cov-config=setup.cfg
         "
   artifacts:
+    when: always
     paths:
       - public
   rules:
@@ -206,10 +206,10 @@ test:prod:
           export METAFLOW_DATASTORE_SYSROOT_S3=s3://aip-example-prod/metaflow/ &&
           export METAFLOW_USER=${GITLAB_USER_EMAIL} && 
           cd /home/zservice/metaflow/metaflow/plugins/kfp/tests && 
-          python -m pytest -s -n 2 run_integration_tests.py --image ${BUILT_IMAGE_FULL_PATH} --cov-config=setup.cfg &&
-          mv /home/zservice/metaflow/metaflow/plugins/kfp/tests/htmlcov /home/zservice/public
+          python -m pytest -s -n 2 run_integration_tests.py --image ${BUILT_IMAGE_FULL_PATH} --cov-config=setup.cfg
         "
   artifacts:
+    when: always
     paths:
       - public
   rules:
