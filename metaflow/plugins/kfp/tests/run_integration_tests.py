@@ -27,7 +27,7 @@ Parameters:
 -n: specifies the number of parallel processes used by PyTest.
 
 Sometimes, the tests may fail on KFP due to resource quota issues. If they do,
-try reducing -n (number of parallel processes) so less simulateneous
+try reducing -n (number of parallel processes) so less simultaneous
 KFP runs will be scheduled.
 
 """

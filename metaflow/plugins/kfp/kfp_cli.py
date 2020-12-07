@@ -5,7 +5,7 @@ import json
 
 from metaflow import current, decorators, parameters, JSONType
 from metaflow.datastore.datastore import TransformableObject
-from metaflow.exception import MetaflowException
+from metaflow.exception import CommandException, MetaflowException
 from metaflow.metaflow_config import (
     KFP_RUN_URL_PREFIX,
     KFP_SDK_API_NAMESPACE,
@@ -134,6 +134,7 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
 )
 @click.option(
     "--max-parallelism",
+    "-m",
     default=10,
     show_default=True,
     help="Maximum number of parallel pods.",
@@ -143,6 +144,8 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
 )
 @click.option(
     "--wait-for-completion",
+    "--wait",
+    "-w",
     "wait_for_completion",
     is_flag=True,
     default=False,
@@ -196,6 +199,9 @@ def run(
     )
 
     if yaml_only:
+        if pipeline_path is None:
+            raise CommandException("Please specify --pipeline-path")
+
         pipeline_path = flow.create_kfp_pipeline_yaml(pipeline_path)
         obj.echo(
             "\nDone converting *{name}* to {path}".format(
@@ -204,12 +210,13 @@ def run(
         )
     else:
         if s3_code_package and flow.datastore.TYPE != "s3":
-            raise MetaflowException(
+            raise CommandException(
                 "Kubeflow Pipelines s3-code-package requires --datastore=s3."
             )
 
         obj.echo(
-            "Deploying *%s* to Kubeflow Pipelines..." % current.flow_name, bold=True
+            "Deploying *%s* to Kubeflow Pipelines..." % current.flow_name,
+            bold=True,
         )
         run_pipeline_result = flow.create_run_on_kfp(
             experiment_name, run_name, flow_parameters
@@ -225,11 +232,14 @@ def run(
         )
 
         kfp_run_url = posixpath.join(
-            KFP_RUN_URL_PREFIX, "_/pipeline/#/runs/details", run_pipeline_result.run_id
+            KFP_RUN_URL_PREFIX,
+            "_/pipeline/#/runs/details",
+            run_pipeline_result.run_id,
         )
 
         obj.echo(
-            "*Run link:* {kfp_run_url}\n".format(kfp_run_url=kfp_run_url), fg="cyan"
+            "*Run link:* {kfp_run_url}\n".format(kfp_run_url=kfp_run_url),
+            fg="cyan",
         )
 
         if wait_for_completion:
