@@ -8,7 +8,7 @@ Runs [Metaflow](https://metaflow.org/) pipelines on [Argo Workflows](https://arg
   pip install git+ssh://git@github.wdf.sap.corp/AI/metaflow-argo.git@argo
   ```
 
-* To run flows on the Argo Workflows, you need to [Configure S3 and Argo Server](https://github.wdf.sap.corp/AI/metaflow-argo/wiki/Configuring-Metaflow-Argo).
+* To run flows on the Argo Workflows, you need to [Configure S3 and Argo Server](https://github.wdf.sap.corp/AI/metaflow-argo/wiki/Configure-Metaflow-Argo).
  
 * Access tutorials by typing:
   ```
