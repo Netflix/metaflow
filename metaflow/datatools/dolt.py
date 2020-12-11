@@ -1,6 +1,8 @@
 import doltpy
 from doltpy.core import Dolt
 from doltpy.core.write import import_df
+from .. import FlowSpec
+from ..current import current
 
 
 class MDolt(object):
@@ -9,6 +11,7 @@ class MDolt(object):
     def __init__(self, run=None, repoOwner='', repoName=''):
         self.repoOwner = repoOwner
         self.repoName = repoName
+        self.run = run
 
         combined = '{}/{}'.format(self.repoOwner, self.repoName)
 
@@ -29,9 +32,14 @@ class MDolt(object):
         """
         pass
 
-    # TODO: inference the run and flow name immediately.
-    # Figure out how to do this all remotely.
+    # TODO: Figure out how to do this all remotely.
 
     def addTable(self, tableName, df, pks):
+        if isinstance(self.run, FlowSpec):
+            # print(current.flow_name)
+            tableName = '{}_{}_{}'.format(current.run_id,
+                                          current.step_name,
+                                          tableName)
+
         import_df(repo=self.repo, table_name=tableName,
                   data=df, primary_keys=pks)
