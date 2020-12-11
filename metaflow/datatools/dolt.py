@@ -13,10 +13,10 @@ class MDolt(object):
         self.repoName = repoName
         self.run = run
 
-        combined = '{}/{}'.format(self.repoOwner, self.repoName)
+        self.combined = '{}/{}'.format(self.repoOwner, self.repoName)
 
         try:
-            self.repo = Dolt.clone(combined)
+            self.repo = Dolt.clone(self.combined)
         except:
             self.repo = Dolt(self.repoName)
 
@@ -34,12 +34,17 @@ class MDolt(object):
 
     # TODO: Figure out how to do this all remotely.
 
-    def addTable(self, tableName, df, pks):
-        if isinstance(self.run, FlowSpec):
-            # print(current.flow_name)
-            tableName = '{}_{}_{}'.format(current.run_id,
-                                          current.step_name,
-                                          tableName)
-
-        import_df(repo=self.repo, table_name=tableName,
+    def add_table(self, table_name, df, pks):
+        # Get the commit graph in here.
+        table_name = '{}_{}'.format(current.step_name, table_name)
+        import_df(repo=self.repo, table_name=table_name,
                   data=df, primary_keys=pks)
+
+
+    def commit_and_push(self):
+        if isinstance(self.run, FlowSpec):
+            self.repo.add('.')
+            self.repo.commit('Run {}'.format(current.run_id))
+            self.repo.push('origin', 'master')
+        else:
+            Exception("This needs to be of instance FlowSpec")
