@@ -54,7 +54,7 @@ JSONType = JSONTypeClass()
 from .current import current
 
 # data layer
-from .datatools import S3, MDolt
+from .datatools import S3, DoltDT
 
 # Decorators
 from .decorators import step, _import_plugin_decorators

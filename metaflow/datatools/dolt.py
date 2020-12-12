@@ -5,7 +5,7 @@ from .. import FlowSpec
 from ..current import current
 
 
-class MDolt(object):
+class DoltDT(object):
     # TODO: Get rid of cloning and just do api calls.
 
     def __init__(self, run=None, repoOwner='', repoName=''):
