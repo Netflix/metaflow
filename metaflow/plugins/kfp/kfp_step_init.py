@@ -58,8 +58,6 @@ def save_step_environment_variables(
             graph, run_id, step_name, split_contexts, passed_in_split_indexes
         )
 
-        logger(f"{STEP_ENVIRONMENT_VARIABLES}: {environment_exports}")
-
         with open(STEP_ENVIRONMENT_VARIABLES, "w") as file:
             for key, value in environment_exports.items():
                 file.write(f"export {key}={value}\n")

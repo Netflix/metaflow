@@ -1,4 +1,7 @@
+import json
 import posixpath
+import shutil
+import subprocess
 
 import click
 import json
@@ -152,6 +155,15 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
     help="Wait for KFP run to complete before process exits.",
     show_default=True,
 )
+@click.option(
+    "--argo-wait",
+    "-aw",
+    "argo_wait",
+    is_flag=True,
+    default=False,
+    help="Use Argo CLI watch to wait for KFP run to complete.",
+    show_default=True,
+)
 @click.pass_obj
 def run(
     obj,
@@ -168,7 +180,8 @@ def run(
     max_parallelism=None,
     workflow_timeout=None,
     wait_for_completion=False,
-    **kwargs
+    argo_wait=False,
+    **kwargs,
 ):
     """
     Analogous to step_functions_cli.py
@@ -224,12 +237,8 @@ def run(
 
         obj.echo("\nRun created successfully!\n")
 
-        obj.echo(
-            "Metaflow run_id=*kfp-{run_id}* \n".format(
-                run_id=run_pipeline_result.run_id
-            ),
-            fg="magenta",
-        )
+        run_id = f"kfp-{run_pipeline_result.run_id}"
+        obj.echo(f"Metaflow run_id=*{run_id}* \n", fg="magenta")
 
         kfp_run_url = posixpath.join(
             KFP_RUN_URL_PREFIX,
@@ -242,19 +251,36 @@ def run(
             fg="cyan",
         )
 
-        if wait_for_completion:
-            response = flow._client.wait_for_run_completion(
-                run_pipeline_result.run_id, 1200
-            )
+        if argo_wait:
+            argo_path: str = shutil.which("argo")
+            run_info = flow._client.get_run(run_pipeline_result.run_id)
+            workflow_manifest = json.loads(run_info.pipeline_runtime.workflow_manifest)
+            argo_workflow_name = workflow_manifest["metadata"]["name"]
+            argo_cmd = f"{argo_path} -n {namespace} "
+            cmd = f"{argo_cmd} watch {argo_workflow_name}"
+            subprocess.run(cmd, shell=True, universal_newlines=True)
 
-            if response.run.status == "Succeeded":
-                obj.echo("SUCCEEDED!", fg="green")
-            else:
-                raise Exception(
-                    "Flow: {flow_name}, run link: {kfp_run_url} FAILED!".format(
-                        flow_name=current.flow_name, kfp_run_url=kfp_run_url
-                    )
-                )
+            cmd = f"{argo_cmd} get {argo_workflow_name} | grep Status | awk '{{print $2}}'"
+            ret = subprocess.run(
+                cmd, shell=True, stdout=subprocess.PIPE, encoding="utf8"
+            )
+            succeeded = "Succeeded" in ret.stdout
+            show_status(run_id, kfp_run_url, obj.echo, succeeded)
+        elif wait_for_completion:
+            response = flow._client.wait_for_run_completion(
+                run_pipeline_result.run_id, timeout=500
+            )
+            succeeded = (response.run.status == "Succeeded",)
+            show_status(run_id, kfp_run_url, obj.echo, succeeded)
+
+
+def show_status(run_id: str, kfp_run_url: str, echo: callable, succeeded: bool):
+    if succeeded:
+        echo("\nSUCCEEDED!", fg="green")
+    else:
+        raise Exception(
+            f"Flow: {current.flow_name}, run_id: {run_id}, run_link: {kfp_run_url} FAILED!"
+        )
 
 
 def make_flow(

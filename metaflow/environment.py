@@ -99,7 +99,7 @@ class MetaflowEnvironment(object):
         )
 
     def get_package_commands(self, code_package_url, pip_install=True):
-        cmds = ["set -ex",  # -x for debugging, it prints out the commands executed
+        cmds = ["set -e",
                 "echo \'Setting up task environment.\'",
                 "%s -m pip install click requests boto3 -qqq"
                     % self._python() if pip_install else "true",  # true is Python pass for bash

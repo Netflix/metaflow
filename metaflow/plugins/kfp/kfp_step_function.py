@@ -14,7 +14,7 @@ def kfp_step_function(
     ] = None,  # fields to be pushed into Flow state from KFP
     metaflow_service_url: str = "",
     flow_parameters_json: str = None,  # json formatted string
-    **kwargs
+    **kwargs,
 ) -> object:
     """
     Renders and runs the cmd_template containing Metaflow step/init commands to
@@ -24,10 +24,10 @@ def kfp_step_function(
     """
     import os
     import json
-    from collections import namedtuple
+    import logging
     from subprocess import Popen
+    from collections import namedtuple
     from typing import Dict
-    from metaflow.cli import logger
 
     if preceding_component_inputs is None:
         preceding_component_inputs = []
@@ -67,9 +67,9 @@ def kfp_step_function(
         pass
 
     if process.returncode != 0:
-        logger(f"---- Following command returned: {process.returncode}")
-        logger(cmd.replace(" && ", "\n"))
-        logger("----")
+        logging.info(f"---- Following command returned: {process.returncode}")
+        logging.info(cmd.replace(" && ", "\n"))
+        logging.info("----")
         raise Exception("Returned: %s" % process.returncode)
 
     task_context_dict = {}

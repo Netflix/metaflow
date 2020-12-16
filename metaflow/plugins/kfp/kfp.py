@@ -10,7 +10,8 @@ import yaml
 
 import kfp
 from kfp import dsl
-from kfp.dsl import ContainerOp, PipelineConf
+from kfp.dsl import ContainerOp, PipelineConf, VolumeOp
+
 from metaflow.metaflow_config import (
     DATASTORE_SYSROOT_S3,
     KFP_TTL_SECONDS_AFTER_FINISHED,
@@ -18,11 +19,6 @@ from metaflow.metaflow_config import (
 )
 from metaflow.plugins import KfpInternalDecorator
 from metaflow.plugins.kfp.kfp_step_function import kfp_step_function
-
-from ... import R
-from ...environment import MetaflowEnvironment
-from ...graph import DAGNode
-from ...plugins.resources_decorator import ResourcesDecorator
 from .kfp_constants import (
     INPUT_PATHS_ENV_NAME,
     SPLIT_INDEX_ENV_NAME,
@@ -30,6 +26,12 @@ from .kfp_constants import (
     TASK_ID_ENV_NAME,
 )
 from .kfp_foreach_splits import graph_to_task_ids
+from .pytorch_distributed_decorator import PyTorchDistributedDecorator
+from ... import R
+from ...debug import debug
+from ...environment import MetaflowEnvironment
+from ...graph import DAGNode
+from ...plugins.resources_decorator import ResourcesDecorator
 
 
 class KfpComponent(object):
@@ -40,6 +42,7 @@ class KfpComponent(object):
         total_retries: int,
         resource_requirements: Dict[str, str],
         kfp_decorator: KfpInternalDecorator,
+        pytorch_distributed_decorator: PyTorchDistributedDecorator,
     ):
         self.name = name
         self.cmd_template = cmd_template
@@ -51,6 +54,7 @@ class KfpComponent(object):
             if kfp_decorator
             else None
         )
+        self.pytorch_distributed_decorator = pytorch_distributed_decorator
 
         def bindings(binding_name: str) -> List[str]:
             if kfp_decorator:
@@ -166,8 +170,11 @@ class KubeflowPipelines(object):
         """
         Analogous to batch.py
         """
-        commands = (
-            environment.get_package_commands(code_package_url, pip_install=False)
+        # debug.subcommand is true if this env variable is set:
+        #   export METAFLOW_DEBUG_SUBCOMMAND=1
+        commands = ["set -x" if debug.subcommand else "true"]
+        commands.extend(
+            environment.get_package_commands(code_package_url, pip_install=True)
             if self.s3_code_package
             else ["cd " + str(Path(inspect.getabsfile(self.flow.__class__)).parent)]
         )
@@ -303,6 +310,14 @@ class KubeflowPipelines(object):
                         deco
                         for deco in node.decorators
                         if isinstance(deco, KfpInternalDecorator)
+                    ),
+                    None,  # default
+                ),
+                pytorch_distributed_decorator=next(
+                    (
+                        deco
+                        for deco in node.decorators
+                        if isinstance(deco, PyTorchDistributedDecorator)
                     ),
                     None,  # default
                 ),
@@ -451,9 +466,10 @@ class KubeflowPipelines(object):
             container_op.container.set_cpu_limit(resource_requirements["cpu_limit"])
         if "gpu" in resource_requirements:
             # TODO(yunw)(AIP-2048): Support mixture of GPU from different vendors.
+            gpu_vendor = resource_requirements.get("gpu_vendor", None)
             container_op.container.set_gpu_limit(
                 resource_requirements["gpu"],
-                vendor=resource_requirements["gpu_vendor"],
+                vendor=gpu_vendor if gpu_vendor else "nvidia",
             )
 
     def step_op(
@@ -565,7 +581,8 @@ class KubeflowPipelines(object):
 
         def pipeline_transform(op: ContainerOp):
             # Disable caching because Metaflow doesn't have memoization
-            op.execution_options.caching_strategy.max_cache_staleness = "P0D"
+            if isinstance(op, ContainerOp):
+                op.execution_options.caching_strategy.max_cache_staleness = "P0D"
 
         @dsl.pipeline(name=self.name, description=self.graph.doc)
         def kfp_pipeline_from_flow(
@@ -579,6 +596,7 @@ class KubeflowPipelines(object):
                 passed_in_split_indexes: str = '""',
                 preceding_kfp_component_op: ContainerOp = None,
                 preceding_component_outputs_dict: Dict[str, dsl.PipelineParam] = None,
+                volume_op: Optional[VolumeOp] = None,
             ):
                 if node.name in visited:
                     return
@@ -623,6 +641,12 @@ class KubeflowPipelines(object):
 
                 visited[node.name] = container_op
 
+                pytorch_deco = kfp_component.pytorch_distributed_decorator
+                if pytorch_deco:
+                    container_op.add_pvolumes(
+                        {pytorch_deco.attributes["shared_volume_dir"]: volume_op.volume}
+                    )
+
                 if preceding_kfp_component_op:
                     container_op.after(preceding_kfp_component_op)
 
@@ -657,6 +681,27 @@ class KubeflowPipelines(object):
 
                 if node.type == "foreach":
                     # Please see nested_parallelfor.ipynb for how this works
+                    next_step_name = node.out_funcs[0]
+                    next_kfp_component: KfpComponent = step_to_kfp_component_map[
+                        next_step_name
+                    ]
+
+                    if (
+                        next_kfp_component.pytorch_distributed_decorator
+                        and volume_op is None
+                    ):
+                        # Create VolumeOp for shared file system
+                        # TODO: AIP-1652 We don't delete it because it hangs on delete
+                        #  The long term solution would likely be to move to PyTorch RPC
+                        volume_op = VolumeOp(
+                            name=f"create-shared-volume",
+                            resource_name="shared-volume",
+                            modes=dsl.VOLUME_MODE_RWO,
+                            size=next_kfp_component.pytorch_distributed_decorator.attributes[
+                                "shared_volume_size"
+                            ],
+                        )
+
                     with kfp.dsl.ParallelFor(
                         container_op.outputs["foreach_splits"]
                     ) as split_index:
@@ -665,10 +710,11 @@ class KubeflowPipelines(object):
                         # NOTE: A Metaflow foreach node can only have one child
                         #  or one out_func
                         build_kfp_dag(
-                            self.graph[node.out_funcs[0]],
+                            self.graph[next_step_name],
                             split_index,
                             preceding_kfp_component_op=next_kfp_component_op,
                             preceding_component_outputs_dict=next_preceding_component_outputs_dict,
+                            volume_op=volume_op,
                         )
 
                     # Handle the ParallelFor join step, and pass in
@@ -678,6 +724,7 @@ class KubeflowPipelines(object):
                         passed_in_split_indexes,
                         preceding_kfp_component_op=next_kfp_component_op,
                         preceding_component_outputs_dict=next_preceding_component_outputs_dict,
+                        volume_op=volume_op,
                     )
                 else:
                     for step in node.out_funcs:
@@ -697,6 +744,7 @@ class KubeflowPipelines(object):
                                 passed_in_split_indexes,
                                 preceding_kfp_component_op=next_kfp_component_op,
                                 preceding_component_outputs_dict=next_preceding_component_outputs_dict,
+                                volume_op=volume_op,
                             )
 
             build_kfp_dag(self.graph["start"])

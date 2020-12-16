@@ -1,6 +1,5 @@
 import json
 import os
-import pprint
 from typing import Callable, Dict, List
 
 from metaflow import S3, FlowSpec, current
@@ -127,12 +126,8 @@ class KfpForEachSplits(object):
         foreach_splits_path = self._build_foreach_splits_path(
             parent_context_step_name, context_node_task_id
         )
-        self.logger(
-            f"get_foreach_splits({parent_context_step_name}: {foreach_splits_path}"
-        )
         input_context = json.loads(self.s3.get(foreach_splits_path).text)
 
-        self.logger(pprint.pformat(input_context), head="--")
         return input_context["foreach_splits"]
 
     def get_parent_context_task_id(
@@ -167,7 +162,6 @@ class KfpForEachSplits(object):
             # and the foreach_splits_path doesn't have a file.
             pass
 
-        self.logger(f"get_parent_context_task_id: {context_node_task_id}")
         return context_node_task_id
 
     def get_current_step_split_index(self, passed_in_split_indexes: str) -> str:

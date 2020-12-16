@@ -16,7 +16,7 @@ class KfpFlow(FlowSpec):
     Test adding a KFP Component and decorators
     """
     @resources(
-        cpu=0.5, cpu_limit=5, gpu=1, gpu_vendor="nvidia",
+        cpu=0.25, cpu_limit=5,
         memory=150, memory_limit="1G"
     )
     @step
