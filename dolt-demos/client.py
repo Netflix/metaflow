@@ -8,17 +8,17 @@ print("Using run: %s" % str(run))
 Ex 1: Use the client library to determine which dataset was used first
 '''
 start_data = run['start'].task.data
-db_name, repo_commit = start_data.dolt['db_name'], start_data.dolt['commit_hash']
+db_name, commit = start_data.dolt['db_name'], start_data.dolt['commit_hash']
 
-print("Started dataset {} at commit {}".format(db_name, repo_commit))
+print("Started dataset {} at commit {}".format(db_name, commit))
 
 '''
-Ex 2: View the repo you added a table too.
+Ex 2: View the database you added a table too.
 '''
 predict_data = run['predict'].task.data
 db_name, table_used, db_name = predict_data.dolt['db_name'], predict_data.dolt['tables_accessed'][0], predict_data.dolt['commit_hash']
 
-print("Write results to repo {} at commit {}".format(db_name, repo_commit))
+print("Write results to database {} at commit {}".format(db_name, commit))
 print("Table {} was used.".format(table_used))
 
 '''
@@ -26,19 +26,19 @@ Ex 3: Get the new commit hash at the end when you commit and push
 '''
 end_data = run['end'].task.data
 
-db_name, repo_commit = end_data.dolt['db_name'], end_data.dolt['commit_hash']
+db_name, commit = end_data.dolt['db_name'], end_data.dolt['commit_hash']
 
-print("Committed results to repo {} with commit {}".format(db_name, repo_commit))
+print("Committed results to database {} with commit {}".format(db_name, commit))
 
 '''
-Ex 4: Match all the run's start with the repository and commit hash they used.
+Ex 4: Match all the run's start with the database and commit hash they used.
 '''
-desired_repo = 'iris-test'
+desired_db = 'iris-test'
 for run in Flow('PlayListFlow').runs():
     if run.successful:
         db_name = run['start'].task.data.dolt.db_name
 
-        if db_name == desired_repo:
+        if db_name == desired_db:
             print(str(run))
 
 '''
