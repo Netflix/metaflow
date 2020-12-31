@@ -16,7 +16,7 @@ class DoltDemoFlow(FlowSpec):
     def add_random(self):
         import random
 
-        with DoltDT(run=self, repoOwner='vinai', repoName='metaflow_demo') as dolt:
+        with DoltDT(run=self, db_name='metaflow_demo') as dolt:
             self.df['gross'] = self.df['gross'] + random.randint(1, 1000000)
 
             dolt.add_table(table_name='movies', df=self.df, pks=['movie_title'])
@@ -25,7 +25,7 @@ class DoltDemoFlow(FlowSpec):
 
     @step
     def end(self):
-        with DoltDT(run=self, repoOwner='vinai', repoName='metaflow_demo') as dolt:
+        with DoltDT(run=self, db_name='metaflow_demo') as dolt:
             dolt.commit_and_push()
 
 if __name__ == '__main__':

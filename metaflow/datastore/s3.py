@@ -54,7 +54,7 @@ class S3DataStore(MetaflowDataStore):
             with self.monitor.measure("metaflow.s3.get_object"):
                 self.s3.download_fileobj(url.netloc, url.path.lstrip('/'), buf)
         else:
-           self.s3.download_fileobj(url.netloc, url.path.lstrip('/'), buf)
+            self.s3.download_fileobj(url.netloc, url.path.lstrip('/'), buf)
         if return_buf:
             buf.seek(0)
             return buf

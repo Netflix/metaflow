@@ -1,0 +1,3751 @@
+movie_title,title_year,genres,gross
+Avatar,2009,Action|Adventure|Fantasy|Sci-Fi,760505847
+Pirates of the Caribbean: At World's End,2007,Action|Adventure|Fantasy,309404152
+Spectre,2015,Action|Adventure|Thriller,200074175
+The Dark Knight Rises,2012,Action|Thriller,448130642
+John Carter,2012,Action|Adventure|Sci-Fi,73058679
+Spider-Man 3,2007,Action|Adventure|Romance,336530303
+Tangled,2010,Adventure|Animation|Comedy|Family|Fantasy|Musical|Romance,200807262
+Avengers: Age of Ultron,2015,Action|Adventure|Sci-Fi,458991599
+Harry Potter and the Half-Blood Prince,2009,Adventure|Family|Fantasy|Mystery,301956980
+Batman v Superman: Dawn of Justice,2016,Action|Adventure|Sci-Fi,330249062
+Superman Returns,2006,Action|Adventure|Sci-Fi,200069408
+Quantum of Solace,2008,Action|Adventure,168368427
+Pirates of the Caribbean: Dead Man's Chest,2006,Action|Adventure|Fantasy,423032628
+The Lone Ranger,2013,Action|Adventure|Western,89289910
+Man of Steel,2013,Action|Adventure|Fantasy|Sci-Fi,291021565
+The Chronicles of Narnia: Prince Caspian,2008,Action|Adventure|Family|Fantasy,141614023
+The Avengers,2012,Action|Adventure|Sci-Fi,623279547
+Pirates of the Caribbean: On Stranger Tides,2011,Action|Adventure|Fantasy,241063875
+Men in Black 3,2012,Action|Adventure|Comedy|Family|Fantasy|Sci-Fi,179020854
+The Hobbit: The Battle of the Five Armies,2014,Adventure|Fantasy,255108370
+The Amazing Spider-Man,2012,Action|Adventure|Fantasy,262030663
+Robin Hood,2010,Action|Adventure|Drama|History,105219735
+The Hobbit: The Desolation of Smaug,2013,Adventure|Fantasy,258355354
+The Golden Compass,2007,Adventure|Family|Fantasy,70083519
+King Kong,2005,Action|Adventure|Drama|Romance,218051260
+Titanic,1997,Drama|Romance,658672302
+Captain America: Civil War,2016,Action|Adventure|Sci-Fi,407197282
+Battleship,2012,Action|Adventure|Sci-Fi|Thriller,65173160
+Jurassic World,2015,Action|Adventure|Sci-Fi|Thriller,652177271
+Skyfall,2012,Action|Adventure|Thriller,304360277
+Spider-Man 2,2004,Action|Adventure|Fantasy|Romance,373377893
+Iron Man 3,2013,Action|Adventure|Sci-Fi,408992272
+Alice in Wonderland,2010,Adventure|Family|Fantasy,334185206
+X-Men: The Last Stand,2006,Action|Adventure|Fantasy|Sci-Fi|Thriller,234360014
+Monsters University,2013,Adventure|Animation|Comedy|Family|Fantasy,268488329
+Transformers: Revenge of the Fallen,2009,Action|Adventure|Sci-Fi,402076689
+Transformers: Age of Extinction,2014,Action|Adventure|Sci-Fi,245428137
+Oz the Great and Powerful,2013,Adventure|Family|Fantasy,234903076
+The Amazing Spider-Man 2,2014,Action|Adventure|Fantasy|Sci-Fi,202853933
+TRON: Legacy,2010,Action|Adventure|Sci-Fi,172051787
+Cars 2,2011,Adventure|Animation|Comedy|Family|Sport,191450875
+Green Lantern,2011,Action|Adventure|Sci-Fi,116593191
+Toy Story 3,2010,Adventure|Animation|Comedy|Family|Fantasy,414984497
+Terminator Salvation,2009,Action|Adventure|Sci-Fi,125320003
+Furious 7,2015,Action|Crime|Thriller,350034110
+World War Z,2013,Action|Adventure|Horror|Sci-Fi|Thriller,202351611
+X-Men: Days of Future Past,2014,Action|Adventure|Fantasy|Sci-Fi|Thriller,233914986
+Star Trek Into Darkness,2013,Action|Adventure|Sci-Fi,228756232
+Jack the Giant Slayer,2013,Adventure|Fantasy,65171860
+The Great Gatsby,2013,Drama|Romance,144812796
+Prince of Persia: The Sands of Time,2010,Action|Adventure|Fantasy|Romance,90755643
+Pacific Rim,2013,Action|Adventure|Sci-Fi,101785482
+Transformers: Dark of the Moon,2011,Action|Adventure|Sci-Fi,352358779
+Indiana Jones and the Kingdom of the Crystal Skull,2008,Action|Adventure|Fantasy,317011114
+Brave,2012,Adventure|Animation|Comedy|Family|Fantasy,237282182
+Star Trek Beyond,2016,Action|Adventure|Sci-Fi|Thriller,130468626
+WALL·E,2008,Adventure|Animation|Family|Sci-Fi,223806889
+Rush Hour 3,2007,Action|Comedy|Crime|Thriller,140080850
+2012,2009,Action|Adventure|Sci-Fi,166112167
+A Christmas Carol,2009,Animation|Drama|Family|Fantasy,137850096
+Jupiter Ascending,2015,Action|Adventure|Sci-Fi,47375327
+The Legend of Tarzan,2016,Action|Adventure|Drama|Romance,124051759
+"The Chronicles of Narnia: The Lion, the Witch and the Wardrobe",2005,Adventure|Family|Fantasy,291709845
+X-Men: Apocalypse,2016,Action|Adventure|Sci-Fi,154985087
+The Dark Knight,2008,Action|Crime|Drama|Thriller,533316061
+Up,2009,Adventure|Animation|Comedy|Family,292979556
+Monsters vs. Aliens,2009,Action|Adventure|Animation|Comedy|Family|Sci-Fi,198332128
+Iron Man,2008,Action|Adventure|Sci-Fi,318298180
+Hugo,2011,Adventure|Drama|Family|Mystery,73820094
+Wild Wild West,1999,Action|Comedy|Sci-Fi|Western,113745408
+The Mummy: Tomb of the Dragon Emperor,2008,Action|Adventure|Fantasy|Horror|Thriller,102176165
+Suicide Squad,2016,Action|Adventure|Comedy|Sci-Fi,161087183
+Evan Almighty,2007,Comedy|Family|Fantasy,100289690
+Edge of Tomorrow,2014,Action|Adventure|Sci-Fi,100189501
+Waterworld,1995,Action|Adventure|Sci-Fi|Thriller,88246220
+G.I. Joe: The Rise of Cobra,2009,Action|Adventure|Sci-Fi|Thriller,150167630
+Inside Out,2015,Adventure|Animation|Comedy|Drama|Family|Fantasy,356454367
+The Jungle Book,2016,Adventure|Drama|Family|Fantasy,362645141
+Iron Man 2,2010,Action|Adventure|Sci-Fi,312057433
+Snow White and the Huntsman,2012,Action|Adventure|Drama|Fantasy,155111815
+Maleficent,2014,Action|Adventure|Family|Fantasy|Romance,241407328
+Dawn of the Planet of the Apes,2014,Action|Adventure|Drama|Sci-Fi,208543795
+47 Ronin,2013,Action|Adventure|Drama|Fantasy,38297305
+Captain America: The Winter Soldier,2014,Action|Adventure|Sci-Fi,259746958
+Shrek Forever After,2010,Adventure|Animation|Comedy|Family|Fantasy,238371987
+Tomorrowland,2015,Action|Adventure|Family|Mystery|Sci-Fi,93417865
+Big Hero 6,2014,Action|Adventure|Animation|Comedy|Drama|Family|Sci-Fi,222487711
+Wreck-It Ralph,2012,Adventure|Animation|Comedy|Family|Sci-Fi,189412677
+The Polar Express,2004,Adventure|Animation|Family|Fantasy,665426
+Independence Day: Resurgence,2016,Action|Adventure|Sci-Fi,102315545
+How to Train Your Dragon,2010,Adventure|Animation|Family|Fantasy,217387997
+Terminator 3: Rise of the Machines,2003,Action|Sci-Fi,150350192
+Guardians of the Galaxy,2014,Action|Adventure|Sci-Fi,333130696
+Interstellar,2014,Adventure|Drama|Sci-Fi,187991439
+Inception,2010,Action|Adventure|Sci-Fi|Thriller,292568851
+The Fast and the Furious,2001,Action|Crime|Thriller,144512310
+The Curious Case of Benjamin Button,2008,Drama|Fantasy|Romance,127490802
+X-Men: First Class,2011,Action|Adventure|Sci-Fi,146405371
+The Hunger Games: Mockingjay - Part 2,2015,Adventure|Sci-Fi,281666058
+The Sorcerer's Apprentice,2010,Action|Adventure|Family|Fantasy,63143812
+Poseidon,2006,Action|Adventure|Drama|Thriller,60655503
+Alice Through the Looking Glass,2016,Adventure|Family|Fantasy,76846624
+Shrek the Third,2007,Adventure|Animation|Comedy|Family|Fantasy,320706665
+Warcraft,2016,Action|Adventure|Fantasy,46978995
+Terminator Genisys,2015,Action|Adventure|Sci-Fi,89732035
+The Chronicles of Narnia: The Voyage of the Dawn Treader,2010,Adventure|Family|Fantasy,104383624
+Pearl Harbor,2001,Action|Drama|History|Romance|War,198539855
+Transformers,2007,Action|Adventure|Sci-Fi,318759914
+Alexander,2004,Action|Adventure|Biography|Drama|History|Romance|War,34293771
+Harry Potter and the Order of the Phoenix,2007,Adventure|Family|Fantasy|Mystery,292000866
+Harry Potter and the Goblet of Fire,2005,Adventure|Family|Fantasy|Mystery,289994397
+Hancock,2008,Action|Drama,227946274
+I Am Legend,2007,Drama|Horror|Sci-Fi,256386216
+Charlie and the Chocolate Factory,2005,Adventure|Comedy|Family|Fantasy,206456431
+Ratatouille,2007,Animation|Comedy|Family|Fantasy,206435493
+Batman Begins,2005,Action|Adventure,205343774
+Madagascar: Escape 2 Africa,2008,Action|Adventure|Animation|Comedy|Family,179982968
+Night at the Museum: Battle of the Smithsonian,2009,Adventure|Comedy|Family|Fantasy,177243721
+X-Men Origins: Wolverine,2009,Action|Adventure|Fantasy|Sci-Fi|Thriller,179883016
+The Matrix Revolutions,2003,Action|Sci-Fi,139259759
+Frozen,2013,Adventure|Animation|Comedy|Family|Fantasy|Musical,400736600
+The Matrix Reloaded,2003,Action|Sci-Fi,281492479
+Thor: The Dark World,2013,Action|Adventure|Fantasy,206360018
+Mad Max: Fury Road,2015,Action|Adventure|Sci-Fi|Thriller,153629485
+Angels & Demons,2009,Mystery|Thriller,133375846
+Thor,2011,Action|Adventure|Fantasy,181015141
+Bolt,2008,Adventure|Animation|Comedy|Drama|Family,114053579
+G-Force,2009,Action|Adventure|Animation|Comedy|Family|Fantasy|Sci-Fi,119420252
+Wrath of the Titans,2012,Action|Adventure|Fantasy,83640426
+Dark Shadows,2012,Comedy|Fantasy|Horror,79711678
+Mission: Impossible - Rogue Nation,2015,Action|Adventure|Thriller,195000874
+The Wolfman,2010,Drama|Fantasy|Horror|Thriller,61937495
+The Legend of Tarzan,2016,Action|Adventure|Drama|Romance,124051759
+Bee Movie,2007,Adventure|Animation|Comedy|Family,126597121
+Kung Fu Panda 2,2011,Action|Adventure|Animation|Comedy|Family,165230261
+The Last Airbender,2010,Action|Adventure|Family|Fantasy,131564731
+Mission: Impossible III,2006,Action|Adventure|Thriller,133382309
+White House Down,2013,Action|Drama|Thriller,73103784
+Mars Needs Moms,2011,Action|Adventure|Animation|Comedy|Family|Sci-Fi,21379315
+Flushed Away,2006,Adventure|Animation|Comedy|Family,64459316
+Pan,2015,Adventure|Family|Fantasy,34964818
+Mr. Peabody & Sherman,2014,Adventure|Animation|Comedy|Family|Sci-Fi,111505642
+Troy,2004,Adventure,133228348
+Madagascar 3: Europe's Most Wanted,2012,Adventure|Animation|Comedy|Family,216366733
+Die Another Day,2002,Action|Adventure|Thriller,160201106
+Ghostbusters,2016,Action|Comedy|Fantasy|Sci-Fi,118099659
+Armageddon,1998,Action|Adventure|Sci-Fi|Thriller,201573391
+Men in Black II,2002,Action|Adventure|Comedy|Family|Fantasy|Mystery|Sci-Fi,190418803
+Beowulf,2007,Action|Adventure|Animation|Fantasy,82161969
+Kung Fu Panda 3,2016,Action|Adventure|Animation|Comedy|Family,143523463
+Mission: Impossible - Ghost Protocol,2011,Action|Adventure|Thriller,209364921
+Rise of the Guardians,2012,Adventure|Animation|Family|Fantasy,103400692
+Fun with Dick and Jane,2005,Comedy|Crime,110332737
+The Last Samurai,2003,Action|Drama|History|War,111110575
+Exodus: Gods and Kings,2014,Action|Adventure|Drama,65007045
+Star Trek,2009,Action|Adventure|Sci-Fi,257704099
+Spider-Man,2002,Action|Adventure|Fantasy|Romance,403706375
+How to Train Your Dragon 2,2014,Action|Adventure|Animation|Comedy|Family|Fantasy,176997107
+Gods of Egypt,2016,Action|Adventure|Fantasy,31141074
+Stealth,2005,Action|Adventure|Sci-Fi|Thriller,31704416
+Watchmen,2009,Action|Drama|Mystery|Sci-Fi,107503316
+Lethal Weapon 4,1998,Action|Crime|Thriller,129734803
+Hulk,2003,Action|Sci-Fi,132122995
+G.I. Joe: Retaliation,2013,Action|Adventure|Sci-Fi|Thriller,122512052
+Sahara,2005,Action|Adventure|Comedy|Thriller,68642452
+Final Fantasy: The Spirits Within,2001,Action|Adventure|Animation|Fantasy|Romance|Sci-Fi,32131830
+Captain America: The First Avenger,2011,Action|Adventure|Sci-Fi,176636816
+The World Is Not Enough,1999,Action|Adventure|Thriller,126930660
+Master and Commander: The Far Side of the World,2003,Action|Adventure|Drama|History|War,93926386
+The Twilight Saga: Breaking Dawn - Part 2,2012,Adventure|Drama|Fantasy|Romance,292298923
+Happy Feet 2,2011,Animation|Comedy|Family|Musical,63992328
+The Incredible Hulk,2008,Action|Adventure|Sci-Fi,134518390
+The BFG,2016,Adventure|Family|Fantasy,52792307
+The Revenant,2015,Adventure|Drama|Thriller|Western,183635922
+Turbo,2013,Adventure|Animation|Comedy|Family|Sport,83024900
+Rango,2011,Adventure|Animation|Comedy|Family|Western,123207194
+Penguins of Madagascar,2014,Adventure|Animation|Comedy|Family,83348920
+The Bourne Ultimatum,2007,Action|Mystery|Thriller,227137090
+Kung Fu Panda,2008,Action|Adventure|Animation|Comedy|Family,215395021
+Ant-Man,2015,Action|Adventure|Comedy|Sci-Fi,180191634
+The Hunger Games: Catching Fire,2013,Adventure|Sci-Fi|Thriller,424645577
+The Twilight Saga: Breaking Dawn - Part 2,2012,Adventure|Drama|Fantasy|Romance,292298923
+Home,2015,Adventure|Animation|Comedy|Family|Fantasy|Sci-Fi,177343675
+War of the Worlds,2005,Adventure|Sci-Fi|Thriller,234277056
+Bad Boys II,2003,Action|Comedy|Crime|Thriller,138396624
+Puss in Boots,2011,Action|Adventure|Animation|Comedy|Family|Fantasy,149234747
+Salt,2010,Action|Crime|Mystery|Thriller,118311368
+Noah,2014,Action|Adventure|Drama,101160529
+The Adventures of Tintin,2011,Action|Adventure|Family|Mystery,77564037
+Harry Potter and the Prisoner of Azkaban,2004,Adventure|Family|Fantasy|Mystery,249358727
+Australia,2008,Adventure|Drama|Romance|War,49551662
+After Earth,2013,Action|Adventure|Sci-Fi,60522097
+Dinosaur,2000,Adventure|Animation|Family|Thriller,137748063
+Night at the Museum: Secret of the Tomb,2014,Adventure|Comedy|Family|Fantasy,113733726
+Megamind,2010,Action|Animation|Comedy|Family|Sci-Fi,148337537
+Harry Potter and the Sorcerer's Stone,2001,Adventure|Family|Fantasy,317557891
+R.I.P.D.,2013,Action|Comedy|Fantasy,33592415
+Pirates of the Caribbean: The Curse of the Black Pearl,2003,Action|Adventure|Fantasy,305388685
+The Hunger Games: Mockingjay - Part 1,2014,Adventure|Sci-Fi|Thriller,337103873
+The Da Vinci Code,2006,Mystery|Thriller,217536138
+Rio 2,2014,Adventure|Animation|Comedy|Family|Musical,131536019
+X-Men 2,2003,Action|Adventure|Fantasy|Sci-Fi|Thriller,214948780
+Fast Five,2011,Action|Crime|Thriller,209805005
+Sherlock Holmes: A Game of Shadows,2011,Action|Adventure|Crime|Mystery|Thriller,186830669
+Clash of the Titans,2010,Action|Adventure|Fantasy,163192114
+Total Recall,1990,Action|Sci-Fi,119412921
+The 13th Warrior,1999,Action|Adventure|History,32694788
+The Bourne Legacy,2012,Action|Adventure|Thriller,113165635
+Batman & Robin,1997,Action,107285004
+How the Grinch Stole Christmas,2000,Comedy|Family|Fantasy,260031035
+The Day After Tomorrow,2004,Action|Adventure|Sci-Fi|Thriller,186739919
+Mission: Impossible II,2000,Action|Adventure|Thriller,215397307
+The Perfect Storm,2000,Action|Adventure|Drama|Thriller,182618434
+Fantastic 4: Rise of the Silver Surfer,2007,Action|Adventure|Sci-Fi|Thriller,131920333
+Life of Pi,2012,Adventure|Drama|Fantasy,124976634
+Ghost Rider,2007,Action|Fantasy|Thriller,115802596
+Jason Bourne,2016,Action|Thriller,108521835
+Charlie's Angels: Full Throttle,2003,Action|Adventure|Comedy|Crime,100685880
+Prometheus,2012,Adventure|Mystery|Sci-Fi,126464904
+Stuart Little 2,2002,Adventure|Animation|Comedy|Family|Fantasy,64736114
+Elysium,2013,Action|Drama|Sci-Fi|Thriller,93050117
+The Chronicles of Riddick,2004,Action|Adventure|Sci-Fi|Thriller,57637485
+RoboCop,2014,Action|Crime|Sci-Fi|Thriller,58607007
+Speed Racer,2008,Action|Family|Sport,43929341
+How Do You Know,2010,Comedy|Drama|Romance,30212620
+Knight and Day,2010,Action|Comedy|Romance,76418654
+Oblivion,2013,Action|Adventure|Mystery|Sci-Fi,89021735
+Star Wars: Episode III - Revenge of the Sith,2005,Action|Adventure|Fantasy|Sci-Fi,380262555
+Star Wars: Episode II - Attack of the Clones,2002,Action|Adventure|Fantasy|Sci-Fi,310675583
+"Monsters, Inc.",2001,Adventure|Animation|Comedy|Family|Fantasy,289907418
+The Wolverine,2013,Action|Adventure|Sci-Fi|Thriller,132550960
+Star Wars: Episode I - The Phantom Menace,1999,Action|Adventure|Fantasy|Sci-Fi,474544677
+The Croods,2013,Adventure|Animation|Comedy|Family|Fantasy,187165546
+Windtalkers,2002,Action|Drama|War,40911830
+The Huntsman: Winter's War,2016,Action|Adventure|Drama|Fantasy,47952020
+Teenage Mutant Ninja Turtles,2014,Action|Adventure|Comedy|Sci-Fi,190871240
+Gravity,2013,Adventure|Drama|Sci-Fi|Thriller,274084951
+Dante's Peak,1997,Action|Adventure|Thriller,67155742
+Fantastic Four,2015,Action|Adventure|Sci-Fi,56114221
+Night at the Museum,2006,Action|Adventure|Comedy|Family|Fantasy,250863268
+San Andreas,2015,Action|Adventure|Drama|Thriller,155181732
+Tomorrow Never Dies,1997,Action|Adventure|Thriller,125332007
+The Patriot,2000,Action|Drama|History|War,113330342
+Ocean's Twelve,2004,Crime|Thriller,125531634
+Mr. & Mrs. Smith,2005,Action|Comedy|Crime|Romance|Thriller,186336103
+Insurgent,2015,Adventure|Sci-Fi|Thriller,129995817
+The Aviator,2004,Biography|Drama,102608827
+Gulliver's Travels,2010,Adventure|Comedy|Family|Fantasy,42776259
+The Green Hornet,2011,Action|Comedy|Crime|Sci-Fi|Thriller,98780042
+300: Rise of an Empire,2014,Action|Drama|Fantasy|War,106369117
+The Smurfs,2011,Adventure|Animation|Comedy|Family|Fantasy,142614158
+Home on the Range,2004,Animation|Comedy|Family|Music|Western,50026353
+Allegiant,2016,Action|Adventure|Mystery|Sci-Fi|Thriller,66002193
+Real Steel,2011,Action|Drama|Sci-Fi|Sport,85463309
+The Smurfs 2,2013,Adventure|Animation|Comedy|Family|Fantasy,71017784
+Speed 2: Cruise Control,1997,Action|Crime|Romance|Thriller,48068396
+Ender's Game,2013,Action|Sci-Fi,61656849
+Live Free or Die Hard,2007,Action|Adventure|Thriller,134520804
+The Lord of the Rings: The Fellowship of the Ring,2001,Action|Adventure|Drama|Fantasy,313837577
+Around the World in 80 Days,2004,Action|Adventure|Comedy,24004159
+Ali,2001,Biography|Drama|Sport,58183966
+The Cat in the Hat,2003,Adventure|Comedy|Family|Fantasy,100446895
+"I, Robot",2004,Action|Mystery|Sci-Fi|Thriller,144795350
+Kingdom of Heaven,2005,Action|Adventure|Drama|History|War,47396698
+Stuart Little,1999,Adventure|Comedy|Family|Fantasy,140015224
+The Princess and the Frog,2009,Animation|Family|Fantasy|Musical|Romance,104374107
+The Martian,2015,Adventure|Drama|Sci-Fi,228430993
+The Island,2005,Action|Adventure|Romance|Sci-Fi|Thriller,35799026
+Town & Country,2001,Comedy|Romance,6712451
+Gone in Sixty Seconds,2000,Action|Crime|Thriller,101643008
+Gladiator,2000,Action|Drama|Romance,187670866
+Minority Report,2002,Action|Mystery|Sci-Fi|Thriller,132014112
+Harry Potter and the Chamber of Secrets,2002,Adventure|Family|Fantasy|Mystery,261970615
+Casino Royale,2006,Action|Adventure|Thriller,167007184
+Planet of the Apes,2001,Action|Adventure|Sci-Fi|Thriller,180011740
+Terminator 2: Judgment Day,1991,Action|Sci-Fi,204843350
+Public Enemies,2009,Biography|Crime|Drama|History|Romance,97030725
+American Gangster,2007,Biography|Crime|Drama,130127620
+True Lies,1994,Action|Comedy|Thriller,146282411
+The Taking of Pelham 1 2 3,2009,Action|Crime|Thriller,65452312
+Little Fockers,2010,Comedy|Romance,148383780
+The Other Guys,2010,Action|Comedy|Crime,119219978
+Eraser,1996,Action|Drama|Mystery|Thriller,101228120
+Django Unchained,2012,Drama|Western,162804648
+The Hunchback of Notre Dame,1996,Animation|Drama|Family|Musical|Romance,100117603
+The Emperor's New Groove,2000,Adventure|Animation|Comedy|Family|Fantasy,89296573
+The Expendables 2,2012,Action|Adventure|Thriller,85017401
+National Treasure,2004,Action|Adventure|Comedy|Family|Mystery,173005002
+Eragon,2006,Action|Adventure|Family|Fantasy,75030163
+Where the Wild Things Are,2009,Adventure|Drama|Family|Fantasy,77222184
+Pan,2015,Adventure|Family|Fantasy,34964818
+Epic,2013,Adventure|Animation|Family|Fantasy,107515297
+The Tourist,2010,Action|Romance|Thriller,67631157
+End of Days,1999,Action|Fantasy|Horror|Mystery,66862068
+Blood Diamond,2006,Adventure|Drama|Thriller,57366262
+The Wolf of Wall Street,2013,Biography|Comedy|Crime|Drama,116866727
+Batman Forever,1995,Action|Adventure|Fantasy,184031112
+Starship Troopers,1997,Action|Sci-Fi|War,54700065
+Cloud Atlas,2012,Drama|Sci-Fi,27098580
+Legend of the Guardians: The Owls of Ga'Hoole,2010,Action|Adventure|Animation|Family|Fantasy,55673333
+Catwoman,2004,Action|Crime|Fantasy|Romance|Thriller,40198710
+Hercules,2014,Action|Adventure,72660029
+Treasure Planet,2002,Adventure|Animation|Family|Sci-Fi,38120554
+Land of the Lost,2009,Adventure|Comedy|Sci-Fi,49392095
+The Expendables 3,2014,Action|Adventure|Thriller,39292022
+Point Break,2015,Action|Crime|Sport|Thriller,28772222
+Son of the Mask,2005,Comedy|Family|Fantasy,17010646
+In the Heart of the Sea,2015,Action|Adventure|Biography|Drama|History|Thriller,24985612
+The Adventures of Pluto Nash,2002,Action|Comedy|Sci-Fi,4411102
+Green Zone,2010,Action|Drama|Thriller|War,35024475
+The Peanuts Movie,2015,Adventure|Animation|Comedy|Family,130174897
+The Spanish Prisoner,1997,Drama|Mystery|Thriller,10200000
+The Mummy Returns,2001,Action|Adventure|Fantasy|Thriller,202007640
+Gangs of New York,2002,Crime|Drama,77679638
+The Flowers of War,2011,Drama|History|Romance|War,9213
+Surf's Up,2007,Animation|Comedy|Family|Sport,58867694
+The Stepford Wives,2004,Comedy|Sci-Fi|Thriller,59475623
+Black Hawk Down,2001,Drama|History|War,108638745
+The Campaign,2012,Comedy,86897182
+The Fifth Element,1997,Action|Adventure|Sci-Fi,63540020
+Sex and the City 2,2010,Comedy|Drama|Romance,95328937
+The Road to El Dorado,2000,Adventure|Animation|Comedy|Family|Romance,50802661
+Ice Age: Continental Drift,2012,Adventure|Animation|Comedy|Family,161317423
+Cinderella,2015,Drama|Family|Fantasy|Romance,201148159
+The Lovely Bones,2009,Drama|Fantasy|Thriller,43982842
+Finding Nemo,2003,Adventure|Animation|Comedy|Family,380838870
+The Lord of the Rings: The Return of the King,2003,Action|Adventure|Drama|Fantasy,377019252
+The Lord of the Rings: The Two Towers,2002,Action|Adventure|Drama|Fantasy,340478898
+Seventh Son,2014,Action|Adventure|Fantasy,17176900
+Lara Croft: Tomb Raider,2001,Action|Adventure|Fantasy|Thriller,131144183
+Transcendence,2014,Drama|Mystery|Romance|Sci-Fi|Thriller,23014504
+Jurassic Park III,2001,Action|Adventure|Sci-Fi|Thriller,181166115
+Rise of the Planet of the Apes,2011,Action|Drama|Sci-Fi|Thriller,176740650
+The Spiderwick Chronicles,2008,Adventure|Family|Fantasy,71148699
+A Good Day to Die Hard,2013,Action|Thriller,67344392
+The Alamo,2004,Drama|History|War|Western,22406362
+The Incredibles,2004,Action|Adventure|Animation|Family,261437578
+Cutthroat Island,1995,Action|Adventure|Comedy,11000000
+Percy Jackson & the Olympians: The Lightning Thief,2010,Adventure|Family|Fantasy,88761720
+Men in Black,1997,Adventure|Comedy|Family|Mystery|Sci-Fi,250147615
+Toy Story 2,1999,Adventure|Animation|Comedy|Family|Fantasy,245823397
+Unstoppable,2010,Action|Thriller,81557479
+Rush Hour 2,2001,Action|Comedy|Crime|Thriller,226138454
+What Lies Beneath,2000,Drama|Fantasy|Horror|Mystery|Thriller,155370362
+Cloudy with a Chance of Meatballs,2009,Animation|Comedy|Family|Sci-Fi,124870275
+Ice Age: Dawn of the Dinosaurs,2009,Action|Adventure|Animation|Comedy|Family,196573705
+The Secret Life of Walter Mitty,2013,Adventure|Comedy|Drama|Fantasy|Romance,58229120
+Charlie's Angels,2000,Action|Adventure|Comedy|Crime|Thriller,125305545
+The Departed,2006,Crime|Drama|Thriller,132373442
+Mulan,1998,Adventure|Animation|Family|Fantasy|Musical|War,120618403
+Tropic Thunder,2008,Action|Comedy,110416702
+The Girl with the Dragon Tattoo,2011,Crime|Drama|Mystery|Thriller,102515793
+Die Hard with a Vengeance,1995,Action|Adventure|Thriller,100012500
+Sherlock Holmes,2009,Action|Adventure|Crime|Mystery|Thriller,209019489
+Atlantis: The Lost Empire,2001,Action|Adventure|Animation|Family|Fantasy|Sci-Fi,84037039
+Alvin and the Chipmunks: The Road Chip,2015,Adventure|Animation|Comedy|Family|Fantasy|Music,85884815
+Valkyrie,2008,Drama|History|Thriller|War,83077470
+You Don't Mess with the Zohan,2008,Action|Comedy,100018837
+Pixels,2015,Action|Animation|Comedy|Sci-Fi,78747585
+A.I. Artificial Intelligence,2001,Adventure|Drama|Sci-Fi,78616689
+The Haunted Mansion,2003,Comedy|Family|Fantasy|Horror|Mystery,75817994
+Contact,1997,Drama|Mystery|Sci-Fi|Thriller,100853835
+Hollow Man,2000,Action|Horror|Sci-Fi|Thriller,73209340
+The Interpreter,2005,Crime|Mystery|Thriller,72515360
+Percy Jackson: Sea of Monsters,2013,Adventure|Family|Fantasy,68558662
+Lara Croft Tomb Raider: The Cradle of Life,2003,Action|Adventure|Fantasy,65653758
+Now You See Me 2,2016,Action|Adventure|Comedy|Crime|Mystery|Thriller,64685359
+The Saint,1997,Action|Adventure|Romance|Sci-Fi|Thriller,61355436
+Spy Game,2001,Action|Crime|Thriller,26871
+Mission to Mars,2000,Adventure|Sci-Fi|Thriller,60874615
+Rio,2011,Adventure|Animation|Comedy|Family|Musical,143618384
+Bicentennial Man,1999,Comedy|Drama|Sci-Fi,58220776
+Volcano,1997,Action|Drama|Sci-Fi|Thriller,47474112
+The Devil's Own,1997,Action|Crime|Drama|Thriller,42877165
+K-19: The Widowmaker,2002,Drama|History|Thriller|War,35168677
+Fantastic Four,2015,Action|Adventure|Sci-Fi,56114221
+Conan the Barbarian,1982,Adventure|Fantasy,37567440
+Cinderella Man,2005,Biography|Drama|Sport,61644321
+The Nutcracker in 3D,2010,Action|Family|Fantasy|Musical,190562
+Seabiscuit,2003,Drama|History|Sport,120147445
+Twister,1996,Action|Adventure|Drama|Thriller,241688385
+The Fast and the Furious,2001,Action|Crime|Thriller,144512310
+Cast Away,2000,Adventure|Drama|Romance,233630478
+Happy Feet,2006,Animation|Comedy|Family|Music|Romance,197992827
+The Bourne Supremacy,2004,Action|Mystery|Thriller,176049130
+Air Force One,1997,Action|Adventure|Drama|Thriller,172620724
+Ocean's Eleven,2001,Crime|Thriller,183405771
+The Three Musketeers,2011,Action|Adventure|Romance,20315324
+Hotel Transylvania,2012,Animation|Comedy|Family|Fantasy,148313048
+Enchanted,2007,Animation|Comedy|Family|Fantasy|Musical|Romance,127706877
+Safe House,2012,Action|Crime|Mystery|Thriller,126149655
+102 Dalmatians,2000,Adventure|Comedy|Family,66941559
+Tower Heist,2011,Action|Comedy|Crime,78009155
+The Holiday,2006,Comedy|Romance,63224849
+Enemy of the State,1998,Action|Crime|Drama|Mystery|Thriller,111544445
+It's Complicated,2009,Comedy|Drama|Romance,112703470
+Ocean's Thirteen,2007,Crime|Thriller,117144465
+Open Season,2006,Adventure|Animation|Comedy|Family,84303558
+Divergent,2014,Adventure|Mystery|Sci-Fi,150832203
+Enemy at the Gates,2001,Drama|History|War,51396781
+The Rundown,2003,Action|Adventure|Comedy|Thriller,47592825
+Last Action Hero,1993,Action|Adventure|Comedy|Fantasy,50016394
+Memoirs of a Geisha,2005,Drama|Romance,57010853
+The Fast and the Furious: Tokyo Drift,2006,Action|Crime|Thriller,62494975
+Arthur Christmas,2011,Adventure|Animation|Comedy|Family|Fantasy,46440491
+Meet Joe Black,1998,Drama|Fantasy|Romance,44606335
+Collateral Damage,2002,Action|Drama|Thriller,40048332
+Mirror Mirror,2012,Adventure|Comedy|Drama|Family|Fantasy,64933670
+Scott Pilgrim vs. the World,2010,Action|Comedy|Fantasy|Romance,31494270
+The Core,2003,Action|Adventure|Sci-Fi|Thriller,31111260
+Nutty Professor II: The Klumps,2000,Comedy|Romance|Sci-Fi,123307945
+Scooby-Doo,2002,Adventure|Comedy|Mystery,153288182
+Dredd,2012,Action|Sci-Fi,13401683
+Click,2006,Comedy|Drama|Fantasy|Romance,137340146
+Cats & Dogs: The Revenge of Kitty Galore,2010,Action|Comedy|Family|Fantasy,43575716
+Jumper,2008,Action|Adventure|Sci-Fi|Thriller,80170146
+Hellboy II: The Golden Army,2008,Action|Adventure|Fantasy|Horror|Sci-Fi,75754670
+Zodiac,2007,Crime|Drama|History|Mystery|Thriller,33048353
+The 6th Day,2000,Action|Mystery|Sci-Fi|Thriller,34543701
+Bruce Almighty,2003,Comedy|Drama,242589580
+The Expendables,2010,Action|Adventure|Thriller,102981571
+Mission: Impossible,1996,Action|Adventure|Thriller,180965237
+The Hunger Games,2012,Adventure|Drama|Sci-Fi|Thriller,407999255
+The Hangover Part II,2011,Comedy,254455986
+Batman Returns,1992,Action,162831698
+Over the Hedge,2006,Adventure|Animation|Comedy|Family,155019340
+Lilo & Stitch,2002,Adventure|Animation|Comedy|Drama|Family|Fantasy|Sci-Fi,145771527
+Deep Impact,1998,Action|Drama|Romance|Sci-Fi|Thriller,140459099
+RED 2,2013,Action|Comedy|Crime|Thriller,53215979
+The Longest Yard,2005,Comedy|Crime|Sport,158115031
+Alvin and the Chipmunks: Chipwrecked,2011,Adventure|Animation|Comedy|Family|Fantasy|Music,133103929
+Grown Ups 2,2013,Comedy,133668525
+Get Smart,2008,Action|Adventure|Comedy,130313314
+Something's Gotta Give,2003,Comedy|Drama|Romance,124590960
+Shutter Island,2010,Mystery|Thriller,127968405
+Four Christmases,2008,Comedy|Drama|Romance,120136047
+Robots,2005,Adventure|Animation|Comedy|Family|Sci-Fi,128200012
+Face/Off,1997,Action|Crime|Sci-Fi|Thriller,112225777
+Bedtime Stories,2008,Comedy|Family|Fantasy|Romance,109993847
+Road to Perdition,2002,Crime|Drama|Thriller,104054514
+Just Go with It,2011,Comedy|Romance,103028109
+Con Air,1997,Action|Crime|Thriller,101087161
+Eagle Eye,2008,Action|Mystery|Thriller,101111837
+Cold Mountain,2003,Adventure|Drama|History|Romance|War,95632614
+The Book of Eli,2010,Action|Adventure|Drama|Thriller,94822707
+Flubber,1997,Comedy|Family|Sci-Fi,92969824
+The Haunting,1999,Fantasy|Horror|Mystery|Thriller,91188905
+Space Jam,1996,Adventure|Animation|Comedy|Family|Fantasy|Sci-Fi|Sport,90443603
+The Pink Panther,2006,Adventure|Comedy|Crime|Family|Mystery,82226474
+The Day the Earth Stood Still,2008,Drama|Sci-Fi|Thriller,79363785
+Conspiracy Theory,1997,Action|Crime|Mystery|Romance|Thriller,76081498
+Fury,2014,Action|Drama|War,85707116
+Six Days Seven Nights,1998,Action|Adventure|Comedy|Romance,74329966
+Yogi Bear,2010,Adventure|Animation|Comedy|Family,100169068
+Spirit: Stallion of the Cimarron,2002,Adventure|Animation|Family|Western,73215310
+Zookeeper,2011,Comedy|Family|Romance,80360866
+Lost in Space,1998,Action|Adventure|Family|Sci-Fi|Thriller,69102910
+The Manchurian Candidate,2004,Drama|Mystery|Sci-Fi|Thriller,65948711
+Hotel Transylvania 2,2015,Animation|Comedy|Family|Fantasy,169692572
+Fantasia 2000,1999,Animation|Family|Fantasy|Music,60507228
+The Time Machine,2002,Action|Adventure|Sci-Fi,56684819
+Mighty Joe Young,1998,Action|Adventure|Family|Fantasy|Thriller,50628009
+Swordfish,2001,Action|Crime|Thriller,69772969
+The Legend of Zorro,2005,Action|Adventure|Western,45356386
+What Dreams May Come,1998,Drama|Fantasy|Romance,55350897
+Little Nicky,2000,Comedy|Fantasy,39442871
+The Brothers Grimm,2005,Action|Adventure|Comedy|Fantasy|Thriller,37899638
+Mars Attacks!,1996,Action|Comedy|Sci-Fi,37754208
+Surrogates,2009,Action|Sci-Fi|Thriller,38542418
+Thirteen Days,2000,Drama|History|Thriller,34566746
+Daylight,1996,Action|Adventure|Drama|Thriller,32885565
+Walking with Dinosaurs 3D,2013,Adventure|Animation|Family,36073232
+Battlefield Earth,2000,Action|Adventure|Sci-Fi,21471685
+Looney Tunes: Back in Action,2003,Adventure|Animation|Comedy|Family|Fantasy|Sci-Fi,20950820
+Nine,2009,Drama|Musical|Romance,19673424
+Timeline,2003,Action|Adventure|Sci-Fi,19480739
+The Postman,1997,Action|Adventure|Drama|Sci-Fi,17593391
+Babe: Pig in the City,1998,Adventure|Comedy|Drama|Family|Fantasy,18318000
+The Last Witch Hunter,2015,Action|Adventure|Fantasy,27356090
+Red Planet,2000,Action|Sci-Fi|Thriller,17473245
+Arthur and the Invisibles,2006,Adventure|Animation|Family|Fantasy,15131330
+Oceans,2009,Documentary|Drama,19406406
+A Sound of Thunder,2005,Action|Adventure|Horror|Sci-Fi|Thriller,1891821
+Pompeii,2014,Action|Adventure|Drama|History|Romance,23219748
+A Beautiful Mind,2001,Biography|Drama,170708996
+The Lion King,1994,Adventure|Animation|Drama|Family|Musical,422783777
+Journey 2: The Mysterious Island,2012,Action|Adventure|Comedy|Family|Fantasy|Sci-Fi,103812241
+Cloudy with a Chance of Meatballs 2,2013,Animation|Comedy|Family|Fantasy|Sci-Fi,119793567
+Red Dragon,2002,Crime|Drama|Thriller,92930005
+Hidalgo,2004,Action|Adventure|Western,67286731
+Jack and Jill,2011,Comedy,74158157
+2 Fast 2 Furious,2003,Action|Crime|Thriller,127083765
+The Little Prince,2015,Adventure|Animation|Drama|Family|Fantasy,1339152
+The Invasion,2007,Sci-Fi|Thriller,15071514
+The Adventures of Rocky & Bullwinkle,2000,Adventure|Animation|Comedy|Family|Fantasy,26000610
+The Secret Life of Pets,2016,Animation|Comedy|Family,323505540
+The League of Extraordinary Gentlemen,2003,Action|Adventure|Fantasy|Sci-Fi,66462600
+Despicable Me 2,2013,Animation|Comedy|Family|Sci-Fi,368049635
+Independence Day,1996,Action|Adventure|Sci-Fi,306124059
+The Lost World: Jurassic Park,1997,Action|Adventure|Sci-Fi,229074524
+Madagascar,2005,Adventure|Animation|Comedy|Family,193136719
+Children of Men,2006,Drama|Sci-Fi|Thriller,35286428
+X-Men,2000,Action|Adventure|Sci-Fi,157299717
+Wanted,2008,Action|Crime|Fantasy|Thriller,134568845
+The Rock,1996,Action|Adventure|Thriller,134006721
+Ice Age: The Meltdown,2006,Action|Adventure|Animation|Comedy|Family|Fantasy,195329763
+50 First Dates,2004,Comedy|Romance,120776832
+Hairspray,2007,Comedy|Drama|Family|Music|Musical|Romance,118823091
+Exorcist: The Beginning,2004,Horror|Mystery|Thriller,41814863
+Inspector Gadget,1999,Action|Adventure|Comedy|Family|Sci-Fi,97360069
+Now You See Me,2013,Crime|Mystery|Thriller,117698894
+Grown Ups,2010,Comedy,162001186
+The Terminal,2004,Comedy|Drama,77032279
+Hotel for Dogs,2009,Comedy|Family,73023275
+Vertical Limit,2000,Action|Adventure|Drama|Thriller,68473360
+Charlie Wilson's War,2007,Biography|Comedy|Drama|History,66636385
+Shark Tale,2004,Adventure|Animation|Comedy|Family,160762022
+Dreamgirls,2006,Drama|Music|Musical,103338338
+Be Cool,2005,Comedy|Crime|Music,55808744
+Munich,2005,Drama|History|Thriller,47379090
+Tears of the Sun,2003,Action|Drama|Thriller|War,43426961
+Killers,2010,Action|Comedy|Romance|Thriller,47000485
+The Man from U.N.C.L.E.,2015,Action|Adventure|Comedy,45434443
+Spanglish,2004,Comedy|Drama|Romance,42044321
+Monster House,2006,Animation|Comedy|Family|Fantasy|Mystery,73661010
+Bandits,2001,Comedy|Crime|Drama|Romance,41523271
+First Knight,1995,Action|Adventure|Romance|Thriller,37600435
+Anna and the King,1999,Drama|History|Romance,39251128
+Immortals,2011,Action|Drama|Fantasy|Romance,83503161
+Hostage,2005,Action|Crime|Drama|Mystery|Thriller,34636443
+Titan A.E.,2000,Action|Adventure|Animation|Family|Sci-Fi,22751979
+Hollywood Homicide,2003,Action|Comedy|Crime|Thriller,30013346
+Soldier,1998,Action|Drama|Sci-Fi,14567883
+Monkeybone,2001,Animation|Comedy|Fantasy,5409517
+Flight of the Phoenix,2004,Action|Adventure|Drama|Thriller,21009180
+Unbreakable,2000,Drama|Mystery|Sci-Fi|Thriller,94999143
+Minions,2015,Action|Animation|Comedy|Family|Sci-Fi,336029560
+Sucker Punch,2011,Action|Fantasy,36381716
+Snake Eyes,1998,Crime|Mystery|Thriller,55585389
+Sphere,1998,Drama|Mystery|Sci-Fi|Thriller,36976367
+The Angry Birds Movie,2016,Action|Animation|Comedy|Family,107225164
+Fool's Gold,2008,Action|Adventure|Comedy|Romance|Thriller,70224196
+Funny People,2009,Comedy|Drama,51814190
+The Kingdom,2007,Action|Drama|Thriller,47456450
+Talladega Nights: The Ballad of Ricky Bobby,2006,Action|Comedy|Sport,148213377
+Dr. Dolittle 2,2001,Comedy|Family|Fantasy,112950721
+Braveheart,1995,Biography|Drama|History|War,75600000
+Jarhead,2005,Action|Drama|War,62647540
+The Simpsons Movie,2007,Adventure|Animation|Comedy,183132370
+The Majestic,2001,Drama|Romance,27796042
+Driven,2001,Action|Drama|Sport,32616869
+Two Brothers,2004,Adventure|Drama|Family,18947630
+The Village,2004,Drama|Mystery|Romance|Thriller,114195633
+Doctor Dolittle,1998,Comedy|Family|Fantasy,144156464
+Signs,2002,Drama|Sci-Fi|Thriller,227965690
+Shrek 2,2004,Adventure|Animation|Comedy|Family|Fantasy|Romance,436471036
+Cars,2006,Adventure|Animation|Comedy|Family|Sport,244052771
+Runaway Bride,1999,Comedy|Romance,152149590
+xXx,2002,Action|Adventure|Thriller,141204016
+The SpongeBob Movie: Sponge Out of Water,2015,Adventure|Animation|Comedy|Family|Fantasy,162495848
+Ransom,1996,Crime|Thriller,136448821
+Inglourious Basterds,2009,Adventure|Drama|War,120523073
+Hook,1991,Adventure|Comedy|Family|Fantasy,119654900
+Hercules,2014,Action|Adventure,72660029
+Die Hard 2,1990,Action|Thriller,117541000
+S.W.A.T.,2003,Action|Adventure|Crime|Thriller,116643346
+Vanilla Sky,2001,Fantasy|Mystery|Romance|Sci-Fi|Thriller,100614858
+Lady in the Water,2006,Drama|Fantasy|Mystery|Thriller,42272747
+AVP: Alien vs. Predator,2004,Action|Horror|Sci-Fi|Thriller,80281096
+Alvin and the Chipmunks: The Squeakquel,2009,Animation|Comedy|Family|Fantasy|Music,219613391
+We Were Soldiers,2002,Action|Drama|History|War,78120196
+Olympus Has Fallen,2013,Action|Thriller,98895417
+Star Trek: Insurrection,1998,Action|Adventure|Sci-Fi|Thriller,70117571
+Battle Los Angeles,2011,Action|Sci-Fi,83552429
+Big Fish,2003,Adventure|Drama|Fantasy,66257002
+Wolf,1994,Drama|Horror|Romance|Thriller,65012000
+War Horse,2011,Drama|War,79883359
+The Monuments Men,2014,Drama|War,78031620
+The Abyss,1989,Adventure|Drama|Sci-Fi|Thriller,54222000
+Wall Street: Money Never Sleeps,2010,Drama,52474616
+Dracula Untold,2014,Action|Drama|Fantasy|Horror|War,55942830
+The Siege,1998,Action|Thriller,40932372
+Stardust,2007,Adventure|Family|Fantasy|Romance,38345403
+Seven Years in Tibet,1997,Adventure|Biography|Drama|History|War,37901509
+The Dilemma,2011,Comedy|Drama,48430355
+Bad Company,2002,Action|Adventure|Comedy|Thriller,30157016
+Doom,2005,Action|Adventure|Horror|Sci-Fi,28031250
+I Spy,2002,Action|Adventure|Comedy|Thriller,33105600
+Underworld: Awakening,2012,Action|Fantasy|Horror,62321039
+Rock of Ages,2012,Comedy|Drama|Musical|Romance,38509342
+Hart's War,2002,Drama|War,19076815
+Killer Elite,2011,Action|Crime|Thriller,25093607
+Rollerball,2002,Action|Sci-Fi|Sport,18990542
+Ballistic: Ecks vs. Sever,2002,Action|Crime|Sci-Fi|Thriller,14294842
+Hard Rain,1998,Action|Crime|Drama|Thriller,19819494
+Osmosis Jones,2001,Action|Adventure|Animation|Comedy|Crime|Family|Fantasy,13596911
+Blackhat,2015,Action|Crime|Drama|Mystery|Thriller,7097125
+Sky Captain and the World of Tomorrow,2004,Action|Adventure|Mystery|Sci-Fi|Thriller,37760080
+Basic Instinct 2,2006,Crime|Mystery|Thriller,5851188
+Escape Plan,2013,Action|Crime|Mystery|Sci-Fi|Thriller,25121291
+The Legend of Hercules,2014,Action|Adventure|Fantasy,18821279
+The Sum of All Fears,2002,Action|Drama|Thriller,118471320
+The Twilight Saga: Eclipse,2010,Adventure|Drama|Fantasy|Romance,300523113
+The Score,2001,Crime|Drama|Thriller,71069884
+Despicable Me,2010,Animation|Comedy|Family,251501645
+Money Train,1995,Action|Comedy|Crime|Drama|Thriller,35324232
+Ted 2,2015,Comedy,81257500
+Agora,2009,Adventure|Drama|History|Romance,617840
+Mystery Men,1999,Action|Comedy|Fantasy|Sci-Fi,29655590
+Hall Pass,2011,Comedy|Romance,45045037
+The Insider,1999,Biography|Drama|Thriller,28965197
+Body of Lies,2008,Action|Drama|Thriller,39380442
+Abraham Lincoln: Vampire Hunter,2012,Action|Fantasy|Horror,37516013
+Entrapment,1999,Action|Crime|Romance|Thriller,87704396
+The X Files,1998,Drama|Mystery|Sci-Fi|Thriller,83892374
+The Last Legion,2007,Action|Adventure|Fantasy|War,5932060
+Saving Private Ryan,1998,Action|Drama|War,216119491
+Need for Speed,2014,Action|Crime|Drama|Thriller,43568507
+What Women Want,2000,Comedy|Fantasy|Romance,182805123
+Ice Age,2002,Adventure|Animation|Comedy|Family,176387405
+Dreamcatcher,2003,Drama|Horror|Sci-Fi|Thriller,33685268
+Lincoln,2012,Biography|Drama|History|War,182204440
+The Matrix,1999,Action|Sci-Fi,171383253
+Apollo 13,1995,Adventure|Drama|History,172071312
+Total Recall,1990,Action|Sci-Fi,119412921
+The Santa Clause 2,2002,Comedy|Family|Fantasy,139225854
+Les Misérables,2012,Drama|Musical|Romance,148775460
+You've Got Mail,1998,Comedy|Drama|Romance,115731542
+Step Brothers,2008,Comedy,100468793
+The Mask of Zorro,1998,Action|Adventure|Comedy|Romance|Thriller|Western,93771072
+Due Date,2010,Comedy|Drama,100448498
+Unbroken,2014,Biography|Drama|Sport|War,115603980
+Space Cowboys,2000,Action|Adventure|Thriller,90454043
+Cliffhanger,1993,Action|Adventure|Thriller,84049211
+Broken Arrow,1996,Action|Crime|Thriller,70450000
+The Kid,2000,Comedy|Family|Fantasy,69688384
+World Trade Center,2006,Drama|History|Thriller,70236496
+Mona Lisa Smile,2003,Drama,63695760
+The Dictator,2012,Comedy|Romance,59617068
+Eyes Wide Shut,1999,Drama|Mystery|Thriller,55637680
+Annie,2014,Comedy|Drama|Family|Musical,85911262
+Focus,2015,Comedy|Crime|Drama|Romance,53846915
+This Means War,2012,Action|Comedy|Romance,54758461
+Blade: Trinity,2004,Action|Adventure|Fantasy|Horror|Sci-Fi|Thriller,52397389
+Primary Colors,1998,Comedy|Drama,38966057
+Resident Evil: Retribution,2012,Action|Horror|Sci-Fi|Thriller,42345531
+Death Race,2008,Action|Sci-Fi|Thriller,36064910
+The Long Kiss Goodnight,1996,Action|Crime|Drama|Mystery|Thriller,33328051
+Proof of Life,2000,Action|Drama|Thriller,32598931
+Zathura: A Space Adventure,2005,Action|Adventure|Comedy|Family|Fantasy|Sci-Fi,28045540
+Fight Club,1999,Drama,37023395
+We Are Marshall,2006,Drama|Sport,43532294
+Hudson Hawk,1991,Action|Adventure|Comedy,17218080
+Lucky Numbers,2000,Comedy|Crime,10014234
+"I, Frankenstein",2014,Action|Fantasy|Sci-Fi|Thriller,19059018
+Oliver Twist,2005,Crime|Drama,1987287
+Elektra,2005,Action|Crime|Fantasy|Thriller,24407944
+Sin City: A Dame to Kill For,2014,Action|Crime|Thriller,13750556
+Random Hearts,1999,Drama|Mystery|Romance,31054924
+Everest,2015,Adventure|Biography|Drama|History|Sport|Thriller,43247140
+Perfume: The Story of a Murderer,2006,Crime|Drama|Fantasy,2208939
+Austin Powers in Goldmember,2002,Action|Comedy|Crime,213079163
+Astro Boy,2009,Action|Animation|Comedy|Family|Sci-Fi,19548064
+Jurassic Park,1993,Adventure|Sci-Fi|Thriller,356784000
+Wyatt Earp,1994,Adventure|Biography|Crime|Drama|Western,25052000
+Clear and Present Danger,1994,Action|Crime|Drama|Thriller,122012710
+Dragon Blade,2015,Action|Adventure|Drama|History,72413
+Littleman,2006,Comedy|Crime,58255287
+U-571,2000,Action|War,77086030
+The American President,1995,Comedy|Drama|Romance,65000000
+The Love Guru,2008,Comedy|Romance|Sport,32178777
+3000 Miles to Graceland,2001,Action|Comedy|Crime|Thriller,15738632
+The Hateful Eight,2015,Crime|Drama|Mystery|Thriller|Western,54116191
+Blades of Glory,2007,Comedy|Sport,118153533
+Hop,2011,Adventure|Animation|Comedy|Family|Fantasy,108012170
+300,2006,Action|Drama|Fantasy|War,210592590
+Meet the Fockers,2004,Comedy|Romance,279167575
+Marley & Me,2008,Comedy|Drama|Family,143151473
+The Green Mile,1999,Crime|Drama|Fantasy|Mystery,136801374
+Chicken Little,2005,Adventure|Animation|Comedy|Family|Sci-Fi,135381507
+Gone Girl,2014,Crime|Drama|Mystery|Thriller,167735396
+The Bourne Identity,2002,Action|Mystery|Thriller,121468960
+GoldenEye,1995,Action|Adventure|Thriller,106635996
+The General's Daughter,1999,Drama|Mystery|Thriller,102678089
+The Truman Show,1998,Comedy|Drama|Sci-Fi,125603360
+The Prince of Egypt,1998,Adventure|Animation|Biography|Drama|Family|Fantasy|Musical,101217900
+Daddy Day Care,2003,Comedy|Family,104148781
+2 Guns,2013,Action|Comedy|Crime|Drama|Thriller,75573300
+Cats & Dogs,2001,Action|Comedy|Family|Fantasy,93375151
+The Italian Job,2003,Action|Crime|Thriller,106126012
+Two Weeks Notice,2002,Comedy|Romance,93307796
+Antz,1998,Adventure|Animation|Comedy|Family,90646554
+Couples Retreat,2009,Comedy,109176215
+Days of Thunder,1990,Action|Drama|Sport,82670733
+Cheaper by the Dozen 2,2005,Adventure|Comedy|Family,82569532
+The Scorch Trials,2015,Action|Sci-Fi|Thriller,81687587
+Eat Pray Love,2010,Drama|Romance,80574010
+The Family Man,2000,Comedy|Drama|Fantasy|Romance,75764085
+RED,2010,Action|Comedy|Crime|Thriller,90356857
+Any Given Sunday,1999,Drama|Sport,75530832
+The Horse Whisperer,1998,Drama|Romance|Western,75370763
+Collateral,2004,Crime|Drama|Thriller,100003492
+The Scorpion King,2002,Action|Adventure|Fantasy|Thriller,90341670
+Ladder 49,2004,Action|Drama|Thriller,74540762
+Jack Reacher,2012,Action|Crime|Mystery|Thriller,80033643
+Deep Blue Sea,1999,Action|Sci-Fi|Thriller,73648142
+This Is It,2009,Documentary|Music,71844424
+Contagion,2011,Drama|Thriller,75638743
+Kangaroo Jack,2003,Action|Adventure|Comedy|Crime,66734992
+Coraline,2009,Animation|Family|Fantasy,75280058
+The Happening,2008,Sci-Fi|Thriller,64505912
+Man on Fire,2004,Action|Crime|Drama|Thriller,77862546
+The Shaggy Dog,2006,Comedy|Family|Fantasy,61112916
+Starsky & Hutch,2004,Comedy|Crime,88200225
+Jingle All the Way,1996,Comedy|Family,60573641
+Hellboy,2004,Action|Fantasy|Horror|Sci-Fi,59035104
+A Civil Action,1998,Drama,56702901
+ParaNorman,2012,Adventure|Animation|Comedy|Family|Fantasy,55994557
+The Jackal,1997,Action|Adventure|Crime|Thriller,54910560
+Paycheck,2003,Action|Mystery|Sci-Fi|Thriller,53789313
+Up Close & Personal,1996,Drama|Romance,51045801
+The Tale of Despereaux,2008,Adventure|Animation|Comedy|Family|Fantasy,50818750
+The Tuxedo,2002,Action|Comedy|Sci-Fi,50189179
+Under Siege 2: Dark Territory,1995,Action|Thriller,50024083
+Jack Ryan: Shadow Recruit,2014,Action|Drama|Thriller,50549107
+Joy,2015,Biography|Comedy|Drama,56443482
+London Has Fallen,2016,Action|Crime|Drama|Thriller,62401264
+Alien: Resurrection,1997,Action|Horror|Sci-Fi,47748610
+Shooter,2007,Action|Crime|Drama|Mystery|Thriller,46975183
+The Boxtrolls,2014,Adventure|Animation|Comedy|Family|Fantasy,50807639
+Practical Magic,1998,Comedy|Drama|Fantasy|Romance,46611204
+The Lego Movie,2014,Action|Adventure|Animation|Comedy|Family|Fantasy,257756197
+Miss Congeniality 2: Armed and Fabulous,2005,Action|Comedy|Crime,48472213
+Reign of Fire,2002,Action|Adventure|Fantasy|Sci-Fi|Thriller,43060566
+Gangster Squad,2013,Action|Crime|Drama|Thriller,45996718
+Year One,2009,Adventure|Comedy,43337279
+Invictus,2009,Biography|Drama|History|Sport,37479778
+Duplicity,2009,Comedy|Crime|Romance|Thriller,40559930
+My Favorite Martian,1999,Comedy|Family|Sci-Fi,36830057
+The Sentinel,2006,Action|Crime|Thriller,36279230
+Planet 51,2009,Adventure|Animation|Comedy|Family|Sci-Fi,42194060
+Star Trek: Nemesis,2002,Action|Adventure|Sci-Fi|Thriller,43119879
+Intolerable Cruelty,2003,Comedy|Crime|Romance,35096190
+Edge of Darkness,2010,Crime|Drama|Mystery|Thriller,43290977
+The Relic,1997,Horror|Mystery|Sci-Fi|Thriller,33927476
+Analyze That,2002,Comedy|Crime,32122249
+Righteous Kill,2008,Action|Crime|Drama|Mystery|Thriller,40076438
+Mercury Rising,1998,Action|Crime|Drama|Thriller,32940507
+The Soloist,2009,Biography|Drama|Music,31670931
+The Legend of Bagger Vance,2000,Drama|Fantasy|Sport,30695227
+Almost Famous,2000,Adventure|Comedy|Drama|Music,32522352
+xXx: State of the Union,2005,Action|Adventure|Crime|Thriller,26082914
+Priest,2011,Action|Fantasy|Horror|Sci-Fi|Thriller,29136626
+Sinbad: Legend of the Seven Seas,2003,Adventure|Animation|Comedy|Drama|Family|Fantasy|Romance,26288320
+Event Horizon,1997,Horror|Sci-Fi|Thriller,26616590
+The Avengers,2012,Action|Adventure|Sci-Fi,623279547
+Dragonfly,2002,Drama|Fantasy|Mystery|Romance|Thriller,30063805
+The Black Dahlia,2006,Crime|Drama|Mystery|Thriller,22518325
+Flyboys,2006,Action|Adventure|Drama|History|Romance|War,13082288
+The Last Castle,2001,Action|Drama|Thriller,18208078
+Supernova,2000,Horror|Sci-Fi|Thriller,14218868
+Winter's Tale,2014,Drama|Fantasy|Mystery|Romance,22451
+The Mortal Instruments: City of Bones,2013,Fantasy|Horror|Mystery|Romance,31165421
+Meet Dave,2008,Adventure|Comedy|Family|Romance|Sci-Fi,11802056
+Dark Water,2005,Drama|Horror|Thriller,25472967
+Edtv,1999,Comedy|Drama,22362500
+Inkheart,2008,Adventure|Family|Fantasy,17281832
+The Spirit,2008,Action|Crime|Fantasy|Thriller,19781879
+Mortdecai,2015,Action|Comedy|Mystery|Romance,7605668
+In the Name of the King: A Dungeon Siege Tale,2007,Action|Adventure|Fantasy|Thriller,4535117
+Beyond Borders,2003,Adventure|Drama|Romance|War,4426297
+The Great Raid,2005,Action|Drama|War,10166502
+Deadpool,2016,Action|Adventure|Comedy|Romance|Sci-Fi,363024263
+Holy Man,1998,Comedy|Drama,12065985
+American Sniper,2014,Action|Biography|Drama|History|Thriller|War,350123553
+Goosebumps,2015,Adventure|Comedy|Family|Fantasy|Horror,80021740
+Just Like Heaven,2005,Comedy|Fantasy|Romance,48291624
+The Flintstones in Viva Rock Vegas,2000,Comedy|Family|Romance|Sci-Fi,35231365
+Rambo III,1988,Action|Adventure|Thriller|War,53715611
+Leatherheads,2008,Comedy|Drama|Romance|Sport,31199215
+Did You Hear About the Morgans?,2009,Comedy|Drama|Romance,29580087
+The Internship,2013,Comedy,44665963
+Resident Evil: Afterlife,2010,Action|Adventure|Horror|Sci-Fi,60128566
+Red Tails,2012,Action|Adventure|Drama|History|War,49875589
+The Devil's Advocate,1997,Drama|Mystery|Thriller,60984028
+That's My Boy,2012,Comedy,36931089
+DragonHeart,1996,Action|Adventure|Fantasy,51317350
+After the Sunset,2004,Action|Comedy|Crime|Drama,28328132
+Ghost Rider: Spirit of Vengeance,2011,Action|Fantasy|Thriller,51774002
+Captain Corelli's Mandolin,2001,Drama|Music|Romance|War,25528495
+The Pacifier,2005,Action|Comedy|Drama|Family|Thriller,113006880
+Walking Tall,2004,Action|Crime,45860039
+Forrest Gump,1994,Comedy|Drama,329691196
+Alvin and the Chipmunks,2007,Animation|Comedy|Family|Fantasy|Music,217326336
+Meet the Parents,2000,Comedy,166225040
+Pocahontas,1995,Adventure|Animation|Drama|Family|History|Musical|Romance,141600000
+Superman,1978,Action|Adventure|Drama|Romance|Sci-Fi,134218018
+The Nutty Professor,1996,Comedy|Romance|Sci-Fi,128769345
+Hitch,2005,Comedy|Romance,177575142
+George of the Jungle,1997,Action|Adventure|Comedy|Family|Romance,105263257
+American Wedding,2003,Comedy|Romance,104354205
+Captain Phillips,2013,Biography|Drama|Thriller,107100855
+Date Night,2010,Comedy|Crime|Romance|Thriller,98711404
+Casper,1995,Comedy|Family|Fantasy,100328194
+The Equalizer,2014,Action|Crime|Thriller,101530738
+Maid in Manhattan,2002,Comedy|Drama|Romance,93815117
+Crimson Tide,1995,Action|Drama|Thriller|War,91400000
+The Pursuit of Happyness,2006,Biography|Drama,162586036
+Flightplan,2005,Drama|Mystery|Thriller,89706988
+Disclosure,1994,Drama|Thriller,83000000
+City of Angels,1998,Drama|Fantasy|Romance,78745923
+Kill Bill: Vol. 1,2003,Action,70098138
+Bowfinger,1999,Comedy,66365290
+Kill Bill: Vol. 2,2004,Action|Crime|Drama|Thriller,66207920
+Tango & Cash,1989,Action|Comedy|Crime|Thriller,63408614
+Death Becomes Her,1992,Comedy|Fantasy|Horror,58422650
+Shanghai Noon,2000,Action|Adventure|Comedy|Western,56932305
+Executive Decision,1996,Action|Adventure|Thriller,68750000
+Mr. Popper's Penguins,2011,Comedy|Family|Fantasy,68218041
+The Forbidden Kingdom,2008,Action|Adventure|Fantasy,25040293
+Free Birds,2013,Adventure|Animation|Comedy|Family,55747724
+Alien 3,1992,Action|Horror|Sci-Fi,55473600
+Evita,1996,Biography|Drama|History|Musical,49994804
+Ronin,1998,Action|Adventure|Crime|Thriller,41609593
+The Ghost and the Darkness,1996,Adventure|Drama|Horror|Thriller,38553833
+Paddington,2014,Animation|Comedy|Family|Fantasy,76137505
+The Watch,2012,Action|Comedy|Sci-Fi,34350553
+The Hunted,2003,Action|Crime|Drama|Thriller,34238611
+Instinct,1999,Drama|Thriller,34098563
+Stuck on You,2003,Comedy,33828318
+Semi-Pro,2008,Comedy|Sport,33472850
+The Pirates! Band of Misfits,2012,Adventure|Animation|Comedy|Family,31051126
+Changeling,2008,Crime|Drama|Mystery|Thriller,35707327
+Chain Reaction,1996,Action|Drama|Sci-Fi|Thriller,20550712
+The Fan,1996,Action|Drama|Sport|Thriller,18573791
+The Phantom of the Opera,2004,Drama|Musical|Romance|Thriller,51225796
+Elizabeth: The Golden Age,2007,Biography|Drama|History|War,16264475
+Æon Flux,2005,Action|Sci-Fi,25857987
+Gods and Generals,2003,Drama|History|War,12870569
+Turbulence,1997,Action|Thriller,11466088
+Imagine That,2009,Comedy|Drama|Family|Fantasy,16088610
+Muppets Most Wanted,2014,Adventure|Comedy|Crime|Family|Musical,51178893
+Thunderbirds,2004,Action|Adventure|Comedy|Family|Sci-Fi,6768055
+Burlesque,2010,Drama|Music|Musical|Romance,39440655
+A Very Long Engagement,2004,Drama|Mystery|Romance|War,6167817
+Blade II,2002,Action|Horror|Sci-Fi|Thriller,81645152
+Seven Pounds,2008,Drama|Romance,69951824
+Bullet to the Head,2012,Action|Thriller,9483821
+The Godfather: Part III,1990,Crime|Drama,66676062
+Elizabethtown,2005,Comedy|Drama|Romance,26838389
+"You, Me and Dupree",2006,Comedy|Romance,75604320
+Superman II,1980,Action|Adventure|Romance|Sci-Fi,108200000
+Gigli,2003,Comedy|Crime|Romance,5660084
+All the King's Men,2006,Drama|Thriller,7221458
+Shaft,2000,Action|Crime|Thriller,70327868
+Anastasia,1997,Adventure|Animation|Drama|Family|Fantasy|Musical|Mystery|Romance,58297830
+Moulin Rouge!,2001,Drama|Musical|Romance,57386369
+Domestic Disturbance,2001,Crime|Mystery|Thriller,45207112
+Black Mass,2015,Biography|Crime|Drama,62563543
+Flags of Our Fathers,2006,Drama|History|War,33574332
+Law Abiding Citizen,2009,Crime|Drama|Thriller,73343413
+Grindhouse,2007,Action|Horror|Thriller,25031037
+Beloved,1998,Drama|History|Horror,22843047
+Lucky You,2007,Drama|Romance|Sport,5755286
+Catch Me If You Can,2002,Biography|Crime|Drama,164435221
+Zero Dark Thirty,2012,Drama|History|Thriller,95720716
+The Break-Up,2006,Comedy|Drama|Romance,118683135
+Mamma Mia!,2008,Comedy|Family|Musical|Romance,143704210
+Valentine's Day,2010,Comedy|Romance,110476776
+The Dukes of Hazzard,2005,Action|Adventure|Comedy,80270227
+The Thin Red Line,1998,Drama|War,36385763
+The Change-Up,2011,Comedy|Fantasy,37035845
+Man on the Moon,1999,Biography|Comedy|Drama,34580635
+Casino,1995,Biography|Crime|Drama,42438300
+From Paris with Love,2010,Action|Thriller,23324666
+Bulletproof Monk,2003,Action|Comedy|Fantasy,23020488
+"Me, Myself & Irene",2000,Comedy,90567722
+Barnyard,2006,Animation|Comedy|Family,72601713
+The Twilight Saga: New Moon,2009,Adventure|Drama|Fantasy|Romance,296623634
+Shrek,2001,Adventure|Animation|Comedy|Family|Fantasy,267652016
+The Adjustment Bureau,2011,Romance|Sci-Fi|Thriller,62453315
+Robin Hood: Prince of Thieves,1991,Action|Adventure|Drama|Romance,165500000
+Jerry Maguire,1996,Comedy|Drama|Romance|Sport,153620822
+Ted,2012,Comedy|Fantasy,218628680
+As Good as It Gets,1997,Comedy|Drama|Romance,147637474
+Patch Adams,1998,Biography|Comedy|Drama|Romance,135014968
+Anchorman 2: The Legend Continues,2013,Comedy,2175312
+Mr. Deeds,2002,Comedy|Romance,126203320
+Super 8,2011,Mystery|Sci-Fi|Thriller,126975169
+Erin Brockovich,2000,Biography|Drama,125548685
+How to Lose a Guy in 10 Days,2003,Comedy|Romance,105807520
+22 Jump Street,2014,Action|Comedy|Crime,191616238
+Interview with the Vampire: The Vampire Chronicles,1994,Drama|Fantasy|Horror,105264608
+Yes Man,2008,Comedy|Romance,97680195
+Central Intelligence,2016,Action|Comedy|Crime,126088877
+Stepmom,1998,Comedy|Drama,91030827
+Daddy's Home,2015,Comedy|Family,150315155
+Into the Woods,2014,Adventure|Comedy|Drama|Fantasy|Musical,127997349
+Inside Man,2006,Crime|Drama|Mystery|Thriller,88504640
+Payback,1999,Action|Crime|Drama|Thriller,81517441
+Congo,1995,Action|Adventure|Mystery|Sci-Fi,81022333
+Knowing,2009,Drama|Mystery|Sci-Fi|Thriller,79948113
+Failure to Launch,2006,Comedy|Romance,88658172
+"Crazy, Stupid, Love.",2011,Comedy|Drama|Romance,84244877
+Garfield,2004,Animation|Comedy|Family|Fantasy,75367693
+Christmas with the Kranks,2004,Comedy|Family,73701902
+Moneyball,2011,Biography|Drama|Sport,75605492
+Outbreak,1995,Action|Drama|Thriller,67823573
+Non-Stop,2014,Action|Mystery|Thriller,91439400
+Race to Witch Mountain,2009,Action|Adventure|Family|Fantasy|Sci-Fi|Thriller,67128202
+V for Vendetta,2005,Action|Drama|Thriller,70496802
+Shanghai Knights,2003,Action|Adventure|Comedy,60470220
+Curious George,2006,Adventure|Animation|Comedy|Family,58336565
+Herbie Fully Loaded,2005,Adventure|Comedy|Family|Fantasy|Romance|Sport,66002004
+Don't Say a Word,2001,Crime|Drama|Mystery|Thriller,54997476
+Hansel & Gretel: Witch Hunters,2013,Action|Fantasy|Horror,55682070
+Unfaithful,2002,Drama|Thriller,52752475
+I Am Number Four,2011,Action|Adventure|Sci-Fi|Thriller,55092830
+Syriana,2005,Drama|Thriller,50815288
+13 Hours,2016,Action|Drama|Thriller|War,52822418
+The Book of Life,2014,Adventure|Animation|Comedy|Family|Fantasy|Romance,50150619
+Firewall,2006,Crime|Thriller,48745150
+Absolute Power,1997,Action|Crime|Drama|Thriller,50007168
+G.I. Jane,1997,Action|Drama|War,48154732
+The Game,1997,Drama|Mystery|Thriller,48265581
+Silent Hill,2006,Adventure|Horror|Mystery,46982632
+The Replacements,2000,Comedy|Sport,44737059
+American Reunion,2012,Comedy,56724080
+The Negotiator,1998,Action|Crime|Drama|Mystery|Thriller,44484065
+Into the Storm,2014,Action|Thriller,47553512
+Beverly Hills Cop III,1994,Action|Comedy|Crime|Thriller,42610000
+Gremlins 2: The New Batch,1990,Comedy|Fantasy|Horror,41482207
+The Judge,2014,Crime|Drama,47105085
+The Peacemaker,1997,Action|Thriller,41256277
+Resident Evil: Apocalypse,2004,Action|Horror|Sci-Fi|Thriller,50740078
+Bridget Jones: The Edge of Reason,2004,Comedy|Drama|Romance,40203020
+Out of Time,2003,Crime|Drama|Romance|Thriller,40905277
+On Deadly Ground,1994,Action|Adventure|Thriller,38590500
+The Adventures of Sharkboy and Lavagirl 3-D,2005,Action|Adventure|Family|Fantasy,39177541
+The Beach,2000,Adventure|Drama|Thriller,39778599
+Raising Helen,2004,Comedy|Drama|Romance,37486138
+Ninja Assassin,2009,Action|Crime|Thriller,38105077
+For Love of the Game,1999,Drama|Romance|Sport,35168395
+Striptease,1996,Comedy|Crime|Drama|Thriller,32800000
+Marmaduke,2010,Comedy|Family,33643461
+Hereafter,2010,Drama|Fantasy,32741596
+Murder by Numbers,2002,Crime|Mystery|Thriller,31874869
+Assassins,1995,Action|Crime|Thriller,30306268
+Hannibal Rising,2007,Crime|Drama|Thriller,27667947
+The Story of Us,1999,Comedy|Drama|Romance,27067160
+The Host,2013,Action|Adventure|Romance|Sci-Fi|Thriller,26616999
+Basic,2003,Action|Crime|Drama|Mystery|Thriller,26536120
+Blood Work,2002,Action|Crime|Drama|Mystery|Thriller,26199517
+The International,2009,Action|Crime|Drama|Mystery|Thriller,25450527
+Escape from L.A.,1996,Action|Adventure|Sci-Fi|Thriller,25407250
+The Iron Giant,1999,Action|Adventure|Animation|Comedy|Drama|Family|Sci-Fi,23159305
+The Life Aquatic with Steve Zissou,2004,Adventure|Comedy|Drama,24006726
+Free State of Jones,2016,Action|Biography|Drama|History|War,20389967
+The Life of David Gale,2003,Crime|Drama|Thriller,19593740
+Man of the House,2005,Action|Comedy,19118247
+Run All Night,2015,Action|Crime|Drama|Thriller,26442251
+Eastern Promises,2007,Crime|Mystery|Thriller,17114882
+Into the Blue,2005,Action|Adventure|Crime|Thriller,18472363
+The Messenger: The Story of Joan of Arc,1999,Adventure|Biography|Drama|History|War,14131298
+Your Highness,2011,Adventure|Comedy|Fantasy,21557240
+Dream House,2011,Drama|Mystery|Thriller,21283440
+Mad City,1997,Crime|Drama|Thriller,10556196
+Baby's Day Out,1994,Adventure|Comedy|Crime|Drama|Family,16671505
+The Scarlet Letter,1995,Drama|Romance,10400000
+Fair Game,2010,Biography|Drama|Thriller,9528092
+Domino,2005,Action|Biography|Crime|Drama|Thriller,10137232
+Jade,1995,Crime|Drama|Thriller,9795017
+Gamer,2009,Action|Sci-Fi|Thriller,20488579
+Beautiful Creatures,2013,Drama|Fantasy|Romance,19445217
+Death to Smoochy,2002,Comedy|Crime|Drama|Thriller,8355815
+Zoolander 2,2016,Comedy,28837115
+The Big Bounce,2004,Comedy|Crime,6471394
+What Planet Are You From?,2000,Comedy|Sci-Fi,6291602
+Drive Angry,2011,Action|Fantasy|Thriller,10706786
+Street Fighter: The Legend of Chun-Li,2009,Action|Crime|Drama|Mystery|Thriller,8742261
+The One,2001,Action|Sci-Fi|Thriller,43905746
+The Adventures of Ford Fairlane,1990,Action|Adventure|Comedy|Crime|Music|Mystery,21413502
+Traffic,2000,Crime|Drama|Thriller,124107476
+Indiana Jones and the Last Crusade,1989,Action|Adventure|Fantasy,197171806
+Chappie,2015,Action|Crime|Drama|Sci-Fi|Thriller,31569268
+The Bone Collector,1999,Crime|Drama|Mystery|Thriller,66488090
+Panic Room,2002,Crime|Drama|Thriller,95308367
+Three Kings,1999,Action|Adventure|Comedy|Drama|War,60652036
+Child 44,2015,Crime|Drama|Thriller,1206135
+Rat Race,2001,Adventure|Comedy,56607223
+K-PAX,2001,Drama|Mystery|Sci-Fi,50173190
+Kate & Leopold,2001,Comedy|Fantasy|Romance,47095453
+Bedazzled,2000,Comedy|Fantasy|Romance,37879996
+The Cotton Club,1984,Crime|Drama|Music,25900000
+3:10 to Yuma,2007,Adventure|Crime|Drama|Western,53574088
+Taken 3,2014,Action|Thriller,89253340
+Out of Sight,1998,Crime|Drama|Romance|Thriller,37339525
+The Cable Guy,1996,Comedy|Drama|Thriller,60154431
+Dick Tracy,1990,Action|Comedy|Crime|Music|Romance|Thriller,103738726
+The Thomas Crown Affair,1999,Crime|Romance|Thriller,69304264
+Riding in Cars with Boys,2001,Biography|Comedy|Drama,29781453
+Happily N'Ever After,2006,Adventure|Animation|Comedy|Family|Fantasy,15519841
+Mary Reilly,1996,Drama|Horror|Romance|Thriller,5600000
+My Best Friend's Wedding,1997,Comedy|Romance,126805112
+America's Sweethearts,2001,Comedy|Romance,93607673
+Insomnia,2002,Drama|Mystery|Thriller,67263182
+Star Trek: First Contact,1996,Action|Adventure|Drama|Sci-Fi|Thriller,92001027
+Jonah Hex,2010,Action|Drama|Fantasy|Thriller|Western,10539414
+Courage Under Fire,1996,Action|Drama|Mystery|Thriller|War,58918501
+Liar Liar,1997,Comedy|Fantasy|Romance,181395380
+The Flintstones,1994,Comedy|Family|Fantasy,130512915
+Taken 2,2012,Action|Crime|Thriller,139852971
+Scary Movie 3,2003,Comedy,110000082
+Miss Congeniality,2000,Action|Comedy|Crime|Romance,106807667
+Journey to the Center of the Earth,2008,Action|Adventure|Family|Fantasy|Sci-Fi,101702060
+The Princess Diaries 2: Royal Engagement,2004,Comedy|Family|Romance,95149435
+The Pelican Brief,1993,Crime|Drama|Mystery|Thriller,100768056
+The Client,1994,Crime|Drama|Mystery|Thriller,92115211
+The Bucket List,2007,Adventure|Comedy|Drama,93452056
+Patriot Games,1992,Action|Thriller,83287363
+Monster-in-Law,2005,Comedy|Romance,82931301
+Prisoners,2013,Crime|Drama|Mystery|Thriller,60962878
+Training Day,2001,Crime|Drama|Thriller,76261036
+Galaxy Quest,1999,Adventure|Comedy|Sci-Fi,71423726
+Scary Movie 2,2001,Comedy,71277420
+The Muppets,2011,Adventure|Comedy|Family|Musical,88625922
+Blade,1998,Action|Horror,70001065
+Coach Carter,2005,Drama|Sport,67253092
+Changing Lanes,2002,Drama|Thriller,66790248
+Anaconda,1997,Action|Adventure|Horror|Thriller,65557989
+Coyote Ugly,2000,Comedy|Drama|Music|Romance,60786269
+Love Actually,2003,Comedy|Drama|Romance,59365105
+A Bug's Life,1998,Adventure|Animation|Comedy|Family|Fantasy,162792677
+From Hell,2001,Horror|Mystery|Thriller,31598308
+The Specialist,1994,Action|Crime|Drama|Romance|Thriller,57362581
+Tin Cup,1996,Comedy|Drama|Romance|Sport,53854588
+Kicking & Screaming,2005,Comedy|Family|Romance|Sport,52580895
+The Hitchhiker's Guide to the Galaxy,2005,Adventure|Comedy|Sci-Fi,51019112
+Fat Albert,2004,Comedy|Family|Fantasy|Romance,48114556
+Resident Evil: Extinction,2007,Action|Horror|Sci-Fi|Thriller,50648679
+Blended,2014,Comedy|Romance,46280507
+Last Holiday,2006,Adventure|Comedy|Drama,38360195
+The River Wild,1994,Action|Adventure|Crime|Thriller,46815748
+The Indian in the Cupboard,1995,Drama|Family|Fantasy,35617599
+Savages,2012,Crime|Drama|Thriller,47307550
+Cellular,2004,Action|Crime|Thriller,32003620
+Johnny English,2003,Action|Adventure|Comedy,27972410
+The Ant Bully,2006,Adventure|Animation|Comedy|Family|Fantasy,28133159
+Dune,1984,Action|Adventure|Sci-Fi,27400000
+Across the Universe,2007,Drama|Fantasy|Musical|Romance,24343673
+Revolutionary Road,2008,Drama|Romance,22877808
+16 Blocks,2006,Action|Crime|Drama|Thriller,36883539
+Babylon A.D.,2008,Action|Adventure|Sci-Fi|Thriller,22531698
+The Glimmer Man,1996,Action|Comedy|Crime|Drama|Thriller,20400913
+Multiplicity,1996,Comedy|Romance|Sci-Fi,20101861
+Aliens in the Attic,2009,Adventure|Comedy|Family|Fantasy|Sci-Fi,25200412
+The Pledge,2001,Crime|Drama|Mystery|Thriller,19719930
+The Producers,2005,Comedy|Musical,19377727
+Dredd,2012,Action|Sci-Fi,13401683
+The Phantom,1996,Action|Adventure|Comedy|Fantasy,17300889
+All the Pretty Horses,2000,Drama|Romance|Western,15527125
+Nixon,1995,Biography|Drama|History,13560960
+The Ghost Writer,2010,Mystery|Thriller,15523168
+Deep Rising,1998,Action|Adventure|Horror|Sci-Fi,11146409
+Miracle at St. Anna,2008,Action|Crime|Drama|Thriller|War,7916887
+Curse of the Golden Flower,2006,Drama|Romance,6565495
+Bangkok Dangerous,2008,Action|Crime|Thriller,15279680
+Big Trouble,2002,Comedy|Crime|Thriller,7262288
+Love in the Time of Cholera,2007,Drama|Romance,4584886
+Shadow Conspiracy,1997,Action|Thriller,2154540
+Johnny English Reborn,2011,Action|Adventure|Comedy|Crime,8129455
+Argo,2012,Biography|Drama|History|Thriller,136019448
+The Fugitive,1993,Action|Adventure|Crime|Drama|Mystery|Thriller,183875760
+The Bounty Hunter,2010,Action|Comedy|Romance,67061228
+Sleepers,1996,Crime|Drama|Thriller,53300852
+Rambo: First Blood Part II,1985,Action|Adventure|Thriller|War,150415432
+The Juror,1996,Drama|Thriller,44834712
+Pinocchio,1940,Animation|Family|Fantasy|Musical,84300000
+Heaven's Gate,1980,Adventure|Drama|Western,1500000
+Underworld: Evolution,2006,Action|Adventure|Fantasy|Sci-Fi|Thriller,62318875
+Victor Frankenstein,2015,Drama|Horror|Sci-Fi|Thriller,5773519
+Finding Forrester,2000,Drama,51768623
+28 Days,2000,Comedy|Drama,37035515
+Unleashed,2005,Action|Crime|Drama|Thriller,24520892
+The Sweetest Thing,2002,Comedy|Romance,24430272
+The Firm,1993,Drama|Mystery|Thriller,158348400
+Charlie St. Cloud,2010,Drama|Fantasy|Romance,31136950
+The Mechanic,2011,Action|Crime|Thriller,29113588
+21 Jump Street,2012,Action|Comedy|Crime,138447667
+Notting Hill,1999,Comedy|Drama|Romance,116006080
+Chicken Run,2000,Adventure|Animation|Comedy|Drama|Family,106793915
+Along Came Polly,2004,Comedy|Romance,87856565
+Boomerang,1992,Comedy|Drama|Romance,70100000
+The Heat,2013,Action|Comedy|Crime,159578352
+Cleopatra,1963,Biography|Drama|History|Romance,57750000
+Here Comes the Boom,2012,Action|Comedy|Sport,45290318
+High Crimes,2002,Crime|Drama|Mystery|Thriller,41543207
+The Mirror Has Two Faces,1996,Comedy|Drama|Romance,41252428
+The Mothman Prophecies,2002,Drama|Horror|Mystery|Thriller,35228696
+Brüno,2009,Comedy,59992760
+Licence to Kill,1989,Action|Adventure|Thriller,34667015
+Red Riding Hood,2011,Fantasy|Horror|Mystery|Thriller,37652565
+15 Minutes,2001,Action|Crime|Drama|Thriller,24375436
+Super Mario Bros.,1993,Adventure|Comedy|Family|Fantasy|Sci-Fi,20915465
+Lord of War,2005,Crime|Drama|Thriller,24127895
+Hero,2002,Action|Adventure|History,84961
+One for the Money,2012,Action|Comedy|Crime|Romance|Thriller,26404753
+The Interview,2014,Comedy,6105175
+The Warrior's Way,2010,Action|Fantasy|Western,5664251
+Micmacs,2009,Action|Comedy|Crime,1260917
+8 Mile,2002,Drama|Music,116724075
+A Knight's Tale,2001,Action|Adventure|Romance,56083966
+The Medallion,2003,Action|Comedy|Fantasy,22108977
+The Sixth Sense,1999,Drama|Mystery|Thriller,293501675
+Man on a Ledge,2012,Action|Crime|Thriller,18600911
+The Big Year,2011,Comedy,7204138
+The Karate Kid,1984,Action|Drama|Family|Sport,90800000
+American Hustle,2013,Crime|Drama,150117807
+The Proposal,2009,Comedy|Drama|Romance,163947053
+Double Jeopardy,1999,Crime|Mystery|Thriller,116735231
+Back to the Future Part II,1989,Adventure|Comedy|Sci-Fi,118500000
+Lucy,2014,Action|Sci-Fi|Thriller,126546825
+Fifty Shades of Grey,2015,Drama|Romance,166147885
+Spy Kids 3-D: Game Over,2003,Action|Adventure|Comedy|Family|Sci-Fi,111760631
+A Time to Kill,1996,Crime|Drama|Thriller,108706165
+Cheaper by the Dozen,2003,Comedy|Family,138614544
+Lone Survivor,2013,Action|Biography|Drama|Thriller|War,125069696
+A League of Their Own,1992,Comedy|Drama|Sport,107458785
+The Conjuring 2,2016,Horror|Mystery|Thriller,102310175
+The Social Network,2010,Biography|Drama,96917897
+He's Just Not That Into You,2009,Comedy|Drama|Romance,93952276
+Scary Movie 4,2006,Comedy,90703745
+Scream 3,2000,Horror|Mystery,89138076
+Back to the Future Part III,1990,Adventure|Comedy|Sci-Fi|Western,87666629
+Get Hard,2015,Comedy|Crime,90353764
+Bram Stoker's Dracula,1992,Fantasy|Horror|Romance,82522790
+Julie & Julia,2009,Biography|Drama|Romance,94125426
+42,2013,Biography|Drama|Sport,95001343
+The Talented Mr. Ripley,1999,Crime|Drama|Thriller,81292135
+Dumb and Dumber To,2014,Comedy,86208010
+Eight Below,2006,Adventure|Drama|Family,81593527
+The Intern,2015,Comedy|Drama,75274748
+Ride Along 2,2016,Action|Comedy,90835030
+The Last of the Mohicans,1992,Action|Adventure|Drama|Romance|War,72455275
+Ray,2004,Biography|Drama|Music,75305995
+Sin City,2005,Crime|Thriller,74098862
+Vantage Point,2008,Crime|Drama|Mystery|Thriller,72266306
+"I Love You, Man",2009,Comedy|Romance,71347010
+Shallow Hal,2001,Comedy|Drama|Fantasy|Romance,70836296
+JFK,1991,Drama|History|Thriller,70405498
+Big Momma's House 2,2006,Comedy|Crime,70163652
+The Mexican,2001,Adventure|Comedy|Crime|Romance,66808615
+Unbroken,2014,Biography|Drama|Sport|War,115603980
+17 Again,2009,Comedy|Drama|Family|Fantasy|Romance,64149837
+The Other Woman,2014,Comedy|Romance,83906114
+The Final Destination,2009,Horror,66466372
+Bridge of Spies,2015,Drama|History|Thriller,72306065
+Behind Enemy Lines,2001,Action|Drama|Thriller|War,59068786
+Shall We Dance,2004,Comedy|Drama|Romance,57887882
+Small Soldiers,1998,Action|Adventure|Comedy|Family|Sci-Fi,53955614
+Spawn,1997,Action|Horror,54967359
+The Count of Monte Cristo,2002,Action|Adventure|Drama|Romance|Thriller,54228104
+The Lincoln Lawyer,2011,Crime|Drama|Thriller,57981889
+Unknown,2011,Action|Mystery|Thriller,61094903
+The Prestige,2006,Drama|Mystery|Sci-Fi|Thriller,53082743
+Horrible Bosses 2,2014,Comedy|Crime,54414716
+Escape from Planet Earth,2013,Adventure|Animation|Comedy|Family|Sci-Fi,57011847
+Apocalypto,2006,Action|Adventure|Drama|Thriller,50859889
+The Living Daylights,1987,Action|Adventure|Thriller,51185897
+Predators,2010,Action|Adventure|Sci-Fi|Thriller,52000688
+Legal Eagles,1986,Comedy|Crime|Romance,49851591
+Secret Window,2004,Mystery|Thriller,47781388
+The Lake House,2006,Drama|Fantasy|Romance,52320979
+The Skeleton Key,2005,Horror|Mystery|Thriller,47806295
+The Odd Life of Timothy Green,2012,Comedy|Drama|Family|Fantasy,51853450
+Made of Honor,2008,Comedy|Romance,46012734
+Jersey Boys,2014,Biography|Drama|Music|Musical,47034272
+The Rainmaker,1997,Crime|Drama|Thriller,45856732
+Gothika,2003,Horror|Mystery|Thriller,59588068
+Amistad,1997,Drama|History,44175394
+Medicine Man,1992,Adventure|Drama|Romance,45500797
+Aliens vs. Predator: Requiem,2007,Action|Horror|Sci-Fi|Thriller,41797066
+Ri¢hie Ri¢h,1994,Comedy|Family,38087756
+Autumn in New York,2000,Drama|Romance,37752931
+Paul,2011,Adventure|Comedy|Sci-Fi,37371385
+The Guilt Trip,2012,Comedy|Drama,37101011
+Scream 4,2011,Horror|Mystery,38176892
+8MM,1999,Mystery|Thriller,36283504
+The Doors,1991,Biography|Drama|Music|Musical,35183792
+Sex Tape,2014,Comedy,38543473
+Hanging Up,2000,Comedy|Drama,36037909
+Final Destination 5,2011,Horror,42575718
+Mickey Blue Eyes,1999,Comedy|Crime|Romance,33864342
+Pay It Forward,2000,Drama,33508922
+Fever Pitch,2005,Comedy|Drama|Romance|Sport,42071069
+Drillbit Taylor,2008,Comedy|Drama,32853640
+A Million Ways to Die in the West,2014,Comedy|Western,42615685
+The Shadow,1994,Action|Adventure|Crime|Fantasy|Mystery|Thriller,32055248
+Extremely Loud & Incredibly Close,2011,Adventure|Drama|Mystery,31836745
+Morning Glory,2010,Comedy|Drama|Romance,30993544
+Get Rich or Die Tryin',2005,Biography|Crime|Drama|Music,30981850
+The Art of War,2000,Action|Adventure|Crime|Thriller,30199105
+Rent,2005,Drama|Musical|Romance,29077547
+Bless the Child,2000,Crime|Drama|Horror|Thriller,29374178
+The Out-of-Towners,1999,Comedy,28535768
+The Island of Dr. Moreau,1996,Horror|Sci-Fi|Thriller,27663982
+The Musketeer,2001,Action|Adventure|Romance,27053815
+The Other Boleyn Girl,2008,Biography|Drama|History|Romance,26814957
+Sweet November,2001,Drama|Romance,25178165
+The Reaping,2007,Horror|Thriller,25117498
+Mean Streets,1973,Crime|Drama|Romance|Thriller,32645
+Renaissance Man,1994,Comedy|Drama,24332324
+Colombiana,2011,Action|Crime|Drama|Thriller,36665854
+The Magic Sword: Quest for Camelot,1998,Adventure|Animation|Comedy|Drama|Family|Fantasy|Musical,22717758
+City by the Sea,2002,Crime|Drama|Mystery|Thriller,22433915
+At First Sight,1999,Drama|Romance,22326247
+Torque,2004,Action|Comedy|Crime,21176322
+City Hall,1996,Drama|Thriller,20300000
+Marie Antoinette,2006,Biography|Drama|History|Romance,15962471
+Kiss of Death,1995,Action|Crime|Thriller,14942422
+Get Carter,2000,Action|Crime|Drama|Thriller,14967182
+The Impossible,2012,Drama|Thriller,18996755
+Ishtar,1987,Action|Adventure|Comedy|Music|Thriller,14375181
+Fantastic Mr. Fox,2009,Adventure|Animation|Comedy|Crime|Family,20999103
+Life or Something Like It,2002,Comedy|Romance,14448589
+Memoirs of an Invisible Man,1992,Comedy|Romance|Sci-Fi|Thriller,14358033
+Amélie,2001,Comedy|Romance,33201661
+New York Minute,2004,Comedy|Crime|Family|Romance,14018364
+Alfie,2004,Comedy|Drama|Romance,13395939
+Big Miracle,2012,Biography|Drama|Romance,20113965
+The Deep End of the Ocean,1999,Drama,13376506
+Feardotcom,2002,Crime|Horror|Thriller,13208023
+Cirque du Freak: The Vampire's Assistant,2009,Action|Adventure|Fantasy|Thriller,13838130
+Victor Frankenstein,2015,Drama|Horror|Sci-Fi|Thriller,5773519
+Duplex,2003,Comedy,9652000
+Raise the Titanic,1980,Action|Adventure|Drama|Thriller,7000000
+Universal Soldier: The Return,1999,Action|Sci-Fi,10431220
+Pandorum,2009,Action|Horror|Mystery|Sci-Fi|Thriller,10326062
+Impostor,2001,Drama|Mystery|Sci-Fi|Thriller,6114237
+Extreme Ops,2002,Action|Adventure|Thriller,4835968
+Just Visiting,2001,Comedy|Fantasy|Sci-Fi,4777007
+Sunshine,2007,Adventure|Sci-Fi|Thriller,3675072
+A Thousand Words,2012,Comedy|Drama,18438149
+Delgo,2008,Adventure|Animation|Comedy|Fantasy|Romance,511920
+The Gunman,2015,Action|Crime|Drama|Mystery|Thriller,10640645
+Alex Rider: Operation Stormbreaker,2006,Action|Adventure|Family|Thriller,652526
+Disturbia,2007,Drama|Mystery|Thriller,80050171
+Hackers,1995,Comedy|Crime|Drama|Thriller,7564000
+The Hunting Party,2007,Adventure|Comedy|Drama|Romance|Thriller|War,876671
+The Hudsucker Proxy,1994,Comedy|Fantasy,2869369
+The Warlords,2007,Action|Drama|History|Romance|War,128978
+Nomad: The Warrior,2005,Drama|History|War,77231
+Snowpiercer,2013,Action|Drama|Sci-Fi|Thriller,4563029
+The Crow,1994,Action|Drama|Fantasy,50693162
+The Time Traveler's Wife,2009,Drama|Fantasy|Romance|Sci-Fi,63411478
+The Fast and the Furious,2001,Action|Crime|Thriller,144512310
+Frankenweenie,2012,Animation|Comedy|Family|Horror|Sci-Fi,35287788
+Serenity,2005,Action|Adventure|Sci-Fi|Thriller,25335935
+Against the Ropes,2004,Biography|Drama|Romance|Sport,5881504
+Superman III,1983,Action|Comedy|Sci-Fi,60000000
+Grudge Match,2013,Comedy|Sport,29802761
+Red Cliff,2008,Action|Adventure|Drama|History|War,626809
+Sweet Home Alabama,2002,Comedy|Romance,127214072
+The Ugly Truth,2009,Comedy|Romance,88915214
+Sgt. Bilko,1996,Comedy,30400000
+Spy Kids 2: Island of Lost Dreams,2002,Action|Adventure|Comedy|Family|Sci-Fi,85570368
+Star Trek: Generations,1994,Action|Adventure|Mystery|Sci-Fi|Thriller,75668868
+The Grandmaster,2013,Action|Biography|Drama,6594136
+Water for Elephants,2011,Drama|Romance,58700247
+The Hurricane,1999,Biography|Drama|Sport,50668906
+Enough,2002,Crime|Drama|Thriller,39177215
+Heartbreakers,2001,Comedy|Crime|Romance,40334024
+Paul Blart: Mall Cop 2,2015,Action|Comedy|Crime,71038190
+Angel Eyes,2001,Drama|Romance,24044532
+Joe Somebody,2001,Comedy|Drama,22770864
+The Ninth Gate,1999,Mystery|Thriller,18653746
+Extreme Measures,1996,Crime|Drama|Mystery|Thriller,17305211
+Rock Star,2001,Drama|Music,16991902
+Precious,2009,Drama,47536959
+White Squall,1996,Adventure|Drama,10300000
+The Thing,1982,Horror|Mystery|Sci-Fi,13782838
+Riddick,2013,Action|Sci-Fi|Thriller,41997790
+Switchback,1997,Crime|Mystery|Thriller,6482195
+Texas Rangers,2001,Action|Adventure|Drama|Thriller|Western,623374
+City of Ember,2008,Adventure|Family|Fantasy|Sci-Fi,7871693
+The Master,2012,Drama,16377274
+The Express,2008,Biography|Drama|Sport,9589875
+The 5th Wave,2016,Action|Adventure|Sci-Fi|Thriller,34912982
+Creed,2015,Drama|Sport,109712885
+The Town,2010,Crime|Drama|Thriller,92173235
+What to Expect When You're Expecting,2012,Comedy|Drama|Romance,41102171
+Burn After Reading,2008,Comedy|Drama,60338891
+Nim's Island,2008,Adventure|Comedy|Family|Fantasy,48006503
+Rush,2013,Action|Biography|Drama|Sport,26903709
+Magnolia,1999,Drama,22450975
+Cop Out,2010,Action|Comedy|Crime,44867349
+How to Be Single,2016,Comedy|Romance,46813366
+Dolphin Tale,2011,Drama|Family,72279690
+Twilight,2008,Drama|Fantasy|Romance,191449475
+John Q,2002,Crime|Drama|Thriller,71026631
+Blue Streak,1999,Action|Comedy|Crime|Thriller,68208190
+We're the Millers,2013,Comedy|Crime,150368971
+Breakdown,1997,Action|Crime|Drama|Mystery|Thriller,50129186
+Never Say Never Again,1983,Action|Adventure|Thriller,55500000
+Hot Tub Time Machine,2010,Comedy|Sci-Fi,50213619
+Dolphin Tale 2,2014,Drama|Family,42019483
+Reindeer Games,2000,Action|Adventure|Crime|Drama|Family|Fantasy|Romance|Thriller,23360779
+A Man Apart,2003,Action|Crime|Drama|Thriller,26183197
+Aloha,2015,Comedy|Drama|Romance,20991497
+Ghosts of Mississippi,1996,Drama|History,13052741
+Snow Falling on Cedars,1999,Drama|Mystery|Romance|Thriller,14378353
+The Rite,2011,Drama|Horror|Mystery|Thriller,33037754
+Gattaca,1997,Drama|Sci-Fi|Thriller,12339633
+Isn't She Great,2000,Biography|Comedy|Romance,2954405
+Space Chimps,2008,Adventure|Animation|Comedy|Family|Sci-Fi,30105968
+Head of State,2003,Comedy,37788228
+The Hangover,2009,Comedy,277313371
+Ip Man 3,2015,Action|Biography|Drama|History,2126511
+Austin Powers: The Spy Who Shagged Me,1999,Action|Adventure|Comedy|Crime,205399422
+Batman,1989,Action|Adventure,251188924
+There Be Dragons,2011,Biography|Drama|War,1068392
+Lethal Weapon 3,1992,Action|Crime|Thriller,144731527
+The Blind Side,2009,Biography|Drama|Sport,255950375
+Spy Kids,2001,Action|Adventure|Comedy|Family|Sci-Fi,112692062
+Horrible Bosses,2011,Comedy|Crime,117528646
+True Grit,2010,Adventure|Drama|Western,171031347
+The Devil Wears Prada,2006,Comedy|Drama|Romance,124732962
+Star Trek: The Motion Picture,1979,Adventure|Mystery|Sci-Fi,82300000
+Identity Thief,2013,Comedy|Crime,134455175
+Cape Fear,1991,Crime|Thriller,79100000
+21,2008,Crime|Drama|Thriller,81159365
+Trainwreck,2015,Comedy|Romance,110008260
+Guess Who,2005,Comedy|Romance,67962333
+The English Patient,1996,Drama|Romance|War,78651430
+L.A. Confidential,1997,Crime|Drama|Mystery|Thriller,64604977
+Sky High,2005,Adventure|Comedy|Family|Sci-Fi,63939454
+In & Out,1997,Comedy,63826569
+Species,1995,Action|Horror|Sci-Fi|Thriller,60054449
+A Nightmare on Elm Street,1984,Horror,26505000
+The Cell,2000,Horror|Sci-Fi|Thriller,61280963
+The Man in the Iron Mask,1998,Action|Adventure,56876365
+Secretariat,2010,Biography|Drama|Family|History|Sport,59699513
+TMNT,2007,Action|Adventure|Animation|Comedy|Family|Fantasy|Sci-Fi,54132596
+Radio,2003,Biography|Drama|Sport,52277485
+Friends with Benefits,2011,Comedy|Romance,55802754
+Neighbors 2: Sorority Rising,2016,Comedy,55291815
+Saving Mr. Banks,2013,Biography|Comedy|Drama|History|Music,83299761
+Malcolm X,1992,Biography|Drama|History|Romance,48169908
+This Is 40,2012,Comedy,67523385
+Old Dogs,2009,Comedy|Family,49474048
+Underworld: Rise of the Lycans,2009,Action|Adventure|Fantasy|Sci-Fi|Thriller,45802315
+License to Wed,2007,Comedy|Romance,43792641
+The Benchwarmers,2006,Comedy|Romance|Sport,57651794
+Must Love Dogs,2005,Comedy|Romance,43894863
+Donnie Brasco,1997,Biography|Crime|Drama,41954997
+Resident Evil,2002,Action|Horror|Sci-Fi,39532308
+Poltergeist,1982,Fantasy|Horror,76600000
+The Ladykillers,2004,Comedy|Crime|Thriller,39692139
+Max Payne,2008,Action|Crime|Drama|Mystery|Thriller,40687294
+In Time,2011,Action|Sci-Fi|Thriller,37553932
+The Back-up Plan,2010,Comedy|Romance,37481242
+Something Borrowed,2011,Comedy|Drama|Romance,39026186
+Black Knight,2001,Adventure|Comedy|Fantasy,33422806
+Street Fighter,1994,Action|Adventure|Comedy|Thriller,33423521
+The Pianist,2002,Biography|Drama|War,32519322
+From Hell,2001,Horror|Mystery|Thriller,31598308
+The Nativity Story,2006,Drama|Family|Fantasy,37617947
+House of Wax,2005,Horror,32048809
+Closer,2004,Drama|Romance,33987757
+J. Edgar,2011,Biography|Crime|Drama,37304950
+Mirrors,2008,Horror|Mystery,30691439
+Queen of the Damned,2002,Drama|Fantasy|Horror,30307804
+Predator 2,1990,Action|Horror|Sci-Fi,30669413
+Untraceable,2008,Crime|Drama|Thriller,28687835
+Blast from the Past,1999,Comedy|Drama|Romance|Sci-Fi,26494611
+Jersey Girl,2004,Comedy|Drama|Romance,25266129
+Alex Cross,2012,Action|Crime|Mystery|Thriller,25863915
+Midnight in the Garden of Good and Evil,1997,Crime|Drama|Mystery|Thriller,25078937
+Nanny McPhee Returns,2010,Comedy|Family|Fantasy,28995450
+Hoffa,1992,Biography|Crime|Drama,24276500
+The X Files: I Want to Believe,2008,Drama|Mystery|Sci-Fi|Thriller,20981633
+Ella Enchanted,2004,Comedy|Family|Fantasy|Romance,22913677
+Concussion,2015,Biography|Drama|Sport,34531832
+Abduction,2011,Action|Mystery|Thriller,28064226
+Valiant,2005,Adventure|Animation|Comedy|Family|War,19447478
+Wonder Boys,2000,Comedy|Drama,19389454
+Superhero Movie,2008,Action|Comedy|Sci-Fi|Thriller,25871834
+Broken City,2013,Crime|Drama|Thriller,19692608
+Cursed,2005,Comedy|Horror,19294901
+Premium Rush,2012,Action|Crime|Thriller,20275446
+Hot Pursuit,2015,Action|Comedy|Crime,34507079
+The Four Feathers,2002,Adventure|Drama|Romance|War,18306166
+Parker,2013,Action|Crime|Romance|Thriller,17609982
+Wimbledon,2004,Comedy|Romance|Sport,16831505
+Furry Vengeance,2010,Comedy|Family,17596256
+Lions for Lambs,2007,Drama|Thriller|War,14998070
+Flight of the Intruder,1991,Action|Drama|Thriller|War,14587732
+Walk Hard: The Dewey Cox Story,2007,Comedy|Music,18317151
+The Shipping News,2001,Drama,11405825
+American Outlaws,2001,Action|Western,13264986
+The Young Victoria,2009,Biography|Drama|History|Romance,10991381
+Whiteout,2009,Action|Crime|Mystery|Thriller,10268846
+The Tree of Life,2011,Drama|Fantasy,13303319
+Knock Off,1998,Action|Comedy|Thriller,10076136
+Sabotage,2014,Action|Crime|Drama|Thriller,10499968
+The Order,2003,Action|Mystery|Thriller,7659747
+Punisher: War Zone,2008,Action|Crime|Drama|Thriller,7948159
+Zoom,2006,Action|Adventure|Family|Sci-Fi,11631245
+The Walk,2015,Adventure|Biography|Drama|Thriller,10137502
+Warriors of Virtue,1997,Action|Adventure|Fantasy,6448817
+A Good Year,2006,Comedy|Drama|Romance,7458269
+Radio Flyer,1992,Drama,4651977
+"Blood In, Blood Out",1993,Crime|Drama,4496583
+Smilla's Sense of Snow,1997,Action|Drama|Sci-Fi|Thriller,2221994
+Femme Fatale,2002,Crime|Drama|Mystery|Thriller,6592103
+Ride with the Devil,1999,Drama|Romance|War|Western,630779
+The Maze Runner,2014,Action|Mystery|Sci-Fi|Thriller,102413606
+Unfinished Business,2015,Comedy,10214013
+The Age of Innocence,1993,Drama|Romance,32000000
+The Fountain,2006,Drama|Sci-Fi,10139254
+Chill Factor,1999,Action|Adventure|Comedy|Drama|Thriller,11227940
+Stolen,2012,Action|Crime|Drama|Thriller,183125
+Ponyo,2008,Adventure|Animation|Family|Fantasy,15081783
+The Longest Ride,2015,Drama|Romance,37432299
+The Astronaut's Wife,1999,Drama|Sci-Fi|Thriller,10654581
+I Dreamed of Africa,2000,Adventure|Drama|Romance,6543194
+Playing for Keeps,2012,Comedy|Romance|Sport,13101142
+Mandela: Long Walk to Freedom,2013,Biography|Drama|History,8324748
+A Few Good Men,1992,Drama|Thriller,141340178
+Exit Wounds,2001,Action|Comedy|Crime|Drama|Thriller,51758599
+Big Momma's House,2000,Action|Comedy|Crime,117559438
+The Darkest Hour,2011,Action|Adventure|Horror|Sci-Fi|Thriller,21426805
+Step Up Revolution,2012,Drama|Music|Romance,35057332
+Snakes on a Plane,2006,Action|Adventure|Crime|Drama|Thriller,34014398
+The Watcher,2000,Crime|Horror|Mystery|Thriller,28927720
+The Punisher,2004,Action|Crime|Drama|Thriller,33682273
+Goal! The Dream Begins,2005,Drama|Romance|Sport,4280577
+Safe,2012,Action|Crime|Thriller,17120019
+Pushing Tin,1999,Comedy|Drama|Romance,8406264
+Star Wars: Episode VI - Return of the Jedi,1983,Action|Adventure|Fantasy|Sci-Fi,309125409
+Doomsday,2008,Action|Sci-Fi|Thriller,10955425
+The Reader,2008,Drama|Romance,34180954
+Elf,2003,Comedy|Family|Fantasy|Romance,173381405
+Phenomenon,1996,Drama|Fantasy|Romance|Sci-Fi,104632573
+Snow Dogs,2002,Adventure|Comedy|Family|Sport,81150692
+Scrooged,1988,Comedy|Drama|Fantasy,60328558
+Nacho Libre,2006,Comedy|Family|Sport,80197993
+Bridesmaids,2011,Comedy|Romance,169076745
+This Is the End,2013,Comedy|Fantasy,101470202
+Stigmata,1999,Horror,50041732
+Men of Honor,2000,Biography|Drama,48814909
+Takers,2010,Action|Crime|Thriller,57744720
+The Big Wedding,2013,Comedy,21784432
+"Big Mommas: Like Father, Like Son",2011,Action|Comedy|Crime,37911876
+Source Code,2011,Mystery|Sci-Fi|Thriller,54696902
+Alive,1993,Adventure|Biography|Drama|Thriller,36733909
+The Number 23,2007,Mystery|Thriller,35063732
+The Young and Prodigious T.S. Spivet,2013,Action|Adventure|Drama|Family,99462
+Dreamer: Inspired by a True Story,2005,Drama|Family|Sport,32701088
+A History of Violence,2005,Crime|Drama|Thriller,31493782
+Transporter 2,2005,Action|Crime|Thriller,43095600
+The Quick and the Dead,1995,Action|Thriller|Western,18636537
+Laws of Attraction,2004,Comedy|Romance,17848322
+Bringing Out the Dead,1999,Drama|Thriller,16640210
+Repo Men,2010,Action|Crime|Sci-Fi|Thriller,13763130
+Dragon Wars: D-War,2007,Action|Drama|Fantasy|Horror|Thriller,10956379
+Bogus,1996,Comedy|Family|Fantasy,4357000
+The Incredible Burt Wonderstone,2013,Comedy,22525921
+Cats Don't Dance,1997,Animation|Comedy|Family|Fantasy|Musical,3562749
+Cradle Will Rock,1999,Drama,2899970
+The Good German,2006,Drama|Mystery|Thriller,1304837
+Apocalypse Now,1979,Drama|War,78800000
+Going the Distance,2010,Comedy|Romance,17797316
+Mr. Holland's Opus,1995,Drama|Music,82528097
+Criminal,2016,Action|Crime|Drama|Mystery|Sci-Fi|Thriller,14268533
+Out of Africa,1985,Biography|Drama|Romance,87100000
+Flight,2012,Drama|Thriller,93749203
+Moonraker,1979,Action|Adventure|Sci-Fi|Thriller,62700000
+The Grand Budapest Hotel,2014,Adventure|Comedy|Crime|Drama,59073773
+Hearts in Atlantis,2001,Drama|Mystery,24185781
+Arachnophobia,1990,Comedy|Fantasy|Horror|Thriller,53133888
+Frequency,2000,Crime|Drama|Mystery|Sci-Fi|Thriller,44983704
+Ghostbusters,2016,Action|Comedy|Fantasy|Sci-Fi,118099659
+Vacation,2015,Adventure|Comedy,58879132
+Get Shorty,1995,Comedy|Crime|Thriller,72077000
+Chicago,2002,Comedy|Crime|Musical,170684505
+Big Daddy,1999,Comedy|Drama,163479795
+American Pie 2,2001,Comedy,145096820
+Toy Story,1995,Adventure|Animation|Comedy|Family|Fantasy,191796233
+Speed,1994,Action|Adventure|Crime|Thriller,121248145
+The Vow,2012,Drama|Romance,125014030
+Extraordinary Measures,2010,Drama,11854694
+Remember the Titans,2000,Biography|Drama|Sport,115648585
+The Hunt for Red October,1990,Action|Adventure|Thriller,122012643
+Lee Daniels' The Butler,2013,Biography|Drama,116631310
+Dodgeball: A True Underdog Story,2004,Comedy|Sport,114324072
+The Addams Family,1991,Comedy|Fantasy,113502246
+Ace Ventura: When Nature Calls,1995,Adventure|Comedy,108360000
+The Princess Diaries,2001,Comedy|Family|Romance,108244774
+The First Wives Club,1996,Comedy,105444419
+Se7en,1995,Crime|Drama|Mystery|Thriller,100125340
+District 9,2009,Action|Sci-Fi|Thriller,115646235
+The SpongeBob SquarePants Movie,2004,Adventure|Animation|Comedy|Family|Fantasy,85416609
+Mystic River,2003,Crime|Drama|Mystery|Thriller,90135191
+Million Dollar Baby,2004,Drama|Sport,100422786
+Analyze This,1999,Comedy|Crime,106694016
+The Notebook,2004,Drama|Romance,64286
+27 Dresses,2008,Comedy|Romance,76806312
+Hannah Montana: The Movie,2009,Comedy|Drama|Family|Music|Romance,79566871
+Rugrats in Paris: The Movie,2000,Adventure|Animation|Comedy|Family|Romance,76501438
+The Prince of Tides,1991,Drama|Romance,74787599
+Legends of the Fall,1994,Drama|Romance|War|Western,66528842
+Up in the Air,2009,Drama|Romance,83813460
+About Schmidt,2002,Comedy|Drama,65010106
+Warm Bodies,2013,Comedy|Horror|Romance,66359959
+Looper,2012,Action|Crime|Drama|Sci-Fi|Thriller,66468315
+Down to Earth,2001,Comedy|Fantasy,64172251
+Babe,1995,Comedy|Drama|Family,66600000
+Hope Springs,2012,Comedy|Drama|Romance,63536011
+Forgetting Sarah Marshall,2008,Comedy|Drama|Romance,62877175
+Four Brothers,2005,Action|Crime|Drama|Mystery|Thriller,74484168
+Baby Mama,2008,Comedy|Romance,60269340
+Hope Floats,1998,Drama|Romance,60033780
+Bride Wars,2009,Comedy|Romance,58715510
+Without a Paddle,2004,Adventure|Comedy|Mystery,58156435
+13 Going on 30,2004,Comedy|Fantasy|Romance,56044241
+Midnight in Paris,2011,Comedy|Fantasy|Romance,56816662
+The Nut Job,2014,Adventure|Animation|Comedy|Family,64238770
+Blow,2001,Biography|Crime|Drama,52937130
+Message in a Bottle,1999,Drama|Romance,52799004
+Star Trek V: The Final Frontier,1989,Action|Adventure|Sci-Fi|Thriller,55210049
+Like Mike,2002,Comedy|Family|Fantasy|Sport,51432423
+Naked Gun 33 1/3: The Final Insult,1994,Comedy|Crime,51109400
+A View to a Kill,1985,Action|Adventure|Thriller,50300000
+The Curse of the Were-Rabbit,2005,Animation|Comedy|Family|Mystery|Sci-Fi,56068547
+P.S. I Love You,2007,Drama|Romance,53680848
+Atonement,2007,Drama|Mystery|Romance|War,50921738
+Letters to Juliet,2010,Comedy|Drama|Romance,53021560
+Black Rain,1989,Action|Crime|Thriller,45645204
+Corpse Bride,2005,Animation|Drama|Family|Fantasy|Musical|Romance,53337608
+Sicario,2015,Action|Crime|Drama|Mystery|Thriller,46875468
+Southpaw,2015,Drama|Sport,52418902
+Drag Me to Hell,2009,Horror|Thriller,42057340
+The Age of Adaline,2015,Drama|Fantasy|Romance,42478175
+Secondhand Lions,2003,Comedy|Drama|Family,41407470
+Step Up 3D,2010,Drama|Music|Romance,42385520
+Blue Crush,2002,Drama|Romance|Sport,40118420
+Stranger Than Fiction,2006,Comedy|Drama|Fantasy|Romance,40137776
+30 Days of Night,2007,Horror,39568996
+The Cabin in the Woods,2012,Fantasy|Horror|Mystery|Thriller,42043633
+Meet the Spartans,2008,Comedy,38232624
+Midnight Run,1988,Action|Comedy|Crime|Thriller,38413606
+The Running Man,1987,Action|Crime|Sci-Fi|Thriller,38122105
+Little Shop of Horrors,1986,Comedy|Horror|Musical|Sci-Fi,38747385
+Hanna,2011,Action|Drama|Thriller,40247512
+Mortal Kombat: Annihilation,1997,Action|Adventure|Fantasy|Sci-Fi|Thriller,35927406
+Larry Crowne,2011,Comedy|Drama|Romance,35565975
+Carrie,2013,Drama|Fantasy|Horror,35266619
+Take the Lead,2006,Drama|Music,34703228
+Gridiron Gang,2006,Crime|Drama|Sport,38432823
+What's the Worst That Could Happen?,2001,Comedy|Crime,32095318
+9,2009,Action|Adventure|Animation|Drama|Mystery|Sci-Fi|Thriller,31743332
+Side Effects,2013,Crime|Drama|Thriller,32154410
+Winnie the Pooh,2011,Adventure|Animation|Comedy|Family|Musical,26687172
+Dumb and Dumberer: When Harry Met Lloyd,2003,Comedy,26096584
+Bulworth,1998,Comedy|Drama|Romance,26525834
+Get on Up,2014,Biography|Drama|Music,30513940
+One True Thing,1998,Drama,23209440
+Virtuosity,1995,Action|Crime|Sci-Fi|Thriller,24048000
+My Super Ex-Girlfriend,2006,Comedy|Romance|Sci-Fi,22526144
+Deliver Us from Evil,2014,Horror|Mystery|Thriller,30523568
+Sanctum,2011,Adventure|Drama|Thriller,23070045
+Little Black Book,2004,Comedy|Drama|Romance,20422207
+The Five-Year Engagement,2012,Comedy|Romance,28644770
+Mr 3000,2004,Comedy|Drama|Romance|Sport,21800302
+The Next Three Days,2010,Crime|Drama|Romance|Thriller,21129348
+Ultraviolet,2006,Action|Horror|Sci-Fi|Thriller,18500966
+Assault on Precinct 13,2005,Action|Crime|Drama|Thriller,19976073
+The Replacement Killers,1998,Action|Crime|Thriller,18967571
+Fled,1996,Action|Adventure|Crime|Drama|Romance,17100000
+Eight Legged Freaks,2002,Action|Comedy|Horror,17266505
+Love & Other Drugs,2010,Comedy|Drama|Romance,32357532
+88 Minutes,2007,Crime|Drama|Mystery|Thriller,16930884
+North Country,2005,Drama,18324242
+The Whole Ten Yards,2004,Comedy|Crime|Thriller,16323969
+Splice,2009,Drama|Horror|Sci-Fi,16999046
+Howard the Duck,1986,Action|Adventure|Comedy|Romance|Sci-Fi,16295774
+Pride and Glory,2008,Crime|Drama|Thriller,15709385
+The Cave,2005,Adventure|Horror|Thriller,14888028
+Alex & Emma,2003,Comedy|Romance,14208384
+Wicker Park,2004,Drama|Mystery|Romance|Thriller,12831121
+Fright Night,2011,Comedy|Horror,18298649
+The New World,2005,Biography|Drama|History|Romance,12712093
+Wing Commander,1999,Action|Adventure|Sci-Fi,11576087
+In Dreams,1999,Drama|Fantasy|Thriller,11900000
+Dragonball: Evolution,2009,Action|Adventure|Fantasy|Sci-Fi|Thriller,9353573
+The Last Stand,2013,Action|Crime|Thriller,12026670
+Godsend,2004,Drama|Horror|Sci-Fi|Thriller,14334645
+Chasing Liberty,2004,Comedy|Romance,12189514
+Hoodwinked Too! Hood vs. Evil,2011,Animation|Comedy|Family,10134754
+An Unfinished Life,2005,Drama,8535575
+The Imaginarium of Doctor Parnassus,2009,Adventure|Fantasy|Mystery,7689458
+Runner Runner,2013,Crime|Thriller,19316646
+Antitrust,2001,Action|Crime|Drama|Thriller,10965209
+Glory,1989,Drama|History|War,26830000
+Once Upon a Time in America,1984,Crime|Drama,5300000
+Dead Man Down,2013,Action|Crime|Drama|Thriller,10880926
+The Merchant of Venice,2004,Drama|Romance,3752725
+The Good Thief,2002,Action|Crime|Drama|Romance|Thriller,3517797
+Miss Potter,2006,Biography|Drama|Romance,2975649
+The Promise,2005,Action|Drama|Fantasy,668171
+DOA: Dead or Alive,2006,Action|Adventure,480314
+The Assassination of Jesse James by the Coward Robert Ford,2007,Biography|Crime|Drama|History|Western,3904982
+1911,2011,Action|Adventure|Drama|History|War,127437
+Machine Gun Preacher,2011,Action|Biography|Crime|Drama,537580
+Pitch Perfect 2,2015,Comedy|Music,183436380
+Walk the Line,2005,Biography|Drama|Music|Romance,119518352
+Keeping the Faith,2000,Comedy|Drama|Romance,37036404
+The Borrowers,1997,Adventure|Comedy|Family|Fantasy,22359293
+Frost/Nixon,2008,Drama,18593156
+Serving Sara,2002,Comedy|Romance,16930185
+The Boss,2016,Comedy,63034755
+Cry Freedom,1987,Biography|Drama|History,5899797
+Mumford,1999,Comedy|Drama,4554569
+Seed of Chucky,2004,Comedy|Fantasy|Horror|Thriller,17016190
+The Jacket,2005,Drama|Mystery|Sci-Fi|Thriller,6301131
+Aladdin,1992,Adventure|Animation|Comedy|Family|Fantasy|Musical|Romance,217350219
+Straight Outta Compton,2015,Biography|Crime|Drama|History|Music,161029270
+Indiana Jones and the Temple of Doom,1984,Action|Adventure,179870271
+The Rugrats Movie,1998,Adventure|Animation|Comedy|Drama|Family|Musical,100491683
+Along Came a Spider,2001,Crime|Drama|Thriller,74058698
+Once Upon a Time in Mexico,2003,Action|Crime|Thriller,55845943
+Die Hard,1988,Action|Thriller,81350242
+Role Models,2008,Comedy,67266300
+The Big Short,2015,Biography|Comedy|Drama|History,70235322
+Taking Woodstock,2009,Comedy|Drama|Music,7443007
+Miracle,2004,Biography|Drama|History|Sport,64371181
+Dawn of the Dead,2004,Action|Horror|Thriller,58885635
+The Wedding Planner,2001,Comedy|Romance,60400856
+The Royal Tenenbaums,2001,Comedy|Drama,52353636
+Identity,2003,Mystery|Thriller,51475962
+Last Vegas,2013,Comedy|Romance,63910583
+For Your Eyes Only,1981,Action|Adventure|Thriller,62300000
+Serendipity,2001,Comedy|Romance,49968653
+Timecop,1994,Action|Crime|Sci-Fi|Thriller,44450000
+Zoolander,2001,Comedy,45162741
+Safe Haven,2013,Drama|Romance|Thriller,71346930
+Hocus Pocus,1993,Comedy|Family|Fantasy,39514713
+No Reservations,2007,Comedy|Drama|Romance,43097652
+Kick-Ass,2010,Action|Comedy,48043505
+30 Minutes or Less,2011,Action|Comedy|Crime,37053924
+Dracula 2000,2000,Action|Fantasy|Horror|Thriller,33000377
+"Alexander and the Terrible, Horrible, No Good, Very Bad Day",2014,Comedy|Family,66950483
+Pride & Prejudice,2005,Drama|Romance,38372662
+Blade Runner,1982,Sci-Fi|Thriller,27000000
+Rob Roy,1995,Adventure|Biography,31600000
+3 Days to Kill,2014,Action|Drama|Thriller,30688364
+We Own the Night,2007,Crime|Drama|Thriller,28563179
+Lost Souls,2000,Drama|Horror|Thriller,16779636
+Just My Luck,2006,Comedy|Fantasy|Romance,17324744
+"Mystery, Alaska",1999,Comedy|Drama|Sport,8888143
+The Spy Next Door,2010,Action|Comedy|Family,24268828
+A Simple Wish,1997,Comedy|Family|Fantasy,8119205
+Ghosts of Mars,2001,Action|Horror|Sci-Fi,8434601
+Our Brand Is Crisis,2015,Comedy|Drama,6998324
+Pride and Prejudice and Zombies,2016,Action|Horror|Romance,10907291
+Kundun,1997,Biography|Drama|History|War,5532301
+How to Lose Friends & Alienate People,2008,Comedy|Drama|Romance,2775593
+Kick-Ass 2,2013,Action|Comedy|Crime,28751715
+Brick Mansions,2014,Action|Crime|Drama|Thriller,20285518
+Octopussy,1983,Action|Adventure|Thriller,67900000
+Knocked Up,2007,Comedy|Romance,148734225
+My Sister's Keeper,2009,Drama,49185998
+"Welcome Home, Roscoe Jenkins",2008,Comedy|Drama|Romance,42168445
+A Passage to India,1984,Adventure|Drama|History,26400000
+Notes on a Scandal,2006,Crime|Drama|Romance|Thriller,17508670
+Rendition,2007,Drama|Thriller,9664316
+Star Trek VI: The Undiscovered Country,1991,Action|Adventure|Sci-Fi|Thriller,74888996
+Divine Secrets of the Ya-Ya Sisterhood,2002,Drama,69586544
+The Jungle Book,2016,Adventure|Drama|Family|Fantasy,362645141
+Kiss the Girls,1997,Crime|Drama|Mystery|Thriller,60491560
+The Blues Brothers,1980,Action|Comedy|Crime|Music,54200000
+Joyful Noise,2012,Comedy|Music,30920167
+About a Boy,2002,Comedy|Drama|Romance,40566655
+Lake Placid,1999,Action|Comedy|Horror,31768374
+Lucky Number Slevin,2006,Crime|Drama|Mystery|Thriller,22494487
+The Right Stuff,1983,Adventure|Drama|History,21500000
+Anonymous,2011,Drama|History|Thriller,4463292
+Dark City,1998,Action|Drama|Fantasy|Mystery|Sci-Fi|Thriller,14337579
+The Duchess,2008,Biography|Drama|History|Romance,13823741
+The Newton Boys,1998,Action|Crime|Drama|History|Western,10297897
+Case 39,2009,Horror|Mystery|Thriller,13248477
+Suspect Zero,2004,Crime|Drama|Mystery|Thriller,8712564
+Martian Child,2007,Comedy|Drama|Family,7486906
+Spy Kids: All the Time in the World in 4D,2011,Action|Adventure|Comedy|Family|Sci-Fi,38536376
+Money Monster,2016,Crime|Drama|Thriller,41008532
+Formula 51,2001,Action|Comedy|Crime|Thriller,5204007
+Flawless,1999,Comedy|Crime|Drama,4485485
+Mindhunters,2004,Crime|Horror|Mystery|Thriller,4476235
+What Just Happened,2008,Comedy|Drama,1089365
+The Statement,2003,Drama|Thriller,763044
+Paul Blart: Mall Cop,2009,Action|Comedy|Crime,20819129
+Freaky Friday,2003,Comedy|Family|Fantasy|Music|Romance,110222438
+The 40-Year-Old Virgin,2005,Comedy|Romance,109243478
+Shakespeare in Love,1998,Comedy|Drama|Romance,100241322
+A Walk Among the Tombstones,2014,Crime|Drama|Mystery|Thriller,25977365
+Kindergarten Cop,1990,Action|Comedy|Crime,91457688
+Pineapple Express,2008,Action|Comedy|Crime,87341380
+Ever After: A Cinderella Story,1998,Comedy|Drama|Romance,65703412
+Open Range,2003,Drama|Romance|Western,58328680
+Flatliners,1990,Drama|Horror|Sci-Fi|Thriller,61490000
+A Bridge Too Far,1977,Drama|History|War,50800000
+Red Eye,2005,Mystery|Thriller,57859105
+Final Destination 2,2003,Horror|Thriller,46455802
+"O Brother, Where Art Thou?",2000,Adventure|Comedy|Crime|Music,45506619
+Legion,2010,Action|Fantasy|Horror,40168080
+Pain & Gain,2013,Comedy|Crime|Drama,49874933
+In Good Company,2004,Comedy|Drama|Romance,45489752
+Clockstoppers,2002,Action|Adventure|Comedy|Sci-Fi|Thriller,36985501
+Silverado,1985,Action|Crime|Drama|Western,33200000
+Brothers,2009,Drama|Thriller,28501651
+Agent Cody Banks 2: Destination London,2004,Action|Adventure|Comedy|Family|Romance|Sci-Fi,23222861
+New Year's Eve,2011,Comedy|Romance,54540525
+Original Sin,2001,Drama|Mystery|Romance|Thriller,16252765
+The Raven,2012,Crime|Mystery|Thriller,16005978
+Welcome to Mooseport,2004,Comedy|Romance,14469428
+Highlander: The Final Dimension,1994,Action|Fantasy|Romance|Sci-Fi,13829734
+Blood and Wine,1996,Crime|Drama|Thriller,1075288
+The Curse of the Jade Scorpion,2001,Comedy|Crime|Mystery|Romance,7496522
+Flipper,1996,Adventure|Family,20047715
+Self/less,2015,Action|Mystery|Sci-Fi|Thriller,12276810
+The Constant Gardener,2005,Drama|Mystery|Romance|Thriller,33565375
+The Passion of the Christ,2004,Drama,499263
+Mrs. Doubtfire,1993,Comedy|Drama|Family|Romance,219200000
+Rain Man,1988,Drama,172825435
+Gran Torino,2008,Drama,148085755
+W.,2008,Biography|Drama|History,25517500
+Taken,2008,Action|Thriller,145000989
+The Best of Me,2014,Drama|Romance,26761283
+The Bodyguard,1992,Action|Drama|Music|Romance,121945720
+Schindler's List,1993,Biography|Drama|History,96067179
+The Help,2011,Drama,169705587
+The Fifth Estate,2013,Biography|Drama|Thriller,3254172
+Scooby-Doo 2: Monsters Unleashed,2004,Adventure|Comedy|Family|Fantasy|Horror|Mystery,84185387
+Freddy vs. Jason,2003,Action|Horror|Thriller,82163317
+Jimmy Neutron: Boy Genius,2001,Action|Adventure|Animation|Comedy|Family|Sci-Fi,80920948
+Cloverfield,2008,Action|Adventure|Horror|Sci-Fi,80034302
+Teenage Mutant Ninja Turtles II: The Secret of the Ooze,1991,Action|Adventure|Comedy|Family|Sci-Fi,78656813
+The Untouchables,1987,Crime|Drama|Thriller,76270454
+No Country for Old Men,2007,Crime|Drama|Thriller,74273505
+Ride Along,2014,Action|Comedy|Crime|Romance,134141530
+Bridget Jones's Diary,2001,Comedy|Drama|Romance,71500556
+Chocolat,2000,Drama|Romance,71309760
+"Legally Blonde 2: Red, White & Blonde",2003,Comedy,89808372
+Parental Guidance,2012,Comedy|Family,77264926
+No Strings Attached,2011,Comedy|Romance,70625986
+Tombstone,1993,Action|Biography|Drama|History|Romance|Western,56505065
+Romeo Must Die,2000,Action|Crime|Thriller,55973336
+Final Destination 3,2006,Horror,54098051
+The Lucky One,2012,Drama|Romance,60443237
+Bridge to Terabithia,2007,Adventure|Drama|Family|Fantasy,82234139
+Finding Neverland,2004,Biography|Drama|Family,51676606
+A Madea Christmas,2013,Comedy|Drama,52528330
+The Grey,2011,Action|Adventure|Drama|Thriller,51533608
+Hide and Seek,2005,Drama|Horror|Mystery|Thriller,51097664
+Anchorman: The Legend of Ron Burgundy,2004,Comedy,84136909
+Goodfellas,1990,Biography|Crime|Drama,46836394
+Agent Cody Banks,2003,Action|Adventure|Comedy|Crime|Family|Romance|Thriller,47285499
+Nanny McPhee,2005,Comedy|Family|Fantasy,47124400
+Scarface,1983,Crime|Drama,44700000
+Nothing to Lose,1997,Action|Adventure|Comedy|Crime,44455658
+The Last Emperor,1987,Biography|Drama|History,43984230
+Contraband,2012,Action|Crime|Drama|Thriller,66489425
+Money Talks,1997,Action|Comedy|Crime|Thriller,41067398
+There Will Be Blood,2007,Drama,40218903
+The Wild Thornberrys Movie,2002,Adventure|Animation|Comedy|Family|Fantasy,39880476
+Rugrats Go Wild,2003,Adventure|Animation|Comedy|Family|Fantasy|Musical,39399750
+Undercover Brother,2002,Action|Comedy,38230435
+The Sisterhood of the Traveling Pants,2005,Comedy|Drama|Family|Romance,39008741
+Kiss of the Dragon,2001,Action|Crime|Drama|Thriller,36833473
+The House Bunny,2008,Comedy|Romance,48237389
+Million Dollar Arm,2014,Biography|Drama|Sport,36447959
+The Giver,2014,Drama|Romance|Sci-Fi,45089048
+What a Girl Wants,2003,Comedy|Drama|Family|Romance,35990505
+Jeepers Creepers II,2003,Horror,35143332
+Good Luck Chuck,2007,Comedy|Romance,35000629
+Cradle 2 the Grave,2003,Action|Crime|Drama|Thriller,34604054
+The Hours,2002,Drama|Romance,41597830
+She's the Man,2006,Comedy|Romance,33687630
+Mr. Bean's Holiday,2007,Comedy|Family,32553210
+Anacondas: The Hunt for the Blood Orchid,2004,Action|Adventure|Horror|Thriller,31526393
+Blood Ties,2013,Crime|Drama|Thriller,41229
+August Rush,2007,Drama|Music,31655091
+Elizabeth,1998,Biography|Drama|History,30012990
+Bride of Chucky,1998,Comedy|Fantasy|Horror|Romance,32368960
+Tora! Tora! Tora!,1970,Action|Drama|History|War,14500000
+Spice World,1997,Comedy|Family|Music,29247405
+Dance Flick,2009,Action|Comedy|Music,25615792
+The Shawshank Redemption,1994,Crime|Drama,28341469
+Crocodile Dundee in Los Angeles,2001,Adventure|Comedy|Crime,25590119
+Kingpin,1996,Comedy|Sport,24944213
+The Gambler,2014,Crime|Drama|Thriller,33631221
+August: Osage County,2013,Drama,37738400
+A Lot Like Love,2005,Comedy|Drama|Romance,21835784
+Eddie the Eagle,2016,Biography|Comedy|Drama|Sport,15785632
+He Got Game,1998,Drama|Sport,21554585
+Don Juan DeMarco,1994,Comedy|Drama|Romance,22200000
+The Losers,2010,Action|Crime|Drama|Mystery|Thriller,23527955
+Don't Be Afraid of the Dark,2010,Fantasy|Horror|Thriller,24042490
+War,2007,Action|Crime|Thriller,22466994
+Punch-Drunk Love,2002,Comedy|Drama|Romance|Thriller,17791031
+EuroTrip,2004,Comedy,17718223
+Half Past Dead,2002,Action|Crime|Thriller,15361537
+Unaccompanied Minors,2006,Adventure|Comedy|Family|Romance,16647384
+"Bright Lights, Big City",1988,Drama,16118077
+The Adventures of Pinocchio,1996,Adventure|Family|Fantasy|Musical,15091542
+The Box,2009,Drama|Fantasy|Mystery|Thriller,15045676
+The Ruins,2008,Horror,17427926
+The Next Best Thing,2000,Comedy|Drama|Romance,14983572
+My Soul to Take,2010,Horror|Mystery|Thriller,14637490
+The Girl Next Door,2004,Comedy|Drama|Romance,14589444
+Maximum Risk,1996,Action|Crime|Mystery|Romance|Thriller,14095303
+Stealing Harvard,2002,Comedy|Crime,13973532
+Legend,2015,Biography|Crime|Drama|History|Thriller,1865774
+Shark Night 3D,2011,Horror|Thriller,18860403
+Angela's Ashes,1999,Drama,13038660
+Draft Day,2014,Drama|Sport,28831145
+The Conspirator,2010,Crime|Drama|History,11538204
+Lords of Dogtown,2005,Biography|Drama|Sport,11008432
+The 33,2015,Biography|Drama|History,12188642
+Big Trouble in Little China,1986,Action|Adventure|Comedy|Fantasy,11100000
+Warrior,2011,Drama|Sport,13651662
+Michael Collins,1996,Biography|Drama|Thriller|War,11030963
+Gettysburg,1993,Drama|History|War,10769960
+Stop-Loss,2008,Drama|War,10911750
+Abandon,2002,Drama|Music|Mystery|Romance|Thriller,10719367
+Brokedown Palace,1999,Drama|Mystery|Thriller,10114315
+The Possession,2012,Horror|Thriller,49122319
+Mrs. Winterbourne,1996,Comedy|Drama|Romance,10070000
+Straw Dogs,2011,Action|Drama|Thriller,10324441
+The Hoax,2006,Comedy|Drama,7156933
+Stone Cold,1991,Action|Crime|Drama|Thriller,9286314
+The Road,2009,Adventure|Drama,56692
+Underclassman,2005,Action|Comedy|Crime|Drama|Thriller,5654777
+Say It Isn't So,2001,Comedy|Romance,5516708
+The World's Fastest Indian,2005,Biography|Drama|Sport,5128124
+Snakes on a Plane,2006,Action|Adventure|Crime|Drama|Thriller,34014398
+Tank Girl,1995,Action|Comedy|Sci-Fi,4064333
+King's Ransom,2005,Comedy|Crime,4006906
+Blindness,2008,Drama|Mystery|Sci-Fi|Thriller,3073392
+BloodRayne,2005,Action|Adventure|Fantasy|Horror,1550000
+Where the Truth Lies,2005,Crime|Drama|Mystery|Thriller,871527
+Without Limits,1998,Biography|Drama|Sport,777423
+Me and Orson Welles,2008,Drama,1186957
+The Best Offer,2013,Crime|Drama|Mystery|Romance,85433
+Bad Lieutenant: Port of Call New Orleans,2009,Crime|Drama,1697956
+Little White Lies,2010,Comedy|Drama,183662
+Love Ranch,2010,Comedy|Drama|Romance|Sport,134904
+The Counselor,2013,Crime|Drama|Thriller,16969390
+Dangerous Liaisons,1988,Drama|Romance,34700000
+On the Road,2012,Adventure|Drama,717753
+Star Trek IV: The Voyage Home,1986,Adventure|Comedy|Sci-Fi,109713132
+Rocky Balboa,2006,Drama|Sport,70269171
+Point Break,2015,Action|Crime|Sport|Thriller,28772222
+Scream 2,1997,Horror|Mystery,101334374
+Jane Got a Gun,2016,Action|Drama|Western,1512815
+Think Like a Man Too,2014,Comedy|Romance,65182182
+The Whole Nine Yards,2000,Comedy|Crime,57262492
+Footloose,1984,Drama|Music|Romance,80000000
+Old School,2003,Comedy,74608545
+The Fisher King,1991,Comedy|Drama|Fantasy,41895491
+I Still Know What You Did Last Summer,1998,Horror|Mystery,39989008
+Return to Me,2000,Comedy|Drama|Romance,32662299
+Zack and Miri Make a Porno,2008,Comedy|Romance,31452765
+Nurse Betty,2000,Comedy|Crime|Drama,25167270
+The Men Who Stare at Goats,2009,Comedy|War,32416109
+Double Take,2001,Action|Comedy|Crime|Thriller,20218
+"Girl, Interrupted",1999,Biography|Drama,28871190
+Win a Date with Tad Hamilton!,2004,Comedy|Romance,16964743
+Muppets from Space,1999,Adventure|Comedy|Family|Fantasy|Music|Sci-Fi,16290976
+The Wiz,1978,Adventure|Family|Fantasy|Music|Musical,13000000
+Ready to Rumble,2000,Comedy|Sport,12372410
+Play It to the Bone,1999,Comedy|Drama|Sport,8427204
+I Don't Know How She Does It,2011,Comedy|Romance,9639242
+Piranha 3D,2010,Comedy|Horror,25003072
+Beyond the Sea,2004,Biography|Drama|Music|Musical,6144806
+The Princess and the Cobbler,1993,Action|Adventure|Animation|Comedy|Fantasy,669276
+The Bridge of San Luis Rey,2004,Drama|Romance,42880
+Faster,2010,Action|Crime|Drama|Thriller,23225911
+Howl's Moving Castle,2004,Adventure|Animation|Family|Fantasy,4710455
+Zombieland,2009,Adventure|Comedy|Horror|Sci-Fi,75590286
+King Kong,2005,Action|Adventure|Drama|Romance,218051260
+The Waterboy,1998,Comedy|Sport,161487252
+Star Wars: Episode V - The Empire Strikes Back,1980,Action|Adventure|Fantasy|Sci-Fi,290158751
+Bad Boys,1995,Action|Comedy|Crime|Drama|Thriller,65807024
+The Naked Gun 2½: The Smell of Fear,1991,Comedy|Crime,86930411
+Final Destination,2000,Horror|Thriller,53302314
+The Ides of March,2011,Drama,40962534
+Pitch Black,2000,Horror|Sci-Fi,39235088
+Someone Like You...,2001,Comedy|Romance,27338033
+Her,2013,Drama|Romance|Sci-Fi,25556065
+Eddie the Eagle,2016,Biography|Comedy|Drama|Sport,15785632
+Joy Ride,2001,Mystery|Thriller,21973182
+The Adventurer: The Curse of the Midas Box,2013,Adventure|Family|Fantasy,4756
+Anywhere But Here,1999,Comedy|Drama,18653615
+Chasing Liberty,2004,Comedy|Romance,12189514
+The Crew,2000,Comedy|Crime,13019253
+Haywire,2011,Action|Thriller,18934858
+Jaws: The Revenge,1987,Adventure|Horror|Thriller,20763013
+Marvin's Room,1996,Drama,12782508
+The Longshots,2008,Biography|Comedy|Drama|Family|Sport,11508423
+The End of the Affair,1999,Drama|Romance,10660147
+Harley Davidson and the Marlboro Man,1991,Action|Crime|Drama|Thriller|Western,7434726
+Coco Before Chanel,2009,Biography|Drama,6109075
+Chéri,2009,Comedy|Drama|Romance,2708188
+Vanity Fair,2004,Drama,16123851
+1408,2007,Fantasy|Horror,71975611
+Spaceballs,1987,Adventure|Comedy|Sci-Fi,38119483
+The Water Diviner,2014,Drama|War,4190530
+Ghost,1990,Drama|Fantasy|Romance|Thriller,217631306
+There's Something About Mary,1998,Comedy|Romance,176483808
+The Santa Clause,1994,Comedy|Drama|Family|Fantasy,144833357
+The Rookie,2002,Drama|Family|Sport,75597042
+The Game Plan,2007,Comedy|Family|Sport,90636983
+The Bridges of Madison County,1995,Drama|Romance,70960517
+The Animal,2001,Comedy|Sci-Fi,55762229
+The Hundred-Foot Journey,2014,Comedy|Drama,54235441
+The Net,1995,Action|Crime|Drama|Mystery|Thriller,50728000
+I Am Sam,2001,Drama,40270895
+Son of God,2014,Biography|Drama|History,59696176
+Underworld,2003,Action|Fantasy|Thriller,51483949
+Derailed,2005,Drama|Thriller,36020063
+The Informant!,2009,Comedy|Crime|Drama|Thriller,33313582
+Shadowlands,1993,Biography|Drama|Romance,25842000
+Deuce Bigalow: European Gigolo,2005,Comedy,22264487
+Delivery Man,2013,Comedy|Drama,30659817
+Victor Frankenstein,2015,Drama|Horror|Sci-Fi|Thriller,5773519
+Saving Silverman,2001,Comedy|Crime|Romance,19351569
+Diary of a Wimpy Kid: Dog Days,2012,Comedy|Family,49002815
+Summer of Sam,1999,Crime|Drama|Romance|Thriller,19283782
+Jay and Silent Bob Strike Back,2001,Comedy,30059386
+The Island,2005,Action|Adventure|Romance|Sci-Fi|Thriller,35799026
+The Glass House,2001,Crime|Drama|Mystery|Thriller,17951431
+"Hail, Caesar!",2016,Comedy|Mystery,29997095
+Josie and the Pussycats,2001,Comedy|Music,14252830
+Homefront,2013,Action|Crime|Drama|Thriller,19783777
+The Little Vampire,2000,Adventure|Comedy|Family|Fantasy,13555988
+I Heart Huckabees,2004,Comedy,12784713
+RoboCop 3,1993,Action|Crime|Sci-Fi|Thriller,10696210
+Megiddo: The Omega Code 2,2001,Action|Adventure|Fantasy|Sci-Fi|Thriller,5974653
+Darling Lili,1970,Comedy|Drama|Musical|Romance|War,5000000
+Dudley Do-Right,1999,Comedy|Family|Romance,9694105
+The Transporter Refueled,2015,Action|Crime|Thriller,16027866
+Black Book,2006,Drama|Thriller|War,4398392
+Joyeux Noel,2005,Drama|History|Music|Romance|War,1050445
+Hit and Run,2012,Action|Comedy|Romance,13746550
+Mad Money,2008,Comedy|Crime|Thriller,20668843
+Before I Go to Sleep,2014,Drama|Mystery|Thriller,2963012
+Stone,2010,Drama|Thriller,1796024
+Molière,2007,Comedy|History,634277
+Out of the Furnace,2013,Crime|Drama|Thriller,11326836
+Michael Clayton,2007,Crime|Drama|Mystery|Thriller,49024969
+My Fellow Americans,1996,Adventure|Comedy,22294341
+Arlington Road,1999,Crime|Drama|Thriller,24362501
+To Rome with Love,2012,Comedy|Romance,16684352
+Firefox,1982,Action|Adventure|Thriller,46700000
+South Park: Bigger Longer & Uncut,1999,Animation|Comedy|Fantasy|Musical,52008288
+Death at a Funeral,2007,Comedy,8579684
+Teenage Mutant Ninja Turtles III,1993,Action|Adventure|Comedy|Family|Fantasy|Sci-Fi,42660000
+Hardball,2001,Drama|Sport,40219708
+Silver Linings Playbook,2012,Comedy|Drama|Romance,132088910
+Freedom Writers,2007,Biography|Crime|Drama,36581633
+The Transporter,2002,Action|Crime|Thriller,25296447
+Never Back Down,2008,Action|Drama|Sport,24848292
+The Rage: Carrie 2,1999,Horror|Sci-Fi|Thriller,17757087
+Away We Go,2009,Comedy|Drama|Romance,9430988
+Swing Vote,2008,Comedy|Drama,16284360
+Moonlight Mile,2002,Drama|Romance,6830957
+Tinker Tailor Soldier Spy,2011,Drama|Mystery|Thriller,24104113
+Molly,1999,Comedy|Drama|Romance,15593
+The Beaver,2011,Drama,958319
+The Best Little Whorehouse in Texas,1982,Comedy|Musical,69700000
+eXistenZ,1999,Horror|Sci-Fi|Thriller,2840417
+Raiders of the Lost Ark,1981,Action|Adventure,242374454
+Home Alone 2: Lost in New York,1992,Adventure|Comedy|Family,173585516
+Close Encounters of the Third Kind,1977,Drama|Sci-Fi,128300000
+Pulse,2006,Drama|Horror|Sci-Fi|Thriller,20259297
+Beverly Hills Cop II,1987,Action|Comedy|Crime|Thriller,153665036
+Bringing Down the House,2003,Comedy,132541238
+The Silence of the Lambs,1991,Crime|Drama|Horror|Thriller,130727000
+Wayne's World,1992,Comedy|Music,121697350
+Jackass 3D,2010,Action|Comedy|Documentary,117224271
+Jaws 2,1978,Adventure|Horror|Thriller,102922376
+Beverly Hills Chihuahua,2008,Adventure|Comedy|Drama|Family|Romance,94497271
+The Conjuring,2013,Horror|Mystery|Thriller,137387272
+Are We There Yet?,2005,Adventure|Comedy|Family|Romance,82301521
+Tammy,2014,Comedy,84518155
+Disturbia,2007,Drama|Mystery|Thriller,80050171
+School of Rock,2003,Comedy|Music,81257845
+Mortal Kombat,1995,Action|Adventure|Fantasy|Sci-Fi|Thriller,70360285
+Wicker Park,2004,Drama|Mystery|Romance|Thriller,12831121
+White Chicks,2004,Comedy|Crime,69148997
+The Descendants,2011,Comedy|Drama,82624961
+Holes,2003,Adventure|Comedy|Drama|Family|Mystery,67325559
+The Last Song,2010,Drama|Family|Music|Romance,62933793
+12 Years a Slave,2013,Biography|Drama|History,56667870
+Drumline,2002,Comedy|Drama|Music|Romance,56398162
+Why Did I Get Married Too?,2010,Comedy|Drama|Romance,60072596
+Edward Scissorhands,1990,Fantasy|Romance,56362352
+Me Before You,2016,Drama|Romance,56154094
+Madea's Witness Protection,2012,Comedy|Crime|Drama,65623128
+Date Movie,2006,Comedy|Romance,48546578
+Return to Never Land,2002,Adventure|Animation|Family|Fantasy,48423368
+Selma,2014,Biography|Drama|History,52066000
+The Jungle Book 2,2003,Adventure|Animation|Family|Musical,47887943
+Boogeyman,2005,Drama|Horror|Mystery|Thriller,46363118
+Premonition,2007,Drama|Mystery|Thriller,47852604
+The Tigger Movie,2000,Animation|Comedy|Drama|Family|Musical,45542421
+Max,2015,Adventure|Family,42652003
+Epic Movie,2007,Adventure|Comedy,39737645
+Conan the Barbarian,1982,Adventure|Fantasy,37567440
+Spotlight,2015,Biography|Crime|Drama|History,44988180
+Lakeview Terrace,2008,Crime|Drama|Thriller,39263506
+The Grudge 2,2006,Horror|Thriller,39143839
+How Stella Got Her Groove Back,1998,Comedy|Drama|Romance,37672350
+Bill & Ted's Bogus Journey,1991,Adventure|Comedy|Fantasy|Music|Sci-Fi,38037513
+Man of the Year,2006,Comedy|Drama|Romance|Thriller,37442180
+The American,2010,Crime|Drama|Thriller,35596227
+Selena,1997,Biography|Drama|Music,35422828
+Vampires Suck,2010,Comedy,36658108
+Babel,2006,Drama,34300771
+This Is Where I Leave You,2014,Comedy|Drama,34290142
+Doubt,2008,Drama|Mystery,33422556
+Team America: World Police,2004,Action|Comedy,32774834
+Texas Chainsaw 3D,2013,Horror|Thriller,34334256
+Copycat,1995,Crime|Drama|Mystery|Thriller,32051917
+Scary Movie 5,2013,Comedy,32014289
+Milk,2008,Biography|Drama|History,31838002
+Risen,2016,Action|Adventure|Drama|Mystery,36874745
+Ghost Ship,2002,Horror,30079316
+A Very Harold & Kumar 3D Christmas,2011,Adventure|Comedy,35033759
+Wild Things,1998,Crime|Drama|Mystery|Thriller,29753944
+The Debt,2010,Drama|Thriller,31146570
+High Fidelity,2000,Comedy|Drama|Music|Romance,27277055
+One Missed Call,2008,Horror|Mystery,26876529
+Eye for an Eye,1996,Crime|Drama|Thriller,53146000
+The Bank Job,2008,Crime|Drama|Romance|Thriller,30028592
+Eternal Sunshine of the Spotless Mind,2004,Drama|Fantasy|Romance|Sci-Fi,34126138
+You Again,2010,Comedy|Family|Romance,25677801
+Street Kings,2008,Action|Crime|Drama|Thriller,26415649
+The World's End,2013,Action|Comedy|Sci-Fi,26003149
+Nancy Drew,2007,Comedy|Crime|Family|Mystery|Romance|Thriller,25584685
+Daybreakers,2009,Action|Horror|Sci-Fi|Thriller,29975979
+She's Out of My League,2010,Comedy|Romance,31584722
+Monte Carlo,2011,Adventure|Comedy|Family|Romance,23179303
+Stay Alive,2006,Horror|Thriller,23078294
+Quigley Down Under,1990,Action|Adventure|Drama|Romance|Western,21413105
+Alpha and Omega,2010,Adventure|Animation|Comedy|Family|Romance,25077977
+The Covenant,2006,Action|Fantasy|Horror|Thriller,23292105
+Shorts,2009,Comedy|Family|Fantasy,20916309
+To Die For,1995,Comedy|Crime|Drama,21200000
+Vampires,1998,Action|Horror|Thriller,20241395
+Psycho,1960,Horror|Mystery|Thriller,32000000
+My Best Friend's Girl,2008,Comedy|Romance,19151864
+Endless Love,2014,Drama|Romance,23393765
+Georgia Rule,2007,Comedy|Drama,18882880
+Under the Rainbow,1981,Comedy,8500000
+Simon Birch,1998,Comedy|Drama|Family,18252684
+Reign Over Me,2007,Drama,19661987
+Into the Wild,2007,Adventure|Biography|Drama,18352454
+School for Scoundrels,2006,Comedy,17803796
+Silent Hill: Revelation 3D,2012,Adventure|Drama|Horror|Mystery|Thriller,17529157
+From Dusk Till Dawn,1996,Crime|Fantasy|Horror,25753840
+Pooh's Heffalump Movie,2005,Animation|Family|Fantasy|Mystery,18081626
+Home for the Holidays,1995,Comedy|Drama|Romance,17518220
+Kung Fu Hustle,2004,Action|Comedy|Crime|Fantasy,17104669
+The Country Bears,2002,Comedy|Family|Music|Musical,16988996
+The Kite Runner,2007,Drama,15797907
+21 Grams,2003,Drama,16248701
+Paparazzi,2004,Action|Crime|Drama|Thriller,15712072
+Twilight,2008,Drama|Fantasy|Romance,191449475
+A Guy Thing,2003,Comedy|Romance,15408822
+Loser,2000,Comedy|Romance,15464026
+The Greatest Story Ever Told,1965,Biography|Drama|History,8000000
+Disaster Movie,2008,Comedy,14174654
+Armored,2009,Action|Crime|Thriller,15988876
+The Man Who Knew Too Little,1997,Action|Comedy|Crime|Thriller,13801755
+What's Your Number?,2011,Comedy|Romance,13987482
+Lockout,2012,Action|Adventure|Sci-Fi|Thriller,14291570
+Envy,2004,Comedy,12181484
+Crank: High Voltage,2009,Action|Crime|Sci-Fi|Thriller,13630226
+Bullets Over Broadway,1994,Comedy|Crime,13383737
+One Night with the King,2006,Biography|Drama|History,13391174
+The Quiet American,2002,Drama|Mystery|Romance|Thriller|War,12987647
+The Weather Man,2005,Comedy|Drama,12469811
+Undisputed,2002,Action|Crime|Drama|Sport,12398628
+Ghost Town,2008,Comedy|Drama|Fantasy|Romance,13214030
+12 Rounds,2009,Action|Crime|Thriller,12232937
+Let Me In,2010,Drama|Fantasy|Horror|Mystery,12134420
+3 Ninjas Kick Back,1994,Action|Comedy|Family,11784000
+Be Kind Rewind,2008,Comedy,11169531
+Mrs Henderson Presents,2005,Comedy|Drama|Music|War,11034436
+Triple 9,2016,Action|Crime|Drama|Thriller,12626905
+Deconstructing Harry,1997,Comedy,10569071
+Three to Tango,1999,Comedy|Romance,10544143
+Burnt,2015,Comedy|Drama,13650738
+We're No Angels,1989,Comedy|Crime,10555348
+Everyone Says I Love You,1996,Comedy|Musical|Romance,9714482
+Death at a Funeral,2007,Comedy,8579684
+Death Sentence,2007,Action|Crime|Thriller,9525276
+Everybody's Fine,2009,Adventure|Drama,8855646
+Superbabies: Baby Geniuses 2,2004,Comedy|Family|Sci-Fi,9109322
+The Man,2005,Action|Comedy|Crime,8326035
+Code Name: The Cleaner,2007,Action|Comedy|Crime,8104069
+Connie and Carla,2004,Comedy|Crime|Music,8054280
+Inherent Vice,2014,Comedy|Crime|Drama|Mystery|Romance,8093318
+Doogal,2006,Adventure|Animation|Comedy|Family|Fantasy,7382993
+Battle of the Year,2013,Drama|Music,8888355
+An American Carol,2008,Comedy|Fantasy,7001720
+Machete Kills,2013,Action|Comedy|Crime|Thriller,7268659
+Willard,2003,Drama|Horror|Sci-Fi|Thriller,6852144
+Strange Wilderness,2008,Adventure|Comedy,6563357
+Topsy-Turvy,1999,Biography|Comedy|Drama|History|Music|Musical,6201757
+A Dangerous Method,2011,Biography|Drama|Thriller,5702083
+A Scanner Darkly,2006,Animation|Drama|Mystery|Sci-Fi|Thriller,5480996
+Chasing Mavericks,2012,Biography|Drama|Sport,6002756
+Alone in the Dark,2005,Horror|Sci-Fi,5132655
+Bandslam,2009,Comedy|Drama|Family|Music|Romance,5205343
+Birth,2004,Drama|Mystery|Romance|Thriller,5005883
+A Most Violent Year,2014,Action|Crime|Drama|Thriller,5749134
+Flash of Genius,2008,Biography|Drama,4234040
+I'm Not There.,2007,Biography|Drama|Music,4001121
+The Cold Light of Day,2012,Action|Thriller,3749061
+The Brothers Bloom,2008,Adventure|Comedy|Drama|Romance,3519627
+"Synecdoche, New York",2008,Comedy|Drama|Romance,3081925
+Princess Mononoke,1997,Adventure|Animation|Fantasy,2298191
+Bon voyage,2003,Comedy|Drama|Mystery|Romance|Thriller|War,2353728
+Can't Stop the Music,1980,Biography|Comedy|Musical,2000000
+The Proposition,2005,Crime|Drama|Western,1900725
+Courage,2015,Biography|Drama|Sport,2246000
+Marci X,2003,Comedy|Music,1646664
+Equilibrium,2002,Action|Drama|Sci-Fi|Thriller,1190018
+The Children of Huang Shi,2008,Drama|War,1027749
+The Yards,2000,Crime|Drama|Romance|Thriller,882710
+By the Sea,2015,Drama|Romance,531009
+Steamboy,2004,Action|Adventure|Animation|Family|Sci-Fi|Thriller,410388
+The Game of Their Lives,2005,Drama|History|Sport,375474
+Rapa Nui,1994,Action|Adventure|Drama|History|Romance,305070
+Dylan Dog: Dead of Night,2010,Action|Comedy|Crime|Fantasy|Horror|Mystery|Sci-Fi|Thriller,1183354
+People I Know,2002,Crime|Drama|Mystery,121972
+The Tempest,2010,Comedy|Drama|Fantasy|Romance,263365
+The Painted Veil,2006,Drama|Romance,8047690
+The Baader Meinhof Complex,2008,Action|Biography|Crime|Drama,476270
+Dances with Wolves,1990,Adventure|Drama|Western,184208848
+Bad Teacher,2011,Comedy,100292856
+Sea of Love,1989,Crime|Drama|Mystery|Thriller,58571513
+A Cinderella Story,2004,Comedy|Family|Romance,51431160
+Scream,1996,Horror|Mystery,103001286
+Thir13en Ghosts,2001,Horror,41867960
+Back to the Future,1985,Adventure|Comedy|Sci-Fi,210609762
+House on Haunted Hill,1999,Horror|Mystery|Thriller,40846082
+I Can Do Bad All by Myself,2009,Comedy|Drama,51697449
+The Switch,2010,Comedy|Drama|Romance,27758465
+Just Married,2003,Comedy|Romance,56127162
+The Devil's Double,2011,Biography|Drama|Thriller,1357042
+Thomas and the Magic Railroad,2000,Adventure|Comedy|Drama|Family|Fantasy,15911333
+The Crazies,2010,Horror|Thriller,39103378
+Spirited Away,2001,Adventure|Animation|Family|Fantasy,10049886
+The Bounty,1984,Action|Adventure|Drama|History|Romance,8600000
+The Book Thief,2013,Drama|War,21483154
+Sex Drive,2008,Adventure|Comedy|Romance,8396942
+Leap Year,2010,Comedy|Romance,12561
+Take Me Home Tonight,2011,Comedy|Drama|Romance,6923891
+The Nutcracker,1993,Family|Fantasy|Music,2119994
+Kansas City,1996,Crime|Drama|Music|Thriller,1292527
+The Amityville Horror,2005,Drama|Horror|Mystery|Thriller,64255243
+Adaptation.,2002,Comedy|Drama,22245861
+Land of the Dead,2005,Horror,20433940
+Fear and Loathing in Las Vegas,1998,Adventure|Comedy|Drama,10562387
+The Invention of Lying,2009,Comedy|Fantasy|Romance,18439082
+Neighbors,2014,Comedy,150056505
+The Mask,1994,Action|Comedy|Crime|Fantasy,119938730
+Big,1988,Comedy|Drama|Family|Fantasy|Romance,114968774
+Borat: Cultural Learnings of America for Make Benefit Glorious Nation of Kazakhstan,2006,Comedy,128505958
+Legally Blonde,2001,Comedy|Romance,95001351
+Star Trek III: The Search for Spock,1984,Action|Adventure|Sci-Fi,76400000
+The Exorcism of Emily Rose,2005,Drama|Horror|Thriller,75072454
+Deuce Bigalow: Male Gigolo,1999,Comedy|Romance,65535067
+Left Behind,2014,Action|Drama|Fantasy|Mystery|Thriller,13998282
+The Family Stone,2005,Comedy|Drama|Romance,6061759
+Barbershop 2: Back in Business,2004,Comedy|Drama,64955956
+Bad Santa,2003,Comedy|Crime|Drama,60057639
+Austin Powers: International Man of Mystery,1997,Comedy|Crime,53868030
+My Big Fat Greek Wedding 2,2016,Comedy|Family|Romance,59573085
+Diary of a Wimpy Kid: Rodrick Rules,2011,Comedy|Family,52691009
+Predator,1987,Action|Horror|Sci-Fi,59735548
+Amadeus,1984,Biography|Drama|History|Music,51600000
+Prom Night,2008,Horror|Mystery,43818159
+Mean Girls,2004,Comedy,86049418
+Under the Tuscan Sun,2003,Comedy|Drama|Romance,43601508
+Gosford Park,2001,Drama|Mystery,41300105
+Peggy Sue Got Married,1986,Comedy|Drama|Fantasy|Romance,41382841
+Birdman or (The Unexpected Virtue of Ignorance),2014,Comedy|Drama|Romance,42335698
+Blue Jasmine,2013,Drama,33404871
+United 93,2006,Drama|History|Thriller,31471430
+Honey,2003,Drama|Music|Romance,30222640
+Glory,1989,Drama|History|War,26830000
+Spy Hard,1996,Action|Comedy,26906039
+The Fog,1980,Fantasy|Horror,21378000
+Soul Surfer,2011,Biography|Drama|Family|Sport,43853424
+Observe and Report,2009,Comedy|Crime|Drama,23993605
+Conan the Destroyer,1984,Action|Adventure|Fantasy,26400000
+Raging Bull,1980,Biography|Drama|Sport,45250
+Love Happens,2009,Drama|Romance,22927390
+Young Sherlock Holmes,1985,Adventure|Fantasy|Mystery|Thriller,4250320
+Fame,2009,Comedy|Drama|Musical|Romance,22452209
+127 Hours,2010,Adventure|Biography|Drama|Thriller,18329466
+Small Time Crooks,2000,Comedy|Crime,17071230
+Center Stage,2000,Drama|Music|Romance,17174870
+Love the Coopers,2015,Comedy,26284475
+Catch That Kid,2004,Comedy|Crime,16702864
+Life as a House,2001,Drama,15561627
+Steve Jobs,2015,Biography|Drama,17750583
+"I Love You, Beth Cooper",2009,Comedy|Romance,14793904
+Youth in Revolt,2009,Comedy|Drama|Romance,15281286
+The Legend of the Lone Ranger,1981,Action|Adventure|Western,8000000
+The Tailor of Panama,2001,Drama|Thriller,13491653
+Getaway,2013,Action|Crime|Thriller,10494494
+The Ice Storm,1997,Drama,7837632
+And So It Goes,2014,Comedy|Drama|Romance,15155772
+Troop Beverly Hills,1989,Adventure|Comedy,8508843
+Being Julia,2004,Comedy|Drama|Romance,7739049
+9½ Weeks,1986,Drama|Romance,6734844
+Dragonslayer,1981,Action|Adventure|Fantasy,6000000
+The Last Station,2009,Biography|Drama|Romance,6615578
+Ed Wood,1994,Biography|Comedy|Drama,5887457
+Labor Day,2013,Drama,13362308
+Mongol: The Rise of Genghis Khan,2007,Adventure|Biography|Drama|History|War,5701643
+RocknRolla,2008,Action|Crime|Thriller,5694401
+Megaforce,1982,Action|Sci-Fi,5333658
+Hamlet,1996,Drama,4414535
+Midnight Special,2016,Adventure|Drama|Sci-Fi|Thriller,3707794
+Anything Else,2003,Comedy|Romance,3203044
+The Railway Man,2013,Biography|Drama|Romance|War,4435083
+The White Ribbon,2009,Drama|Mystery,2222647
+The Wraith,1986,Action|Horror|Romance|Sci-Fi|Thriller,3500000
+The Salton Sea,2002,Crime|Drama|Mystery|Thriller,676698
+One Man's Hero,1999,Action|Drama|History|Romance|War|Western,229311
+Renaissance,2006,Action|Animation|Sci-Fi|Thriller,63260
+Superbad,2007,Comedy,121463226
+Step Up 2: The Streets,2008,Drama|Music|Musical|Romance,58006147
+Hoodwinked!,2005,Action|Animation|Comedy|Crime|Family,51053787
+Hotel Rwanda,2004,Drama|History|War,23472900
+Hitman,2007,Action|Crime|Drama|Thriller,39687528
+Black Nativity,2013,Drama|Family|Music|Musical,7017178
+City of Ghosts,2002,Crime|Drama|Thriller,325491
+The Others,2001,Fantasy|Horror|Thriller,96471845
+Aliens,1986,Action|Adventure|Sci-Fi,85200000
+My Fair Lady,1964,Drama|Family|Musical|Romance,72000000
+I Know What You Did Last Summer,1997,Horror|Mystery|Thriller,72219395
+Let's Be Cops,2014,Comedy,82389560
+Sideways,2004,Adventure|Comedy|Drama|Romance,71502303
+Beerfest,2006,Comedy,19179969
+Halloween,1978,Horror|Thriller,47000000
+Hero,2002,Action|Adventure|History,84961
+Good Boy!,2003,Comedy|Drama|Family|Fantasy|Sci-Fi,37566230
+The Best Man Holiday,2013,Comedy|Drama,70492685
+Smokin' Aces,2006,Action|Crime|Drama|Thriller,35635046
+Saw 3D: The Final Chapter,2010,Horror|Mystery,45670855
+40 Days and 40 Nights,2002,Comedy|Romance,37939782
+TRON: Legacy,2010,Action|Adventure|Sci-Fi,172051787
+A Night at the Roxbury,1998,Comedy|Music|Romance,30324946
+Beastly,2011,Drama|Fantasy|Romance,27854896
+The Hills Have Eyes,2006,Horror,41777564
+Dickie Roberts: Former Child Star,2003,Comedy,22734486
+"McFarland, USA",2015,Biography|Drama|Sport,44469602
+Pitch Perfect,2012,Comedy|Music|Romance,64998368
+Summer Catch,2001,Comedy|Drama|Romance|Sport,19693891
+A Simple Plan,1998,Crime|Drama|Thriller,16311763
+They,2002,Horror|Mystery|Thriller,12693621
+Larry the Cable Guy: Health Inspector,2006,Comedy|Romance,15655665
+The Adventures of Elmo in Grouchland,1999,Adventure|Comedy|Family|Fantasy|Musical,11634458
+Brooklyn's Finest,2009,Crime|Drama|Thriller,27154426
+Evil Dead,2013,Horror,54239856
+My Life in Ruins,2009,Comedy|Romance,8662318
+American Dreamz,2006,Comedy|Music,7156725
+Superman IV: The Quest for Peace,1987,Action|Adventure|Family|Sci-Fi,15681020
+Running Scared,2006,Action|Crime|Drama|Thriller,6855137
+Shanghai Surprise,1986,Adventure|Crime|Drama|Romance,2315683
+The Illusionist,2006,Drama|Mystery|Romance|Thriller,39825798
+Roar,1981,Adventure|Horror|Thriller,2000000
+Veronica Guerin,2003,Biography|Crime|Drama|Thriller,1569918
+Southland Tales,2006,Comedy|Mystery|Sci-Fi|Thriller,273420
+The Apparition,2012,Horror|Thriller,4930798
+My Girl,1991,Comedy|Drama|Family|Romance,59847242
+Fur: An Imaginary Portrait of Diane Arbus,2006,Biography|Drama|Romance,220914
+The Illusionist,2006,Drama|Mystery|Romance|Thriller,39825798
+Wall Street,1987,Crime|Drama,43848100
+Sense and Sensibility,1995,Drama|Romance,42700000
+Becoming Jane,2007,Biography|Drama|Romance,18663911
+Sydney White,2007,Comedy|Romance,11702090
+House of Sand and Fog,2003,Drama,13005485
+Dead Poets Society,1989,Comedy|Drama,95860116
+Dumb & Dumber,1994,Comedy,127175354
+When Harry Met Sally...,1989,Comedy|Drama|Romance,92823600
+The Verdict,1982,Drama,54000000
+Road Trip,2000,Comedy,68525609
+Varsity Blues,1999,Comedy|Drama|Romance|Sport,52885587
+The Artist,2011,Comedy|Drama|Romance,44667095
+The Unborn,2009,Drama|Fantasy|Horror|Mystery|Thriller,42638165
+Moonrise Kingdom,2012,Adventure|Comedy|Drama|Romance,45507053
+The Texas Chainsaw Massacre: The Beginning,2006,Horror,39511038
+The Young Messiah,2016,Drama,6462576
+The Master of Disguise,2002,Comedy|Family,40363530
+Pan's Labyrinth,2006,Drama|Fantasy|War,37623143
+See Spot Run,2001,Action|Comedy|Crime|Family,33357476
+Baby Boy,2001,Crime|Drama|Romance|Thriller,28734552
+The Roommate,2011,Drama|Horror|Thriller,37300107
+Joe Dirt,2001,Adventure|Comedy|Drama,27087695
+Double Impact,1991,Action|Crime,30102717
+Hot Fuzz,2007,Action|Comedy|Mystery,23618786
+The Women,2008,Comedy|Drama,26896744
+Vicky Cristina Barcelona,2008,Drama|Romance,23213577
+Boys and Girls,2000,Comedy|Drama|Romance,20627372
+White Oleander,2002,Drama,16346122
+Jennifer's Body,2009,Comedy|Fantasy|Horror,16204793
+Drowning Mona,2000,Comedy|Crime|Mystery,15427192
+Radio Days,1987,Comedy,14792779
+Left Behind,2014,Action|Drama|Fantasy|Mystery|Thriller,13998282
+Remember Me,2010,Drama|Romance,19057024
+How to Deal,2003,Comedy|Drama|Romance,14108518
+My Stepmother Is an Alien,1988,Comedy|Romance|Sci-Fi,13854000
+Philadelphia,1993,Drama,77324422
+The Thirteenth Floor,1999,Mystery|Sci-Fi|Thriller,15500000
+Duets,2000,Comedy|Drama|Music,4734235
+Hollywood Ending,2002,Comedy|Romance,4839383
+Detroit Rock City,1999,Comedy|Music,4193025
+Highlander,1986,Action|Adventure|Fantasy,5900000
+Things We Lost in the Fire,2007,Drama,2849142
+Steel,1997,Action|Crime|Sci-Fi,1686429
+The Immigrant,2013,Drama|Romance,1984743
+The White Countess,2005,Drama|History|Romance|War,1666262
+Trance,2013,Crime|Drama|Mystery|Thriller,2319187
+Soul Plane,2004,Comedy,13922211
+Good,2008,Drama|Romance|War,23091
+Enter the Void,2009,Drama|Fantasy,336467
+Vamps,2012,Comedy|Horror|Romance,2964
+The Homesman,2014,Drama|Western,2428883
+Juwanna Mann,2002,Comedy|Drama|Romance|Sport,13571817
+Slow Burn,2005,Drama|Mystery|Thriller,1181197
+Wasabi,2001,Action|Comedy|Crime|Drama|Thriller,81525
+Slither,2006,Comedy|Horror|Sci-Fi,7774730
+Beverly Hills Cop,1984,Action|Comedy|Crime,234760500
+Home Alone,1990,Comedy|Family,285761243
+3 Men and a Baby,1987,Comedy|Drama|Family,167780960
+Tootsie,1982,Comedy|Drama|Romance,177200000
+Top Gun,1986,Action|Drama|Romance,176781728
+"Crouching Tiger, Hidden Dragon",2000,Action|Drama|Romance,128067808
+American Beauty,1999,Drama,130058047
+The King's Speech,2010,Biography|Drama|History|Romance,138795342
+Twins,1988,Comedy|Crime,111936400
+The Yellow Handkerchief,2008,Drama|Romance,317040
+The Color Purple,1985,Drama,94175854
+The Imitation Game,2014,Biography|Drama|Thriller|War,91121452
+Private Benjamin,1980,Comedy|War,69800000
+Diary of a Wimpy Kid,2010,Comedy|Family,64001297
+Mama,2013,Fantasy|Horror,71588220
+Halloween,1978,Horror|Thriller,47000000
+National Lampoon's Vacation,1983,Adventure|Comedy,61400000
+Bad Grandpa,2013,Comedy,101978840
+The Queen,2006,Biography|Drama,56437947
+Beetlejuice,1988,Comedy|Fantasy,73326666
+Why Did I Get Married?,2007,Comedy|Drama,55184721
+Little Women,1994,Drama|Family|Romance,50003300
+The Woman in Black,2012,Drama|Fantasy|Horror|Thriller,54322273
+When a Stranger Calls,2006,Horror|Thriller,47860214
+Big Fat Liar,2002,Adventure|Comedy|Family,47811275
+Wag the Dog,1997,Comedy|Drama,43022524
+The Lizzie McGuire Movie,2003,Adventure|Comedy|Family|Music|Romance,42672630
+Snitch,2013,Action|Drama|Thriller,42919096
+Krampus,2015,Comedy|Fantasy|Horror,42592530
+The Faculty,1998,Horror|Mystery|Sci-Fi,40064955
+Cop Land,1997,Crime|Drama|Thriller,44886089
+Not Another Teen Movie,2001,Comedy,37882551
+End of Watch,2012,Crime|Drama|Thriller,40983001
+Aloha,2015,Comedy|Drama|Romance,20991497
+The Skulls,2000,Action|Crime|Drama|Thriller,35007180
+The Theory of Everything,2014,Biography|Drama|Romance,35887263
+Malibu's Most Wanted,2003,Comedy|Crime,34308901
+Where the Heart Is,2000,Comedy|Drama|Romance,33771174
+Lawrence of Arabia,1962,Adventure|Biography|Drama|History|War,6000000
+Halloween II,2009,Horror,33386128
+Wild,2014,Adventure|Biography|Drama,37877959
+The Last House on the Left,2009,Crime|Horror|Thriller,32721635
+The Wedding Date,2005,Comedy|Romance,31585300
+Halloween: Resurrection,2002,Comedy|Horror|Thriller,30259652
+Clash of the Titans,2010,Action|Adventure|Fantasy,163192114
+The Princess Bride,1987,Adventure|Family|Fantasy|Romance,30857814
+The Great Debaters,2007,Biography|Drama,30226144
+Drive,2011,Crime|Drama,35054909
+Confessions of a Teenage Drama Queen,2004,Comedy|Family|Music|Romance,29302097
+The Object of My Affection,1998,Comedy|Drama|Romance,29106737
+28 Weeks Later,2007,Drama|Horror|Sci-Fi,28637507
+When the Game Stands Tall,2014,Drama|Family|Sport,30127963
+Because of Winn-Dixie,2005,Comedy|Drama|Family,32645546
+Love & Basketball,2000,Drama|Romance|Sport,27441122
+Grosse Pointe Blank,1997,Action|Comedy|Crime|Romance|Thriller,28014536
+All About Steve,2009,Comedy|Romance,33860010
+Book of Shadows: Blair Witch 2,2000,Adventure|Fantasy|Horror|Mystery|Thriller,26421314
+The Craft,1996,Drama|Fantasy|Horror|Thriller,24881000
+Match Point,2005,Drama|Romance|Thriller,23089926
+Ramona and Beezus,2010,Adventure|Comedy|Family|Fantasy,26161406
+The Remains of the Day,1993,Drama|Romance,22954968
+Boogie Nights,1997,Drama,26384919
+Nowhere to Run,1993,Action|Crime|Drama|Romance|Thriller,22189039
+Flicka,2006,Adventure|Drama|Family,20998709
+The Hills Have Eyes II,2007,Horror,20801344
+Urban Legends: Final Cut,2000,Horror|Mystery|Thriller,21468807
+Tuck Everlasting,2002,Drama|Family|Fantasy|Romance,19158074
+The Marine,2006,Action|Drama|Thriller,18843314
+Keanu,2016,Action|Comedy,20566327
+Country Strong,2010,Drama|Music,20218921
+Disturbing Behavior,1998,Horror|Mystery|Sci-Fi|Thriller,17411331
+The Place Beyond the Pines,2012,Crime|Drama|Thriller,21383298
+The November Man,2014,Action|Crime|Thriller,24984868
+Eye of the Beholder,1999,Drama|Mystery|Thriller,16459004
+The Hurt Locker,2008,Drama|History|Thriller|War,15700000
+Firestarter,1984,Action|Horror|Sci-Fi|Thriller,15100000
+Killing Them Softly,2012,Crime|Thriller,14938570
+A Most Wanted Man,2014,Crime|Drama|Thriller,17237244
+Freddy Got Fingered,2001,Comedy,14249005
+The Pirates Who Don't Do Anything: A VeggieTales Movie,2008,Adventure|Animation|Comedy|Family,12701880
+Highlander: Endgame,2000,Action|Adventure|Fantasy|Sci-Fi,12801190
+Idlewild,2006,Crime|Drama|Musical|Romance,12549485
+One Day,2011,Drama|Romance,13766014
+Whip It,2009,Drama|Sport,13034417
+Confidence,2003,Crime|Thriller,12212417
+The Muse,1999,Comedy,11614236
+De-Lovely,2004,Biography|Drama|Music|Musical,13337299
+New York Stories,1989,Comedy|Drama|Romance,10763469
+Barney's Great Adventure,1998,Adventure|Family,11144518
+The Man with the Iron Fists,2012,Action,15608545
+Home Fries,1998,Comedy|Drama|Romance,10443316
+Here on Earth,2000,Drama|Romance,10494147
+Brazil,1985,Drama|Sci-Fi,9929000
+Raise Your Voice,2004,Family|Music|Romance,10411980
+The Big Lebowski,1998,Comedy|Crime,17439163
+Black Snake Moan,2006,Drama|Music,9396487
+Dark Blue,2002,Crime|Drama|Romance|Thriller,9059588
+A Mighty Heart,2007,Biography|Drama|History|Thriller|War,9172810
+Whatever It Takes,2000,Comedy|Drama|Romance,8735529
+Boat Trip,2002,Comedy,8586376
+The Importance of Being Earnest,2002,Comedy|Drama|Romance,8378141
+Hoot,2006,Adventure|Comedy|Family,8080116
+In Bruges,2008,Comedy|Crime|Drama,7757130
+Peeples,2013,Comedy|Romance,9123834
+The Rocker,2008,Comedy|Music,6409206
+Post Grad,2009,Comedy|Romance,6373693
+Promised Land,2012,Drama,7556708
+Whatever Works,2009,Comedy|Romance,5306447
+The In Crowd,2000,Drama|Mystery|Thriller,5217498
+Three Burials,2005,Adventure|Crime|Drama|Mystery|Western,5023275
+Jakob the Liar,1999,Drama|War,4956401
+Kiss Kiss Bang Bang,2005,Comedy|Crime|Mystery,4235837
+Idle Hands,1999,Comedy|Fantasy|Horror|Thriller,4002955
+Mulholland Drive,2001,Drama|Mystery|Thriller,7219578
+You Will Meet a Tall Dark Stranger,2010,Comedy|Drama|Romance,3247816
+Never Let Me Go,2010,Drama|Romance|Sci-Fi,2412045
+Transsiberian,2008,Crime|Drama|Mystery|Thriller,2203641
+The Clan of the Cave Bear,1986,Adventure|Drama|Fantasy,1953732
+Crazy in Alabama,1999,Comedy|Crime|Drama,1954202
+Funny Games,2007,Crime|Drama|Horror|Thriller,1294640
+Metropolis,1927,Drama|Sci-Fi,26435
+District B13,2004,Action|Crime|Thriller,1197786
+Things to Do in Denver When You're Dead,1995,Crime|Drama,529766
+The Assassin,2015,Action|Drama,613556
+Buffalo Soldiers,2001,Comedy|Crime|Drama|Thriller|War,353743
+Ong-bak 2,2008,Action,102055
+The Midnight Meat Train,2008,Fantasy|Horror|Mystery,73548
+The Son of No One,2011,Crime|Drama|Thriller,28870
+All the Queen's Men,2001,Action|Comedy|Drama|War,22723
+The Good Night,2007,Comedy|Drama|Fantasy|Music|Romance,20380
+Groundhog Day,1993,Comedy|Fantasy|Romance,70906973
+Magic Mike XXL,2015,Comedy|Drama|Music,66009973
+Romeo + Juliet,1996,Drama|Romance,46338728
+Sarah's Key,2010,Drama|War,7691700
+Unforgiven,1992,Drama|Western,101157447
+Manderlay,2005,Drama,74205
+Slumdog Millionaire,2008,Drama|Romance,141319195
+Fatal Attraction,1987,Drama|Romance|Thriller,156645693
+Pretty Woman,1990,Comedy|Romance,178406268
+Crocodile Dundee II,1988,Action|Adventure|Comedy,109306210
+Born on the Fourth of July,1989,Biography|Drama|War,70001698
+Cool Runnings,1993,Adventure|Comedy|Family|Sport,68856263
+My Bloody Valentine,2009,Horror|Thriller,51527787
+The Possession,2012,Horror|Thriller,49122319
+Stomp the Yard,2007,Drama|Music|Romance,61356221
+The Spy Who Loved Me,1977,Action|Adventure|Sci-Fi|Thriller,46800000
+Urban Legend,1998,Horror|Mystery|Thriller,38048637
+Dangerous Liaisons,1988,Drama|Romance,34700000
+White Fang,1991,Adventure|Drama,34793160
+Superstar,1999,Comedy|Romance,30628981
+The Iron Lady,2011,Biography|Drama|History,29959436
+Jonah: A VeggieTales Movie,2002,Adventure|Animation|Comedy|Drama|Family|Musical,25571351
+Poetic Justice,1993,Drama|Romance,27515786
+All About the Benjamins,2002,Action|Comedy|Crime|Thriller,25482931
+Vampire in Brooklyn,1995,Comedy|Fantasy|Horror|Romance,19900000
+An American Haunting,2005,Horror|Mystery|Thriller,16298046
+My Boss's Daughter,2003,Comedy|Romance,15549702
+A Perfect Getaway,2009,Adventure|Mystery|Thriller,15483540
+Our Family Wedding,2010,Comedy|Romance,20246959
+Dead Man on Campus,1998,Comedy,15062898
+Tea with Mussolini,1999,Comedy|Drama|War,14348123
+Thinner,1996,Fantasy|Horror,15171475
+Crooklyn,1994,Comedy|Drama,13640000
+Jason X,2001,Action|Horror|Sci-Fi|Thriller,12610731
+Big Fat Liar,2002,Adventure|Comedy|Family,47811275
+Bobby,2006,Drama|History,11204499
+Head Over Heels,2001,Comedy|Mystery|Romance,10397365
+Fun Size,2012,Adventure|Comedy,9402410
+Little Children,2006,Drama|Romance,5459824
+Gossip,2000,Drama|Mystery|Thriller,5108820
+A Walk on the Moon,1999,Drama,4741987
+Catch a Fire,2006,Biography|Drama|History,4291965
+Soul Survivors,2001,Drama|Horror|Mystery|Thriller,3100650
+Jefferson in Paris,1995,Biography|Drama|History|Romance,2474000
+Caravans,1978,Action|Adventure|History,1000000
+Mr. Turner,2014,Biography|Drama|History,3958500
+Amen.,2002,Biography|Crime|Drama|War,274299
+The Lucky Ones,2008,Comedy|Drama|War,183088
+Margaret,2011,Drama,46495
+Flipped,2010,Comedy|Drama|Romance,1752214
+Brokeback Mountain,2005,Drama|Romance,83025853
+Teenage Mutant Ninja Turtles,2014,Action|Adventure|Comedy|Sci-Fi,190871240
+Clueless,1995,Comedy|Romance,56631572
+Far from Heaven,2002,Drama|Romance,15854988
+Hot Tub Time Machine 2,2015,Comedy|Sci-Fi,12282677
+Quills,2000,Biography|Drama,7060876
+Seven Psychopaths,2012,Comedy|Crime,14989761
+Downfall,2004,Biography|Drama|History|War,5501940
+The Sea Inside,2004,Biography|Drama|Romance,2086345
+"Good Morning, Vietnam",1987,Biography|Comedy|Drama|War,123922370
+The Last Godfather,2010,Comedy,163591
+Justin Bieber: Never Say Never,2011,Documentary|Music,73000942
+Black Swan,2010,Drama|Thriller,106952327
+RoboCop,2014,Action|Crime|Sci-Fi|Thriller,58607007
+The Godfather: Part II,1974,Crime|Drama,57300000
+Save the Last Dance,2001,Drama|Music|Romance,91038276
+A Nightmare on Elm Street 4: The Dream Master,1988,Fantasy|Horror|Thriller,49369900
+Miracles from Heaven,2016,Drama,61693523
+"Dude, Where's My Car?",2000,Comedy|Mystery,46729374
+Young Guns,1988,Action|Crime|Drama|Thriller|Western,44726644
+St. Vincent,2014,Comedy|Drama,44134898
+About Last Night,2014,Comedy|Romance,48637684
+10 Things I Hate About You,1999,Comedy|Drama|Romance,38176108
+The New Guy,2002,Comedy,28972187
+Loaded Weapon 1,1993,Action|Comedy|Crime,27979400
+The Shallows,2016,Drama|Horror|Thriller,54257433
+The Butterfly Effect,2004,Sci-Fi|Thriller,23947
+Snow Day,2000,Adventure|Comedy|Family,60008303
+This Christmas,2007,Comedy|Drama|Romance,49121934
+Baby Geniuses,1999,Comedy|Crime|Family|Sci-Fi,27141959
+The Big Hit,1998,Action|Comedy|Crime|Thriller,27052167
+Harriet the Spy,1996,Comedy|Drama|Family,26539321
+Child's Play 2,1990,Fantasy|Horror,28501605
+No Good Deed,2014,Crime|Thriller,52543632
+The Mist,2007,Horror,25592632
+Ex Machina,2015,Drama|Mystery|Sci-Fi|Thriller,25440971
+Being John Malkovich,1999,Comedy|Drama|Fantasy,22858926
+Two Can Play That Game,2001,Comedy|Romance,22235901
+Earth to Echo,2014,Adventure|Family|Sci-Fi,38916903
+Crazy/Beautiful,2001,Drama|Romance,16929123
+Letters from Iwo Jima,2006,Drama|History|War,13753931
+The Astronaut Farmer,2006,Adventure|Drama|Sci-Fi,10996440
+Room,2015,Drama,14677654
+Dirty Work,1998,Comedy,9975684
+Serial Mom,1994,Comedy|Crime|Thriller,7881335
+Dick,1999,Comedy,6241697
+Light It Up,1999,Drama|Thriller,5871603
+54,1998,Drama|Music,16574731
+Bubble Boy,2001,Adventure|Comedy|Romance|Sci-Fi,5002310
+Birthday Girl,2001,Comedy|Crime|Thriller,4919896
+21 & Over,2013,Comedy,25675765
+"Paris, je t'aime",2006,Comedy|Drama|Romance,4857376
+Resurrecting the Champ,2007,Drama|Sport,3169424
+Admission,2013,Comedy|Drama|Romance,18004225
+The Widow of Saint-Pierre,2000,Drama|Romance,3058380
+Chloe,2009,Drama|Mystery|Romance|Thriller,3074838
+Faithful,1996,Comedy|Crime|Drama,2104000
+Brothers,2009,Drama|Thriller,28501651
+Find Me Guilty,2006,Biography|Comedy|Crime|Drama,1172769
+The Perks of Being a Wallflower,2012,Drama|Romance,17738570
+Excessive Force,1993,Action,1200000
+Infamous,2006,Biography|Crime|Drama,1150403
+The Claim,2000,Drama|Romance|Western,403932
+The Vatican Tapes,2015,Horror|Thriller,1712111
+Attack the Block,2011,Action|Comedy|Sci-Fi|Thriller,1024175
+In the Land of Blood and Honey,2011,Drama|Romance|War,301305
+The Call,2013,Crime|Thriller,51872378
+The Crocodile Hunter: Collision Course,2002,Action|Adventure|Comedy|Family,28399192
+I Love You Phillip Morris,2009,Biography|Comedy|Crime|Drama|Romance,2035566
+Antwone Fisher,2002,Biography|Drama,21078145
+The Emperor's Club,2002,Drama,14060950
+True Romance,1993,Action|Crime|Drama|Romance|Thriller,12281500
+Glengarry Glen Ross,1992,Crime|Drama|Mystery,10725228
+The Killer Inside Me,2010,Crime|Drama|Thriller,214966
+Sorority Row,2009,Horror|Mystery,11956207
+Lars and the Real Girl,2007,Comedy|Drama|Romance,5949693
+The Boy in the Striped Pajamas,2008,Drama|War,9030581
+Dancer in the Dark,2000,Crime|Drama|Musical,4157491
+Oscar and Lucinda,1997,Drama|Romance,1508689
+The Funeral,1996,Crime|Drama,1227324
+Solitary Man,2009,Comedy|Drama|Romance,4360548
+Machete,2010,Action|Crime|Thriller,26589953
+Casino Jack,2010,Biography|Comedy|Crime|Drama,1039869
+The Land Before Time,1988,Adventure|Animation|Family,48092846
+Tae Guk Gi: The Brotherhood of War,2004,Action|Drama|War,1110186
+The Perfect Game,2009,Comedy|Drama|Family|Sport,1089445
+The Exorcist,1973,Horror,204565000
+Jaws,1975,Adventure|Drama|Thriller,260000000
+American Pie,1999,Comedy,101736215
+Ernest & Celestine,2012,Animation|Comedy|Crime|Drama|Family,71442
+The Golden Child,1986,Action|Adventure|Comedy|Fantasy|Mystery,79817937
+Think Like a Man,2012,Comedy|Romance,91547205
+Barbershop,2002,Comedy|Drama,75074950
+Star Trek II: The Wrath of Khan,1982,Action|Adventure|Sci-Fi,78900000
+Ace Ventura: Pet Detective,1994,Comedy,72217000
+WarGames,1983,Sci-Fi|Thriller,79568000
+Witness,1985,Crime|Drama|Romance|Thriller,65500000
+Act of Valor,2012,Action|Adventure|Drama|Thriller|War,70011073
+Step Up,2006,Crime|Drama|Music|Romance,65269010
+Beavis and Butt-Head Do America,1996,Adventure|Animation|Comedy|Crime,63071133
+Jackie Brown,1997,Crime|Thriller,39647595
+Harold & Kumar Escape from Guantanamo Bay,2008,Adventure|Comedy,38087366
+Chronicle,2012,Drama|Sci-Fi|Thriller,64572496
+Yentl,1983,Drama|Musical|Romance,30400000
+Time Bandits,1981,Adventure|Comedy|Fantasy|Sci-Fi,42365600
+Crossroads,2002,Comedy|Drama,37188667
+Project X,2012,Comedy|Crime,54724272
+One Hour Photo,2002,Drama|Thriller,31597131
+Quarantine,2008,Horror|Sci-Fi|Thriller,31691811
+The Eye,2008,Horror|Mystery,31397498
+Johnson Family Vacation,2004,Comedy,31179516
+How High,2001,Comedy|Fantasy,31155435
+The Muppet Christmas Carol,1992,Comedy|Drama|Family|Fantasy|Musical,27281507
+Casino Royale,2006,Action|Adventure|Thriller,167007184
+Frida,2002,Biography|Drama|Romance,25776062
+Katy Perry: Part of Me,2012,Documentary|Music,25240988
+The Fault in Our Stars,2014,Drama|Romance,124868837
+Rounders,1998,Crime|Drama,22905674
+Top Five,2014,Comedy|Romance,25277561
+Stir of Echoes,1999,Horror|Mystery|Thriller,21133087
+Philomena,2013,Biography|Drama,37707719
+The Upside of Anger,2005,Comedy|Drama,18761993
+Aquamarine,2006,Comedy|Family|Fantasy|Romance,18595716
+Paper Towns,2015,Drama|Mystery|Romance,31990064
+Nebraska,2013,Adventure|Comedy|Drama,17613460
+Tales from the Crypt: Demon Knight,1995,Action|Fantasy|Horror|Thriller,21088568
+Max Keeble's Big Move,2001,Comedy|Crime|Family,17292381
+Young Adult,2011,Comedy|Drama,16300302
+Crank,2006,Action|Crime|Thriller,27829874
+Living Out Loud,1998,Comedy|Drama|Romance,12902790
+Das Boot,1981,Adventure|Drama|Thriller|War,11433134
+The Alamo,2004,Drama|History|War|Western,22406362
+Sorority Boys,2002,Comedy,10198766
+About Time,2013,Drama|Fantasy|Romance,15294553
+House of Flying Daggers,2004,Action|Adventure|Drama|Romance,11041228
+Arbitrage,2012,Drama|Thriller,7918283
+Project Almanac,2015,Sci-Fi|Thriller,22331028
+Cadillac Records,2008,Biography|Drama|Music,8134217
+Screwed,2000,Comedy|Crime,6982680
+Fortress,1992,Action|Crime|Sci-Fi|Thriller,6739141
+For Your Consideration,2006,Comedy,5542025
+Celebrity,1998,Comedy|Drama,5032496
+Running with Scissors,2006,Comedy|Drama,6754898
+From Justin to Kelly,2003,Comedy|Musical|Romance,4922166
+Girl 6,1996,Comedy|Drama,4903000
+In the Cut,2003,Mystery|Thriller,4717455
+Two Lovers,2008,Drama|Romance,3148482
+Last Orders,2001,Drama,2326407
+The Host,2006,Comedy|Drama|Horror|Sci-Fi,2201412
+Ravenous,1999,Fantasy|Horror|Thriller,2060953
+Charlie Bartlett,2007,Comedy|Drama|Romance,3950294
+The Great Beauty,2013,Drama,2835886
+The Dangerous Lives of Altar Boys,2002,Comedy|Drama,1779284
+Stoker,2013,Drama|Thriller,1702277
+2046,2004,Drama|Romance|Sci-Fi,261481
+Married Life,2007,Crime|Drama|Romance,1506998
+Duma,2005,Adventure|Drama|Family,860002
+Ondine,2009,Drama|Mystery|Romance,548934
+Brother,2000,Crime|Drama|Thriller,447750
+Welcome to Collinwood,2002,Comedy|Crime,333976
+Critical Care,1997,Comedy|Drama,141853
+The Life Before Her Eyes,2007,Drama|Mystery|Thriller,303439
+Trade,2007,Crime|Drama|Thriller,214202
+Fateless,2005,Drama|Romance|War,195888
+Breakfast of Champions,1999,Comedy,175370
+City of Life and Death,2009,Drama|History|War,119922
+Home,2015,Adventure|Animation|Comedy|Family|Fantasy|Sci-Fi,177343675
+5 Days of War,2011,Action|Drama|War,17149
+Snatch,2000,Comedy|Crime,30093107
+Pet Sematary,1989,Fantasy|Horror,57469179
+Gremlins,1984,Comedy|Fantasy|Horror,148170000
+Star Wars: Episode IV - A New Hope,1977,Action|Adventure|Fantasy|Sci-Fi,460935665
+Dirty Grandpa,2016,Comedy,35537564
+Doctor Zhivago,1965,Drama|Romance|War,111722000
+High School Musical 3: Senior Year,2008,Comedy|Drama|Family|Music|Musical|Romance,90556401
+The Fighter,2010,Biography|Drama|Sport,93571803
+My Cousin Vinny,1992,Comedy|Crime,52929168
+If I Stay,2014,Drama|Fantasy|Music|Romance,50461335
+Major League,1989,Comedy|Sport,49797148
+Phone Booth,2002,Crime|Thriller,46563158
+A Walk to Remember,2002,Drama|Romance,41227069
+Dead Man Walking,1995,Crime|Drama,39025000
+Cruel Intentions,1999,Drama|Romance,38201895
+Saw VI,2009,Horror|Mystery,27669413
+The Secret Life of Bees,2008,Drama,37766350
+Corky Romano,2001,Comedy|Crime,23978402
+Raising Cain,1992,Crime|Drama|Thriller,21370057
+Invaders from Mars,1986,Horror|Sci-Fi,4884663
+Brooklyn,2015,Drama|Romance,38317535
+Out Cold,2001,Comedy|Sport,13903262
+The Ladies Man,2000,Comedy,13592872
+Quartet,2012,Comedy|Drama,18381787
+Tomcats,2001,Comedy,13558739
+Frailty,2001,Crime|Drama|Thriller,13103828
+Woman in Gold,2015,Biography|Drama|History,33305037
+Kinsey,2004,Biography|Drama,10214647
+Army of Darkness,1992,Comedy|Fantasy|Horror,11501093
+Slackers,2002,Comedy|Romance,4814244
+What's Eating Gilbert Grape,1993,Drama|Romance,9170214
+The Visual Bible: The Gospel of John,2003,Biography|Drama|History,4068087
+Vera Drake,2004,Crime|Drama,3753806
+The Guru,2002,Comedy|Music|Romance,3034181
+The Perez Family,1995,Comedy|Drama|Romance,2832826
+Inside Llewyn Davis,2013,Drama|Music,13214255
+O,2001,Drama|Romance|Thriller,16017403
+Return to the Blue Lagoon,1991,Adventure|Drama|Romance,2807854
+Copying Beethoven,2006,Biography|Drama|Music,352786
+Poltergeist,1982,Fantasy|Horror,76600000
+Saw V,2008,Horror|Mystery,56729973
+Jindabyne,2006,Crime|Drama|Mystery|Thriller,399879
+Kabhi Alvida Naa Kehna,2006,Drama,3275443
+An Ideal Husband,1999,Comedy|Romance,18535191
+The Last Days on Mars,2013,Horror|Sci-Fi|Thriller,23838
+Darkness,2002,Horror,22160085
+2001: A Space Odyssey,1968,Adventure|Mystery|Sci-Fi,56715371
+E.T. the Extra-Terrestrial,1982,Family|Sci-Fi,434949459
+In the Land of Women,2007,Comedy|Drama|Romance,11043445
+For Greater Glory: The True Story of Cristiada,2012,Drama|History|War,5669081
+Good Will Hunting,1997,Drama,138339411
+Saw III,2006,Horror|Mystery,80150343
+Stripes,1981,Action|Comedy|War,85300000
+Bring It On,2000,Comedy|Sport,68353550
+The Purge: Election Year,2016,Action|Horror|Sci-Fi|Thriller,78845130
+She's All That,1999,Comedy|Romance,63319509
+Precious,2009,Drama,47536959
+Saw IV,2007,Horror|Mystery,63270259
+White Noise,2005,Drama|Horror|Mystery|Thriller,55865715
+Madea's Family Reunion,2006,Comedy|Drama|Romance,63231524
+The Color of Money,1986,Drama|Sport,52293982
+The Mighty Ducks,1992,Comedy|Drama|Family|Sport,50752337
+The Grudge,2004,Horror|Mystery|Thriller,110175871
+Happy Gilmore,1996,Comedy|Sport,38624000
+Jeepers Creepers,2001,Horror|Mystery,37470017
+Bill & Ted's Excellent Adventure,1989,Adventure|Comedy|Music|Sci-Fi,40485039
+Oliver!,1968,Drama|Family|Musical,16800000
+The Best Exotic Marigold Hotel,2011,Comedy|Drama,46377022
+Recess: School's Out,2001,Animation|Comedy|Family|Mystery|Sci-Fi,36696761
+Mad Max Beyond Thunderdome,1985,Action|Adventure|Sci-Fi|Thriller,36200000
+The Boy,2016,Horror|Mystery|Thriller,35794166
+Devil,2010,Horror|Mystery|Thriller,33583175
+Friday After Next,2002,Comedy|Drama,32983713
+Insidious: Chapter 3,2015,Fantasy|Horror|Thriller,52200504
+The Last Dragon,1985,Action|Comedy|Drama|Music,33000000
+Snatch,2000,Comedy|Crime,30093107
+The Lawnmower Man,1992,Horror|Sci-Fi,32101000
+Nick and Norah's Infinite Playlist,2008,Comedy|Drama|Music|Romance,31487293
+Dogma,1999,Adventure|Comedy|Drama|Fantasy,30651422
+The Banger Sisters,2002,Comedy|Drama,30306281
+Twilight Zone: The Movie,1983,Fantasy|Horror|Sci-Fi,29500000
+Road House,1989,Action|Thriller,30050028
+A Low Down Dirty Shame,1994,Action|Comedy|Crime,29392418
+Swimfan,2002,Drama|Thriller,28563926
+Employee of the Month,2006,Comedy|Romance,28435406
+Can't Hardly Wait,1998,Comedy|Romance,25339117
+The Outsiders,1983,Crime|Drama,25600000
+Sinister 2,2015,Horror|Mystery|Thriller,27736779
+Sparkle,2012,Drama|Music,24397469
+Valentine,2001,Horror|Mystery|Thriller,20384136
+The Fourth Kind,2009,Mystery|Sci-Fi|Thriller,25464480
+A Prairie Home Companion,2006,Comedy|Drama|Music,20338609
+Sugar Hill,1993,Drama|Thriller,18272447
+Rushmore,1998,Comedy|Drama,17096053
+Skyline,2010,Action|Sci-Fi|Thriller,21371425
+The Second Best Exotic Marigold Hotel,2015,Comedy|Drama,33071558
+Kit Kittredge: An American Girl,2008,Drama|Family,17655201
+The Perfect Man,2005,Comedy|Family|Romance,16247775
+Mo' Better Blues,1990,Drama|Music|Romance,16153600
+Kung Pow: Enter the Fist,2002,Action|Comedy,16033556
+Tremors,1990,Comedy|Horror|Sci-Fi,16667084
+Wrong Turn,2003,Horror|Thriller,15417771
+The Corruptor,1999,Action|Crime|Drama|Mystery|Thriller,15156200
+Mud,2012,Drama,21589307
+Reno 911!: Miami,2007,Comedy|Crime,20339754
+One Direction: This Is Us,2013,Documentary|Music,28873374
+Hey Arnold! The Movie,2002,Adventure|Animation|Comedy|Family,13684949
+My Week with Marilyn,2011,Biography|Drama,14597405
+The Matador,2005,Comedy|Crime|Drama|Thriller,12570442
+Love Jones,1997,Drama|Romance,12514138
+The Gift,2015,Mystery|Thriller,43771291
+End of the Spear,2005,Adventure|Drama,11703287
+Get Over It,2001,Comedy|Romance,11560259
+Office Space,1999,Comedy,10824921
+Drop Dead Gorgeous,1999,Comedy|Romance|Thriller,10561238
+Big Eyes,2014,Biography|Crime|Drama|Romance,14479776
+Very Bad Things,1998,Comedy|Crime|Thriller,9801782
+Sleepover,2004,Comedy|Romance,8070311
+MacGruber,2010,Action|Comedy|Romance,8460995
+Dirty Pretty Things,2002,Crime|Drama|Thriller,8111360
+Movie 43,2013,Comedy,8828771
+The Tourist,2010,Action|Romance|Thriller,67631157
+Over Her Dead Body,2008,Comedy|Fantasy|Romance,7563670
+Seeking a Friend for the End of the World,2012,Adventure|Comedy|Drama|Romance|Sci-Fi,6619173
+American History X,1998,Crime|Drama,6712241
+The Collection,2012,Action|Horror|Thriller,6842058
+Teacher's Pet,2004,Animation|Comedy|Family|Fantasy|Musical,6491350
+The Red Violin,1998,Drama|Music|Mystery|Romance,9473382
+The Straight Story,1999,Biography|Drama,6197866
+Deuces Wild,2002,Action|Crime|Drama,6044618
+Bad Words,2013,Comedy|Drama,7764027
+Black or White,2014,Drama,21569041
+On the Line,2001,Comedy|Family|Romance,4356743
+Rescue Dawn,2006,Adventure|Biography|Drama|War,5484375
+"Jeff, Who Lives at Home",2011,Comedy|Drama,4244155
+I Am Love,2009,Drama|Romance,5004648
+Atlas Shrugged II: The Strike,2012,Drama|Mystery|Sci-Fi,3333823
+Romeo Is Bleeding,1993,Action|Crime|Drama|Thriller,3275585
+The Limey,1999,Crime|Drama|Mystery|Thriller,3193102
+Crash,2004,Crime|Drama|Thriller,54557348
+The House of Mirth,2000,Drama|Romance,3041803
+Malone,1987,Action|Drama|Thriller,3060858
+Peaceful Warrior,2006,Drama|Romance|Sport,1055654
+Bucky Larson: Born to Be a Star,2011,Comedy,2331318
+Bamboozled,2000,Comedy|Drama|Music,2185266
+The Forest,2016,Horror|Mystery|Thriller,26583369
+Sphinx,1981,Adventure|Mystery|Thriller,800000
+While We're Young,2014,Comedy|Drama,7574066
+A Better Life,2011,Drama|Romance,1754319
+Spider,2002,Drama|Mystery|Thriller,1641788
+Gun Shy,2000,Comedy|Crime|Romance,1631839
+Nicholas Nickleby,2002,Drama|Romance,1309849
+The Iceman,2012,Biography|Crime|Drama,1939441
+Cecil B. DeMented,2000,Comedy|Crime|Thriller,1276984
+Killer Joe,2011,Crime|Drama|Romance|Thriller,1987762
+The Joneses,2009,Comedy|Drama,1474508
+Owning Mahowny,2003,Crime|Drama|Thriller,1011054
+The Brothers Solomon,2007,Comedy,900926
+My Blueberry Nights,2007,Drama|Romance,866778
+Swept Away,2002,Comedy|Romance,598645
+"War, Inc.",2008,Action|Comedy|Thriller,578527
+Shaolin Soccer,2001,Action|Comedy|Sport,488872
+The Brown Bunny,2003,Drama,365734
+Rosewater,2014,Biography|Drama,3093491
+Imaginary Heroes,2004,Comedy|Drama,228524
+High Heels and Low Lifes,2001,Action|Comedy|Drama,226792
+Severance,2006,Comedy|Horror|Thriller,136432
+Edmond,2005,Drama|Thriller,131617
+Police Academy: Mission to Moscow,1994,Comedy|Crime,126247
+An Alan Smithee Film: Burn Hollywood Burn,1997,Comedy,15447
+The Open Road,2009,Comedy|Drama,19348
+The Good Guy,2009,Comedy|Romance,100503
+Motherhood,2009,Comedy|Drama,92900
+Blonde Ambition,2007,Comedy|Romance,5561
+The Oxford Murders,2008,Crime|Mystery|Thriller,3607
+Eulogy,2004,Comedy|Drama,70527
+"The Good, the Bad, the Weird",2008,Action|Adventure|Comedy|Western,128486
+The Lost City,2005,Drama|Romance,2483955
+Next Friday,2000,Comedy,57176582
+You Only Live Twice,1967,Action|Adventure|Thriller,43100000
+Amour,2012,Drama|Romance,225377
+Poltergeist III,1988,Horror|Thriller,14114488
+"It's a Mad, Mad, Mad, Mad World",1963,Action|Adventure|Comedy|Crime,46300000
+Richard III,1995,Drama|War,2600000
+Melancholia,2011,Drama|Sci-Fi,3029870
+Jab Tak Hai Jaan,2012,Drama|Romance,3047539
+Alien,1979,Horror|Sci-Fi,78900000
+The Texas Chain Saw Massacre,1974,Horror|Thriller,30859000
+The Runaways,2010,Biography|Drama|Music,3571735
+Fiddler on the Roof,1971,Drama|Family|Musical|Romance,50000000
+Thunderball,1965,Action|Adventure|Thriller,63600000
+Set It Off,1996,Action|Crime|Drama|Romance|Thriller,36049108
+The Best Man,1999,Comedy|Drama,34074895
+Child's Play,1988,Fantasy|Horror,33244684
+Sicko,2007,Documentary|Drama,24530513
+The Purge: Anarchy,2014,Action|Horror|Sci-Fi|Thriller,71519230
+Down to You,2000,Comedy|Drama|Romance,20035310
+Harold & Kumar Go to White Castle,2004,Adventure|Comedy,18225165
+The Contender,2000,Drama|Thriller,17804273
+Boiler Room,2000,Crime|Drama|Thriller,16938179
+Black Christmas,2006,Horror,16235293
+Henry V,1989,Action|Biography|Drama|History|Romance|War,10161099
+The Way of the Gun,2000,Action|Crime|Drama|Thriller,6047856
+Igby Goes Down,2002,Comedy|Drama,4681503
+PCU,1994,Comedy,4350774
+Gracie,2007,Biography|Drama|Sport,2955039
+Trust the Man,2005,Comedy|Drama|Romance,1530535
+Hamlet 2,2008,Comedy|Music,4881867
+Glee: The 3D Concert Movie,2011,Documentary|Music,11860839
+The Legend of Suriyothai,2001,Action|Adventure|Drama|History|War,454255
+Two Evil Eyes,1990,Horror,349618
+All or Nothing,2002,Drama,112935
+Princess Kaiulani,2009,Drama,883887
+Opal Dream,2006,Drama|Family,13751
+Flame and Citron,2008,Drama|History|Thriller|War,145109
+Undiscovered,2005,Comedy|Music|Romance,1046166
+Crocodile Dundee,1986,Adventure|Comedy,174635000
+Awake,2007,Crime|Mystery|Thriller,14373825
+Skin Trade,2014,Action|Crime|Thriller,162
+Crazy Heart,2009,Drama|Music|Romance,39462438
+The Rose,1979,Drama|Music|Romance,29200000
+Baggage Claim,2013,Comedy,21564616
+Election,1999,Comedy|Drama,14879556
+The DUFF,2015,Comedy,34017854
+Glitter,2001,Drama|Music|Romance,4273372
+Bright Star,2009,Biography|Drama|Romance,4440055
+My Name Is Khan,2010,Adventure|Drama|Thriller,4018695
+Footloose,1984,Drama|Music|Romance,80000000
+Limbo,1999,Adventure|Drama|Thriller,1997807
+The Karate Kid,1984,Action|Drama|Family|Sport,90800000
+Repo! The Genetic Opera,2008,Horror|Musical|Sci-Fi,140244
+Pulp Fiction,1994,Crime|Drama,107930000
+Nightcrawler,2014,Crime|Drama|Thriller,32279955
+Club Dread,2004,Comedy|Horror|Thriller,4992159
+The Sound of Music,1965,Biography|Drama|Family|Musical|Romance,163214286
+Splash,1984,Comedy|Fantasy|Romance,69800000
+Little Miss Sunshine,2006,Comedy|Drama,59889948
+Stand by Me,1986,Adventure|Drama,52287414
+28 Days Later...,2002,Drama|Horror|Sci-Fi|Thriller,45063889
+You Got Served,2004,Drama|Music,40066497
+Escape from Alcatraz,1979,Biography|Crime|Drama,36500000
+Brown Sugar,2002,Comedy|Drama|Music|Romance,27362712
+A Thin Line Between Love and Hate,1996,Comedy|Crime|Drama|Romance|Thriller,34746109
+50/50,2011,Comedy|Drama|Romance,34963967
+Shutter,2008,Horror|Mystery|Thriller,25926543
+That Awkward Moment,2014,Comedy|Romance,26049082
+Much Ado About Nothing,1993,Comedy|Drama|Romance,22551000
+On Her Majesty's Secret Service,1969,Action|Adventure|Thriller,22800000
+New Nightmare,1994,Fantasy|Horror|Mystery|Thriller,18090181
+Drive Me Crazy,1999,Comedy|Drama|Romance,17843379
+Half Baked,1998,Comedy|Crime,17278980
+New in Town,2009,Comedy|Romance,16699684
+Syriana,2005,Drama|Thriller,50815288
+American Psycho,2000,Crime|Drama,15047419
+The Good Girl,2002,Drama|Romance,14015786
+The Boondock Saints II: All Saints Day,2009,Action|Crime|Thriller,10269307
+Enough Said,2013,Comedy|Drama|Romance,17536788
+Easy A,2010,Comedy|Romance,58401464
+Shadow of the Vampire,2000,Drama|Horror,8279017
+Prom,2011,Comedy|Drama,10106233
+Held Up,1999,Comedy,4692814
+Woman on Top,2000,Comedy|Fantasy|Romance,5018450
+Anomalisa,2015,Animation|Comedy|Drama|Romance,3442820
+Another Year,2010,Comedy|Drama,3205244
+8 Women,2002,Comedy|Crime|Musical|Romance,3076425
+Showdown in Little Tokyo,1991,Action|Comedy|Crime|Thriller,2275557
+Clay Pigeons,1998,Comedy|Crime,1789892
+It's Kind of a Funny Story,2010,Comedy|Drama|Romance,6350058
+Made in Dagenham,2010,Biography|Comedy|Drama|History,1094798
+When Did You Last See Your Father?,2007,Biography|Drama,1071240
+Prefontaine,1997,Biography|Drama|Romance|Sport,532190
+The Secret of Kells,2009,Adventure|Animation|Family|Fantasy,686383
+Begin Again,2013,Drama|Music,16168741
+Down in the Valley,2005,Drama|Romance|Thriller,568695
+Brooklyn Rules,2007,Crime|Drama,398420
+The Singing Detective,2003,Comedy|Crime|Musical|Mystery,336456
+Fido,2006,Comedy|Drama|Horror|Sci-Fi,298110
+The Wendell Baker Story,2005,Comedy|Drama|Romance,127144
+Wild Target,2010,Action|Comedy|Crime,117190
+Pathology,2008,Crime|Horror|Thriller,108662
+10th & Wolf,2006,Crime|Drama|Thriller,53481
+Dear Wendy,2004,Comedy|Crime|Drama|Romance,23106
+Akira,1988,Action|Animation|Sci-Fi,439162
+Imagine Me & You,2005,Comedy|Drama|Romance,671240
+The Blood of Heroes,1989,Action|Sci-Fi|Sport,882290
+Driving Miss Daisy,1989,Comedy|Drama|Family,106593296
+Soul Food,1997,Comedy|Drama,43490057
+Rumble in the Bronx,1995,Action|Comedy,32333860
+Thank You for Smoking,2005,Comedy|Drama,24792061
+Hostel: Part II,2007,Horror,17544812
+An Education,2009,Drama,12574715
+The Hotel New Hampshire,1984,Comedy|Drama|Romance,5100000
+Narc,2002,Crime|Drama|Mystery|Thriller,10460089
+Men with Brooms,2002,Comedy|Drama|Romance|Sport,4239767
+Witless Protection,2008,Comedy|Crime,4131640
+Extract,2009,Comedy|Crime|Romance,10814185
+Code 46,2003,Drama|Romance|Sci-Fi|Thriller,197148
+Crash,2004,Crime|Drama|Thriller,54557348
+Albert Nobbs,2011,Drama,3014541
+Persepolis,2007,Animation|Biography|Drama|War,4443403
+The Neon Demon,2016,Horror|Thriller,1330827
+Harry Brown,2009,Action|Crime|Drama|Thriller,1818681
+Spider-Man 3,2007,Action|Adventure|Romance,336530303
+The Omega Code,1999,Action|Adventure|Fantasy|Sci-Fi|Thriller,12610552
+Juno,2007,Comedy|Drama|Romance,143492840
+Diamonds Are Forever,1971,Action|Adventure|Thriller,43800000
+The Godfather,1972,Crime|Drama,134821952
+Flashdance,1983,Drama|Music|Romance,94900000
+500 Days of Summer,2009,Comedy|Drama|Romance,32391374
+The Piano,1993,Drama|Music|Romance,40158000
+Magic Mike,2012,Comedy|Drama,113709992
+Darkness Falls,2003,Horror|Mystery|Thriller,32131483
+Live and Let Die,1973,Action|Adventure|Thriller,35400000
+My Dog Skip,2000,Drama|Family|Sport,34099640
+Jumping the Broom,2011,Comedy|Drama,37295394
+The Great Gatsby,2013,Drama|Romance,144812796
+"Good Night, and Good Luck.",2005,Biography|Drama|History,31501218
+Capote,2005,Biography|Crime|Drama,28747570
+Desperado,1995,Action|Crime|Thriller,25625110
+The Claim,2000,Drama|Romance|Western,403932
+Logan's Run,1976,Action|Adventure|Sci-Fi,25000000
+The Man with the Golden Gun,1974,Action|Adventure|Thriller,21000000
+Action Jackson,1988,Action|Comedy|Crime|Thriller,20257000
+The Descent,2005,Adventure|Horror|Thriller,26005908
+Devil's Due,2014,Horror|Mystery,15818967
+Flirting with Disaster,1996,Comedy,14891000
+The Devil's Rejects,2005,Crime|Horror,16901126
+Dope,2015,Comedy|Crime|Drama,17474107
+In Too Deep,1999,Crime|Drama|Thriller,14003141
+Skyfall,2012,Action|Adventure|Thriller,304360277
+House of 1000 Corpses,2003,Horror,12583510
+A Serious Man,2009,Comedy|Drama,9190525
+Get Low,2009,Drama|Mystery,9176553
+Warlock,1989,Action|Fantasy|Horror|Thriller,9094451
+A Single Man,2009,Drama|Romance,9166863
+The Last Temptation of Christ,1988,Drama,8373585
+Outside Providence,1999,Comedy|Drama|Romance,7292175
+Bride & Prejudice,2004,Comedy|Drama|Musical|Romance,6601079
+Rabbit-Proof Fence,2002,Adventure|Biography|Drama|History,6165429
+Who's Your Caddy?,2007,Comedy|Sport,5694308
+Split Second,1992,Action|Crime|Horror|Sci-Fi|Thriller,5430822
+The Other Side of Heaven,2001,Adventure|Biography|Drama,4720371
+Redbelt,2008,Drama|Sport,2344847
+Cyrus,2010,Comedy|Drama|Romance,7455447
+A Dog of Flanders,1999,Drama|Family,2148212
+Auto Focus,2002,Biography|Crime|Drama,2062066
+Factory Girl,2006,Biography|Drama,1654367
+We Need to Talk About Kevin,2011,Drama|Thriller,1738692
+The Mighty Macs,2009,Drama|Sport,1889522
+Mother and Child,2009,Drama|Romance,1110286
+March or Die,1977,Adventure|Drama|Romance|War,1000000
+Les visiteurs,1993,Comedy|Fantasy|Sci-Fi,700000
+Somewhere,2010,Comedy|Drama,1768416
+Chairman of the Board,1998,Comedy,306715
+Hesher,2010,Drama,382946
+The Heart of Me,2002,Drama|Romance,196067
+Freeheld,2015,Biography|Drama|Romance,532988
+The Extra Man,2010,Comedy,453079
+Ca$h,2010,Comedy|Crime|Thriller,46451
+Wah-Wah,2005,Drama,233103
+Pale Rider,1985,Western,41400000
+Dazed and Confused,1993,Comedy,7993039
+The Chumscrubber,2005,Comedy|Drama,49526
+Shade,2003,Crime|Thriller,10696
+House at the End of the Street,2012,Drama|Horror|Thriller,31607598
+Incendies,2010,Drama|Mystery|War,6857096
+"Remember Me, My Love",2003,Comedy|Drama|Romance,223878
+Elite Squad,2007,Action|Crime|Drama|Thriller,8060
+Annabelle,2014,Horror|Mystery,84263837
+Bran Nue Dae,2009,Comedy|Drama|Musical,110029
+Boyz n the Hood,1991,Crime|Drama,57504069
+La Bamba,1987,Biography|Drama|Music,54215416
+Dressed to Kill,1980,Mystery|Romance|Thriller,31899000
+The Adventures of Huck Finn,1993,Adventure|Comedy|Drama|Family,24103594
+Go,1999,Comedy|Crime,16842303
+Friends with Money,2006,Comedy|Drama|Romance,13367101
+Bats,1999,Horror|Sci-Fi|Thriller,10149779
+Nowhere in Africa,2001,Biography|Drama,6173485
+Layer Cake,2004,Crime|Drama|Thriller,2338695
+The Work and the Glory II: American Zion,2005,Drama|Western,2024854
+The East,2013,Drama|Thriller,2268296
+A Home at the End of the World,2004,Drama|Romance,1029017
+The Messenger,2009,Drama|Romance|War,66637
+Control,2007,Biography|Drama|Music,871577
+The Terminator,1984,Action|Sci-Fi,38400000
+Good Bye Lenin!,2003,Drama|Romance,4063859
+The Damned United,2009,Biography|Drama|Sport,449558
+Mallrats,1995,Comedy|Romance,2122561
+Grease,1978,Musical|Romance,181360000
+Platoon,1986,Drama|War,137963328
+Fahrenheit 9/11,2004,Documentary|Drama|War,119078393
+Butch Cassidy and the Sundance Kid,1969,Biography|Crime|Drama|Western,102308900
+Mary Poppins,1964,Comedy|Family|Fantasy|Musical,102300000
+Ordinary People,1980,Drama,54800000
+Around the World in 80 Days,2004,Action|Adventure|Comedy,24004159
+West Side Story,1961,Crime|Drama|Musical|Romance|Thriller,43650000
+Caddyshack,1980,Comedy|Sport,39800000
+The Brothers,2001,Comedy|Drama,27457409
+The Wood,1999,Comedy|Drama|Romance,25047631
+The Usual Suspects,1995,Crime|Drama|Mystery|Thriller,23272306
+A Nightmare on Elm Street 5: The Dream Child,1989,Fantasy|Horror|Romance|Thriller,22168359
+Van Wilder: Party Liaison,2002,Comedy|Romance,21005329
+The Wrestler,2008,Drama|Sport,26236603
+Duel in the Sun,1946,Drama|Romance|Western,20400000
+Best in Show,2000,Comedy,18621249
+Escape from New York,1981,Action|Sci-Fi,25244700
+School Daze,1988,Comedy|Drama|Musical,14545844
+Daddy Day Camp,2007,Comedy|Family,13235267
+Mystic Pizza,1988,Comedy|Drama|Romance,12793213
+Sliding Doors,1998,Comedy|Drama|Fantasy|Romance,11883495
+Tales from the Hood,1995,Comedy|Horror|Thriller,11797927
+The Last King of Scotland,2006,Biography|Drama|History|Thriller,17605861
+Halloween 5,1989,Horror|Thriller,11642254
+Bernie,2011,Comedy|Crime|Drama,9203192
+Pollock,2000,Biography|Drama,8596914
+200 Cigarettes,1999,Comedy|Drama|Romance,6851636
+The Words,2012,Drama|Mystery|Romance|Thriller,11434867
+Casa de mi Padre,2012,Comedy|Western,5895238
+City Island,2009,Comedy|Drama,6670712
+The Guard,2011,Comedy|Crime|Thriller,5359774
+College,2008,Comedy,4693919
+The Virgin Suicides,1999,Drama|Romance,4859475
+Miss March,2009,Comedy|Romance,4542775
+Wish I Was Here,2014,Comedy|Drama,3588432
+Simply Irresistible,1999,Comedy|Drama|Fantasy|Romance,4394936
+Hedwig and the Angry Inch,2001,Comedy|Drama|Music|Musical,3029081
+Only the Strong,1993,Action|Drama,3273588
+Shattered Glass,2003,Drama|History,2207975
+Novocaine,2001,Comedy|Crime|Drama|Thriller,2025238
+The Wackness,2008,Comedy|Drama|Romance,2077046
+Beastmaster 2: Through the Portal of Time,1991,Action|Adventure|Fantasy|Sci-Fi,869325
+The 5th Quarter,2010,Biography|Drama|Sport,399611
+The Greatest,2009,Drama|Romance,115862
+Come Early Morning,2006,Drama|Romance,117560
+Lucky Break,2001,Comedy|Crime|Romance,54606
+"Surfer, Dude",2008,Comedy,36497
+Deadfall,2012,Crime|Drama|Thriller,65804
+L'auberge espagnole,2002,Comedy|Drama,3895664
+Murder by Numbers,2002,Crime|Mystery|Thriller,31874869
+Winter in Wartime,2008,Drama|History|War,542860
+The Protector,2005,Action|Crime|Drama|Thriller,11905519
+Bend It Like Beckham,2002,Comedy|Drama|Romance|Sport,32541719
+Sunshine State,2002,Drama|Romance,3064356
+Crossover,2006,Action|Sport,7009668
+[Rec] 2,2009,Horror,27024
+The Sting,1973,Comedy|Crime|Drama,159600000
+Chariots of Fire,1981,Biography|Drama|Sport,58800000
+Diary of a Mad Black Woman,2005,Comedy|Drama|Romance,50382128
+Shine,1996,Biography|Drama|Music|Romance,35811509
+Don Jon,2013,Comedy|Drama|Romance,24475193
+Ghost World,2001,Comedy|Drama,6200756
+Iris,2001,Biography|Drama|Romance,1292119
+The Chorus,2004,Drama|Music,3629758
+Mambo Italiano,2003,Comedy|Drama,6239558
+Wonderland,2003,Crime|Drama|Mystery|Thriller,1056102
+Do the Right Thing,1989,Drama,27545445
+Harvard Man,2001,Comedy|Crime|Drama|Romance|Thriller,56007
+Le Havre,2011,Comedy|Drama,611709
+R100,2013,Comedy|Drama,22770
+Salvation Boulevard,2011,Action|Comedy|Drama|Thriller,27445
+The Ten,2007,Comedy|Romance,766487
+Headhunters,2011,Crime|Drama|Thriller,1196752
+Saint Ralph,2004,Comedy|Drama|Sport,795126
+Insidious: Chapter 2,2013,Fantasy|Horror|Thriller,83574831
+Saw II,2005,Horror|Mystery,87025093
+10 Cloverfield Lane,2016,Drama|Horror|Mystery|Sci-Fi|Thriller,71897215
+Jackass: The Movie,2002,Comedy|Documentary,64267897
+Lights Out,2016,Horror,56536016
+Paranormal Activity 3,2011,Horror,104007828
+Ouija,2014,Fantasy|Horror,50820940
+A Nightmare on Elm Street 3: Dream Warriors,1987,Action|Fantasy|Horror|Thriller,44793200
+The Gift,2015,Mystery|Thriller,43771291
+Instructions Not Included,2013,Comedy|Drama,44456509
+Paranormal Activity 4,2012,Horror,53884821
+The Robe,1953,Drama|History,36000000
+Freddy's Dead: The Final Nightmare,1991,Comedy|Fantasy|Horror|Thriller,34872293
+Monster,2003,Biography|Crime|Drama|Thriller,34468224
+Paranormal Activity: The Marked Ones,2014,Fantasy|Horror|Thriller,32453345
+Dallas Buyers Club,2013,Biography|Drama,27296514
+The Lazarus Effect,2015,Horror|Sci-Fi|Thriller,25799043
+Memento,2000,Mystery|Thriller,25530884
+Oculus,2013,Horror|Mystery,27689474
+Clerks II,2006,Comedy,24138847
+Billy Elliot,2000,Drama|Music,21994911
+The Way Way Back,2013,Comedy|Drama,21501098
+House Party 2,1991,Comedy|Drama|Music|Romance,19281235
+Doug's 1st Movie,1999,Animation|Comedy|Family,19421271
+The Apostle,1997,Drama,20733485
+Our Idiot Brother,2011,Comedy|Drama,24809547
+The Players Club,1998,Comedy|Drama,23031390
+O,2001,Drama|Romance|Thriller,16017403
+"As Above, So Below",2014,Horror|Mystery|Thriller,21197315
+Addicted,2014,Drama|Thriller,17382982
+Eve's Bayou,1997,Drama,14821531
+Still Alice,2014,Drama,18656400
+Friday the 13th Part VIII: Jason Takes Manhattan,1989,Adventure|Horror,14343976
+My Big Fat Greek Wedding,2002,Comedy|Family|Romance,241437427
+Spring Breakers,2012,Crime|Drama,14123773
+Halloween: The Curse of Michael Myers,1995,Horror|Thriller,15126948
+Y Tu Mamá También,2001,Adventure|Comedy|Drama|Romance,13622333
+Shaun of the Dead,2004,Comedy|Horror,13464388
+The Haunting of Molly Hartley,2008,Drama|Horror|Thriller,13350177
+Lone Star,1996,Drama|Mystery,13269963
+Halloween 4: The Return of Michael Myers,1988,Horror|Thriller,17768000
+April Fool's Day,1986,Horror|Mystery,12947763
+Diner,1982,Comedy|Drama,14100000
+Lone Wolf McQuade,1983,Action|Crime|Drama|Thriller|Western,12200000
+Apollo 18,2011,Horror|Mystery|Sci-Fi|Thriller,17683670
+Sunshine Cleaning,2008,Comedy|Drama,12055108
+No Escape,2015,Action|Thriller,27285953
+Not Easily Broken,2009,Drama|Romance,10572742
+Digimon: The Movie,2000,Action|Adventure|Animation|Family|Sci-Fi,9628751
+Saved!,2004,Comedy|Drama,8786715
+The Barbarian Invasions,2003,Comedy|Crime|Drama|Mystery|Romance,3432342
+The Forsaken,2001,Horror|Thriller,6755271
+UHF,1989,Comedy|Drama,6157157
+Slums of Beverly Hills,1998,Comedy|Drama,5480318
+Made,2001,Comedy|Crime|Drama|Thriller,5308707
+Moon,2009,Drama|Mystery|Sci-Fi,5009677
+The Sweet Hereafter,1997,Drama,4306697
+Of Gods and Men,2010,Drama,3950029
+Bottle Shock,2008,Comedy|Drama,4040588
+Heavenly Creatures,1994,Biography|Crime|Drama|Romance|Thriller,3049135
+90 Minutes in Heaven,2015,Drama,4700361
+Everything Must Go,2010,Comedy|Drama,2711210
+Zero Effect,1998,Comedy|Crime|Drama|Mystery|Thriller,1980338
+The Machinist,2004,Drama|Thriller,1082044
+Light Sleeper,1992,Crime|Drama,1100000
+Kill the Messenger,2014,Biography|Crime|Drama|Mystery|Thriller,2445646
+Rabbit Hole,2010,Drama,2221809
+Party Monster,2003,Biography|Crime|Drama|Thriller,296665
+Green Room,2015,Crime|Horror|Music|Thriller,3219029
+Bottle Rocket,1996,Comedy|Crime|Drama,1040879
+Albino Alligator,1996,Crime|Drama|Thriller,326308
+"Lovely, Still",2008,Drama|Romance,124720
+Desert Blue,1998,Drama,99147
+Redacted,2007,Crime|Thriller|War,65087
+Fascination,2004,Mystery|Romance|Thriller,16066
+I Served the King of England,2006,Comedy|Drama|Romance|War,617228
+Sling Blade,1996,Drama,24475416
+Hostel,2005,Horror,47277326
+Tristram Shandy: A Cock and Bull Story,2005,Comedy|Drama,1247453
+Take Shelter,2011,Drama|Thriller,1729969
+Lady in White,1988,Fantasy|Horror|Mystery|Thriller,1705139
+The Texas Chainsaw Massacre 2,1986,Comedy|Horror,8025872
+Only God Forgives,2013,Crime|Drama,778565
+The Names of Love,2010,Comedy|Drama|Romance,513836
+Savage Grace,2007,Drama,434417
+Police Academy,1984,Comedy,81200000
+Four Weddings and a Funeral,1994,Comedy|Drama|Romance,52700832
+25th Hour,2002,Drama,13060843
+Bound,1996,Crime|Drama|Romance|Thriller,3798532
+Requiem for a Dream,2000,Drama,3609278
+Tango,1998,Drama|Musical,1687311
+Donnie Darko,2001,Drama|Sci-Fi|Thriller,727883
+Character,1997,Crime|Drama|Mystery,713413
+Spun,2002,Comedy|Crime|Drama,410241
+Lady Vengeance,2005,Crime|Drama,211667
+Mean Machine,2001,Comedy|Drama|Sport,92191
+Exiled,2006,Action|Crime|Thriller,49413
+After.Life,2009,Drama|Horror|Mystery|Thriller,108229
+One Flew Over the Cuckoo's Nest,1975,Drama,112000000
+The Sweeney,2012,Action|Crime|Drama,26345
+Whale Rider,2002,Drama|Family,20772796
+Pan,2015,Adventure|Family|Fantasy,34964818
+Night Watch,2004,Fantasy|Thriller,1487477
+The Crying Game,1992,Crime|Drama|Romance|Thriller,62549000
+Porky's,1981,Comedy,105500000
+Survival of the Dead,2009,Horror,101055
+Lost in Translation,2003,Drama,44566004
+Annie Hall,1977,Comedy|Romance,39200000
+The Greatest Show on Earth,1952,Drama|Family|Romance,36000000
+Exodus: Gods and Kings,2014,Action|Adventure|Drama,65007045
+Monster's Ball,2001,Drama|Romance,31252964
+Maggie,2015,Drama|Horror,131175
+Leaving Las Vegas,1995,Drama|Romance,31968347
+The Boy Next Door,2015,Mystery|Thriller,35385560
+The Kids Are All Right,2010,Comedy|Drama,20803237
+They Live,1988,Horror|Sci-Fi|Thriller,13008928
+The Last Exorcism Part II,2013,Drama|Horror|Thriller,15152879
+Boyhood,2014,Drama,25359200
+Scoop,2006,Comedy|Crime|Mystery,10515579
+Planet of the Apes,2001,Action|Adventure|Sci-Fi|Thriller,180011740
+The Wash,2001,Comedy,10097096
+3 Strikes,2000,Comedy,9821335
+The Cooler,2003,Crime|Drama|Fantasy|Romance,8243880
+The Night Listener,2006,Crime|Mystery|Thriller,7825820
+My Soul to Take,2010,Horror|Mystery|Thriller,14637490
+The Orphanage,2007,Drama|Mystery|Thriller,7159147
+A Haunted House 2,2014,Comedy|Fantasy,17314483
+The Rules of Attraction,2002,Comedy|Drama|Romance,6525762
+Four Rooms,1995,Comedy|Fantasy,4301331
+Secretary,2002,Comedy|Drama|Romance,4046737
+The Real Cancun,2003,Documentary,3713002
+Talk Radio,1988,Drama,3468572
+Waiting for Guffman,1996,Comedy,2892582
+Love Stinks,1999,Comedy,2800000
+You Kill Me,2007,Comedy|Crime|Romance|Thriller,2426851
+Thumbsucker,2005,Comedy|Drama,1325073
+Mirrormask,2005,Adventure|Fantasy,864959
+Samsara,2011,Documentary|Music,2601847
+The Barbarians,1987,Adventure|Fantasy,800000
+Poolhall Junkies,2002,Drama|Thriller,562059
+The Loss of Sexual Innocence,1999,Drama,399793
+Joe,2013,Drama,371897
+Shooting Fish,1997,Comedy|Crime|Romance,302204
+Prison,1987,Crime|Drama|Horror|Thriller,354704
+Psycho Beach Party,2000,Comedy|Horror|Mystery,265107
+The Big Tease,1999,Comedy,185577
+Trust,2010,Crime|Drama|Thriller,58214
+An Everlasting Piece,2000,Comedy,75078
+Adore,2013,Drama|Romance,317125
+Mondays in the Sun,2002,Comedy|Drama,146402
+Stake Land,2010,Drama|Horror|Sci-Fi,18469
+The Last Time I Committed Suicide,1997,Biography|Drama,12836
+Futuro Beach,2014,Drama,20262
+Gone with the Wind,1939,Drama|History|Romance|War,198655278
+Desert Dancer,2014,Biography|Drama,143653
+Major Dundee,1965,Adventure|War|Western,14873
+Annie Get Your Gun,1950,Biography|Comedy|Musical|Romance|Western,8000000
+Defendor,2009,Comedy|Crime|Drama,37606
+The Pirate,1948,Adventure|Comedy|Musical|Romance,2956000
+The Good Heart,2009,Drama,19959
+The History Boys,2006,Comedy|Drama,2706659
+Unknown,2011,Action|Mystery|Thriller,61094903
+The Full Monty,1997,Comedy|Drama|Music,45857453
+Airplane!,1980,Comedy,83400000
+Friday,1995,Comedy|Drama,27900000
+Menace II Society,1993,Crime|Drama|Thriller,27900000
+Creepshow 2,1987,Comedy|Fantasy|Horror|Thriller,14000000
+The Witch,2015,Horror|Mystery,25138292
+I Got the Hook Up,1998,Comedy,10305534
+She's the One,1996,Comedy|Drama|Romance,9449219
+Gods and Monsters,1998,Biography|Drama,6390032
+The Secret in Their Eyes,2009,Drama|Mystery|Thriller,20167424
+Evil Dead II,1987,Comedy|Fantasy|Horror|Thriller,5923044
+Pootie Tang,2001,Action|Adventure|Comedy|Musical,3293258
+La otra conquista,1998,Drama|History,886410
+Trollhunter,2010,Comedy|Drama|Fantasy|Horror,252652
+Ira & Abby,2006,Comedy|Romance,220234
+The Watch,2012,Action|Comedy|Sci-Fi,34350553
+Winter Passing,2005,Comedy|Drama,101228
+D.E.B.S.,2004,Action|Comedy|Romance,96793
+March of the Penguins,2005,Documentary,77413017
+Margin Call,2011,Biography|Drama|Thriller,5354039
+Choke,2008,Comedy|Drama,2926565
+Whiplash,2014,Drama|Music,13092000
+City of God,2002,Crime|Drama,7563397
+Human Traffic,1999,Comedy|Music,104257
+The Hunt,2012,Drama,610968
+Bella,2006,Drama|Romance,8108247
+Maria Full of Grace,2004,Crime|Drama,6517198
+Beginners,2010,Comedy|Drama|Romance,5776314
+Animal House,1978,Comedy,141600000
+Goldfinger,1964,Action|Adventure|Thriller,51100000
+Trainspotting,1996,Drama,16501785
+The Original Kings of Comedy,2000,Comedy|Documentary,38168022
+Paranormal Activity 2,2010,Horror,84749884
+Waking Ned Devine,1998,Comedy,24788807
+Bowling for Columbine,2002,Crime|Documentary|Drama,21244913
+A Nightmare on Elm Street 2: Freddy's Revenge,1985,Fantasy|Horror,30000000
+A Room with a View,1985,Drama|Romance,20966644
+The Purge,2013,Horror|Sci-Fi|Thriller,64423650
+Sinister,2012,Horror|Mystery,48056940
+Martin Lawrence Live: Runteldat,2002,Biography|Comedy|Documentary,19184015
+Air Bud,1997,Comedy|Drama|Family|Sport,24629916
+Jason Lives: Friday the 13th Part VI,1986,Horror|Thriller,19472057
+The Bridge on the River Kwai,1957,Adventure|Drama|War,27200000
+Spaced Invaders,1990,Adventure|Comedy|Sci-Fi,15369573
+Jason Goes to Hell: The Final Friday,1993,Fantasy|Horror|Thriller,15935068
+Dave Chappelle's Block Party,2005,Comedy|Documentary|Music,11694528
+Next Day Air,2009,Action|Comedy|Crime,10017041
+Phat Girlz,2006,Comedy,7059537
+Before Midnight,2013,Drama|Romance,8114507
+Teen Wolf Too,1987,Comedy|Fantasy,7888703
+Phantasm II,1988,Action|Fantasy|Horror|Sci-Fi|Thriller,7282851
+Real Women Have Curves,2002,Comedy|Drama,5844929
+East Is East,1999,Comedy|Drama,4170647
+Whipped,2000,Comedy|Romance,4142507
+Kama Sutra: A Tale of Love,1996,Crime|Drama|History|Romance,4109095
+Warlock: The Armageddon,1993,Fantasy|Horror,3902679
+8 Heads in a Duffel Bag,1997,Comedy|Crime,3559990
+Thirteen Conversations About One Thing,2001,Drama,3287435
+Jawbreaker,1999,Comedy|Crime|Thriller,3071947
+Basquiat,1996,Biography|Drama,2961991
+Tsotsi,2005,Crime|Drama,2912363
+DysFunktional Family,2003,Comedy|Documentary,2223990
+Tusk,2014,Comedy|Drama|Horror,1821983
+Oldboy,2003,Drama|Mystery|Thriller,2181290
+Letters to God,2010,Drama|Family,2848578
+Hobo with a Shotgun,2011,Action|Comedy|Thriller,703002
+Bachelorette,2012,Comedy|Romance,418268
+Tim and Eric's Billion Dollar Movie,2012,Comedy,200803
+The Gambler,2014,Crime|Drama|Thriller,33631221
+Summer Storm,2004,Comedy|Drama|Romance|Sport,95016
+Chain Letter,2009,Horror|Thriller,143000
+Just Looking,1999,Comedy|Drama,39852
+The Divide,2011,Drama|Sci-Fi|Thriller,22000
+Alice in Wonderland,2010,Adventure|Family|Fantasy,334185206
+Cinderella,2015,Drama|Family|Fantasy|Romance,201148159
+Central Station,1998,Drama,5595428
+Boynton Beach Club,2005,Comedy|Romance,3123749
+High Tension,2003,Horror,3645438
+Hustle & Flow,2005,Crime|Drama|Music,22201636
+Some Like It Hot,1959,Comedy|Music|Romance,25000000
+Friday the 13th Part VII: The New Blood,1988,Horror,19170001
+The Wizard of Oz,1939,Adventure|Family|Fantasy|Musical,22202612
+Young Frankenstein,1974,Comedy,86300000
+Diary of the Dead,2007,Horror,952620
+Ulee's Gold,1997,Drama,9054736
+Blazing Saddles,1974,Comedy|Western,119500000
+Friday the 13th: The Final Chapter,1984,Horror|Thriller,32600000
+Maurice,1987,Drama|Romance,3130592
+The Astronaut's Wife,1999,Drama|Sci-Fi|Thriller,10654581
+Timecrimes,2007,Horror|Mystery|Sci-Fi|Thriller,38108
+A Haunted House,2013,Comedy|Fantasy,40041683
+2016: Obama's America,2012,Documentary,33349949
+Halloween II,2009,Horror,33386128
+That Thing You Do!,1996,Comedy|Drama|Music,25809813
+Halloween III: Season of the Witch,1982,Horror|Mystery|Sci-Fi,14400000
+Kevin Hart: Let Me Explain,2013,Comedy|Documentary,32230907
+My Own Private Idaho,1991,Drama,6401336
+Garden State,2004,Comedy|Drama|Romance,26781723
+Before Sunrise,1995,Drama|Romance,5400000
+Jesus' Son,1999,Drama,1282084
+Robot & Frank,2012,Comedy|Crime|Drama|Sci-Fi,3325638
+My Life Without Me,2003,Drama|Romance,395592
+The Spectacular Now,2013,Comedy|Drama|Romance,6851969
+Religulous,2008,Comedy|Documentary|War,12995673
+Fuel,2008,Documentary,173783
+Dodgeball: A True Underdog Story,2004,Comedy|Sport,114324072
+Eye of the Dolphin,2006,Comedy|Drama|Family,71904
+8: The Mormon Proposition,2010,Documentary,99851
+The Other End of the Line,2008,Comedy|Drama|Romance,115504
+Anatomy,2000,Horror|Thriller,5725
+Sleep Dealer,2008,Drama|Romance|Sci-Fi|Thriller,75727
+Super,2010,Comedy|Crime|Drama,322157
+Get on the Bus,1996,Drama|History,5731103
+Thr3e,2006,Drama|Horror|Mystery|Thriller,978908
+This Is England,2006,Crime|Drama,327919
+Go for It!,2011,Drama|Musical,178739
+Friday the 13th Part III,1982,Horror|Thriller,36200000
+Friday the 13th: A New Beginning,1985,Horror|Mystery|Thriller,21300000
+The Last Sin Eater,2007,Drama,379643
+The Best Years of Our Lives,1946,Drama|Romance|War,23650000
+Elling,2001,Comedy|Drama,313436
+From Russia with Love,1963,Action|Adventure|Thriller,24800000
+The Toxic Avenger Part II,1989,Action|Comedy|Horror|Sci-Fi,792966
+It Follows,2014,Horror|Mystery,14673301
+Mad Max 2: The Road Warrior,1981,Action|Adventure|Sci-Fi|Thriller,9003011
+The Legend of Drunken Master,1994,Action|Comedy,11546543
+Boys Don't Cry,1999,Biography|Crime|Drama|Romance,11533945
+Silent House,2011,Drama|Horror|Mystery|Thriller,12555230
+The Lives of Others,2006,Drama|Thriller,11284657
+Courageous,2011,Drama,34522221
+The Triplets of Belleville,2003,Animation|Comedy|Drama,7002255
+Smoke Signals,1998,Comedy|Drama,6719300
+Before Sunset,2004,Drama|Romance,5792822
+Amores Perros,2000,Drama|Thriller,5383834
+Thirteen,2003,Drama,4599680
+Winter's Bone,2010,Drama,6531491
+Me and You and Everyone We Know,2005,Comedy|Drama,3885134
+We Are Your Friends,2015,Drama|Music|Romance,3590010
+Harsh Times,2005,Action|Crime|Drama|Thriller,3335839
+Captive,2015,Crime|Drama|Thriller,2557668
+Full Frontal,2002,Comedy|Romance,2506446
+Witchboard,1986,Horror|Mystery|Thriller,7369373
+Hamlet,1996,Drama,4414535
+Shortbus,2006,Comedy|Drama|Romance,1984378
+Waltz with Bashir,2008,Animation|Biography|Documentary|Drama|History|War,2283276
+"The Book of Mormon Movie, Volume 1: The Journey",2003,Adventure,1098224
+The Diary of a Teenage Girl,2015,Drama|Romance,1477002
+In the Shadow of the Moon,2007,Documentary|History,1134049
+The Virginity Hit,2010,Comedy,535249
+House of D,2004,Comedy|Drama,371081
+Six-String Samurai,1998,Action|Adventure|Comedy|Drama|Music|Sci-Fi,124494
+Saint John of Las Vegas,2009,Comedy|Drama,100669
+Stonewall,2015,Drama,186354
+London,2005,Drama|Romance,12667
+Sherrybaby,2006,Drama,198407
+Stealing Harvard,2002,Comedy|Crime,13973532
+Gangster's Paradise: Jerusalema,2008,Action|Crime|Drama,4958
+The Lady from Shanghai,1947,Crime|Drama|Film-Noir|Mystery|Thriller,7927
+The Ghastly Love of Johnny X,2012,Comedy|Fantasy|Musical|Sci-Fi,2436
+River's Edge,1986,Crime|Drama,4600000
+Northfork,2003,Drama|Fantasy,1420578
+Buried,2010,Drama|Mystery|Thriller,1028658
+One to Another,2006,Drama,18435
+Carrie,2013,Drama|Fantasy|Horror,35266619
+A Nightmare on Elm Street,1984,Horror,26505000
+Man on Wire,2008,Biography|Crime|Documentary|History|Thriller,2957978
+Brotherly Love,2015,Drama,444044
+The Last Exorcism,2010,Drama|Horror|Thriller,40990055
+El crimen del padre Amaro,2002,Drama|Romance,5709616
+Beasts of the Southern Wild,2012,Drama|Fantasy,12784397
+Songcatcher,2000,Drama|Music,3050934
+Run Lola Run,1998,Crime|Drama,7267324
+May,2002,Drama|Horror,145540
+In the Bedroom,2001,Crime|Drama,35918429
+I Spit on Your Grave,2010,Horror|Thriller,92401
+"Happy, Texas",1999,Comedy|Crime|Romance,1943649
+My Summer of Love,2004,Drama|Romance,992238
+The Lunchbox,2013,Drama|Romance,4231500
+Yes,2004,Drama|Romance,396035
+Caramel,2007,Comedy|Drama|Romance,1060591
+Mississippi Mermaid,1969,Crime|Drama|Romance,26893
+I Love Your Work,2003,Drama|Mystery,2580
+Dawn of the Dead,2004,Action|Horror|Thriller,58885635
+Waitress,2007,Comedy|Drama|Romance,19067631
+Bloodsport,1988,Action|Biography|Drama|Sport,11806119
+The Squid and the Whale,2005,Comedy|Drama,7362100
+Kissing Jessica Stein,2001,Comedy|Drama|Romance,7022940
+Exotica,1994,Drama|Mystery|Romance,5132222
+Buffalo '66,1998,Comedy|Crime|Drama|Romance,2365931
+Insidious,2010,Fantasy|Horror|Mystery|Thriller,53991137
+Nine Queens,2000,Crime|Drama|Thriller,1221261
+The Ballad of Jack and Rose,2005,Drama,712294
+The To Do List,2013,Comedy|Romance,3447339
+Killing Zoe,1993,Crime|Drama|Thriller,418953
+The Believer,2001,Drama,406035
+Session 9,2001,Horror|Mystery,373967
+I Want Someone to Eat Cheese With,2006,Comedy|Romance,194568
+Modern Times,1936,Comedy|Drama|Family,163245
+Stolen Summer,2002,Drama,119841
+My Name Is Bruce,2007,Comedy|Fantasy,173066
+Pontypool,2008,Fantasy|Horror,3478
+Trucker,2008,Drama,52166
+The Lords of Salem,2012,Drama|Fantasy|Horror|Thriller,1163508
+Jack Reacher,2012,Action|Crime|Mystery|Thriller,80033643
+Snow White and the Seven Dwarfs,1937,Animation|Family|Fantasy|Musical,184925485
+The Holy Girl,2004,Drama,304124
+Incident at Loch Ness,2004,Adventure|Comedy|Horror,36830
+"Lock, Stock and Two Smoking Barrels",1998,Comedy|Crime,3650677
+The Celebration,1998,Drama,1647780
+Trees Lounge,1996,Comedy|Drama,695229
+Journey from the Fall,2006,Drama,638951
+The Basket,1999,Drama,609042
+Mercury Rising,1998,Action|Crime|Drama|Thriller,32940507
+The Hebrew Hammer,2003,Comedy,19539
+Friday the 13th Part 2,1981,Horror|Mystery|Thriller,19100000
+"Sex, Lies, and Videotape",1989,Drama,24741700
+Saw,2004,Horror|Mystery|Thriller,55153403
+Super Troopers,2001,Comedy|Crime|Mystery,18488314
+The Day the Earth Stood Still,2008,Drama|Sci-Fi|Thriller,79363785
+Monsoon Wedding,2001,Comedy|Drama|Romance,13876974
+You Can Count on Me,2000,Drama,9180275
+Lucky Number Slevin,2006,Crime|Drama|Mystery|Thriller,22494487
+But I'm a Cheerleader,1999,Comedy|Drama,2199853
+Home Run,2013,Drama|Sport,2859955
+Reservoir Dogs,1992,Crime|Drama|Thriller,2812029
+"The Good, the Bad and the Ugly",1966,Western,6100000
+The Second Mother,2015,Comedy|Drama,375723
+Blue Like Jazz,2012,Comedy|Drama,594904
+Down and Out with the Dolls,2001,Comedy|Music,58936
+Airborne,1993,Adventure|Comedy|Sport,2850263
+Waiting...,2005,Comedy,16101109
+From a Whisper to a Scream,1987,Action|Drama|Horror|Thriller,1400000
+Beyond the Black Rainbow,2010,Sci-Fi|Thriller,56129
+The Raid: Redemption,2011,Action|Crime|Thriller,4105123
+Rocky,1976,Drama|Sport,117235247
+The Fog,1980,Fantasy|Horror,21378000
+Unfriended,2014,Horror|Mystery|Thriller,31537320
+The Howling,1981,Horror,17986000
+Dr. No,1962,Action|Adventure|Thriller,16067035
+Chernobyl Diaries,2012,Horror|Mystery|Sci-Fi|Thriller,18112929
+Hellraiser,1987,Fantasy|Horror,14564027
+God's Not Dead 2,2016,Drama,20773070
+Cry_Wolf,2005,Drama|Horror|Mystery|Thriller,10042266
+Godzilla 2000,1999,Action|Adventure|Drama|Sci-Fi|Thriller,10037390
+Blue Valentine,2010,Drama|Romance,9701559
+Transamerica,2005,Adventure|Comedy|Drama,9013113
+The Devil Inside,2012,Horror,53245055
+Beyond the Valley of the Dolls,1970,Comedy|Drama|Music,9000000
+The Green Inferno,2013,Adventure|Horror,7186670
+The Sessions,2012,Biography|Comedy|Drama|Romance,5997134
+Next Stop Wonderland,1998,Comedy|Drama|Romance,3386698
+Juno,2007,Comedy|Drama|Romance,143492840
+Frozen River,2008,Crime|Drama,2508841
+20 Feet from Stardom,2013,Documentary|Music,4946250
+Two Girls and a Guy,1997,Comedy|Drama,1950218
+Walking and Talking,1996,Comedy|Drama|Romance,1277257
+The Full Monty,1997,Comedy|Drama|Music,45857453
+Who Killed the Electric Car?,2006,Documentary,1677838
+The Broken Hearts Club: A Romantic Comedy,2000,Comedy|Drama|Romance|Sport,1744858
+Goosebumps,2015,Adventure|Comedy|Family|Fantasy|Horror,80021740
+Slam,1998,Drama,982214
+Brigham City,2001,Crime|Drama|Mystery,798341
+All the Real Girls,2003,Drama|Romance,548712
+Dream with the Fishes,1997,Comedy|Drama,464655
+Blue Car,2002,Drama,464126
+Wristcutters: A Love Story,2006,Comedy|Drama|Fantasy|Romance,104077
+The Battle of Shaker Heights,2003,Comedy|Drama|Romance,279282
+The Lovely Bones,2009,Drama|Fantasy|Thriller,43982842
+The Act of Killing,2012,Biography|Crime|Documentary|History,484221
+Taxi to the Dark Side,2007,Crime|Documentary|War,274661
+Once in a Lifetime: The Extraordinary Story of the New York Cosmos,2006,Documentary|Sport,144431
+Antarctica: A Year on Ice,2013,Adventure|Biography|Documentary|Drama,287761
+Hardflip,2012,Action|Drama,96734
+The House of the Devil,2009,Horror,100659
+The Perfect Host,2010,Comedy|Crime|Thriller,48430
+Safe Men,1998,Comedy|Crime,21210
+The Specials,2000,Action|Comedy|Fantasy|Sci-Fi,12996
+Alone with Her,2006,Crime|Drama|Thriller,10018
+Creative Control,2015,Drama|Sci-Fi,62480
+Special,2006,Comedy|Drama|Sci-Fi,6387
+In Her Line of Fire,2006,Action|Drama,721
+The Jimmy Show,2001,Comedy|Drama,703
+Trance,2013,Crime|Drama|Mystery|Thriller,2319187
+On the Waterfront,1954,Crime|Drama|Romance,9600000
+L!fe Happens,2011,Comedy,20186
+"4 Months, 3 Weeks and 2 Days",2007,Drama,1185783
+Hard Candy,2005,Crime|Drama|Thriller,1007962
+The Quiet,2005,Drama|Thriller,381186
+Fruitvale Station,2013,Biography|Drama|Romance,16097842
+The Brass Teapot,2012,Comedy|Fantasy|Thriller,6643
+Snitch,2013,Action|Drama|Thriller,42919096
+Latter Days,2003,Comedy|Drama|Romance,819939
+"For a Good Time, Call...",2012,Comedy,1243961
+Time Changer,2002,Drama|Fantasy|Sci-Fi,15278
+A Separation,2011,Drama|Mystery,7098492
+Welcome to the Dollhouse,1995,Comedy|Drama,4771000
+Ruby in Paradise,1993,Drama|Romance,1001437
+Raising Victor Vargas,2002,Drama|Romance,2073984
+Deterrence,1999,Drama|Thriller,144583
+Dead Snow,2009,Comedy|Horror,41709
+American Graffiti,1973,Comedy|Drama|Music,115000000
+Aqua Teen Hunger Force Colon Movie Film for Theaters,2007,Action|Adventure|Animation|Comedy|Fantasy|Sci-Fi,5518918
+Safety Not Guaranteed,2012,Comedy|Drama|Romance,4007792
+Kill List,2011,Crime|Horror|Thriller,26297
+The Innkeepers,2011,Horror,77501
+The Unborn,2009,Drama|Fantasy|Horror|Mystery|Thriller,42638165
+Interview with the Assassin,2002,Drama,47329
+Donkey Punch,2008,Crime|Drama|Horror|Thriller,18378
+Hoop Dreams,1994,Documentary|Drama|Sport,7830611
+King Kong,2005,Action|Adventure|Drama|Romance,218051260
+House of Wax,2005,Horror,32048809
+Half Nelson,2006,Drama,2694973
+Top Hat,1935,Comedy|Musical|Romance,3000000
+The Blair Witch Project,1999,Horror,140530114
+Woodstock,1970,Documentary|History|Music,13300000
+Mercy Streets,2000,Action|Crime|Drama,171988
+Broken Vessels,1998,Drama,13493
+A Hard Day's Night,1964,Comedy|Musical,515005
+Fireproof,2008,Drama|Romance,33451479
+Benji,1974,Adventure|Family|Romance,39552600
+Open Water,2003,Adventure|Biography|Drama|Horror|Thriller,30500882
+Kingdom of the Spiders,1977,Horror|Sci-Fi,17000000
+The Station Agent,2003,Comedy|Drama,5739376
+To Save a Life,2009,Drama,3773863
+Beyond the Mat,1999,Biography|Documentary|Sport,2047570
+Osama,2003,Drama,1127331
+Sholem Aleichem: Laughing in the Darkness,2011,Documentary,906666
+Groove,2000,Drama|Music,1114943
+Twin Falls Idaho,1999,Drama,985341
+Mean Creek,2004,Crime|Drama,603943
+Hurricane Streets,1997,Crime|Drama|Romance,334041
+Never Again,2001,Comedy|Romance,295468
+Civil Brand,2002,Crime|Drama|Thriller,243347
+Lonesome Jim,2005,Comedy|Drama,154077
+Seven Samurai,1954,Action|Adventure|Drama,269061
+Finishing the Game: The Search for a New Bruce Lee,2007,Comedy,52850
+Rubber,2010,Comedy|Fantasy|Horror,98017
+Home,2015,Adventure|Animation|Comedy|Family|Fantasy|Sci-Fi,177343675
+Kiss the Bride,2007,Comedy|Romance,31937
+The Slaughter Rule,2002,Drama|Sport,13134
+Monsters,2010,Drama|Sci-Fi|Thriller,237301
+Detention of the Dead,2012,Comedy|Horror,1332
+Crossroads,2002,Comedy|Drama,37188667
+Oz the Great and Powerful,2013,Adventure|Family|Fantasy,234903076
+Straight Out of Brooklyn,1991,Crime|Drama,2712293
+Bloody Sunday,2002,Drama|History|War,768045
+Conversations with Other Women,2005,Comedy|Drama|Romance,379122
+Poultrygeist: Night of the Chicken Dead,2006,Comedy|Horror|Musical,23000
+42nd Street,1933,Comedy|Musical|Romance,2300000
+Metropolitan,1990,Comedy|Drama|Romance,2938208
+Napoleon Dynamite,2004,Comedy,44540956
+Blue Ruin,2013,Crime|Drama|Thriller,258113
+Paranormal Activity,2007,Horror,107917283
+Monty Python and the Holy Grail,1975,Adventure|Comedy|Fantasy,1229197
+Quinceañera,2006,Drama,1689999
+Tarnation,2003,Biography|Documentary,592014
+The Beyond,1981,Horror,126387
+What Happens in Vegas,2008,Comedy|Romance,80276912
+The Broadway Melody,1929,Musical|Romance,2808000
+Maniac,2012,Horror|Thriller,12843
+Murderball,2005,Documentary|Sport,1523883
+American Ninja 2: The Confrontation,1987,Action|Drama,4000000
+Halloween,1978,Horror|Thriller,47000000
+Tumbleweeds,1999,Comedy|Drama,1281176
+The Prophecy,1995,Action|Fantasy|Horror|Mystery|Thriller,16115878
+When the Cat's Away,1996,Comedy|Romance,1652472
+Pieces of April,2003,Comedy|Drama,2360184
+Old Joy,2006,Drama,255352
+Wendy and Lucy,2008,Drama,856942
+Fighting Tommy Riley,2004,Drama|Sport,5199
+Across the Universe,2007,Drama|Fantasy|Musical|Romance,24343673
+Locker 13,2014,Thriller,2468
+Compliance,2012,Biography|Crime|Drama|Thriller,318622
+Chasing Amy,1997,Comedy|Drama|Romance,12006514
+Lovely & Amazing,2001,Comedy|Drama|Romance,4186931
+Better Luck Tomorrow,2002,Crime|Drama|Romance,3799339
+The Incredibly True Adventure of Two Girls in Love,1995,Comedy|Drama|Romance,1977544
+Chuck & Buck,2000,Comedy|Drama,1050600
+American Desi,2001,Comedy|Drama|Romance,902835
+Cube,1997,Mystery|Sci-Fi|Thriller,489220
+I Married a Strange Person!,1997,Animation|Comedy|Drama|Fantasy|Sci-Fi,203134
+November,2004,Drama|Mystery|Thriller,191309
+Like Crazy,2011,Drama|Romance,3388210
+The Canyons,2013,Drama|Thriller,49494
+Burn,2012,Documentary,111300
+Urbania,2000,Drama,1027119
+"The Beast from 20,000 Fathoms",1953,Adventure|Horror|Sci-Fi,5000000
+Swingers,1996,Comedy|Drama,4505922
+A Fistful of Dollars,1964,Action|Drama|Western,3500000
+Side Effects,2013,Crime|Drama|Thriller,32154410
+The Trials of Darryl Hunt,2006,Crime|Documentary,1111
+Children of Heaven,1997,Drama|Family,925402
+Weekend,2011,Drama|Romance,469947
+She's Gotta Have It,1986,Comedy|Romance,7137502
+Another Earth,2011,Drama|Romance|Sci-Fi,1316074
+Sweet Sweetback's Baadasssss Song,1971,Crime|Drama|Thriller,15180000
+Tadpole,2000,Comedy|Drama|Romance,2882062
+Once,2007,Drama|Music|Romance,9437933
+The Horse Boy,2009,Documentary,155984
+The Texas Chain Saw Massacre,1974,Horror|Thriller,30859000
+Roger & Me,1989,Documentary,6706368
+Facing the Giants,2006,Drama|Sport,10174663
+The Gallows,2015,Horror|Thriller,22757819
+Hollywood Shuffle,1987,Comedy,5228617
+The Lost Skeleton of Cadavra,2001,Comedy|Horror|Sci-Fi,110536
+Cheap Thrills,2013,Comedy|Crime|Drama|Horror|Thriller,59379
+The Last House on the Left,2009,Crime|Horror|Thriller,32721635
+Pi,1998,Drama|Mystery|Thriller,3216970
+20 Dates,1998,Biography|Comedy|Romance,536767
+Super Size Me,2004,Comedy|Documentary|Drama,11529368
+The FP,2011,Comedy,40557
+Happy Christmas,2014,Comedy|Drama,30084
+The Brothers McMullen,1995,Comedy|Drama|Romance,10246600
+Tiny Furniture,2010,Comedy|Drama|Romance,389804
+George Washington,2000,Drama,241816
+Smiling Fish & Goat on Fire,1999,Comedy|Romance,277233
+Clerks,1994,Comedy,3151130
+In the Company of Men,1997,Comedy|Drama,2856622
+Sabotage,2014,Action|Crime|Drama|Thriller,10499968
+Slacker,1991,Comedy|Drama,1227508
+Clean,2004,Drama|Music|Romance,136007
+The Circle,2000,Drama,673780
+Primer,2004,Drama|Sci-Fi|Thriller,424760
+El Mariachi,1992,Action|Crime|Drama|Romance|Thriller,2040920
+My Date with Drew,2004,Documentary,85222
