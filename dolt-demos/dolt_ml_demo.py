@@ -7,25 +7,24 @@ class DoltMLDemoFlow(FlowSpec):
     @step
     def start(self):
         # Start by getting original dataset
-        with DoltDT(run=self, repoName='iris-test') as dolt:
+        with DoltDT(run=self, db_name='iris-test') as dolt:
             self.test_set = dolt.get_table('iris-test')
 
         self.next(self.predict)
 
     @step
     def predict(self):
-        with DoltDT(run=self, repoName='iris-model-results') as dolt:
-            self.model = pickle.load(open( 'model.p', 'rb'))
+        with DoltDT(run=self, db_name='iris-model-results') as dolt:
+            self.model = pickle.load(open('model.p', 'rb'))
             self.model_type = 'Decision Tree'
 
-            # Some processing
             samples = self.test_set['sample']
             y_true = self.test_set['species']
-            y_true = y_true.rename("labels")
+            y_true = y_true.rename('labels')
 
             test = self.test_set.drop(columns=['species', 'sample'])
             predictions = pd.Series(self.model.predict(test))
-            predictions = predictions.rename("predictions")
+            predictions = predictions.rename('predictions')
 
             self.result = pd.concat([samples, y_true, predictions], axis=1)
 
@@ -35,7 +34,7 @@ class DoltMLDemoFlow(FlowSpec):
 
     @step
     def end(self):
-        with DoltDT(run=self, repoName='iris-model-results') as dolt:
+        with DoltDT(run=self, db_name='iris-model-results') as dolt:
             dolt.commit_and_push()
 
 

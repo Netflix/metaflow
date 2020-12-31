@@ -7,19 +7,19 @@ from ..current import current
 
 
 class DoltDT(object):
-    def __init__(self, run=None, repoName=''):
-        self.repoName = repoName
+    def __init__(self, run=None, db_name=''):
+        self.db_name = db_name
         self.run = run
 
         try:
-            self.repo = Dolt(self.repoName)
+            self.repo = Dolt(self.db_name)
         except:
             return Exception('Repo not cloned locally')
 
         self.run.dolt = {}
 
         self.dolt_data = self.run.dolt
-        self.dolt_data['repo_name'] = self.repoName
+        self.dolt_data['db_name'] = self.db_name
         self.dolt_data['commit_hash'] = self.get_latest_commit_hash()
         self.dolt_data['tables_accessed'] = []
 
