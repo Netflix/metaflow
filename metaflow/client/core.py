@@ -479,7 +479,7 @@ class MetaflowObject(object):
 
         Returns
         -------
-        List[string]
+        Set[string]
             Tags associated with the object
         """
         return self._tags
@@ -1363,3 +1363,18 @@ class Flow(MetaflowObject):
             Iterator over Run objects in this flow
         """
         return self._filtered_children(*tags)
+
+    @property
+    def tags_of_runs(self):
+        """
+        Tags associated with runs of this flow.
+
+        Tags can be user defined or system defined. This returns all tags associated
+        with runs of this flow.
+
+        Returns
+        -------
+        Set[string]
+            Tags associated with runs of this flow
+        """
+        return frozenset().union(*[run.tags for run in self.runs()])
