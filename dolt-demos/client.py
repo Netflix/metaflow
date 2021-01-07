@@ -1,53 +1,34 @@
 from metaflow import Flow, get_metadata
+from doltpy.core import Dolt
+from metaflow.datatools.dolt import get_flow_inputs_dolt, get_flow_writes_dolt
+
+
+def print_data_map(data_map):
+    for run_step in data_map.keys():
+        for table in data_map[run_step]:
+            print('{}, {}: {}'.format(run_step, table, data_map[run_step][table]))
+
 print("Current metadata provider: %s" % get_metadata())
 
-run = Flow('DoltMLDemoFlow').latest_successful_run
+dolt = Dolt('path/to/dolt')
+flow = Flow('DoltMLDemoFlow')
+run = flow.latest_successful_run
 print("Using run: %s" % str(run))
 
 '''
-Ex 1: Use the client library to determine which dataset was used first
+Ex 1: Get all the data a given Flow read from Dolt
 '''
-start_data = run['start'].task.data
-db_name, commit = start_data.dolt['db_name'], start_data.dolt['commit_hash']
-
-print("Started dataset {} at commit {}".format(db_name, commit))
+data_map_for_flow = get_flow_inputs_dolt(dolt, flow)
+print_data_map(data_map_for_flow)
 
 '''
-Ex 2: View the database you added a table too.
+Ex 2: Filter by run
 '''
-predict_data = run['predict'].task.data
-db_name, table_used, db_name = predict_data.dolt['db_name'], predict_data.dolt['tables_accessed'][0], predict_data.dolt['commit_hash']
-
-print("Write results to database {} at commit {}".format(db_name, commit))
-print("Table {} was used.".format(table_used))
+data_map_for_run = get_flow_inputs_dolt(dolt, flow, [run.id])
+print_data_map(data_map_for_run)
 
 '''
-Ex 3: Get the new commit hash at the end when you commit and push
+Ex 3 Get all the outputs for a flow
 '''
-end_data = run['end'].task.data
-
-db_name, commit = end_data.dolt['db_name'], end_data.dolt['commit_hash']
-
-print("Committed results to database {} with commit {}".format(db_name, commit))
-
-'''
-Ex 4: Match all the run's start with the database and commit hash they used.
-'''
-desired_db = 'iris-test'
-for run in Flow('PlayListFlow').runs():
-    if run.successful:
-        db_name = run['start'].task.data.dolt.db_name
-
-        if db_name == desired_db:
-            print(str(run))
-
-'''
- Ex 5. Match the lineage of Two Dolt Flows. Asserts that at the start the two repos are 
- reading the same dataset at the same commit hash.
-'''
-# from metaflow import dolt_utils
-
-# flow1 = Flow('DoltDemoFlow')
-# flow2 = Flow('ComplexDemoFlow')
-
-# print(dolt_utils.match_lineage(flow1, flow2))
+data_map_flow_outputs = get_flow_writes_dolt(dolt, flow, [run.id])
+print_data_map(data_map_flow_outputs)

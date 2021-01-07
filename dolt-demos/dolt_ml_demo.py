@@ -35,7 +35,7 @@ class DoltMLDemoFlow(FlowSpec):
     @step
     def end(self):
         with DoltDT(run=self, db_name='iris-model-results') as dolt:
-            dolt.commit_and_push()
+            dolt.commit_table_writes()
 
 
 if __name__ == '__main__':
