@@ -99,15 +99,14 @@ class IMDBSentimentsFlow(FlowSpec):
         test_predictions = self.model.predict(self.test_bigram)
 
         # Output the predictions to a result table
-        def push_prediction_to_table(reviews, labels, predictions, table_name):
+        def write_prediction_to_table(reviews, labels, predictions, table_name):
             with DoltDT(run=self, db_name='imdb-reviews') as dolt:
                 predictions = pd.Series(predictions).rename('predictions')
-
                 result = pd.concat([reviews, labels, predictions], axis=1)
-                dolt.add_table(table_name=table_name, df=result, pks=['review'])
+                dolt.write_table(table_name=table_name, df=result, pks=['review'])
         
-        push_prediction_to_table(self.train_reviews, self.train_labels, train_predictions, "train_results")
-        push_prediction_to_table(self.test_reviews, self.test_labels, test_predictions, "test_results")
+        write_prediction_to_table(self.train_reviews, self.train_labels, train_predictions, "train_results")
+        write_prediction_to_table(self.test_reviews, self.test_labels, test_predictions, "test_results")
         
         self.next(self.end)
 
@@ -115,7 +114,7 @@ class IMDBSentimentsFlow(FlowSpec):
     def end(self):
         # Commit and push. This can be in the previous step as well.
         with DoltDT(run=self, db_name='imdb-reviews') as dolt:
-            dolt.commit_and_push()
+            dolt.commit_table_writes()
 
  
 if __name__ == '__main__':

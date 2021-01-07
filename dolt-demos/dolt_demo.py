@@ -2,6 +2,7 @@ from metaflow import FlowSpec, step, DoltDT
 import json
 import numpy as np
 
+
 class DoltDemoFlow(FlowSpec):
 
     @step
@@ -27,6 +28,7 @@ class DoltDemoFlow(FlowSpec):
     def end(self):
         with DoltDT(run=self, db_name='metaflow_demo') as dolt:
             dolt.commit_and_push()
+
 
 if __name__ == '__main__':
     DoltDemoFlow()
