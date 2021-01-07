@@ -136,6 +136,8 @@ class BatchJob(object):
             job_definition['containerProperties']['executionRoleArn'] = \
                 execution_role
             job_definition['platformCapabilities'] = [platform]
+            job_definition['containerProperties']['networkConfiguration'] = \
+                {'assignPublicIp': 'ENABLED'}
         
         # check if job definition already exists
         def_name = 'metaflow_%s' % \
