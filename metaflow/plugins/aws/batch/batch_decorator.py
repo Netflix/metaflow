@@ -94,6 +94,18 @@ class BatchDecorator(StepDecorator):
     execution_role : string
         IAM role that AWS Batch can use to trigger AWS Fargate tasks. Defaults to the one determined by the environment
         variable METAFLOW_ECS_FARGATE_EXECUTION_ROLE https://docs.aws.amazon.com/batch/latest/userguide/execution-IAM-role.html
+    shared_memory_size : int
+        The value for the size (in MiB) of the /dev/shm volume for this step. 
+        This parameter maps to the --shm-size option to docker run .
+    max_swap : int
+        The total amount of swap memory (in MiB) a container can use for this step.
+        This parameter is translated to the --memory-swap option to docker run 
+        where the value is the sum of the container memory plus the max_swap value.
+    swappiness : int
+        This allows you to tune memory swappiness behavior for this step.
+        A swappiness value of 0 causes swapping not to happen unless absolutely
+        necessary. A swappiness value of 100 causes pages to be swapped very
+        aggressively. Accepted values are whole numbers between 0 and 100.
     """
     name = 'batch'
     defaults = {
@@ -103,7 +115,10 @@ class BatchDecorator(StepDecorator):
         'image': None,
         'queue': BATCH_JOB_QUEUE,
         'iam_role': ECS_S3_ACCESS_IAM_ROLE,
-        'execution_role': ECS_FARGATE_EXECUTION_ROLE
+        'execution_role': ECS_FARGATE_EXECUTION_ROLE,
+        'shared_memory_size': None,
+        'max_swap': None,
+        'swappiness': None
     }
     package_url = None
     package_sha = None
