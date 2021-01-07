@@ -2,7 +2,7 @@ from doltpy.core import Dolt
 from doltpy.core.write import import_df
 from doltpy.core.read import read_table
 from doltpy.core.read import read_table_sql
-from .. import FlowSpec, Flow, Run
+from .. import FlowSpec
 from ..current import current
 from typing import List, Mapping, Union
 import pandas as pd
@@ -32,7 +32,7 @@ class DoltTableWrite:
 
 class DoltDT(object):
 
-    def __init__(self, run: Union[FlowSpec, Flow, Run], doltdb_path: str, branch: str = 'master'):
+    def __init__(self, run, doltdb_path: str, branch: str = 'master'):
         """
         Initialize a new context for Dolt operations with Metaflow.
 
@@ -49,24 +49,29 @@ class DoltDT(object):
         self.dolt_data = self.run.dolt
         self.dolt_data['table_reads'] = []
         self.dolt_data['table_writes'] = []
+        self.dolt_data['tables_accesses'] = []
+
 
         current_branch, _ = self.doltdb.branch()
         self.entry_branch = None
-        if current_branch != self.branch:
+        if current_branch.name != self.branch:
             self.entry_branch = current_branch
-            self.doltdb.checkout(branch, checkout_branch=True)
+            self.doltdb.checkout(branch, checkout_branch=False)
 
     def __enter__(self):
         return self
 
     def __exit__(self, *args):
-        uncommitted_table_writes = [table_write.table_name for table_write in self.dolt_data['table_write']
+        uncommitted_table_writes = [table_write.table_name for table_write in self.dolt_data['table_writes']
                                     if not table_write.commit]
         if uncommitted_table_writes:
             # TODO what is the Metaflow way to log
             print('Warning, uncommitted table writes to the following tables {}'.format(uncommitted_table_writes))
         if self.entry_branch:
-            self.doltdb.checkout(branch=self.entry_branch)
+            try:
+                self.doltdb.checkout(branch=self.entry_branch)
+            except:
+                pass
 
     def _get_table_read(self, table: str) -> DoltTableRead:
         return DoltTableRead(current.run_id, current.step_name, self.branch, self._get_latest_commit_hash(), table)
@@ -85,6 +90,7 @@ class DoltDT(object):
         """
         assert current.is_running_flow, 'Writes and commits are only supported in a running Flow'
         import_df(repo=self.doltdb, table_name=table_name, data=df, primary_keys=pks)
+        self.doltdb.add(table_name)
         self.dolt_data['table_writes'].append(self._get_table_write(table_name))
 
     def read_table(self, table_name: str) -> pd.DataFrame:
@@ -102,14 +108,14 @@ class DoltDT(object):
         precise data can be reproduced exactly later on by querying self.flow_spec.
         """
         assert current.is_running_flow, 'Writes and commits are only supported in a running Flow'
-        self.doltdb.add([table_write.table_name for table_write in self.dolt_data['tables_writes']])
+        self.doltdb.add([table_write.table_name for table_write in self.dolt_data['table_writes']])
         self.doltdb.commit(message='Run {}'.format(current.run_id), allow_empty=allow_empty)
         commit_hash = self._get_latest_commit_hash()
         current_branch, _ = self.doltdb.branch()
         # TODO
         #   are we sure that we are only going to get the table_writes associated with the specific flow spec running
         #   here?
-        for table_write in self.dolt_data['tables_writes']:
+        for table_write in self.dolt_data['table_writes']:
             if not table_write.commit:
                 table_write.set_commit_and_branch(current_branch.name, commit_hash)
 

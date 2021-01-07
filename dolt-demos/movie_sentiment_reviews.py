@@ -22,7 +22,7 @@ class IMDBSentimentsFlow(FlowSpec):
 
     @step
     def start(self):
-        with DoltDT(self, self.doltdb_path) as dolt:
+        with DoltDT(run=self, doltdb_path=self.doltdb_path, branch='vinai/add-rotten-data') as dolt:
             self.train_table = dolt.read_table('reviews_train')
             self.test_table = dolt.read_table('reviews_test')
             
@@ -58,7 +58,8 @@ class IMDBSentimentsFlow(FlowSpec):
         # Transform appropriately.
         def transform(bv, bt, reviews):
             r = bv.transform(reviews)
-            return bt.transform(r)
+            return r
+            #return bt.transform(r)
 
         self.train_bigram, self.test_bigram = transform(bv, bt, self.train_reviews), transform(bv, bt, self.test_reviews)
 
@@ -102,7 +103,7 @@ class IMDBSentimentsFlow(FlowSpec):
 
         # Output the predictions to a result table
         def write_prediction_to_table(reviews, labels, predictions, table_name):
-            with DoltDT(run=self, db_name='imdb-reviews') as dolt:
+            with DoltDT(run=self, doltdb_path=self.doltdb_path, branch='vinai/add-rotten-data') as dolt:
                 predictions = pd.Series(predictions).rename('predictions')
                 result = pd.concat([reviews, labels, predictions], axis=1)
                 dolt.write_table(table_name=table_name, df=result, pks=['review'])
@@ -115,7 +116,7 @@ class IMDBSentimentsFlow(FlowSpec):
     @step
     def end(self):
         # Commit and push. This can be in the previous step as well.
-        with DoltDT(run=self, db_name='imdb-reviews') as dolt:
+        with DoltDT(run=self, doltdb_path=self.doltdb_path, branch='vinai/add-rotten-data') as dolt:
             dolt.commit_table_writes()
 
  
