@@ -1,4 +1,4 @@
-from metaflow import FlowSpec, step, DoltDT
+from metaflow import FlowSpec, step, DoltDT, Parameter
 
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from sklearn.linear_model import SGDClassifier
@@ -18,11 +18,13 @@ from nltk.corpus import stopwords
 ## Dolthub link: https://www.dolthub.com/repositories/vinai/imdb-reviews
 
 class IMDBSentimentsFlow(FlowSpec):
+    doltdb_path = Parameter('doltdb-path',  help="Filter movies for a particular genre.", required=True)
+
     @step
     def start(self):
-        with DoltDT(run=self, db_name='imdb-reviews') as dolt:
-            self.train_table = dolt.get_table('reviews_train')
-            self.test_table = dolt.get_table('reviews_test')
+        with DoltDT(self, self.doltdb_path) as dolt:
+            self.train_table = dolt.read_table('reviews_train')
+            self.test_table = dolt.read_table('reviews_test')
             
             # Split the train and test into matrices and labels
             self.train_reviews = self.train_table['review']

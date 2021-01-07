@@ -13,8 +13,8 @@ Assuming we have an instance of Dolt, in which we are storing some input data, a
 
 ## Capabilities
 
-
-
+WIP
 
 ## Limitations
-This is currently limited to a Dolt instance hosted on the same machine where the Metaflow flow is running. This is relatively straightforward to solve, but given that it's in infrastructure implementation detail, we omitted it from our demo.
+
+WIP
