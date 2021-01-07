@@ -257,7 +257,7 @@ class BatchJob(object):
         return self
 
     def cpu(self, cpu):
-        if not (isinstance(cpu, (int, unicode, basestring)) and int(cpu) > 0):
+        if not (isinstance(cpu, (int, unicode, basestring, float)) and float(cpu) > 0):
             raise BatchJobException(
                 'Invalid CPU value ({}); it should be greater than 0'.format(cpu))
         if 'resourceRequirements' not in self.payload['containerOverrides']:
