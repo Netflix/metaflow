@@ -138,7 +138,7 @@ class BatchJob(object):
             job_definition['platformCapabilities'] = [platform]
         
         # check if job definition already exists
-        def_name = 'metaflow23_%s' % \
+        def_name = 'metaflow_%s' % \
             hashlib.sha224(str(job_definition).encode('utf-8')).hexdigest()
         payload = {'jobDefinitionName': def_name, 'status': 'ACTIVE'}
         response = self._client.describe_job_definitions(**payload)
@@ -147,7 +147,17 @@ class BatchJob(object):
 
         # else create a job definition
         job_definition['jobDefinitionName'] = def_name
-        response = self._client.register_job_definition(**job_definition)
+        try:
+            response = self._client.register_job_definition(**job_definition)
+        except Exception as ex:
+            if type(ex).__name__ == 'ParamValidationError' and \
+                    platform == 'FARGATE':
+                raise BatchJobException(
+                    '%s \nPlease ensure you have installed boto3>=1.16.29 if '
+                    'you intend to launch AWS Batch jobs on AWS Fargate '
+                    'compute platform.' % ex)
+            else:
+                raise ex
         return response['jobDefinitionArn']
 
     def job_def(self, image, iam_role, job_queue, execution_role):
