@@ -106,8 +106,12 @@ class DoltDT(object):
         self.doltdb.commit(message='Run {}'.format(current.run_id), allow_empty=allow_empty)
         commit_hash = self._get_latest_commit_hash()
         current_branch, _ = self.doltdb.branch()
+        # TODO
+        #   are we sure that we are only going to get the table_writes associated with the specific flow spec running
+        #   here?
         for table_write in self.dolt_data['tables_writes']:
-            table_write.set_commit_and_branch(current_branch.name, commit_hash)
+            if not table_write.commit:
+                table_write.set_commit_and_branch(current_branch.name, commit_hash)
 
     def get_reads(self, runs: List[int] = None, steps: List[str] = None) -> Mapping[str, Mapping[str, pd.DataFrame]]:
         """
