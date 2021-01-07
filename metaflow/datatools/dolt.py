@@ -40,6 +40,7 @@ class DoltDT(object):
             - a FlowSpec when initialized with a running Flow
             - a Flow when looking across for data read/written across runs of a Flow
             - a Run when looking for data read/written by a specific run
+        doltdb_path: this is a path to a location on the filesystem with a Dolt database
         """
         self.doltdb = Dolt(doltdb_path)
         self.run = run
@@ -66,14 +67,6 @@ class DoltDT(object):
             print('Warning, uncommitted table writes to the following tables {}'.format(uncommitted_table_writes))
         if self.entry_branch:
             self.doltdb.checkout(branch=self.entry_branch)
-
-        self.close()
-
-    def close(self):
-        """
-        Delete all temporary files downloaded in this context.
-        """
-        pass
 
     def _get_table_read(self, table: str) -> DoltTableRead:
         return DoltTableRead(current.run_id, current.step_name, self.branch, self._get_latest_commit_hash(), table)
@@ -117,11 +110,25 @@ class DoltDT(object):
             table_write.set_commit_and_branch(current_branch.name, commit_hash)
 
     def get_reads(self, runs: List[int] = None, steps: List[str] = None) -> Mapping[str, Mapping[str, pd.DataFrame]]:
+        """
+        Returns a nested map of the form:
+            {run_id/step: [{table_name: pd.DataFrame}]}
+
+        That is, for a Flow or Run, a mapping from the run_id, and step, to a list of table names and table data read
+        by the step associated identified by the key.
+        """
         assert not current.is_running_flow, 'Getting reads not supported in a running Flow'
         table_reads = self._get_table_access_record_helper('table_reads')
         return self._get_tables_for_access_records(table_reads, runs, steps)
 
     def get_writes(self, runs: List[int] = None, steps: List[str] = None) -> Mapping[str, Mapping[str, pd.DataFrame]]:
+        """
+        Returns a nested map of the form:
+            {run_id/step: [{table_name: pd.DataFrame}]}
+
+        That is, for a Flow or Run, a mapping from the run_id, and step, to a list of table names and table data written
+        by the step associated identified by the key.
+        """
         assert not current.is_running_flow, 'Getting reads not supported in a running Flow'
         table_writes = self._get_table_access_record_helper('table_writes')
         return self._get_tables_for_access_records(table_writes, runs, steps)
