@@ -1,6 +1,7 @@
 import os
 from collections import defaultdict
 import sys
+import hashlib
 import json
 import time
 import string
@@ -217,7 +218,9 @@ class StepFunctions(object):
             # Create a `Parallel` state and assign sub workflows if the node
             # branches out.
             elif node.type == 'split-and':
-                branch_name = '&'.join(node.out_funcs)
+                branch_name = hashlib.sha224('&'.join(node.out_funcs) \
+                                     .encode('utf-8')) \
+                                     .hexdigest()
                 workflow.add_state(state.next(branch_name))
                 branch = Parallel(branch_name) \
                             .next(node.matching_join)
