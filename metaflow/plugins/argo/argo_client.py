@@ -2,13 +2,17 @@ import requests
 import posixpath
 
 from metaflow.metaflow_config import from_conf
+from .argo_exception import ArgoException
 
 
 class ArgoClient(object):
-    """Works with Argo resources using the REST Api Server"""
+    """Works with Argo Workflows' resources using the REST Api Server"""
 
     def __init__(self, auth, namespace):
         self.server = from_conf('METAFLOW_ARGO_SERVER')
+        if self.server is None:
+            raise ArgoException("The METAFLOW_ARGO_SERVER is needed to support "
+                                "the create, trigger or list-runs command")
         self.auth = auth
         if namespace is None:
             namespace = 'default'

@@ -1,16 +1,12 @@
 import json
 from metaflow.decorators import FlowDecorator
 from metaflow.decorators import StepDecorator
-from metaflow.exception import MetaflowException
-
-
-class ArgoException(MetaflowException):
-    headline = 'Argo error'
+from .argo_exception import ArgoException
 
 
 class ArgoFlowDecorator(FlowDecorator):
     """
-    Flow decorator for argo workflows, that sets a default
+    Flow decorator for Argo Workflows, that sets a default
     for all steps in the flow.
     To use, add this decorator directly on top of your Flow class:
     ```
@@ -24,7 +20,7 @@ class ArgoFlowDecorator(FlowDecorator):
     Parameters
     ----------
     image : string
-        Docker image to use for argo template. If not specified, a default image mapping to
+        Docker image is used for Argo Workflows template. If not specified, a default image mapping to
         a base Python/ML container is used
     """
     name = 'argo_base'
@@ -35,7 +31,7 @@ class ArgoFlowDecorator(FlowDecorator):
 
 class ArgoStepDecorator(StepDecorator):
     """
-    Step decorator for argo workflows
+    Step decorator for Argo Workflows
     ```
     @argo
     @step
@@ -45,7 +41,7 @@ class ArgoStepDecorator(StepDecorator):
     Parameters
     ----------
     image : string
-        Docker image to use for argo template. If not specified, a default image mapping to
+        Docker image to use for Argo Workflows template. If not specified, a default image mapping to
         a base Python/ML container is used
     nodeSelector: json
         node selector expression, e.g. {"gpu": "nvidia-tesla-k80"}
@@ -83,7 +79,7 @@ class ArgoInternalStepDecorator(StepDecorator):
             return
 
         # For foreaches, we need to export the cardinality of the fan-out
-        # into a file that can be read by argo output parameter and this be consumable in the next step
+        # into a file that can be read by Argo Workflows output parameter and this be consumable in the next step
         # TODO: nested foreach
         if graph[step_name].type == 'foreach':
             self._save_foreach_cardinality(flow._foreach_num_splits)

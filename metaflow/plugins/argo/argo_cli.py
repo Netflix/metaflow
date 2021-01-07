@@ -5,9 +5,9 @@ import json
 from metaflow import current, decorators, parameters, JSONType
 from metaflow.datastore.datastore import TransformableObject
 from metaflow.package import MetaflowPackage
-from metaflow.exception import MetaflowException
-from .argo_workflow import ArgoWorkflow
 from metaflow.plugins import BatchDecorator
+from .argo_workflow import ArgoWorkflow
+from .argo_exception import ArgoException
 
 
 @click.group()
@@ -46,7 +46,7 @@ def create(obj, image, token, namespace, only_json=False):
                               event_logger=obj.event_logger,
                               monitor=obj.monitor)
     if datastore.TYPE != 's3':
-        raise MetaflowException("Argo workflows require --datastore=s3.")
+        raise ArgoException("Argo Workflows require --datastore=s3.")
 
     # When using conda attach AWS Batch decorator to the flow. This results in 'linux-64' libraries to be packaged.
     decorators._attach_decorators(obj.flow, [BatchDecorator.name])
@@ -79,7 +79,7 @@ def create(obj, image, token, namespace, only_json=False):
     else:
         workflow.deploy(token, namespace)
         obj.echo("WorkflowTemplate *{name}* pushed to "
-                 "Argo successfully.\n".format(name=name),
+                 "Argo Workflows successfully.\n".format(name=name),
                  bold=True)
 
 
@@ -103,7 +103,7 @@ def trigger(obj, token, namespace, **kwargs):
     name = current.flow_name.lower()
     response = ArgoWorkflow.trigger(token, namespace, name, params)
     id = response['metadata']['name']
-    obj.echo("Workflow *{name}* triggered on Argo "
+    obj.echo("Workflow *{name}* triggered on Argo Workflows"
         "(run-id *{id}*).".format(name=name, id=id), bold=True)
 
 @argo.command(help="List workflows on Argo Workflows.")

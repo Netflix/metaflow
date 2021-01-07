@@ -5,11 +5,10 @@ import json
 from metaflow.util import get_username
 from metaflow.metaflow_config import DATASTORE_SYSROOT_S3
 from metaflow.parameters import deploy_time_eval
-from metaflow.plugins.argo.argo_decorator import ArgoStepDecorator, ArgoInternalStepDecorator
 from metaflow.plugins.aws.batch.batch_decorator import ResourcesDecorator
-
+from .argo_decorator import ArgoStepDecorator, ArgoInternalStepDecorator
+from .argo_exception import ArgoException
 from .argo_client import ArgoClient
-from .argo_decorator import ArgoException
 
 
 def create_template(name, node, cmds, env, docker_image, node_selector, resources):
@@ -233,7 +232,7 @@ class ArgoWorkflow:
             raise ArgoException(str(e))
         if template is None:
             raise ArgoException("The WorkflowTemplate *%s* doesn't exist on "
-                                "Argo. Please deploy your flow first." % name)
+                                "Argo Workflows. Please deploy your flow first." % name)
         try:
             return client.submit(workflow)
         except Exception as e:
@@ -248,7 +247,7 @@ class ArgoWorkflow:
             raise ArgoException(str(e))
         if tmpl is None:
             raise ArgoException("The WorkflowTemplate *%s* doesn't exist "
-                                "on Argo." % name)
+                                "on Argo Workflows." % name)
         try:
             return client.list_workflows(name + '-', phases)
         except Exception as e:
