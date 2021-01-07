@@ -166,10 +166,10 @@ def make_flow(obj,
                               monitor=obj.monitor)
     if datastore.TYPE != 's3':
         raise MetaflowException("AWS Step Functions requires --datastore=s3.")
-
     
     if decospecs:
         decorators._attach_decorators(obj.flow, decospecs)
+
     # Attach AWS Batch decorator to the flow
     decorators._attach_decorators(obj.flow, [BatchDecorator.name])
     obj.graph = FlowGraph(obj.flow.__class__)
