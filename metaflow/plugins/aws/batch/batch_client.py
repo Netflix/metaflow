@@ -142,7 +142,7 @@ class BatchJob(object):
                     'environment variable.')
             job_definition['containerProperties']['executionRoleArn'] = \
                 execution_role
-            job_definition['platformCapabilities'] = [platform]
+            job_definition['platformCapabilities'] = ['FARGATE']
             job_definition['containerProperties']['networkConfiguration'] = \
                 {'assignPublicIp': 'ENABLED'}
         
