@@ -126,7 +126,7 @@ class BatchJob(object):
                 ]
             }
         }
-        if platform == 'FARGATE':
+        if platform == 'FARGATE' or platform == 'FARGATE_SPOT':
             if execution_role is None:
                 raise BatchJobException(
                     'No AWS Fargate task execution IAM role found. Please see '
@@ -153,7 +153,7 @@ class BatchJob(object):
             response = self._client.register_job_definition(**job_definition)
         except Exception as ex:
             if type(ex).__name__ == 'ParamValidationError' and \
-                    platform == 'FARGATE':
+                    (platform == 'FARGATE' or platform == 'FARGATE_SPOT'):
                 raise BatchJobException(
                     '%s \nPlease ensure you have installed boto3>=1.16.29 if '
                     'you intend to launch AWS Batch jobs on AWS Fargate '
