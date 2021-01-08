@@ -146,7 +146,7 @@ class BatchJob(object):
             job_definition['containerProperties']['networkConfiguration'] = \
                 {'assignPublicIp': 'ENABLED'}
         
-        if platform == 'EC2':
+        if platform == 'EC2' or platform == 'SPOT':
             if 'linuxParameters' not in job_definition['containerProperties']:
                 job_definition['containerProperties']['linuxParameters'] = {}
             if shared_memory_size is not None:
