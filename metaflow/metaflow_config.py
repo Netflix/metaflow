@@ -60,7 +60,7 @@ DATASTORE_SYSROOT_S3 = from_conf('METAFLOW_DATASTORE_SYSROOT_S3')
 # S3 datatools root location
 DATATOOLS_SUFFIX = from_conf('METAFLOW_DATATOOLS_SUFFIX', 'data')
 DATATOOLS_S3ROOT = from_conf(
-    'METAFLOW_DATATOOLS_S3ROOT', 
+    'METAFLOW_DATATOOLS_S3ROOT',
         '%s/%s' % (from_conf('METAFLOW_DATASTORE_SYSROOT_S3'), DATATOOLS_SUFFIX)
             if from_conf('METAFLOW_DATASTORE_SYSROOT_S3') else None)
 # Local datatools root location
@@ -69,7 +69,7 @@ DATATOOLS_LOCALROOT = from_conf(
         '%s/%s' % (from_conf('METAFLOW_DATASTORE_SYSROOT_LOCAL'), DATATOOLS_SUFFIX)
             if from_conf('METAFLOW_DATASTORE_SYSROOT_LOCAL') else None)
 
-# S3 endpoint url 
+# S3 endpoint url
 S3_ENDPOINT_URL = from_conf('METAFLOW_S3_ENDPOINT_URL', None)
 S3_VERIFY_CERTIFICATE = from_conf('METAFLOW_S3_VERIFY_CERTIFICATE', None)
 
@@ -94,7 +94,7 @@ if METADATA_SERVICE_AUTH_KEY is not None:
 ###
 # AWS Batch configuration
 ###
-# IAM role for AWS Batch container with Amazon S3 access 
+# IAM role for AWS Batch container with Amazon S3 access
 # (and AWS DynamoDb access for AWS StepFunctions, if enabled)
 ECS_S3_ACCESS_IAM_ROLE = from_conf('METAFLOW_ECS_S3_ACCESS_IAM_ROLE')
 # Job queue for AWS Batch
@@ -127,7 +127,7 @@ SFN_STATE_MACHINE_PREFIX = from_conf("METAFLOW_SFN_STATE_MACHINE_PREFIX")
 ###
 # Conda package root location on S3
 CONDA_PACKAGE_S3ROOT = from_conf(
-    'METAFLOW_CONDA_PACKAGE_S3ROOT', 
+    'METAFLOW_CONDA_PACKAGE_S3ROOT',
         '%s/conda' % from_conf('METAFLOW_DATASTORE_SYSROOT_S3'))
 
 ###
@@ -192,22 +192,12 @@ def get_version(pkg):
 
 # PINNED_CONDA_LIBS are the libraries that metaflow depends on for execution
 # and are needed within a conda environment
-def get_pinned_conda_libs(python_version):
+def get_default_conda_libs(python_version):
     if python_version.startswith("3.5"):
-        return {
-            'click': '7.1.2',
-            'requests': '2.24.0',
-            'boto3': '1.9.88',
-            'coverage': '4.5.1'
-        }
+        return {'click', 'requests', 'boto3', 'coverage'}
     else:
-        return {
-            'click': '7.1.2',
-            'requests': '2.24.0',
-            'boto3': '1.14.47',
-            'coverage': '4.5.4'
-        }
-        
+        return {'click', 'requests', 'boto3', 'coverage'}
+
 
 # Check if there is a an extension to Metaflow to load and override everything
 try:

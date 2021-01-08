@@ -16,7 +16,7 @@ from metaflow.datastore.local import LocalDataStore
 from metaflow.decorators import StepDecorator
 from metaflow.environment import InvalidEnvironmentException
 from metaflow.metadata import MetaDatum
-from metaflow.metaflow_config import get_pinned_conda_libs, CONDA_PACKAGE_S3ROOT
+from metaflow.metaflow_config import get_default_conda_libs, CONDA_PACKAGE_S3ROOT
 from metaflow.util import get_metaflow_root
 from metaflow.datatools import S3
 
@@ -68,8 +68,8 @@ class CondaStepDecorator(StepDecorator):
 
     def _python_version(self):
         return next(x for x in [
-                    self.attributes['python'], 
-                    self.base_attributes['python'], 
+                    self.attributes['python'],
+                    self.base_attributes['python'],
                     platform.python_version()] if x is not None)
 
     def is_enabled(self):
@@ -79,7 +79,7 @@ class CondaStepDecorator(StepDecorator):
                         False] if x is not None)
 
     def _lib_deps(self):
-        deps = get_pinned_conda_libs(self._python_version())
+        deps = {}
 
         base_deps = self.base_attributes['libraries']
         deps.update(base_deps)
@@ -93,14 +93,18 @@ class CondaStepDecorator(StepDecorator):
 
     def _step_deps(self):
         deps = [b'python==%s' % self._python_version().encode()]
+        lib_deps = self._lib_deps()
         deps.extend(b'%s==%s' % (name.encode('ascii'), ver.encode('ascii'))
-                    for name, ver in self._lib_deps().items())
+                    for name, ver in lib_deps.items())
+        deps.extend(b'%s' % (name.encode('ascii'))
+                    for name in get_default_conda_libs(self._python_version())
+                    if name not in lib_deps)
         return deps
 
     def _env_id(self):
         deps = self._step_deps()
-        return 'metaflow_%s_%s_%s' % (self.flow.name, 
-                                        self.architecture, 
+        return 'metaflow_%s_%s_%s' % (self.flow.name,
+                                        self.architecture,
                                         sha1(b' '.join(sorted(deps))).hexdigest())
 
     def _resolve_step_environment(self, ds_root, force=False):
@@ -146,7 +150,7 @@ class CondaStepDecorator(StepDecorator):
         to_download = []
         for package_info in self.conda.package_info(env_id):
             url = urlparse(package_info['url'])
-            path = os.path.join(CONDA_PACKAGE_S3ROOT, 
+            path = os.path.join(CONDA_PACKAGE_S3ROOT,
                                 url.netloc,
                                 url.path.lstrip('/'),
                                 package_info['md5'],
@@ -184,7 +188,7 @@ class CondaStepDecorator(StepDecorator):
 
     def _disable_safety_checks(self, decos):
         # Disable conda safety checks when creating linux-64 environments on
-        # a macOS. This is needed because of gotchas around inconsistently 
+        # a macOS. This is needed because of gotchas around inconsistently
         # case-(in)sensitive filesystems for macOS and linux.
         for deco in decos:
             if deco.name == 'batch' and platform.system() == 'Darwin':
@@ -254,7 +258,7 @@ class CondaStepDecorator(StepDecorator):
             env_path = os.path.dirname(self.conda.python(self.env_id))
             if os.environ.get('PATH') is not None:
                 env_path = os.pathsep.join([env_path, os.environ['PATH']])
-            
+
             cli_args.env['PATH'] = env_path
             cli_args.env['PYTHONPATH'] = python_path
             cli_args.env['_METAFLOW_CONDA_ENV'] = self.env_id
