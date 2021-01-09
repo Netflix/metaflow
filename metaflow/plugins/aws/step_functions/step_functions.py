@@ -1,6 +1,7 @@
 import os
 from collections import defaultdict
 import sys
+import hashlib
 import json
 import time
 import string
@@ -217,7 +218,9 @@ class StepFunctions(object):
             # Create a `Parallel` state and assign sub workflows if the node
             # branches out.
             elif node.type == 'split-and':
-                branch_name = '&'.join(node.out_funcs)
+                branch_name = hashlib.sha224('&'.join(node.out_funcs) \
+                                     .encode('utf-8')) \
+                                     .hexdigest()
                 workflow.add_state(state.next(branch_name))
                 branch = Parallel(branch_name) \
                             .next(node.matching_join)
@@ -575,10 +578,14 @@ class StepFunctions(object):
                         image=resources['image'],
                         queue=resources['queue'],
                         iam_role=resources['iam_role'],
+                        execution_role=resources['execution_role'],
                         cpu=resources['cpu'],
                         gpu=resources['gpu'],
                         memory=resources['memory'],
                         run_time_limit=batch_deco.run_time_limit,
+                        shared_memory=resources['shared_memory'],
+                        max_swap=resources['max_swap'],
+                        swappiness=resources['swappiness'],
                         env=env,
                         attrs=attrs
                 ) \
@@ -637,6 +644,9 @@ class StepFunctions(object):
                  'init',
                  '--run-id sfn-$METAFLOW_RUN_ID',
                  '--task-id %s' % task_id_params]
+            # Assign tags to run objects.
+            if self.tags:
+                params.extend('--tag %s' % tag for tag in self.tags)
 
             # If the start step gets retried, we must be careful not to 
             # regenerate multiple parameters tasks. Hence we check first if 
