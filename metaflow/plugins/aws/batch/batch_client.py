@@ -183,7 +183,7 @@ class BatchJob(object):
                 else:
                     job_definition['containerProperties'] \
                         ['linuxParameters']['maxSwap'] = int(max_swap)
-        
+
         # check if job definition already exists
         def_name = 'metaflow_%s' % \
             hashlib.sha224(str(job_definition).encode('utf-8')).hexdigest()
