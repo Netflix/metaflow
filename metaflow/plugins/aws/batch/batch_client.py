@@ -12,6 +12,7 @@ except NameError:
     basestring = str
 
 from metaflow.exception import MetaflowException
+from metaflow.metaflow_config import AWS_SANDBOX_ENABLED
 
 class BatchClient(object):
     def __init__(self):
@@ -102,16 +103,22 @@ class BatchJob(object):
                                  swappiness):
         # identify platform from any compute environment associated with the
         # queue
-        response = self._client.describe_job_queues(jobQueues=[job_queue])
-        if len(response['jobQueues']) == 0:
-            raise BatchJobException('No Job queue %s found.' % job_queue)
-        compute_environment = response['jobQueues'][0] \
-                                ['computeEnvironmentOrder'][0] \
-                                ['computeEnvironment']
-        response = self._client.describe_compute_environments(
-            computeEnvironments=[compute_environment])
-        platform = response['computeEnvironments'][0] \
-                        ['computeResources']['type']
+        if AWS_SANDBOX_ENABLED:
+            # within the Metaflow sandbox, we can't execute the
+            # describe_job_queues directive for AWS Batch to detect compute
+            # environment platform, so let's just default to EC2 for now.
+            platform = "EC2"
+        else:
+            response = self._client.describe_job_queues(jobQueues=[job_queue])
+            if len(response['jobQueues']) == 0:
+                raise BatchJobException('Job queue %s found.' % job_queue)
+            compute_environment = response['jobQueues'][0] \
+                                    ['computeEnvironmentOrder'][0] \
+                                    ['computeEnvironment']
+            response = self._client.describe_compute_environments(
+                computeEnvironments=[compute_environment])
+            platform = response['computeEnvironments'][0] \
+                            ['computeResources']['type']
 
         # compose job definition
         job_definition = {
