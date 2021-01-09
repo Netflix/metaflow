@@ -94,7 +94,7 @@ class BatchDecorator(StepDecorator):
     execution_role : string
         IAM role that AWS Batch can use to trigger AWS Fargate tasks. Defaults to the one determined by the environment
         variable METAFLOW_ECS_FARGATE_EXECUTION_ROLE https://docs.aws.amazon.com/batch/latest/userguide/execution-IAM-role.html
-    shared_memory_size : int
+    shared_memory : int
         The value for the size (in MiB) of the /dev/shm volume for this step. 
         This parameter maps to the --shm-size option to docker run .
     max_swap : int
