@@ -85,7 +85,10 @@ class BatchJob(object):
                 self._register_job_definition(self._image,
                                               self._iam_role,
                                               self.payload['job_queue'],
-                                              self._execution_role)
+                                              self._execution_role,
+                                              self._shared_memory,
+                                              self._max_swap,
+                                              self._swappiness)
         response = self._client.submit_job(**self.payload)
         job = RunningJob(response['jobId'], self._client)
         return job.update()
@@ -94,7 +97,10 @@ class BatchJob(object):
                                  image,
                                  job_role,
                                  job_queue,
-                                 execution_role):
+                                 execution_role,
+                                 shared_memory,
+                                 max_swap,
+                                 swappiness):
         # identify platform from any compute environment associated with the
         # queue
         if AWS_SANDBOX_ENABLED:
@@ -133,6 +139,7 @@ class BatchJob(object):
                 ]
             }
         }
+
         if platform == 'FARGATE' or platform == 'FARGATE_SPOT':
             if execution_role is None:
                 raise BatchJobException(
@@ -146,6 +153,37 @@ class BatchJob(object):
             job_definition['containerProperties']['networkConfiguration'] = \
                 {'assignPublicIp': 'ENABLED'}
         
+        if platform == 'EC2' or platform == 'SPOT':
+            if 'linuxParameters' not in job_definition['containerProperties']:
+                job_definition['containerProperties']['linuxParameters'] = {}
+            if shared_memory is not None:
+                if not (isinstance(shared_memory, (int, unicode, basestring)) and 
+                    int(shared_memory) > 0):
+                    raise BatchJobException(
+                        'Invalid shared memory size value ({}); '
+                        'it should be greater than 0'.format(shared_memory))
+                else:
+                    job_definition['containerProperties'] \
+                        ['linuxParameters']['sharedMemorySize'] = int(shared_memory)
+            if swappiness is not None: 
+                if not (isinstance(swappiness, (int, unicode, basestring)) and 
+                    int(swappiness) >= 0 and int(swappiness) < 100):
+                    raise BatchJobException(
+                        'Invalid swappiness value ({}); '
+                        '(should be 0 or greater and less than 100)'.format(swappiness))
+                else:
+                    job_definition['containerProperties'] \
+                        ['linuxParameters']['swappiness'] = int(swappiness)
+            if max_swap is not None: 
+                if not (isinstance(max_swap, (int, unicode, basestring)) and 
+                    int(max_swap) >= 0):
+                    raise BatchJobException(
+                        'Invalid swappiness value ({}); '
+                        '(should be 0 or greater)'.format(max_swap))
+                else:
+                    job_definition['containerProperties'] \
+                        ['linuxParameters']['maxSwap'] = int(max_swap)
+
         # check if job definition already exists
         def_name = 'metaflow_%s' % \
             hashlib.sha224(str(job_definition).encode('utf-8')).hexdigest()
@@ -169,12 +207,22 @@ class BatchJob(object):
                 raise ex
         return response['jobDefinitionArn']
 
-    def job_def(self, image, iam_role, job_queue, execution_role):
+    def job_def(self,
+                image,
+                iam_role,
+                job_queue,
+                execution_role,
+                shared_memory,
+                max_swap,
+                swappiness):
         self.payload['jobDefinition'] = \
             self._register_job_definition(image,
                                           iam_role,
                                           job_queue,
-                                          execution_role)
+                                          execution_role,
+                                          shared_memory,
+                                          max_swap,
+                                          swappiness)
         return self
 
     def job_name(self, job_name):
@@ -195,6 +243,18 @@ class BatchJob(object):
 
     def execution_role(self, execution_role):
         self._execution_role = execution_role
+        return self
+
+    def shared_memory(self, shared_memory):
+        self._shared_memory = shared_memory
+        return self
+
+    def max_swap(self, max_swap):
+        self._max_swap = max_swap
+        return self
+
+    def swappiness(self, swappiness):
+        self._swappiness = swappiness
         return self
 
     def command(self, command):
@@ -264,7 +324,6 @@ class BatchJob(object):
     def attempts(self, attempts):
         self.payload['retryStrategy']['attempts'] = attempts
         return self
-
 
 class Throttle(object):
     def __init__(self, delta_in_secs=1, num_tries=20):
