@@ -134,7 +134,10 @@ def kill(ctx, run_id, user, my_runs):
     "--image", help="Docker image requirement for AWS Batch. In name:version format."
 )
 @click.option(
-    "--iam_role", help="IAM role requirement for AWS Batch"
+    "--iam_role", help="IAM role requirement for AWS Batch."
+)
+@click.option(
+    "--execution_role", help="Execution role requirement for AWS Batch on Fargate."
 )
 @click.option("--cpu", help="CPU requirement for AWS Batch.")
 @click.option("--gpu", help="GPU requirement for AWS Batch.")
@@ -168,6 +171,7 @@ def step(
     executable=None,
     image=None,
     iam_role=None,
+    execution_role=None,
     cpu=None,
     gpu=None,
     memory=None,
@@ -258,6 +262,7 @@ def step(
                 image=image,
                 queue=queue,
                 iam_role=iam_role,
+                execution_role=execution_role,
                 cpu=cpu,
                 gpu=gpu,
                 memory=memory,

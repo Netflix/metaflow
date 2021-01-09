@@ -17,7 +17,8 @@ from metaflow import R
 
 from .batch import Batch, BatchException
 from metaflow.metaflow_config import ECS_S3_ACCESS_IAM_ROLE, BATCH_JOB_QUEUE, \
-                    BATCH_CONTAINER_IMAGE, BATCH_CONTAINER_REGISTRY
+                    BATCH_CONTAINER_IMAGE, BATCH_CONTAINER_REGISTRY, \
+                    ECS_FARGATE_EXECUTION_ROLE
 
 try:
     # python2
@@ -53,7 +54,7 @@ class ResourcesDecorator(StepDecorator):
     defaults = {
         'cpu': '1',
         'gpu': '0',
-        'memory': '4000',
+        'memory': '4096',
     }
 
 class BatchDecorator(StepDecorator):
@@ -82,23 +83,27 @@ class BatchDecorator(StepDecorator):
         Memory size (in MB) required for this step. Defaults to 4000. If @resources is
         also present, the maximum value from all decorators is used
     image : string
-        Image to use when launching on Batch. If not specified, a default image mapping to
+        Image to use when launching on AWS Batch. If not specified, a default image mapping to
         the current version of Python is used
     queue : string
         Queue to submit the job to. Defaults to the one determined by the environment variable
         METAFLOW_BATCH_JOB_QUEUE
     iam_role : string
-        IAM role that Batch can use to access S3. Defaults to the one determined by the environment
+        IAM role that AWS Batch can use to access Amazon S3. Defaults to the one determined by the environment
         variable METAFLOW_ECS_S3_ACCESS_IAM_ROLE
+    execution_role : string
+        IAM role that AWS Batch can use to trigger AWS Fargate tasks. Defaults to the one determined by the environment
+        variable METAFLOW_ECS_FARGATE_EXECUTION_ROLE https://docs.aws.amazon.com/batch/latest/userguide/execution-IAM-role.html
     """
     name = 'batch'
     defaults = {
         'cpu': '1',
         'gpu': '0',
-        'memory': '4000',
+        'memory': '4096',
         'image': None,
         'queue': BATCH_JOB_QUEUE,
-        'iam_role': ECS_S3_ACCESS_IAM_ROLE
+        'iam_role': ECS_S3_ACCESS_IAM_ROLE,
+        'execution_role': ECS_FARGATE_EXECUTION_ROLE
     }
     package_url = None
     package_sha = None

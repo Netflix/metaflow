@@ -113,6 +113,7 @@ class Batch(object):
         image,
         queue,
         iam_role=None,
+        execution_role=None,
         cpu=None,
         gpu=None,
         memory=None,
@@ -137,7 +138,8 @@ class Batch(object):
                               self.environment, step_name, [step_cli])) \
             .image(image) \
             .iam_role(iam_role) \
-            .job_def(image, iam_role) \
+            .execution_role(execution_role) \
+            .job_def(image, iam_role, queue, execution_role) \
             .cpu(cpu) \
             .gpu(gpu) \
             .memory(memory) \
@@ -174,9 +176,11 @@ class Batch(object):
         image,
         queue,
         iam_role=None,
+        execution_role=None, # for FARGATE compatibility
         cpu=None,
         gpu=None,
         memory=None,
+        platform=None,
         run_time_limit=None,
         env={},
         attrs={},
@@ -197,6 +201,7 @@ class Batch(object):
                         image,
                         queue,
                         iam_role,
+                        execution_role,
                         cpu,
                         gpu,
                         memory,

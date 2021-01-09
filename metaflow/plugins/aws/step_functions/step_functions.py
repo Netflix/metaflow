@@ -578,6 +578,7 @@ class StepFunctions(object):
                         image=resources['image'],
                         queue=resources['queue'],
                         iam_role=resources['iam_role'],
+                        execution_role=resources['execution_role'],
                         cpu=resources['cpu'],
                         gpu=resources['gpu'],
                         memory=resources['memory'],

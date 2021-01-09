@@ -12,6 +12,7 @@ except NameError:
     basestring = str
 
 from metaflow.exception import MetaflowException
+from metaflow.metaflow_config import AWS_SANDBOX_ENABLED
 
 class BatchClient(object):
     def __init__(self):
@@ -39,10 +40,15 @@ class BatchClient(object):
             for job in page['jobSummaryList']
         )
 
-    def describe_jobs(self, jobIds):
-        for jobIds in [jobIds[i:i+100] for i in range(0, len(jobIds), 100)]:
+    def describe_jobs(self, job_ids):
+        for jobIds in [job_ids[i:i+100] for i in range(0, len(job_ids), 100)]:
             for jobs in self._client.describe_jobs(jobs=jobIds)['jobs']:
                 yield jobs
+
+    def describe_job_queue(self, job_queue):
+        paginator = self._client.get_paginator('describe_job_queues').paginate(
+            jobQueues=[job_queue], maxResults=1)
+        return paginator.paginate()['jobQueues'][0] 
 
     def job(self):
         return BatchJob(self._client)
@@ -76,35 +82,99 @@ class BatchJob(object):
             )
         if 'jobDefinition' not in self.payload:
             self.payload['jobDefinition'] = \
-                self._register_job_definition(self._image, self._iam_role)
+                self._register_job_definition(self._image,
+                                              self._iam_role,
+                                              self.payload['job_queue'],
+                                              self._execution_role)
         response = self._client.submit_job(**self.payload)
         job = RunningJob(response['jobId'], self._client)
         return job.update()
 
-    def _register_job_definition(self, image, job_role):
-        def_name = 'metaflow_%s' % \
-            hashlib.sha224((image + job_role).encode('utf-8')).hexdigest()
-        payload = {'jobDefinitionName': def_name, 'status': 'ACTIVE'}
-        response = self._client.describe_job_definitions(**payload)
-        if len(response['jobDefinitions']) > 0:
-            return response['jobDefinitions'][0]['jobDefinitionArn']
-        payload = {
-            'jobDefinitionName': def_name,
+    def _register_job_definition(self,
+                                 image,
+                                 job_role,
+                                 job_queue,
+                                 execution_role):
+        # identify platform from any compute environment associated with the
+        # queue
+        if AWS_SANDBOX_ENABLED:
+            # within the Metaflow sandbox, we can't execute the
+            # describe_job_queues directive for AWS Batch to detect compute
+            # environment platform, so let's just default to EC2 for now.
+            platform = "EC2"
+        else:
+            response = self._client.describe_job_queues(jobQueues=[job_queue])
+            if len(response['jobQueues']) == 0:
+                raise BatchJobException('Job queue %s found.' % job_queue)
+            compute_environment = response['jobQueues'][0] \
+                                    ['computeEnvironmentOrder'][0] \
+                                    ['computeEnvironment']
+            response = self._client.describe_compute_environments(
+                computeEnvironments=[compute_environment])
+            platform = response['computeEnvironments'][0] \
+                            ['computeResources']['type']
+
+        # compose job definition
+        job_definition = {
             'type': 'container',
             'containerProperties': {
                 'image': image,
                 'jobRoleArn': job_role,
                 'command': ['echo', 'hello world'],
-                'memory': 4000,
-                'vcpus': 1,
-            },
+                'resourceRequirements': [
+                    {
+                        'value': '1',
+                        'type': 'VCPU'
+                    },
+                    {
+                        'value': '4096',
+                        'type': 'MEMORY'
+                    }
+                ]
+            }
         }
-        response = self._client.register_job_definition(**payload)
+        if platform == 'FARGATE' or platform == 'FARGATE_SPOT':
+            if execution_role is None:
+                raise BatchJobException(
+                    'No AWS Fargate task execution IAM role found. Please see '
+                    'https://docs.aws.amazon.com/batch/latest/userguide/execution-IAM-role.html '
+                    'and set the role as METAFLOW_ECS_FARGATE_EXECUTION_ROLE '
+                    'environment variable.')
+            job_definition['containerProperties']['executionRoleArn'] = \
+                execution_role
+            job_definition['platformCapabilities'] = ['FARGATE']
+            job_definition['containerProperties']['networkConfiguration'] = \
+                {'assignPublicIp': 'ENABLED'}
+        
+        # check if job definition already exists
+        def_name = 'metaflow_%s' % \
+            hashlib.sha224(str(job_definition).encode('utf-8')).hexdigest()
+        payload = {'jobDefinitionName': def_name, 'status': 'ACTIVE'}
+        response = self._client.describe_job_definitions(**payload)
+        if len(response['jobDefinitions']) > 0:
+            return response['jobDefinitions'][0]['jobDefinitionArn']
+
+        # else create a job definition
+        job_definition['jobDefinitionName'] = def_name
+        try:
+            response = self._client.register_job_definition(**job_definition)
+        except Exception as ex:
+            if type(ex).__name__ == 'ParamValidationError' and \
+                    (platform == 'FARGATE' or platform == 'FARGATE_SPOT'):
+                raise BatchJobException(
+                    '%s \nPlease ensure you have installed boto3>=1.16.29 if '
+                    'you intend to launch AWS Batch jobs on AWS Fargate '
+                    'compute platform.' % ex)
+            else:
+                raise ex
         return response['jobDefinitionArn']
 
-    def job_def(self, image, iam_role):
+    def job_def(self, image, iam_role, job_queue, execution_role):
         self.payload['jobDefinition'] = \
-            self._register_job_definition(image, iam_role)
+            self._register_job_definition(image,
+                                          iam_role,
+                                          job_queue,
+                                          execution_role)
         return self
 
     def job_name(self, job_name):
@@ -123,6 +193,10 @@ class BatchJob(object):
         self._iam_role = iam_role
         return self
 
+    def execution_role(self, execution_role):
+        self._execution_role = execution_role
+        return self
+
     def command(self, command):
         if 'command' not in self.payload['containerOverrides']:
             self.payload['containerOverrides']['command'] = []
@@ -130,17 +204,25 @@ class BatchJob(object):
         return self
 
     def cpu(self, cpu):
-        if not (isinstance(cpu, (int, unicode, basestring)) and int(cpu) > 0):
+        if not (isinstance(cpu, (int, unicode, basestring, float)) and float(cpu) > 0):
             raise BatchJobException(
                 'Invalid CPU value ({}); it should be greater than 0'.format(cpu))
-        self.payload['containerOverrides']['vcpus'] = int(cpu)
+        if 'resourceRequirements' not in self.payload['containerOverrides']:
+            self.payload['containerOverrides']['resourceRequirements'] = []
+        self.payload['containerOverrides']['resourceRequirements'].append(
+            {'value' : str(cpu), 'type': 'VCPU'}
+        )
         return self
 
     def memory(self, mem):
         if not (isinstance(mem, (int, unicode, basestring)) and int(mem) > 0):
             raise BatchJobException(
                 'Invalid memory value ({}); it should be greater than 0'.format(mem))
-        self.payload['containerOverrides']['memory'] = int(mem)
+        if 'resourceRequirements' not in self.payload['containerOverrides']:
+            self.payload['containerOverrides']['resourceRequirements'] = []
+        self.payload['containerOverrides']['resourceRequirements'].append(
+            {'value' : str(mem), 'type': 'MEMORY'}
+        )
         return self
 
     def gpu(self, gpu):
