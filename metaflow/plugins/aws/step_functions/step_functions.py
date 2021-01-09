@@ -580,7 +580,7 @@ class StepFunctions(object):
                         gpu=resources['gpu'],
                         memory=resources['memory'],
                         run_time_limit=batch_deco.run_time_limit,
-                        shared_memory_size=resources['shared_memory_size'],
+                        shared_memory=resources['shared_memory'],
                         max_swap=resources['max_swap'],
                         swappiness=resources['swappiness'],
                         env=env,

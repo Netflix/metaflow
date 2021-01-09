@@ -118,7 +118,7 @@ class Batch(object):
         gpu=None,
         memory=None,
         run_time_limit=None,
-        shared_memory_size=None,
+        shared_memory=None,
         max_swap=None,
         swappiness=None,
         env={},
@@ -143,12 +143,12 @@ class Batch(object):
             .iam_role(iam_role) \
             .execution_role(execution_role) \
             .job_def(image, iam_role,
-                queue, execution_role, shared_memory_size,
+                queue, execution_role, shared_memory,
                 max_swap, swappiness) \
             .cpu(cpu) \
             .gpu(gpu) \
             .memory(memory) \
-            .shared_memory_size(shared_memory_size) \
+            .shared_memory(shared_memory) \
             .max_swap(max_swap) \
             .swappiness(swappiness) \
             .timeout_in_secs(run_time_limit) \
@@ -190,7 +190,7 @@ class Batch(object):
         memory=None,
         platform=None,
         run_time_limit=None,
-        shared_memory_size=None,
+        shared_memory=None,
         max_swap=None,
         swappiness=None,
         env={},
@@ -217,7 +217,7 @@ class Batch(object):
                         gpu,
                         memory,
                         run_time_limit,
-                        shared_memory_size,
+                        shared_memory,
                         max_swap,
                         swappiness,
                         env,

@@ -116,7 +116,7 @@ class BatchDecorator(StepDecorator):
         'queue': BATCH_JOB_QUEUE,
         'iam_role': ECS_S3_ACCESS_IAM_ROLE,
         'execution_role': ECS_FARGATE_EXECUTION_ROLE,
-        'shared_memory_size': None,
+        'shared_memory': None,
         'max_swap': None,
         'swappiness': None
     }

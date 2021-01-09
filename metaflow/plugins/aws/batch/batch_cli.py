@@ -162,7 +162,7 @@ def kill(ctx, run_id, user, my_runs):
     default=5 * 24 * 60 * 60,
     help="Run time limit in seconds for the AWS Batch job. " "Default is 5 days."
 )
-@click.option("--shared_memory_size", help="Shared Memory Size requirement for AWS Batch.")
+@click.option("--shared_memory", help="Shared Memory requirement for AWS Batch.")
 @click.option("--max_swap", help="Max Swap requirement for AWS Batch.")
 @click.option("--swappiness", help="Swappiness requirement for AWS Batch.")
 @click.pass_context
@@ -180,7 +180,7 @@ def step(
     memory=None,
     queue=None,
     run_time_limit=None,
-    shared_memory_size=None,
+    shared_memory=None,
     max_swap=None,
     swappiness=None,
     **kwargs
@@ -273,7 +273,7 @@ def step(
                 gpu=gpu,
                 memory=memory,
                 run_time_limit=run_time_limit,
-                shared_memory_size=shared_memory_size,
+                shared_memory=shared_memory,
                 max_swap=max_swap,
                 swappiness=swappiness,
                 env=env,

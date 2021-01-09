@@ -85,7 +85,7 @@ class BatchJob(object):
                                               self._iam_role,
                                               self.payload['job_queue'],
                                               self._execution_role,
-                                              self._shared_memory_size,
+                                              self._shared_memory,
                                               self._max_swap,
                                               self._swappiness)
         response = self._client.submit_job(**self.payload)
@@ -97,7 +97,7 @@ class BatchJob(object):
                                  job_role,
                                  job_queue,
                                  execution_role,
-                                 shared_memory_size,
+                                 shared_memory,
                                  max_swap,
                                  swappiness):
         # identify platform from any compute environment associated with the
@@ -149,15 +149,15 @@ class BatchJob(object):
         if platform == 'EC2' or platform == 'SPOT':
             if 'linuxParameters' not in job_definition['containerProperties']:
                 job_definition['containerProperties']['linuxParameters'] = {}
-            if shared_memory_size is not None:
-                if not (isinstance(shared_memory_size, (int, unicode, basestring)) and 
-                    int(shared_memory_size) > 0):
+            if shared_memory is not None:
+                if not (isinstance(shared_memory, (int, unicode, basestring)) and 
+                    int(shared_memory) > 0):
                     raise BatchJobException(
                         'Invalid shared memory size value ({}); '
-                        'it should be greater than 0'.format(shared_memory_size))
+                        'it should be greater than 0'.format(shared_memory))
                 else:
                     job_definition['containerProperties'] \
-                        ['linuxParameters']['sharedMemorySize'] = int(shared_memory_size)
+                        ['linuxParameters']['sharedMemorySize'] = int(shared_memory)
             if swappiness is not None: 
                 if not (isinstance(swappiness, (int, unicode, basestring)) and 
                     int(swappiness) >= 0 and int(swappiness) < 100):
@@ -205,7 +205,7 @@ class BatchJob(object):
                 iam_role,
                 job_queue,
                 execution_role,
-                shared_memory_size,
+                shared_memory,
                 max_swap,
                 swappiness):
         self.payload['jobDefinition'] = \
@@ -213,7 +213,7 @@ class BatchJob(object):
                                           iam_role,
                                           job_queue,
                                           execution_role,
-                                          shared_memory_size,
+                                          shared_memory,
                                           max_swap,
                                           swappiness)
         return self
@@ -238,8 +238,8 @@ class BatchJob(object):
         self._execution_role = execution_role
         return self
 
-    def shared_memory_size(self, shared_memory_size):
-        self._shared_memory_size = shared_memory_size
+    def shared_memory(self, shared_memory):
+        self._shared_memory = shared_memory
         return self
 
     def max_swap(self, max_swap):
