@@ -48,13 +48,17 @@ class ResourcesDecorator(StepDecorator):
     gpu : int
         Number of GPUs required for this step. Defaults to 0
     memory : int
-        Memory size (in MB) required for this step. Defaults to 4000
+        Memory size (in MB) required for this step. Defaults to 4096
+    shared_memory : int
+        The value for the size (in MiB) of the /dev/shm volume for this step. 
+        This parameter maps to the --shm-size option to docker run .
     """
     name = 'resources'
     defaults = {
         'cpu': '1',
         'gpu': '0',
         'memory': '4096',
+        'shared_memory': None
     }
 
 class BatchDecorator(StepDecorator):
@@ -80,7 +84,7 @@ class BatchDecorator(StepDecorator):
         Number of GPUs required for this step. Defaults to 0. If @resources is also
         present, the maximum value from all decorators is used
     memory : int
-        Memory size (in MB) required for this step. Defaults to 4000. If @resources is
+        Memory size (in MB) required for this step. Defaults to 4096. If @resources is
         also present, the maximum value from all decorators is used
     image : string
         Image to use when launching on AWS Batch. If not specified, a default image mapping to
@@ -96,7 +100,7 @@ class BatchDecorator(StepDecorator):
         variable METAFLOW_ECS_FARGATE_EXECUTION_ROLE https://docs.aws.amazon.com/batch/latest/userguide/execution-IAM-role.html
     shared_memory : int
         The value for the size (in MiB) of the /dev/shm volume for this step. 
-        This parameter maps to the --shm-size option to docker run .
+        This parameter maps to the --shm-size option to docker run.
     max_swap : int
         The total amount of swap memory (in MiB) a container can use for this step.
         This parameter is translated to the --memory-swap option to docker run 
