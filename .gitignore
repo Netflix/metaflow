@@ -19,3 +19,6 @@ R/.Rbuildignore
 .Rproj.user
 
 .DS_Store
+
+.project
+.pydevproject

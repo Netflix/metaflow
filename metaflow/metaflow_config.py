@@ -97,6 +97,8 @@ if METADATA_SERVICE_AUTH_KEY is not None:
 # IAM role for AWS Batch container with Amazon S3 access 
 # (and AWS DynamoDb access for AWS StepFunctions, if enabled)
 ECS_S3_ACCESS_IAM_ROLE = from_conf('METAFLOW_ECS_S3_ACCESS_IAM_ROLE')
+# IAM role for AWS Batch container for AWS Fargate
+ECS_FARGATE_EXECUTION_ROLE = from_conf('METAFLOW_ECS_FARGATE_EXECUTION_ROLE')
 # Job queue for AWS Batch
 BATCH_JOB_QUEUE = from_conf('METAFLOW_BATCH_JOB_QUEUE')
 # Default container image for AWS Batch

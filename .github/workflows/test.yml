@@ -48,7 +48,7 @@ jobs:
     
     - name: Install R 3.6 system dependencies
       if: matrix.lang == 'R' && matrix.os == 'ubuntu-latest'
-      run: sudo apt-get update; sudo apt-get install -y libcurl4-openssl-dev qpdf
+      run: sudo apt-get update; sudo apt-get install -y libcurl4-openssl-dev qpdf libgit2-dev
 
     - name: Install R 3.6 Rlang dependencies
       if: matrix.lang == 'R'
