@@ -9,7 +9,10 @@ def cli():
 @click.pass_obj
 def package(obj):
     # Prepare the package before any of the sub-commands are invoked.
-    obj.package = MetaflowPackage(obj.flow, obj.environment, obj.logger, obj.package_suffixes)
+    obj.package = MetaflowPackage(obj.flow,
+                                  obj.environment,
+                                  obj.echo,
+                                  obj.package_suffixes)
 
 @package.command(help='Output information about the current code package.')
 @click.pass_obj
