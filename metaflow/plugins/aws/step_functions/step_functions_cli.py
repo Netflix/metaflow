@@ -9,7 +9,6 @@ from metaflow.datastore.datastore import TransformableObject
 from metaflow.package import MetaflowPackage
 from metaflow.plugins import BatchDecorator
 from metaflow.util import get_username
-from metaflow.graph import FlowGraph
 
 from .step_functions import StepFunctions
 from .production_token import load_token, store_token, new_token
@@ -172,7 +171,6 @@ def make_flow(obj,
 
     # Attach AWS Batch decorator to the flow
     decorators._attach_decorators(obj.flow, [BatchDecorator.name])
-    obj.graph = FlowGraph(obj.flow.__class__)
     decorators._init_step_decorators(
             obj.flow, obj.graph, obj.environment, obj.datastore, obj.logger)
 
