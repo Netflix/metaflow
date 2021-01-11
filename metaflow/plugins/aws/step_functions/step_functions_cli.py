@@ -271,7 +271,8 @@ def resolve_token(name,
 def trigger(obj, **kwargs):
     def _convert_value(param):
         v = kwargs.get(param.name)
-        return json.dumps(v) if param.kwargs.get('type') == JSONType else v
+        return json.dumps(v) if param.kwargs.get('type') == JSONType else \
+            v() if callable(v) else v
 
     params = {param.name: _convert_value(param)
               for _, param in obj.flow._get_parameters()
