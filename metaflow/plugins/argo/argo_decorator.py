@@ -44,13 +44,16 @@ class ArgoStepDecorator(StepDecorator):
         Docker image to use for Argo Workflows template. If not specified, a default image mapping to
         a base Python/ML container is used
     nodeSelector: json
-        node selector expression, e.g. {"gpu": "nvidia-tesla-k80"}
+        Node selector expression, e.g. {"gpu": "nvidia-tesla-k80"}
+    artifacts: list
+        Argo outputs artifacts list
 
     """
     name = 'argo'
     defaults = {
         'image': None,
-        'nodeSelector': None
+        'nodeSelector': None,
+        'artifacts': None
     }
 
     def __init__(self, attributes=None, statically_defined=False):

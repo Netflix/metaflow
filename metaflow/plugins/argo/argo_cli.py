@@ -1,5 +1,4 @@
 import click
-import platform
 import json
 
 from metaflow import current, decorators, parameters, JSONType
@@ -24,6 +23,7 @@ def argo(obj):
 @argo.command(help="Deploy a new version of this workflow to "
                     "Argo Workflow Templates.")
 @click.option("--image",
+              default=None,
               help="Docker image requirement in name:version format.")
 @click.option("--token",
               default=None,
@@ -57,9 +57,6 @@ def create(obj, image, token, namespace, only_json=False):
         obj.flow, obj.environment, obj.logger, obj.package_suffixes)
     package_url = datastore.save_data(
         obj.package.sha, TransformableObject(obj.package.blob))
-
-    if not image:
-        image = 'python:%s.%s' % platform.python_version_tuple()[:2]
 
     name = current.flow_name.lower()
     workflow = ArgoWorkflow(name,

@@ -1,8 +1,9 @@
 import os
 import sys
 import json
+import platform
 
-from metaflow.util import get_username
+from metaflow.util import get_username, compress_list
 from metaflow.metaflow_config import DATASTORE_SYSROOT_S3
 from metaflow.parameters import deploy_time_eval
 from metaflow.plugins.aws.batch.batch_decorator import ResourcesDecorator
@@ -11,163 +12,13 @@ from .argo_exception import ArgoException
 from .argo_client import ArgoClient
 
 
-def create_template(name, node, cmds, env, docker_image, node_selector, resources):
+def dns_name(name):
     """
-    Creates a template to be executed through the DAG task.
+    Most k8s resource types require a name to be used as
+    DNS subdomain name as defined in RFC 1123.
+    Hence template names couldn't have '_' (underscore).
     """
-    t = {
-        'name': name,
-        'inputs': {
-            'parameters': [
-                {'name': 'input-paths'},
-            ]
-        },
-        'outputs': {
-            'parameters': [
-                {
-                    'name': 'task-id',
-                    'value': '{{pod.name}}'
-                },
-            ]
-        },
-        'container': {
-            'image': docker_image,
-            'command': ['/bin/sh'],
-            'args': ['-c', cmds],
-            'env': env,
-        }
-    }
-
-    if node.is_inside_foreach:
-        t['inputs']['parameters'].append({'name': 'split-index'})
-
-    if node.type == 'foreach':
-        t['outputs']['parameters'].append(
-            {
-                'name': 'num-splits',
-                'valueFrom': {'path': ArgoInternalStepDecorator.splits_file_path}
-
-            }
-        )
-
-    if node_selector:
-        t['nodeSelector'] = node_selector
-
-    if resources:
-        t['container']['resources'] = {
-            'requests': resources,
-            'limits': resources.copy()  # prevent creating yaml anchor and link
-        }
-
-    return [t]
-
-
-def create_resources(decorators):
-    resources = {}
-
-    for deco in decorators:
-        if isinstance(deco, ResourcesDecorator):
-            for key, val in deco.attributes.items():
-                if key == 'cpu':
-                    val = int(val)
-
-                # argo cluster treats memory as kb
-                if key == 'memory':
-                    val = str(val) + 'Mi'
-
-                elif key == 'gpu':
-                    key = 'nvidia.com/gpu'
-                    val = int(val)
-                    if val <= 0:
-                        continue
-
-                resources[key] = val
-
-            break
-
-    return resources
-
-
-def create_node_selector(decorators):
-    for deco in decorators:
-        if isinstance(deco, ArgoStepDecorator):
-            if 'nodeSelector' in deco.attributes and deco.attributes['nodeSelector']:
-                return deco.attributes['nodeSelector']
-
-    return None
-
-
-def create_dag_task(graph, name, node):
-    task = {
-        'name': name,
-        'template': name,
-        'dependencies': [mangle_step_name(d) for d in node.in_funcs],
-        'arguments': {
-            'parameters': [
-                {
-                    'name': 'input-paths',
-                    'value': input_paths(graph, node)
-                }
-            ]
-        }
-    }
-
-    if node.is_inside_foreach:
-        task['arguments']['parameters'].append({'name': 'split-index', 'value': '{{item}}'})
-        task['withParam'] = \
-            '{{tasks.%s.outputs.parameters.num-splits}}' % mangle_step_name(node.in_funcs[0])
-
-    return task
-
-
-def input_paths(graph, node):
-    if node.name == 'start':
-        return '{{workflow.name}}/_parameters/0'
-
-    elif node.type == 'join':
-        if graph[node.split_parents[-1]].type == 'foreach':
-            parent_step = node.in_funcs[0]
-            parent_dag_task = mangle_step_name(parent_step)
-            # {{tasks.TASK.outputs.parameters}} contains a "json" with all TASK's children params (task-ids)
-            return '{{workflow.name}}/%s/{{tasks.%s.outputs.parameters}}' % (parent_step, parent_dag_task)
-        else:
-            parents = ['%s/{{tasks.%s.outputs.parameters.task-id}}' % (p, mangle_step_name(p)) for p in node.in_funcs]
-            return '{{workflow.name}}/:%s' % ','.join(parents)
-
-    parent_step = node.in_funcs[0]
-    parent_dag_task = mangle_step_name(parent_step)
-    return '{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}' % (parent_step, parent_dag_task)
-
-
-def mangle_step_name(name):
-    """ Must consist of alpha-numeric characters or '-' """
     return name.replace('_', '-')
-
-
-def get_step_docker_image(node, base_image, flow_decorators):
-    """
-    docker image is inherited from: cmdline -> flow -> step
-    Parameters
-    ----------
-    base_image: specified in cmdline or default
-    flow_decorators: argo_base decorator
-    node: current step
-
-    Returns
-    -------
-    name of resulting docker_image
-    """
-    docker_image_name = base_image
-    if 'argo_base' in flow_decorators:
-        if flow_decorators['argo_base'].attributes['image']:
-            docker_image_name = flow_decorators['argo_base'].attributes['image']
-
-    for step_decorator in node.decorators:
-        if isinstance(step_decorator, ArgoStepDecorator):  # prevent Batch parameters from overwriting argo parameters
-            if 'image' in step_decorator.attributes and step_decorator.attributes['image']:
-                docker_image_name = step_decorator.attributes['image']
-
-    return docker_image_name
 
 
 class ArgoWorkflow:
@@ -255,52 +106,30 @@ class ArgoWorkflow:
 
     def _compile(self):
         parameters = self._process_parameters()
+        steps = [Step(node,
+                      self.graph,
+                      self._get_default_image(),
+                      self._commands(node, parameters))
+                 for node in self.graph.nodes.values()]
+        entrypoint = 'entry'
         return {
             'apiVersion': 'argoproj.io/v1alpha1',
             'kind': 'WorkflowTemplate',
             'metadata': {
                 'name': self.name,
-                'labels': {
-                    'workflows.argoproj.io/archive-strategy': 'false',
-                }
             },
             'spec': {
-                'entrypoint': 'entry',
+                'entrypoint': entrypoint,
                 'arguments': {
                     'parameters': parameters
                 },
-                'templates': self._prepare_templates(parameters),
+                'templates': self._generate_templates(steps, entrypoint),
             }
         }
 
-    def _prepare_templates(self, parameters):
-        templates = []
-        tasks = []
-        for name, node in self.graph.nodes.items():
-            name = mangle_step_name(name)
-            templates.extend(create_template(name,
-                                             node,
-                                             self._command(node, parameters),
-                                             self._env(),
-                                             get_step_docker_image(node, self.image, self.flow._flow_decorators),
-                                             create_node_selector(node.decorators),
-                                             create_resources(node.decorators)))
-
-            tasks.append(create_dag_task(self.graph, name, node))
-
-        templates.append({'name': 'entry', 'dag': {'tasks': tasks}})
-        return templates
-
-    def _command(self, node, parameters):
-        cmds = self.environment.get_package_commands(self.code_package_url)
-        cmds.extend(self.environment.bootstrap_commands(node.name))
-        cmds.append("echo 'Task is starting.'")
-        cmds.extend([self._step_cli(node, parameters)])
-        return " && ".join(cmds)
-
     def _process_parameters(self):
         parameters = []
-        for var, param in self.flow._get_parameters():
+        for _, param in self.flow._get_parameters():
             p = {'name': param.name}
             if 'default' in param.kwargs:
                 v = deploy_time_eval(param.kwargs.get('default'))
@@ -308,7 +137,33 @@ class ArgoWorkflow:
             parameters.append(p)
         return parameters
 
-    def _step_cli(self, node, parameters):
+    def _get_default_image(self):
+        if self.image:
+            return self.image
+        flow_deco = self.flow._flow_decorators.get('argo_base')
+        if flow_deco:
+            image = flow_deco.attributes.get('image')
+            if image:
+                return image
+        return 'python:%s.%s' % platform.python_version_tuple()[:2]
+
+    def _generate_templates(self, steps, entry):
+        dag = {
+            'name': entry,
+            'dag': {
+                'tasks': [s.task() for s in steps]
+            }
+        }
+        return [dag] + [s.template() for s in steps]
+
+    def _commands(self, node, parameters):
+        cmds = self.environment.get_package_commands(self.code_package_url)
+        cmds.extend(self.environment.bootstrap_commands(node.name))
+        cmds.append("echo 'Task is starting.'")
+        cmds.extend(self._step_commands(node, parameters))
+        return cmds
+
+    def _step_commands(self, node, parameters):
         cmds = []
         script_name = os.path.basename(sys.argv[0])
         executable = self.environment.executable(node.name)
@@ -342,8 +197,9 @@ class ArgoWorkflow:
         if node.type == 'join' and self.graph[node.split_parents[-1]].type == 'foreach':
             # convert input-paths from argo aggregation json and save into $METAFLOW_PARENT_PATHS
             # which will be used by --input-paths $METAFLOW_PARENT_PATHS
-            export_parent_tasks = 'METAFLOW_PARENT_PATHS=' \
-                                  '$(python -m metaflow.plugins.argo.convert_argo_aggregation %s)' % paths
+            module = 'metaflow.plugins.argo.convert_argo_aggregation'
+            export_parent_tasks = 'METAFLOW_PARENT_PATHS=$(python -m %s %s)' \
+                % (module, paths)
             paths = '$METAFLOW_PARENT_PATHS'
 
             cmds.append(export_parent_tasks)
@@ -372,13 +228,146 @@ class ArgoWorkflow:
             step.append('--split-index {{inputs.parameters.split-index}}')
 
         cmds.append(' '.join(entrypoint + top_level + step))
-        return ' && '.join(cmds)
+        return cmds
 
-    def _env(self):
+
+class Step:
+    def __init__(self, node, graph, default_image, commands):
+        self.name = dns_name(node.name)
+        self.node = node
+        self.graph = graph
+        self.default_image = default_image
+        self.cmds = commands
+        self._attr = self._parse_step_docorator(ArgoStepDecorator)
+        self._attr.update(self._parse_step_docorator(ResourcesDecorator))
+
+    def _parse_step_docorator(self, deco_type):
+        deco = [d for d in self.node.decorators if isinstance(d, deco_type)]
+        return deco[0].attributes if deco else {}
+
+    def _parent(self):
+        return self.node.in_funcs[0]
+
+    def _foreach_child(self):
+        return self.node.is_inside_foreach and \
+            self.graph[self._parent()].type == 'foreach'
+
+    def task(self):
+        with_param = None
+        parameters = {
+            'input-paths': self._input_paths()
+        }
+        if self._foreach_child():
+            parameters['split-index'] = '{{item}}'
+            with_param = '{{tasks.%s.outputs.parameters.num-splits}}' % \
+                dns_name(self._parent())
+        task = {
+            'name': self.name,
+            'template': self.name,
+            'dependencies': [dns_name(d) for d in self.node.in_funcs],
+            'arguments': {
+                'parameters': [{'name': k, 'value': v}
+                               for k, v in parameters.items()]
+            }
+        }
+        if with_param:
+            task['withParam'] = with_param
+        return task
+
+    def template(self):
+        tmpl = {
+            'name': self.name,
+            'inputs': self._inputs(),
+            'outputs': self._outputs(),
+            'container': self._container(),
+        }
+        if self._attr.get('nodeSelector'):
+            tmpl['nodeSelector'] = self._attr['nodeSelector']
+        return tmpl
+
+    def _input_paths(self):
+        if self.name == 'start':
+            return '{{workflow.name}}/_parameters/0'
+
+        if self.node.type == 'join':
+            if self.graph[self.node.split_parents[-1]].type == 'foreach':
+                return self._task_params()
+            else:
+                all_parents_params = [self._task_params('task-id', parent)
+                                      for parent in self.node.in_funcs]
+                return compress_list(all_parents_params)
+
+        return self._task_params('task-id')
+
+    def _task_params(self, param=None, parent=None):
+        if parent is None:
+            parent = self._parent()
+        s = 'tasks.%s.outputs.parameters' % dns_name(parent)
+        if param:
+            s += '.' + param
+        return '{{workflow.name}}/%s/{{%s}}' % (parent, s)
+
+    def _inputs(self):
+        params = ['input-paths']
+        if self._foreach_child():
+            params.append('split-index')
+        return {
+            'parameters': [{'name': ip} for ip in params]
+        }
+
+    def _outputs(self):
+        params = [{
+                'name': 'task-id',
+                'value': '{{pod.name}}'
+        }]
+        if self.node.type == 'foreach':
+            params.append({
+                'name': 'num-splits',
+                'valueFrom': {'path': ArgoInternalStepDecorator.splits_file_path}
+            })
+        outputs = {'parameters': params}
+        artifacts = self._attr.get('artifacts')
+        if artifacts:
+            outputs['artifacts'] = artifacts
+        return outputs
+
+    def _container(self):
         env = {
             'AWS_ACCESS_KEY_ID': os.getenv('AWS_ACCESS_KEY_ID'),
             'AWS_SECRET_ACCESS_KEY': os.getenv('AWS_SECRET_ACCESS_KEY'),
             'METAFLOW_USER': get_username(),
             'METAFLOW_DATASTORE_SYSROOT_S3': DATASTORE_SYSROOT_S3,
         }
-        return [{'name': k, 'value': v} for k, v in env.items()]
+
+        image = self.default_image
+        if self._attr.get('image'):
+            image = self._attr['image']
+
+        container = {
+            'image': image,
+            'command': ['/bin/sh'],
+            'args': ['-c', ' && '.join(self.cmds)],
+            'env': [{'name': k, 'value': v} for k, v in env.items()],
+        }
+
+        res = self._resources()
+        if res:
+            container['resources'] = {
+                'requests': res,
+                'limits': res
+            }
+        return container
+
+    def _resources(self):
+        res = {}
+        cpu = self._attr.get('cpu')
+        if cpu:
+            res['cpu'] = int(cpu)
+        mem = self._attr.get('memory')
+        if mem:
+            # argo cluster treats memory as kb
+            res['memory'] = str(mem) + 'Mi'
+        gpu = self._attr.get('gpu')
+        if gpu:
+            res['nvidia.com/gpu'] = int(gpu)
+        return res
