@@ -11,6 +11,7 @@ invisible(lapply(c("R6", "reticulate", "magrittr", "cli", "lubridate", "digest")
 
 # install numpy and pandas in Python to handle R matrix and data.frame 
 system("python3 -m pip install numpy pandas -qqq")
+Sys.setenv(METAFLOW_PYTHON = system("which python3", intern=TRUE))
 
 # the remote code package places the R package under the metaflow-r folder
 suppressMessages(install.packages("./metaflow-r", quiet = TRUE, repos = NULL, type = "source"))
