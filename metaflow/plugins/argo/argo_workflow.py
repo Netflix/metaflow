@@ -153,10 +153,10 @@ class ArgoWorkflow:
         parameters = self._parameters()
         entrypoint = 'entry'
         spec = {
-                'entrypoint': entrypoint,
-                'arguments': {
-                    'parameters': parameters
-                }
+            'entrypoint': entrypoint,
+            'arguments': {
+                'parameters': parameters
+            }
         }
 
         image_pull_secret = self._flow_attributes.get('imagePullSecrets')
@@ -342,8 +342,8 @@ class Step:
 
     def _outputs(self):
         params = [{
-                'name': 'task-id',
-                'value': '{{pod.name}}'
+            'name': 'task-id',
+            'value': '{{pod.name}}'
         }]
         if self.node.type == 'foreach':
             params.append({
