@@ -1,5 +1,5 @@
-import requests
 import posixpath
+import requests
 
 from metaflow.metaflow_config import from_conf
 from .argo_exception import ArgoException
@@ -62,7 +62,8 @@ class ArgoClient(object):
                              'api/v1/workflows',
                              self.namespace)
         params = {
-            'fields': 'items.metadata.name,items.status.phase,items.status.startedAt,items.status.finishedAt'
+            'fields': 'items.metadata.name,items.status.phase,'
+                      'items.status.startedAt,items.status.finishedAt'
         }
         if phases:
             params['listOptions.labelSelector'] = 'workflows.argoproj.io/phase in (%s)' % ','.join(phases)

@@ -172,7 +172,8 @@ class ArgoWorkflow:
 
         return spec
 
-    def _generate_templates(self, steps, entry):
+    @staticmethod
+    def _generate_templates(steps, entry):
         dag = {
             'name': entry,
             'dag': {
@@ -317,10 +318,10 @@ class Step:
         if self.node.type == 'join':
             if self.graph[self.node.split_parents[-1]].type == 'foreach':
                 return self._task_params()
-            else:
-                all_parents_params = [self._task_params('task-id', parent)
-                                      for parent in self.node.in_funcs]
-                return compress_list(all_parents_params)
+
+            all_parents_params = [self._task_params('task-id', parent)
+                                  for parent in self.node.in_funcs]
+            return compress_list(all_parents_params)
 
         return self._task_params('task-id')
 

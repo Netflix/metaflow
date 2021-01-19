@@ -21,7 +21,7 @@ def argo(obj):
 
 
 @argo.command(help="Deploy a new version of this workflow to "
-                    "Argo Workflow Templates.")
+                   "Argo Workflow Templates.")
 @click.option("--image",
               default=None,
               help="Docker image requirement in name:version format.")
@@ -51,7 +51,7 @@ def create(obj, image, token, namespace, only_json=False):
     # When using conda attach AWS Batch decorator to the flow. This results in 'linux-64' libraries to be packaged.
     decorators._attach_decorators(obj.flow, [BatchDecorator.name])
     decorators._init_step_decorators(
-            obj.flow, obj.graph, obj.environment, obj.datastore, obj.logger)
+        obj.flow, obj.graph, obj.environment, obj.datastore, obj.logger)
 
     obj.package = MetaflowPackage(
         obj.flow, obj.environment, obj.logger, obj.package_suffixes)
@@ -96,12 +96,13 @@ def trigger(obj, token, namespace, **kwargs):
 
     params = {p.name: _convert_value(p)
               for _, p in obj.flow._get_parameters()
-                if kwargs.get(p.name) is not None}
+              if kwargs.get(p.name) is not None}
     name = current.flow_name.lower()
     response = ArgoWorkflow.trigger(token, namespace, name, params)
     id = response['metadata']['name']
-    obj.echo("Workflow *{name}* triggered on Argo Workflows"
-        "(run-id *{id}*).".format(name=name, id=id), bold=True)
+    obj.echo("Workflow *{name}* triggered on Argo Workflows "
+             "(run-id *{id}*).".format(name=name, id=id), bold=True)
+
 
 @argo.command(help="List workflows on Argo Workflows.")
 @click.pass_obj

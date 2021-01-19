@@ -46,7 +46,7 @@ class ArgoStepDecorator(StepDecorator):
     ```
     Parameters
     ----------
-    image : string
+    image: string
         Docker image to use for Argo Workflows template. If not specified, a default image mapping to
         a base Python/ML container is used
     nodeSelector: json
@@ -60,9 +60,6 @@ class ArgoStepDecorator(StepDecorator):
         'nodeSelector': None,
         'artifacts': None
     }
-
-    def __init__(self, attributes=None, statically_defined=False):
-        super(ArgoStepDecorator, self).__init__(attributes, statically_defined)
 
     def step_init(self, flow, graph, step, decos, environment, datastore, logger):
         if datastore.TYPE != 's3':
@@ -88,7 +85,6 @@ class ArgoInternalStepDecorator(StepDecorator):
 
         # For foreaches, we need to export the cardinality of the fan-out
         # into a file that can be read by Argo Workflows output parameter and this be consumable in the next step
-        # TODO: nested foreach
         if graph[step_name].type == 'foreach':
             self._save_foreach_cardinality(flow._foreach_num_splits)
 
