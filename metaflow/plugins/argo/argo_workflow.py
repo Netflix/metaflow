@@ -45,6 +45,7 @@ class ArgoWorkflow:
         self.event_logger = event_logger
         self.monitor = monitor
         self.image = image
+        self._flow_attributes = self._parse_flow_docorator()
         self._workflow = self._compile()
 
     def to_json(self):
@@ -104,30 +105,33 @@ class ArgoWorkflow:
         except Exception as e:
             raise ArgoException(str(e))
 
+    def _parse_flow_docorator(self):
+        if 'argo_base' in self.flow._flow_decorators:
+            return self.flow._flow_decorators['argo_base'].attributes
+        return {}
+
     def _compile(self):
-        parameters = self._process_parameters()
-        steps = [Step(node,
-                      self.graph,
-                      self._get_default_image(),
-                      self._commands(node, parameters))
-                 for node in self.graph.nodes.values()]
-        entrypoint = 'entry'
         return {
             'apiVersion': 'argoproj.io/v1alpha1',
             'kind': 'WorkflowTemplate',
-            'metadata': {
-                'name': self.name,
-            },
-            'spec': {
-                'entrypoint': entrypoint,
-                'arguments': {
-                    'parameters': parameters
-                },
-                'templates': self._generate_templates(steps, entrypoint),
-            }
+            'metadata': self._metadata(),
+            'spec': self._spec()
         }
 
-    def _process_parameters(self):
+    def _metadata(self):
+        metadata = {'name': self.name}
+
+        labels = self._flow_attributes.get('labels')
+        if labels:
+            metadata['labels'] = labels
+
+        annotations = self._flow_attributes.get('annotations')
+        if annotations:
+            metadata['annotations'] = annotations
+
+        return metadata
+
+    def _parameters(self):
         parameters = []
         for _, param in self.flow._get_parameters():
             p = {'name': param.name}
@@ -137,15 +141,36 @@ class ArgoWorkflow:
             parameters.append(p)
         return parameters
 
-    def _get_default_image(self):
+    def _default_image(self):
         if self.image:
             return self.image
-        flow_deco = self.flow._flow_decorators.get('argo_base')
-        if flow_deco:
-            image = flow_deco.attributes.get('image')
-            if image:
-                return image
+        image = self._flow_attributes.get('image')
+        if image:
+            return image
         return 'python:%s.%s' % platform.python_version_tuple()[:2]
+
+    def _spec(self):
+        parameters = self._parameters()
+        entrypoint = 'entry'
+        spec = {
+                'entrypoint': entrypoint,
+                'arguments': {
+                    'parameters': parameters
+                }
+        }
+
+        image_pull_secret = self._flow_attributes.get('imagePullSecrets')
+        if image_pull_secret:
+            spec['imagePullSecrets'] = image_pull_secret
+
+        steps = [Step(node,
+                      self.graph,
+                      self._default_image(),
+                      self._commands(node, parameters))
+                 for node in self.graph.nodes.values()]
+        spec['templates'] = self._generate_templates(steps, entrypoint)
+
+        return spec
 
     def _generate_templates(self, steps, entry):
         dag = {
@@ -278,11 +303,11 @@ class Step:
         tmpl = {
             'name': self.name,
             'inputs': self._inputs(),
-            'outputs': self._outputs(),
-            'container': self._container(),
+            'outputs': self._outputs()
         }
         if self._attr.get('nodeSelector'):
             tmpl['nodeSelector'] = self._attr['nodeSelector']
+        tmpl['container'] = self._container()
         return tmpl
 
     def _input_paths(self):

@@ -19,13 +19,19 @@ class ArgoFlowDecorator(FlowDecorator):
 
     Parameters
     ----------
-    image : string
+    image: string
         Docker image is used for Argo Workflows template. If not specified, a default image mapping to
         a base Python/ML container is used
+    labels: part of workflow metadata
+    annotations: part of workflow metadata
+    imagePullSecrets: credentials for pulling docker images
     """
     name = 'argo_base'
     defaults = {
-        'image': None
+        'image': None,
+        'labels': {},
+        'annotations': {},
+        'imagePullSecrets': []
     }
 
 
@@ -47,8 +53,7 @@ class ArgoStepDecorator(StepDecorator):
         Node selector expression, e.g. {"gpu": "nvidia-tesla-k80"}
     artifacts: list
         Argo outputs artifacts list
-
-    """
+   """
     name = 'argo'
     defaults = {
         'image': None,
