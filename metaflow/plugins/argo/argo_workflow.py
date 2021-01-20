@@ -4,7 +4,7 @@ import json
 import platform
 
 from metaflow.util import get_username, compress_list
-from metaflow.metaflow_config import DATASTORE_SYSROOT_S3
+from metaflow.metaflow_config import DATASTORE_SYSROOT_S3, METADATA_SERVICE_URL
 from metaflow.parameters import deploy_time_eval
 from metaflow.plugins.aws.batch.batch_decorator import ResourcesDecorator
 from .argo_decorator import ArgoStepDecorator, ArgoInternalStepDecorator
@@ -201,7 +201,7 @@ class ArgoWorkflow:
 
         if node.name == 'start':
             # We need a separate unique ID for the special _parameters task
-            task_id_params = '0'
+            task_id_params = '%s-params' % task_id
 
             params = entrypoint + [
                 '--quiet',
@@ -364,6 +364,8 @@ class Step:
             'METAFLOW_USER': get_username(),
             'METAFLOW_DATASTORE_SYSROOT_S3': DATASTORE_SYSROOT_S3,
         }
+        if METADATA_SERVICE_URL:
+            env['METAFLOW_SERVICE_URL'] = METADATA_SERVICE_URL
 
         image = self.default_image
         if self._attr.get('image'):
