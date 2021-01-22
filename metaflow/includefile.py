@@ -292,6 +292,8 @@ class IncludeFile(Parameter):
             type=FilePathClass(is_text, encoding), **kwargs)
 
     def load_parameter(self, val):
+        if val is None:
+            return val
         ok, file_type, err = LocalFile.is_file_handled(val)
         if not ok:
             raise MetaflowException("Parameter '%s' could not be loaded: %s" % (self.name, err))
