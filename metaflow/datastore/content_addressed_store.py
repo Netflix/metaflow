@@ -6,7 +6,7 @@ from hashlib import sha1
 from io import BytesIO
 
 from ..exception import MetaflowInternalError
-from .common import DataException
+from .exceptions import DataException
 
 class ContentAddressedStore(object):
     """
@@ -150,37 +150,20 @@ class ContentAddressedStore(object):
             else:
                 with result as r:
                     if meta is None:
-                        # Backward compatible mode
-                        # We also need to deal with a short-lived backward
-                        # compatibility mode where the version was encoded
-                        # in the file itself
-                        magic = b'.MFBlob'
-                        # Pack format for header of non-raw blobs.
-                        # The integer corresponds to the version number of the encoding
-                        info_format = '<%dsi' % len(magic)
-                        file_magic, version = struct.unpack(
-                            info_format,
-                            r.read(struct.calcsize(info_format)))
-                        if file_magic == magic:
-                            unpack_code = getattr(
-                                self, '_unpack_v%d' % version, None)
-                        else:
-                            r.seek(0)
-                            # This is the backward compatible mode
-                            unpack_code = getattr(
-                                self, '_unpack_backward_compatible')
+                        # Previous version of the datastore had no meta
+                        # information
+                        unpack_code = self._unpack_backward_compatible
                     else:
                         version = meta.get('cas_version', -1)
                         if version == -1:
                             raise DataException(
                                 "Could not extract encoding version for %s" % path)
                         unpack_code = getattr(self, '_unpack_v%d' % version, None)
-                    if unpack_code is None:
-                        raise DataException(
-                            "Unknown encoding version %d for %s -- the artifact "
-                            "is either corrupt or you need to update Metaflow"
-                            % (version, path))
-
+                        if unpack_code is None:
+                            raise DataException(
+                                "Unknown encoding version %d for %s -- the artifact "
+                                "is either corrupt or you need to update Metaflow"
+                                % (version, path))
                     try:
                         results[k] = unpack_code(r)
                     except Exception as e:

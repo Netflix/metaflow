@@ -1,7 +1,7 @@
 from collections import namedtuple
 import re
 
-from .common import DataException
+from .exceptions import DataException
 
 class DataStoreBackend(object):
     """

@@ -28,7 +28,7 @@ except:  # noqa E722
 
 # IMPORTANT NOTE ON THE CLIENT
 #
-# The client is not fully consistent particularly when you use the client to
+# The client may not be fully consistent particularly when you use the client to
 # query current runs. The previous version of the client accessed data directly
 # through whatever datastore existed (S3, etc) but could be partially
 # inconsistent because, it could, for example, return data from a previous
@@ -39,13 +39,20 @@ except:  # noqa E722
 # at the *end* of an attempt.
 #
 # This current client goes through the datastore to access data artifacts
-# (well, it goes through the FileCache which uses the datastore). This means,
-# in particular, that it can render some things eventually consistent like the
+# (well, it goes through the FileCache which uses the datastore). With the previous,
+# consistency guarantee of "read-after-create", it was possible that some
+# things would be made eventually consistent (ie: the act of looking for them
+# when they didn't exist would potentially mean that when they were created,
+# they would still appear as non existent). The new, stronger consistency model
+# from AWS (https://aws.amazon.com/s3/consistency/) may alleviate this problem
+# but other implementations of the datastore may not have this consistency
+# model. For example, in the previous consistency model, things like the
 # attempt file and the DONE file (since it may try to read them before they
-# are written). This has *no* impact on Metaflow's execution since Metaflow
+# are written) could be made eventually consistent. This has *no* impact on
+# Metaflow's execution since Metaflow
 # *never* reads those files (ie: the consistency model is irrelevant). It only
 # creates them and, at worse, this causes files that have been created to be
-# seen as not there (yet). In other words, this new client is differently
+# seen as not there (yet). In other words, this new client is potentially differently
 # non-consistent but does not impact the consistency behavior of Metaflow.
 # Users should not rely, for this client and the previous version of it, on a
 # consistent view of runs particularly if they are accessing running tasks.

@@ -4,8 +4,9 @@ import os
 from itertools import starmap
 
 from ..metaflow_config import DATASTORE_SYSROOT_S3
-from .common import DataException
 from .datastore_backend import DataStoreBackend
+from .exceptions import DataException
+
 
 try:
     # python2

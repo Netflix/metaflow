@@ -761,7 +761,7 @@ def start(ctx,
     if datastore_root is None:
         raise CommandException(
             "Could not find the location of the datastore -- did you correctly set the "
-            "METAFLOW_DATASTORE_SYSROOT_%s environment variable" % datastore.upper())
+            "METAFLOW_DATASTORE_SYSROOT_%s environment variable?" % datastore.upper())
 
     ctx.obj.datastore_impl.datastore_root = datastore_root
 
