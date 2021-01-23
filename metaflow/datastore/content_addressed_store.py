@@ -6,7 +6,7 @@ from hashlib import sha1
 from io import BytesIO
 
 from ..exception import MetaflowInternalError
-from .common import DataException
+from .exceptions import DataException
 
 class ContentAddressedStore(object):
     """

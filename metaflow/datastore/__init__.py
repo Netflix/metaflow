@@ -1,4 +1,4 @@
-from .common import Inputs
+from .inputs import Inputs
 from .flow_datastore import FlowDataStore
 from .datastore_set import TaskDataStoreSet
 

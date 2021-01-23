@@ -2,7 +2,7 @@ import json
 
 from io import BytesIO
 
-from .common import DataException
+from .exceptions import DataException
 
 """
 TaskDataStoreSet allows you to prefetch multiple (read) datastores into a
