@@ -3,15 +3,15 @@ from __future__ import print_function
 import json
 import time
 import math
-import string
 import sys
 import os
 import traceback
 from hashlib import sha1
 from tempfile import NamedTemporaryFile
-from multiprocessing import Pipe, Process, Queue
-from collections import namedtuple
+from multiprocessing import Process, Queue
 from itertools import starmap, chain, islice
+
+from ..util import TempDir
 
 try:
     # python2
@@ -77,7 +77,7 @@ def normalize_client_error(err):
 
 # S3 worker pool
 
-def worker(result_pipe, queue, mode):
+def worker(result_file_name, queue, mode):
     # Interpret mode, it can either be a single op or something like
     # info_download or info_upload which implies:
     #  - for download: we need to return the information as well
@@ -108,173 +108,154 @@ def worker(result_pipe, queue, mode):
                 to_return = {'error': error_code, 'raise_error': err}
         return to_return
 
-    try:
-        from metaflow.datastore.util.s3util import get_s3_client
-        s3, _ = get_s3_client()
-        while True:
-            url, idx = queue.get()
-            if url is None:
-                break
-            if mode == 'info':
-                result = op_info(url)
-                orig_error = result.get('raise_error', None)
-                if orig_error:
-                    del result['raise_error']
-                with open(url.local, 'w') as f:
-                    json.dump(result, f)
-            elif mode == 'download':
-                result_info = None
-                is_missing = False
-                if pre_op_info:
-                    result_info = op_info(url)
-                    if result_info['error'] == ERROR_URL_NOT_FOUND:
-                        is_missing = True
-                        result_pipe.send((idx, -ERROR_URL_NOT_FOUND))
-                    elif result_info['error'] == ERROR_URL_ACCESS_DENIED:
-                        is_missing = True
-                        result_pipe.send((idx, -ERROR_URL_ACCESS_DENIED))
-                    elif result_info['error'] is not None:
-                        raise result_info['raise_error']
-                if is_missing:
-                    continue
-                tmp = NamedTemporaryFile(dir='.', delete=False)
-                try:
-                    if url.range is None:
-                        s3.download_file(url.bucket, url.path, tmp.name)
-                    else:
-                        # We do get_object. We don't actually do any retries
-                        # here because the higher levels will do the retry if
-                        # needed
-                        resp = s3.get_object(
-                            Bucket=url.bucket,
-                            Key=url.path,
-                            Range=url.range)
-                        code = str(resp['ResponseMetadata']['HTTPStatusCode'])
-                        if code[0] == '2':
-                            tmp.write(resp['Body'].read())
+    with open(result_file_name, 'w') as result_file:
+        try:
+            from metaflow.datastore.util.s3util import get_s3_client
+            s3, _ = get_s3_client()
+            while True:
+                url, idx = queue.get()
+                if url is None:
+                    break
+                if mode == 'info':
+                    result = op_info(url)
+                    orig_error = result.get('raise_error', None)
+                    if orig_error:
+                        del result['raise_error']
+                    with open(url.local, 'w') as f:
+                        json.dump(result, f)
+                elif mode == 'download':
+                    result_info = None
+                    is_missing = False
+                    if pre_op_info:
+                        result_info = op_info(url)
+                        if result_info['error'] == ERROR_URL_NOT_FOUND:
+                            is_missing = True
+                            result_file.write("%d %d\n" % (idx, -ERROR_URL_NOT_FOUND))
+                        elif result_info['error'] == ERROR_URL_ACCESS_DENIED:
+                            is_missing = True
+                            result_file.write("%d %d\n" % (idx, -ERROR_URL_ACCESS_DENIED))
+                        elif result_info['error'] is not None:
+                            raise result_info['raise_error']
+                    if is_missing:
+                        continue
+                    tmp = NamedTemporaryFile(dir='.', delete=False)
+                    try:
+                        if url.range is None:
+                            s3.download_file(url.bucket, url.path, tmp.name)
                         else:
-                            # TODO: Better raised error
-                            raise RuntimeError("Could not load file")
-                    tmp.close()
-                    os.rename(tmp.name, url.local)
-                except ClientError as err:
-                    error_code = normalize_client_error(err)
-                    if error_code == 404:
-                        pass # We skip this
-                    else:
+                            # We do get_object. We don't actually do any retries
+                            # here because the higher levels will do the retry if
+                            # needed
+                            resp = s3.get_object(
+                                Bucket=url.bucket,
+                                Key=url.path,
+                                Range=url.range)
+                            code = str(resp['ResponseMetadata']['HTTPStatusCode'])
+                            if code[0] == '2':
+                                tmp.write(resp['Body'].read())
+                            else:
+                                # TODO: Better raised error
+                                raise RuntimeError("Could not load file")
+                        tmp.close()
+                        os.rename(tmp.name, url.local)
+                    except ClientError as err:
+                        error_code = normalize_client_error(err)
+                        if error_code == 404:
+                            pass # We skip this
+                        else:
+                            raise
+                    except:
+                        # TODO specific error message for out of disk space
+                        tmp.close()
+                        os.unlink(tmp.name)
                         raise
-                except:
-                    # TODO specific error message for out of disk space
-                    tmp.close()
-                    os.unlink(tmp.name)
-                    raise
-                # If we have metadata that we retrieved, we also write it out
-                # to a file
-                if result_info:
-                    with open('%s_meta' % url.local, mode='w') as f:
-                        args = {'size': result_info['size']}
-                        if result_info['content_type']:
-                            args['content_type'] = result_info['content_type']
-                        if result_info['metadata'] is not None:
-                            args['metadata'] = result_info['metadata']
-                        json.dump(args, f)
-                    # Finally, we push out the size to the result_pipe since
-                    # the size is used for verification and other purposes and
-                    # we want to avoid file operations for this simple process
-                    result_pipe.send((idx, result_info['size']))
-            else:
-                # This is upload, if we have a pre_op, it means we do not
-                # want to overwrite
-                do_upload = False
-                if pre_op_info:
-                    result_info = op_info(url)
-                    if result_info['error'] == ERROR_URL_NOT_FOUND:
-                        # We only upload if the file is not found
-                        do_upload = True
+                    # If we have metadata that we retrieved, we also write it out
+                    # to a file
+                    if result_info:
+                        with open('%s_meta' % url.local, mode='w') as f:
+                            args = {'size': result_info['size']}
+                            if result_info['content_type']:
+                                args['content_type'] = result_info['content_type']
+                            if result_info['metadata'] is not None:
+                                args['metadata'] = result_info['metadata']
+                            json.dump(args, f)
+                        # Finally, we push out the size to the result_pipe since
+                        # the size is used for verification and other purposes and
+                        # we want to avoid file operations for this simple process
+                        result_file.write("%d %d\n" % (idx, result_info['size']))
                 else:
-                    # No pre-op so we upload
-                    do_upload = True
-                if do_upload:
-                    extra=None
-                    if url.content_type or url.metadata:
-                        extra = {}
-                        if url.content_type:
-                            extra['ContentType'] = url.content_type
-                        if url.metadata is not None:
-                            extra['Metadata'] = url.metadata
-                    s3.upload_file(url.local, url.bucket, url.path, ExtraArgs=extra)
-                    # We indicate that the file was uploaded
-                    result_pipe.send((idx, 0))
-
-    except:
-        traceback.print_exc()
-        sys.exit(ERROR_WORKER_EXCEPTION)
+                    # This is upload, if we have a pre_op, it means we do not
+                    # want to overwrite
+                    do_upload = False
+                    if pre_op_info:
+                        result_info = op_info(url)
+                        if result_info['error'] == ERROR_URL_NOT_FOUND:
+                            # We only upload if the file is not found
+                            do_upload = True
+                    else:
+                        # No pre-op so we upload
+                        do_upload = True
+                    if do_upload:
+                        extra=None
+                        if url.content_type or url.metadata:
+                            extra = {}
+                            if url.content_type:
+                                extra['ContentType'] = url.content_type
+                            if url.metadata is not None:
+                                extra['Metadata'] = url.metadata
+                        s3.upload_file(url.local, url.bucket, url.path, ExtraArgs=extra)
+                        # We indicate that the file was uploaded
+                        result_file.write("%d %d\n" % (idx, 0))
+        except:
+            traceback.print_exc()
+            sys.exit(ERROR_WORKER_EXCEPTION)
 
 def start_workers(mode, urls, num_workers):
     # We start the minimum of len(urls) or num_workers to avoid starting
     # workers that will definitely do nothing
-    num_workers = num_workers if len(urls) > num_workers else len(urls)
+    num_workers = min(num_workers, len(urls))
     queue = Queue(len(urls) + num_workers)
     procs = {}
 
     # 1. push sources and destinations to the queue
-    idx = 0
-    for elt in urls:
+    for idx, elt in enumerate(urls):
         queue.put((elt, idx))
-        idx += 1
 
     # 2. push end-of-queue markers
     for i in range(num_workers):
         queue.put((None, None))
 
     # 3. Prepare the result structure
-    sz_results = [None]*idx
+    sz_results = [None]*len(urls)
 
     # 4. start processes
-    for i in range(num_workers):
-        recv, send = Pipe(duplex=False)
-        p = Process(target=worker, args=(send, queue, mode))
-        p.start()
-        procs[p] = recv
-        # Do not keep references to the Connection around to make sure
-        # they close properly
-        recv = None
-        send = None
+    with TempDir() as output_dir:
+        for i in range(num_workers):
+            file_path = os.path.join(output_dir, i)
+            p = Process(target=worker, args=(file_path, queue, mode))
+            p.start()
+            procs[p] = file_path
 
-    # 5. wait for the processes to finish; we continuously update procs
-    # to remove all processes that have finished already
-    while procs:
-        new_procs = {}
-        for proc, recv in procs.items():
-            proc.join(timeout=1)
-            if proc.exitcode is not None:
-                # Clean out the final data from the pipe; this is guaranteed
-                # to return EOFError or something immediately
-                try:
-                    while recv.poll():
-                        sz_result = recv.recv()
-                        sz_results[sz_result[0]] = sz_result[1]
-                except EOFError:
-                    pass
-                if proc.exitcode != 0:
-                    msg = 'Worker process failed (exit code %d)'\
-                            % proc.exitcode
-                    exit(msg, proc.exitcode)
-            else:
-                # Do some limited receive to avoid too much buffering on the
-                # pipes.
-                count = 10
-                while count > 0 and recv.poll():
-                    try:
-                        # Poll can return true even if the pipe is empty
-                        # and closed on the other end
-                        sz_result = recv.recv()
-                        sz_results[sz_result[0]] = sz_result[1]
-                        count -= 1
-                    except EOFError:
-                        break
-                new_procs[proc] = recv
-        procs = new_procs
+        # 5. wait for the processes to finish; we continuously update procs
+        # to remove all processes that have finished already
+        while procs:
+            new_procs = {}
+            for proc, out_path in procs.items():
+                proc.join(timeout=1)
+                if proc.exitcode is not None:
+                    if proc.exitcode != 0:
+                        msg = 'Worker process failed (exit code %d)'\
+                                % proc.exitcode
+                        exit(msg, proc.exitcode)
+                    # Read the output file if all went well
+                    with open(out_path, 'r') as out_file:
+                        for line in out_file:
+                            line_split = line.split(' ')
+                            sz_results[line_split[0]] = line_split[1]
+                else:
+                    # Put this process back in the processes to check
+                    new_procs[proc] = out_path
+            procs = new_procs
     return sz_results
 
 def process_urls(mode, urls, verbose, num_workers):
