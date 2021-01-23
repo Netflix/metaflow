@@ -12,7 +12,7 @@ from ..metadata import DataArtifact, MetaDatum
 from ..parameters import Parameter
 from ..util import is_stringish, to_fileobj
 
-from .common import ArtifactTooLarge, DataException
+from .exceptions import ArtifactTooLarge, DataException
 
 def only_if_not_done(f):
     def method(self, *args, **kwargs):

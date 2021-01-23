@@ -1,14 +1,3 @@
-from ..exception import MetaflowException
-
-class DataException(MetaflowException):
-    headline = "Data store error"
-
-
-class ArtifactTooLarge(object):
-    def __str__(self):
-        return '< artifact too large >'
-
-
 class Inputs(object):
     """
     split-and: inputs.step_a.x inputs.step_b.x
