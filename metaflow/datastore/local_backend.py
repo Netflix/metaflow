@@ -1,8 +1,9 @@
 import os
 
 from ..metaflow_config import DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_LOCAL
-from .common import DataException
 from .datastore_backend import DataStoreBackend
+from .exceptions import DataException
+
 
 # Helper class to lazily open files returned by load_bytes to prevent
 # possibly running out of open file descriptors
