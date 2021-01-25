@@ -10,7 +10,7 @@ class ArgoFlowDecorator(FlowDecorator):
     for all steps in the flow.
     To use, add this decorator directly on top of your Flow class:
     ```
-    @argo_base(image=python:3.8)
+    @argo_base(image='python:3.8')
     class MyFlow(FlowSpec):
         ...
     ```
@@ -20,17 +20,29 @@ class ArgoFlowDecorator(FlowDecorator):
     Parameters
     ----------
     image: string
-        Docker image is used for Argo Workflows template. If not specified, a default image mapping to
-        a base Python/ML container is used
-    labels: part of workflow metadata
-    annotations: part of workflow metadata
-    imagePullSecrets: credentials for pulling docker images
+        Docker image is used for Argo Workflows template.
+        If not specified, a default image mapping to
+        a base Python/ML container is used.
+    labels: json
+        Labels to be attached to the workflow template.
+    annotations: json
+        Annotations to be attached to the workflow template.
+    env: list
+        Additional environment variables to be set in all steps.
+        Follows the k8s spec.
+    envFrom: list
+        Additional environment variables to be set in all steps.
+        Follows the k8s spec.
+    imagePullSecrets: list
+        Credentials for pulling docker images.
     """
     name = 'argo_base'
     defaults = {
         'image': None,
         'labels': {},
         'annotations': {},
+        'env': [],
+        'envFrom': [],
         'imagePullSecrets': []
     }
 
@@ -39,7 +51,14 @@ class ArgoStepDecorator(StepDecorator):
     """
     Step decorator for Argo Workflows
     ```
-    @argo
+    @argo(env=[{'name': 'DEBUG'},
+               {'name': 'DEPLOYMENT',
+                'value': 'DEV'},
+               {'name': 'PASSWORD',
+                'valueFrom': {
+                    'secretKeyRef': {
+                        'name': 'my-secret',
+                        'key': 'password'}}}])
     @step
     def myStep(self):
         ...
@@ -47,16 +66,28 @@ class ArgoStepDecorator(StepDecorator):
     Parameters
     ----------
     image: string
-        Docker image to use for Argo Workflows template. If not specified, a default image mapping to
-        a base Python/ML container is used
+        Docker image to use for Argo Workflows template.
+        If not specified, a default image from the flow spec is used.
+    labels: json
+        Labels to be attached to the step's container.
+    annotations: json
+        Annotations to be attached to the step's container.
+    env: list
+        Environment variables merged with a container spec.
+    envFrom: list
+        Environment variables merged with a container spec.
     nodeSelector: json
-        Node selector expression, e.g. {"gpu": "nvidia-tesla-k80"}
+        Node selector expression, e.g. {"gpu": "nvidia-tesla-k80"}.
     artifacts: list
-        Argo outputs artifacts list
+        Argo outputs artifacts list.
    """
     name = 'argo'
     defaults = {
         'image': None,
+        'labels': {},
+        'annotations': {},
+        'env': [],
+        'envFrom': [],
         'nodeSelector': None,
         'artifacts': None
     }
@@ -84,7 +115,8 @@ class ArgoInternalStepDecorator(StepDecorator):
             return
 
         # For foreaches, we need to export the cardinality of the fan-out
-        # into a file that can be read by Argo Workflows output parameter and this be consumable in the next step
+        # into a file that can be read by Argo Workflows output parameter
+        # and this be consumable in the next step
         if graph[step_name].type == 'foreach':
             self._save_foreach_cardinality(flow._foreach_num_splits)
 

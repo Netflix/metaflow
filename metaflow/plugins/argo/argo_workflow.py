@@ -119,17 +119,10 @@ class ArgoWorkflow:
         }
 
     def _metadata(self):
-        metadata = {'name': self.name}
-
-        labels = self._flow_attributes.get('labels')
-        if labels:
-            metadata['labels'] = labels
-
-        annotations = self._flow_attributes.get('annotations')
-        if annotations:
-            metadata['annotations'] = annotations
-
-        return metadata
+        meta = {k: v for k,v in self._flow_attributes.items()
+                if k in ('labels', 'annotations') and v}
+        meta['name'] = self.name
+        return meta
 
     def _parameters(self):
         parameters = []
@@ -152,12 +145,9 @@ class ArgoWorkflow:
     def _spec(self):
         parameters = self._parameters()
         entrypoint = 'entry'
-        spec = {
-            'entrypoint': entrypoint,
-            'arguments': {
-                'parameters': parameters
-            }
-        }
+        spec = {'entrypoint': entrypoint}
+        if parameters:
+            spec['arguments'] = {'parameters': parameters}
 
         image_pull_secret = self._flow_attributes.get('imagePullSecrets')
         if image_pull_secret:
@@ -166,6 +156,8 @@ class ArgoWorkflow:
         steps = [Step(node,
                       self.graph,
                       self._default_image(),
+                      self._flow_attributes.get('env', []),
+                      self._flow_attributes.get('envFrom', []),
                       self._commands(node, parameters))
                  for node in self.graph.nodes.values()]
         spec['templates'] = self._generate_templates(steps, entrypoint)
@@ -258,11 +250,19 @@ class ArgoWorkflow:
 
 
 class Step:
-    def __init__(self, node, graph, default_image, commands):
+    def __init__(self,
+                 node,
+                 graph,
+                 default_image,
+                 env,
+                 env_from,
+                 commands):
         self.name = dns_name(node.name)
         self.node = node
         self.graph = graph
         self.default_image = default_image
+        self.flow_env = env
+        self.flow_env_from = env_from
         self.cmds = commands
         self._attr = self._parse_step_docorator(ArgoStepDecorator)
         self._attr.update(self._parse_step_docorator(ResourcesDecorator))
@@ -306,6 +306,10 @@ class Step:
             'inputs': self._inputs(),
             'outputs': self._outputs()
         }
+        metadata = {k: v for k,v in self._attr.items()
+                    if k in ('labels', 'annotations') and v}
+        if metadata:
+            tmpl['metadata'] = metadata
         if self._attr.get('nodeSelector'):
             tmpl['nodeSelector'] = self._attr['nodeSelector']
         tmpl['container'] = self._container()
@@ -358,26 +362,18 @@ class Step:
         return outputs
 
     def _container(self):
-        env = {
-            'AWS_ACCESS_KEY_ID': os.getenv('AWS_ACCESS_KEY_ID'),
-            'AWS_SECRET_ACCESS_KEY': os.getenv('AWS_SECRET_ACCESS_KEY'),
-            'METAFLOW_USER': get_username(),
-            'METAFLOW_DATASTORE_SYSROOT_S3': DATASTORE_SYSROOT_S3,
-        }
-        if METADATA_SERVICE_URL:
-            env['METAFLOW_SERVICE_URL'] = METADATA_SERVICE_URL
-
         image = self.default_image
         if self._attr.get('image'):
             image = self._attr['image']
-
+        env, env_from = self._prepare_environment()
         container = {
             'image': image,
             'command': ['/bin/sh'],
             'args': ['-c', ' && '.join(self.cmds)],
-            'env': [{'name': k, 'value': v} for k, v in env.items()],
+            'env': env,
         }
-
+        if env_from:
+            container['envFrom'] = env_from
         res = self._resources()
         if res:
             container['resources'] = {
@@ -399,3 +395,15 @@ class Step:
         if gpu:
             res['nvidia.com/gpu'] = int(gpu)
         return res
+
+    def _prepare_environment(self):
+        default = {
+            'METAFLOW_USER': get_username(),
+            'METAFLOW_DATASTORE_SYSROOT_S3': DATASTORE_SYSROOT_S3,
+        }
+        if METADATA_SERVICE_URL:
+            default['METAFLOW_SERVICE_URL'] = METADATA_SERVICE_URL
+        default_env = [{'name': k, 'value': v} for k, v in default.items()]
+        env = default_env + self.flow_env + self._attr.get('env', [])
+        env_from = self.flow_env_from + self._attr.get('envFrom', [])
+        return env, env_from

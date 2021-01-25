@@ -26,8 +26,10 @@ class ArgoClient(object):
         template = self.get_template(name)
         h = {'Authorization': self.auth}
         if template:
-            # overwrite the WorkflowTemplate
+            # overwrite the WorkflowTemplate but had to keep metadata
             template['spec'] = definition['spec']
+            template['metadata']['labels'] = definition['metadata'].get('labels', {})
+            template['metadata']['annotations'] = definition['metadata'].get('annotations', {})
             url = posixpath.join(self.server,
                                  'api/v1/workflow-templates',
                                  self.namespace,
