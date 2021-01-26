@@ -23,7 +23,7 @@ from .exception import MetaflowException,\
     METAFLOW_EXIT_DISALLOW_RETRY
 from . import procpoll
 from .datastore import TaskDataStoreSet
-from .datastore.common import DataException
+from .datastore.exceptions import DataException
 from .metadata import MetaDatum
 from .debug import debug
 from .decorators import flow_decorators
