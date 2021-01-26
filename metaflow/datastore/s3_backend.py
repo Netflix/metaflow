@@ -168,12 +168,12 @@ class S3Backend(DataStoreBackend):
 
         def _convert():
             # Output format is the same as what is needed for S3PutObject:
-            # key, value, content_type, metadata
+            # key, value, path, content_type, metadata
             for path, obj in path_and_bytes.items():
                 if isinstance(obj, tuple):
-                    yield path, obj[0], None, obj[1]
+                    yield path, obj[0], None, None, obj[1]
                 else:
-                    yield path, obj, None, None
+                    yield path, obj, None, None, None
 
         self.reset_datatools_client()
         # HACK: The S3 datatools we rely on does not currently do a good job
@@ -190,7 +190,7 @@ class S3Backend(DataStoreBackend):
             self.s3_datatool.put_many(starmap(S3PutObject, _convert()), overwrite)
         else:
             # Sequential upload
-            for key, obj, _, metadata in _convert():
+            for key, obj, _, _, metadata in _convert():
                 self.s3_datatool.put(
                     key, obj, overwrite=overwrite, metadata=metadata)
 
