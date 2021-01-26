@@ -936,7 +936,7 @@ class S3(object):
                                 mode='wb',
                                 delete=not debug.s3client,
                                 prefix='metaflow.s3.put_inputs.') as inputfile:
-            lines = (to_bytes(json.dumps(x) for x in url_dicts))
+            lines = [to_bytes(json.dumps(x)) for x in url_dicts]
             inputfile.write(b'\n'.join(lines))
             inputfile.flush()
             stdout, stderr = self._s3op_with_retries('put',
