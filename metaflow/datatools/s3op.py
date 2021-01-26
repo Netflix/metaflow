@@ -11,8 +11,6 @@ from tempfile import NamedTemporaryFile
 from multiprocessing import Process, Queue
 from itertools import starmap, chain, islice
 
-from ..util import TempDir
-
 try:
     # python2
     from urlparse import urlparse
@@ -30,7 +28,7 @@ sys.path.insert(0,\
     os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 # we use Metaflow's parallel_imap_unordered instead of
 # multiprocessing.Pool because https://bugs.python.org/issue31886
-from metaflow.util import url_quote, url_unquote
+from metaflow.util import TempDir, url_quote, url_unquote
 from metaflow.multicore_utils import parallel_map
 from metaflow.datastore.util.s3util import aws_retry
 
@@ -231,7 +229,7 @@ def start_workers(mode, urls, num_workers):
     # 4. start processes
     with TempDir() as output_dir:
         for i in range(num_workers):
-            file_path = os.path.join(output_dir, i)
+            file_path = os.path.join(output_dir, str(i))
             p = Process(target=worker, args=(file_path, queue, mode))
             p.start()
             procs[p] = file_path
@@ -251,7 +249,7 @@ def start_workers(mode, urls, num_workers):
                     with open(out_path, 'r') as out_file:
                         for line in out_file:
                             line_split = line.split(' ')
-                            sz_results[line_split[0]] = line_split[1]
+                            sz_results[int(line_split[0])] = int(line_split[1])
                 else:
                     # Put this process back in the processes to check
                     new_procs[proc] = out_path
