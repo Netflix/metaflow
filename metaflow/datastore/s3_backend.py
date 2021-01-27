@@ -1,4 +1,7 @@
+
 import os
+
+from itertools import starmap
 
 from ..metaflow_config import DATASTORE_SYSROOT_S3
 from .datastore_backend import DataStoreBackend
@@ -50,7 +53,6 @@ class S3Backend(DataStoreBackend):
     TYPE = 's3'
 
     def __init__(self, root=None):
-        self.s3_client = None
         self.s3_datatool = None
         super(S3Backend, self).__init__(root)
 
@@ -59,14 +61,6 @@ class S3Backend(DataStoreBackend):
             from ..datatools import S3
             self.s3_datatool = S3(
                 s3root=self.datastore_root, tmproot=os.getcwd())
-            self.reset_s3_client()
-            self.s3_datatool.reset_client(new_client=self.s3_client)
-
-    def reset_s3_client(self, hard_reset=False):
-        if hard_reset or self.s3_client is None:
-            from .util.s3util import get_s3_client
-            self.s3_client, _ = get_s3_client()
-
 
     @classmethod
     def get_datastore_root_from_config(cls, echo, create_on_absent=True):
@@ -83,21 +77,35 @@ class S3Backend(DataStoreBackend):
         ----------
         path : string
             Path to the object
+
+        Returns
+        -------
+        bool
         """
-        self.reset_s3_client()
-        full_path = self.full_uri(path)
-        src = urlparse(full_path)
-        from botocore.exceptions import ClientError
-        try:
-            self.s3_client.head_object(
-                Bucket=src.netloc, Key=src.path.lstrip('/'))
-        except ClientError as err:
-            if err.response['Error']['Code'] in ('404', '403'):
-                return False
-            # Other errors may be indicative of a bad client so we reset
-            self.reset_s3_client(hard_reset=True)
-            return False
-        return True
+        self.reset_datatools_client()
+        s3obj = self.s3_datatool.info(path, return_missing=True)
+        return s3obj.exists
+
+    def info_file(self, path):
+        """
+        Returns a tuple where the first element is True or False depending on
+        whether path refers to a valid file-like object (like is_file) and the
+        second element is a dictionary of metadata associated with the file or
+        None if the file does not exist or there is no metadata.
+
+        Parameters
+        ----------
+        path : string
+            Path to the object
+
+        Returns
+        -------
+        tuple
+            (bool, dict)
+        """
+        self.reset_datatools_client()
+        s3obj = self.s3_datatool.info(path, return_missing=True)
+        return s3obj.exists, s3obj.metadata
 
     def list_content(self, paths):
         """
@@ -142,8 +150,12 @@ class S3Backend(DataStoreBackend):
 
         Parameters
         ----------
-        path_and_bytes : Dict: string -> RawIOBase or BufferedIOBase
-            Objects to store
+        path_and_bytes : Dict: string -> (RawIOBase or BufferedIOBase, dict)
+            Objects to store; the first element in the tuple is the actual data
+            to store and the dictionary is additional metadata to store. Keys
+            for the metadata must be ascii only string and elements can be
+            anything that can be converted to a string using json.dumps. If you
+            have no metadata, you can simply pass a RawIOBase or BufferedIOBase.
         overwrite : bool
             True if the objects can be overwritten. Defaults to False.
 
@@ -155,8 +167,13 @@ class S3Backend(DataStoreBackend):
             return
 
         def _convert():
-            for path, byte_obj in path_and_bytes.items():
-                yield path, byte_obj
+            # Output format is the same as what is needed for S3PutObject:
+            # key, value, path, content_type, metadata
+            for path, obj in path_and_bytes.items():
+                if isinstance(obj, tuple):
+                    yield path, obj[0], None, None, obj[1]
+                else:
+                    yield path, obj, None, None, None
 
         self.reset_datatools_client()
         # HACK: The S3 datatools we rely on does not currently do a good job
@@ -169,11 +186,13 @@ class S3Backend(DataStoreBackend):
         # be fixed to address this and this whole hack can then go away.
         if len(path_and_bytes) > 10:
             # Use datatools
-            self.s3_datatool.put_many(_convert(), overwrite)
+            from ..datatools.s3 import S3PutObject
+            self.s3_datatool.put_many(starmap(S3PutObject, _convert()), overwrite)
         else:
             # Sequential upload
-            for key, obj in _convert():
-                self.s3_datatool.put(key, obj, overwrite)
+            for key, obj, _, _, metadata in _convert():
+                self.s3_datatool.put(
+                    key, obj, overwrite=overwrite, metadata=metadata)
 
     def load_bytes(self, paths):
         """
@@ -190,9 +209,13 @@ class S3Backend(DataStoreBackend):
 
         Returns
         -------
-        Dict: string -> BufferedIOBase
+        Dict: string -> (BufferedIOBase, dict)
             A dictionary is returned where the key is the path fetched and the
-            value is a BufferedIOBase indicating the result of loading the path
+            value is a tuple containing:
+              - a BufferedIOBase indicating the result of loading the path.
+              - a dictionary containing any additional metadata that was stored
+              or None if no metadata was provided.
+            If the path could not be loaded, returns None for that path
         """
         if len(paths) == 0:
             return {}
@@ -202,19 +225,21 @@ class S3Backend(DataStoreBackend):
         # a hack.
         to_return = {}
         if len(paths) > 10:
-            results = self.s3_datatool.get_many(paths, return_missing=True)
+            results = self.s3_datatool.get_many(
+                paths, return_missing=True, return_info=True)
             for r in results:
                 if r.exists:
-                    to_return[r.key] = FileWithClientRef(
-                        self.s3_datatool, r.path)
+                    to_return[r.key] = (FileWithClientRef(
+                        self.s3_datatool, r.path), r.metadata)
                 else:
                     to_return[r.key] = None
         else:
             for p in paths:
-                r = self.s3_datatool.get(p, return_missing=True)
+                r = self.s3_datatool.get(
+                    p, return_missing=True, return_info=True)
                 if r.exists:
-                    to_return[r.key] = FileWithClientRef(
-                        self.s3_datatool, r.path)
+                    to_return[r.key] = (FileWithClientRef(
+                        self.s3_datatool, r.path), r.metadata)
                 else:
                     to_return[r.key] = None
         return to_return
