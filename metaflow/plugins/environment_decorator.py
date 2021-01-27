@@ -27,5 +27,5 @@ class EnvironmentDecorator(StepDecorator):
     name = 'environment'
     defaults = {'vars': {}}
 
-    def step_init(self, flow, graph, step, decos, environment, datastore, logger):
+    def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         os.environ.update(self.attributes['vars'].items())

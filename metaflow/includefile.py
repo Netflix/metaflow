@@ -11,11 +11,9 @@ from shutil import move
 
 import click
 
-from . import parameters
-from .datastore.datastore import TransformableObject
 from .exception import MetaflowException
 from .metaflow_config import DATATOOLS_LOCALROOT, DATATOOLS_SUFFIX
-from .parameters import DeployTimeField, Parameter
+from .parameters import context_proto, DeployTimeField, Parameter
 from .util import to_unicode
 
 try:
@@ -228,7 +226,7 @@ class FilePathClass(click.ParamType):
         if file_type is None:
             # Here, we need to store the file
             return LocalFile(
-                self._is_text, self._encoding, value)(parameters.context_proto)
+                self._is_text, self._encoding, value)(context_proto)
         else:
             # We will just store the URL in the datastore along with text/encoding info
             return Uploader.encode_url(
@@ -311,19 +309,18 @@ class Uploader():
         logger(
             'Including file %s of size %d%s %s' % (path, sz, unit[pos], extra))
         try:
-            cur_obj = TransformableObject(io.open(path, mode='rb').read())
+            input_file = io.open(path, mode='rb').read()
         except IOError:
             # If we get an error here, since we know that the file exists already,
             # it means that read failed which happens with Python 2.7 for large files
             raise MetaflowException('Cannot read file at %s -- this is likely because it is too '
                                     'large to be properly handled by Python 2.7' % path)
-        sha = sha1(cur_obj.current()).hexdigest()
+        sha = sha1(input_file).hexdigest()
         path = os.path.join(self._client_class.get_root_from_config(logger, True), flow_name, sha)
         buf = io.BytesIO()
         with gzip.GzipFile(
                 fileobj=buf, mode='wb', compresslevel=3) as f:
-            f.write(cur_obj.current())
-        cur_obj.transform(lambda _: buf)
+            f.write(input_file)
         buf.seek(0)
         with self._client_class() as client:
             url = client.put(path, buf.getvalue(), overwrite=False)

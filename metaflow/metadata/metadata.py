@@ -9,7 +9,7 @@ from metaflow.util import get_username, resolve_identity
 
 
 DataArtifact = namedtuple('DataArtifact',
-                          'name ds_type url type sha')
+                          'name ds_type ds_root url type sha')
 
 MetaDatum = namedtuple('MetaDatum',
                        'field value type tags')
@@ -240,7 +240,7 @@ class MetadataProvider(object):
         raise NotImplementedError()
 
     @classmethod
-    def _get_object_internal(cls, obj_type, obj_order, sub_type, sub_order, filters=None, *args):
+    def _get_object_internal(cls, obj_type, obj_order, sub_type, sub_order, filters, *args):
         '''
         Return objects for the implementation of this class
 
@@ -288,7 +288,7 @@ class MetadataProvider(object):
         self.sticky_sys_tags.extend(sys_tags)
 
     @classmethod
-    def get_object(cls, obj_type, sub_type, filters=None, *args):
+    def get_object(cls, obj_type, sub_type, filters, *args):
         '''Returns the requested object depending on obj_type and sub_type
 
         obj_type can be one of 'root', 'flow', 'run', 'step', 'task',
@@ -415,7 +415,7 @@ class MetadataProvider(object):
                 'type': 'metaflow.artifact',
                 'sha': art.sha,
                 'ds_type': art.ds_type,
-                'location': art.url}
+                'location': art.url if art.url else ':root:%s' % art.ds_root}
             d.update(self._all_obj_elements(self.sticky_tags, self.sticky_sys_tags))
             result.append(d)
         return result

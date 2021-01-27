@@ -166,7 +166,7 @@ class Batch(object):
             # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync between the local user 
             # instance and the remote AWS Batch instance assumes metadata is stored in DATASTORE_LOCAL_DIR 
             # on the remote AWS Batch instance; this happens when METAFLOW_DATASTORE_SYSROOT_LOCAL 
-            # is NOT set (see get_datastore_root_from_config in datastore/local.py).
+            # is NOT set (see get_datastore_root_from_config in datastore/local_backend.py).
         for name, value in env.items():
             job.environment_variable(name, value)
         if attrs:

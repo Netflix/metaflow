@@ -1,53 +1,51 @@
 import json
 
-from metaflow.util import to_unicode
+from io import BytesIO
+
+from .exceptions import DataException
 
 """
-MetaflowDatastoreSet allows you to prefetch multiple (read) datastores into a
+TaskDataStoreSet allows you to prefetch multiple (read) datastores into a
 cache and lets you access them.
 As a performance optimization it also lets you prefetch select data artifacts
 leveraging a shared cache.
 """
-class MetaflowDatastoreSet(object):
+class TaskDataStoreSet(object):
     def __init__(self,
-                 ds_class,
-                 flow_name,
+                 flow_datastore,
                  run_id,
                  steps=None,
                  pathspecs=None,
-                 metadata=None,
-                 event_logger=None,
-                 monitor=None,
                  prefetch_data_artifacts=None):
-        data_blobs = ds_class.get_latest_tasks(flow_name,
-                                               run_id,
-                                               steps=steps,
-                                               pathspecs=pathspecs)
-        artifact_cache = {}
-        datastores = [ds_class(flow_name,
-                               run_id=run_id,
-                               step_name=step_name,
-                               task_id=task_id,
-                               metadata=metadata,
-                               attempt=attempt,
-                               event_logger=event_logger,
-                               monitor=monitor,
-                               data_obj=json.loads(to_unicode(data_blob)),
-                               artifact_cache=artifact_cache)
-                      for step_name, task_id, attempt, data_blob in data_blobs]
-        if prefetch_data_artifacts:
-            artifacts_to_prefetch = set(
-                [ds.artifact_path(artifact_name)
-                 for ds in datastores
-                 for artifact_name in prefetch_data_artifacts
-                 if artifact_name in ds])
+        if flow_datastore.blob_cache is not None:
+            raise DataException("FlowDataStore already has a blob cache")
+        if flow_datastore.artifact_cache is not None:
+            raise DataException("FlowDataStore already has an artifact cache")
+        flow_datastore.blob_cache = KeepInitialCache()
+        flow_datastore.artifact_cache = KeepSpecificKeysCache()
 
-            # Update (and not re-assign) the artifact_cache since each datastore
-            # created above has a reference to this object.
-            artifact_cache.update(ds_class.get_artifacts(artifacts_to_prefetch))
+        task_datastores = flow_datastore.get_latest_task_datastores(
+            run_id, steps=steps, pathspecs=pathspecs)
+
+        if prefetch_data_artifacts:
+            all_keys = []
+            for ds in task_datastores:
+                all_keys.extend(ds.keys_for_artifacts(prefetch_data_artifacts))
+            keys_to_prefetch = set(all_keys)
+            # Remove any non-existent artifacts
+            try:
+                keys_to_prefetch.remove(None)
+            except KeyError:
+                pass
+            flow_datastore.artifact_cache.keys_to_cache = keys_to_prefetch
+            # Load all keys; this will update blob_cache
+            flow_datastore.load_data(keys_to_prefetch)
+            # Stop caching for any future blob
+            flow_datastore.blob_cache.flip()
+
         self.pathspec_index_cache = {}
         self.pathspec_cache = {}
-        for ds in datastores:
+        for ds in task_datastores:
             self.pathspec_index_cache[ds.pathspec_index] = ds
             self.pathspec_cache[ds.pathspec] = ds
 
@@ -60,3 +58,46 @@ class MetaflowDatastoreSet(object):
     def __iter__(self):
         for v in self.pathspec_cache.values():
             yield v
+
+class DictCache(object):
+    def __init__(self):
+        self._cache = {}
+
+    def register(self, key, value, write=False):
+        self._cache[key] = value
+
+    def load(self, key):
+        return self._cache.get(key, None)
+
+class KeepInitialCache(DictCache):
+    def __init__(self):
+        self._is_caching = True
+        super(KeepInitialCache, self).__init__()
+
+    def register(self, key, value, write=False):
+        if self._is_caching:
+            super(KeepInitialCache, self).register(key, value, write)
+
+    def flip(self, is_on=False):
+        self._is_caching = is_on
+
+class KeepSpecificKeysCache(DictCache):
+    def __init__(self, keys=None):
+        self._keys = keys
+        if self._keys is None:
+            self._keys = set()
+        super(KeepSpecificKeysCache, self).__init__()
+
+    def register(self, key, value, write=False):
+        if key in self._keys:
+            super(KeepSpecificKeysCache, self).register(key, value, write)
+
+    @property
+    def keys_to_cache(self):
+        return self._keys
+
+    @keys_to_cache.setter
+    def keys_to_cache(self, s):
+        if s is None:
+            s = set()
+        self._keys = s

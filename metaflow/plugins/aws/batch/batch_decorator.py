@@ -4,9 +4,6 @@ import platform
 import re
 import tarfile
 
-from metaflow.datastore import MetaflowDataStore
-from metaflow.datastore.datastore import TransformableObject
-from metaflow.datastore.util.s3util import get_s3_client
 from metaflow.decorators import StepDecorator
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
@@ -15,7 +12,7 @@ from metaflow.metadata import MetaDatum
 from metaflow import util
 from metaflow import R
 
-from .batch import Batch, BatchException
+from .batch import BatchException
 from metaflow.metaflow_config import ECS_S3_ACCESS_IAM_ROLE, BATCH_JOB_QUEUE, \
                     BATCH_CONTAINER_IMAGE, BATCH_CONTAINER_REGISTRY, \
                     ECS_FARGATE_EXECUTION_ROLE
@@ -145,13 +142,14 @@ class BatchDecorator(StepDecorator):
                 self.attributes['image'] = '%s/%s' % (BATCH_CONTAINER_REGISTRY.rstrip('/'), 
                     self.attributes['image'])
 
-    def step_init(self, flow, graph, step, decos, environment, datastore, logger):
-        if datastore.TYPE != 's3':
+    def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
+        if flow_datastore.TYPE != 's3':
             raise BatchException('The *@batch* decorator requires --datastore=s3.')
 
         self.logger = logger
         self.environment = environment
         self.step = step
+        self.flow_datastore = flow_datastore
         for deco in decos:
             if isinstance(deco, ResourcesDecorator):
                 for k, v in deco.attributes.items():
@@ -171,9 +169,9 @@ class BatchDecorator(StepDecorator):
         self.run_id = run_id
 
     def runtime_task_created(
-        self, datastore, task_id, split_index, input_paths, is_cloned):
+        self, task_datastore, task_id, split_index, input_paths, is_cloned):
         if not is_cloned:
-            self._save_package_once(datastore, self.package)
+            self._save_package_once(self.flow_datastore, self.package)
 
     def runtime_step_cli(self, cli_args, retry_count, max_user_code_retries):
         if retry_count <= max_user_code_retries:
@@ -187,20 +185,13 @@ class BatchDecorator(StepDecorator):
             if not R.use_r():
                 cli_args.entrypoint[0] = sys.executable
 
-    def task_pre_step(self,
-                      step_name,
-                      ds,
-                      metadata,
-                      run_id,
-                      task_id,
-                      flow,
-                      graph,
-                      retry_count,
-                      max_retries):
+    def task_pre_step(
+            self, step_name, task_datastore, metadata, run_id, task_id, flow, graph, retry_count,
+            max_retries):
         if metadata.TYPE == 'local':
-            self.ds_root = ds.root
+            self.task_ds = task_datastore
         else:
-            self.ds_root = None
+            self.task_ds = None
         meta = {}
         meta['aws-batch-job-id'] = os.environ['AWS_BATCH_JOB_ID']
         meta['aws-batch-job-attempt'] = os.environ['AWS_BATCH_JOB_ATTEMPT']
@@ -210,31 +201,33 @@ class BatchDecorator(StepDecorator):
         # Register book-keeping metadata for debugging.
         metadata.register_metadata(run_id, step_name, task_id, entries)
 
-    def task_finished(self, step_name, flow, graph, is_task_ok, retry_count, max_retries):
-        if self.ds_root:
-            # We have a local metadata service so we need to persist it to the datastore.
-            # Note that the datastore is *always* s3 (see runtime_task_created function)
+    def task_post_step(self, step_name, flow, graph, retry_count, max_retries):
+        self._save_meta()
+
+    def task_exception(self, step_name, flow, graph, retry_count, max_retries):
+        self._save_meta()
+
+    def _save_meta(self):
+        if self.task_ds:
+            # We have a local metadata service so we need to persist it to
+            # the datastore.
             with util.TempDir() as td:
                 tar_file_path = os.path.join(td, 'metadata.tgz')
                 with tarfile.open(tar_file_path, 'w:gz') as tar:
                     # The local metadata is stored in the local datastore
                     # which, for batch jobs, is always the DATASTORE_LOCAL_DIR
                     tar.add(DATASTORE_LOCAL_DIR)
-                # At this point we upload what need to s3
-                s3, _ = get_s3_client()
+                # At this point we store it in the datastore; we
+                # save it as raw data in the flow datastore and save a pointer
+                # to it as metadata for the task
                 with open(tar_file_path, 'rb') as f:
-                    path = os.path.join(
-                        self.ds_root,
-                        MetaflowDataStore.filename_with_attempt_prefix(
-                            'metadata.tgz', retry_count))
-                    url = urlparse(path)
-                    s3.upload_fileobj(f, url.netloc, url.path.lstrip('/'))
+                    _, key = self.task_ds.parent_datastore.save_data([f])[0]
+                self.task_ds.save_metadata({'local_metadata': key})
 
     @classmethod
-    def _save_package_once(cls, datastore, package):
+    def _save_package_once(cls, flow_datastore, package):
         if cls.package_url is None:
-            cls.package_url = datastore.save_data(package.sha, TransformableObject(package.blob))
-            cls.package_sha = package.sha
+            cls.package_url, cls.package_sha = flow_datastore.save_data([package.blob])[0]
 
     @classmethod
     def _get_registry(cls, image):
