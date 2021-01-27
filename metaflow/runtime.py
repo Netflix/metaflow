@@ -22,7 +22,8 @@ from .exception import MetaflowException,\
     MetaflowInternalError,\
     METAFLOW_EXIT_DISALLOW_RETRY
 from . import procpoll
-from .datastore import DataException, MetaflowDatastoreSet
+from .datastore import TaskDataStoreSet
+from .datastore.exceptions import DataException
 from .metadata import MetaDatum
 from .debug import debug
 from .decorators import flow_decorators
@@ -35,7 +36,7 @@ MAX_LOG_SIZE=1024*1024
 PROGRESS_INTERVAL = 1000 #ms
 # The following is a list of the (data) artifacts used by the runtime while
 # executing a flow. These are prefetched during the resume operation by
-# leveraging the MetaflowDatastoreSet.
+# leveraging the TaskDataStoreSet.
 PREFETCH_DATA_ARTIFACTS = ['_foreach_stack', '_task_ok', '_transition']
 
 # TODO option: output dot graph periodically about execution
@@ -45,7 +46,7 @@ class NativeRuntime(object):
     def __init__(self,
                  flow,
                  graph,
-                 datastore,
+                 flow_datastore,
                  metadata,
                  environment,
                  package,
@@ -68,7 +69,7 @@ class NativeRuntime(object):
 
         self._flow = flow
         self._graph = graph
-        self._datastore = datastore
+        self._flow_datastore = flow_datastore
         self._metadata = metadata
         self._environment = environment
         self._logger = logger
@@ -100,7 +101,7 @@ class NativeRuntime(object):
             # 3. All steps that couldn't be cloned (either unsuccessful or not
             # run) are run as regular tasks.
             # Lastly, to improve the performance of the cloning process, we
-            # leverage the MetaflowDatastoreSet abstraction to prefetch the
+            # leverage the TaskDataStoreSet abstraction to prefetch the
             # entire DAG of `clone_run_id` and relevant data artifacts
             # (see PREFETCH_DATA_ARTIFACTS) so that the entire runtime can
             # access the relevant data from cache (instead of going to the datastore
@@ -108,13 +109,9 @@ class NativeRuntime(object):
             logger(
                 'Gathering required information to resume run (this may take a bit of time)...')
             self._origin_ds_set = \
-                MetaflowDatastoreSet(
-                    datastore,
-                    flow.name,
+                TaskDataStoreSet(
+                    flow_datastore,
                     clone_run_id,
-                    metadata=metadata,
-                    event_logger=event_logger,
-                    monitor=monitor,
                     prefetch_data_artifacts=PREFETCH_DATA_ARTIFACTS)
         self._run_queue = []
         self._poll = procpoll.make_poll()
@@ -144,7 +141,7 @@ class NativeRuntime(object):
         else:
             decos = getattr(self._flow, step).decorators
 
-        return Task(self._datastore,
+        return Task(self._flow_datastore,
                     self._flow,
                     step,
                     self._run_id,
@@ -439,7 +436,7 @@ class Task(object):
     clone_pathspec_mapping = {}
 
     def __init__(self,
-                 datastore,
+                 flow_datastore,
                  flow,
                  step,
                  run_id,
@@ -492,9 +489,9 @@ class Task(object):
         self.monitor_type = monitor.monitor_type
 
         self.metadata_type = metadata.TYPE
-        self.datastore_type = datastore.TYPE
-        self._datastore = datastore
-        self.datastore_sysroot = datastore.datastore_root
+        self.datastore_type = flow_datastore.TYPE
+        self._flow_datastore = flow_datastore
+        self.datastore_sysroot = flow_datastore.datastore_root
         self._results_ds = None
 
         if clone_run_id and may_clone:
@@ -520,16 +517,9 @@ class Task(object):
                 self.error_retries = max(self.error_retries, error_retries)
 
     def new_attempt(self):
-        self._ds = self._datastore(self.flow_name,
-                                   run_id=self.run_id,
-                                   step_name=self.step,
-                                   task_id=self.task_id,
-                                   mode='w',
-                                   metadata=self.metadata,
-                                   attempt=self.retries,
-                                   event_logger=self.event_logger,
-                                   monitor=self.monitor)
-
+        self._ds = self._flow_datastore.get_task_datastore(
+            self.run_id, self.step, self.task_id, attempt=self.retries, mode='w')
+        self._ds.init_task()
 
     def log(self, msg, system_msg=False, pid=None):
         if pid:
@@ -609,14 +599,8 @@ class Task(object):
         if self._results_ds:
             return self._results_ds
         else:
-            self._results_ds = self._datastore(self.flow_name,
-                                               run_id=self.run_id,
-                                               step_name=self.step,
-                                               task_id=self.task_id,
-                                               mode='r',
-                                               metadata=self.metadata,
-                                               event_logger=self.event_logger,
-                                               monitor=self.monitor)
+            self._results_ds = self._flow_datastore.get_task_datastore(
+                self.run_id, self.step, self.task_id)
             return self._results_ds
 
     @property
@@ -635,23 +619,24 @@ class Task(object):
         self._ds.persist(flow)
         self._ds.done()
 
-    def save_logs(self, logtype, logs):
-        location = self._ds.save_log(logtype, logs)
-        datum = [MetaDatum(field='log_location_%s' % logtype,
-                           value=json.dumps({
-                               'ds_type': self._ds.TYPE,
-                               'location': location,
-                               'attempt': self.retries}),
-                           type='log_path',
-                           tags=[])]
-        self.metadata.register_metadata(self.run_id,
-                                        self.step,
-                                        self.task_id,
-                                        datum)
-        return location
+    def save_logs(self, logtype_to_logs):
+        locations = self._ds.save_logs(logtype_to_logs)
+        for logtype, location in locations.items():
+            datum = [MetaDatum(field='log_location_%s' % logtype,
+                            value=json.dumps({
+                                'ds_type': self._ds.TYPE,
+                                'location': location,
+                                'attempt': self.retries}),
+                            type='log_path',
+                            tags=[])]
+            self.metadata.register_metadata(self.run_id,
+                                            self.step,
+                                            self.task_id,
+                                            datum)
+        return locations
 
     def save_metadata(self, name, metadata):
-        self._ds.save_metadata(name, metadata)
+        self._ds.save_metadata({name: metadata})
 
     def __str__(self):
         return ' '.join(self._args)
@@ -693,6 +678,10 @@ class TruncatedBuffer(object):
 
     def get_bytes(self):
         return self._buffer.getvalue()
+
+    def get_buffer(self):
+        self._buffer.seek(0)
+        return self._buffer
 
 
 class CLIArgs(object):
@@ -892,8 +881,9 @@ class Worker(object):
         # Return early if the task is cloned since we don't want to
         # perform any log collection.
         if not self.task.is_cloned:
-            self.task.save_logs('stdout', self._stdout.get_bytes())
-            self.task.save_logs('stderr', self._stderr.get_bytes())
+            self.task.save_logs({
+                'stdout': self._stdout.get_buffer(),
+                'stderr': self._stderr.get_buffer()})
 
             self.task.save_metadata('runtime', {'return_code': returncode,
                                                 'killed': self.killed,

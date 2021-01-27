@@ -1,15 +1,14 @@
 from __future__ import print_function
 
+import json
 import time
 import math
-import string
 import sys
 import os
 import traceback
 from hashlib import sha1
 from tempfile import NamedTemporaryFile
 from multiprocessing import Process, Queue
-from collections import namedtuple
 from itertools import starmap, chain, islice
 
 try:
@@ -29,13 +28,25 @@ sys.path.insert(0,\
     os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 # we use Metaflow's parallel_imap_unordered instead of
 # multiprocessing.Pool because https://bugs.python.org/issue31886
-from metaflow.util import url_quote, url_unquote
+from metaflow.util import TempDir, url_quote, url_unquote
 from metaflow.multicore_utils import parallel_map
 from metaflow.datastore.util.s3util import aws_retry
 
 NUM_WORKERS_DEFAULT = 64
 
-S3Url = namedtuple('S3Url', ['bucket', 'path', 'url', 'local', 'prefix'])
+class S3Url(object):
+    def __init__(self,
+        bucket, path, url, local, prefix,
+        content_type=None, metadata=None, range=None):
+
+        self.bucket = bucket
+        self.path = path
+        self.url = url
+        self.local = local
+        self.prefix = prefix
+        self.content_type = content_type
+        self.metadata = metadata
+        self.range = range
 
 # We use error codes instead of Exceptions, which are trickier to
 # handle reliably in a multi-process world
@@ -64,62 +75,186 @@ def normalize_client_error(err):
 
 # S3 worker pool
 
-def worker(queue, mode):
-    try:
-        from metaflow.datastore.util.s3util import get_s3_client
-        s3, _ = get_s3_client()
-        while True:
-            url = queue.get()
-            if url is None:
-                break
+def worker(result_file_name, queue, mode):
+    # Interpret mode, it can either be a single op or something like
+    # info_download or info_upload which implies:
+    #  - for download: we need to return the information as well
+    #  - for upload: we need to not overwrite the file if it exists
+    modes = mode.split('_')
+    pre_op_info = False
+    if len(modes) > 1:
+        pre_op_info = True
+        mode = modes[1]
+    else:
+        mode = modes[0]
 
-            if mode == 'download':
-                tmp = NamedTemporaryFile(dir='.', delete=False)
-                try:
-                    s3.download_file(url.bucket, url.path, tmp.name)
-                    os.rename(tmp.name, url.local)
-                except:
-                    # TODO specific error message for out of disk space
-                    os.unlink(tmp.name)
-                    raise
+    def op_info(url):
+        try:
+            head = s3.head_object(Bucket=url.bucket, Key=url.path)
+            to_return = {
+                'error': None,
+                'size': head['ContentLength'],
+                'content_type': head['ContentType'],
+                'metadata': head['Metadata']}
+        except ClientError as err:
+            error_code = normalize_client_error(err)
+            if error_code == 404:
+                to_return = {'error': ERROR_URL_NOT_FOUND, 'raise_error': err}
+            elif error_code == 403:
+                to_return = {'error': ERROR_URL_ACCESS_DENIED, 'raise_error': err}
             else:
-                s3.upload_file(url.local, url.bucket, url.path)
+                to_return = {'error': error_code, 'raise_error': err}
+        return to_return
 
-    except:
-        traceback.print_exc()
-        sys.exit(ERROR_WORKER_EXCEPTION)
+    with open(result_file_name, 'w') as result_file:
+        try:
+            from metaflow.datastore.util.s3util import get_s3_client
+            s3, _ = get_s3_client()
+            while True:
+                url, idx = queue.get()
+                if url is None:
+                    break
+                if mode == 'info':
+                    result = op_info(url)
+                    orig_error = result.get('raise_error', None)
+                    if orig_error:
+                        del result['raise_error']
+                    with open(url.local, 'w') as f:
+                        json.dump(result, f)
+                elif mode == 'download':
+                    result_info = None
+                    is_missing = False
+                    if pre_op_info:
+                        result_info = op_info(url)
+                        if result_info['error'] == ERROR_URL_NOT_FOUND:
+                            is_missing = True
+                            result_file.write("%d %d\n" % (idx, -ERROR_URL_NOT_FOUND))
+                        elif result_info['error'] == ERROR_URL_ACCESS_DENIED:
+                            is_missing = True
+                            result_file.write("%d %d\n" % (idx, -ERROR_URL_ACCESS_DENIED))
+                        elif result_info['error'] is not None:
+                            raise result_info['raise_error']
+                    if is_missing:
+                        continue
+                    tmp = NamedTemporaryFile(dir='.', delete=False)
+                    try:
+                        if url.range is None:
+                            s3.download_file(url.bucket, url.path, tmp.name)
+                        else:
+                            # We do get_object. We don't actually do any retries
+                            # here because the higher levels will do the retry if
+                            # needed
+                            resp = s3.get_object(
+                                Bucket=url.bucket,
+                                Key=url.path,
+                                Range=url.range)
+                            code = str(resp['ResponseMetadata']['HTTPStatusCode'])
+                            if code[0] == '2':
+                                tmp.write(resp['Body'].read())
+                            else:
+                                # TODO: Better raised error
+                                raise RuntimeError("Could not load file")
+                        tmp.close()
+                        os.rename(tmp.name, url.local)
+                    except ClientError as err:
+                        error_code = normalize_client_error(err)
+                        if error_code == 404:
+                            pass # We skip this
+                        else:
+                            raise
+                    except:
+                        # TODO specific error message for out of disk space
+                        tmp.close()
+                        os.unlink(tmp.name)
+                        raise
+                    # If we have metadata that we retrieved, we also write it out
+                    # to a file
+                    if result_info:
+                        with open('%s_meta' % url.local, mode='w') as f:
+                            args = {'size': result_info['size']}
+                            if result_info['content_type']:
+                                args['content_type'] = result_info['content_type']
+                            if result_info['metadata'] is not None:
+                                args['metadata'] = result_info['metadata']
+                            json.dump(args, f)
+                        # Finally, we push out the size to the result_pipe since
+                        # the size is used for verification and other purposes and
+                        # we want to avoid file operations for this simple process
+                        result_file.write("%d %d\n" % (idx, result_info['size']))
+                else:
+                    # This is upload, if we have a pre_op, it means we do not
+                    # want to overwrite
+                    do_upload = False
+                    if pre_op_info:
+                        result_info = op_info(url)
+                        if result_info['error'] == ERROR_URL_NOT_FOUND:
+                            # We only upload if the file is not found
+                            do_upload = True
+                    else:
+                        # No pre-op so we upload
+                        do_upload = True
+                    if do_upload:
+                        extra=None
+                        if url.content_type or url.metadata:
+                            extra = {}
+                            if url.content_type:
+                                extra['ContentType'] = url.content_type
+                            if url.metadata is not None:
+                                extra['Metadata'] = url.metadata
+                        s3.upload_file(url.local, url.bucket, url.path, ExtraArgs=extra)
+                        # We indicate that the file was uploaded
+                        result_file.write("%d %d\n" % (idx, 0))
+        except:
+            traceback.print_exc()
+            sys.exit(ERROR_WORKER_EXCEPTION)
 
 def start_workers(mode, urls, num_workers):
-
+    # We start the minimum of len(urls) or num_workers to avoid starting
+    # workers that will definitely do nothing
+    num_workers = min(num_workers, len(urls))
     queue = Queue(len(urls) + num_workers)
     procs = {}
 
     # 1. push sources and destinations to the queue
-    for url, _ in urls:
-        queue.put(url)
+    for idx, elt in enumerate(urls):
+        queue.put((elt, idx))
 
     # 2. push end-of-queue markers
     for i in range(num_workers):
-        queue.put(None)
+        queue.put((None, None))
 
-    # 3. start processes
-    for i in range(num_workers):
-        p = Process(target=worker, args=(queue, mode))
-        p.start()
-        procs[p] = True
+    # 3. Prepare the result structure
+    sz_results = [None]*len(urls)
 
-    # 4. wait for the processes to finish
-    while any(procs.values()):
-        for proc, is_alive in procs.items():
-            if is_alive:
+    # 4. start processes
+    with TempDir() as output_dir:
+        for i in range(num_workers):
+            file_path = os.path.join(output_dir, str(i))
+            p = Process(target=worker, args=(file_path, queue, mode))
+            p.start()
+            procs[p] = file_path
+
+        # 5. wait for the processes to finish; we continuously update procs
+        # to remove all processes that have finished already
+        while procs:
+            new_procs = {}
+            for proc, out_path in procs.items():
                 proc.join(timeout=1)
                 if proc.exitcode is not None:
-                    if proc.exitcode == 0:
-                        procs[proc] = False
-                    else:
+                    if proc.exitcode != 0:
                         msg = 'Worker process failed (exit code %d)'\
-                               % proc.exitcode
+                                % proc.exitcode
                         exit(msg, proc.exitcode)
+                    # Read the output file if all went well
+                    with open(out_path, 'r') as out_file:
+                        for line in out_file:
+                            line_split = line.split(' ')
+                            sz_results[int(line_split[0])] = int(line_split[1])
+                else:
+                    # Put this process back in the processes to check
+                    new_procs[proc] = out_path
+            procs = new_procs
+    return sz_results
 
 def process_urls(mode, urls, verbose, num_workers):
 
@@ -128,11 +263,11 @@ def process_urls(mode, urls, verbose, num_workers):
               file=sys.stderr)
 
     start = time.time()
-    start_workers(mode, urls, num_workers)
+    sz_results = start_workers(mode, urls, num_workers)
     end = time.time()
 
     if verbose:
-        total_size = sum(size for url, size in urls)
+        total_size = sum(sz for sz in sz_results if sz is not None and sz > 0)
         bw = total_size / (end - start)
         print('%sed %d files, %s in total, in %d seconds (%s/s).'\
               % (mode.capitalize(),
@@ -141,6 +276,7 @@ def process_urls(mode, urls, verbose, num_workers):
                  end - start,
                  with_unit(bw)),
               file=sys.stderr)
+    return sz_results
 
 # Utility functions
 
@@ -168,11 +304,19 @@ class S3Ops(object):
             self.s3, _ = get_s3_client()
 
     @aws_retry
-    def get_size(self, url):
+    def get_info(self, url):
         self.reset_client()
         try:
             head = self.s3.head_object(Bucket=url.bucket, Key=url.path)
-            return True, url, [(url, head['ContentLength'])]
+            return True, url, [(S3Url(
+                bucket=url.bucket,
+                path=url.path,
+                url=url.url,
+                local=url.local,
+                prefix=url.prefix,
+                content_type=head['ContentType'],
+                metadata=head['Metadata'],
+                range=url.range), head['ContentLength'])]
         except ClientError as err:
             error_code = normalize_client_error(err)
             if error_code == 404:
@@ -225,9 +369,9 @@ class S3Ops(object):
 # We want to reuse an s3 client instance over multiple operations.
 # This is accomplished by op_ functions below.
 
-def op_get_size(urls):
+def op_get_info(urls):
     s3 = S3Ops()
-    return [s3.get_size(url) for url in urls]
+    return [s3.get_info(url) for url in urls]
 
 def op_list_prefix(prefix_urls):
     s3 = S3Ops()
@@ -270,8 +414,14 @@ def verify_results(urls, verbose=False):
             exit(ERROR_VERIFY_FAILED, url)
         if expected != got:
             exit(ERROR_VERIFY_FAILED, url)
+        if url.content_type or url.metadata:
+            # Verify that we also have a metadata file present
+            try:
+                os.stat('%s_meta' % url.local)
+            except OSError:
+                exit(ERROR_VERIFY_FAILED, url)
 
-def generate_local_path(url):
+def generate_local_path(url, suffix=None):
     # this function generates a safe local file name corresponding to
     # an S3 URL. URLs may be longer than maximum file length limit on Linux,
     # so we mostly hash the URL but retain the leaf part as a convenience
@@ -279,12 +429,14 @@ def generate_local_path(url):
     quoted = url_quote(url)
     fname = quoted.split(b'/')[-1].replace(b'.', b'_').replace(b'-', b'_')
     sha = sha1(quoted).hexdigest()
+    if suffix:
+        return u'-'.join((sha, fname.decode('utf-8'), suffix))
     return u'-'.join((sha, fname.decode('utf-8')))
 
 def parallel_op(op, lst, num_workers):
     # parallel op divides work equally amongst num_workers
     # processes. This is a good strategy if the cost is
-    # uniform over the units of work, e.g. op_get_size, which
+    # uniform over the units of work, e.g. op_get_info, which
     # is a single HEAD request to S3.
     #
     # This approach is less optimal with op_list_prefix where
@@ -334,7 +486,7 @@ def lst(prefixes,
         recursive=None):
 
     urllist = []
-    for prefix in _populate_prefixes(prefixes, inputs):
+    for prefix, _ in _populate_prefixes(prefixes, inputs):
         src = urlparse(prefix)
         url = S3Url(url=prefix,
                     bucket=src.netloc,
@@ -394,46 +546,60 @@ def put(files=None,
 
     def _files():
         for local, url in files:
-            yield url_unquote(local), url_unquote(url)
+            yield url_unquote(local), url_unquote(url), None, None
         if filelist:
             for line in open(filelist, mode='rb'):
-                local, url = map(url_unquote, line.split())
+                r = json.loads(line)
+                local = r['local']
+                url = r['url']
+                content_type = r.get('content_type', None)
+                metadata = r.get('metadata', None)
                 if not os.path.exists(local):
                     exit(ERROR_LOCAL_FILE_NOT_FOUND, local)
-                yield local, url
+                yield local, url, content_type, metadata
 
-    def _make_url(local, user_url):
+    def _make_url(local, user_url, content_type, metadata):
         src = urlparse(user_url)
         url = S3Url(url=user_url,
                     bucket=src.netloc,
                     path=src.path.lstrip('/'),
                     local=local,
-                    prefix=None)
+                    prefix=None,
+                    content_type=content_type,
+                    metadata=metadata)
         if src.scheme != 's3':
             exit(ERROR_INVALID_URL, url)
         if not src.path:
             exit(ERROR_NOT_FULL_PATH, url)
-        return url, os.stat(local).st_size
+        return url
 
     urls = list(starmap(_make_url, _files()))
+    ul_op = 'upload'
     if not overwrite:
-        new_urls = set()
-        for success, prefix_url, ret in parallel_op(op_get_size, list(list(zip(*urls))[0]), num_workers):
-            if ret == ERROR_URL_NOT_FOUND:
-                new_urls.add(prefix_url)
-        urls = [(url, size) for url, size in urls if url in new_urls]
-    process_urls('upload', urls, verbose, num_workers)
+        ul_op = 'info_upload'
+    sz_results = process_urls(ul_op, urls, verbose, num_workers)
+    urls = [url for url, sz in zip(urls, sz_results) if sz is not None]
     if listing:
-        for url, _ in urls:
+        for url in urls:
             print(format_triplet(url.url))
 
 def _populate_prefixes(prefixes, inputs):
-    if not prefixes:
+    # Returns a tuple: first element is the prefix and second element
+    # is the optional range (or None if the entire prefix is requested)
+    if prefixes:
+        prefixes = [(url_unquote(p), None) for p in prefixes]
+    else:
         prefixes = []
     if inputs:
         with open(inputs, mode='rb') as f:
-            prefixes.extend(l.strip() for l in f)
-    return list(map(url_unquote, prefixes))
+            for l in f:
+                s = l.split(b' ')
+                if len(s) > 1:
+                    prefixes.append(
+                        (url_unquote(s[0].strip()), url_unquote(s[1].strip())))
+                else:
+                    prefixes.append((url_unquote(s[0].strip()), None))
+    return prefixes
 
 @cli.command(help='Download files from S3')
 @click.option('--recursive/--no-recursive',
@@ -451,6 +617,10 @@ def _populate_prefixes(prefixes, inputs):
               default=True,
               show_default=True,
               help='Verify that files were loaded correctly.')
+@click.option('--info/--no-info',
+              default=True,
+              show_default=True,
+              help='Return user tags and content-type')
 @click.option('--allow-missing/--no-allow-missing',
               default=False,
               show_default=True,
@@ -470,37 +640,35 @@ def get(prefixes,
         num_workers=None,
         inputs=None,
         verify=None,
+        info=None,
         allow_missing=None,
         verbose=None,
         listing=None):
 
-    if allow_missing:
-        verify = True
-
     # Construct a list of URL (prefix) objects
     urllist = []
-    for prefix in _populate_prefixes(prefixes, inputs):
+    for prefix, r in _populate_prefixes(prefixes, inputs):
         src = urlparse(prefix)
         url = S3Url(url=prefix,
                     bucket=src.netloc,
                     path=src.path.lstrip('/'),
                     local=generate_local_path(prefix),
-                    prefix=prefix)
+                    prefix=prefix,
+                    range=r)
         if src.scheme != 's3':
             exit(ERROR_INVALID_URL, url)
         if not recursive and not src.path:
             exit(ERROR_NOT_FULL_PATH, url)
         urllist.append(url)
-
-    # Construct a url->size mapping
+    # Construct a url->size mapping and get content-type and metadata if needed
     op = None
+    dl_op = 'download'
     if recursive:
         op = op_list_prefix
-    elif verify or verbose:
-        op = op_get_size
+    if verify or verbose or info:
+        dl_op = 'info_download'
     if op:
         urls = []
-
         # NOTE - we must retain the order of prefixes requested
         # and the listing order returned by S3
         for success, prefix_url, ret in parallel_op(op, urllist, num_workers):
@@ -517,18 +685,84 @@ def get(prefixes,
         urls = [(prefix_url, 0) for prefix_url in urllist]
 
     # exclude the non-existent files from loading
-    to_load = [(url, size) for url, size in urls if size is not None]
-    process_urls('download', to_load, verbose, num_workers)
+    to_load = [url for url, size in urls if size is not None]
+    sz_results = process_urls(dl_op, to_load, verbose, num_workers)
+    # We check if there is any access denied
+    is_denied = [sz == -ERROR_URL_ACCESS_DENIED for sz in sz_results]
+    if any(is_denied):
+        # Find the first one to return that as an error
+        for i, b in enumerate(is_denied):
+            if b:
+                exit(ERROR_URL_ACCESS_DENIED, to_load[i])
+    if not allow_missing:
+        is_missing = [sz == -ERROR_URL_NOT_FOUND for sz in sz_results]
+        if any(is_missing):
+            # Find the first one to return that as an error
+            for i, b in enumerate(is_missing):
+                if b:
+                    exit(ERROR_URL_NOT_FOUND, to_load[i])
     # Postprocess
     if verify:
-        verify_results(to_load, verbose=verbose)
+        # Verify only results with an actual size (so actual files)
+        verify_results([(url, sz) for url, sz in zip(to_load, sz_results)
+                        if sz != -ERROR_URL_NOT_FOUND], verbose=verbose)
 
+    idx_in_sz = 0
     if listing:
-        for url, size in urls:
-            if size is None:
+        for url, _ in urls:
+            sz = None
+            if idx_in_sz != len(to_load) and url.url == to_load[idx_in_sz].url:
+                sz = sz_results[idx_in_sz] if sz_results[idx_in_sz] >= 0 else None
+                idx_in_sz += 1
+            if sz is None:
+                # This means that either the initial url had a None size or
+                # that after loading, we found a None size
                 print(format_triplet(url.url))
             else:
                 print(format_triplet(url.prefix, url.url, url.local))
+
+@cli.command(help='Get info about files from S3')
+@click.option('--num-workers',
+              default=NUM_WORKERS_DEFAULT,
+              show_default=True,
+              help='Number of concurrent connections.')
+@click.option('--inputs',
+              type=click.Path(exists=True),
+              help='Read input prefixes from the given file.')
+@click.option('--verbose/--no-verbose',
+              default=True,
+              show_default=True,
+              help='Print status information on stderr.')
+@click.option('--listing/--no-listing',
+              default=False,
+              show_default=True,
+              help='Print S3 URL -> local file mapping on stdout.')
+@click.argument('prefixes', nargs=-1)
+def info(prefixes,
+         num_workers=None,
+         inputs=None,
+         verbose=None,
+         listing=None):
+
+    # Construct a list of URL (prefix) objects
+    urllist = []
+    for prefix, _ in _populate_prefixes(prefixes, inputs):
+        src = urlparse(prefix)
+        url = S3Url(url=prefix,
+                    bucket=src.netloc,
+                    path=src.path.lstrip('/'),
+                    local=generate_local_path(prefix, suffix='info'),
+                    prefix=prefix,
+                    range=None)
+        if src.scheme != 's3':
+            exit(ERROR_INVALID_URL, url)
+        urllist.append(url)
+
+    process_urls('info', urllist, verbose, num_workers)
+
+    if listing:
+        for url in urllist:
+            print(format_triplet(url.prefix, url.url, url.local))
 
 if __name__ == '__main__':
     from botocore.exceptions import ClientError

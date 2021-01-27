@@ -39,6 +39,19 @@ except:
         return unquote(to_unicode(x))
 
 
+if sys.version_info.major >= 3 and sys.version_info.minor >= 7:
+    from collections import namedtuple
+    namedtuple_with_defaults = namedtuple
+else:
+    from collections import namedtuple
+    def namedtuple_with_defaults(typename, field_names, defaults=()):
+        T = namedtuple(typename, field_names)
+        T.__new__.__defaults__ = (None,) * len(T._fields)
+        prototype = T(*defaults)
+        T.__new__.__defaults__ = tuple(prototype)
+        return T
+
+
 class TempDir(object):
     # Provide a temporary directory since Python 2.7 does not have it inbuilt
     def __enter__(self):
@@ -157,11 +170,10 @@ def resolve_identity():
 
 
 def get_latest_run_id(echo, flow_name):
-    from metaflow.datastore.local import LocalDataStore
-    local_root = LocalDataStore.datastore_root
+    from metaflow.datastore.local_backend import LocalBackend
+    local_root = LocalBackend.datastore_root
     if local_root is None:
-        v = LocalDataStore.get_datastore_root_from_config(echo, create_on_absent=False)
-        LocalDataStore.datastore_root = local_root = v
+        local_root = LocalBackend.get_datastore_root_from_config(echo, create_on_absent=False)
     if local_root:
         path = os.path.join(local_root, flow_name, 'latest_run')
         if os.path.exists(path):
@@ -171,10 +183,10 @@ def get_latest_run_id(echo, flow_name):
 
 
 def write_latest_run_id(obj, run_id):
-    from metaflow.datastore.local import LocalDataStore
-    if LocalDataStore.datastore_root is None:
-        LocalDataStore.datastore_root = LocalDataStore.get_datastore_root_from_config(obj.echo)
-    path = os.path.join(LocalDataStore.datastore_root, obj.flow.name)
+    from metaflow.datastore.local_backend import LocalBackend
+    if LocalBackend.datastore_root is None:
+        LocalBackend.datastore_root = LocalBackend.get_datastore_root_from_config(obj.echo)
+    path = LocalBackend.path_join(LocalBackend.datastore_root, obj.flow.name)
     try:
         os.makedirs(path)
     except OSError as x:
