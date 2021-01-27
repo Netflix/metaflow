@@ -110,6 +110,29 @@ class DataStoreBackend(object):
         ----------
         path : string
             Path to the object
+
+        Returns
+        -------
+        bool
+        """
+        raise NotImplementedError
+
+    def info_file(self, path):
+        """
+        Returns a tuple where the first element is True or False depending on
+        whether path refers to a valid file-like object (like is_file) and the
+        second element is a dictionary of metadata associated with the file or
+        None if the file does not exist or there is no metadata.
+
+        Parameters
+        ----------
+        path : string
+            Path to the object
+
+        Returns
+        -------
+        tuple
+            (bool, dict)
         """
         raise NotImplementedError
 
@@ -152,8 +175,12 @@ class DataStoreBackend(object):
 
         Parameters
         ----------
-        path_and_bytes : Dict: string -> RawIOBase or BufferedIOBase
-            Objects to store
+        path_and_bytes : Dict: string -> (RawIOBase or BufferedIOBase, dict)
+            Objects to store; the first element in the tuple is the actual data
+            to store and the dictionary is additional metadata to store. Keys
+            for the metadata must be ascii only string and elements can be
+            anything that can be converted to a string using json.dumps. If you
+            have no metadata, you can simply pass a RawIOBase or BufferedIOBase.
         overwrite : bool
             True if the objects can be overwritten. Defaults to False.
 
@@ -178,9 +205,12 @@ class DataStoreBackend(object):
 
         Returns
         -------
-        Dict: string -> BufferedIOBase
+        Dict: string -> (BufferedIOBase, dict)
             A dictionary is returned where the key is the path fetched and the
-            value is a BufferedIOBase indicating the result of loading the path.
+            value is a tuple containing:
+              - a BufferedIOBase indicating the result of loading the path.
+              - a dictionary containing any additional metadata that was stored
+              or None if no metadata was provided.
             If the path could not be loaded, returns None for that path
         """
         raise NotImplementedError
