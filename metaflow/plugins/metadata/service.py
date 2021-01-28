@@ -1,5 +1,5 @@
 import os
-import requests
+from metaflow._vendor import requests
 import time
 
 from metaflow.exception import MetaflowException

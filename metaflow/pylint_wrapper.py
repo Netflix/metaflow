@@ -15,7 +15,7 @@ class PyLint(object):
     def __init__(self, fname):
         self._fname = fname
         try:
-            from pylint.lint import Run
+            from metaflow._vendor.pylint.lint import Run
             self._run = Run
         except:
             self._run = None

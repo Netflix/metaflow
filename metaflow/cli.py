@@ -5,7 +5,7 @@ import traceback
 from functools import wraps
 from datetime import datetime
 
-import click
+from metaflow._vendor import click
 
 from . import lint
 from . import plugins

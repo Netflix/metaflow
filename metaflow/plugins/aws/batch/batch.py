@@ -7,7 +7,7 @@ import shlex
 import time
 import warnings
 
-from requests.exceptions import HTTPError
+from metaflow._vendor.requests.exceptions import HTTPError
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.metaflow_config import BATCH_METADATA_SERVICE_URL, DATATOOLS_S3ROOT, \
     DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_S3, DEFAULT_METADATA, \

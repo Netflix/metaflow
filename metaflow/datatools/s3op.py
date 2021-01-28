@@ -21,7 +21,7 @@ except:
     from urllib.parse import urlparse
     from queue import Full as QueueFull
 
-import click
+from metaflow._vendor import click
 
 # s3op can be launched as a stand-alone script. We must set
 # PYTHONPATH for the parent Metaflow explicitly.

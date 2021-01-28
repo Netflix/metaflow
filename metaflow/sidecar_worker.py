@@ -2,7 +2,7 @@ from __future__ import print_function
 
 import os
 import sys
-import click
+from metaflow._vendor import click
 import traceback
 
 

@@ -1,4 +1,4 @@
-import click
+from metaflow._vendor import click
 from metaflow.package import MetaflowPackage
 
 @click.group()

@@ -9,7 +9,7 @@ import shutil
 import subprocess
 from multiprocessing import Pool
 
-import click
+from metaflow._vendor import click
 
 from metaflow_test import MetaflowTest
 from metaflow_test.formatter import FlowFormatter

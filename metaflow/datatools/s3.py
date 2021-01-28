@@ -30,8 +30,8 @@ except:
 from metaflow.datastore.util.s3util import get_s3_client
 
 try:
-    import boto3
-    from botocore.exceptions import ClientError
+    from metaflow._vendor import boto3
+    from metaflow._vendor.botocore.exceptions import ClientError
     boto_found = True
 except:
     boto_found = False

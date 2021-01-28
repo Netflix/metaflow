@@ -16,10 +16,6 @@ setup(name='metaflow',
         metaflow=metaflow.main_cli:main
       ''',
       install_requires = [
-        'click>=7.0',
-        'requests',
-        'boto3',
-        'pylint<2.5.0'
       ],
       tests_require = [
         'coverage'

@@ -1,0 +1,1129 @@
+{
+  "version":"2.0",
+  "metadata":{
+    "apiVersion":"2020-09-18",
+    "endpointPrefix":"api.iotdeviceadvisor",
+    "jsonVersion":"1.1",
+    "protocol":"rest-json",
+    "serviceAbbreviation":"AWSIoTDeviceAdvisor",
+    "serviceFullName":"AWS IoT Core Device Advisor",
+    "serviceId":"IotDeviceAdvisor",
+    "signatureVersion":"v4",
+    "signingName":"iotdeviceadvisor",
+    "uid":"iotdeviceadvisor-2020-09-18"
+  },
+  "operations":{
+    "CreateSuiteDefinition":{
+      "name":"CreateSuiteDefinition",
+      "http":{
+        "method":"POST",
+        "requestUri":"/suiteDefinitions"
+      },
+      "input":{"shape":"CreateSuiteDefinitionRequest"},
+      "output":{"shape":"CreateSuiteDefinitionResponse"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Creates a Device Advisor test suite.</p>"
+    },
+    "DeleteSuiteDefinition":{
+      "name":"DeleteSuiteDefinition",
+      "http":{
+        "method":"DELETE",
+        "requestUri":"/suiteDefinitions/{suiteDefinitionId}"
+      },
+      "input":{"shape":"DeleteSuiteDefinitionRequest"},
+      "output":{"shape":"DeleteSuiteDefinitionResponse"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Deletes a Device Advisor test suite.</p>"
+    },
+    "GetSuiteDefinition":{
+      "name":"GetSuiteDefinition",
+      "http":{
+        "method":"GET",
+        "requestUri":"/suiteDefinitions/{suiteDefinitionId}"
+      },
+      "input":{"shape":"GetSuiteDefinitionRequest"},
+      "output":{"shape":"GetSuiteDefinitionResponse"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"InternalServerException"},
+        {"shape":"ResourceNotFoundException"}
+      ],
+      "documentation":"<p>Gets information about a Device Advisor test suite.</p>"
+    },
+    "GetSuiteRun":{
+      "name":"GetSuiteRun",
+      "http":{
+        "method":"GET",
+        "requestUri":"/suiteDefinitions/{suiteDefinitionId}/suiteRuns/{suiteRunId}"
+      },
+      "input":{"shape":"GetSuiteRunRequest"},
+      "output":{"shape":"GetSuiteRunResponse"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"InternalServerException"},
+        {"shape":"ResourceNotFoundException"}
+      ],
+      "documentation":"<p>Gets information about a Device Advisor test suite run.</p>"
+    },
+    "GetSuiteRunReport":{
+      "name":"GetSuiteRunReport",
+      "http":{
+        "method":"GET",
+        "requestUri":"/suiteDefinitions/{suiteDefinitionId}/suiteRuns/{suiteRunId}/report"
+      },
+      "input":{"shape":"GetSuiteRunReportRequest"},
+      "output":{"shape":"GetSuiteRunReportResponse"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"InternalServerException"},
+        {"shape":"ResourceNotFoundException"}
+      ],
+      "documentation":"<p>Gets a report download link for a successful Device Advisor qualifying test suite run.</p>"
+    },
+    "ListSuiteDefinitions":{
+      "name":"ListSuiteDefinitions",
+      "http":{
+        "method":"GET",
+        "requestUri":"/suiteDefinitions"
+      },
+      "input":{"shape":"ListSuiteDefinitionsRequest"},
+      "output":{"shape":"ListSuiteDefinitionsResponse"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Lists the Device Advisor test suites you have created.</p>"
+    },
+    "ListSuiteRuns":{
+      "name":"ListSuiteRuns",
+      "http":{
+        "method":"GET",
+        "requestUri":"/suiteRuns"
+      },
+      "input":{"shape":"ListSuiteRunsRequest"},
+      "output":{"shape":"ListSuiteRunsResponse"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Lists the runs of the specified Device Advisor test suite. You can list all runs of the test suite, or the runs of a specific version of the test suite.</p>"
+    },
+    "ListTagsForResource":{
+      "name":"ListTagsForResource",
+      "http":{
+        "method":"GET",
+        "requestUri":"/tags/{resourceArn}"
+      },
+      "input":{"shape":"ListTagsForResourceRequest"},
+      "output":{"shape":"ListTagsForResourceResponse"},
+      "errors":[
+        {"shape":"InternalServerException"},
+        {"shape":"ValidationException"},
+        {"shape":"ResourceNotFoundException"}
+      ],
+      "documentation":"<p>Lists the tags attached to an IoT Device Advisor resource.</p>"
+    },
+    "ListTestCases":{
+      "name":"ListTestCases",
+      "http":{
+        "method":"GET",
+        "requestUri":"/testCases"
+      },
+      "input":{"shape":"ListTestCasesRequest"},
+      "output":{"shape":"ListTestCasesResponse"},
+      "errors":[
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Lists all the test cases in the test suite.</p>"
+    },
+    "StartSuiteRun":{
+      "name":"StartSuiteRun",
+      "http":{
+        "method":"POST",
+        "requestUri":"/suiteDefinitions/{suiteDefinitionId}/suiteRuns"
+      },
+      "input":{"shape":"StartSuiteRunRequest"},
+      "output":{"shape":"StartSuiteRunResponse"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"InternalServerException"},
+        {"shape":"ConflictException"}
+      ],
+      "documentation":"<p>Starts a Device Advisor test suite run.</p>"
+    },
+    "TagResource":{
+      "name":"TagResource",
+      "http":{
+        "method":"POST",
+        "requestUri":"/tags/{resourceArn}"
+      },
+      "input":{"shape":"TagResourceRequest"},
+      "output":{"shape":"TagResourceResponse"},
+      "errors":[
+        {"shape":"InternalServerException"},
+        {"shape":"ValidationException"},
+        {"shape":"ResourceNotFoundException"}
+      ],
+      "documentation":"<p>Adds to and modifies existing tags of an IoT Device Advisor resource.</p>"
+    },
+    "UntagResource":{
+      "name":"UntagResource",
+      "http":{
+        "method":"DELETE",
+        "requestUri":"/tags/{resourceArn}"
+      },
+      "input":{"shape":"UntagResourceRequest"},
+      "output":{"shape":"UntagResourceResponse"},
+      "errors":[
+        {"shape":"InternalServerException"},
+        {"shape":"ValidationException"},
+        {"shape":"ResourceNotFoundException"}
+      ],
+      "documentation":"<p>Removes tags from an IoT Device Advisor resource.</p>"
+    },
+    "UpdateSuiteDefinition":{
+      "name":"UpdateSuiteDefinition",
+      "http":{
+        "method":"PATCH",
+        "requestUri":"/suiteDefinitions/{suiteDefinitionId}"
+      },
+      "input":{"shape":"UpdateSuiteDefinitionRequest"},
+      "output":{"shape":"UpdateSuiteDefinitionResponse"},
+      "errors":[
+        {"shape":"ValidationException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Updates a Device Advisor test suite.</p>"
+    }
+  },
+  "shapes":{
+    "AmazonResourceName":{
+      "type":"string",
+      "max":2048,
+      "min":20
+    },
+    "CategoryName":{"type":"string"},
+    "ConfigString":{"type":"string"},
+    "ConflictException":{
+      "type":"structure",
+      "members":{
+        "message":{
+          "shape":"Message",
+          "documentation":"<p>Sends Conflict Exception message.</p>"
+        }
+      },
+      "documentation":"<p>Sends Conflict Exception.</p>",
+      "error":{"httpStatusCode":400},
+      "exception":true
+    },
+    "CreateSuiteDefinitionRequest":{
+      "type":"structure",
+      "members":{
+        "suiteDefinitionConfiguration":{
+          "shape":"SuiteDefinitionConfiguration",
+          "documentation":"<p>Creates a Device Advisor test suite with suite definition configuration.</p>"
+        },
+        "tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags to be attached to the suite definition.</p>"
+        }
+      }
+    },
+    "CreateSuiteDefinitionResponse":{
+      "type":"structure",
+      "members":{
+        "suiteDefinitionId":{
+          "shape":"UUID",
+          "documentation":"<p>Creates a Device Advisor test suite with suite UUID.</p>"
+        },
+        "suiteDefinitionArn":{
+          "shape":"AmazonResourceName",
+          "documentation":"<p>Creates a Device Advisor test suite with Amazon Resource name.</p>"
+        },
+        "suiteDefinitionName":{
+          "shape":"SuiteDefinitionName",
+          "documentation":"<p>Creates a Device Advisor test suite with suite definition name.</p>"
+        },
+        "createdAt":{
+          "shape":"Timestamp",
+          "documentation":"<p>Creates a Device Advisor test suite with TimeStamp of when it was created.</p>"
+        }
+      }
+    },
+    "DeleteSuiteDefinitionRequest":{
+      "type":"structure",
+      "required":["suiteDefinitionId"],
+      "members":{
+        "suiteDefinitionId":{
+          "shape":"UUID",
+          "documentation":"<p>Deletes a Device Advisor test suite with defined suite Id.</p>",
+          "location":"uri",
+          "locationName":"suiteDefinitionId"
+        }
+      }
+    },
+    "DeleteSuiteDefinitionResponse":{
+      "type":"structure",
+      "members":{
+      }
+    },
+    "DeviceUnderTest":{
+      "type":"structure",
+      "members":{
+        "thingArn":{
+          "shape":"AmazonResourceName",
+          "documentation":"<p>Lists devices thing arn</p>"
+        },
+        "certificateArn":{
+          "shape":"AmazonResourceName",
+          "documentation":"<p>Lists devices certificate arn</p>"
+        }
+      },
+      "documentation":"<p>Lists all the devices under test</p>"
+    },
+    "DeviceUnderTestList":{
+      "type":"list",
+      "member":{"shape":"DeviceUnderTest"},
+      "max":2,
+      "min":0
+    },
+    "ErrorReason":{"type":"string"},
+    "Failure":{"type":"string"},
+    "GetSuiteDefinitionRequest":{
+      "type":"structure",
+      "required":["suiteDefinitionId"],
+      "members":{
+        "suiteDefinitionId":{
+          "shape":"UUID",
+          "documentation":"<p>Requests suite definition Id with GetSuiteDefinition API call.</p>",
+          "location":"uri",
+          "locationName":"suiteDefinitionId"
+        },
+        "suiteDefinitionVersion":{
+          "shape":"SuiteDefinitionVersion",
+          "documentation":"<p>Requests the suite definition version of a test suite.</p>",
+          "location":"querystring",
+          "locationName":"suiteDefinitionVersion"
+        }
+      }
+    },
+    "GetSuiteDefinitionResponse":{
+      "type":"structure",
+      "members":{
+        "suiteDefinitionId":{
+          "shape":"UUID",
+          "documentation":"<p>Gets suite definition Id with GetSuiteDefinition API call.</p>"
+        },
+        "suiteDefinitionArn":{
+          "shape":"AmazonResourceName",
+          "documentation":"<p>The ARN of the suite definition.</p>"
+        },
+        "suiteDefinitionVersion":{
+          "shape":"SuiteDefinitionVersion",
+          "documentation":"<p>Gets suite definition version with GetSuiteDefinition API call.</p>"
+        },
+        "latestVersion":{
+          "shape":"SuiteDefinitionVersion",
+          "documentation":"<p>Gets latest suite definition version with GetSuiteDefinition API call.</p>"
+        },
+        "suiteDefinitionConfiguration":{
+          "shape":"SuiteDefinitionConfiguration",
+          "documentation":"<p>Gets the suite configuration with GetSuiteDefinition API call.</p>"
+        },
+        "createdAt":{
+          "shape":"Timestamp",
+          "documentation":"<p>Gets the timestamp of the time suite was created with GetSuiteDefinition API call.</p>"
+        },
+        "lastModifiedAt":{
+          "shape":"Timestamp",
+          "documentation":"<p>Gets the timestamp of the time suite was modified with GetSuiteDefinition API call.</p>"
+        },
+        "tags":{
+          "shape":"TagMap",
+          "documentation":"<p>Tags attached to the suite definition.</p>"
+        }
+      }
+    },
+    "GetSuiteRunReportRequest":{
+      "type":"structure",
+      "required":[
+        "suiteDefinitionId",
+        "suiteRunId"
+      ],
+      "members":{
+        "suiteDefinitionId":{
+          "shape":"UUID",
+          "documentation":"<p>Device Advisor suite definition Id.</p>",
+          "location":"uri",
+          "locationName":"suiteDefinitionId"
+        },
+        "suiteRunId":{
+          "shape":"UUID",
+          "documentation":"<p>Device Advisor suite run Id.</p>",
+          "location":"uri",
+          "locationName":"suiteRunId"
+        }
+      }
+    },
+    "GetSuiteRunReportResponse":{
+      "type":"structure",
+      "members":{
+        "qualificationReportDownloadUrl":{
+          "shape":"QualificationReportDownloadUrl",
+          "documentation":"<p>Gets the download URL of the qualification report.</p>"
+        }
+      }
+    },
+    "GetSuiteRunRequest":{
+      "type":"structure",
+      "required":[
+        "suiteDefinitionId",
+        "suiteRunId"
+      ],
+      "members":{
+        "suiteDefinitionId":{
+          "shape":"UUID",
+          "documentation":"<p>Requests the information about Device Advisor test suite run based on suite definition Id.</p>",
+          "location":"uri",
+          "locationName":"suiteDefinitionId"
+        },
+        "suiteRunId":{
+          "shape":"UUID",
+          "documentation":"<p>Requests the information about Device Advisor test suite run based on suite run Id.</p>",
+          "location":"uri",
+          "locationName":"suiteRunId"
+        }
+      }
+    },
+    "GetSuiteRunResponse":{
+      "type":"structure",
+      "members":{
+        "suiteDefinitionId":{
+          "shape":"UUID",
+          "documentation":"<p>Gets the information about Device Advisor test suite run based on suite definition Id.</p>"
+        },
+        "suiteDefinitionVersion":{
+          "shape":"SuiteDefinitionVersion",
+          "documentation":"<p>Gets the information about Device Advisor test suite run based on suite definition version.</p>"
+        },
+        "suiteRunId":{
+          "shape":"UUID",
+          "documentation":"<p>Gets the information about Device Advisor test suite run based on suite run Id.</p>"
+        },
+        "suiteRunArn":{
+          "shape":"AmazonResourceName",
+          "documentation":"<p>The ARN of the suite run.</p>"
+        },
+        "suiteRunConfiguration":{
+          "shape":"SuiteRunConfiguration",
+          "documentation":"<p>Gets the information about Device Advisor test suite run based on suite configuration.</p>"
+        },
+        "testResult":{
+          "shape":"TestResult",
+          "documentation":"<p>Gets the information about Device Advisor test suite run based on test case runs.</p>"
+        },
+        "startTime":{
+          "shape":"Timestamp",
+          "documentation":"<p>Gets the information about Device Advisor test suite run based on start time.</p>"
+        },
+        "endTime":{
+          "shape":"Timestamp",
+          "documentation":"<p>Gets the information about Device Advisor test suite run based on end time.</p>"
+        },
+        "status":{
+          "shape":"SuiteRunStatus",
+          "documentation":"<p>Gets the information about Device Advisor test suite run based on its status.</p>"
+        },
+        "errorReason":{
+          "shape":"ErrorReason",
+          "documentation":"<p>Gets the information about Device Advisor test suite run based on error.</p>"
+        },
+        "tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags attached to the suite run.</p>"
+        }
+      }
+    },
+    "GroupName":{"type":"string"},
+    "GroupResult":{
+      "type":"structure",
+      "members":{
+        "groupId":{
+          "shape":"UUID",
+          "documentation":"<p>Show Group Result Id.</p>"
+        },
+        "groupName":{
+          "shape":"GroupName",
+          "documentation":"<p>Show Group Result Name.</p>"
+        },
+        "tests":{
+          "shape":"TestCaseRuns",
+          "documentation":"<p>Show Group Result.</p>"
+        }
+      },
+      "documentation":"<p>Show Group Result.</p>"
+    },
+    "GroupResultList":{
+      "type":"list",
+      "member":{"shape":"GroupResult"},
+      "documentation":"<p>how Group Result list.</p>"
+    },
+    "IntendedForQualificationBoolean":{"type":"boolean"},
+    "InternalServerException":{
+      "type":"structure",
+      "members":{
+        "message":{
+          "shape":"Message",
+          "documentation":"<p>Sends Internal Failure Exception message.</p>"
+        }
+      },
+      "documentation":"<p>Sends Internal Failure Exception.</p>",
+      "error":{"httpStatusCode":500},
+      "exception":true,
+      "fault":true
+    },
+    "ListSuiteDefinitionsRequest":{
+      "type":"structure",
+      "members":{
+        "maxResults":{
+          "shape":"MaxResults",
+          "documentation":"<p>Request the list of all the Device Advisor test suites.</p>",
+          "location":"querystring",
+          "locationName":"maxResults"
+        },
+        "nextToken":{
+          "shape":"Token",
+          "documentation":"<p>Requests the Device Advisor test suites next token.</p>",
+          "location":"querystring",
+          "locationName":"nextToken"
+        }
+      }
+    },
+    "ListSuiteDefinitionsResponse":{
+      "type":"structure",
+      "members":{
+        "suiteDefinitionInformationList":{
+          "shape":"SuiteDefinitionInformationList",
+          "documentation":"<p>Lists test suite information using List suite definition.</p>"
+        },
+        "nextToken":{
+          "shape":"Token",
+          "documentation":"<p>Creates a Device Advisor test suite.</p>"
+        }
+      }
+    },
+    "ListSuiteRunsRequest":{
+      "type":"structure",
+      "members":{
+        "suiteDefinitionId":{
+          "shape":"UUID",
+          "documentation":"<p>Lists the runs of the specified Device Advisor test suite based on suite definition Id.</p>",
+          "location":"querystring",
+          "locationName":"suiteDefinitionId"
+        },
+        "suiteDefinitionVersion":{
+          "shape":"SuiteDefinitionVersion",
+          "documentation":"<p>Lists the runs of the specified Device Advisor test suite based on suite definition version.</p>",
+          "location":"querystring",
+          "locationName":"suiteDefinitionVersion"
+        },
+        "maxResults":{
+          "shape":"MaxResults",
+          "documentation":"<p>MaxResults for list suite run API request.</p>",
+          "location":"querystring",
+          "locationName":"maxResults"
+        },
+        "nextToken":{
+          "shape":"Token",
+          "documentation":"<p>Next pagination token for list suite run request.</p>",
+          "location":"querystring",
+          "locationName":"nextToken"
+        }
+      }
+    },
+    "ListSuiteRunsResponse":{
+      "type":"structure",
+      "members":{
+        "suiteRunsList":{
+          "shape":"SuiteRunsList",
+          "documentation":"<p>Lists the runs of the specified Device Advisor test suite.</p>"
+        },
+        "nextToken":{
+          "shape":"Token",
+          "documentation":"<p>Next pagination token for list suite run response.</p>"
+        }
+      }
+    },
+    "ListTagsForResourceRequest":{
+      "type":"structure",
+      "required":["resourceArn"],
+      "members":{
+        "resourceArn":{
+          "shape":"AmazonResourceName",
+          "documentation":"<p>The ARN of the IoT Device Advisor resource.</p>",
+          "location":"uri",
+          "locationName":"resourceArn"
+        }
+      }
+    },
+    "ListTagsForResourceResponse":{
+      "type":"structure",
+      "members":{
+        "tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags attached to the IoT Device Advisor resource.</p>"
+        }
+      }
+    },
+    "ListTestCasesRequest":{
+      "type":"structure",
+      "members":{
+        "intendedForQualification":{
+          "shape":"IntendedForQualificationBoolean",
+          "documentation":"<p>Lists all the qualification test cases in the test suite.</p>",
+          "location":"querystring",
+          "locationName":"intendedForQualification"
+        },
+        "maxResults":{
+          "shape":"MaxResults",
+          "documentation":"<p>Requests the test cases max results.</p>",
+          "location":"querystring",
+          "locationName":"maxResults"
+        },
+        "nextToken":{
+          "shape":"Token",
+          "documentation":"<p>Requests the test cases next token.</p>",
+          "location":"querystring",
+          "locationName":"nextToken"
+        }
+      }
+    },
+    "ListTestCasesResponse":{
+      "type":"structure",
+      "members":{
+        "categories":{
+          "shape":"TestCategory",
+          "documentation":"<p>Gets the category of test case.</p>"
+        },
+        "rootGroupConfiguration":{
+          "shape":"TestConfiguration",
+          "documentation":"<p>Gets the configuration of root test group.</p>"
+        },
+        "groupConfiguration":{
+          "shape":"TestConfiguration",
+          "documentation":"<p>Gets the configuration of test group.</p>"
+        },
+        "nextToken":{
+          "shape":"Token",
+          "documentation":"<p>Test cases next token response.</p>"
+        }
+      }
+    },
+    "LogUrl":{"type":"string"},
+    "MaxResults":{
+      "type":"integer",
+      "max":50,
+      "min":1
+    },
+    "Message":{
+      "type":"string",
+      "max":2048,
+      "min":1
+    },
+    "QualificationReportDownloadUrl":{"type":"string"},
+    "ResourceNotFoundException":{
+      "type":"structure",
+      "members":{
+        "message":{
+          "shape":"Message",
+          "documentation":"<p>Sends Resource Not Found Exception message.</p>"
+        }
+      },
+      "documentation":"<p>Sends Resource Not Found Exception.</p>",
+      "error":{"httpStatusCode":404},
+      "exception":true
+    },
+    "RootGroup":{
+      "type":"string",
+      "max":2048,
+      "min":1
+    },
+    "SelectedTestList":{
+      "type":"list",
+      "member":{"shape":"UUID"},
+      "max":100,
+      "min":0
+    },
+    "StartSuiteRunRequest":{
+      "type":"structure",
+      "required":["suiteDefinitionId"],
+      "members":{
+        "suiteDefinitionId":{
+          "shape":"UUID",
+          "documentation":"<p>Request to start suite run based on suite definition Id.</p>",
+          "location":"uri",
+          "locationName":"suiteDefinitionId"
+        },
+        "suiteDefinitionVersion":{
+          "shape":"SuiteDefinitionVersion",
+          "documentation":"<p>Request to start suite run based on suite definition version.</p>"
+        },
+        "suiteRunConfiguration":{
+          "shape":"SuiteRunConfiguration",
+          "documentation":"<p>Request to start suite run based on suite configuration.</p>"
+        },
+        "tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags to be attached to the suite run.</p>"
+        }
+      }
+    },
+    "StartSuiteRunResponse":{
+      "type":"structure",
+      "members":{
+        "suiteRunId":{
+          "shape":"UUID",
+          "documentation":"<p>Starts a Device Advisor test suite run based on suite Run Id.</p>"
+        },
+        "suiteRunArn":{
+          "shape":"AmazonResourceName",
+          "documentation":"<p>Starts a Device Advisor test suite run based on suite run arn.</p>"
+        },
+        "createdAt":{
+          "shape":"Timestamp",
+          "documentation":"<p>Starts a Device Advisor test suite run based on suite create time.</p>"
+        }
+      }
+    },
+    "Status":{
+      "type":"string",
+      "enum":[
+        "PASS",
+        "FAIL",
+        "CANCELED",
+        "PENDING",
+        "RUNNING",
+        "PASS_WITH_WARNINGS",
+        "ERROR"
+      ]
+    },
+    "String128":{
+      "type":"string",
+      "max":128,
+      "min":1
+    },
+    "String256":{
+      "type":"string",
+      "max":256,
+      "min":1
+    },
+    "SuiteDefinitionConfiguration":{
+      "type":"structure",
+      "members":{
+        "suiteDefinitionName":{
+          "shape":"SuiteDefinitionName",
+          "documentation":"<p>Gets Suite Definition Configuration name.</p>"
+        },
+        "devices":{
+          "shape":"DeviceUnderTestList",
+          "documentation":"<p>Gets the devices configured.</p>"
+        },
+        "intendedForQualification":{
+          "shape":"IntendedForQualificationBoolean",
+          "documentation":"<p>Gets the tests intended for qualification in a suite.</p>"
+        },
+        "rootGroup":{
+          "shape":"RootGroup",
+          "documentation":"<p>Gets test suite root group.</p>"
+        },
+        "devicePermissionRoleArn":{
+          "shape":"AmazonResourceName",
+          "documentation":"<p>Gets device permission arn.</p>"
+        }
+      },
+      "documentation":"<p>Gets Suite Definition Configuration.</p>"
+    },
+    "SuiteDefinitionInformation":{
+      "type":"structure",
+      "members":{
+        "suiteDefinitionId":{
+          "shape":"UUID",
+          "documentation":"<p>Get suite definition Id.</p>"
+        },
+        "suiteDefinitionName":{
+          "shape":"SuiteDefinitionName",
+          "documentation":"<p>Get test suite name.</p>"
+        },
+        "defaultDevices":{
+          "shape":"DeviceUnderTestList",
+          "documentation":"<p>Specifies the devices under test.</p>"
+        },
+        "intendedForQualification":{
+          "shape":"IntendedForQualificationBoolean",
+          "documentation":"<p>Gets the test suites which will be used for qualification.</p>"
+        },
+        "createdAt":{
+          "shape":"Timestamp",
+          "documentation":"<p>Gets the information of when the test suite was created.</p>"
+        }
+      },
+      "documentation":"<p>Get suite definition information.</p>"
+    },
+    "SuiteDefinitionInformationList":{
+      "type":"list",
+      "member":{"shape":"SuiteDefinitionInformation"}
+    },
+    "SuiteDefinitionName":{
+      "type":"string",
+      "max":256,
+      "min":1
+    },
+    "SuiteDefinitionVersion":{
+      "type":"string",
+      "max":255,
+      "min":2
+    },
+    "SuiteRunConfiguration":{
+      "type":"structure",
+      "members":{
+        "primaryDevice":{
+          "shape":"DeviceUnderTest",
+          "documentation":"<p>Gets the primary device for suite run.</p>"
+        },
+        "secondaryDevice":{
+          "shape":"DeviceUnderTest",
+          "documentation":"<p>Gets the secondary device for suite run.</p>"
+        },
+        "selectedTestList":{
+          "shape":"SelectedTestList",
+          "documentation":"<p>Gets test case list.</p>"
+        }
+      },
+      "documentation":"<p>Gets suite run configuration.</p>"
+    },
+    "SuiteRunInformation":{
+      "type":"structure",
+      "members":{
+        "suiteDefinitionId":{
+          "shape":"UUID",
+          "documentation":"<p>Get suite run information based on suite definition Id.</p>"
+        },
+        "suiteDefinitionVersion":{
+          "shape":"SuiteDefinitionVersion",
+          "documentation":"<p>Get suite run information based on suite definition version.</p>"
+        },
+        "suiteDefinitionName":{
+          "shape":"SuiteDefinitionName",
+          "documentation":"<p>Get suite run information based on suite definition name.</p>"
+        },
+        "suiteRunId":{
+          "shape":"UUID",
+          "documentation":"<p>Get suite run information based on suite run Id.</p>"
+        },
+        "createdAt":{
+          "shape":"Timestamp",
+          "documentation":"<p>Get suite run information based on time suite was created.</p>"
+        },
+        "startedAt":{
+          "shape":"Timestamp",
+          "documentation":"<p>Get suite run information based on start time of the run.</p>"
+        },
+        "endAt":{
+          "shape":"Timestamp",
+          "documentation":"<p>Get suite run information based on end time of the run.</p>"
+        },
+        "status":{
+          "shape":"SuiteRunStatus",
+          "documentation":"<p>Get suite run information based on test run status.</p>"
+        },
+        "passed":{
+          "shape":"SuiteRunResultCount",
+          "documentation":"<p>Get suite run information based on result of the test suite run.</p>"
+        },
+        "failed":{
+          "shape":"SuiteRunResultCount",
+          "documentation":"<p>Get suite run information based on result of the test suite run.</p>"
+        }
+      },
+      "documentation":"<p>Get suite run information.</p>"
+    },
+    "SuiteRunResultCount":{
+      "type":"integer",
+      "max":500,
+      "min":0
+    },
+    "SuiteRunStatus":{
+      "type":"string",
+      "enum":[
+        "PASS",
+        "FAIL",
+        "CANCELED",
+        "PENDING",
+        "RUNNING",
+        "PASS_WITH_WARNINGS",
+        "ERROR"
+      ]
+    },
+    "SuiteRunsList":{
+      "type":"list",
+      "member":{"shape":"SuiteRunInformation"}
+    },
+    "TagKeyList":{
+      "type":"list",
+      "member":{"shape":"String128"},
+      "max":50,
+      "min":0
+    },
+    "TagMap":{
+      "type":"map",
+      "key":{"shape":"String128"},
+      "value":{"shape":"String256"},
+      "max":50,
+      "min":0
+    },
+    "TagResourceRequest":{
+      "type":"structure",
+      "required":[
+        "resourceArn",
+        "tags"
+      ],
+      "members":{
+        "resourceArn":{
+          "shape":"AmazonResourceName",
+          "documentation":"<p>The resource ARN of an IoT Device Advisor resource.</p>",
+          "location":"uri",
+          "locationName":"resourceArn"
+        },
+        "tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags to be attached to the IoT Device Advisor resource.</p>"
+        }
+      }
+    },
+    "TagResourceResponse":{
+      "type":"structure",
+      "members":{
+      }
+    },
+    "TestCase":{
+      "type":"structure",
+      "members":{
+        "name":{
+          "shape":"TestCaseName",
+          "documentation":"<p>Shows test case name.</p>"
+        },
+        "configuration":{
+          "shape":"TestConfiguration",
+          "documentation":"<p>Shows test case configuration.</p>"
+        },
+        "test":{
+          "shape":"TestCaseDefinition",
+          "documentation":"<p>Specifies a test.</p>"
+        }
+      },
+      "documentation":"<p>Shows tests in a test group.</p>"
+    },
+    "TestCaseCategory":{
+      "type":"structure",
+      "members":{
+        "name":{
+          "shape":"CategoryName",
+          "documentation":"<p>Lists all the tests name in the specified category.</p>"
+        },
+        "tests":{
+          "shape":"TestCaseList",
+          "documentation":"<p>Lists all the tests in the specified category.</p>"
+        }
+      },
+      "documentation":"<p>Gets the test case category.</p>"
+    },
+    "TestCaseDefinition":{
+      "type":"structure",
+      "members":{
+        "id":{
+          "shape":"TestCaseName",
+          "documentation":"<p>Provides test case definition Id.</p>"
+        },
+        "testCaseVersion":{
+          "shape":"TestCaseVersion",
+          "documentation":"<p>Provides test case definition version.</p>"
+        }
+      },
+      "documentation":"<p>Provides test case definition.</p>"
+    },
+    "TestCaseDefinitionName":{"type":"string"},
+    "TestCaseList":{
+      "type":"list",
+      "member":{"shape":"TestCase"}
+    },
+    "TestCaseName":{"type":"string"},
+    "TestCaseRun":{
+      "type":"structure",
+      "members":{
+        "testCaseRunId":{
+          "shape":"UUID",
+          "documentation":"<p>Provides test case run Id.</p>"
+        },
+        "testCaseDefinitionId":{
+          "shape":"UUID",
+          "documentation":"<p>Provides test case run definition Id.</p>"
+        },
+        "testCaseDefinitionName":{
+          "shape":"TestCaseDefinitionName",
+          "documentation":"<p>Provides test case run definition Name.</p>"
+        },
+        "status":{
+          "shape":"Status",
+          "documentation":"<p>Provides test case run status.</p>"
+        },
+        "startTime":{
+          "shape":"Timestamp",
+          "documentation":"<p>Provides test case run start time.</p>"
+        },
+        "endTime":{
+          "shape":"Timestamp",
+          "documentation":"<p>Provides test case run end time.</p>"
+        },
+        "logUrl":{
+          "shape":"LogUrl",
+          "documentation":"<p>Provides test case run log Url.</p>"
+        },
+        "warnings":{
+          "shape":"Warnings",
+          "documentation":"<p>Provides test case run warnings.</p>"
+        },
+        "failure":{
+          "shape":"Failure",
+          "documentation":"<p>Provides test case run failure result.</p>"
+        }
+      },
+      "documentation":"<p>Provides test case run.</p>"
+    },
+    "TestCaseRuns":{
+      "type":"list",
+      "member":{"shape":"TestCaseRun"},
+      "documentation":"<p>Show each group result.</p>"
+    },
+    "TestCaseVersion":{"type":"string"},
+    "TestCategory":{
+      "type":"list",
+      "member":{"shape":"TestCaseCategory"}
+    },
+    "TestConfiguration":{
+      "type":"map",
+      "key":{"shape":"ConfigString"},
+      "value":{"shape":"ConfigString"}
+    },
+    "TestResult":{
+      "type":"structure",
+      "members":{
+        "groups":{
+          "shape":"GroupResultList",
+          "documentation":"<p>Show each group of test results.</p>"
+        }
+      },
+      "documentation":"<p>Show each group result.</p>"
+    },
+    "Timestamp":{"type":"timestamp"},
+    "Token":{
+      "type":"string",
+      "max":2000
+    },
+    "UUID":{
+      "type":"string",
+      "max":36,
+      "min":36
+    },
+    "UntagResourceRequest":{
+      "type":"structure",
+      "required":[
+        "resourceArn",
+        "tagKeys"
+      ],
+      "members":{
+        "resourceArn":{
+          "shape":"AmazonResourceName",
+          "documentation":"<p>The resource ARN of an IoT Device Advisor resource.</p>",
+          "location":"uri",
+          "locationName":"resourceArn"
+        },
+        "tagKeys":{
+          "shape":"TagKeyList",
+          "documentation":"<p>List of tag keys to remove from the IoT Device Advisor resource.</p>",
+          "location":"querystring",
+          "locationName":"tagKeys"
+        }
+      }
+    },
+    "UntagResourceResponse":{
+      "type":"structure",
+      "members":{
+      }
+    },
+    "UpdateSuiteDefinitionRequest":{
+      "type":"structure",
+      "required":["suiteDefinitionId"],
+      "members":{
+        "suiteDefinitionId":{
+          "shape":"UUID",
+          "documentation":"<p>Updates a Device Advisor test suite with suite definition id.</p>",
+          "location":"uri",
+          "locationName":"suiteDefinitionId"
+        },
+        "suiteDefinitionConfiguration":{
+          "shape":"SuiteDefinitionConfiguration",
+          "documentation":"<p>Updates a Device Advisor test suite with suite definition configuration.</p>"
+        }
+      }
+    },
+    "UpdateSuiteDefinitionResponse":{
+      "type":"structure",
+      "members":{
+        "suiteDefinitionId":{
+          "shape":"UUID",
+          "documentation":"<p>Updates a Device Advisor test suite with suite UUID.</p>"
+        },
+        "suiteDefinitionArn":{
+          "shape":"AmazonResourceName",
+          "documentation":"<p>Updates a Device Advisor test suite with Amazon Resource name.</p>"
+        },
+        "suiteDefinitionName":{
+          "shape":"SuiteDefinitionName",
+          "documentation":"<p>Updates a Device Advisor test suite with suite definition name.</p>"
+        },
+        "suiteDefinitionVersion":{
+          "shape":"SuiteDefinitionVersion",
+          "documentation":"<p>Updates a Device Advisor test suite with suite definition version.</p>"
+        },
+        "createdAt":{
+          "shape":"Timestamp",
+          "documentation":"<p>Updates a Device Advisor test suite with TimeStamp of when it was created.</p>"
+        },
+        "lastUpdatedAt":{
+          "shape":"Timestamp",
+          "documentation":"<p>Updates a Device Advisor test suite with TimeStamp of when it was updated.</p>"
+        }
+      }
+    },
+    "ValidationException":{
+      "type":"structure",
+      "members":{
+        "message":{
+          "shape":"Message",
+          "documentation":"<p>Sends invalid request exception message.</p>"
+        }
+      },
+      "documentation":"<p>Sends invalid request exception.</p>",
+      "error":{"httpStatusCode":400},
+      "exception":true
+    },
+    "Warnings":{"type":"string"}
+  },
+  "documentation":"<p>AWS IoT Core Device Advisor is a cloud-based, fully managed test capability for validating IoT devices during device software development. Device Advisor provides pre-built tests that you can use to validate IoT devices for reliable and secure connectivity with AWS IoT Core before deploying devices to production. By using Device Advisor, you can confirm that your devices can connect to AWS IoT Core, follow security best practices and, if applicable, receive software updates from IoT Device Management. You can also download signed qualification reports to submit to the AWS Partner Network to get your device qualified for the AWS Partner Device Catalog without the need to send your device in and wait for it to be tested.</p>"
+}

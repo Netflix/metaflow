@@ -1,0 +1,2454 @@
+{
+  "version":"2.0",
+  "metadata":{
+    "apiVersion":"2020-08-15",
+    "endpointPrefix":"profile",
+    "jsonVersion":"1.1",
+    "protocol":"rest-json",
+    "serviceAbbreviation":"Customer Profiles",
+    "serviceFullName":"Amazon Connect Customer Profiles",
+    "serviceId":"Customer Profiles",
+    "signatureVersion":"v4",
+    "signingName":"profile",
+    "uid":"customer-profiles-2020-08-15"
+  },
+  "operations":{
+    "AddProfileKey":{
+      "name":"AddProfileKey",
+      "http":{
+        "method":"POST",
+        "requestUri":"/domains/{DomainName}/profiles/keys"
+      },
+      "input":{"shape":"AddProfileKeyRequest"},
+      "output":{"shape":"AddProfileKeyResponse"},
+      "errors":[
+        {"shape":"BadRequestException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Associates a new key value with a specific profile, such as a Contact Trace Record (CTR) ContactId.</p> <p>A profile object can have a single unique key and any number of additional keys that can be used to identify the profile that it belongs to.</p>"
+    },
+    "CreateDomain":{
+      "name":"CreateDomain",
+      "http":{
+        "method":"POST",
+        "requestUri":"/domains/{DomainName}"
+      },
+      "input":{"shape":"CreateDomainRequest"},
+      "output":{"shape":"CreateDomainResponse"},
+      "errors":[
+        {"shape":"BadRequestException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Creates a domain, which is a container for all customer data, such as customer profile attributes, object types, profile keys, and encryption keys. You can create multiple domains, and each domain can have multiple third-party integrations.</p> <p>Each Amazon Connect instance can be associated with only one domain. Multiple Amazon Connect instances can be associated with one domain.</p>"
+    },
+    "CreateProfile":{
+      "name":"CreateProfile",
+      "http":{
+        "method":"POST",
+        "requestUri":"/domains/{DomainName}/profiles"
+      },
+      "input":{"shape":"CreateProfileRequest"},
+      "output":{"shape":"CreateProfileResponse"},
+      "errors":[
+        {"shape":"BadRequestException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Creates a standard profile.</p> <p>A standard profile represents the following attributes for a customer profile in a domain.</p>"
+    },
+    "DeleteDomain":{
+      "name":"DeleteDomain",
+      "http":{
+        "method":"DELETE",
+        "requestUri":"/domains/{DomainName}"
+      },
+      "input":{"shape":"DeleteDomainRequest"},
+      "output":{"shape":"DeleteDomainResponse"},
+      "errors":[
+        {"shape":"BadRequestException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Deletes a specific domain and all of its customer data, such as customer profile attributes and their related objects.</p>"
+    },
+    "DeleteIntegration":{
+      "name":"DeleteIntegration",
+      "http":{
+        "method":"POST",
+        "requestUri":"/domains/{DomainName}/integrations/delete"
+      },
+      "input":{"shape":"DeleteIntegrationRequest"},
+      "output":{"shape":"DeleteIntegrationResponse"},
+      "errors":[
+        {"shape":"BadRequestException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Removes an integration from a specific domain.</p>"
+    },
+    "DeleteProfile":{
+      "name":"DeleteProfile",
+      "http":{
+        "method":"POST",
+        "requestUri":"/domains/{DomainName}/profiles/delete"
+      },
+      "input":{"shape":"DeleteProfileRequest"},
+      "output":{"shape":"DeleteProfileResponse"},
+      "errors":[
+        {"shape":"BadRequestException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Deletes the standard customer profile and all data pertaining to the profile.</p>"
+    },
+    "DeleteProfileKey":{
+      "name":"DeleteProfileKey",
+      "http":{
+        "method":"POST",
+        "requestUri":"/domains/{DomainName}/profiles/keys/delete"
+      },
+      "input":{"shape":"DeleteProfileKeyRequest"},
+      "output":{"shape":"DeleteProfileKeyResponse"},
+      "errors":[
+        {"shape":"BadRequestException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Removes a searchable key from a customer profile.</p>"
+    },
+    "DeleteProfileObject":{
+      "name":"DeleteProfileObject",
+      "http":{
+        "method":"POST",
+        "requestUri":"/domains/{DomainName}/profiles/objects/delete"
+      },
+      "input":{"shape":"DeleteProfileObjectRequest"},
+      "output":{"shape":"DeleteProfileObjectResponse"},
+      "errors":[
+        {"shape":"BadRequestException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Removes an object associated with a profile of a given ProfileObjectType.</p>"
+    },
+    "DeleteProfileObjectType":{
+      "name":"DeleteProfileObjectType",
+      "http":{
+        "method":"DELETE",
+        "requestUri":"/domains/{DomainName}/object-types/{ObjectTypeName}"
+      },
+      "input":{"shape":"DeleteProfileObjectTypeRequest"},
+      "output":{"shape":"DeleteProfileObjectTypeResponse"},
+      "errors":[
+        {"shape":"BadRequestException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Removes a ProfileObjectType from a specific domain as well as removes all the ProfileObjects of that type. It also disables integrations from this specific ProfileObjectType. In addition, it scrubs all of the fields of the standard profile that were populated from this ProfileObjectType.</p>"
+    },
+    "GetDomain":{
+      "name":"GetDomain",
+      "http":{
+        "method":"GET",
+        "requestUri":"/domains/{DomainName}"
+      },
+      "input":{"shape":"GetDomainRequest"},
+      "output":{"shape":"GetDomainResponse"},
+      "errors":[
+        {"shape":"BadRequestException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Returns information about a specific domain.</p>"
+    },
+    "GetIntegration":{
+      "name":"GetIntegration",
+      "http":{
+        "method":"POST",
+        "requestUri":"/domains/{DomainName}/integrations"
+      },
+      "input":{"shape":"GetIntegrationRequest"},
+      "output":{"shape":"GetIntegrationResponse"},
+      "errors":[
+        {"shape":"BadRequestException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Returns an integration for a domain.</p>"
+    },
+    "GetProfileObjectType":{
+      "name":"GetProfileObjectType",
+      "http":{
+        "method":"GET",
+        "requestUri":"/domains/{DomainName}/object-types/{ObjectTypeName}"
+      },
+      "input":{"shape":"GetProfileObjectTypeRequest"},
+      "output":{"shape":"GetProfileObjectTypeResponse"},
+      "errors":[
+        {"shape":"BadRequestException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Returns the object types for a specific domain.</p>"
+    },
+    "GetProfileObjectTypeTemplate":{
+      "name":"GetProfileObjectTypeTemplate",
+      "http":{
+        "method":"GET",
+        "requestUri":"/templates/{TemplateId}"
+      },
+      "input":{"shape":"GetProfileObjectTypeTemplateRequest"},
+      "output":{"shape":"GetProfileObjectTypeTemplateResponse"},
+      "errors":[
+        {"shape":"BadRequestException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Returns the template information for a specific object type.</p> <p>A template is a predefined ProfileObjectType, such as “Salesforce-Account” or “Salesforce-Contact.” When a user sends a ProfileObject, using the PutProfileObject API, with an ObjectTypeName that matches one of the TemplateIds, it uses the mappings from the template.</p>"
+    },
+    "ListAccountIntegrations":{
+      "name":"ListAccountIntegrations",
+      "http":{
+        "method":"POST",
+        "requestUri":"/integrations"
+      },
+      "input":{"shape":"ListAccountIntegrationsRequest"},
+      "output":{"shape":"ListAccountIntegrationsResponse"},
+      "errors":[
+        {"shape":"BadRequestException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Lists all of the integrations associated to a specific URI in the AWS account.</p>"
+    },
+    "ListDomains":{
+      "name":"ListDomains",
+      "http":{
+        "method":"GET",
+        "requestUri":"/domains"
+      },
+      "input":{"shape":"ListDomainsRequest"},
+      "output":{"shape":"ListDomainsResponse"},
+      "errors":[
+        {"shape":"BadRequestException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Returns a list of all the domains for an AWS account that have been created.</p>"
+    },
+    "ListIntegrations":{
+      "name":"ListIntegrations",
+      "http":{
+        "method":"GET",
+        "requestUri":"/domains/{DomainName}/integrations"
+      },
+      "input":{"shape":"ListIntegrationsRequest"},
+      "output":{"shape":"ListIntegrationsResponse"},
+      "errors":[
+        {"shape":"BadRequestException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Lists all of the integrations in your domain.</p>"
+    },
+    "ListProfileObjectTypeTemplates":{
+      "name":"ListProfileObjectTypeTemplates",
+      "http":{
+        "method":"GET",
+        "requestUri":"/templates"
+      },
+      "input":{"shape":"ListProfileObjectTypeTemplatesRequest"},
+      "output":{"shape":"ListProfileObjectTypeTemplatesResponse"},
+      "errors":[
+        {"shape":"BadRequestException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Lists all of the template information for object types.</p>"
+    },
+    "ListProfileObjectTypes":{
+      "name":"ListProfileObjectTypes",
+      "http":{
+        "method":"GET",
+        "requestUri":"/domains/{DomainName}/object-types"
+      },
+      "input":{"shape":"ListProfileObjectTypesRequest"},
+      "output":{"shape":"ListProfileObjectTypesResponse"},
+      "errors":[
+        {"shape":"BadRequestException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Lists all of the templates available within the service.</p>"
+    },
+    "ListProfileObjects":{
+      "name":"ListProfileObjects",
+      "http":{
+        "method":"POST",
+        "requestUri":"/domains/{DomainName}/profiles/objects"
+      },
+      "input":{"shape":"ListProfileObjectsRequest"},
+      "output":{"shape":"ListProfileObjectsResponse"},
+      "errors":[
+        {"shape":"BadRequestException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Returns a list of objects associated with a profile of a given ProfileObjectType.</p>"
+    },
+    "ListTagsForResource":{
+      "name":"ListTagsForResource",
+      "http":{
+        "method":"GET",
+        "requestUri":"/tags/{resourceArn}"
+      },
+      "input":{"shape":"ListTagsForResourceRequest"},
+      "output":{"shape":"ListTagsForResourceResponse"},
+      "errors":[
+        {"shape":"InternalServerException"},
+        {"shape":"BadRequestException"},
+        {"shape":"ResourceNotFoundException"}
+      ],
+      "documentation":"<p>Displays the tags associated with an Amazon Connect Customer Profiles resource. In Connect Customer Profiles, domains, profile object types, and integrations can be tagged.</p>"
+    },
+    "PutIntegration":{
+      "name":"PutIntegration",
+      "http":{
+        "method":"PUT",
+        "requestUri":"/domains/{DomainName}/integrations"
+      },
+      "input":{"shape":"PutIntegrationRequest"},
+      "output":{"shape":"PutIntegrationResponse"},
+      "errors":[
+        {"shape":"BadRequestException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Adds an integration between the service and a third-party service, which includes Amazon AppFlow and Amazon Connect.</p> <p>An integration can belong to only one domain.</p>"
+    },
+    "PutProfileObject":{
+      "name":"PutProfileObject",
+      "http":{
+        "method":"PUT",
+        "requestUri":"/domains/{DomainName}/profiles/objects"
+      },
+      "input":{"shape":"PutProfileObjectRequest"},
+      "output":{"shape":"PutProfileObjectResponse"},
+      "errors":[
+        {"shape":"BadRequestException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Adds additional objects to customer profiles of a given ObjectType.</p> <p>When adding a specific profile object, like a Contact Trace Record (CTR), an inferred profile can get created if it is not mapped to an existing profile. The resulting profile will only have a phone number populated in the standard ProfileObject. Any additional CTRs with the same phone number will be mapped to the same inferred profile.</p> <p>When a ProfileObject is created and if a ProfileObjectType already exists for the ProfileObject, it will provide data to a standard profile depending on the ProfileObjectType definition.</p> <p>PutProfileObject needs an ObjectType, which can be created using PutProfileObjectType.</p>"
+    },
+    "PutProfileObjectType":{
+      "name":"PutProfileObjectType",
+      "http":{
+        "method":"PUT",
+        "requestUri":"/domains/{DomainName}/object-types/{ObjectTypeName}"
+      },
+      "input":{"shape":"PutProfileObjectTypeRequest"},
+      "output":{"shape":"PutProfileObjectTypeResponse"},
+      "errors":[
+        {"shape":"BadRequestException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Defines a ProfileObjectType.</p>"
+    },
+    "SearchProfiles":{
+      "name":"SearchProfiles",
+      "http":{
+        "method":"POST",
+        "requestUri":"/domains/{DomainName}/profiles/search"
+      },
+      "input":{"shape":"SearchProfilesRequest"},
+      "output":{"shape":"SearchProfilesResponse"},
+      "errors":[
+        {"shape":"BadRequestException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Searches for profiles within a specific domain name using name, phone number, email address, account number, or a custom defined index.</p>"
+    },
+    "TagResource":{
+      "name":"TagResource",
+      "http":{
+        "method":"POST",
+        "requestUri":"/tags/{resourceArn}"
+      },
+      "input":{"shape":"TagResourceRequest"},
+      "output":{"shape":"TagResourceResponse"},
+      "errors":[
+        {"shape":"InternalServerException"},
+        {"shape":"BadRequestException"},
+        {"shape":"ResourceNotFoundException"}
+      ],
+      "documentation":"<p>Assigns one or more tags (key-value pairs) to the specified Amazon Connect Customer Profiles resource. Tags can help you organize and categorize your resources. You can also use them to scope user permissions by granting a user permission to access or change only resources with certain tag values. In Connect Customer Profiles, domains, profile object types, and integrations can be tagged.</p> <p>Tags don't have any semantic meaning to AWS and are interpreted strictly as strings of characters.</p> <p>You can use the TagResource action with a resource that already has tags. If you specify a new tag key, this tag is appended to the list of tags associated with the resource. If you specify a tag key that is already associated with the resource, the new tag value that you specify replaces the previous value for that tag.</p> <p>You can associate as many as 50 tags with a resource.</p>"
+    },
+    "UntagResource":{
+      "name":"UntagResource",
+      "http":{
+        "method":"DELETE",
+        "requestUri":"/tags/{resourceArn}"
+      },
+      "input":{"shape":"UntagResourceRequest"},
+      "output":{"shape":"UntagResourceResponse"},
+      "errors":[
+        {"shape":"InternalServerException"},
+        {"shape":"BadRequestException"},
+        {"shape":"ResourceNotFoundException"}
+      ],
+      "documentation":"<p>Removes one or more tags from the specified Amazon Connect Customer Profiles resource. In Connect Customer Profiles, domains, profile object types, and integrations can be tagged.</p>"
+    },
+    "UpdateDomain":{
+      "name":"UpdateDomain",
+      "http":{
+        "method":"PUT",
+        "requestUri":"/domains/{DomainName}"
+      },
+      "input":{"shape":"UpdateDomainRequest"},
+      "output":{"shape":"UpdateDomainResponse"},
+      "errors":[
+        {"shape":"BadRequestException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Updates the properties of a domain, including creating or selecting a dead letter queue or an encryption key.</p> <p>Once a domain is created, the name can’t be changed.</p>"
+    },
+    "UpdateProfile":{
+      "name":"UpdateProfile",
+      "http":{
+        "method":"PUT",
+        "requestUri":"/domains/{DomainName}/profiles"
+      },
+      "input":{"shape":"UpdateProfileRequest"},
+      "output":{"shape":"UpdateProfileResponse"},
+      "errors":[
+        {"shape":"BadRequestException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"ThrottlingException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Updates the properties of a profile. The ProfileId is required for updating a customer profile.</p> <p>When calling the UpdateProfile API, specifying an empty string value means that any existing value will be removed. Not specifying a string value means that any value already there will be kept.</p>"
+    }
+  },
+  "shapes":{
+    "name":{
+      "type":"string",
+      "max":64,
+      "min":1,
+      "pattern":"^[a-zA-Z0-9_-]+$"
+    },
+    "AccessDeniedException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"message"}
+      },
+      "documentation":"<p>You do not have sufficient access to perform this action.</p>",
+      "error":{"httpStatusCode":403},
+      "exception":true
+    },
+    "AddProfileKeyRequest":{
+      "type":"structure",
+      "required":[
+        "ProfileId",
+        "KeyName",
+        "Values",
+        "DomainName"
+      ],
+      "members":{
+        "ProfileId":{
+          "shape":"uuid",
+          "documentation":"<p>The unique identifier of a customer profile.</p>"
+        },
+        "KeyName":{
+          "shape":"name",
+          "documentation":"<p>A searchable identifier of a customer profile.</p>"
+        },
+        "Values":{
+          "shape":"requestValueList",
+          "documentation":"<p>A list of key values.</p>"
+        },
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name of the domain.</p>",
+          "location":"uri",
+          "locationName":"DomainName"
+        }
+      }
+    },
+    "AddProfileKeyResponse":{
+      "type":"structure",
+      "members":{
+        "KeyName":{
+          "shape":"name",
+          "documentation":"<p>A searchable identifier of a customer profile.</p>"
+        },
+        "Values":{
+          "shape":"requestValueList",
+          "documentation":"<p>A list of key values.</p>"
+        }
+      }
+    },
+    "Address":{
+      "type":"structure",
+      "members":{
+        "Address1":{
+          "shape":"string1To255",
+          "documentation":"<p>The first line of a customer address.</p>"
+        },
+        "Address2":{
+          "shape":"string1To255",
+          "documentation":"<p>The second line of a customer address.</p>"
+        },
+        "Address3":{
+          "shape":"string1To255",
+          "documentation":"<p>The third line of a customer address.</p>"
+        },
+        "Address4":{
+          "shape":"string1To255",
+          "documentation":"<p>The fourth line of a customer address.</p>"
+        },
+        "City":{
+          "shape":"string1To255",
+          "documentation":"<p>The city in which a customer lives.</p>"
+        },
+        "County":{
+          "shape":"string1To255",
+          "documentation":"<p>The county in which a customer lives.</p>"
+        },
+        "State":{
+          "shape":"string1To255",
+          "documentation":"<p>The state in which a customer lives.</p>"
+        },
+        "Province":{
+          "shape":"string1To255",
+          "documentation":"<p>The province in which a customer lives.</p>"
+        },
+        "Country":{
+          "shape":"string1To255",
+          "documentation":"<p>The country in which a customer lives.</p>"
+        },
+        "PostalCode":{
+          "shape":"string1To255",
+          "documentation":"<p>The postal code of a customer address.</p>"
+        }
+      },
+      "documentation":"<p>A generic address associated with the customer that is not mailing, shipping, or billing.</p>"
+    },
+    "Attributes":{
+      "type":"map",
+      "key":{"shape":"string1To255"},
+      "value":{"shape":"string1To255"}
+    },
+    "BadRequestException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"message"}
+      },
+      "documentation":"<p>The input you provided is invalid.</p>",
+      "error":{"httpStatusCode":400},
+      "exception":true
+    },
+    "CreateDomainRequest":{
+      "type":"structure",
+      "required":[
+        "DomainName",
+        "DefaultExpirationDays"
+      ],
+      "members":{
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name of the domain.</p>",
+          "location":"uri",
+          "locationName":"DomainName"
+        },
+        "DefaultExpirationDays":{
+          "shape":"expirationDaysInteger",
+          "documentation":"<p>The default number of days until the data within the domain expires.</p>"
+        },
+        "DefaultEncryptionKey":{
+          "shape":"encryptionKey",
+          "documentation":"<p>The default encryption key, which is an AWS managed key, is used when no specific type of encryption key is specified. It is used to encrypt all data before it is placed in permanent or semi-permanent storage.</p>"
+        },
+        "DeadLetterQueueUrl":{
+          "shape":"sqsQueueUrl",
+          "documentation":"<p>The URL of the SQS dead letter queue, which is used for reporting errors associated with ingesting data from third party applications. You must set up a policy on the DeadLetterQueue for the SendMessage operation to enable Amazon Connect Customer Profiles to send messages to the DeadLetterQueue.</p>"
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags used to organize, track, or control access for this resource.</p>"
+        }
+      }
+    },
+    "CreateDomainResponse":{
+      "type":"structure",
+      "required":[
+        "DomainName",
+        "DefaultExpirationDays",
+        "CreatedAt",
+        "LastUpdatedAt"
+      ],
+      "members":{
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name of the domain.</p>"
+        },
+        "DefaultExpirationDays":{
+          "shape":"expirationDaysInteger",
+          "documentation":"<p>The default number of days until the data within the domain expires.</p>"
+        },
+        "DefaultEncryptionKey":{
+          "shape":"encryptionKey",
+          "documentation":"<p>The default encryption key, which is an AWS managed key, is used when no specific type of encryption key is specified. It is used to encrypt all data before it is placed in permanent or semi-permanent storage.</p>"
+        },
+        "DeadLetterQueueUrl":{
+          "shape":"sqsQueueUrl",
+          "documentation":"<p>The URL of the SQS dead letter queue, which is used for reporting errors associated with ingesting data from third party applications.</p>"
+        },
+        "CreatedAt":{
+          "shape":"timestamp",
+          "documentation":"<p>The timestamp of when the domain was created.</p>"
+        },
+        "LastUpdatedAt":{
+          "shape":"timestamp",
+          "documentation":"<p>The timestamp of when the domain was most recently edited.</p>"
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags used to organize, track, or control access for this resource.</p>"
+        }
+      }
+    },
+    "CreateProfileRequest":{
+      "type":"structure",
+      "required":["DomainName"],
+      "members":{
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name of the domain.</p>",
+          "location":"uri",
+          "locationName":"DomainName"
+        },
+        "AccountNumber":{
+          "shape":"string1To255",
+          "documentation":"<p>A unique account number that you have given to the customer.</p>"
+        },
+        "AdditionalInformation":{
+          "shape":"string1To1000",
+          "documentation":"<p>Any additional information relevant to the customer's profile.</p>"
+        },
+        "PartyType":{
+          "shape":"PartyType",
+          "documentation":"<p>The type of profile used to describe the customer.</p>"
+        },
+        "BusinessName":{
+          "shape":"string1To255",
+          "documentation":"<p>The name of the customer’s business.</p>"
+        },
+        "FirstName":{
+          "shape":"string1To255",
+          "documentation":"<p>The customer’s first name.</p>"
+        },
+        "MiddleName":{
+          "shape":"string1To255",
+          "documentation":"<p>The customer’s middle name.</p>"
+        },
+        "LastName":{
+          "shape":"string1To255",
+          "documentation":"<p>The customer’s last name.</p>"
+        },
+        "BirthDate":{
+          "shape":"string1To255",
+          "documentation":"<p>The customer’s birth date.</p>"
+        },
+        "Gender":{
+          "shape":"Gender",
+          "documentation":"<p>The gender with which the customer identifies.</p>"
+        },
+        "PhoneNumber":{
+          "shape":"string1To255",
+          "documentation":"<p>The customer's phone number, which has not been specified as a mobile, home, or business number.</p>"
+        },
+        "MobilePhoneNumber":{
+          "shape":"string1To255",
+          "documentation":"<p>The customer’s mobile phone number.</p>"
+        },
+        "HomePhoneNumber":{
+          "shape":"string1To255",
+          "documentation":"<p>The customer’s home phone number.</p>"
+        },
+        "BusinessPhoneNumber":{
+          "shape":"string1To255",
+          "documentation":"<p>The customer’s business phone number.</p>"
+        },
+        "EmailAddress":{
+          "shape":"string1To255",
+          "documentation":"<p>The customer's email address, which has not been specified as a personal or business address.</p>"
+        },
+        "PersonalEmailAddress":{
+          "shape":"string1To255",
+          "documentation":"<p>The customer’s personal email address.</p>"
+        },
+        "BusinessEmailAddress":{
+          "shape":"string1To255",
+          "documentation":"<p>The customer’s business email address.</p>"
+        },
+        "Address":{
+          "shape":"Address",
+          "documentation":"<p>A generic address associated with the customer that is not mailing, shipping, or billing.</p>"
+        },
+        "ShippingAddress":{
+          "shape":"Address",
+          "documentation":"<p>The customer’s shipping address.</p>"
+        },
+        "MailingAddress":{
+          "shape":"Address",
+          "documentation":"<p>The customer’s mailing address.</p>"
+        },
+        "BillingAddress":{
+          "shape":"Address",
+          "documentation":"<p>The customer’s billing address.</p>"
+        },
+        "Attributes":{
+          "shape":"Attributes",
+          "documentation":"<p>A key value pair of attributes of a customer profile.</p>"
+        }
+      }
+    },
+    "CreateProfileResponse":{
+      "type":"structure",
+      "required":["ProfileId"],
+      "members":{
+        "ProfileId":{
+          "shape":"uuid",
+          "documentation":"<p>The unique identifier of a customer profile.</p>"
+        }
+      }
+    },
+    "DeleteDomainRequest":{
+      "type":"structure",
+      "required":["DomainName"],
+      "members":{
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name of the domain.</p>",
+          "location":"uri",
+          "locationName":"DomainName"
+        }
+      }
+    },
+    "DeleteDomainResponse":{
+      "type":"structure",
+      "required":["Message"],
+      "members":{
+        "Message":{
+          "shape":"message",
+          "documentation":"<p>A message that indicates the delete request is done.</p>"
+        }
+      }
+    },
+    "DeleteIntegrationRequest":{
+      "type":"structure",
+      "required":[
+        "DomainName",
+        "Uri"
+      ],
+      "members":{
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name of the domain.</p>",
+          "location":"uri",
+          "locationName":"DomainName"
+        },
+        "Uri":{
+          "shape":"string1To255",
+          "documentation":"<p>The URI of the S3 bucket or any other type of data source.</p>"
+        }
+      }
+    },
+    "DeleteIntegrationResponse":{
+      "type":"structure",
+      "required":["Message"],
+      "members":{
+        "Message":{
+          "shape":"message",
+          "documentation":"<p>A message that indicates the delete request is done.</p>"
+        }
+      }
+    },
+    "DeleteProfileKeyRequest":{
+      "type":"structure",
+      "required":[
+        "ProfileId",
+        "KeyName",
+        "Values",
+        "DomainName"
+      ],
+      "members":{
+        "ProfileId":{
+          "shape":"uuid",
+          "documentation":"<p>The unique identifier of a customer profile.</p>"
+        },
+        "KeyName":{
+          "shape":"name",
+          "documentation":"<p>A searchable identifier of a customer profile.</p>"
+        },
+        "Values":{
+          "shape":"requestValueList",
+          "documentation":"<p>A list of key values.</p>"
+        },
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name of the domain.</p>",
+          "location":"uri",
+          "locationName":"DomainName"
+        }
+      }
+    },
+    "DeleteProfileKeyResponse":{
+      "type":"structure",
+      "members":{
+        "Message":{
+          "shape":"message",
+          "documentation":"<p>A message that indicates the delete request is done.</p>"
+        }
+      }
+    },
+    "DeleteProfileObjectRequest":{
+      "type":"structure",
+      "required":[
+        "ProfileId",
+        "ProfileObjectUniqueKey",
+        "ObjectTypeName",
+        "DomainName"
+      ],
+      "members":{
+        "ProfileId":{
+          "shape":"uuid",
+          "documentation":"<p>The unique identifier of a customer profile.</p>"
+        },
+        "ProfileObjectUniqueKey":{
+          "shape":"string1To255",
+          "documentation":"<p>The unique identifier of the profile object generated by the service.</p>"
+        },
+        "ObjectTypeName":{
+          "shape":"typeName",
+          "documentation":"<p>The name of the profile object type.</p>"
+        },
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name of the domain.</p>",
+          "location":"uri",
+          "locationName":"DomainName"
+        }
+      }
+    },
+    "DeleteProfileObjectResponse":{
+      "type":"structure",
+      "members":{
+        "Message":{
+          "shape":"message",
+          "documentation":"<p>A message that indicates the delete request is done.</p>"
+        }
+      }
+    },
+    "DeleteProfileObjectTypeRequest":{
+      "type":"structure",
+      "required":[
+        "DomainName",
+        "ObjectTypeName"
+      ],
+      "members":{
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name of the domain.</p>",
+          "location":"uri",
+          "locationName":"DomainName"
+        },
+        "ObjectTypeName":{
+          "shape":"typeName",
+          "documentation":"<p>The name of the profile object type.</p>",
+          "location":"uri",
+          "locationName":"ObjectTypeName"
+        }
+      }
+    },
+    "DeleteProfileObjectTypeResponse":{
+      "type":"structure",
+      "required":["Message"],
+      "members":{
+        "Message":{
+          "shape":"message",
+          "documentation":"<p>A message that indicates the delete request is done.</p>"
+        }
+      }
+    },
+    "DeleteProfileRequest":{
+      "type":"structure",
+      "required":[
+        "ProfileId",
+        "DomainName"
+      ],
+      "members":{
+        "ProfileId":{
+          "shape":"uuid",
+          "documentation":"<p>The unique identifier of a customer profile.</p>"
+        },
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name of the domain.</p>",
+          "location":"uri",
+          "locationName":"DomainName"
+        }
+      }
+    },
+    "DeleteProfileResponse":{
+      "type":"structure",
+      "members":{
+        "Message":{
+          "shape":"message",
+          "documentation":"<p>A message that indicates the delete request is done.</p>"
+        }
+      }
+    },
+    "DomainList":{
+      "type":"list",
+      "member":{"shape":"ListDomainItem"}
+    },
+    "DomainStats":{
+      "type":"structure",
+      "members":{
+        "ProfileCount":{
+          "shape":"long",
+          "documentation":"<p>The total number of profiles currently in the domain.</p>"
+        },
+        "MeteringProfileCount":{
+          "shape":"long",
+          "documentation":"<p>The number of profiles that you are currently paying for in the domain. If you have more than 100 objects associated with a single profile, that profile counts as two profiles. If you have more than 200 objects, that profile counts as three, and so on.</p>"
+        },
+        "ObjectCount":{
+          "shape":"long",
+          "documentation":"<p>The total number of objects in domain.</p>"
+        },
+        "TotalSize":{
+          "shape":"long",
+          "documentation":"<p>The total size, in bytes, of all objects in the domain.</p>"
+        }
+      },
+      "documentation":"<p>Usage-specific statistics about the domain.</p>"
+    },
+    "FieldContentType":{
+      "type":"string",
+      "enum":[
+        "STRING",
+        "NUMBER",
+        "PHONE_NUMBER",
+        "EMAIL_ADDRESS",
+        "NAME"
+      ]
+    },
+    "FieldMap":{
+      "type":"map",
+      "key":{"shape":"name"},
+      "value":{"shape":"ObjectTypeField"}
+    },
+    "FieldNameList":{
+      "type":"list",
+      "member":{"shape":"name"}
+    },
+    "Gender":{
+      "type":"string",
+      "enum":[
+        "MALE",
+        "FEMALE",
+        "UNSPECIFIED"
+      ]
+    },
+    "GetDomainRequest":{
+      "type":"structure",
+      "required":["DomainName"],
+      "members":{
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>A unique name for the domain.</p>",
+          "location":"uri",
+          "locationName":"DomainName"
+        }
+      }
+    },
+    "GetDomainResponse":{
+      "type":"structure",
+      "required":[
+        "DomainName",
+        "CreatedAt",
+        "LastUpdatedAt"
+      ],
+      "members":{
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name of the domain.</p>"
+        },
+        "DefaultExpirationDays":{
+          "shape":"expirationDaysInteger",
+          "documentation":"<p>The default number of days until the data within the domain expires.</p>"
+        },
+        "DefaultEncryptionKey":{
+          "shape":"encryptionKey",
+          "documentation":"<p>The default encryption key, which is an AWS managed key, is used when no specific type of encryption key is specified. It is used to encrypt all data before it is placed in permanent or semi-permanent storage.</p>"
+        },
+        "DeadLetterQueueUrl":{
+          "shape":"sqsQueueUrl",
+          "documentation":"<p>The URL of the SQS dead letter queue, which is used for reporting errors associated with ingesting data from third party applications.</p>"
+        },
+        "Stats":{
+          "shape":"DomainStats",
+          "documentation":"<p>Usage-specific statistics about the domain.</p>"
+        },
+        "CreatedAt":{
+          "shape":"timestamp",
+          "documentation":"<p>The timestamp of when the domain was created.</p>"
+        },
+        "LastUpdatedAt":{
+          "shape":"timestamp",
+          "documentation":"<p>The timestamp of when the domain was most recently edited.</p>"
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags used to organize, track, or control access for this resource.</p>"
+        }
+      }
+    },
+    "GetIntegrationRequest":{
+      "type":"structure",
+      "required":[
+        "DomainName",
+        "Uri"
+      ],
+      "members":{
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name of the domain.</p>",
+          "location":"uri",
+          "locationName":"DomainName"
+        },
+        "Uri":{
+          "shape":"string1To255",
+          "documentation":"<p>The URI of the S3 bucket or any other type of data source.</p>"
+        }
+      }
+    },
+    "GetIntegrationResponse":{
+      "type":"structure",
+      "required":[
+        "DomainName",
+        "Uri",
+        "ObjectTypeName",
+        "CreatedAt",
+        "LastUpdatedAt"
+      ],
+      "members":{
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name of the domain.</p>"
+        },
+        "Uri":{
+          "shape":"string1To255",
+          "documentation":"<p>The URI of the S3 bucket or any other type of data source.</p>"
+        },
+        "ObjectTypeName":{
+          "shape":"typeName",
+          "documentation":"<p>The name of the profile object type.</p>"
+        },
+        "CreatedAt":{
+          "shape":"timestamp",
+          "documentation":"<p>The timestamp of when the domain was created.</p>"
+        },
+        "LastUpdatedAt":{
+          "shape":"timestamp",
+          "documentation":"<p>The timestamp of when the domain was most recently edited.</p>"
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags used to organize, track, or control access for this resource.</p>"
+        }
+      }
+    },
+    "GetProfileObjectTypeRequest":{
+      "type":"structure",
+      "required":[
+        "DomainName",
+        "ObjectTypeName"
+      ],
+      "members":{
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name of the domain.</p>",
+          "location":"uri",
+          "locationName":"DomainName"
+        },
+        "ObjectTypeName":{
+          "shape":"typeName",
+          "documentation":"<p>The name of the profile object type.</p>",
+          "location":"uri",
+          "locationName":"ObjectTypeName"
+        }
+      }
+    },
+    "GetProfileObjectTypeResponse":{
+      "type":"structure",
+      "required":[
+        "ObjectTypeName",
+        "Description"
+      ],
+      "members":{
+        "ObjectTypeName":{
+          "shape":"typeName",
+          "documentation":"<p>The name of the profile object type.</p>"
+        },
+        "Description":{
+          "shape":"text",
+          "documentation":"<p>The description of the profile object type.</p>"
+        },
+        "TemplateId":{
+          "shape":"name",
+          "documentation":"<p>A unique identifier for the object template.</p>"
+        },
+        "ExpirationDays":{
+          "shape":"expirationDaysInteger",
+          "documentation":"<p>The number of days until the data in the object expires.</p>"
+        },
+        "EncryptionKey":{
+          "shape":"encryptionKey",
+          "documentation":"<p>The customer-provided key to encrypt the profile object that will be created in this profile object type.</p>"
+        },
+        "AllowProfileCreation":{
+          "shape":"boolean",
+          "documentation":"<p>Indicates whether a profile should be created when data is received if one doesn’t exist for an object of this type. The default is <code>FALSE</code>. If the AllowProfileCreation flag is set to <code>FALSE</code>, then the service tries to fetch a standard profile and associate this object with the profile. If it is set to <code>TRUE</code>, and if no match is found, then the service creates a new standard profile.</p>"
+        },
+        "Fields":{
+          "shape":"FieldMap",
+          "documentation":"<p>A map of the name and ObjectType field.</p>"
+        },
+        "Keys":{
+          "shape":"KeyMap",
+          "documentation":"<p>A list of unique keys that can be used to map data to the profile.</p>"
+        },
+        "CreatedAt":{
+          "shape":"timestamp",
+          "documentation":"<p>The timestamp of when the domain was created.</p>"
+        },
+        "LastUpdatedAt":{
+          "shape":"timestamp",
+          "documentation":"<p>The timestamp of when the domain was most recently edited.</p>"
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags used to organize, track, or control access for this resource.</p>"
+        }
+      }
+    },
+    "GetProfileObjectTypeTemplateRequest":{
+      "type":"structure",
+      "required":["TemplateId"],
+      "members":{
+        "TemplateId":{
+          "shape":"name",
+          "documentation":"<p>A unique identifier for the object template.</p>",
+          "location":"uri",
+          "locationName":"TemplateId"
+        }
+      }
+    },
+    "GetProfileObjectTypeTemplateResponse":{
+      "type":"structure",
+      "members":{
+        "TemplateId":{
+          "shape":"name",
+          "documentation":"<p>A unique identifier for the object template.</p>"
+        },
+        "SourceName":{
+          "shape":"name",
+          "documentation":"<p>The name of the source of the object template.</p>"
+        },
+        "SourceObject":{
+          "shape":"name",
+          "documentation":"<p>The source of the object template.</p>"
+        },
+        "AllowProfileCreation":{
+          "shape":"boolean",
+          "documentation":"<p>Indicates whether a profile should be created when data is received if one doesn’t exist for an object of this type. The default is <code>FALSE</code>. If the AllowProfileCreation flag is set to <code>FALSE</code>, then the service tries to fetch a standard profile and associate this object with the profile. If it is set to <code>TRUE</code>, and if no match is found, then the service creates a new standard profile.</p>"
+        },
+        "Fields":{
+          "shape":"FieldMap",
+          "documentation":"<p>A map of the name and ObjectType field.</p>"
+        },
+        "Keys":{
+          "shape":"KeyMap",
+          "documentation":"<p>A list of unique keys that can be used to map data to the profile.</p>"
+        }
+      }
+    },
+    "IntegrationList":{
+      "type":"list",
+      "member":{"shape":"ListIntegrationItem"}
+    },
+    "InternalServerException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"message"}
+      },
+      "documentation":"<p>An internal service error occurred.</p>",
+      "error":{"httpStatusCode":500},
+      "exception":true,
+      "fault":true
+    },
+    "KeyMap":{
+      "type":"map",
+      "key":{"shape":"name"},
+      "value":{"shape":"ObjectTypeKeyList"}
+    },
+    "ListAccountIntegrationsRequest":{
+      "type":"structure",
+      "required":["Uri"],
+      "members":{
+        "Uri":{
+          "shape":"string1To255",
+          "documentation":"<p>The URI of the S3 bucket or any other type of data source.</p>"
+        },
+        "NextToken":{
+          "shape":"token",
+          "documentation":"<p>The pagination token from the previous ListAccountIntegrations API call.</p>",
+          "location":"querystring",
+          "locationName":"next-token"
+        },
+        "MaxResults":{
+          "shape":"maxSize100",
+          "documentation":"<p>The maximum number of objects returned per page.</p>",
+          "location":"querystring",
+          "locationName":"max-results"
+        }
+      }
+    },
+    "ListAccountIntegrationsResponse":{
+      "type":"structure",
+      "members":{
+        "Items":{
+          "shape":"IntegrationList",
+          "documentation":"<p>The list of ListAccountIntegration instances.</p>"
+        },
+        "NextToken":{
+          "shape":"token",
+          "documentation":"<p>The pagination token from the previous ListAccountIntegrations API call.</p>"
+        }
+      }
+    },
+    "ListDomainItem":{
+      "type":"structure",
+      "required":[
+        "DomainName",
+        "CreatedAt",
+        "LastUpdatedAt"
+      ],
+      "members":{
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name of the domain.</p>"
+        },
+        "CreatedAt":{
+          "shape":"timestamp",
+          "documentation":"<p>The timestamp of when the domain was created.</p>"
+        },
+        "LastUpdatedAt":{
+          "shape":"timestamp",
+          "documentation":"<p>The timestamp of when the domain was most recently edited.</p>"
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags used to organize, track, or control access for this resource.</p>"
+        }
+      },
+      "documentation":"<p>An object in a list that represents a domain.</p>"
+    },
+    "ListDomainsRequest":{
+      "type":"structure",
+      "members":{
+        "NextToken":{
+          "shape":"token",
+          "documentation":"<p>The pagination token from the previous ListDomain API call.</p>",
+          "location":"querystring",
+          "locationName":"next-token"
+        },
+        "MaxResults":{
+          "shape":"maxSize100",
+          "documentation":"<p>The maximum number of objects returned per page.</p>",
+          "location":"querystring",
+          "locationName":"max-results"
+        }
+      }
+    },
+    "ListDomainsResponse":{
+      "type":"structure",
+      "members":{
+        "Items":{
+          "shape":"DomainList",
+          "documentation":"<p>The list of ListDomains instances.</p>"
+        },
+        "NextToken":{
+          "shape":"token",
+          "documentation":"<p>The pagination token from the previous ListDomains API call.</p>"
+        }
+      }
+    },
+    "ListIntegrationItem":{
+      "type":"structure",
+      "required":[
+        "DomainName",
+        "Uri",
+        "ObjectTypeName",
+        "CreatedAt",
+        "LastUpdatedAt"
+      ],
+      "members":{
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name of the domain.</p>"
+        },
+        "Uri":{
+          "shape":"string1To255",
+          "documentation":"<p>The URI of the S3 bucket or any other type of data source.</p>"
+        },
+        "ObjectTypeName":{
+          "shape":"typeName",
+          "documentation":"<p>The name of the profile object type.</p>"
+        },
+        "CreatedAt":{
+          "shape":"timestamp",
+          "documentation":"<p>The timestamp of when the domain was created.</p>"
+        },
+        "LastUpdatedAt":{
+          "shape":"timestamp",
+          "documentation":"<p>The timestamp of when the domain was most recently edited.</p>"
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags used to organize, track, or control access for this resource.</p>"
+        }
+      },
+      "documentation":"<p>An integration in list of integrations.</p>"
+    },
+    "ListIntegrationsRequest":{
+      "type":"structure",
+      "required":["DomainName"],
+      "members":{
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name of the domain.</p>",
+          "location":"uri",
+          "locationName":"DomainName"
+        },
+        "NextToken":{
+          "shape":"token",
+          "documentation":"<p>The pagination token from the previous ListIntegrations API call.</p>",
+          "location":"querystring",
+          "locationName":"next-token"
+        },
+        "MaxResults":{
+          "shape":"maxSize100",
+          "documentation":"<p>The maximum number of objects returned per page.</p>",
+          "location":"querystring",
+          "locationName":"max-results"
+        }
+      }
+    },
+    "ListIntegrationsResponse":{
+      "type":"structure",
+      "members":{
+        "Items":{
+          "shape":"IntegrationList",
+          "documentation":"<p>The list of ListIntegrations instances.</p>"
+        },
+        "NextToken":{
+          "shape":"token",
+          "documentation":"<p>The pagination token from the previous ListIntegrations API call.</p>"
+        }
+      }
+    },
+    "ListProfileObjectTypeItem":{
+      "type":"structure",
+      "required":[
+        "ObjectTypeName",
+        "Description"
+      ],
+      "members":{
+        "ObjectTypeName":{
+          "shape":"typeName",
+          "documentation":"<p>The name of the profile object type.</p>"
+        },
+        "Description":{
+          "shape":"text",
+          "documentation":"<p>Description of the profile object type.</p>"
+        },
+        "CreatedAt":{
+          "shape":"timestamp",
+          "documentation":"<p>The timestamp of when the domain was created.</p>"
+        },
+        "LastUpdatedAt":{
+          "shape":"timestamp",
+          "documentation":"<p>The timestamp of when the domain was most recently edited.</p>"
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags used to organize, track, or control access for this resource.</p>"
+        }
+      },
+      "documentation":"<p>A ProfileObjectType instance.</p>"
+    },
+    "ListProfileObjectTypeTemplateItem":{
+      "type":"structure",
+      "members":{
+        "TemplateId":{
+          "shape":"name",
+          "documentation":"<p>A unique identifier for the object template.</p>"
+        },
+        "SourceName":{
+          "shape":"name",
+          "documentation":"<p>The name of the source of the object template.</p>"
+        },
+        "SourceObject":{
+          "shape":"name",
+          "documentation":"<p>The source of the object template.</p>"
+        }
+      },
+      "documentation":"<p>A ProfileObjectTypeTemplate in a list of ProfileObjectTypeTemplates.</p>"
+    },
+    "ListProfileObjectTypeTemplatesRequest":{
+      "type":"structure",
+      "members":{
+        "NextToken":{
+          "shape":"token",
+          "documentation":"<p>The pagination token from the previous ListObjectTypeTemplates API call.</p>",
+          "location":"querystring",
+          "locationName":"next-token"
+        },
+        "MaxResults":{
+          "shape":"maxSize100",
+          "documentation":"<p>The maximum number of objects returned per page.</p>",
+          "location":"querystring",
+          "locationName":"max-results"
+        }
+      }
+    },
+    "ListProfileObjectTypeTemplatesResponse":{
+      "type":"structure",
+      "members":{
+        "Items":{
+          "shape":"ProfileObjectTypeTemplateList",
+          "documentation":"<p>The list of ListProfileObjectType template instances.</p>"
+        },
+        "NextToken":{
+          "shape":"token",
+          "documentation":"<p>The pagination token from the previous ListObjectTypeTemplates API call. </p>"
+        }
+      }
+    },
+    "ListProfileObjectTypesRequest":{
+      "type":"structure",
+      "required":["DomainName"],
+      "members":{
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name of the domain.</p>",
+          "location":"uri",
+          "locationName":"DomainName"
+        },
+        "NextToken":{
+          "shape":"token",
+          "documentation":"<p>Identifies the next page of results to return.</p>",
+          "location":"querystring",
+          "locationName":"next-token"
+        },
+        "MaxResults":{
+          "shape":"maxSize100",
+          "documentation":"<p>The maximum number of objects returned per page.</p>",
+          "location":"querystring",
+          "locationName":"max-results"
+        }
+      }
+    },
+    "ListProfileObjectTypesResponse":{
+      "type":"structure",
+      "members":{
+        "Items":{
+          "shape":"ProfileObjectTypeList",
+          "documentation":"<p>The list of ListProfileObjectTypes instances.</p>"
+        },
+        "NextToken":{
+          "shape":"token",
+          "documentation":"<p>Identifies the next page of results to return.</p>"
+        }
+      }
+    },
+    "ListProfileObjectsItem":{
+      "type":"structure",
+      "members":{
+        "ObjectTypeName":{
+          "shape":"typeName",
+          "documentation":"<p>Specifies the kind of object being added to a profile, such as \"Salesforce-Account.\"</p>"
+        },
+        "ProfileObjectUniqueKey":{
+          "shape":"string1To255",
+          "documentation":"<p>The unique identifier of the ProfileObject generated by the service.</p>"
+        },
+        "Object":{
+          "shape":"stringifiedJson",
+          "documentation":"<p>A JSON representation of a ProfileObject that belongs to a profile.</p>"
+        }
+      },
+      "documentation":"<p>A ProfileObject in a list of ProfileObjects.</p>"
+    },
+    "ListProfileObjectsRequest":{
+      "type":"structure",
+      "required":[
+        "DomainName",
+        "ObjectTypeName",
+        "ProfileId"
+      ],
+      "members":{
+        "NextToken":{
+          "shape":"token",
+          "documentation":"<p>The pagination token from the previous call to ListProfileObjects.</p>",
+          "location":"querystring",
+          "locationName":"next-token"
+        },
+        "MaxResults":{
+          "shape":"maxSize100",
+          "documentation":"<p>The maximum number of objects returned per page.</p>",
+          "location":"querystring",
+          "locationName":"max-results"
+        },
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name of the domain.</p>",
+          "location":"uri",
+          "locationName":"DomainName"
+        },
+        "ObjectTypeName":{
+          "shape":"typeName",
+          "documentation":"<p>The name of the profile object type.</p>"
+        },
+        "ProfileId":{
+          "shape":"uuid",
+          "documentation":"<p>The unique identifier of a customer profile.</p>"
+        }
+      }
+    },
+    "ListProfileObjectsResponse":{
+      "type":"structure",
+      "members":{
+        "Items":{
+          "shape":"ProfileObjectList",
+          "documentation":"<p>The list of ListProfileObject instances.</p>"
+        },
+        "NextToken":{
+          "shape":"token",
+          "documentation":"<p>The pagination token from the previous call to ListProfileObjects.</p>"
+        }
+      }
+    },
+    "ListTagsForResourceRequest":{
+      "type":"structure",
+      "required":["resourceArn"],
+      "members":{
+        "resourceArn":{
+          "shape":"TagArn",
+          "documentation":"<p>The ARN of the resource for which you want to view tags.</p>",
+          "location":"uri",
+          "locationName":"resourceArn"
+        }
+      }
+    },
+    "ListTagsForResourceResponse":{
+      "type":"structure",
+      "members":{
+        "tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags used to organize, track, or control access for this resource.</p>"
+        }
+      }
+    },
+    "ObjectTypeField":{
+      "type":"structure",
+      "members":{
+        "Source":{
+          "shape":"text",
+          "documentation":"<p>A field of a ProfileObject. For example: _source.FirstName, where “_source” is a ProfileObjectType of a Zendesk user and “FirstName” is a field in that ObjectType.</p>"
+        },
+        "Target":{
+          "shape":"text",
+          "documentation":"<p>The location of the data in the standard ProfileObject model. For example: _profile.Address.PostalCode.</p>"
+        },
+        "ContentType":{
+          "shape":"FieldContentType",
+          "documentation":"<p>The content type of the field. Used for determining equality when searching.</p>"
+        }
+      },
+      "documentation":"<p>Represents a field in a ProfileObjectType.</p>"
+    },
+    "ObjectTypeKey":{
+      "type":"structure",
+      "members":{
+        "StandardIdentifiers":{
+          "shape":"StandardIdentifierList",
+          "documentation":"<p>The types of keys that a ProfileObject can have. Each ProfileObject can have only 1 UNIQUE key but multiple PROFILE keys. PROFILE means that this key can be used to tie an object to a PROFILE. UNIQUE means that it can be used to uniquely identify an object. If a key a is marked as SECONDARY, it will be used to search for profiles after all other PROFILE keys have been searched. A LOOKUP_ONLY key is only used to match a profile but is not persisted to be used for searching of the profile. A NEW_ONLY key is only used if the profile does not already exist before the object is ingested, otherwise it is only used for matching objects to profiles.</p>"
+        },
+        "FieldNames":{
+          "shape":"FieldNameList",
+          "documentation":"<p>The reference for the key name of the fields map.</p>"
+        }
+      },
+      "documentation":"<p>An object that defines the Key element of a ProfileObject. A Key is a special element that can be used to search for a customer profile.</p>"
+    },
+    "ObjectTypeKeyList":{
+      "type":"list",
+      "member":{"shape":"ObjectTypeKey"}
+    },
+    "PartyType":{
+      "type":"string",
+      "enum":[
+        "INDIVIDUAL",
+        "BUSINESS",
+        "OTHER"
+      ]
+    },
+    "Profile":{
+      "type":"structure",
+      "members":{
+        "ProfileId":{
+          "shape":"uuid",
+          "documentation":"<p>The unique identifier of a customer profile.</p>"
+        },
+        "AccountNumber":{
+          "shape":"string1To255",
+          "documentation":"<p>A unique account number that you have given to the customer.</p>"
+        },
+        "AdditionalInformation":{
+          "shape":"string1To1000",
+          "documentation":"<p>Any additional information relevant to the customer's profile.</p>"
+        },
+        "PartyType":{
+          "shape":"PartyType",
+          "documentation":"<p>The type of profile used to describe the customer.</p>"
+        },
+        "BusinessName":{
+          "shape":"string1To255",
+          "documentation":"<p>The name of the customer’s business.</p>"
+        },
+        "FirstName":{
+          "shape":"string1To255",
+          "documentation":"<p>The customer’s first name.</p>"
+        },
+        "MiddleName":{
+          "shape":"string1To255",
+          "documentation":"<p>The customer’s middle name.</p>"
+        },
+        "LastName":{
+          "shape":"string1To255",
+          "documentation":"<p>The customer’s last name.</p>"
+        },
+        "BirthDate":{
+          "shape":"string1To255",
+          "documentation":"<p>The customer’s birth date.</p>"
+        },
+        "Gender":{
+          "shape":"Gender",
+          "documentation":"<p>The gender with which the customer identifies.</p>"
+        },
+        "PhoneNumber":{
+          "shape":"string1To255",
+          "documentation":"<p>The customer's phone number, which has not been specified as a mobile, home, or business number.</p>"
+        },
+        "MobilePhoneNumber":{
+          "shape":"string1To255",
+          "documentation":"<p>The customer’s mobile phone number.</p>"
+        },
+        "HomePhoneNumber":{
+          "shape":"string1To255",
+          "documentation":"<p>The customer’s home phone number.</p>"
+        },
+        "BusinessPhoneNumber":{
+          "shape":"string1To255",
+          "documentation":"<p>The customer’s home phone number.</p>"
+        },
+        "EmailAddress":{
+          "shape":"string1To255",
+          "documentation":"<p>The customer's email address, which has not been specified as a personal or business address.</p>"
+        },
+        "PersonalEmailAddress":{
+          "shape":"string1To255",
+          "documentation":"<p>The customer’s personal email address.</p>"
+        },
+        "BusinessEmailAddress":{
+          "shape":"string1To255",
+          "documentation":"<p>The customer’s business email address.</p>"
+        },
+        "Address":{
+          "shape":"Address",
+          "documentation":"<p>A generic address associated with the customer that is not mailing, shipping, or billing.</p>"
+        },
+        "ShippingAddress":{
+          "shape":"Address",
+          "documentation":"<p>The customer’s shipping address.</p>"
+        },
+        "MailingAddress":{
+          "shape":"Address",
+          "documentation":"<p>The customer’s mailing address.</p>"
+        },
+        "BillingAddress":{
+          "shape":"Address",
+          "documentation":"<p>The customer’s billing address.</p>"
+        },
+        "Attributes":{
+          "shape":"Attributes",
+          "documentation":"<p>A key value pair of attributes of a customer profile.</p>"
+        }
+      },
+      "documentation":"<p>The standard profile of a customer.</p>"
+    },
+    "ProfileList":{
+      "type":"list",
+      "member":{"shape":"Profile"}
+    },
+    "ProfileObjectList":{
+      "type":"list",
+      "member":{"shape":"ListProfileObjectsItem"}
+    },
+    "ProfileObjectTypeList":{
+      "type":"list",
+      "member":{"shape":"ListProfileObjectTypeItem"}
+    },
+    "ProfileObjectTypeTemplateList":{
+      "type":"list",
+      "member":{"shape":"ListProfileObjectTypeTemplateItem"}
+    },
+    "PutIntegrationRequest":{
+      "type":"structure",
+      "required":[
+        "DomainName",
+        "Uri",
+        "ObjectTypeName"
+      ],
+      "members":{
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name of the domain.</p>",
+          "location":"uri",
+          "locationName":"DomainName"
+        },
+        "Uri":{
+          "shape":"string1To255",
+          "documentation":"<p>The URI of the S3 bucket or any other type of data source.</p>"
+        },
+        "ObjectTypeName":{
+          "shape":"typeName",
+          "documentation":"<p>The name of the profile object type.</p>"
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags used to organize, track, or control access for this resource.</p>"
+        }
+      }
+    },
+    "PutIntegrationResponse":{
+      "type":"structure",
+      "required":[
+        "DomainName",
+        "Uri",
+        "ObjectTypeName",
+        "CreatedAt",
+        "LastUpdatedAt"
+      ],
+      "members":{
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name of the domain.</p>"
+        },
+        "Uri":{
+          "shape":"string1To255",
+          "documentation":"<p>The URI of the S3 bucket or any other type of data source.</p>"
+        },
+        "ObjectTypeName":{
+          "shape":"typeName",
+          "documentation":"<p>The name of the profile object type.</p>"
+        },
+        "CreatedAt":{
+          "shape":"timestamp",
+          "documentation":"<p>The timestamp of when the domain was created.</p>"
+        },
+        "LastUpdatedAt":{
+          "shape":"timestamp",
+          "documentation":"<p>The timestamp of when the domain was most recently edited.</p>"
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags used to organize, track, or control access for this resource.</p>"
+        }
+      }
+    },
+    "PutProfileObjectRequest":{
+      "type":"structure",
+      "required":[
+        "ObjectTypeName",
+        "Object",
+        "DomainName"
+      ],
+      "members":{
+        "ObjectTypeName":{
+          "shape":"typeName",
+          "documentation":"<p>The name of the profile object type.</p>"
+        },
+        "Object":{
+          "shape":"stringifiedJson",
+          "documentation":"<p>A string that is serialized from a JSON object.</p>"
+        },
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name of the domain.</p>",
+          "location":"uri",
+          "locationName":"DomainName"
+        }
+      }
+    },
+    "PutProfileObjectResponse":{
+      "type":"structure",
+      "members":{
+        "ProfileObjectUniqueKey":{
+          "shape":"string1To255",
+          "documentation":"<p>The unique identifier of the profile object generated by the service.</p>"
+        }
+      }
+    },
+    "PutProfileObjectTypeRequest":{
+      "type":"structure",
+      "required":[
+        "DomainName",
+        "ObjectTypeName",
+        "Description"
+      ],
+      "members":{
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name of the domain.</p>",
+          "location":"uri",
+          "locationName":"DomainName"
+        },
+        "ObjectTypeName":{
+          "shape":"typeName",
+          "documentation":"<p>The name of the profile object type.</p>",
+          "location":"uri",
+          "locationName":"ObjectTypeName"
+        },
+        "Description":{
+          "shape":"text",
+          "documentation":"<p>Description of the profile object type.</p>"
+        },
+        "TemplateId":{
+          "shape":"name",
+          "documentation":"<p>A unique identifier for the object template.</p>"
+        },
+        "ExpirationDays":{
+          "shape":"expirationDaysInteger",
+          "documentation":"<p>The number of days until the data in the object expires.</p>"
+        },
+        "EncryptionKey":{
+          "shape":"encryptionKey",
+          "documentation":"<p>The customer-provided key to encrypt the profile object that will be created in this profile object type.</p>"
+        },
+        "AllowProfileCreation":{
+          "shape":"boolean",
+          "documentation":"<p>Indicates whether a profile should be created when data is received if one doesn’t exist for an object of this type. The default is <code>FALSE</code>. If the AllowProfileCreation flag is set to <code>FALSE</code>, then the service tries to fetch a standard profile and associate this object with the profile. If it is set to <code>TRUE</code>, and if no match is found, then the service creates a new standard profile.</p>"
+        },
+        "Fields":{
+          "shape":"FieldMap",
+          "documentation":"<p>A map of the name and ObjectType field.</p>"
+        },
+        "Keys":{
+          "shape":"KeyMap",
+          "documentation":"<p>A list of unique keys that can be used to map data to the profile.</p>"
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags used to organize, track, or control access for this resource.</p>"
+        }
+      }
+    },
+    "PutProfileObjectTypeResponse":{
+      "type":"structure",
+      "required":[
+        "ObjectTypeName",
+        "Description"
+      ],
+      "members":{
+        "ObjectTypeName":{
+          "shape":"typeName",
+          "documentation":"<p>The name of the profile object type.</p>"
+        },
+        "Description":{
+          "shape":"text",
+          "documentation":"<p>Description of the profile object type.</p>"
+        },
+        "TemplateId":{
+          "shape":"name",
+          "documentation":"<p>A unique identifier for the object template.</p>"
+        },
+        "ExpirationDays":{
+          "shape":"expirationDaysInteger",
+          "documentation":"<p>The number of days until the data in the object expires.</p>"
+        },
+        "EncryptionKey":{
+          "shape":"encryptionKey",
+          "documentation":"<p>The customer-provided key to encrypt the profile object that will be created in this profile object type.</p>"
+        },
+        "AllowProfileCreation":{
+          "shape":"boolean",
+          "documentation":"<p>Indicates whether a profile should be created when data is received if one doesn’t exist for an object of this type. The default is <code>FALSE</code>. If the AllowProfileCreation flag is set to <code>FALSE</code>, then the service tries to fetch a standard profile and associate this object with the profile. If it is set to <code>TRUE</code>, and if no match is found, then the service creates a new standard profile.</p>"
+        },
+        "Fields":{
+          "shape":"FieldMap",
+          "documentation":"<p>A map of the name and ObjectType field.</p>"
+        },
+        "Keys":{
+          "shape":"KeyMap",
+          "documentation":"<p>A list of unique keys that can be used to map data to the profile.</p>"
+        },
+        "CreatedAt":{
+          "shape":"timestamp",
+          "documentation":"<p>The timestamp of when the domain was created.</p>"
+        },
+        "LastUpdatedAt":{
+          "shape":"timestamp",
+          "documentation":"<p>The timestamp of when the domain was most recently edited.</p>"
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags used to organize, track, or control access for this resource.</p>"
+        }
+      }
+    },
+    "ResourceNotFoundException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"message"}
+      },
+      "documentation":"<p>The requested resource does not exist, or access was denied.</p>",
+      "error":{"httpStatusCode":404},
+      "exception":true
+    },
+    "SearchProfilesRequest":{
+      "type":"structure",
+      "required":[
+        "DomainName",
+        "KeyName",
+        "Values"
+      ],
+      "members":{
+        "NextToken":{
+          "shape":"token",
+          "documentation":"<p>The pagination token from the previous SearchProfiles API call.</p>",
+          "location":"querystring",
+          "locationName":"next-token"
+        },
+        "MaxResults":{
+          "shape":"maxSize100",
+          "documentation":"<p>The maximum number of objects returned per page.</p>",
+          "location":"querystring",
+          "locationName":"max-results"
+        },
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name of the domain.</p>",
+          "location":"uri",
+          "locationName":"DomainName"
+        },
+        "KeyName":{
+          "shape":"name",
+          "documentation":"<p>A searchable identifier of a customer profile. The predefined keys you can use to search include: _account, _profileId, _fullName, _phone, _email, _ctrContactId, _marketoLeadId, _salesforceAccountId, _salesforceContactId, _zendeskUserId, _zendeskExternalId, _serviceNowSystemId.</p>"
+        },
+        "Values":{
+          "shape":"requestValueList",
+          "documentation":"<p>A list of key values.</p>"
+        }
+      }
+    },
+    "SearchProfilesResponse":{
+      "type":"structure",
+      "members":{
+        "Items":{
+          "shape":"ProfileList",
+          "documentation":"<p>The list of SearchProfiles instances.</p>"
+        },
+        "NextToken":{
+          "shape":"token",
+          "documentation":"<p>The pagination token from the previous SearchProfiles API call.</p>"
+        }
+      }
+    },
+    "StandardIdentifier":{
+      "type":"string",
+      "enum":[
+        "PROFILE",
+        "UNIQUE",
+        "SECONDARY",
+        "LOOKUP_ONLY",
+        "NEW_ONLY"
+      ]
+    },
+    "StandardIdentifierList":{
+      "type":"list",
+      "member":{"shape":"StandardIdentifier"}
+    },
+    "TagArn":{
+      "type":"string",
+      "max":256,
+      "pattern":"^arn:[a-z0-9]{1,10}:profile"
+    },
+    "TagKey":{
+      "type":"string",
+      "max":128,
+      "min":1,
+      "pattern":"^(?!aws:)[a-zA-Z+-=._:/]+$"
+    },
+    "TagKeyList":{
+      "type":"list",
+      "member":{"shape":"TagKey"},
+      "max":50,
+      "min":1
+    },
+    "TagMap":{
+      "type":"map",
+      "key":{"shape":"TagKey"},
+      "value":{"shape":"TagValue"},
+      "max":50,
+      "min":1
+    },
+    "TagResourceRequest":{
+      "type":"structure",
+      "required":[
+        "resourceArn",
+        "tags"
+      ],
+      "members":{
+        "resourceArn":{
+          "shape":"TagArn",
+          "documentation":"<p>The ARN of the resource that you're adding tags to.</p>",
+          "location":"uri",
+          "locationName":"resourceArn"
+        },
+        "tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags used to organize, track, or control access for this resource.</p>"
+        }
+      }
+    },
+    "TagResourceResponse":{
+      "type":"structure",
+      "members":{
+      }
+    },
+    "TagValue":{
+      "type":"string",
+      "max":256
+    },
+    "ThrottlingException":{
+      "type":"structure",
+      "members":{
+        "Message":{"shape":"message"}
+      },
+      "documentation":"<p>You exceeded the maximum number of requests.</p>",
+      "error":{"httpStatusCode":429},
+      "exception":true
+    },
+    "UntagResourceRequest":{
+      "type":"structure",
+      "required":[
+        "resourceArn",
+        "tagKeys"
+      ],
+      "members":{
+        "resourceArn":{
+          "shape":"TagArn",
+          "documentation":"<p>The ARN of the resource from which you are removing tags.</p>",
+          "location":"uri",
+          "locationName":"resourceArn"
+        },
+        "tagKeys":{
+          "shape":"TagKeyList",
+          "documentation":"<p>The list of tag keys to remove from the resource.</p>",
+          "location":"querystring",
+          "locationName":"tagKeys"
+        }
+      }
+    },
+    "UntagResourceResponse":{
+      "type":"structure",
+      "members":{
+      }
+    },
+    "UpdateAddress":{
+      "type":"structure",
+      "members":{
+        "Address1":{
+          "shape":"string0To255",
+          "documentation":"<p>The first line of a customer address.</p>"
+        },
+        "Address2":{
+          "shape":"string0To255",
+          "documentation":"<p>The second line of a customer address.</p>"
+        },
+        "Address3":{
+          "shape":"string0To255",
+          "documentation":"<p>The third line of a customer address.</p>"
+        },
+        "Address4":{
+          "shape":"string0To255",
+          "documentation":"<p>The fourth line of a customer address.</p>"
+        },
+        "City":{
+          "shape":"string0To255",
+          "documentation":"<p>The city in which a customer lives.</p>"
+        },
+        "County":{
+          "shape":"string0To255",
+          "documentation":"<p>The county in which a customer lives.</p>"
+        },
+        "State":{
+          "shape":"string0To255",
+          "documentation":"<p>The state in which a customer lives.</p>"
+        },
+        "Province":{
+          "shape":"string0To255",
+          "documentation":"<p>The province in which a customer lives.</p>"
+        },
+        "Country":{
+          "shape":"string0To255",
+          "documentation":"<p>The country in which a customer lives.</p>"
+        },
+        "PostalCode":{
+          "shape":"string0To255",
+          "documentation":"<p>The postal code of a customer address.</p>"
+        }
+      },
+      "documentation":"<p>Updates associated with the address properties of a customer profile.</p>"
+    },
+    "UpdateAttributes":{
+      "type":"map",
+      "key":{"shape":"string1To255"},
+      "value":{"shape":"string0To255"}
+    },
+    "UpdateDomainRequest":{
+      "type":"structure",
+      "required":["DomainName"],
+      "members":{
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name for the domain.</p>",
+          "location":"uri",
+          "locationName":"DomainName"
+        },
+        "DefaultExpirationDays":{
+          "shape":"expirationDaysInteger",
+          "documentation":"<p>The default number of days until the data within the domain expires.</p>"
+        },
+        "DefaultEncryptionKey":{
+          "shape":"encryptionKey",
+          "documentation":"<p>The default encryption key, which is an AWS managed key, is used when no specific type of encryption key is specified. It is used to encrypt all data before it is placed in permanent or semi-permanent storage. If specified as an empty string, it will clear any existing value.</p>"
+        },
+        "DeadLetterQueueUrl":{
+          "shape":"sqsQueueUrl",
+          "documentation":"<p>The URL of the SQS dead letter queue, which is used for reporting errors associated with ingesting data from third party applications. If specified as an empty string, it will clear any existing value. You must set up a policy on the DeadLetterQueue for the SendMessage operation to enable Amazon Connect Customer Profiles to send messages to the DeadLetterQueue.</p>"
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags used to organize, track, or control access for this resource.</p>"
+        }
+      }
+    },
+    "UpdateDomainResponse":{
+      "type":"structure",
+      "required":[
+        "DomainName",
+        "CreatedAt",
+        "LastUpdatedAt"
+      ],
+      "members":{
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name for the domain.</p>"
+        },
+        "DefaultExpirationDays":{
+          "shape":"expirationDaysInteger",
+          "documentation":"<p>The default number of days until the data within the domain expires.</p>"
+        },
+        "DefaultEncryptionKey":{
+          "shape":"encryptionKey",
+          "documentation":"<p>The default encryption key, which is an AWS managed key, is used when no specific type of encryption key is specified. It is used to encrypt all data before it is placed in permanent or semi-permanent storage.</p>"
+        },
+        "DeadLetterQueueUrl":{
+          "shape":"sqsQueueUrl",
+          "documentation":"<p>The URL of the SQS dead letter queue, which is used for reporting errors associated with ingesting data from third party applications.</p>"
+        },
+        "CreatedAt":{
+          "shape":"timestamp",
+          "documentation":"<p>The timestamp of when the domain was created.</p>"
+        },
+        "LastUpdatedAt":{
+          "shape":"timestamp",
+          "documentation":"<p>The timestamp of when the domain was most recently edited.</p>"
+        },
+        "Tags":{
+          "shape":"TagMap",
+          "documentation":"<p>The tags used to organize, track, or control access for this resource.</p>"
+        }
+      }
+    },
+    "UpdateProfileRequest":{
+      "type":"structure",
+      "required":[
+        "DomainName",
+        "ProfileId"
+      ],
+      "members":{
+        "DomainName":{
+          "shape":"name",
+          "documentation":"<p>The unique name of the domain.</p>",
+          "location":"uri",
+          "locationName":"DomainName"
+        },
+        "ProfileId":{
+          "shape":"uuid",
+          "documentation":"<p>The unique identifier of a customer profile.</p>"
+        },
+        "AdditionalInformation":{
+          "shape":"string0To1000",
+          "documentation":"<p>Any additional information relevant to the customer's profile.</p>"
+        },
+        "AccountNumber":{
+          "shape":"string0To255",
+          "documentation":"<p>A unique account number that you have given to the customer.</p>"
+        },
+        "PartyType":{
+          "shape":"PartyType",
+          "documentation":"<p>The type of profile used to describe the customer.</p>"
+        },
+        "BusinessName":{
+          "shape":"string0To255",
+          "documentation":"<p>The name of the customer’s business.</p>"
+        },
+        "FirstName":{
+          "shape":"string0To255",
+          "documentation":"<p>The customer’s first name.</p>"
+        },
+        "MiddleName":{
+          "shape":"string0To255",
+          "documentation":"<p>The customer’s middle name.</p>"
+        },
+        "LastName":{
+          "shape":"string0To255",
+          "documentation":"<p>The customer’s last name.</p>"
+        },
+        "BirthDate":{
+          "shape":"string0To255",
+          "documentation":"<p>The customer’s birth date.</p>"
+        },
+        "Gender":{
+          "shape":"Gender",
+          "documentation":"<p>The gender with which the customer identifies.</p>"
+        },
+        "PhoneNumber":{
+          "shape":"string0To255",
+          "documentation":"<p>The customer's phone number, which has not been specified as a mobile, home, or business number.</p>"
+        },
+        "MobilePhoneNumber":{
+          "shape":"string0To255",
+          "documentation":"<p>The customer’s mobile phone number.</p>"
+        },
+        "HomePhoneNumber":{
+          "shape":"string0To255",
+          "documentation":"<p>The customer’s home phone number.</p>"
+        },
+        "BusinessPhoneNumber":{
+          "shape":"string0To255",
+          "documentation":"<p>The customer’s business phone number.</p>"
+        },
+        "EmailAddress":{
+          "shape":"string0To255",
+          "documentation":"<p>The customer's email address, which has not been specified as a personal or business address.</p>"
+        },
+        "PersonalEmailAddress":{
+          "shape":"string0To255",
+          "documentation":"<p>The customer’s personal email address.</p>"
+        },
+        "BusinessEmailAddress":{
+          "shape":"string0To255",
+          "documentation":"<p>The customer’s business email address.</p>"
+        },
+        "Address":{
+          "shape":"UpdateAddress",
+          "documentation":"<p>A generic address associated with the customer that is not mailing, shipping, or billing.</p>"
+        },
+        "ShippingAddress":{
+          "shape":"UpdateAddress",
+          "documentation":"<p>The customer’s shipping address.</p>"
+        },
+        "MailingAddress":{
+          "shape":"UpdateAddress",
+          "documentation":"<p>The customer’s mailing address.</p>"
+        },
+        "BillingAddress":{
+          "shape":"UpdateAddress",
+          "documentation":"<p>The customer’s billing address.</p>"
+        },
+        "Attributes":{
+          "shape":"UpdateAttributes",
+          "documentation":"<p>A key value pair of attributes of a customer profile.</p>"
+        }
+      }
+    },
+    "UpdateProfileResponse":{
+      "type":"structure",
+      "required":["ProfileId"],
+      "members":{
+        "ProfileId":{
+          "shape":"uuid",
+          "documentation":"<p>The unique identifier of a customer profile.</p>"
+        }
+      }
+    },
+    "boolean":{"type":"boolean"},
+    "encryptionKey":{
+      "type":"string",
+      "max":255,
+      "min":0
+    },
+    "expirationDaysInteger":{
+      "type":"integer",
+      "max":1098,
+      "min":1
+    },
+    "long":{"type":"long"},
+    "maxSize100":{
+      "type":"integer",
+      "max":100,
+      "min":1
+    },
+    "message":{"type":"string"},
+    "requestValueList":{
+      "type":"list",
+      "member":{"shape":"string1To255"}
+    },
+    "sqsQueueUrl":{
+      "type":"string",
+      "max":255,
+      "min":0
+    },
+    "string0To1000":{
+      "type":"string",
+      "max":1000,
+      "min":0
+    },
+    "string0To255":{
+      "type":"string",
+      "max":255,
+      "min":0
+    },
+    "string1To1000":{
+      "type":"string",
+      "max":1000,
+      "min":1
+    },
+    "string1To255":{
+      "type":"string",
+      "max":255,
+      "min":1
+    },
+    "stringifiedJson":{
+      "type":"string",
+      "max":256000,
+      "min":1
+    },
+    "text":{
+      "type":"string",
+      "max":1000,
+      "min":1
+    },
+    "timestamp":{"type":"timestamp"},
+    "token":{
+      "type":"string",
+      "max":1024,
+      "min":1
+    },
+    "typeName":{
+      "type":"string",
+      "max":255,
+      "min":1,
+      "pattern":"^[a-zA-Z_][a-zA-Z_0-9-]*$"
+    },
+    "uuid":{
+      "type":"string",
+      "pattern":"[a-f0-9]{32}"
+    }
+  },
+  "documentation":"<fullname>Amazon Connect Customer Profiles</fullname> <p>Welcome to the Amazon Connect Customer Profiles API Reference. This guide provides information about the Amazon Connect Customer Profiles API, including supported operations, data types, parameters, and schemas.</p> <p>Amazon Connect Customer Profiles is a unified customer profile for your contact center that has pre-built connectors powered by AppFlow that make it easy to combine customer information from third party applications, such as Salesforce (CRM), ServiceNow (ITSM), and your enterprise resource planning (ERP), with contact history from your Amazon Connect contact center.</p> <p>If you're new to Amazon Connect, you might find it helpful to also review the <a href=\"https://docs.aws.amazon.com/connect/latest/adminguide/what-is-amazon-connect.html\">Amazon Connect Administrator Guide</a>.</p>"
+}

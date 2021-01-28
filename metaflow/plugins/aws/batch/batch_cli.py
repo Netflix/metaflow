@@ -4,7 +4,7 @@ import tarfile
 import time
 import traceback
 
-import click
+from metaflow._vendor import click
 
 from distutils.dir_util import copy_tree
 

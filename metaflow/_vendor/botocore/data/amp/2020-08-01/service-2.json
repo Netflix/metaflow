@@ -1,0 +1,617 @@
+{
+  "version":"2.0",
+  "metadata":{
+    "apiVersion":"2020-08-01",
+    "endpointPrefix":"aps",
+    "jsonVersion":"1.1",
+    "protocol":"rest-json",
+    "serviceFullName":"Amazon Prometheus Service",
+    "serviceId":"amp",
+    "signatureVersion":"v4",
+    "signingName":"aps",
+    "uid":"amp-2020-08-01"
+  },
+  "operations":{
+    "CreateWorkspace":{
+      "name":"CreateWorkspace",
+      "http":{
+        "method":"POST",
+        "requestUri":"/workspaces",
+        "responseCode":202
+      },
+      "input":{"shape":"CreateWorkspaceRequest"},
+      "output":{"shape":"CreateWorkspaceResponse"},
+      "errors":[
+        {"shape":"ThrottlingException"},
+        {"shape":"ConflictException"},
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"InternalServerException"},
+        {"shape":"ServiceQuotaExceededException"}
+      ],
+      "documentation":"<p>Creates a new AMP workspace.</p>",
+      "idempotent":true
+    },
+    "DeleteWorkspace":{
+      "name":"DeleteWorkspace",
+      "http":{
+        "method":"DELETE",
+        "requestUri":"/workspaces/{workspaceId}",
+        "responseCode":202
+      },
+      "input":{"shape":"DeleteWorkspaceRequest"},
+      "errors":[
+        {"shape":"ThrottlingException"},
+        {"shape":"ValidationException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Deletes an AMP workspace.</p>",
+      "idempotent":true
+    },
+    "DescribeWorkspace":{
+      "name":"DescribeWorkspace",
+      "http":{
+        "method":"GET",
+        "requestUri":"/workspaces/{workspaceId}",
+        "responseCode":200
+      },
+      "input":{"shape":"DescribeWorkspaceRequest"},
+      "output":{"shape":"DescribeWorkspaceResponse"},
+      "errors":[
+        {"shape":"ThrottlingException"},
+        {"shape":"ValidationException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Describes an existing AMP workspace.</p>"
+    },
+    "ListWorkspaces":{
+      "name":"ListWorkspaces",
+      "http":{
+        "method":"GET",
+        "requestUri":"/workspaces",
+        "responseCode":200
+      },
+      "input":{"shape":"ListWorkspacesRequest"},
+      "output":{"shape":"ListWorkspacesResponse"},
+      "errors":[
+        {"shape":"ThrottlingException"},
+        {"shape":"ValidationException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"InternalServerException"}
+      ],
+      "documentation":"<p>Lists all AMP workspaces, including workspaces being created or deleted.</p>"
+    },
+    "UpdateWorkspaceAlias":{
+      "name":"UpdateWorkspaceAlias",
+      "http":{
+        "method":"POST",
+        "requestUri":"/workspaces/{workspaceId}/alias",
+        "responseCode":204
+      },
+      "input":{"shape":"UpdateWorkspaceAliasRequest"},
+      "errors":[
+        {"shape":"ThrottlingException"},
+        {"shape":"ConflictException"},
+        {"shape":"ValidationException"},
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"InternalServerException"},
+        {"shape":"ServiceQuotaExceededException"}
+      ],
+      "documentation":"<p>Updates an AMP workspace alias.</p>",
+      "idempotent":true
+    }
+  },
+  "shapes":{
+    "AccessDeniedException":{
+      "type":"structure",
+      "required":["message"],
+      "members":{
+        "message":{
+          "shape":"String",
+          "documentation":"<p>Description of the error.</p>"
+        }
+      },
+      "documentation":"<p>User does not have sufficient access to perform this action.</p>",
+      "error":{
+        "httpStatusCode":403,
+        "senderFault":true
+      },
+      "exception":true
+    },
+    "ConflictException":{
+      "type":"structure",
+      "required":[
+        "message",
+        "resourceId",
+        "resourceType"
+      ],
+      "members":{
+        "message":{
+          "shape":"String",
+          "documentation":"<p>Description of the error.</p>"
+        },
+        "resourceId":{
+          "shape":"String",
+          "documentation":"<p>Identifier of the resource affected.</p>"
+        },
+        "resourceType":{
+          "shape":"String",
+          "documentation":"<p>Type of the resource affected.</p>"
+        }
+      },
+      "documentation":"<p>Updating or deleting a resource can cause an inconsistent state.</p>",
+      "error":{
+        "httpStatusCode":409,
+        "senderFault":true
+      },
+      "exception":true
+    },
+    "CreateWorkspaceRequest":{
+      "type":"structure",
+      "members":{
+        "alias":{
+          "shape":"WorkspaceAlias",
+          "documentation":"<p>An optional user-assigned alias for this workspace. This alias is for user reference and does not need to be unique.</p>"
+        },
+        "clientToken":{
+          "shape":"IdempotencyToken",
+          "documentation":"<p>Optional, unique, case-sensitive, user-provided identifier to ensure the idempotency of the request.</p>",
+          "idempotencyToken":true
+        }
+      },
+      "documentation":"<p>Represents the input of a CreateWorkspace operation.</p>"
+    },
+    "CreateWorkspaceResponse":{
+      "type":"structure",
+      "required":[
+        "arn",
+        "status",
+        "workspaceId"
+      ],
+      "members":{
+        "arn":{
+          "shape":"WorkspaceArn",
+          "documentation":"<p>The ARN of the workspace that was just created.</p>"
+        },
+        "status":{
+          "shape":"WorkspaceStatus",
+          "documentation":"<p>The status of the workspace that was just created (usually CREATING).</p>"
+        },
+        "workspaceId":{
+          "shape":"WorkspaceId",
+          "documentation":"<p>The generated ID of the workspace that was just created.</p>"
+        }
+      },
+      "documentation":"<p>Represents the output of a CreateWorkspace operation.</p>"
+    },
+    "DeleteWorkspaceRequest":{
+      "type":"structure",
+      "required":["workspaceId"],
+      "members":{
+        "clientToken":{
+          "shape":"IdempotencyToken",
+          "documentation":"<p>Optional, unique, case-sensitive, user-provided identifier to ensure the idempotency of the request.</p>",
+          "idempotencyToken":true,
+          "location":"querystring",
+          "locationName":"clientToken"
+        },
+        "workspaceId":{
+          "shape":"WorkspaceId",
+          "documentation":"<p>The ID of the workspace to delete.</p>",
+          "location":"uri",
+          "locationName":"workspaceId"
+        }
+      },
+      "documentation":"<p>Represents the input of a DeleteWorkspace operation.</p>"
+    },
+    "DescribeWorkspaceRequest":{
+      "type":"structure",
+      "required":["workspaceId"],
+      "members":{
+        "workspaceId":{
+          "shape":"WorkspaceId",
+          "documentation":"<p>The ID of the workspace to describe.</p>",
+          "location":"uri",
+          "locationName":"workspaceId"
+        }
+      },
+      "documentation":"<p>Represents the input of a DescribeWorkspace operation.</p>"
+    },
+    "DescribeWorkspaceResponse":{
+      "type":"structure",
+      "required":["workspace"],
+      "members":{
+        "workspace":{
+          "shape":"WorkspaceDescription",
+          "documentation":"<p>The properties of the selected workspace.</p>"
+        }
+      },
+      "documentation":"<p>Represents the output of a DescribeWorkspace operation.</p>"
+    },
+    "IdempotencyToken":{
+      "type":"string",
+      "documentation":"<p>An identifier used to ensure the idempotency of a write request.</p>",
+      "max":64,
+      "min":1,
+      "pattern":"[!-~]+"
+    },
+    "Integer":{
+      "type":"integer",
+      "box":true
+    },
+    "InternalServerException":{
+      "type":"structure",
+      "required":["message"],
+      "members":{
+        "message":{
+          "shape":"String",
+          "documentation":"<p>Description of the error.</p>"
+        },
+        "retryAfterSeconds":{
+          "shape":"Integer",
+          "documentation":"<p>Advice to clients on when the call can be safely retried.</p>",
+          "location":"header",
+          "locationName":"Retry-After"
+        }
+      },
+      "documentation":"<p>Unexpected error during processing of request.</p>",
+      "error":{"httpStatusCode":500},
+      "exception":true,
+      "fault":true,
+      "retryable":{"throttling":false}
+    },
+    "ListWorkspacesRequest":{
+      "type":"structure",
+      "members":{
+        "alias":{
+          "shape":"WorkspaceAlias",
+          "documentation":"<p>Optional filter for workspace alias. Only the workspaces with aliases that begin with this value will be returned.</p>",
+          "location":"querystring",
+          "locationName":"alias"
+        },
+        "maxResults":{
+          "shape":"ListWorkspacesRequestMaxResultsInteger",
+          "documentation":"<p>Maximum results to return in response (default=100, maximum=1000).</p>",
+          "location":"querystring",
+          "locationName":"maxResults"
+        },
+        "nextToken":{
+          "shape":"PaginationToken",
+          "documentation":"<p>Pagination token to request the next page in a paginated list. This token is obtained from the output of the previous ListWorkspaces request.</p>",
+          "location":"querystring",
+          "locationName":"nextToken"
+        }
+      },
+      "documentation":"<p>Represents the input of a ListWorkspaces operation.</p>"
+    },
+    "ListWorkspacesRequestMaxResultsInteger":{
+      "type":"integer",
+      "box":true,
+      "max":1000,
+      "min":1
+    },
+    "ListWorkspacesResponse":{
+      "type":"structure",
+      "required":["workspaces"],
+      "members":{
+        "nextToken":{
+          "shape":"PaginationToken",
+          "documentation":"<p>Pagination token to use when requesting the next page in this list.</p>"
+        },
+        "workspaces":{
+          "shape":"WorkspaceSummaryList",
+          "documentation":"<p>The list of existing workspaces, including those undergoing creation or deletion.</p>"
+        }
+      },
+      "documentation":"<p>Represents the output of a ListWorkspaces operation.</p>"
+    },
+    "PaginationToken":{
+      "type":"string",
+      "documentation":"<p>A token used to access the next page in a paginated result set.</p>"
+    },
+    "ResourceNotFoundException":{
+      "type":"structure",
+      "required":[
+        "message",
+        "resourceId",
+        "resourceType"
+      ],
+      "members":{
+        "message":{
+          "shape":"String",
+          "documentation":"<p>Description of the error.</p>"
+        },
+        "resourceId":{
+          "shape":"String",
+          "documentation":"<p>Identifier of the resource affected.</p>"
+        },
+        "resourceType":{
+          "shape":"String",
+          "documentation":"<p>Type of the resource affected.</p>"
+        }
+      },
+      "documentation":"<p>Request references a resource which does not exist.</p>",
+      "error":{
+        "httpStatusCode":404,
+        "senderFault":true
+      },
+      "exception":true
+    },
+    "ServiceQuotaExceededException":{
+      "type":"structure",
+      "required":[
+        "message",
+        "quotaCode",
+        "resourceId",
+        "resourceType",
+        "serviceCode"
+      ],
+      "members":{
+        "message":{
+          "shape":"String",
+          "documentation":"<p>Description of the error.</p>"
+        },
+        "quotaCode":{
+          "shape":"String",
+          "documentation":"<p>Service Quotas requirement to identify originating quota.</p>"
+        },
+        "resourceId":{
+          "shape":"String",
+          "documentation":"<p>Identifier of the resource affected.</p>"
+        },
+        "resourceType":{
+          "shape":"String",
+          "documentation":"<p>Type of the resource affected.</p>"
+        },
+        "serviceCode":{
+          "shape":"String",
+          "documentation":"<p>Service Quotas requirement to identify originating service.</p>"
+        }
+      },
+      "documentation":"<p>Request would cause a service quota to be exceeded.</p>",
+      "error":{
+        "httpStatusCode":402,
+        "senderFault":true
+      },
+      "exception":true
+    },
+    "String":{"type":"string"},
+    "ThrottlingException":{
+      "type":"structure",
+      "required":["message"],
+      "members":{
+        "message":{
+          "shape":"String",
+          "documentation":"<p>Description of the error.</p>"
+        },
+        "quotaCode":{
+          "shape":"String",
+          "documentation":"<p>Service Quotas requirement to identify originating quota.</p>"
+        },
+        "retryAfterSeconds":{
+          "shape":"Integer",
+          "documentation":"<p>Advice to clients on when the call can be safely retried.</p>",
+          "location":"header",
+          "locationName":"Retry-After"
+        },
+        "serviceCode":{
+          "shape":"String",
+          "documentation":"<p>Service Quotas requirement to identify originating service.</p>"
+        }
+      },
+      "documentation":"<p>Request was denied due to request throttling.</p>",
+      "error":{
+        "httpStatusCode":429,
+        "senderFault":true
+      },
+      "exception":true,
+      "retryable":{"throttling":false}
+    },
+    "Timestamp":{"type":"timestamp"},
+    "UpdateWorkspaceAliasRequest":{
+      "type":"structure",
+      "required":["workspaceId"],
+      "members":{
+        "alias":{
+          "shape":"WorkspaceAlias",
+          "documentation":"<p>The new alias of the workspace.</p>"
+        },
+        "clientToken":{
+          "shape":"IdempotencyToken",
+          "documentation":"<p>Optional, unique, case-sensitive, user-provided identifier to ensure the idempotency of the request.</p>",
+          "idempotencyToken":true
+        },
+        "workspaceId":{
+          "shape":"WorkspaceId",
+          "documentation":"<p>The ID of the workspace being updated.</p>",
+          "location":"uri",
+          "locationName":"workspaceId"
+        }
+      },
+      "documentation":"<p>Represents the input of an UpdateWorkspaceAlias operation.</p>"
+    },
+    "Uri":{
+      "type":"string",
+      "max":1024,
+      "min":1
+    },
+    "ValidationException":{
+      "type":"structure",
+      "required":[
+        "message",
+        "reason"
+      ],
+      "members":{
+        "fieldList":{
+          "shape":"ValidationExceptionFieldList",
+          "documentation":"<p>The field that caused the error, if applicable. If more than one field caused the error, pick one and elaborate in the message.</p>"
+        },
+        "message":{
+          "shape":"String",
+          "documentation":"<p>Description of the error.</p>"
+        },
+        "reason":{
+          "shape":"ValidationExceptionReason",
+          "documentation":"<p>Reason the request failed validation.</p>"
+        }
+      },
+      "documentation":"<p>The input fails to satisfy the constraints specified by an AWS service.</p>",
+      "error":{
+        "httpStatusCode":400,
+        "senderFault":true
+      },
+      "exception":true
+    },
+    "ValidationExceptionField":{
+      "type":"structure",
+      "required":[
+        "message",
+        "name"
+      ],
+      "members":{
+        "message":{
+          "shape":"String",
+          "documentation":"<p>Message describing why the field failed validation.</p>"
+        },
+        "name":{
+          "shape":"String",
+          "documentation":"<p>The field name.</p>"
+        }
+      },
+      "documentation":"<p>Stores information about a field passed inside a request that resulted in an exception.</p>"
+    },
+    "ValidationExceptionFieldList":{
+      "type":"list",
+      "member":{"shape":"ValidationExceptionField"},
+      "documentation":"<p>A list of fields.</p>"
+    },
+    "ValidationExceptionReason":{
+      "type":"string",
+      "documentation":"<p>Possible reasons a request failed validation.</p>",
+      "enum":[
+        "UNKNOWN_OPERATION",
+        "CANNOT_PARSE",
+        "FIELD_VALIDATION_FAILED",
+        "OTHER"
+      ]
+    },
+    "WorkspaceAlias":{
+      "type":"string",
+      "documentation":"<p>A user-assigned workspace alias.</p>",
+      "max":100,
+      "min":1
+    },
+    "WorkspaceArn":{
+      "type":"string",
+      "documentation":"<p>An ARN identifying a Workspace.</p>"
+    },
+    "WorkspaceDescription":{
+      "type":"structure",
+      "required":[
+        "arn",
+        "createdAt",
+        "status",
+        "workspaceId"
+      ],
+      "members":{
+        "alias":{
+          "shape":"WorkspaceAlias",
+          "documentation":"<p>Alias of this workspace.</p>"
+        },
+        "arn":{
+          "shape":"WorkspaceArn",
+          "documentation":"<p>The Amazon Resource Name (ARN) of this workspace.</p>"
+        },
+        "createdAt":{
+          "shape":"Timestamp",
+          "documentation":"<p>The time when the workspace was created.</p>"
+        },
+        "prometheusEndpoint":{
+          "shape":"Uri",
+          "documentation":"<p>Prometheus endpoint URI.</p>"
+        },
+        "status":{
+          "shape":"WorkspaceStatus",
+          "documentation":"<p>The status of this workspace.</p>"
+        },
+        "workspaceId":{
+          "shape":"WorkspaceId",
+          "documentation":"<p>Unique string identifying this workspace.</p>"
+        }
+      },
+      "documentation":"<p>Represents the properties of a workspace.</p>"
+    },
+    "WorkspaceId":{
+      "type":"string",
+      "documentation":"<p>A workspace ID.</p>",
+      "max":64,
+      "min":1,
+      "pattern":"[0-9A-Za-z][-.0-9A-Z_a-z]*"
+    },
+    "WorkspaceStatus":{
+      "type":"structure",
+      "required":["statusCode"],
+      "members":{
+        "statusCode":{
+          "shape":"WorkspaceStatusCode",
+          "documentation":"<p>Status code of this workspace.</p>"
+        }
+      },
+      "documentation":"<p>Represents the status of a workspace.</p>"
+    },
+    "WorkspaceStatusCode":{
+      "type":"string",
+      "documentation":"<p>State of a workspace.</p>",
+      "enum":[
+        "CREATING",
+        "ACTIVE",
+        "UPDATING",
+        "DELETING",
+        "CREATION_FAILED"
+      ]
+    },
+    "WorkspaceSummary":{
+      "type":"structure",
+      "required":[
+        "arn",
+        "createdAt",
+        "status",
+        "workspaceId"
+      ],
+      "members":{
+        "alias":{
+          "shape":"WorkspaceAlias",
+          "documentation":"<p>Alias of this workspace.</p>"
+        },
+        "arn":{
+          "shape":"WorkspaceArn",
+          "documentation":"<p>The AmazonResourceName of this workspace.</p>"
+        },
+        "createdAt":{
+          "shape":"Timestamp",
+          "documentation":"<p>The time when the workspace was created.</p>"
+        },
+        "status":{
+          "shape":"WorkspaceStatus",
+          "documentation":"<p>The status of this workspace.</p>"
+        },
+        "workspaceId":{
+          "shape":"WorkspaceId",
+          "documentation":"<p>Unique string identifying this workspace.</p>"
+        }
+      },
+      "documentation":"<p>Represents a summary of the properties of a workspace.</p>"
+    },
+    "WorkspaceSummaryList":{
+      "type":"list",
+      "member":{"shape":"WorkspaceSummary"},
+      "documentation":"<p>A list of workspace summaries.</p>"
+    }
+  },
+  "documentation":"<p>Amazon Managed Service for Prometheus</p>"
+}

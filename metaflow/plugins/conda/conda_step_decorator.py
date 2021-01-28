@@ -3,7 +3,7 @@ import sys
 from hashlib import sha1
 from multiprocessing.dummy import Pool
 import platform
-import requests
+from metaflow._vendor import requests
 import shutil
 import tempfile
 try:

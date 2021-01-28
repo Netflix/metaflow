@@ -5,11 +5,11 @@ def get_aws_client(module, with_error=False, params={}):
     from metaflow.exception import MetaflowException
     from metaflow.metaflow_config import AWS_SANDBOX_ENABLED, \
         AWS_SANDBOX_STS_ENDPOINT_URL, AWS_SANDBOX_API_KEY
-    import requests
+    from metaflow._vendor import requests
     try:
-        import boto3
-        from botocore.exceptions import ClientError
-    except (NameError, ImportError):
+        from metaflow._vendor import boto3
+        from metaflow._vendor.botocore.exceptions import ClientError
+    except (NameError, ImportError) as e:
         raise MetaflowException(
             "Could not import module 'boto3'. Install boto3 first.")
 

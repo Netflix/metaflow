@@ -6,7 +6,7 @@ from .flowspec import FlowSpec
 from .exception import MetaflowInternalError, \
     MetaflowException, InvalidDecoratorAttribute
 
-import click
+from metaflow._vendor import click
 
 class BadStepDecoratorException(MetaflowException):
     headline = "Syntax error"

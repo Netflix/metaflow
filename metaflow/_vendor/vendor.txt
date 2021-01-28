@@ -1,0 +1,5 @@
+click>=7.0
+boto3
+requests
+botocore
+pylint<2.5.0

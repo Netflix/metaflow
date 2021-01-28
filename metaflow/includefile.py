@@ -9,7 +9,7 @@ import tempfile
 from hashlib import sha1
 from shutil import move
 
-import click
+from metaflow._vendor import click
 
 from . import parameters
 from .datastore.datastore import TransformableObject

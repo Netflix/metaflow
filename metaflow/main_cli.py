@@ -1,4 +1,4 @@
-import click
+from metaflow._vendor import click
 import json
 import os
 import shutil
