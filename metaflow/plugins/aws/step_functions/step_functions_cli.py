@@ -78,9 +78,15 @@ def step_functions(obj):
               help="Add a decorator to all steps. You can specify this "
                    "option multiple times to attach multiple decorators "
                    "in steps.")
+@click.option('--step-function-name',
+              default=None,
+              type=str,
+              help="Step Function name to use on AWS - will use flow name as a "
+                   "default value if not specifid.")
 @click.pass_obj
 def create(obj,
            tags=None,
+           step_function_name=None,
            user_namespace=None,
            only_json=False,
            authorize=None,
@@ -89,7 +95,10 @@ def create(obj,
            max_workers=None,
            workflow_timeout=None,
            decospecs=None):
-    name = state_machine_name(current.flow_name)
+    if step_function_name:
+        name = state_machine_name(step_function_name)
+    else:
+        name = state_machine_name(current.flow_name)    
     obj.echo("Deploying *%s* to AWS Step Functions..." % name, bold=True)
 
     check_metadata_service_version(obj)
