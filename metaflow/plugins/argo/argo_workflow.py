@@ -4,7 +4,7 @@ import json
 import platform
 
 from metaflow.util import get_username, compress_list
-from metaflow.metaflow_config import DATASTORE_SYSROOT_S3, METADATA_SERVICE_URL
+from metaflow.metaflow_config import DATASTORE_SYSROOT_S3, METADATA_SERVICE_URL, DEFAULT_METADATA
 from metaflow.parameters import deploy_time_eval
 from metaflow.plugins.aws.batch.batch_decorator import ResourcesDecorator
 from .argo_decorator import ArgoStepDecorator, ArgoInternalStepDecorator
@@ -403,6 +403,8 @@ class Step:
         }
         if METADATA_SERVICE_URL:
             default['METAFLOW_SERVICE_URL'] = METADATA_SERVICE_URL
+        if DEFAULT_METADATA:
+            default['METAFLOW_DEFAULT_METADATA'] = DEFAULT_METADATA
         default_env = [{'name': k, 'value': v} for k, v in default.items()]
         env = default_env + self.flow_env + self._attr.get('env', [])
         env_from = self.flow_env_from + self._attr.get('envFrom', [])
