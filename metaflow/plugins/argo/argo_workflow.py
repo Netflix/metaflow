@@ -49,7 +49,7 @@ class ArgoWorkflow:
         self._workflow = self._compile()
 
     def to_json(self):
-        return json.dumps(self._workflow)
+        return json.dumps(self._workflow, indent=4)
 
     def deploy(self, auth, namespace):
         client = ArgoClient(auth, namespace)
