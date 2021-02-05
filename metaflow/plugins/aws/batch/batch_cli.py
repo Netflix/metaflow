@@ -134,7 +134,10 @@ def kill(ctx, run_id, user, my_runs):
     "--image", help="Docker image requirement for AWS Batch. In name:version format."
 )
 @click.option(
-    "--iam_role", help="IAM role requirement for AWS Batch"
+    "--iam_role", help="IAM role requirement for AWS Batch."
+)
+@click.option(
+    "--execution_role", help="Execution role requirement for AWS Batch on Fargate."
 )
 @click.option("--cpu", help="CPU requirement for AWS Batch.")
 @click.option("--gpu", help="GPU requirement for AWS Batch.")
@@ -157,8 +160,11 @@ def kill(ctx, run_id, user, my_runs):
 @click.option(
     "--run-time-limit",
     default=5 * 24 * 60 * 60,
-    help="Run time limit in seconds for the AWS Batch job. " "Default is 5 days.",
+    help="Run time limit in seconds for the AWS Batch job. " "Default is 5 days."
 )
+@click.option("--shared_memory", help="Shared Memory requirement for AWS Batch.")
+@click.option("--max_swap", help="Max Swap requirement for AWS Batch.")
+@click.option("--swappiness", help="Swappiness requirement for AWS Batch.")
 @click.pass_context
 def step(
     ctx,
@@ -168,11 +174,15 @@ def step(
     executable=None,
     image=None,
     iam_role=None,
+    execution_role=None,
     cpu=None,
     gpu=None,
     memory=None,
     queue=None,
     run_time_limit=None,
+    shared_memory=None,
+    max_swap=None,
+    swappiness=None,
     **kwargs
 ):
     def echo(batch_id, msg, stream=sys.stdout):
@@ -258,10 +268,14 @@ def step(
                 image=image,
                 queue=queue,
                 iam_role=iam_role,
+                execution_role=execution_role,
                 cpu=cpu,
                 gpu=gpu,
                 memory=memory,
                 run_time_limit=run_time_limit,
+                shared_memory=shared_memory,
+                max_swap=max_swap,
+                swappiness=swappiness,
                 env=env,
                 attrs=attrs
             )
