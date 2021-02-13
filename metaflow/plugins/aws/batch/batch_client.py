@@ -112,7 +112,7 @@ class BatchJob(object):
             response = self._client.describe_job_queues(jobQueues=[job_queue])
             if len(response['jobQueues']) == 0:
                 raise BatchJobException(
-                    'AWS Batch Job queue %s not found.' % job_queue)
+                    'AWS Batch Job Queue %s not found.' % job_queue)
             compute_environment = response['jobQueues'][0] \
                                     ['computeEnvironmentOrder'][0] \
                                     ['computeEnvironment']
