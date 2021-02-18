@@ -516,9 +516,13 @@ class Step:
         params = ['input-paths']
         if self.is_nested_foreach():
             params.append('split-index')
-        return {
+        inputs = {
             'parameters': [{'name': ip} for ip in params]
         }
+        artifacts = self._attr.get('input_artifacts')
+        if artifacts:
+            inputs['artifacts'] = artifacts
+        return inputs
 
     def _outputs(self):
         params = [{
@@ -531,7 +535,7 @@ class Step:
                 'valueFrom': {'path': ArgoInternalStepDecorator.splits_file_path}
             })
         outputs = {'parameters': params}
-        artifacts = self._attr.get('artifacts')
+        artifacts = self._attr.get('artifacts', []) + self._attr.get('output_artifacts', [])
         if artifacts:
             outputs['artifacts'] = artifacts
         return outputs

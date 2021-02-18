@@ -78,6 +78,10 @@ class ArgoStepDecorator(StepDecorator):
         Environment variables merged with a container spec.
     nodeSelector: json
         Node selector expression, e.g. {"gpu": "nvidia-tesla-k80"}.
+    input_artifacts: list
+        Argo input artifacts list.
+    output_artifacts: list
+        Argo outputs artifacts list.
     artifacts: list
         Argo outputs artifacts list.
    """
@@ -88,8 +92,10 @@ class ArgoStepDecorator(StepDecorator):
         'annotations': {},
         'env': [],
         'envFrom': [],
-        'nodeSelector': None,
-        'artifacts': None
+        'nodeSelector': {},
+        'input_artifacts': [],
+        'output_artifacts': [],
+        'artifacts': []
     }
 
     def step_init(self, flow, graph, step, decos, environment, datastore, logger):
