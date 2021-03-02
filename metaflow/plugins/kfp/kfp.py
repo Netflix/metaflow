@@ -194,8 +194,10 @@ class KubeflowPipelines(object):
         def copy_log_cmd(log_file):
             cp_command = environment.get_boto3_copy_command(
                 s3_path=(
-                    f"{{datastore_root}}/{self.flow.name}/{{run_id}}/{step_name}"
-                    f"/${TASK_ID_ENV_NAME}/{log_file}"
+                    os.path.join(
+                        "{datastore_root}",
+                        f"/{self.flow.name}/{{run_id}}/{step_name}/${TASK_ID_ENV_NAME}/{log_file}",
+                    )
                 ),
                 local_path=log_file,
                 command="upload_file",
@@ -209,7 +211,9 @@ class KubeflowPipelines(object):
         #  where the ordinal is attempt/retry count
         cp_stderr = copy_log_cmd(log_file="0.stderr.log")
         cp_stdout = copy_log_cmd(log_file="0.stdout.log")
-        cp_logs_cmd = f"{cp_stderr} && {cp_stdout}"
+        cp_logs_cmd = (
+            "set -x" if debug.subcommand else "true" f" && {cp_stderr} && {cp_stdout}"
+        )
 
         # We capture the exit code at two places:
         # Once after the subshell/redirection commands, and once after the saving logs
