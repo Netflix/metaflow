@@ -196,7 +196,7 @@ class KubeflowPipelines(object):
                 s3_path=(
                     os.path.join(
                         "{datastore_root}",
-                        f"/{self.flow.name}/{{run_id}}/{step_name}/${TASK_ID_ENV_NAME}/{log_file}",
+                        f"{self.flow.name}/{{run_id}}/{step_name}/${TASK_ID_ENV_NAME}/{log_file}",
                     )
                 ),
                 local_path=log_file,
