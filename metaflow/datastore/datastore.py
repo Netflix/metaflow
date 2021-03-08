@@ -13,6 +13,8 @@ except:
     import pickle
 
 from types import MethodType, FunctionType
+from ..event_logger import NullEventLogger
+from ..monitor import NullMonitor
 from ..parameters import Parameter
 from ..exception import MetaflowException, MetaflowInternalError
 from ..metadata import DataArtifact
@@ -330,8 +332,8 @@ class MetaflowDataStore(object):
                                 "Specify with METAFLOW_DATASTORE_SYSROOT_%s "
                                 "environment variable." % self.TYPE.upper())
         
-        self.event_logger = event_logger
-        self.monitor = monitor
+        self.event_logger = event_logger if event_logger else NullEventLogger()
+        self.monitor = monitor if monitor else NullMonitor()
         self.metadata = metadata
         self.run_id = run_id
         self.step_name = step_name
