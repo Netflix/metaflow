@@ -170,6 +170,9 @@ if AWS_SANDBOX_ENABLED:
 # increasing this limit has real performance implications for all tasks.
 # Decreasing this limit is very unsafe, as it can lead to wrong results
 # being read from old tasks.
+#
+# Note also that DataStoreSet resolves the latest attempt_id using
+# lexicographic ordering of attempts. This won't work if MAX_ATTEMPTS > 99.
 MAX_ATTEMPTS = 6
 
 
