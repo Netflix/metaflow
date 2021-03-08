@@ -13,4 +13,4 @@ printing out 'Metaflow says: Hi!' to the terminal.**
 2. ```Rscript helloworld.R show```
 3. ```Rscript helloworld.R run```
 
-In RStudio, you can run the script by directly run `source("helloworld.R")`.
+If you are using RStudio, you can run this script by directly executing `source("helloworld.R")`.

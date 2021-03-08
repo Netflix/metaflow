@@ -20,13 +20,17 @@ because the data is being stored in AWS S3.**
 1. Configure your sandbox: https://docs.metaflow.org/metaflow-on-aws/metaflow-sandbox
 
 #### To play this episode:
+##### Execute the flow:
+In a terminal:
 1. ```cd tutorials/02-statistics/```
 2. ```Rscript stats.R --package-suffixes=.R,.csv run --with batch --max-workers 4```
-3. Open ```02-statistics/stats.Rmd``` in your RStudio and re-run the cells. You can acccess
-the artifacts stored in AWS S3 from your local RStudio session. 
 
-In RStudio, you can replace the last line `run()` with
+If you are using RStudio, you can replace the last line `run()` with
 ```R
   run(batch=TRUE, max_workers=4, package_suffixes=".R,.csv,")
 ``` 
 and run by `source("stats.R")`.
+
+##### Inspect the results:
+Open the R markdown file ```02-statistics/stats.Rmd``` in your RStudio and re-run the cells. You can acccess
+the artifacts stored in AWS S3 from your local RStudio session. 

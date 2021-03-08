@@ -15,13 +15,13 @@ message("Current metadata provider: ", metaflow::get_metadata())
 When you triggered your flow on AWS Step Functions using `step-functions trigger`, you would have seen an output similar to - 
 ```{bash}
 ...
-Workflow MovieStatsFlow triggered on AWS Step Functions (run-id sfn-b1bd0ec2-e29b-4818-90ad-507aa600dbf0).
+Workflow MovieStatsFlow triggered on AWS Step Functions (run-id sfn-dolor-sit-amet).
 ...
 ```
 Paste the run-id below (run_id = 'sfn-dolor-sit-amet') and run the following after the run finishes on Step Function.
 ```{r}
 set_namespace(NULL)
-run = flow_client$new('MovieStatsFlow')$run('sfn-b1bd0ec2-e29b-4818-90ad-507aa600dbf0')
+run = flow_client$new('MovieStatsFlow')$run('sfn-dolor-sit-amet')
 print(run$steps)
 ```
 
