@@ -107,6 +107,24 @@ class KfpInternalDecorator(StepDecorator):
         # Register book-keeping metadata for debugging.
         metadata.register_metadata(run_id, step_name, task_id, entries)
 
+        for logtype in ["stdout", "stderr"]:
+            datum = [
+                MetaDatum(
+                    field="log_location_%s" % logtype,
+                    value=json.dumps(
+                        {
+                            "ds_type": "s3",
+                            "location": datastore.get_log_location(logtype),
+                            "attempt": retry_count,
+                        }
+                    ),
+                    type="log_path",
+                    tags=[],
+                )
+            ]
+            # Register log related metadata for debugging.
+            metadata.register_metadata(run_id, step_name, task_id, datum)
+
         if metadata.TYPE == "local":
             self.ds_root = datastore.root
         else:
