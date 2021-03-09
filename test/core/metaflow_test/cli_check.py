@@ -68,11 +68,7 @@ class CliCheck(MetaflowCheck):
                 return pickle.load(f)
 
     def assert_log(self, step, logtype, value, exact_match=True):
-        cmd = ['--quiet',
-               'logs',
-               '--%s' % logtype,
-               '%s/%s' % (self.run_id, step)]
-        log = self.run_cli(cmd, capture_output=True).decode('utf-8')
+        log = self.get_log(step, logtype)
         if (exact_match and log != value) or\
            (not exact_match and value not in log):
 
@@ -84,3 +80,10 @@ class CliCheck(MetaflowCheck):
                  repr(value),
                  repr(log)))
         return True
+
+    def get_log(self, step, logtype):
+        cmd = ['--quiet',
+               'logs',
+               '--%s' % logtype,
+               '%s/%s' % (self.run_id, step)]
+        return self.run_cli(cmd, capture_output=True).decode('utf-8')

@@ -81,8 +81,10 @@ from .conda.conda_flow_decorator import CondaFlowDecorator
 from .aws.step_functions.schedule_decorator import ScheduleDecorator
 FLOW_DECORATORS = _merge_lists([CondaFlowDecorator, ScheduleDecorator], ext_plugins.FLOW_DECORATORS, 'name')
 
+from ..mflog.save_logs_periodically import SaveLogsPeriodicallySidecar
 # Sidecars
-SIDECARS = ext_plugins.SIDECARS
+SIDECARS = {'save_logs_periodically': SaveLogsPeriodicallySidecar}
+SIDECARS.update(ext_plugins.SIDECARS)
 
 # Add logger
 from .debug_logger import DebugEventLogger

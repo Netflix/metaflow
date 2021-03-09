@@ -16,6 +16,21 @@ from metaflow import util
 
 from .batch_client import BatchClient
 
+from metaflow.datastore.util.s3tail import S3Tail
+from metaflow.mflog.mflog import refine, set_should_persist
+from metaflow.mflog import export_mflog_env_vars,\
+                           bash_capture_logs,\
+                           update_delay,\
+                           BASH_SAVE_LOGS
+
+# Redirect structured logs to /logs/. This location is
+# special in Titus: All files in /logs/ are uploaded to S3
+# automatically by Titus after the task has finished.
+LOGS_DIR = '/logs'
+STDOUT_FILE = 'mflog_stdout'
+STDERR_FILE = 'mflog_stderr'
+STDOUT_PATH = os.path.join(LOGS_DIR, STDOUT_FILE)
+STDERR_PATH = os.path.join(LOGS_DIR, STDERR_FILE)
 
 class BatchException(MetaflowException):
     headline = 'AWS Batch error'
@@ -32,12 +47,37 @@ class Batch(object):
         self._client = BatchClient()
         atexit.register(lambda: self.job.kill() if hasattr(self, 'job') else None)
 
-    def _command(self, code_package_url, environment, step_name, step_cli):
-        cmds = environment.get_package_commands(code_package_url)
-        cmds.extend(environment.bootstrap_commands(step_name))
-        cmds.append("echo 'Task is starting.'")
-        cmds.extend(step_cli)
-        return shlex.split('/bin/sh -c "%s"' % " && ".join(cmds))
+    def _command(self,
+                 environment,
+                 code_package_url,
+                 step_name,
+                 step_cmds,
+                 task_spec):
+        mflog_expr = export_mflog_env_vars(datastore_type='s3',
+                                           stdout_path=STDOUT_PATH,
+                                           stderr_path=STDERR_PATH,
+                                           **task_spec)
+        init_cmds = environment.get_package_commands(code_package_url)
+        init_cmds.extend(environment.bootstrap_commands(step_name))
+        init_expr = ' && '.join(init_cmds)
+        step_expr = bash_capture_logs(' && '.join(step_cmds))
+
+        # construct an entry point that
+        # 1) initializes the mflog environment (mflog_expr)
+        # 2) bootstraps a metaflow environment (init_expr)
+        # 3) executes a task (step_expr)
+        cmd_str = 'mkdir -p /logs && %s && %s && %s; ' % (mflog_expr, init_expr, step_expr)
+        # after the task has finished, we save its exit code (fail/success)
+        # and persist the final logs. The whole entrypoint should exit
+        # with the exit code (c) of the task.
+        #
+        # Note that if step_expr OOMs, this tail expression is never executed.
+        # Instead, we download the remaining logs from the AWS Batch' S3 
+        # location. This logic doesn't work on Step Functions though, which 
+        # loses the last logs in this scenario (although they are visible still 
+        # through AWS Batch).
+        cmd_str += 'c=\\$?; %s; exit `printenv c`' % BASH_SAVE_LOGS
+        return shlex.split('bash -c \"%s\"' % cmd_str)
 
     def _search_jobs(self, flow_name, run_id, user):
         if user is None:
@@ -107,6 +147,7 @@ class Batch(object):
         self,
         step_name,
         step_cli,
+        task_spec,
         code_package_sha,
         code_package_url,
         code_package_ds,
@@ -137,8 +178,8 @@ class Batch(object):
             .job_name(job_name) \
             .job_queue(queue) \
             .command(
-                self._command(code_package_url,
-                              self.environment, step_name, [step_cli])) \
+                self._command(self.environment, code_package_url,
+                              step_name, [step_cli], task_spec)) \
             .image(image) \
             .iam_role(iam_role) \
             .execution_role(execution_role) \
@@ -178,6 +219,7 @@ class Batch(object):
         self,
         step_name,
         step_cli,
+        task_spec,
         code_package_sha,
         code_package_url,
         code_package_ds,
@@ -206,6 +248,7 @@ class Batch(object):
         job = self.create_job(
                         step_name,
                         step_cli,
+                        task_spec,
                         code_package_sha,
                         code_package_url,
                         code_package_ds,
@@ -225,7 +268,7 @@ class Batch(object):
         )
         self.job = job.execute()
 
-    def wait(self, echo=None):
+    def wait(self, stdout_location, stderr_location, echo=None):
         def wait_for_launch(job):
             status = job.status
             echo(job.id, 'Task is starting (status %s)...' % status)
@@ -250,14 +293,75 @@ class Batch(object):
                     return tail, False
             return tail, True
 
+        prefix = b'[%s] ' % util.to_bytes(self.job.id)
+        def _print_available(tail, stream, should_persist=False):
+            # print the latest batch of lines from S3Tail
+            try:
+                for line in tail:
+                    if should_persist:
+                        line = set_should_persist(line)
+                    else:
+                        line = refine(line, prefix=prefix)
+                    echo(line.strip().decode('utf-8', errors='replace'), stream)
+            except Exception as ex:
+                echo("[ temporary error in fetching logs: %s ]" % ex,
+                     'stderr',
+                     task_id=self.job.id)
+        stdout_tail = S3Tail(stdout_location)
+        stderr_tail = S3Tail(stderr_location)
+
+        # 1) Loop until the job has started
         wait_for_launch(self.job)
-        logs = self.job.logs()
-        while True:
-            logs, finished, = print_all(logs)
-            if finished:
-                break
-            else:
-                select.poll().poll(500)
+
+        # 2) Loop until the job has finished
+        start_time = time.time()
+        is_running = True
+        next_log_update = start_time
+        log_update_delay = 1
+
+        while is_running:
+            if time.time() > next_log_update:
+                _print_available(stdout_tail, 'stdout')
+                _print_available(stderr_tail, 'stderr')
+                now = time.time()
+                log_update_delay = update_delay(now - start_time)
+                next_log_update = now + log_update_delay
+                is_running = self.job.is_running
+
+            # This sleep should never delay log updates. On the other hand,
+            # we should exit this loop when the task has finished without
+            # a long delay, regardless of the log tailing schedule
+            d = min(log_update_delay, 5.0)
+            time.sleep(d)
+            #select.poll().poll(d * 100)
+        
+        # 3) Fetch remaining logs
+        #
+        # It is possible that we exit the loop above before all logs have been
+        # shown. In particular, this may happen with hard crashes (OOM) in
+        # which case the final save_logs hasn't happened. We fetch the remaining
+        # logs from AWS Batch' S3 upload location.
+        #
+        # TODO if we notice AWS Batch failing to upload logs to S3, we can add a
+        # HEAD request here to ensure that the file exists prior to calling
+        # S3Tail and note the user about truncated logs if it doesn't
+        # batch_root = self.job._get_s3_log_path()
+        # stdout_last = stdout_tail.clone(os.path.join(batch_root, STDOUT_FILE))
+        # stderr_last = stderr_tail.clone(os.path.join(batch_root, STDERR_FILE))
+        # the remaining loglines need to be persisted by the runtime, so
+        # we tag them with a "should_persist" tag
+        _print_available(stdout_tail, 'stdout')
+        _print_available(stderr_tail, 'stderr')
+        # _print_available(stdout_last, 'stdout', should_persist=True)
+        # _print_available(stderr_last, 'stderr', should_persist=True)
+
+        # logs = self.job.logs()
+        # while True:
+        #     logs, finished, = print_all(logs)
+        #     if finished:
+        #         break
+        #     else:
+        #         select.poll().poll(500)
 
         if self.job.is_crashed:
             msg = next(msg for msg in 

@@ -13,7 +13,7 @@ from metaflow.exception import MetaflowNotFound,\
 from metaflow.metaflow_config import DEFAULT_METADATA
 from metaflow.plugins import ENVIRONMENTS, METADATA_PROVIDERS
 
-from metaflow.util import cached_property, resolve_identity
+from metaflow.util import cached_property, resolve_identity, to_unicode
 
 from .filecache import FileCache
 
@@ -1024,16 +1024,67 @@ class Task(MetaflowObject):
         env = [m for m in ENVIRONMENTS + [MetaflowEnvironment] if m.TYPE == env_type][0]
         return env.get_client_info(self.path_components[0], self.metadata_dict)
 
-    def _load_log(self, logtype, as_unicode=True):
+    def _load_log(self, stream):
+        log_location = self.metadata_dict.get('log_location_%s' % stream)
+        if log_location:
+            return self._load_log_legacy(log_location)
+        else:
+            return ''.join(line + '\n' for _, line in self.loglines(stream))
+
+    def loglines(self, stream, as_unicode=True):
+        """
+        Return an iterator over (utc_timestamp, logline) tuples.
+
+        If as_unicode=False, logline is returned as a byte object. Otherwise,
+        it is returned as a (unicode) string.
+        """
+        # TODO we won't need to load datastore here after the
+        # core convergence
+        from metaflow.datastore.s3 import S3DataStore
+        from metaflow.mflog.mflog import merge_logs
+        from metaflow.mflog import LOG_SOURCES
+        # NOTE: mode='w' is set to avoid any S3 accesses in the datastore
+        # init. We are not actually using the datastore for writing.
+        S3DataStore.datastore_root =\
+            S3DataStore.get_datastore_root_from_config()
+
+        # prefer string IDs (e.g. "sfn-34546') if they are available
+        run_str_id = self.parent.parent._object['runtime_id']
+        task_str_id = self._object['runtime_id']
+        run_id = run_str_id if run_str_id else str(self._object['run_number'])
+        task_id = task_str_id if task_str_id else str(self._object['id'])
+
+        # It is possible that a task fails before any metadata has been
+        # recorded. In this case, we assume that we are executing the
+        # first attempt.
+        #
+        # FIXME: Technically we are looking at the latest *recorded* attempt
+        # here. It is possible that logs exists for a newer attempt that
+        # just failed to record metadata. We could make this logic more robust
+        # and guarantee that we always return the latest available log.
+        attempt = int(self.metadata_dict.get('attempt', 0))
+
+        ds = S3DataStore(self._object['flow_id'],
+                         run_id=run_id,
+                         step_name=self._object['step_name'],
+                         task_id=task_id,
+                         attempt=attempt,
+                         mode='w')
+
+        logs = ds.load_logs(LOG_SOURCES, stream)
+        for line in merge_logs([blob for _, blob in logs]):
+            msg = to_unicode(line.msg) if as_unicode else line.msg
+            yield line.utc_tstamp, msg
+
+    def _load_log_legacy(self, log_location, as_unicode=True):
+        # this function is used to load pre-mflog style logfiles
         ret_val = None
-        log_info = self.metadata_dict.get('log_location_%s' % logtype)
-        if log_info:
-            log_info = json.loads(log_info)
-            ds_type = log_info['ds_type']
-            attempt = log_info['attempt']
-            components = self.path_components
-            with filecache.get_log(ds_type, logtype, int(attempt), *components) as f:
-                ret_val = f.read()
+        log_info = json.loads(log_location)
+        ds_type = log_info['ds_type']
+        attempt = log_info['attempt']
+        components = self.path_components
+        with filecache.get_log(ds_type, logtype, int(attempt), *components) as f:
+            ret_val = f.read()
         if as_unicode and (ret_val is not None):
             return ret_val.decode(encoding='utf8')
         else:
