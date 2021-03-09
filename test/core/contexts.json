@@ -25,7 +25,9 @@
             ],
             "checks": ["python2-cli", "python3-cli"],
             "disabled_tests": [
-                "LargeArtifactTest"
+                "LargeArtifactTest",
+                "BasicUnboundedForeachTest",
+                "NestedUnboundedForeachTest"
             ]
         },
         {
@@ -53,7 +55,9 @@
             ],
             "checks": ["python2-cli", "python3-cli"],
             "disabled_tests": [
-                "LargeArtifactTest"
+                "LargeArtifactTest",
+                "BasicUnboundedForeachTest",
+                "NestedUnboundedForeachTest"
             ]
         },
         {

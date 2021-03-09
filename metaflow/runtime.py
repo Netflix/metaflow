@@ -28,7 +28,8 @@ from .metadata import MetaDatum
 from .debug import debug
 from .decorators import flow_decorators
 
-from .util import to_unicode, compress_list
+from .util import to_unicode, compress_list, dict_to_cli_options, unicode_type
+from .unbounded_foreach import CONTROL_TASK_TAG, UBF_CONTROL, UBF_TASK
 
 MAX_WORKERS=16
 MAX_NUM_SPLITS=100
@@ -118,6 +119,11 @@ class NativeRuntime(object):
         self._workers = {}  # fd -> subprocess mapping
         self._finished = {}
         self._is_cloned = {}
+        # NOTE: In case of unbounded foreach, we need the following to schedule
+        # the (sibling) mapper tasks  of the control task (in case of resume);
+        # and ensure that the join tasks runs only if all dependent tasks have
+        # finished.
+        self._control_num_splits = {}  # control_task -> num_splits mapping
 
         for step in flow:
             for deco in step.decorators:
@@ -259,6 +265,87 @@ class NativeRuntime(object):
     def _queue_pop(self):
         return self._run_queue.pop() if self._run_queue else None
 
+    def _queue_task_unbounded_foreach_join(self, task, next_steps):
+        # Before we queue the join, do some post-processing of runtime state
+        # (_finished, _is_cloned) for the (sibling) mapper tasks.
+        # Update state of (sibling) mapper tasks for control task.
+        if task.ubf_context == UBF_CONTROL:
+            mapper_tasks = task.results.get('_control_mapper_tasks')
+            if not mapper_tasks:
+                msg = "Step *{step}* has a control task which didn't "\
+                      "specify the artifact *_control_mapper_tasks* for "\
+                      "the subsequent *{join}* step."
+                raise MetaflowInternalError(msg.format(step=task.step,
+                                                       join=next_steps[0]))
+            elif not (isinstance(mapper_tasks, list) and\
+                      isinstance(mapper_tasks[0], unicode_type)):
+                msg = "Step *{step}* has a control task which didn't "\
+                      "specify the artifact *_control_mapper_tasks* as a "\
+                      "list of strings but instead specified it as {typ} "\
+                      "with elements of {elem_typ}."
+                raise MetaflowInternalError(msg.format(step=task.step,
+                                                       typ=type(mapper_tasks),
+                                                       elem_type=type(mapper_tasks[0])))
+            num_splits = len(mapper_tasks)
+            self._control_num_splits[task.path] = num_splits
+            if task.is_cloned:
+                # Add mapper tasks to be cloned.
+                for i in range(num_splits):
+                    # NOTE: For improved robustness, introduce `clone_options`
+                    # as an enum so that we can force that clone must occur
+                    # for this task.
+                    self._queue_push(task.step,
+                                     {'input_paths': task.input_paths,
+                                      'split_index': str(i),
+                                      'ubf_context': UBF_TASK})
+            else:
+                # Update _finished since these tasks were successfully
+                # run elsewhere so that join will be unblocked.
+                step_name, foreach_stack = task.finished_id
+                top = foreach_stack[-1]
+                bottom = list(foreach_stack[:-1])
+                for i in range(num_splits):
+                    s = tuple(bottom + [top._replace(index=i)])
+                    self._finished[(task.step, s)] = mapper_tasks[i]
+                    self._is_cloned[mapper_tasks[i]] = False
+
+
+        # if the next step is a join, we need to check that
+        # all input tasks for the join have finished before queuing it.
+
+        # CHECK: this condition should be enforced by the linter but
+        # let's assert that the assumption holds
+        if len(next_steps) > 1:
+            msg = 'Step *{step}* transitions to a join and another '\
+                  'step. The join must be the only transition.'
+            raise MetaflowInternalError(task, msg.format(step=task.step))
+        else:
+            next_step = next_steps[0]
+
+        # Find and check status of control task and retrieve its pathspec
+        # for retrieving unbounded foreach cardinality.
+        step_name, foreach_stack = task.finished_id
+        top = foreach_stack[-1]
+        bottom = list(foreach_stack[:-1])
+        s = tuple(bottom + [top._replace(index=None)])
+        control_path = self._finished.get((task.step, s))
+        if control_path:
+            # Control task was successful.
+            # Additionally check the state of (sibling) mapper tasks as well
+            # (for the sake of resume) before queueing join task.
+            num_splits = self._control_num_splits[control_path]
+            required_tasks = []
+            for i in range(num_splits):
+                s = tuple(bottom + [top._replace(index=i)])
+                required_tasks.append(self._finished.get((task.step, s)))
+            required_tasks.append(control_path)
+
+            if all(required_tasks):
+                # all tasks to be joined are ready. Schedule the next join step.
+                self._queue_push(next_step,
+                                 {'input_paths': required_tasks,
+                                  'join_type': 'foreach'})
+
     def _queue_task_join(self, task, next_steps):
         # if the next step is a join, we need to check that
         # all input tasks for the join have finished before queuing it.
@@ -302,8 +389,23 @@ class NativeRuntime(object):
                              {'input_paths': required_tasks,
                               'join_type': join_type})
 
-    def _queue_task_foreach(self, task, next_steps):
+    def _queue_task_unbounded_foreach(self, task, next_steps):
+        # CHECK: this condition should be enforced by the linter but
+        # let's assert that the assumption holds
+        if len(next_steps) > 1:
+            msg = 'Step *{step}* makes a foreach split but it defines '\
+                  'multiple transitions. Specify only one transition '\
+                  'for foreach.'
+            raise MetaflowInternalError(msg.format(step=task.step))
+        else:
+            next_step = next_steps[0]
 
+        # Need to push control process related task.
+        self._queue_push(next_step,
+                         {'input_paths': [task.path],
+                          'ubf_context': UBF_CONTROL})
+
+    def _queue_task_bounded_foreach(self, task, next_steps):
         # CHECK: this condition should be enforced by the linter but
         # let's assert that the assumption holds
         if len(next_steps) > 1:
@@ -337,7 +439,9 @@ class NativeRuntime(object):
             self._is_cloned[task.path] = task.is_cloned
 
             # CHECK: ensure that runtime transitions match with
-            # statically inferred transitions
+			# statically inferred transitions. Make an exception for control
+            # tasks, where we just rely on static analysis since we don't
+            # execute user code.
             trans = task.results.get('_transition')
             if trans:
                 next_steps = trans[0]
@@ -345,6 +449,7 @@ class NativeRuntime(object):
             else:
                 next_steps = []
                 foreach = None
+            unbounded_foreach = not task.results.is_none('_unbounded_foreach')
             expected = self._graph[task.step].out_funcs
             if next_steps != expected:
                 msg = 'Based on static analysis of the code, step *{step}* '\
@@ -361,10 +466,16 @@ class NativeRuntime(object):
             # Different transition types require different treatment
             if any(self._graph[f].type == 'join' for f in next_steps):
                 # Next step is a join
-                self._queue_task_join(task, next_steps)
+                if unbounded_foreach:
+                    self._queue_task_unbounded_foreach_join(task, next_steps)
+                else:
+                    self._queue_task_join(task, next_steps)
             elif foreach:
-                # Next step is a foreach child
-                self._queue_task_foreach(task, next_steps)
+                if unbounded_foreach:
+                    self._queue_task_unbounded_foreach(task, next_steps)
+                else:
+                    # Next step is a bounded foreach child
+                    self._queue_task_bounded_foreach(task, next_steps)
             else:
                 # Next steps are normal linear steps
                 for step in next_steps:
@@ -447,6 +558,7 @@ class Task(object):
                  monitor,
                  input_paths=None,
                  split_index=None,
+                 ubf_context=None,
                  clone_run_id=None,
                  origin_ds_set=None,
                  may_clone=False,
@@ -454,11 +566,25 @@ class Task(object):
                  logger=None,
                  task_id=None,
                  decos=[]):
+        if ubf_context == UBF_CONTROL:
+            [input_path] = input_paths
+            run, input_step, input_task = input_path.split('/')
+            # We associate the control task-id to be 1:1 with the split node
+            # where the unbounded-foreach was defined.
+            # We prefer encoding the corresponding split into the task_id of
+            # the control node; so it has access to this information quite
+            # easily. There is anyway a corresponding int id stored in the
+            # metadata backend - so this should be fine.
+            task_id = 'control-%s-%s-%s' % (run, input_step, input_task)
+        # Register only regular Metaflow (non control) tasks.
         if task_id is None:
             task_id = str(metadata.new_task_id(run_id, step))
         else:
-            # task_id is preset only by persist_parameters()
-            metadata.register_task_id(run_id, step, task_id)
+            # task_id is preset only by persist_parameters() or control tasks.
+            if ubf_context == UBF_CONTROL:
+                metadata.register_task_id(run_id, step, task_id, sys_tags=[CONTROL_TASK_TAG])
+            else:
+                metadata.register_task_id(run_id, step, task_id)
 
         self.step = step
         self.flow_name = flow.name
@@ -476,6 +602,7 @@ class Task(object):
         self.metadata = metadata
         self.event_logger = event_logger
         self.monitor = monitor
+        self.ubf_context = ubf_context
 
         self._logger = logger
         self._path = '%s/%s/%s' % (self.run_id, self.step, self.task_id)
@@ -508,13 +635,28 @@ class Task(object):
                                           task_id,
                                           split_index,
                                           input_paths,
-                                          self._is_cloned)
+                                          self._is_cloned,
+                                          self.ubf_context)
 
                 # determine the number of retries of this task
                 user_code_retries, error_retries = deco.step_task_retry_count()
-                self.user_code_retries = max(self.user_code_retries,
-                                             user_code_retries)
-                self.error_retries = max(self.error_retries, error_retries)
+                if user_code_retries is None and error_retries is None:
+                    # This signals the runtime that the task doesn't want any
+                    # retries indifferent to other decorator opinions.
+                    # NOTE: We don't statically disallow specifying `@retry` in
+                    # combination with other decorators (e.g. `@archer`) only to
+                    # allow ergonomic user invocation `--with retry`; instead
+                    # choosing to specially handle this way in the runtime.
+                    self.user_code_retries = None
+                    self.error_retries = None
+                if self.user_code_retries is not None and\
+                    self.error_retries is not None:
+                    self.user_code_retries = max(self.user_code_retries,
+                                                 user_code_retries)
+                    self.error_retries = max(self.error_retries, error_retries)
+            if self.user_code_retries is None and self.error_retries is None:
+                self.user_code_retries = 0
+                self.error_retries = 0
 
     def new_attempt(self):
         self._ds = self._flow_datastore.get_task_datastore(
@@ -556,7 +698,7 @@ class Task(object):
             if join_type == 'foreach':
                 # foreach-join pops the topmost index
                 index = ','.join(str(s.index) for s in foreach_stack[:-1])
-            elif self.split_index:
+            elif self.split_index or self.ubf_context == UBF_CONTROL:
                 # foreach-split pushes a new index
                 index = ','.join([str(s.index) for s in foreach_stack] +
                                  [str(self.split_index)])
@@ -724,23 +866,15 @@ class CLIArgs(object):
             'tag': task.tags,
             'namespace': get_namespace() or ''
         }
+        self.command_options['ubf-context'] = task.ubf_context
         self.env = {}
 
     def get_args(self):
-        def options(mapping):
-            for k, v in mapping.items():
-                values = v if isinstance(v, list) else [v]
-                for value in values:
-                    if value:
-                        yield '--%s' % k
-                        if not isinstance(value, bool):
-                            yield to_unicode(value)
-
         args = list(self.entrypoint)
-        args.extend(options(self.top_level_options))
+        args.extend(dict_to_cli_options(self.top_level_options))
         args.extend(self.commands)
         args.extend(self.command_args)
-        args.extend(options(self.command_options))
+        args.extend(dict_to_cli_options(self.command_options))
         return args
 
     def get_env(self):
@@ -799,7 +933,8 @@ class Worker(object):
             for deco in self.task.decos:
                 deco.runtime_step_cli(args,
                                       self.task.retries,
-                                      self.task.user_code_retries)
+                                      self.task.user_code_retries,
+									  self.task.ubf_context)
         env.update(args.get_env())
         # the env vars are needed by the test framework, nothing else
         env['_METAFLOW_ATTEMPT'] = str(self.task.retries)
@@ -808,7 +943,7 @@ class Worker(object):
             env['_METAFLOW_RESUME_ORIGIN_RUN_ID'] = str(self.task.clone_run_id)
         # NOTE bufsize=1 below enables line buffering which is required
         # by read_logline() below that relies on readline() not blocking
-        # print('running', args)
+        #print('running', args)
         cmdline = args.get_args()
         debug.subcommand_exec(cmdline)
         return subprocess.Popen(cmdline,

@@ -220,6 +220,7 @@ class StepDecorator(Decorator):
         Returns a tuple of (user_code_retries, error_retries). Error retries
         are attempts to run the process after the user code has failed all
         its retries.
+        Return None, None to disable all retries by the (native) runtime.
         """
         return 0, 0
 
@@ -235,7 +236,8 @@ class StepDecorator(Decorator):
                              task_id,
                              split_index,
                              input_paths,
-                             is_cloned):
+                             is_cloned,
+                             ubf_context):
         """
         Called when the runtime has created a task related to this step.
         """
@@ -243,11 +245,12 @@ class StepDecorator(Decorator):
 
     def runtime_finished(self, exception):
         """
-        Called when the runtime created task finishes or encounters an interrupt/exception.
+        Called when the runtime finishes the flow or encounters an
+        interrupt/exception.
         """
         pass
 
-    def runtime_step_cli(self, cli_args, retry_count, max_user_code_retries):
+    def runtime_step_cli(self, cli_args, retry_count, max_user_code_retries, ubf_context):
         """
         Access the command line for a step execution in the runtime context.
         """
@@ -262,7 +265,8 @@ class StepDecorator(Decorator):
                       flow,
                       graph,
                       retry_count,
-                      max_user_code_retries):
+                      max_user_code_retries,
+                      ubf_context):
         """
         Run before the step function in the task context.
         """
@@ -273,7 +277,8 @@ class StepDecorator(Decorator):
                       flow,
                       graph,
                       retry_count,
-                      max_user_code_retries):
+                      max_user_code_retries,
+                      ubf_context):
         return step_func
 
     def task_post_step(self,

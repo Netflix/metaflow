@@ -87,8 +87,8 @@ class MliCheck(MetaflowCheck):
             elif not exact_match and value in log_value:
                 break
             else:
-                raise AssertLogFailed("Task '%s' expected task.%s='%s' but got task.%s='%s'" %\
-                                      (task.id,
+                raise AssertLogFailed("Step '%s' expected task.%s='%s' but got task.%s='%s'" %\
+                                      (step,
                                        logtype,
                                        repr(value),
                                        logtype,
