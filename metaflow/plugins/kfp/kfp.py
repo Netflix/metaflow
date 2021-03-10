@@ -6,16 +6,18 @@ from collections import namedtuple
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
-import yaml
-
 import kfp
+import yaml
 from kfp import dsl
 from kfp.dsl import ContainerOp, PipelineConf, VolumeOp
+from kubernetes.client import V1EnvVar
 
 from metaflow.metaflow_config import (
     DATASTORE_SYSROOT_S3,
     KFP_TTL_SECONDS_AFTER_FINISHED,
     METADATA_SERVICE_URL,
+    KFP_RUN_URL_PREFIX,
+    from_conf,
 )
 from metaflow.plugins import KfpInternalDecorator
 from metaflow.plugins.kfp.kfp_step_function import kfp_step_function
@@ -25,6 +27,7 @@ from .kfp_constants import (
     STEP_ENVIRONMENT_VARIABLES,
     TASK_ID_ENV_NAME,
 )
+from .kfp_exit_handler import exit_handler
 from .kfp_foreach_splits import graph_to_task_ids
 from .pytorch_distributed_decorator import PyTorchDistributedDecorator
 from ... import R
@@ -95,6 +98,9 @@ class KubeflowPipelines(object):
         username=None,
         max_parallelism=None,
         workflow_timeout=None,
+        notify=False,
+        notify_on_error=None,
+        notify_on_success=None,
         **kwargs,
     ):
         """
@@ -119,6 +125,9 @@ class KubeflowPipelines(object):
         self.workflow_timeout = (
             workflow_timeout if workflow_timeout else 0  # 0 is unlimited
         )
+        self.notify = notify
+        self.notify_on_error = notify_on_error
+        self.notify_on_success = notify_on_success
 
         self._client = kfp.Client(namespace=api_namespace, userid=username, **kwargs)
 
@@ -751,7 +760,11 @@ class KubeflowPipelines(object):
                                 volume_op=volume_op,
                             )
 
-            build_kfp_dag(self.graph["start"])
+            if self.notify:
+                with dsl.ExitHandler(self._create_exit_handler_op()):
+                    build_kfp_dag(self.graph["start"])
+            else:
+                build_kfp_dag(self.graph["start"])
 
             # Instruct KFP of the DAG order by iterating over the Metaflow
             # graph nodes.  Each Metaflow graph node has in_funcs (nodes that
@@ -776,3 +789,29 @@ class KubeflowPipelines(object):
 
         kfp_pipeline_from_flow.__name__ = self.name
         return kfp_pipeline_from_flow
+
+    def _create_exit_handler_op(self) -> ContainerOp:
+        notify_variables: dict = {
+            key: from_conf(key)
+            for key in [
+                "METAFLOW_NOTIFY_EMAIL_FROM",
+                "METAFLOW_NOTIFY_EMAIL_SMTP_HOST",
+                "METAFLOW_NOTIFY_EMAIL_SMTP_PORT",
+                "METAFLOW_NOTIFY_EMAIL_BODY",
+            ]
+            if from_conf(key)
+        }
+
+        if self.notify_on_error:
+            notify_variables["METAFLOW_NOTIFY_ON_ERROR"] = self.notify_on_error
+
+        if self.notify_on_success:
+            notify_variables["METAFLOW_NOTIFY_ON_SUCCESS"] = self.notify_on_success
+
+        return exit_handler(
+            flow_name=self.name,
+            status="{{workflow.status}}",
+            kfp_run_url_prefix=KFP_RUN_URL_PREFIX,
+            kfp_run_id=dsl.RUN_ID_PLACEHOLDER,
+            notify_variables=notify_variables,
+        )
