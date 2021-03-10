@@ -434,7 +434,11 @@ class TaskDataStore(object):
             obj_type = info.get('type')
             # Conservatively check if the actual object is None,
             # in case the artifact is stored using a different python version.
-            return obj_type == str(type(None))
+            # Note that if an object is None and stored in Py2 and accessed in
+            # Py3, this test will fail and we will fallback to the slow path. This
+            # is intended (being conservative)
+            if obj_type == str(type(None)):
+                return True
         # Slow path since this has to get the object from the datastore
         return self.get(name) is None
 
