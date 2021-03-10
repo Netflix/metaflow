@@ -34,11 +34,15 @@ class NestedUnboundedForeachTest(MetaflowTest):
     def check_results(self, flow, checker):
         from itertools import product
 
+        run = checker.get_run()
+        foreach_inner_tasks = {t.pathspec for t in run['foreach_inner'].tasks()}
+        assert_equals(36, len(foreach_inner_tasks))
+        assert_equals(6, len(list(run['foreach_inner'].control_tasks())))
+
         artifacts = checker.artifact_dict('foreach_inner', 'combo')
-        got = sorted(val['combo'] for val in artifacts.values())
+        # Explicitly only consider UBF tasks since the CLIChecker isn't aware of them.
+        import os
+        got = sorted(val['combo'] for task, val in artifacts.items()
+                                  if os.path.join(flow.name, task) in foreach_inner_tasks)
         expected = sorted(''.join(p) for p in product('abc', 'de', 'fghijk'))
         assert_equals(expected, got)
-
-        run = checker.get_run()
-        assert_equals(36, len(list(run['foreach_inner'].tasks())))
-        assert_equals(6, len(list(run['foreach_inner'].control_tasks())))

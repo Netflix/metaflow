@@ -5,8 +5,7 @@ import subprocess
 from tempfile import NamedTemporaryFile
 
 from metaflow.util import is_stringish
-from . import MetaflowCheck, AssertArtifactFailed, AssertLogFailed, truncate
-
+from . import MetaflowCheck, AssertArtifactFailed, AssertLogFailed, assert_equals, assert_exception, truncate
 try:
     # Python 2
     import cPickle as pickle
@@ -15,6 +14,41 @@ except:
     import pickle
 
 class CliCheck(MetaflowCheck):
+    def __init__(self, flow):
+        from metaflow.client import Flow, get_namespace
+        self.flow = flow
+        self.run = Flow(flow.name)[self.run_id]
+        assert_equals(sorted(step.name for step in flow),
+                      sorted(step.id for step in self.run))
+        self._test_namespace()
+
+    def _test_namespace(self):
+        from metaflow.client import Flow,\
+                                    get_namespace,\
+                                    namespace,\
+                                    default_namespace
+        from metaflow.exception import MetaflowNamespaceMismatch
+        import os
+        # test 1) USER should be the default
+        assert_equals('user:%s' % os.environ.get('USER'),
+                      get_namespace())
+        # test 2) Run should be in the listing
+        assert_equals(True,
+                      self.run_id in [run.id for run in Flow(self.flow.name)])
+        # test 3) changing namespace should change namespace
+        namespace('user:nobody')
+        assert_equals(get_namespace(), 'user:nobody')
+        # test 4) fetching results in the incorrect namespace should fail
+        assert_exception(lambda: Flow(self.flow.name)[self.run_id],
+                         MetaflowNamespaceMismatch)
+        # test 5) global namespace should work
+        namespace(None)
+        assert_equals(get_namespace(), None)
+        Flow(self.flow.name)[self.run_id]
+        default_namespace()
+
+    def get_run(self):
+        return self.run
 
     def run_cli(self, args, capture_output=False):
         cmd = [sys.executable, 'test_flow.py']
