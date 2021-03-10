@@ -81,6 +81,7 @@ class ArgoWorkflow:
 
     @classmethod
     def trigger(cls, auth, namespace, name, parameters):
+        name = dns_name(name)
         workflow = {
             'apiVersion': 'argoproj.io/v1alpha1',
             'kind': 'Workflow',
@@ -113,6 +114,7 @@ class ArgoWorkflow:
 
     @classmethod
     def list(cls, auth, namespace, name, phases):
+        name = dns_name(name)
         client = ArgoClient(auth, namespace)
         try:
             tmpl = client.get_template(name)
@@ -142,7 +144,7 @@ class ArgoWorkflow:
     def _metadata(self):
         meta = {k: v for k, v in self._flow_attributes.items()
                 if k in ('labels', 'annotations') and v}
-        meta['name'] = self.name
+        meta['name'] = dns_name(self.name)
         return meta
 
     def _parameters(self):
