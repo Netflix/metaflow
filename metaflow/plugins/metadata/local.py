@@ -46,7 +46,15 @@ class LocalMetadataProvider(MetadataProvider):
         return run_id
 
     def register_run_id(self, run_id, tags=[], sys_tags=[]):
-        pass
+        try:
+            # This metadata provider only generates integer IDs so if this is
+            # an integer, we don't register it again (since it was "registered"
+            # on creation). However, some IDs are created outside the metdata
+            # provider and need to be properly registered
+            int(run_id)
+            return
+        except ValueError:
+            return self._new_run(run_id, tags, sys_tags)
 
     def new_task_id(self, run_id, step_name, tags=[], sys_tags=[]):
         self._task_id_seq += 1
@@ -60,7 +68,13 @@ class LocalMetadataProvider(MetadataProvider):
                          task_id,
                          tags=[],
                          sys_tags=[]):
-        self._register_code_package_metadata(run_id, step_name, task_id)
+        try:
+            # Same logic as register_run_id
+            int(task_id)
+        except ValueError:
+            self._new_task(run_id, step_name, task_id, tags, sys_tags)
+        finally:
+            self._register_code_package_metadata(run_id, step_name, task_id)
 
     def register_data_artifacts(self,
                                 run_id,

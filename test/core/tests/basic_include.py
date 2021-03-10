@@ -7,7 +7,8 @@ class BasicIncludeTest(MetaflowTest):
         'myfile_txt': {'default': "'./reg.txt'"},
         'myfile_utf8': {'default': "'./utf8.txt'", 'encoding': "'utf8'"},
         'myfile_binary': {'default': "'./utf8.txt'", 'is_text': False},
-        'myfile_overriden': {'default': "'./reg.txt'"}
+        'myfile_overriden': {'default': "'./reg.txt'"},
+        'absent_file': {'required': False}
     }
     HEADER = """
 import codecs
@@ -30,6 +31,8 @@ with open('override.txt', mode='w') as f:
             u"UTF Text File \u5e74".encode(encoding='utf8'), self.myfile_binary)
         assert_equals("Override Text File", self.myfile_overriden)
 
+        # Check that an absent file does not make things crash
+        assert_equals(None, self.absent_file)
         try:
             # Include files should be immutable
             self.myfile_txt = 5

@@ -276,7 +276,7 @@ class Metaflow(object):
         # filtering on namespace on flows means finding at least one
         # run in this namespace. This is_in_namespace() function
         # does this properly in this case
-        all_flows = self.metadata.get_object('root', 'flow')
+        all_flows = self.metadata.get_object('root', 'flow', None)
         all_flows = all_flows if all_flows else []
         for flow in all_flows:
             try:

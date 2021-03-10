@@ -46,7 +46,7 @@ class MetaflowTask(object):
         self.ubf_context = ubf_context
 
     def _exec_step_function(self, step_function, input_obj=None):
-        self.environment.validate_environment(logger=self.console_logger)
+        self.environment.validate_environment(echo=self.console_logger)
         if input_obj is None:
             step_function()
         else:
