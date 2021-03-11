@@ -10,8 +10,29 @@ GAUGE_TYPE = "GAUGE"
 MEASURE_TYPE = "MEASURE"
 TIMER_TYPE = "TIMER"
 
+class NullMonitor(object):
 
-class Monitor(object):
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def start(self):
+        pass
+
+    @contextmanager
+    def count(self, name):
+        yield
+
+    @contextmanager
+    def measure(self, name):
+        yield
+
+    def gauge(self, gauge):
+        pass
+
+    def terminate(self):
+        pass
+
+class Monitor(NullMonitor):
 
     def __init__(self, monitor_type, env, flow_name):
         # type: (str) -> None
@@ -25,7 +46,7 @@ class Monitor(object):
             self.sidecar_process = SidecarSubProcess(self.monitor_type)
 
     @contextmanager
-    def count(self, name,):
+    def count(self, name):
         if self.sidecar_process is not None:
             counter = Counter(name, self.env_info)
             counter.increment()

@@ -1,8 +1,21 @@
 from .sidecar import SidecarSubProcess
 from .sidecar_messages import Message, MessageTypes
 
+class NullEventLogger(object):
 
-class EventLogger(object):
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def start(self):
+        pass
+
+    def log(self, payload):
+        pass
+
+    def terminate(self):
+        pass
+
+class EventLogger(NullEventLogger):
 
     def __init__(self, logger_type):
         # type: (str) -> None
