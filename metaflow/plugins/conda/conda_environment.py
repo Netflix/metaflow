@@ -3,7 +3,7 @@ import os
 import sys
 import tarfile
 
-from metaflow.environment import MetaflowEnvironment
+from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.exception import MetaflowException
 from .conda import Conda
 
