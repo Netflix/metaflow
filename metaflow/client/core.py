@@ -5,7 +5,7 @@ import json
 from collections import namedtuple
 from itertools import chain
 
-from metaflow.environment import MetaflowEnvironment
+from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.exception import MetaflowNotFound,\
                                MetaflowNamespaceMismatch,\
                                MetaflowInternalError
