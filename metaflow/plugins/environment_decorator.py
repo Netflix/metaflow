@@ -28,5 +28,7 @@ class EnvironmentDecorator(StepDecorator):
     defaults = {'vars': {}}
 
     def runtime_step_cli(self, cli_args, retry_count, max_user_code_retries):
+        # Check for local execution; remote execution will take care of
+        # handling @environment by itself
         if os.environ.get('_METAFLOW_EXECUTION_MODE', '0') == '0':
             cli_args.env.update(self.attributes['vars'].items())

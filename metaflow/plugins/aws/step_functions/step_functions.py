@@ -368,6 +368,7 @@ class StepFunctions(object):
         if env_deco:
             env = env_deco[0].attributes['vars']
 
+        # Set execution mode to signify non-local execution
         env['_METAFLOW_EXECUTION_MODE'] = '1'
 
         if node.name == 'start':
