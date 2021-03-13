@@ -251,9 +251,6 @@ def step(
     if split_vars:
         env.update(split_vars)
 
-    # Set execution mode to signify non-local execution
-    env['_METAFLOW_EXECUTION_MODE'] = '1'
-
     if retry_count:
         ctx.obj.echo_always(
             "Sleeping %d minutes before the next AWS Batch retry" % minutes_between_retries
