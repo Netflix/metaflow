@@ -368,6 +368,8 @@ class StepFunctions(object):
         if env_deco:
             env = env_deco[0].attributes['vars']
 
+        env['_METAFLOW_EXECUTION_MODE'] = '1'
+
         if node.name == 'start':
             # Initialize parameters for the flow in the `start` step.
             parameters = self._process_parameters()
