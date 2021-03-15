@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-version = '2.2.6'
+version = '2.2.8'
 
 setup(name='metaflow',
       version=version,
