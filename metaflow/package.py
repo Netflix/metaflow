@@ -32,6 +32,7 @@ class MetaflowPackage(object):
                 deco.package_init(flow,
                                   step.__name__,
                                   environment)
+        environment.validate_environment(echo)
         self.blob, self.sha = self._make()
 
     def _walk(self, root, exclude_hidden=True):

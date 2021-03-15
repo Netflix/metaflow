@@ -662,7 +662,6 @@ def before_run(obj, tags, decospecs):
         decorators._attach_decorators(obj.flow, decospecs)
         obj.graph = FlowGraph(obj.flow.__class__)
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
-    #obj.environment.init_environment(obj.logger)
 
     if obj.datastore.datastore_root is None:
         obj.datastore.datastore_root = \
@@ -791,7 +790,6 @@ def start(ctx,
 
     ctx.obj.environment = [e for e in ENVIRONMENTS + [MetaflowEnvironment]
                            if e.TYPE == environment][0](ctx.obj.flow)
-    ctx.obj.environment.validate_environment(echo)
 
     ctx.obj.datastore = DATASTORES[datastore]
     ctx.obj.datastore_root = datastore_root

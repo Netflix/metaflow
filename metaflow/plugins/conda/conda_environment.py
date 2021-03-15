@@ -23,6 +23,10 @@ class CondaEnvironment(MetaflowEnvironment):
         echo("Bootstrapping conda environment..." +
             "(this could take a few minutes)")
 
+    def validate_environment(self, echo):
+        # Print a message for now
+        echo("Environment bootstrapped")
+
     def decospecs(self):
         # Apply conda decorator to all steps
         return ('conda', )
