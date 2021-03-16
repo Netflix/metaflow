@@ -5,7 +5,6 @@ from kfp.components import func_to_container_op
 def exit_handler(
     flow_name: str,
     status: str,
-    kfp_run_url_prefix: str,
     kfp_run_id: str,
     notify_variables: dict,
 ):
@@ -45,7 +44,7 @@ def exit_handler(
         msg["Date"] = formatdate(localtime=True)
 
         kfp_run_url = posixpath.join(
-            kfp_run_url_prefix,
+            get_env("KFP_RUN_URL_PREFIX", ""),
             "_/pipeline/#/runs/details",
             kfp_run_id,
         )

@@ -183,7 +183,7 @@ MAX_ATTEMPTS = 6
 # Note: `KFP_RUN_URL_PREFIX` is the URL prefix for KFP runs on your KFP cluster. The prefix includes
 # all parts of the URL except the run_id at the end which we append once the run is created.
 # For eg, this would look like: "https://<your-kf-cluster-url>/pipeline/#/runs/details/"
-KFP_RUN_URL_PREFIX = from_conf('KFP_RUN_URL_PREFIX')
+KFP_RUN_URL_PREFIX = from_conf('KFP_RUN_URL_PREFIX', "")
 
 # the naughty, naughty driver.py imported by lib2to3 produces
 # spam messages to the root logger. This is what is required

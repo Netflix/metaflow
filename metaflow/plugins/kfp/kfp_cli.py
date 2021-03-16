@@ -2,7 +2,6 @@ import json
 import posixpath
 import shutil
 import subprocess
-from distutils.util import strtobool
 
 import click
 

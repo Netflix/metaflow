@@ -798,6 +798,7 @@ class KubeflowPipelines(object):
                 "METAFLOW_NOTIFY_EMAIL_SMTP_HOST",
                 "METAFLOW_NOTIFY_EMAIL_SMTP_PORT",
                 "METAFLOW_NOTIFY_EMAIL_BODY",
+                "KFP_RUN_URL_PREFIX",
             ]
             if from_conf(key)
         }
@@ -811,7 +812,6 @@ class KubeflowPipelines(object):
         return exit_handler(
             flow_name=self.name,
             status="{{workflow.status}}",
-            kfp_run_url_prefix=KFP_RUN_URL_PREFIX,
             kfp_run_id=dsl.RUN_ID_PLACEHOLDER,
             notify_variables=notify_variables,
         )
