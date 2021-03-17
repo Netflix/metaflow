@@ -13,6 +13,7 @@ def kfp_step_function(
         str
     ] = None,  # fields to be pushed into Flow state from KFP
     metaflow_service_url: str = "",
+    metaflow_user: str = "kfp-user",
     flow_parameters_json: str = None,  # json formatted string
     **kwargs,
 ) -> object:
@@ -55,7 +56,7 @@ def kfp_step_function(
         "METAFLOW_SERVICE_URL": metaflow_service_url,
         "PRECEDING_COMPONENT_INPUTS": json.dumps(preceding_component_inputs),
         "PRECEDING_COMPONENT_OUTPUTS": json.dumps(preceding_component_outputs),
-        "METAFLOW_USER": "kfp-user",  # TODO: what should this be for a non-scheduled run?
+        "METAFLOW_USER": metaflow_user,  # TODO: what should this be for a non-scheduled run?
         **preceding_component_outputs_env,
     }
     if flow_parameters_json is not None:

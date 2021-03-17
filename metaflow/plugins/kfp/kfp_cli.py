@@ -231,10 +231,10 @@ def run(
 
     # Add additional tags
     if kfp_namespace:
-        tags.append(f'kfp_namespace:{kfp_namespace}')
+        tags = tags + (f'kfp_namespace:{kfp_namespace}',)
 
     if experiment_name:
-        tags.append(f'experiment:{experiment_name}')
+        tags = tags + (f'experiment:{experiment_name}',)
 
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
     check_metadata_service_version(obj)

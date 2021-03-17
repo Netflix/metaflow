@@ -17,6 +17,7 @@ from metaflow.metaflow_config import (
     KFP_TTL_SECONDS_AFTER_FINISHED,
     METADATA_SERVICE_URL,
     KFP_RUN_URL_PREFIX,
+    METAFLOW_USER,
     from_conf,
 )
 from metaflow.plugins import KfpInternalDecorator
@@ -452,14 +453,14 @@ class KubeflowPipelines(object):
                 if node.name == "start"
                 else f"--input-paths ${INPUT_PATHS_ENV_NAME}"
             ),
-        ]
+        ]q
 
         if any(self.graph[n].type == "foreach" for n in node.in_funcs):
             step.append(f"--split-index ${SPLIT_INDEX_ENV_NAME}")
         if self.tags:
             step.extend("--tag %s" % tag for tag in self.tags)
-        if self.kfp_namespace:
-            step.append("--kfp_namespace %s" % self.kfp_namespace)
+        # if self.kfp_namespace:
+        #     step.append("--kfp_namespace %s" % self.kfp_namespace)
 
         cmds.append(" ".join(entrypoint + top_level + step))
         return " && ".join(cmds)
@@ -642,6 +643,7 @@ class KubeflowPipelines(object):
                     preceding_component_inputs=preceding_component_inputs,
                     preceding_component_outputs=kfp_component.preceding_component_outputs,
                     metaflow_service_url=METADATA_SERVICE_URL,
+                    metaflow_user=METAFLOW_USER,
                     flow_parameters_json=flow_parameters_json
                     if node.name == "start"
                     else None,
