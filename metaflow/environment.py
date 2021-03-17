@@ -2,6 +2,7 @@ import os
 import platform
 import sys
 
+from .metaflow_config import from_conf
 from .util import get_username, to_unicode
 from . import metaflow_version
 from metaflow.exception import MetaflowException
@@ -99,7 +100,7 @@ class MetaflowEnvironment(object):
         )
 
     def get_package_commands(self, code_package_url, pip_install=True):
-        cmds = ["set -e",
+        cmds = ["set -ex" if bool(from_conf("METAFLOW_DEBUG_SUBCOMMAND", False)) else "set -e",
                 "echo \'Setting up task environment.\'",
                 "%s -m pip install click requests boto3 -qqq"
                     % self._python() if pip_install else "true",  # true is Python pass for bash

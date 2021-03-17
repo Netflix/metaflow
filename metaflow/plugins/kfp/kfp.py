@@ -389,6 +389,9 @@ class KubeflowPipelines(object):
                 "--task-id %s" % task_id_params,
             ]
 
+            if self.tags:
+                params.extend("--tag %s" % tag for tag in self.tags)
+
             # If the start step gets retried, we must be careful not to
             # regenerate multiple parameters tasks. Hence we check first if
             # _parameters exists already.
