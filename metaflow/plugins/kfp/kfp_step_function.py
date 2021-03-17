@@ -46,6 +46,9 @@ def kfp_step_function(
         passed_in_split_indexes=passed_in_split_indexes,
     )
 
+    print('here')
+    print(os.environ)
+
     env = {
         **os.environ,
         "METAFLOW_DATASTORE_SYSROOT_S3": datastore_root,

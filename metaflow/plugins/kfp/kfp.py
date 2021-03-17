@@ -93,7 +93,7 @@ class KubeflowPipelines(object):
         base_image=None,
         s3_code_package=True,
         tags=None,
-        namespace=None,
+        kfp_namespace=None,
         api_namespace=None,
         username=None,
         max_parallelism=None,
@@ -117,7 +117,7 @@ class KubeflowPipelines(object):
         self.event_logger = event_logger
         self.monitor = monitor
         self.tags = tags
-        self.namespace = namespace
+        self.kfp_namespace = kfp_namespace
         self.username = username
         self.base_image = base_image
         self.s3_code_package = s3_code_package
@@ -146,7 +146,7 @@ class KubeflowPipelines(object):
             },
             experiment_name=experiment_name,
             run_name=run_name,
-            namespace=self.namespace,
+            namespace=self.kfp_namespace,
         )
         return run_pipeline_result
 
@@ -458,8 +458,8 @@ class KubeflowPipelines(object):
             step.append(f"--split-index ${SPLIT_INDEX_ENV_NAME}")
         if self.tags:
             step.extend("--tag %s" % tag for tag in self.tags)
-        if self.namespace:
-            step.append("--namespace %s" % self.namespace)
+        if self.kfp_namespace:
+            step.append("--kfp_namespace %s" % self.kfp_namespace)
 
         cmds.append(" ".join(entrypoint + top_level + step))
         return " && ".join(cmds)
