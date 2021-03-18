@@ -227,7 +227,7 @@ def add_custom_parameters(deploy_mode=False):
     # deploy_mode determines whether deploy-time functions should or should
     # not be evaluated for this command
     def wrapper(cmd):
-        for arg in parameters:
+        for arg in parameters[::-1]:
             kwargs = arg.option_kwargs(deploy_mode)
             cmd.params.insert(0, click.Option(('--' + arg.name,), **kwargs))
         return cmd
