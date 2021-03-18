@@ -47,16 +47,13 @@ def kfp_step_function(
         passed_in_split_indexes=passed_in_split_indexes,
     )
 
-    print('here')
-    print(os.environ)
-
     env = {
         **os.environ,
         "METAFLOW_DATASTORE_SYSROOT_S3": datastore_root,
         "METAFLOW_SERVICE_URL": metaflow_service_url,
         "PRECEDING_COMPONENT_INPUTS": json.dumps(preceding_component_inputs),
         "PRECEDING_COMPONENT_OUTPUTS": json.dumps(preceding_component_outputs),
-        "METAFLOW_USER": metaflow_user,  # TODO: what should this be for a non-scheduled run?
+        "METAFLOW_USER": metaflow_user,
         **preceding_component_outputs_env,
     }
     if flow_parameters_json is not None:
