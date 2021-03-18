@@ -453,14 +453,14 @@ class KubeflowPipelines(object):
                 if node.name == "start"
                 else f"--input-paths ${INPUT_PATHS_ENV_NAME}"
             ),
-        ]q
+        ]
 
         if any(self.graph[n].type == "foreach" for n in node.in_funcs):
             step.append(f"--split-index ${SPLIT_INDEX_ENV_NAME}")
         if self.tags:
             step.extend("--tag %s" % tag for tag in self.tags)
-        # if self.kfp_namespace:
-        #     step.append("--kfp_namespace %s" % self.kfp_namespace)
+        if self.kfp_namespace:
+            step.append("--kfp_namespace %s" % self.kfp_namespace)
 
         cmds.append(" ".join(entrypoint + top_level + step))
         return " && ".join(cmds)
