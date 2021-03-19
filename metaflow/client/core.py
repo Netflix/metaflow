@@ -1367,14 +1367,29 @@ class Flow(MetaflowObject):
     @property
     def tags_of_runs(self):
         """
-        Tags associated with runs of this flow.
+        All tags associated with runs of this flow.
 
-        Tags can be user defined or system defined. This returns all tags associated
-        with runs of this flow.
+        This convenience property allows the CLI user to determine which tags
+        have been associated with runs of the flow. Once these tags are known,
+        the user can filter runs for tags of interest.
+
+        For example:
+            In [1]: from metaflow import Flow
+            In [2]: flow = Flow("MyFlow")
+            In [3]: flow.tags_of_runs
+            Out[3]:
+            frozenset({'a',
+                       'b',
+                       'date:2021-03-19',
+                       'metaflow_version:2.2.8',
+                       'python_version:3.8.6',
+                       'runtime:dev',
+                       'user:user_name'})
+            In [4]: runs = flow.runs('a')
 
         Returns
         -------
         Set[string]
-            Tags associated with runs of this flow
+            All tags associated with runs of this flow
         """
         return frozenset().union(*[run.tags for run in self.runs()])
