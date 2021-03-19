@@ -87,7 +87,7 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
     "times to attach multiple tags.",
 )
 @click.option(
-    "--kfp_namespace",
+    "--kfp-namespace",
     "kfp_namespace",
     default=KFP_SDK_NAMESPACE,
     help="Namespace of your run in KFP.",
