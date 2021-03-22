@@ -87,6 +87,13 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
     "times to attach multiple tags.",
 )
 @click.option(
+    "--namespace",
+    "namespace",
+    default=None,
+    help="Metaflow read namespace.",
+    show_default=True,
+)
+@click.option(
     "--kfp-namespace",
     "kfp_namespace",
     default=KFP_SDK_NAMESPACE,
@@ -199,6 +206,7 @@ def run(
     experiment_name=None,
     run_name=None,
     tags=None,
+    namespace=None,
     kfp_namespace=KFP_SDK_NAMESPACE,
     api_namespace=KFP_SDK_API_NAMESPACE,
     yaml_only=False,
@@ -242,6 +250,7 @@ def run(
         obj,
         pipeline_name if pipeline_name else obj.flow.name,
         tags,
+        namespace,
         kfp_namespace,
         api_namespace,
         base_image,
@@ -336,6 +345,7 @@ def make_flow(
     obj,
     name,
     tags,
+    namespace,
     kfp_namespace,
     api_namespace,
     base_image,
@@ -400,6 +410,7 @@ def make_flow(
         base_image=base_image,
         s3_code_package=s3_code_package,
         tags=tags,
+        namespace=namespace,
         kfp_namespace=kfp_namespace,
         api_namespace=api_namespace,
         username=get_username(),

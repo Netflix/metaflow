@@ -94,6 +94,7 @@ class KubeflowPipelines(object):
         base_image=None,
         s3_code_package=True,
         tags=None,
+        namespace=None,
         kfp_namespace=None,
         api_namespace=None,
         username=None,
@@ -118,6 +119,7 @@ class KubeflowPipelines(object):
         self.event_logger = event_logger
         self.monitor = monitor
         self.tags = tags
+        self.namespace = namespace
         self.kfp_namespace = kfp_namespace
         self.username = username
         self.base_image = base_image
@@ -462,8 +464,8 @@ class KubeflowPipelines(object):
             step.append(f"--split-index ${SPLIT_INDEX_ENV_NAME}")
         if self.tags:
             step.extend("--tag %s" % tag for tag in self.tags)
-        if self.kfp_namespace:
-            step.append("--kfp-namespace %s" % self.kfp_namespace)
+        if self.namespace:
+            step.append("--namespace %s" % self.namespace)
 
         cmds.append(" ".join(entrypoint + top_level + step))
         return " && ".join(cmds)
