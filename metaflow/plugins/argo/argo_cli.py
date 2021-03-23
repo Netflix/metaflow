@@ -92,7 +92,8 @@ def create(obj, image, token, namespace, only_json=False):
 def trigger(obj, token, namespace, **kwargs):
     def _convert_value(param):
         v = kwargs.get(param.name)
-        return json.dumps(v) if param.kwargs.get('type') == JSONType else v
+        return json.dumps(v) if param.kwargs.get('type') == JSONType else \
+            v() if callable(v) else v
 
     params = {p.name: _convert_value(p)
               for _, p in obj.flow._get_parameters()
