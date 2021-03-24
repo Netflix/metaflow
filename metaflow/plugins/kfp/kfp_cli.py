@@ -89,6 +89,13 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
 @click.option(
     "--namespace",
     "namespace",
+    default=None,
+    help="Metaflow read namespace.",
+    show_default=True,
+)
+@click.option(
+    "--kfp-namespace",
+    "kfp_namespace",
     default=KFP_SDK_NAMESPACE,
     help="Namespace of your run in KFP.",
     show_default=True,
@@ -199,7 +206,8 @@ def run(
     experiment_name=None,
     run_name=None,
     tags=None,
-    namespace=KFP_SDK_NAMESPACE,
+    namespace=None,
+    kfp_namespace=KFP_SDK_NAMESPACE,
     api_namespace=KFP_SDK_API_NAMESPACE,
     yaml_only=False,
     pipeline_path=None,
@@ -229,6 +237,13 @@ def run(
         if kwargs.get(param.name) is not None
     }
 
+    # Add additional tags
+    if kfp_namespace:
+        tags = tags + (kfp_namespace,)
+
+    if experiment_name:
+        tags = tags + (experiment_name,)
+
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
     check_metadata_service_version(obj)
     flow = make_flow(
@@ -236,6 +251,7 @@ def run(
         pipeline_name if pipeline_name else obj.flow.name,
         tags,
         namespace,
+        kfp_namespace,
         api_namespace,
         base_image,
         s3_code_package,
@@ -291,14 +307,14 @@ def run(
         argo_workflow_name = workflow_manifest["metadata"]["name"]
 
         obj.echo(
-            f"*Argo workflow:* argo -n {namespace} watch {argo_workflow_name}\n",
+            f"*Argo workflow:* argo -n {kfp_namespace} watch {argo_workflow_name}\n",
             fg="cyan",
         )
 
         if argo_wait:
             argo_path: str = shutil.which("argo")
 
-            argo_cmd = f"{argo_path} -n {namespace} "
+            argo_cmd = f"{argo_path} -n {kfp_namespace} "
             cmd = f"{argo_cmd} watch {argo_workflow_name}"
             subprocess.run(cmd, shell=True, universal_newlines=True)
 
@@ -330,6 +346,7 @@ def make_flow(
     name,
     tags,
     namespace,
+    kfp_namespace,
     api_namespace,
     base_image,
     s3_code_package,
@@ -394,6 +411,7 @@ def make_flow(
         s3_code_package=s3_code_package,
         tags=tags,
         namespace=namespace,
+        kfp_namespace=kfp_namespace,
         api_namespace=api_namespace,
         username=get_username(),
         max_parallelism=max_parallelism,

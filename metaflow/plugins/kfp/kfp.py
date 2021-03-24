@@ -17,6 +17,7 @@ from metaflow.metaflow_config import (
     KFP_TTL_SECONDS_AFTER_FINISHED,
     METADATA_SERVICE_URL,
     KFP_RUN_URL_PREFIX,
+    METAFLOW_USER,
     from_conf,
 )
 from metaflow.plugins import KfpInternalDecorator
@@ -94,6 +95,7 @@ class KubeflowPipelines(object):
         s3_code_package=True,
         tags=None,
         namespace=None,
+        kfp_namespace=None,
         api_namespace=None,
         username=None,
         max_parallelism=None,
@@ -118,6 +120,7 @@ class KubeflowPipelines(object):
         self.monitor = monitor
         self.tags = tags
         self.namespace = namespace
+        self.kfp_namespace = kfp_namespace
         self.username = username
         self.base_image = base_image
         self.s3_code_package = s3_code_package
@@ -146,7 +149,7 @@ class KubeflowPipelines(object):
             },
             experiment_name=experiment_name,
             run_name=run_name,
-            namespace=self.namespace,
+            namespace=self.kfp_namespace,
         )
         return run_pipeline_result
 
@@ -645,6 +648,7 @@ class KubeflowPipelines(object):
                     preceding_component_inputs=preceding_component_inputs,
                     preceding_component_outputs=kfp_component.preceding_component_outputs,
                     metaflow_service_url=METADATA_SERVICE_URL,
+                    metaflow_user=METAFLOW_USER,
                     flow_parameters_json=flow_parameters_json
                     if node.name == "start"
                     else None,
