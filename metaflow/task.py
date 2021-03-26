@@ -215,6 +215,7 @@ class MetaflowTask(object):
                                 attempt=0,
                                 event_logger=self.event_logger,
                                 monitor=self.monitor)
+        output.init_task()
         origin_run_id, origin_step_name, origin_task_id =\
             clone_origin_task.split('/')
         # 2. initialize origin datastore
@@ -280,6 +281,7 @@ class MetaflowTask(object):
                                 attempt=retry_count,
                                 event_logger=self.event_logger,
                                 monitor=self.monitor)
+        output.init_task()
 
         if input_paths:
             # 2. initialize input datastores
