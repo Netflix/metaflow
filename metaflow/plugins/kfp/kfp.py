@@ -134,14 +134,14 @@ class KubeflowPipelines(object):
 
         # kfp client userid needs to have @zillowgroup.com
         kfp_client_userid = username
-        if '@zillowgroup.com' not in kfp_client_userid:
-            kfp_client_userid += '@zillowgroup.com'
+        if "@zillowgroup.com" not in kfp_client_userid:
+            kfp_client_userid += "@zillowgroup.com"
 
-        self._client = kfp.Client(namespace=api_namespace, userid=kfp_client_userid, **kwargs)
+        self._client = kfp.Client(
+            namespace=api_namespace, userid=kfp_client_userid, **kwargs
+        )
 
-    def create_run_on_kfp(
-        self, experiment: str, run_name: str, flow_parameters: dict
-    ):
+    def create_run_on_kfp(self, experiment: str, run_name: str, flow_parameters: dict):
         """
         Creates a new run on KFP using the `kfp.Client()`.
         """
