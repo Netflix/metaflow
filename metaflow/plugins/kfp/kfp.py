@@ -132,10 +132,15 @@ class KubeflowPipelines(object):
         self.notify_on_error = notify_on_error
         self.notify_on_success = notify_on_success
 
-        self._client = kfp.Client(namespace=api_namespace, userid=username, **kwargs)
+        # kfp client userid needs to have @zillowgroup.com
+        kfp_client_userid = username
+        if '@zillowgroup.com' not in kfp_client_userid:
+            kfp_client_userid += '@zillowgroup.com'
+
+        self._client = kfp.Client(namespace=api_namespace, userid=kfp_client_userid, **kwargs)
 
     def create_run_on_kfp(
-        self, experiment_name: str, run_name: str, flow_parameters: dict
+        self, experiment: str, run_name: str, flow_parameters: dict
     ):
         """
         Creates a new run on KFP using the `kfp.Client()`.
@@ -147,7 +152,7 @@ class KubeflowPipelines(object):
                 "datastore_root": DATASTORE_SYSROOT_S3,
                 "flow_parameters_json": json.dumps(flow_parameters),
             },
-            experiment_name=experiment_name,
+            experiment_name=experiment,
             run_name=run_name,
             namespace=self.kfp_namespace,
         )

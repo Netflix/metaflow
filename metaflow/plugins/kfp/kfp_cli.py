@@ -63,8 +63,8 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
     help="Deploy a new version of this workflow to Kubeflow Pipelines."
 )
 @click.option(
-    "--experiment-name",
-    "experiment_name",
+    "--experiment",
+    "experiment",
     default=None,
     help="The associated experiment name for the run. "
     "Default of None uses KFP 'default' experiment",
@@ -203,7 +203,7 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
 @click.pass_obj
 def run(
     obj,
-    experiment_name=None,
+    experiment=None,
     run_name=None,
     tags=None,
     namespace=None,
@@ -241,8 +241,8 @@ def run(
     if kfp_namespace:
         tags = tags + (kfp_namespace,)
 
-    if experiment_name:
-        tags = tags + (experiment_name,)
+    if experiment:
+        tags = tags + (experiment,)
 
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
     check_metadata_service_version(obj)
@@ -283,7 +283,7 @@ def run(
             bold=True,
         )
         run_pipeline_result = flow.create_run_on_kfp(
-            experiment_name, run_name, flow_parameters
+            experiment, run_name, flow_parameters
         )
 
         obj.echo("\nRun created successfully!\n")
