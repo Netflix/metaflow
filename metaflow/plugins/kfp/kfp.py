@@ -10,17 +10,16 @@ import kfp
 import yaml
 from kfp import dsl
 from kfp.dsl import ContainerOp, PipelineConf, VolumeOp
-from kubernetes.client import V1EnvVar
 
 from metaflow.metaflow_config import (
     DATASTORE_SYSROOT_S3,
     KFP_TTL_SECONDS_AFTER_FINISHED,
     METADATA_SERVICE_URL,
-    KFP_RUN_URL_PREFIX,
     METAFLOW_USER,
     from_conf,
 )
 from metaflow.plugins import KfpInternalDecorator
+from metaflow.plugins.kfp.kfp_decorator import KfpException
 from metaflow.plugins.kfp.kfp_step_function import kfp_step_function
 from .kfp_constants import (
     INPUT_PATHS_ENV_NAME,
@@ -31,11 +30,20 @@ from .kfp_constants import (
 from .kfp_exit_handler import exit_handler
 from .kfp_foreach_splits import graph_to_task_ids
 from .pytorch_distributed_decorator import PyTorchDistributedDecorator
+from ..aws.batch.batch_decorator import BatchDecorator
+from ..aws.step_functions.schedule_decorator import ScheduleDecorator
+from ..retry_decorator import RetryDecorator
 from ... import R
 from ...debug import debug
 from ...environment import MetaflowEnvironment
 from ...graph import DAGNode
 from ...plugins.resources_decorator import ResourcesDecorator
+
+UNSUPPORTED_DECORATORS = (
+    BatchDecorator,
+    ScheduleDecorator,
+    RetryDecorator,
+)
 
 
 class KfpComponent(object):
@@ -305,8 +313,13 @@ class KubeflowPipelines(object):
             Returns the KfpComponent for each step.
             """
 
-            # TODO: @schedule, @environment, @timeout, @catch, etc.
-            # TODO: @retry
+            # TODO: @schedule, @retry
+            for deco in node.decorators:
+                if isinstance(deco, UNSUPPORTED_DECORATORS):
+                    raise KfpException(
+                        f"{type(deco)} in {node.name} step is not yet supported by kfp"
+                    )
+
             user_code_retries, total_retries = KubeflowPipelines._get_retries(node)
 
             step_cli = self._step_cli(node, task_id, user_code_retries)
