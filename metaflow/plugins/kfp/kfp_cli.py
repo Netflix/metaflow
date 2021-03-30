@@ -12,6 +12,7 @@ from metaflow.metaflow_config import (
     KFP_RUN_URL_PREFIX,
     KFP_SDK_API_NAMESPACE,
     KFP_SDK_NAMESPACE,
+    KFP_USER_DOMAIN,
     from_conf,
 )
 from metaflow.package import MetaflowPackage
@@ -63,7 +64,16 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
     help="Deploy a new version of this workflow to Kubeflow Pipelines."
 )
 @click.option(
+    "--experiment-name",
+    "experiment",
+    default=None,
+    help="Deprecated. Please use --experiment option."
+    "Default of None uses KFP 'default' experiment",
+    show_default=True,
+)
+@click.option(
     "--experiment",
+    "-e",
     "experiment",
     default=None,
     help="The associated experiment name for the run. "

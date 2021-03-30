@@ -57,6 +57,7 @@ METAFLOW_USER = from_conf('METAFLOW_USER')
 KFP_SDK_NAMESPACE = from_conf('KFP_SDK_NAMESPACE', 'kubeflow')
 KFP_SDK_API_NAMESPACE = from_conf('KFP_SDK_API_NAMESPACE', 'kubeflow')
 KFP_TTL_SECONDS_AFTER_FINISHED = from_conf('KFP_TTL_SECONDS_AFTER_FINISHED', None)
+KFP_USER_DOMAIN = from_conf('KFP_USER_DOMAIN', '')
 
 ###
 # Datastore configuration
