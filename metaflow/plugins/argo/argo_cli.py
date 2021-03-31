@@ -25,6 +25,12 @@ def argo(obj):
 @click.option("--image",
               default=None,
               help="Docker image requirement in name:version format.")
+@click.option("--env",
+              default=None,
+              help="Environment variables to be set for the workflow.")
+@click.option("--env-from",
+              default=None,
+              help="Environment variables to be set for the workflow.")
 @click.option("--token",
               default=None,
               help="Authentication token to call Argo Server.")
@@ -37,7 +43,7 @@ def argo(obj):
               help="Only print out JSON sent to Argo. Do not "
                    "deploy anything.")
 @click.pass_obj
-def create(obj, image, token, namespace, only_json=False):
+def create(obj, image, env, env_from, token, namespace, only_json=False):
     obj.echo("Deploying *%s* to Argo Workflow Templates..." % current.flow_name, bold=True)
 
     datastore = obj.datastore(obj.flow.name,
@@ -48,7 +54,8 @@ def create(obj, image, token, namespace, only_json=False):
     if datastore.TYPE != 's3':
         raise ArgoException("Argo Workflows require --datastore=s3.")
 
-    # When using conda attach AWS Batch decorator to the flow. This results in 'linux-64' libraries to be packaged.
+    # When using conda attach AWS Batch decorator to the flow.
+    # This results in 'linux-64' libraries to be packaged.
     decorators._attach_decorators(obj.flow, [BatchDecorator.name])
     decorators._init_step_decorators(
         obj.flow, obj.graph, obj.environment, obj.datastore, obj.logger)
@@ -69,7 +76,9 @@ def create(obj, image, token, namespace, only_json=False):
                             obj.environment,
                             obj.event_logger,
                             obj.monitor,
-                            image)
+                            image,
+                            env,
+                            env_from)
 
     if only_json:
         obj.echo_always(workflow.to_json(), err=False, no_bold=True, nl=False)

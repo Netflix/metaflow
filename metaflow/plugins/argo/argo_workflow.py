@@ -42,6 +42,13 @@ def dns_name(name):
     return name.replace('_', '-')
 
 
+def parse_env_param(param, err_msg):
+    try:
+        return json.loads(param) if param else []
+    except json.JSONDecodeError as ex:
+        raise ArgoException('{}. {}'.format(err_msg, str(ex)))
+
+
 class ArgoWorkflow:
     def __init__(self,
                  name,
@@ -54,7 +61,9 @@ class ArgoWorkflow:
                  environment,
                  event_logger,
                  monitor,
-                 image):
+                 image,
+                 env,
+                 env_from):
         self.name = name
         self.flow = flow
         self.graph = graph
@@ -65,6 +74,9 @@ class ArgoWorkflow:
         self.environment = environment
         self.event_logger = event_logger
         self.monitor = monitor
+        self.image = image
+        self.env = parse_env_param(env, '"env" must be a valid JSON')
+        self.env_from = parse_env_param(env_from, '"env-from" must be a valid JSON')
         self.image = image
         self._flow_attributes = self._parse_flow_docorator()
         self._workflow = self._compile()
@@ -184,8 +196,8 @@ class ArgoWorkflow:
         steps = [Step(node,
                       self.graph,
                       self._default_image(),
-                      self._flow_attributes.get('env', []),
-                      self._flow_attributes.get('envFrom', []),
+                      self._flow_attributes.get('env', []) + self.env,
+                      self._flow_attributes.get('envFrom', []) + self.env_from,
                       self._commands(node, self._parameters()),
                       visited=False)
                  for node in self.graph.nodes.values()]
