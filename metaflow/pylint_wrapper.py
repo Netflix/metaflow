@@ -72,4 +72,7 @@ class PyLint(object):
             # Ditto for dynamically added properties in 'current'
             if "Instance of 'Current' has no" in line:
                 continue
+            # Ingore complaints of self.next not callable
+            if "self.next is not callable" in line:
+                continue
             yield line
