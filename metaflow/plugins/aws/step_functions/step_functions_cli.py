@@ -71,12 +71,6 @@ def step_functions(obj):
               default=None,
               type=int,
               help="Workflow timeout in seconds.")
-@click.option('--with',
-              'decospecs',
-              multiple=True,
-              help="Add a decorator to all steps. You can specify this "
-                   "option multiple times to attach multiple decorators "
-                   "in steps.")
 @click.pass_obj
 def create(obj,
            tags=None,
@@ -86,8 +80,7 @@ def create(obj,
            generate_new_token=False,
            given_token=None,
            max_workers=None,
-           workflow_timeout=None,
-           decospecs=None):
+           workflow_timeout=None):
     name = state_machine_name(current.flow_name)
     obj.echo("Deploying *%s* to AWS Step Functions..." % name, bold=True)
 
@@ -106,8 +99,7 @@ def create(obj,
                      tags,
                      user_namespace,
                      max_workers,
-                     workflow_timeout,
-                     decospecs)
+                     workflow_timeout)
 
     if only_json:
         obj.echo_always(flow.to_json(), err=False, no_bold=True)
@@ -155,14 +147,10 @@ def make_flow(obj,
               tags,
               namespace,
               max_workers,
-              workflow_timeout,
-              decospecs):
+              workflow_timeout):
     flow_datastore = obj.flow_datastore
     if flow_datastore.TYPE != 's3':
         raise MetaflowException("AWS Step Functions requires --datastore=s3.")
-    
-    if decospecs:
-        decorators._attach_decorators(obj.flow, decospecs)
 
     # Attach AWS Batch decorator to the flow
     decorators._attach_decorators(obj.flow, [BatchDecorator.name])

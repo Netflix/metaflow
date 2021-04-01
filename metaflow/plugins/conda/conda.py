@@ -6,7 +6,7 @@ import time
 from distutils.version import LooseVersion
 
 from metaflow.exception import MetaflowException
-from metaflow.environment import InvalidEnvironmentException
+from metaflow.metaflow_environment import InvalidEnvironmentException
 from metaflow.util import which
 
 class CondaException(MetaflowException):

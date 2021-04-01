@@ -248,7 +248,7 @@ class S3(object):
                  run=None,
                  s3root=None):
         """
-        Initialize a new context for S3 operations. This object is based used as
+        Initialize a new context for S3 operations. This object is used as
         a context manager for a with statement.
 
         There are two ways to initialize this object depending whether you want

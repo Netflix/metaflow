@@ -495,5 +495,5 @@ class MetadataProvider(object):
         self._monitor = monitor
         self._environment = environment
         self._runtime = os.environ.get(
-            'METAFLOW_MLI_RUNTIME_NAME', 'dev')
+            'METAFLOW_RUNTIME_NAME', 'dev')
         self.add_sticky_tags(sys_tags=self._tags())

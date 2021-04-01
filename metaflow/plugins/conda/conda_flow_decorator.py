@@ -1,5 +1,5 @@
 from metaflow.decorators import FlowDecorator
-from metaflow.environment import InvalidEnvironmentException
+from metaflow.metaflow_environment import InvalidEnvironmentException
 
 
 class CondaFlowDecorator(FlowDecorator):
