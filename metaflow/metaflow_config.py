@@ -3,6 +3,7 @@ import json
 import logging
 import pkg_resources
 import sys
+import types
 
 
 from metaflow.exception import MetaflowException
@@ -222,5 +223,5 @@ except ImportError:
 else:
     # We load into globals whatever we have in extension_module
     for n, o in extension_module.__dict__.items():
-        if not n.startswith('__'):
+        if not n.startswith('__') and not isinstance(o, types.ModuleType):
             globals()[n] = o
