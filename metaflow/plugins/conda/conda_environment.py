@@ -3,7 +3,7 @@ import os
 import sys
 import tarfile
 
-from metaflow.environment import MetaflowEnvironment
+from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.exception import MetaflowException
 from .conda import Conda
 
@@ -18,9 +18,10 @@ class CondaEnvironment(MetaflowEnvironment):
         self.flow = flow
         self.local_root = None
 
-    def init_environment(self, logger):
+    def init_environment(self, echo):
         # Print a message for now
-        logger("Bootstrapping conda environment...(this could take a few minutes)")
+        echo("Bootstrapping conda environment..." +
+            "(this could take a few minutes)")
 
     def decospecs(self):
         # Apply conda decorator to all steps

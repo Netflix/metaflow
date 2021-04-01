@@ -1,9 +1,8 @@
-import os
-import sys
 import inspect
+import sys
 import traceback
-from functools import wraps
 from datetime import datetime
+from functools import wraps
 
 import click
 
@@ -24,7 +23,7 @@ from .package import MetaflowPackage
 from .plugins import ENVIRONMENTS, LOGGING_SIDECARS, METADATA_PROVIDERS, MONITOR_SIDECARS
 from .metaflow_config import DEFAULT_DATASTORE, DEFAULT_ENVIRONMENT, DEFAULT_EVENT_LOGGER, \
     DEFAULT_METADATA, DEFAULT_MONITOR, DEFAULT_PACKAGE_SUFFIXES
-from .environment import MetaflowEnvironment
+from .metaflow_environment import MetaflowEnvironment
 from .pylint_wrapper import PyLint
 from .event_logger import EventLogger
 from .monitor import Monitor
@@ -90,7 +89,11 @@ def echo_always(line, **kwargs):
         click.secho(ERASE_TO_EOL, **kwargs)
 
 
-def logger(body='', system_msg=False, head='', bad=False, timestamp=True):
+def logger(body='',
+           system_msg=False,
+           head='',
+           bad=False,
+           timestamp=True):
     if timestamp:
         tstamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
         click.secho(tstamp + ' ', fg=LOGGER_TIMESTAMP, nl=False)
@@ -424,7 +427,7 @@ def step(obj,
                         obj.datastore,
                         obj.metadata,
                         obj.environment,
-                        obj.logger,
+                        obj.echo,
                         obj.event_logger,
                         obj.monitor)
     if clone_only:
@@ -671,7 +674,10 @@ def before_run(obj, tags, decospecs):
     # Package working directory only once per run.
     # We explicitly avoid doing this in `start` since it is invoked for every
     # step in the run.
-    obj.package = MetaflowPackage(obj.flow, obj.environment, obj.logger, obj.package_suffixes)
+    obj.package = MetaflowPackage(obj.flow,
+                                  obj.environment,
+                                  obj.echo,
+                                  obj.package_suffixes)
 
 
 @cli.command(help='Print the Metaflow version')
@@ -820,7 +826,7 @@ def start(ctx,
     # initialize current and parameter context for deploy-time parameters
     current._set_env(flow_name=ctx.obj.flow.name, is_running=False)
     parameters.set_parameter_context(ctx.obj.flow.name,
-                                        ctx.obj.logger,
+                                        ctx.obj.echo,
                                         ctx.obj.datastore)
 
     if ctx.invoked_subcommand not in ('run', 'resume'):

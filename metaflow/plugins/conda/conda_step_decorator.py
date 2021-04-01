@@ -14,7 +14,7 @@ except:
 
 from metaflow.datastore.local import LocalDataStore
 from metaflow.decorators import StepDecorator
-from metaflow.environment import InvalidEnvironmentException
+from metaflow.metaflow_environment import InvalidEnvironmentException
 from metaflow.metadata import MetaDatum
 from metaflow.metaflow_config import get_pinned_conda_libs, CONDA_PACKAGE_S3ROOT
 from metaflow.util import get_metaflow_root

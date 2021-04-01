@@ -578,10 +578,14 @@ class StepFunctions(object):
                         image=resources['image'],
                         queue=resources['queue'],
                         iam_role=resources['iam_role'],
+                        execution_role=resources['execution_role'],
                         cpu=resources['cpu'],
                         gpu=resources['gpu'],
                         memory=resources['memory'],
                         run_time_limit=batch_deco.run_time_limit,
+                        shared_memory=resources['shared_memory'],
+                        max_swap=resources['max_swap'],
+                        swappiness=resources['swappiness'],
                         env=env,
                         attrs=attrs
                 ) \

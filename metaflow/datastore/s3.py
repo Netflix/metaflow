@@ -4,7 +4,6 @@ S3 storage
 Store data in S3
 """
 import os
-import sys
 import json
 import gzip
 from io import BytesIO
@@ -17,7 +16,7 @@ except:
     from urllib.parse import urlparse
 
 from .. import metaflow_config
-from .datastore import MetaflowDataStore, DataException, only_if_not_done
+from .datastore import MetaflowDataStore, only_if_not_done
 from ..metadata import MetaDatum
 from .util.s3util import aws_retry, get_s3_client
 
@@ -54,7 +53,7 @@ class S3DataStore(MetaflowDataStore):
             with self.monitor.measure("metaflow.s3.get_object"):
                 self.s3.download_fileobj(url.netloc, url.path.lstrip('/'), buf)
         else:
-           self.s3.download_fileobj(url.netloc, url.path.lstrip('/'), buf) 
+            self.s3.download_fileobj(url.netloc, url.path.lstrip('/'), buf)
         if return_buf:
             buf.seek(0)
             return buf

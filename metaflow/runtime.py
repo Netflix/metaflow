@@ -529,6 +529,7 @@ class Task(object):
                                    attempt=self.retries,
                                    event_logger=self.event_logger,
                                    monitor=self.monitor)
+        self._ds.init_task()
 
 
     def log(self, msg, system_msg=False, pid=None):

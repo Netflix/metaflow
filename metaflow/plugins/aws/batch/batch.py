@@ -113,10 +113,14 @@ class Batch(object):
         image,
         queue,
         iam_role=None,
+        execution_role=None,
         cpu=None,
         gpu=None,
         memory=None,
         run_time_limit=None,
+        shared_memory=None,
+        max_swap=None,
+        swappiness=None,
         env={},
         attrs={}
     ):
@@ -137,10 +141,16 @@ class Batch(object):
                               self.environment, step_name, [step_cli])) \
             .image(image) \
             .iam_role(iam_role) \
-            .job_def(image, iam_role) \
+            .execution_role(execution_role) \
+            .job_def(image, iam_role,
+                queue, execution_role, shared_memory,
+                max_swap, swappiness) \
             .cpu(cpu) \
             .gpu(gpu) \
             .memory(memory) \
+            .shared_memory(shared_memory) \
+            .max_swap(max_swap) \
+            .swappiness(swappiness) \
             .timeout_in_secs(run_time_limit) \
             .environment_variable('AWS_DEFAULT_REGION', self._client.region()) \
             .environment_variable('METAFLOW_CODE_SHA', code_package_sha) \
@@ -174,10 +184,15 @@ class Batch(object):
         image,
         queue,
         iam_role=None,
+        execution_role=None, # for FARGATE compatibility
         cpu=None,
         gpu=None,
         memory=None,
+        platform=None,
         run_time_limit=None,
+        shared_memory=None,
+        max_swap=None,
+        swappiness=None,
         env={},
         attrs={},
         ):
@@ -197,10 +212,14 @@ class Batch(object):
                         image,
                         queue,
                         iam_role,
+                        execution_role,
                         cpu,
                         gpu,
                         memory,
                         run_time_limit,
+                        shared_memory,
+                        max_swap,
+                        swappiness,
                         env,
                         attrs
         )
