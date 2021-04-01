@@ -38,6 +38,17 @@ parse_arguments <- function(arguments = NULL) {
       }
       next
     }
+
+    if (argument == "step-functions"){
+      i <- i + 1
+      if (i <= n){
+        values$step_functions <- arguments[i]
+      } else {
+        values$step_functions <- "" 
+      }
+      next
+    }
+
     if (!grepl("^--", argument)) {
       if (grepl("batch", argument)) {
         values$batch <- parse_batch(arguments)
@@ -131,11 +142,15 @@ split_parameters <- function(flags) {
     "package_suffixes", "no-pylint",
     "help", "resume",
     "max_num_splits", "max_workers",
-    "other_args", "show",
-    "authorize",
-    "my_runs", "run_id", "user",
-    "origin_run_id", "with",
-    "tag"
+    "other_args", "show", "user",
+    "my_runs", "run_id", 
+    "origin_run_id", "with", "tag",
+    # step-functions subcommands and options
+    "step_functions", 
+    "only_json", "generate_new_token",
+    "running", "succeeded", "failed", 
+    "timed_out", "aborted", "namespace",
+    "new_token", "workflow_timeout"
   )
   parameters <- flags[parameters]
   if (length(parameters) == 0) {

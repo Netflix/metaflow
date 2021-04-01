@@ -1,15 +1,15 @@
-import json
 import os
-
-from metaflow.metaflow_config import get_authenticated_boto3_client, \
-                                    SFN_DYNAMO_DB_TABLE
+import requests
+from metaflow.metaflow_config import SFN_DYNAMO_DB_TABLE
 
 
 class DynamoDbClient(object):
 
     def __init__(self):
-        self._client = get_authenticated_boto3_client('dynamodb', 
-            params = {'region_name': self._get_instance_region()})
+        from ..aws_client import get_aws_client
+        self._client = get_aws_client(
+            'dynamodb',
+            params={'region_name': self._get_instance_region()})
         self.name = SFN_DYNAMO_DB_TABLE
 
     def save_foreach_cardinality(self, 
@@ -64,6 +64,17 @@ class DynamoDbClient(object):
         return response['Item']['parent_task_ids_for_foreach_join']['SS']
 
     def _get_instance_region(self):
-        return os.popen(
-            'curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone/'
-            ).read()[:-1]
+        region = os.environ.get('AWS_REGION')
+        # region is available as an env variable in AWS Fargate but not in EC2
+        if region is not None:
+            return region
+        metadata_url = "http://169.254.169.254/latest/meta-data/placement/availability-zone/"
+        r = requests.get(
+            url = metadata_url
+        )
+
+        if r.status_code != 200:
+            raise RuntimeError("Failed to query instance metadata. Url [%s]" % metadata_url +
+                        " Error code [%s]" % str(r.status_code))
+
+        return r.text[:-1]

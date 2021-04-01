@@ -6,19 +6,27 @@ from hashlib import sha1
 from io import BytesIO
 from itertools import chain
 
+from .metaflow_config import DEFAULT_PACKAGE_SUFFIXES
 from .util import to_unicode
 from . import R
 
-DEFAULT_SUFFIXES = ['.py', '.R', '.RDS']
+DEFAULT_SUFFIXES_LIST = DEFAULT_PACKAGE_SUFFIXES.split(',')
 
 
 class MetaflowPackage(object):
 
-    def __init__(self, flow, environment, logger, suffixes=DEFAULT_SUFFIXES):
-        self.suffixes = list(set().union(suffixes, DEFAULT_SUFFIXES))
+    def __init__(self, flow, environment, echo, suffixes=DEFAULT_SUFFIXES_LIST):
+        self.suffixes = list(set().union(suffixes, DEFAULT_SUFFIXES_LIST))
         self.environment = environment
         self.metaflow_root = os.path.dirname(__file__)
-        environment.init_environment(logger)
+        try:
+            import metaflow_custom
+        except ImportError:
+            self.metaflow_custom_root = None
+        else:
+            self.metaflow_custom_root = os.path.dirname(metaflow_custom.__file__)
+
+        environment.init_environment(echo)
         for step in flow:
             for deco in step.decorators:
                 deco.package_init(flow,
@@ -51,6 +59,10 @@ class MetaflowPackage(object):
         # Metaflow package itself
         for path_tuple in self._walk(self.metaflow_root, exclude_hidden=False):
             yield path_tuple
+        # Metaflow customization if any
+        if self.metaflow_custom_root:
+            for path_tuple in self._walk(self.metaflow_custom_root, exclude_hidden=False):
+                yield path_tuple
         # the package folders for environment
         for path_tuple in self.environment.add_to_package():
             yield path_tuple

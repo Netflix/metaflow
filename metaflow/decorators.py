@@ -3,8 +3,10 @@ from functools import partial
 import re
 
 from .flowspec import FlowSpec
-from .exception import MetaflowException, InvalidDecoratorAttribute
+from .exception import MetaflowInternalError, \
+    MetaflowException, InvalidDecoratorAttribute
 
+import click
 
 class BadStepDecoratorException(MetaflowException):
     headline = "Syntax error"
@@ -123,12 +125,52 @@ class Decorator(object):
 
 class FlowDecorator(Decorator):
 
-    def flow_init(self, flow, graph,  environment, datastore, logger):
+    _flow_decorators = []
+    options = {}
+
+    def __init__(self, *args, **kwargs):
+        # Note that this assumes we are executing one flow per process so we have a global list of
+        # _flow_decorators. A similar setup is used in parameters.
+        self._flow_decorators.append(self)
+        super(FlowDecorator, self).__init__(*args, **kwargs)
+
+    def flow_init(self, flow, graph,  environment, datastore, logger, echo, options):
         """
         Called when all decorators have been created for this flow.
         """
         pass
 
+    def get_top_level_options(self):
+        """
+        Return a list of option-value pairs that correspond to top-level
+        options that should be passed to subprocesses (tasks). The option
+        names should be a subset of the keys in self.options.
+
+        If the decorator has a non-empty set of options in self.options, you
+        probably want to return the assigned values in this method.
+        """
+        return []
+
+
+# compare this to parameters.add_custom_parameters
+def add_decorator_options(cmd):
+    seen = {}
+    for deco in flow_decorators():
+        for option, kwargs in deco.options.items():
+            if option in seen:
+                msg = "Flow decorator '%s' uses an option '%s' which is also "\
+                      "used by the decorator '%s'. This is a bug in Metaflow. "\
+                      "Please file a ticket on GitHub."\
+                      % (deco.name, option, seen[option])
+                raise MetaflowInternalError(msg)
+            else:
+                seen[option] = deco.name
+                cmd.params.insert(0, click.Option(('--' + option,), **kwargs))
+    return cmd
+
+
+def flow_decorators():
+    return FlowDecorator._flow_decorators
 
 class StepDecorator(Decorator):
     """
@@ -376,13 +418,18 @@ def _attach_decorators_to_step(step, decospecs):
             deco = decos[deconame]._parse_decorator_spec(decospec)
             step.decorators.append(deco)
 
-def _init_decorators(flow, graph, environment, datastore, logger):
+def _init_flow_decorators(flow, graph, environment, datastore, logger, echo, deco_options):
     for deco in flow._flow_decorators.values():
-        deco.flow_init(flow, graph,  environment, datastore, logger)
+        opts = {option: deco_options[option] for option in deco.options}
+        deco.flow_init(flow, graph, environment, datastore, logger, echo, opts)
+
+
+def _init_step_decorators(flow, graph, environment, datastore, logger):
     for step in flow:
         for deco in step.decorators:
             deco.step_init(flow, graph, step.__name__,
                            step.decorators, environment, datastore, logger)
+
 
 def step(f):
     """

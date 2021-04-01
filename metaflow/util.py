@@ -29,11 +29,21 @@ try:
     def unquote_bytes(x):
         return to_unicode(unquote(to_bytes(x)))
 
+    # this is used e.g. by datastore.save_logs to identify paths
+    class Path(object):
+
+        def __init__(path):
+            self.path = path
+
+        def __str__(self):
+            return self.path
+
 except:
     # python3
     unicode_type = str
     bytes_type = bytes
     from urllib.parse import quote, unquote
+    from pathlib import Path
 
     def unquote_bytes(x):
         return unquote(to_unicode(x))

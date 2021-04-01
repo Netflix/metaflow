@@ -6,7 +6,7 @@ import time
 from distutils.version import LooseVersion
 
 from metaflow.exception import MetaflowException
-from metaflow.environment import InvalidEnvironmentException
+from metaflow.metaflow_environment import InvalidEnvironmentException
 from metaflow.util import which
 
 class CondaException(MetaflowException):
@@ -41,12 +41,22 @@ class Conda(object):
                                               'is required. Specify it with CONDA_CHANNELS '
                                               'environment variable.')
     
-    def create(self, step_name, env_id, deps, architecture=None, explicit=False):
+    def create(self,
+               step_name,
+               env_id,
+               deps,
+               architecture=None,
+               explicit=False,
+               disable_safety_checks=False):
         # Create the conda environment
         try:
             with CondaLock(self._env_lock_file(env_id)):
                 self._remove(env_id)
-                self._create(env_id, deps, explicit, architecture)
+                self._create(env_id,
+                             deps,
+                             explicit,
+                             architecture,
+                             disable_safety_checks)
                 return self._deps(env_id)
         except CondaException as e:
             raise CondaStepException(e, step_name)
@@ -91,13 +101,20 @@ class Conda(object):
     def _info(self):
         return json.loads(self._call_conda(['info']))
 
-    def _create(self, env_id, deps, explicit=False, architecture=None):
+    def _create(self,
+                env_id,
+                deps,
+                explicit=False,
+                architecture=None,
+                disable_safety_checks=False):
         cmd = ['create', '--yes', '--no-default-packages',
                '--name', env_id, '--quiet']
         if explicit:
             cmd.append('--no-deps')
         cmd.extend(deps)
-        self._call_conda(cmd, architecture)
+        self._call_conda(cmd,
+                         architecture=architecture,
+                         disable_safety_checks=disable_safety_checks)
 
     def _remove(self, env_id):
         self._call_conda(['env', 'remove', '--name',
@@ -143,19 +160,19 @@ class Conda(object):
     def _env_lock_file(self, env_id):
         return os.path.join(self._info()['envs_dirs'][0], 'mf_env-creation.lock')
 
-    def _call_conda(self, args, architecture=None):
+    def _call_conda(self, args, architecture=None, disable_safety_checks=False):
         try:
+            env = {
+                'CONDA_JSON': 'True',
+                'CONDA_SUBDIR': (architecture if architecture else ''),
+                'CONDA_USE_ONLY_TAR_BZ2': 'True'
+            }
+            if disable_safety_checks:
+                env['CONDA_SAFETY_CHECKS'] = 'disabled'
             return subprocess.check_output(
                 [self._bin] + args, 
                 stderr = open(os.devnull, 'wb'),
-                env = dict(
-                    os.environ,
-                    **{
-                        'CONDA_JSON': 'True',
-                        'CONDA_SUBDIR': (architecture if architecture else ''),
-                        'CONDA_USE_ONLY_TAR_BZ2': 'True'
-                    })
-                ).strip()
+                env = dict(os.environ, **env)).strip()
         except subprocess.CalledProcessError as e:
             try:
                 output = json.loads(e.output)
@@ -165,7 +182,7 @@ class Conda(object):
                 raise CondaException(err)
             except (TypeError, ValueError) as ve:
                 pass
-            raise RuntimeError(
+            raise CondaException(
                 'command \'{cmd}\' returned error ({code}): {output}'
                     .format(cmd=e.cmd, code=e.returncode, output=e.output))
 

@@ -42,7 +42,7 @@ class MetaflowTask(object):
         self.monitor = monitor
 
     def _exec_step_function(self, step_function, input_obj=None):
-        self.environment.validate_environment(logger=self.console_logger)
+        self.environment.validate_environment(echo=self.console_logger)
         if input_obj is None:
             step_function()
         else:
@@ -215,6 +215,7 @@ class MetaflowTask(object):
                                 attempt=0,
                                 event_logger=self.event_logger,
                                 monitor=self.monitor)
+        output.init_task()
         origin_run_id, origin_step_name, origin_task_id =\
             clone_origin_task.split('/')
         # 2. initialize origin datastore
@@ -257,10 +258,12 @@ class MetaflowTask(object):
                                         task_id,
                                         [MetaDatum(field='attempt',
                                                    value=str(retry_count),
-                                                   type='attempt'),
+                                                   type='attempt',
+                                                   tags=[]),
                                          MetaDatum(field='origin-run-id',
                                                    value=str(origin_run_id),
-                                                   type='origin-run-id')])
+                                                   type='origin-run-id',
+                                                   tags=[])])
 
         step_func = getattr(self.flow, step_name)
         node = self.flow._graph[step_name]
@@ -278,6 +281,7 @@ class MetaflowTask(object):
                                 attempt=retry_count,
                                 event_logger=self.event_logger,
                                 monitor=self.monitor)
+        output.init_task()
 
         if input_paths:
             # 2. initialize input datastores
@@ -448,6 +452,18 @@ class MetaflowTask(object):
                 "runtime": round(end)
             }
             logger.log(msg)
+
+            attempt_ok = str(bool(int(self.flow._task_ok)))
+            self.metadata.register_metadata(run_id,
+                                            step_name,
+                                            task_id,
+                                            [MetaDatum(field='attempt_ok',
+                                                       value=attempt_ok,
+                                                       type='internal_attempt_status',
+                                                       tags=["attempt_id:{0}".
+                                                       format(str(retry_count))
+                                                             ])
+                                             ])
 
             output.save_metadata('task_end', {})
             output.persist(self.flow)

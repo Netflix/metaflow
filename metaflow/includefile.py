@@ -11,10 +11,11 @@ from shutil import move
 
 import click
 
+from . import parameters
 from .datastore.datastore import TransformableObject
 from .exception import MetaflowException
 from .metaflow_config import DATATOOLS_LOCALROOT, DATATOOLS_SUFFIX
-from .parameters import context_proto, DeployTimeField, Parameter
+from .parameters import DeployTimeField, Parameter
 from .util import to_unicode
 
 try:
@@ -173,7 +174,12 @@ class LocalFile():
     @classmethod
     def is_file_handled(cls, path):
         if path:
-            path = Uploader.decode_value(to_unicode(path))['url']
+            decoded_value = Uploader.decode_value(to_unicode(path))
+            if decoded_value['type'] == 'self':
+                return True, LocalFile(
+                    decoded_value['is_text'], decoded_value['encoding'],
+                    decoded_value['url']), None
+            path = decoded_value['url']
         for prefix, handler in DATACLIENTS.items():
             if path.startswith(u"%s://" % prefix):
                 return True, Uploader(handler), None
@@ -181,7 +187,7 @@ class LocalFile():
             with open(path, mode='r') as _:
                 pass
         except OSError:
-            return False, None, "Could not open file '%s'" % path
+            return False, None, "IncludeFile: could not open file '%s'" % path
         return True, None, None
 
     def __str__(self):
@@ -196,12 +202,13 @@ class LocalFile():
         # the file exists.
         ok, _, err = LocalFile.is_file_handled(self._path)
         if not ok:
-            raise MetaflowException("Cannot load file %s: %s" % (self._path, err))
+            raise MetaflowException(err)
         client = DATACLIENTS.get(ctx.ds_type)
         if client:
             return Uploader(client).store(
                 ctx.flow_name, self._path, self._is_text, self._encoding, ctx.logger)
-        raise MetaflowException("No client found for datastore type %s" % ctx.ds_type)
+        raise MetaflowException(
+            "IncludeFile: no client found for datastore type %s" % ctx.ds_type)
 
 
 class FilePathClass(click.ParamType):
@@ -226,12 +233,18 @@ class FilePathClass(click.ParamType):
             self.fail(err)
         if file_type is None:
             # Here, we need to store the file
-            param_ctx = context_proto._replace(parameter_name=self.parameter_name)
-            return LocalFile(self._is_text, self._encoding, value)(param_ctx)
+            return lambda is_text=self._is_text, encoding=self._encoding,\
+                value=value, ctx=parameters.context_proto: LocalFile(
+                    is_text, encoding, value)(ctx)
+        elif isinstance(file_type, LocalFile):
+            # This is a default file that we evaluate now (to delay upload
+            # until *after* the flow is checked)
+            return lambda f=file_type, ctx=parameters.context_proto: f(ctx)
         else:
             # We will just store the URL in the datastore along with text/encoding info
-            return Uploader.encode_url(
-                'external', value, is_text=self._is_text, encoding=self._encoding)
+            return lambda is_text=self._is_text, encoding=self._encoding,\
+                value=value: Uploader.encode_url(
+                    'external', value, is_text=is_text, encoding=encoding)
 
     def __str__(self):
         return repr(self)
@@ -250,15 +263,28 @@ class IncludeFile(Parameter):
             _, file_type, _ = LocalFile.is_file_handled(v)
             # Ignore error because we may never use the default
             if file_type is None:
-                l = LocalFile(is_text, encoding, v)
-                kwargs['default'] = DeployTimeField(name, str, 'default', l, print_representation=str(l))
+                o = {
+                    'type': 'self',
+                    'is_text': is_text,
+                    'encoding': encoding,
+                    'url': v
+                }
+                kwargs['default'] = DeployTimeField(
+                    name,
+                    str,
+                    'default',
+                    lambda ctx, full_evaluation, o=o: \
+                    LocalFile(o['is_text'], o['encoding'], o['url'])(ctx) \
+                        if full_evaluation else json.dumps(o),
+                    print_representation=v)
             else:
                 kwargs['default'] = DeployTimeField(
                     name,
                     str,
                     'default',
-                    lambda _, is_text=is_text, encoding=encoding, v=v: Uploader.encode_url(
-                        'external-default', v, is_text=is_text, encoding=encoding),
+                    lambda _, __, is_text=is_text, encoding=encoding, v=v: \
+                        Uploader.encode_url('external-default', v,
+                                            is_text=is_text, encoding=encoding),
                     print_representation=v)
 
         super(IncludeFile, self).__init__(
@@ -266,10 +292,12 @@ class IncludeFile(Parameter):
             type=FilePathClass(is_text, encoding), **kwargs)
 
     def load_parameter(self, val):
+        if val is None:
+            return val
         ok, file_type, err = LocalFile.is_file_handled(val)
         if not ok:
             raise MetaflowException("Parameter '%s' could not be loaded: %s" % (self.name, err))
-        if file_type is None:
+        if file_type is None or isinstance(file_type, LocalFile):
             raise MetaflowException("Parameter '%s' was not properly converted" % self.name)
         return file_type.load(val)
 
@@ -296,7 +324,7 @@ class Uploader():
             return {'type': 'base', 'url': value}
         return json.loads(value)
 
-    def store(self, flow_name, path, is_text, encoding, logger):
+    def store(self, flow_name, path, is_text, encoding, echo):
         sz = os.path.getsize(path)
         unit = ['B', 'KB', 'MB', 'GB', 'TB']
         pos = 0
@@ -307,7 +335,7 @@ class Uploader():
             extra = '(this may take a while)'
         else:
             extra = ''
-        logger(
+        echo(
             'Including file %s of size %d%s %s' % (path, sz, unit[pos], extra))
         try:
             cur_obj = TransformableObject(io.open(path, mode='rb').read())
@@ -317,7 +345,9 @@ class Uploader():
             raise MetaflowException('Cannot read file at %s -- this is likely because it is too '
                                     'large to be properly handled by Python 2.7' % path)
         sha = sha1(cur_obj.current()).hexdigest()
-        path = os.path.join(self._client_class.get_root_from_config(logger, True), flow_name, sha)
+        path = os.path.join(self._client_class.get_root_from_config(echo, True),
+                            flow_name,
+                            sha)
         buf = io.BytesIO()
         with gzip.GzipFile(
                 fileobj=buf, mode='wb', compresslevel=3) as f:
@@ -326,7 +356,7 @@ class Uploader():
         buf.seek(0)
         with self._client_class() as client:
             url = client.put(path, buf.getvalue(), overwrite=False)
-            logger('File persisted at %s' % url)
+            echo('File persisted at %s' % url)
             return Uploader.encode_url(Uploader.file_type, url, is_text=is_text, encoding=encoding)
 
     def load(self, value):

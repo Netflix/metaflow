@@ -3,9 +3,7 @@
 #' Instances of this class contain all steps related to a run.
 #'
 #' @docType class
-#' @importFrom R6 R6Class
-#' @importFrom reticulate import_builtins py_get_attr
-#' @include metaflow.R
+#' @include package.R
 #' @include metaflow_client.R
 #' @include utils.R
 #'
@@ -16,7 +14,7 @@
 #' @section Usage:
 #' \preformatted{
 #' r <- run_client$new(flow, run_id)
-#' r <- new_client$new("HelloFlow/12")
+#' r <- run_client$new("HelloFlow/12")
 #'
 #' r$id
 #' r$tags
@@ -58,7 +56,7 @@ run_client <- R6::R6Class("RunClient",
           }
         }
         idx <- which(flow$get_values() == run_id)
-        run <- import_builtins()$list(flow$get_obj())[[idx]]
+        run <- reticulate::import_builtins()$list(flow$get_obj())[[idx]]
         super$initialize(run)
       } else if (nargs() == 1) {
         pathspec <- arguments[[1]]
@@ -124,7 +122,7 @@ run_client <- R6::R6Class("RunClient",
     parent = function() super$get_obj()$parent,
 
     #' @field tags A vector of strings representing tags assigned to this run object.
-    tags = function() import_builtins()$list(super$get_obj()$tags),
+    tags = function() reticulate::import_builtins()$list(super$get_obj()$tags),
 
     ##' @field code Get the code package of the run if it exists
     code = function() super$get_obj()$code,

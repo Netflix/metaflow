@@ -128,6 +128,7 @@ class FileCache(object):
 
             try:
                 tmpfile.write(load_func(ds))
+                tmpfile.flush()
                 os.rename(tmpfile.name, path)
             except:  # noqa E722
                 os.unlink(tmpfile.name)

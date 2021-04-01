@@ -184,7 +184,7 @@ class S3(object):
                  run=None,
                  s3root=None):
         """
-        Initialize a new context for S3 operations. This object is based used as
+        Initialize a new context for S3 operations. This object is used as
         a context manager for a with statement.
 
         There are two ways to initialize this object depending whether you want
@@ -490,7 +490,7 @@ class S3(object):
 
             try:
                 self._one_boto_op(_head, url)
-            except MetaflowS3NotFound as err:
+            except MetaflowS3NotFound:
                 self._one_boto_op(_upload, url)    
             return url
 

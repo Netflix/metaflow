@@ -7,6 +7,7 @@ from distutils.version import LooseVersion
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import METADATA_SERVICE_NUM_RETRIES, METADATA_SERVICE_HEADERS, \
     METADATA_SERVICE_URL
+<<<<<<< HEAD:metaflow/metadata/service.py
 from .metadata import MetadataProvider
 from metaflow.sidecar import SidecarSubProcess
 from metaflow.sidecar_messages import MessageTypes, Message
@@ -16,6 +17,9 @@ from metaflow.sidecar_messages import MessageTypes, Message
 class HeartbeatTypes(object):
     RUN = 1
     TASK = 2
+=======
+from metaflow.metadata import MetadataProvider
+>>>>>>> master:metaflow/plugins/metadata/service.py
 
 
 class ServiceException(MetaflowException):
@@ -89,10 +93,6 @@ class ServiceMetadataProvider(MetadataProvider):
                            sys_tags=sys_tags)
         finally:
             self._register_code_package_metadata(run_id, step_name, task_id)
-
-        
-    def get_runtime_environment(self, runtime_name):
-        return {}
 
     def _start_heartbeat(self, heartbeat_type, flow_id, run_id, step_name=None, task_id=None):
         if self._already_started():

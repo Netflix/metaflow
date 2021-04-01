@@ -159,11 +159,11 @@ def make_flow(obj,
 
     # Attach AWS Batch decorator to the flow
     decorators._attach_decorators(obj.flow, [BatchDecorator.name])
-    decorators._init_decorators(
+    decorators._init_step_decorators(
             obj.flow, obj.graph, obj.environment, obj.datastore, obj.logger)
 
     obj.package = MetaflowPackage(
-        obj.flow, obj.environment, obj.logger, obj.package_suffixes)
+        obj.flow, obj.environment, obj.echo, obj.package_suffixes)
     package_url = datastore.save_data(
         obj.package.sha, TransformableObject(obj.package.blob))
 
@@ -271,7 +271,8 @@ def resolve_token(name,
 def trigger(obj, **kwargs):
     def _convert_value(param):
         v = kwargs.get(param.name)
-        return json.dumps(v) if param.kwargs.get('type') == JSONType else v
+        return json.dumps(v) if param.kwargs.get('type') == JSONType else \
+            v() if callable(v) else v
 
     params = {param.name: _convert_value(param)
               for _, param in obj.flow._get_parameters()

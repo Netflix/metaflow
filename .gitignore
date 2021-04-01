@@ -20,5 +20,9 @@ R/.Rbuildignore
 
 .DS_Store
 
+.project
+.pydevproject
+
 # Pycharm
 .idea
+

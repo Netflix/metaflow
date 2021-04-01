@@ -1,5 +1,5 @@
 from metaflow.decorators import FlowDecorator
-from metaflow.environment import InvalidEnvironmentException
+from metaflow.metaflow_environment import InvalidEnvironmentException
 
 
 class CondaFlowDecorator(FlowDecorator):
@@ -37,7 +37,7 @@ class CondaFlowDecorator(FlowDecorator):
                 'python': None,
                 'disabled': None}
 
-    def flow_init(self, flow, graph, environment, datastore, logger):
+    def flow_init(self, flow, graph,  environment, datastore, logger, echo, options):
         if environment.TYPE != 'conda':
             raise InvalidEnvironmentException('The *@conda* decorator requires '
                                               '--environment=conda')

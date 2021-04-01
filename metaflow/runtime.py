@@ -25,6 +25,7 @@ from . import procpoll
 from .datastore import DataException, MetaflowDatastoreSet
 from .metadata import MetaDatum
 from .debug import debug
+from .decorators import flow_decorators
 
 from .util import to_unicode, compress_list
 
@@ -532,6 +533,7 @@ class Task(object):
                                    attempt=self.retries,
                                    event_logger=self.event_logger,
                                    monitor=self.monitor)
+        self._ds.init_task()
 
 
     def log(self, msg, system_msg=False, pid=None):
@@ -645,7 +647,8 @@ class Task(object):
                                'ds_type': self._ds.TYPE,
                                'location': location,
                                'attempt': self.retries}),
-                           type='log_path')]
+                           type='log_path',
+                           tags=[])]
         self.metadata.register_metadata(self.run_id,
                                         self.step,
                                         self.task_id,
@@ -718,6 +721,13 @@ class CLIArgs(object):
             'with': [deco.make_decorator_spec() for deco in self.task.decos
                      if not deco.statically_defined]
         }
+
+        # FlowDecorators can define their own top-level options. They are
+        # responsible for adding their own top-level options and values through
+        # the get_top_level_options() hook.
+        for deco in flow_decorators():
+            self.top_level_options.update(deco.get_top_level_options())
+
         self.commands = ['step']
         self.command_args = [self.task.step]
         self.command_options = {

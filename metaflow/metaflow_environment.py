@@ -20,13 +20,13 @@ class MetaflowEnvironment(object):
     def __init__(self, flow):
         pass
 
-    def init_environment(self, logger):
+    def init_environment(self, echo):
         """
         Run before any step decorators are initialized.
         """
         pass
 
-    def validate_environment(self, logger):
+    def validate_environment(self, echo):
         """
         Run before any command to validate that we are operating in
         a desired environment.

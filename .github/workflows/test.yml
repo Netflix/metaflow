@@ -30,10 +30,10 @@ jobs:
         python2 -m pip install --upgrade pip
         python2 -m pip install tox
 
-    - name: Set up Python 3.x
-      uses: actions/setup-python@v1
+    - name: Set up Python 3.7
+      uses: actions/setup-python@v2
       with:
-        python-version: '3.x'
+        python-version: '3.7'
 
     - name: Install Python 3.x dependencies
       run: |
@@ -48,7 +48,7 @@ jobs:
     
     - name: Install R 3.6 system dependencies
       if: matrix.lang == 'R' && matrix.os == 'ubuntu-latest'
-      run: sudo apt-get update; sudo apt-get install -y libcurl4-openssl-dev qpdf
+      run: sudo apt-get update; sudo apt-get install -y libcurl4-openssl-dev qpdf libgit2-dev
 
     - name: Install R 3.6 Rlang dependencies
       if: matrix.lang == 'R'
@@ -63,8 +63,7 @@ jobs:
       if: matrix.lang == 'R'
       run: |
         cd R/tests
-        Rscript testthat.R
-        Rscript run_integration_tests.R
+        Rscript run_tests.R
 
     - name: Execute Python tests
       if: matrix.lang == 'python'

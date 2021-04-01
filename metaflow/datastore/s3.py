@@ -4,7 +4,6 @@ S3 storage
 Store data in S3
 """
 import os
-import sys
 import json
 import gzip
 from io import BytesIO
@@ -17,7 +16,7 @@ except:
     from urllib.parse import urlparse
 
 from .. import metaflow_config
-from .datastore import MetaflowDataStore, DataException, only_if_not_done
+from .datastore import MetaflowDataStore, only_if_not_done
 from ..metadata import MetaDatum
 from .util.s3util import aws_retry, get_s3_client
 
@@ -54,7 +53,7 @@ class S3DataStore(MetaflowDataStore):
             with self.monitor.measure("metaflow.s3.get_object"):
                 self.s3.download_fileobj(url.netloc, url.path.lstrip('/'), buf)
         else:
-           self.s3.download_fileobj(url.netloc, url.path.lstrip('/'), buf) 
+            self.s3.download_fileobj(url.netloc, url.path.lstrip('/'), buf)
         if return_buf:
             buf.seek(0)
             return buf
@@ -115,7 +114,7 @@ class S3DataStore(MetaflowDataStore):
                 task_urls = [task.url for task in task_objs]
             urls = []
             for task_url in task_urls:
-                for attempt in range(5):
+                for attempt in range(metaflow_config.MAX_ATTEMPTS):
                     metadata_filename = \
                         cls.get_metadata_filename_for_attempt(attempt)
                     urls.append(os.path.join(task_url, metadata_filename))
@@ -254,7 +253,7 @@ class S3DataStore(MetaflowDataStore):
 
         self.metadata.register_metadata(
             self.run_id, self.step_name, self.task_id,
-            [MetaDatum(field='attempt-done', value=str(self.attempt), type='attempt-done')])
+            [MetaDatum(field='attempt-done', value=str(self.attempt), type='attempt-done', tags=[])])
 
         self._is_done_set = True
 

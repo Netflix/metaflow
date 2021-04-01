@@ -14,7 +14,7 @@ except:
 
 from metaflow.datastore.local import LocalDataStore
 from metaflow.decorators import StepDecorator
-from metaflow.environment import InvalidEnvironmentException
+from metaflow.metaflow_environment import InvalidEnvironmentException
 from metaflow.metadata import MetaDatum
 from metaflow.metaflow_config import get_pinned_conda_libs, CONDA_PACKAGE_S3ROOT
 from metaflow.util import get_metaflow_root
@@ -108,12 +108,17 @@ class CondaStepDecorator(StepDecorator):
         cached_deps = read_conda_manifest(ds_root, self.flow.name)
         if CondaStepDecorator.conda is None:
             CondaStepDecorator.conda = Conda()
-            CondaStepDecorator.environments = CondaStepDecorator.conda.environments(self.flow.name)
+            CondaStepDecorator.environments =\
+                CondaStepDecorator.conda.environments(self.flow.name)
         if force or env_id not in cached_deps or 'cache_urls' not in cached_deps[env_id]:
             if force or env_id not in cached_deps:
                 deps = self._step_deps()
                 (exact_deps, urls, order) = \
-                    self.conda.create(self.step, env_id, deps, architecture=self.architecture)
+                    self.conda.create(self.step,
+                                      env_id,
+                                      deps,
+                                      architecture=self.architecture,
+                                      disable_safety_checks=self.disable_safety_checks)
                 payload = {
                     'explicit': exact_deps,
                     'deps': [d.decode('ascii') for d in deps],
@@ -125,7 +130,8 @@ class CondaStepDecorator(StepDecorator):
             if self.datastore.TYPE == 's3' and 'cache_urls' not in payload:
                 payload['cache_urls'] = self._cache_env()
             write_to_conda_manifest(ds_root, self.flow.name, env_id, payload)
-            CondaStepDecorator.environments = CondaStepDecorator.conda.environments(self.flow.name)
+            CondaStepDecorator.environments =\
+                CondaStepDecorator.conda.environments(self.flow.name)
         return env_id
 
     def _cache_env(self):
@@ -147,13 +153,13 @@ class CondaStepDecorator(StepDecorator):
                                 package_info['fn'])
             tarball_path = package_info['package_tarball_full_path']
             if tarball_path.endswith('.conda'):
-                #Conda doesn't set the metadata correctly for certain fields
+                # Conda doesn't set the metadata correctly for certain fields
                 # when the underlying OS is spoofed.
                 tarball_path = tarball_path[:-6]
             if not tarball_path.endswith('.tar.bz2'):
                 tarball_path = '%s.tar.bz2' % tarball_path
             if not os.path.isfile(tarball_path):
-                #The tarball maybe missing when user invokes `conda clean`!
+                # The tarball maybe missing when user invokes `conda clean`!
                 to_download.append((package_info['url'], tarball_path))
             files.append((path, tarball_path))
         if to_download:
@@ -170,9 +176,20 @@ class CondaStepDecorator(StepDecorator):
                               env_id,
                               cached_deps[env_id]['urls'],
                               architecture=self.architecture,
-                              explicit=True)
-            CondaStepDecorator.environments = CondaStepDecorator.conda.environments(self.flow.name)
+                              explicit=True,
+                              disable_safety_checks=self.disable_safety_checks)
+            CondaStepDecorator.environments =\
+                CondaStepDecorator.conda.environments(self.flow.name)
         return env_id
+
+    def _disable_safety_checks(self, decos):
+        # Disable conda safety checks when creating linux-64 environments on
+        # a macOS. This is needed because of gotchas around inconsistently 
+        # case-(in)sensitive filesystems for macOS and linux.
+        for deco in decos:
+            if deco.name == 'batch' and platform.system() == 'Darwin':
+                return True
+        return False
 
     def _architecture(self, decos):
         for deco in decos:
@@ -205,6 +222,7 @@ class CondaStepDecorator(StepDecorator):
         self.local_root = LocalDataStore.get_datastore_root_from_config(_logger)
         environment.set_local_root(self.local_root)
         self.architecture = self._architecture(decos)
+        self.disable_safety_checks = self._disable_safety_checks(decos)
         self.step = step
         self.flow = flow
         self.datastore = datastore
@@ -224,7 +242,8 @@ class CondaStepDecorator(StepDecorator):
         meta.register_metadata(run_id, step_name, task_id,
                                    [MetaDatum(field='conda_env_id',
                                               value=self._env_id(),
-                                              type='conda_env_id')])
+                                              type='conda_env_id',
+                                              tags=[])])
 
     def runtime_step_cli(self, cli_args, retry_count, max_user_code_retries):
         if self.is_enabled() and 'batch' not in cli_args.commands:
