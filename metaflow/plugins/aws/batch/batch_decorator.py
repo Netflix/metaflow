@@ -50,7 +50,7 @@ class ResourcesDecorator(StepDecorator):
     memory : int
         Memory size (in MB) required for this step. Defaults to 4096
     shared_memory : int
-        The value for the size (in MiB) of the /dev/shm volume for this step. 
+        The value for the size (in MiB) of the /dev/shm volume for this step.
         This parameter maps to the --shm-size option to docker run .
     """
     name = 'resources'
@@ -99,11 +99,11 @@ class BatchDecorator(StepDecorator):
         IAM role that AWS Batch can use to trigger AWS Fargate tasks. Defaults to the one determined by the environment
         variable METAFLOW_ECS_FARGATE_EXECUTION_ROLE https://docs.aws.amazon.com/batch/latest/userguide/execution-IAM-role.html
     shared_memory : int
-        The value for the size (in MiB) of the /dev/shm volume for this step. 
+        The value for the size (in MiB) of the /dev/shm volume for this step.
         This parameter maps to the --shm-size option to docker run.
     max_swap : int
         The total amount of swap memory (in MiB) a container can use for this step.
-        This parameter is translated to the --memory-swap option to docker run 
+        This parameter is translated to the --memory-swap option to docker run
         where the value is the sum of the container memory plus the max_swap value.
     swappiness : int
         This allows you to tune memory swappiness behavior for this step.
@@ -142,7 +142,7 @@ class BatchDecorator(StepDecorator):
                         platform.python_version_tuple()[1])
         if not BatchDecorator._get_registry(self.attributes['image']):
             if BATCH_CONTAINER_REGISTRY:
-                self.attributes['image'] = '%s/%s' % (BATCH_CONTAINER_REGISTRY.rstrip('/'), 
+                self.attributes['image'] = '%s/%s' % (BATCH_CONTAINER_REGISTRY.rstrip('/'),
                     self.attributes['image'])
 
     def step_init(self, flow, graph, step, decos, environment, datastore, logger):
@@ -205,7 +205,7 @@ class BatchDecorator(StepDecorator):
         meta['aws-batch-job-id'] = os.environ['AWS_BATCH_JOB_ID']
         meta['aws-batch-job-attempt'] = os.environ['AWS_BATCH_JOB_ATTEMPT']
         meta['aws-batch-ce-name'] = os.environ['AWS_BATCH_CE_NAME']
-        meta['aws-batch-jq-name'] = os.environ['AWS_BATCH_JQ_NAME']    
+        meta['aws-batch-jq-name'] = os.environ['AWS_BATCH_JQ_NAME']
         entries = [MetaDatum(field=k, value=v, type=k, tags=[]) for k, v in meta.items()]
         # Register book-keeping metadata for debugging.
         metadata.register_metadata(run_id, step_name, task_id, entries)
@@ -238,10 +238,54 @@ class BatchDecorator(StepDecorator):
 
     @classmethod
     def _get_registry(cls, image):
-        pattern = re.compile('^(?:([^\/]+)\/)?(?:([^\/]+)\/)?([^@:\/]+)(?:[@:](.+))?$')
-        groups = pattern.match(image).groups()
-        registry = groups[0]
-        namespace = groups[1]
-        if not namespace and registry and not re.search(r'[:.]', registry):
-            return None
+        """
+        Explanation:
+
+            (.+?(?:[:.].+?)\/)? - [GROUP 0] REGISTRY
+                .+?                 - A registry must start with at least one character
+                (?:[:.].+?)\/       - A registry must have ":" or "." and end with "/"
+                ?                   - Make a registry optional
+            (.*?)               - [GROUP 1] REPOSITORY
+                .*?                 - Get repository name until separator
+            (?:[@:])?           - SEPARATOR
+                ?:                  - Don't capture separator
+                [@:]                - The separator must be either "@" or ":"
+                ?                   - The separator is optional
+            ((?<=[@:]).*)?      - [GROUP 2] TAG / DIGEST
+                (?<=[@:])           - A tag / digest must be preceeded by "@" or ":"
+                .*                  - Capture rest of tag / digest
+                ?                   - A tag / digest is optional
+
+        Examples:
+
+            image
+                - None
+                - image
+                - None
+            example/image
+                - None
+                - example/image
+                - None
+            example/image:tag
+                - None
+                - example/image
+                - tag
+            example.domain.com/example/image:tag
+                - example.domain.com/
+                - example/image
+                - tag
+            123.123.123.123:123/example/image:tag
+                - 123.123.123.123:123/
+                - example/image
+                - tag
+            example.domain.com/example/image@sha256:45b23dee0
+                - example.domain.com/
+                - example/image
+                - sha256:45b23dee0
+        """
+
+        pattern = re.compile(r"^(.+?(?:[:.].+?)\/)?(.*?)(?:[@:])?((?<=[@:]).*)?$")
+        registry, repository, tag = pattern.match(image).groups()
+        if registry is not None:
+            registry = registry.rstrip("/")
         return registry
