@@ -1,4 +1,3 @@
-
 import os
 
 # This script is used to upload logs during task bootstrapping, so
