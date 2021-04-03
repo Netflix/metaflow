@@ -107,7 +107,7 @@ def unset_should_persist(line):
     else:
         return line
 
-def refine(line, prefix=None, suffix=None):
+def refine(line, prefix=None, suffix=None, echo=None):
     line = to_bytes(line)
     prefix = to_bytes(prefix) if prefix else b''
     suffix = to_bytes(suffix) if suffix else b''

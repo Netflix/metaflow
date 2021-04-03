@@ -187,7 +187,7 @@ def step(
     swappiness=None,
     **kwargs
 ):
-    def echo(batch_id, msg, stream=sys.stdout):
+    def echo(msg, stream='stderr', batch_id=None):
         msg = util.to_unicode(msg)
         if batch_id:
             msg = '[%s] %s' % (batch_id, msg)

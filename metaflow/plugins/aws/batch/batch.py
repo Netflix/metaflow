@@ -23,9 +23,7 @@ from metaflow.mflog import export_mflog_env_vars,\
                            update_delay,\
                            BASH_SAVE_LOGS
 
-# Redirect structured logs to /logs/. This location is
-# special in Titus: All files in /logs/ are uploaded to S3
-# automatically by Titus after the task has finished.
+# Redirect structured logs to /logs/
 LOGS_DIR = '/logs'
 STDOUT_FILE = 'mflog_stdout'
 STDERR_FILE = 'mflog_stderr'
@@ -66,17 +64,16 @@ class Batch(object):
         # 1) initializes the mflog environment (mflog_expr)
         # 2) bootstraps a metaflow environment (init_expr)
         # 3) executes a task (step_expr)
-        cmd_str = 'mkdir -p /logs && %s && %s && %s; ' % (mflog_expr, init_expr, step_expr)
+        cmd_str = 'mkdir -p /logs && %s && %s && %s; ' % \
+                        (mflog_expr, init_expr, step_expr)
         # after the task has finished, we save its exit code (fail/success)
         # and persist the final logs. The whole entrypoint should exit
         # with the exit code (c) of the task.
         #
         # Note that if step_expr OOMs, this tail expression is never executed.
-        # Instead, we download the remaining logs from the AWS Batch' S3 
-        # location. This logic doesn't work on Step Functions though, which 
-        # loses the last logs in this scenario (although they are visible still 
-        # through AWS Batch).
-        cmd_str += 'c=\\$?; %s; exit `printenv c`' % BASH_SAVE_LOGS
+        # We lose the last logs in this scenario (although they are visible 
+        # still through AWS CloudWatch console).
+        cmd_str += 'c=$?; %s; exit $c' % BASH_SAVE_LOGS
         return shlex.split('bash -c \"%s\"' % cmd_str)
 
     def _search_jobs(self, flow_name, run_id, user):
@@ -269,31 +266,28 @@ class Batch(object):
         self.job = job.execute()
 
     def wait(self, stdout_location, stderr_location, echo=None):
+        
         def wait_for_launch(job):
             status = job.status
-            echo(job.id, 'Task is starting (status %s)...' % status)
+            echo('Task is starting (status %s)...' % status,
+                 'stderr',
+                 batch_id=job.id)
             t = time.time()
             while True:
                 if status != job.status or (time.time()-t) > 30:
                     status = job.status
                     echo(
-                        job.id,
-                        'Task is starting (status %s)...' % status
+                        'Task is starting (status %s)...' % status,
+                        'stderr',
+                        batch_id=job.id
                     )
                     t = time.time()
                 if job.is_running or job.is_done or job.is_crashed:
                     break
                 select.poll().poll(200)
 
-        def print_all(tail):
-            for line in tail:
-                if line:
-                    echo(self.job.id, util.to_unicode(line))
-                else:
-                    return tail, False
-            return tail, True
-
         prefix = b'[%s] ' % util.to_bytes(self.job.id)
+        
         def _print_available(tail, stream, should_persist=False):
             # print the latest batch of lines from S3Tail
             try:
@@ -301,12 +295,12 @@ class Batch(object):
                     if should_persist:
                         line = set_should_persist(line)
                     else:
-                        line = refine(line, prefix=prefix)
+                        line = refine(line, prefix=prefix, echo=echo)
                     echo(line.strip().decode('utf-8', errors='replace'), stream)
             except Exception as ex:
-                echo("[ temporary error in fetching logs: %s ]" % ex,
+                echo('[ temporary error in fetching logs: %s ]' % ex,
                      'stderr',
-                     task_id=self.job.id)
+                     batch_id=self.job.id)
         stdout_tail = S3Tail(stdout_location)
         stderr_tail = S3Tail(stderr_location)
 
@@ -332,36 +326,23 @@ class Batch(object):
             # we should exit this loop when the task has finished without
             # a long delay, regardless of the log tailing schedule
             d = min(log_update_delay, 5.0)
-            time.sleep(d)
-            #select.poll().poll(d * 100)
+            select.poll().poll(d * 1000)
         
         # 3) Fetch remaining logs
         #
         # It is possible that we exit the loop above before all logs have been
-        # shown. In particular, this may happen with hard crashes (OOM) in
-        # which case the final save_logs hasn't happened. We fetch the remaining
-        # logs from AWS Batch' S3 upload location.
+        # shown.
         #
         # TODO if we notice AWS Batch failing to upload logs to S3, we can add a
         # HEAD request here to ensure that the file exists prior to calling
         # S3Tail and note the user about truncated logs if it doesn't
-        # batch_root = self.job._get_s3_log_path()
-        # stdout_last = stdout_tail.clone(os.path.join(batch_root, STDOUT_FILE))
-        # stderr_last = stderr_tail.clone(os.path.join(batch_root, STDERR_FILE))
-        # the remaining loglines need to be persisted by the runtime, so
-        # we tag them with a "should_persist" tag
         _print_available(stdout_tail, 'stdout')
         _print_available(stderr_tail, 'stderr')
-        # _print_available(stdout_last, 'stdout', should_persist=True)
-        # _print_available(stderr_last, 'stderr', should_persist=True)
-
-        # logs = self.job.logs()
-        # while True:
-        #     logs, finished, = print_all(logs)
-        #     if finished:
-        #         break
-        #     else:
-        #         select.poll().poll(500)
+        # In case of hard crashes (OOM), the final save_logs won't happen.
+        # We fetch the remaining logs from AWS CloudWatch and persist them to 
+        # Amazon S3.
+        #
+        # TODO: AWS CloudWatch fetch logs
 
         if self.job.is_crashed:
             msg = next(msg for msg in 
@@ -377,6 +358,7 @@ class Batch(object):
                 # Kill the job if it is still running by throwing an exception.
                 raise BatchException("Task failed!")
             echo(
-                self.job.id,
-                'Task finished with exit code %s.' % self.job.status_code
+                'Task finished with exit code %s.' % self.job.status_code,
+                'stderr',
+                batch_id=self.job.id
             )

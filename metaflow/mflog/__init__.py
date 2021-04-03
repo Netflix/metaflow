@@ -31,11 +31,11 @@ LOG_SOURCES = [
 # loglined prior to Metaflow package has been downloaded.
 # Note that MFLOG_STDOUT is defined by mflog_export_env_vars() function.
 BASH_MFLOG =\
-    "mflog(){ "\
-        "export T=$(date -u -Ins|tr , .); "\
-        "echo \'[MFLOG|0|${T:0:26}Z|%s|$(printenv T)]$1\'"\
-            " >> $(printenv MFLOG_STDOUT); echo $1; "\
-     " }" % TASK_LOG_SOURCE
+    'mflog(){ '\
+        'T=$(date -u -Ins|tr , .); '\
+        'echo \\"[MFLOG|0|${T:0:26}Z|%s|$T]$1\\"'\
+            ' >> $MFLOG_STDOUT; echo $1; '\
+     ' }' % TASK_LOG_SOURCE
 
 BASH_SAVE_LOGS_ARGS = ['python', '-m', 'metaflow.mflog.save_logs']
 BASH_SAVE_LOGS = ' '.join(BASH_SAVE_LOGS_ARGS)
@@ -45,8 +45,8 @@ BASH_SAVE_LOGS = ' '.join(BASH_SAVE_LOGS_ARGS)
 def bash_capture_logs(bash_expr):
     cmd = 'python -m metaflow.mflog.tee %s %s'
     parts = (bash_expr,
-             cmd % (TASK_LOG_SOURCE, '$(printenv MFLOG_STDOUT)'),
-             cmd % (TASK_LOG_SOURCE, '$(printenv MFLOG_STDERR)'))
+             cmd % (TASK_LOG_SOURCE, '$MFLOG_STDOUT'),
+             cmd % (TASK_LOG_SOURCE, '$MFLOG_STDERR'))
     return '(%s) 1>> >(%s) 2>> >(%s >&2)' % parts
 
 # update_delay determines how often logs should be uploaded to S3

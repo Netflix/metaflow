@@ -87,7 +87,7 @@ class MetaflowEnvironment(object):
                 "cd metaflow",
                 "mkdir .metaflow", # mute local datastore creation log
                 "i=0; while [ $i -le 5 ]; do "
-                    "mflog \'Downloading code package.\'; "
+                    "mflog \'Downloading code package...\'; "
                     "%s -m awscli s3 cp %s job.tar >/dev/null && \
                         mflog \'Code package downloaded.\' && break; "
                     "sleep 10; i=$((i+1)); "
