@@ -98,7 +98,6 @@ class MetaflowEnvironment(object):
                 "fi" % code_package_url,
                 "tar xf job.tar",
                 "mflog \'Task is starting.\'",
-                BASH_SAVE_LOGS
                 ]
         return cmds
 
