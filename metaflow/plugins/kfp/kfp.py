@@ -136,7 +136,7 @@ class KubeflowPipelines(object):
         # kfp userid needs to have the user domain
         kfp_client_user_email = username
         if KFP_USER_DOMAIN:
-            kfp_client_user_email += f'@{KFP_USER_DOMAIN}'
+            kfp_client_user_email += f"@{KFP_USER_DOMAIN}"
 
         self._client = kfp.Client(
             namespace=api_namespace, userid=kfp_client_user_email, **kwargs
