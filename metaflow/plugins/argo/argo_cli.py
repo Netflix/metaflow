@@ -3,6 +3,7 @@ import json
 
 from metaflow import current, decorators, parameters, JSONType
 from metaflow.datastore.datastore import TransformableObject
+from metaflow.metaflow_config import from_conf
 from metaflow.package import MetaflowPackage
 from metaflow.plugins import BatchDecorator
 from .argo_workflow import ArgoWorkflow
@@ -44,7 +45,8 @@ def argo(obj):
                    "deploy anything.")
 @click.pass_obj
 def create(obj, image, env, env_from, token, namespace, only_json=False):
-    obj.echo("Deploying *%s* to Argo Workflow Templates..." % current.flow_name, bold=True)
+    name = argo_workflow_name(current.flow_name.lower())
+    obj.echo("Deploying *%s* to Argo Workflow Templates..." % name, bold=True)
 
     datastore = obj.datastore(obj.flow.name,
                               mode='w',
@@ -65,7 +67,6 @@ def create(obj, image, env, env_from, token, namespace, only_json=False):
     package_url = datastore.save_data(
         obj.package.sha, TransformableObject(obj.package.blob))
 
-    name = current.flow_name.lower()
     workflow = ArgoWorkflow(name,
                             obj.flow,
                             obj.graph,
@@ -107,7 +108,7 @@ def trigger(obj, token, namespace, **kwargs):
     params = {p.name: _convert_value(p)
               for _, p in obj.flow._get_parameters()
               if kwargs.get(p.name) is not None}
-    name = current.flow_name.lower()
+    name = argo_workflow_name(current.flow_name.lower())
     response = ArgoWorkflow.trigger(token, namespace, name, params)
     id = response['metadata']['name']
     obj.echo("Workflow *{name}* triggered on Argo Workflows "
@@ -145,7 +146,7 @@ def list_runs(obj, token, namespace, pending, running, succeeded, failed, error)
     if error:
         states.append('Error')
 
-    tmpl = current.flow_name.lower()
+    tmpl = argo_workflow_name(current.flow_name.lower())
     workflows = ArgoWorkflow.list(token, namespace, tmpl, states)
     if not workflows:
         if states:
@@ -174,3 +175,11 @@ def list_runs(obj, token, namespace, pending, running, succeeded, failed, error)
                     status=wf['status']['phase'],
                     startedAt=wf['status']['startedAt'])
             )
+
+
+def argo_workflow_name(name):
+    # Prefix for Argo Workflows template.
+    argo_workflow_prefix = from_conf("ARGO_WORKFLOW_PREFIX")
+    if argo_workflow_prefix is not None:
+        return argo_workflow_prefix + '_' + name
+    return name
