@@ -76,21 +76,45 @@ class MetaflowEnvironment(object):
         str : Information printed and returned to the user
         """
         return "Local environment"
+    
+    def get_s3_download_command(self, s3_path, local_path):
+        """
+
+        Parameters
+        ----------
+        s3_path : str
+            Path to S3 file
+        local_path : str
+            Path to download S3 file to
+        
+        Returns
+        -------
+        str : Command 
+        """
+
+        return (
+            "%s -c \"" % self._python()
+            + "import boto3; "
+            + "exec('try:\\n from urlparse import urlparse\\nexcept:\\n from urllib.parse import urlparse');"
+            + "parsed = urlparse('%s');" % s3_path
+            + "boto3.client('s3').download_file(parsed.netloc, parsed.path.lstrip('/'), '%s');" % local_path
+            + "\""
+        )
 
     def get_package_commands(self, code_package_url):
         cmds = ["set -e",
                 "echo \'Setting up task environment.\'",
-                "%s -m pip install awscli click requests boto3 -qqq" 
+                "%s -m pip install click requests boto3 -qqq" 
                     % self._python(),
                 "mkdir metaflow",
                 "cd metaflow",
                 "mkdir .metaflow", # mute local datastore creation log
                 "i=0; while [ $i -le 5 ]; do "
                     "echo \'Downloading code package.\'; "
-                    "%s -m awscli s3 cp %s job.tar >/dev/null && \
+                    "%s >/dev/null && \
                         echo \'Code package downloaded.\' && break; "
                     "sleep 10; i=$((i+1)); "
-                "done" % (self._python(), code_package_url),
+                "done" % self.get_s3_download_command(code_package_url, 'job.tar'),
                 "if [ $i -gt 5 ]; then "
                     "echo \'Failed to download code package from %s "
                     "after 6 tries. Exiting...\' && exit 1; "
