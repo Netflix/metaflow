@@ -336,7 +336,7 @@ def run(
             show_status(run_id, kfp_run_url, obj.echo, succeeded)
         elif wait_for_completion:
             response = flow._client.wait_for_run_completion(
-                run_pipeline_result.run_id, timeout=500
+                run_pipeline_result.run_id, timeout=workflow_timeout
             )
             succeeded = (response.run.status == "Succeeded",)
             show_status(run_id, kfp_run_url, obj.echo, succeeded)
