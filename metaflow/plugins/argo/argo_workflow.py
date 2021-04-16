@@ -11,27 +11,9 @@ from .argo_decorator import ArgoStepDecorator, ArgoInternalStepDecorator
 from .argo_exception import ArgoException
 from .argo_client import ArgoClient
 
-"""
-Nested Foreach
-In order to design the nested foreach in Argo, we need to use nested DAG. Each node in metaflow
-that has these two characteristics, counts as a nested foreach. First, the is_inside_foreach for
-this node is True. Second, its parent has type foreach. Therefore, this node uses as the entry
-node for nested DAG. Moreover, we need to specify the exit condition(node) from this nested DAG.
-The exit condition is when we reach to the matching join of the entry node's parent.
-But before building nested dag, we need to do topological sort on graph and passed
-the ordered queue to build the nested DAG template. The reason for sorting is if both nested foreach
-and nested branch happens in this nested foreach. We should be sure that the branches and their
-parent must be add in the same DAG. Consider is_inside_foreach for node Y is True and its parent X
-has a foreach type. First, we sort the steps from Y to maching_join of X (join_x). Then, define the
-nested template which includes inputs,outputs and DAG and add Y as the entry node for this DAG and
-iterate over ordered queue till we reach the join_x. Here, the iteration stops and return the output
-of the latest node, which is added to this nested DAG,to the upper DAG. Because in Argo the nested
-DAG must pass the output to the upper DAG (the DAG that this nested DAG calls inside it).
-The next node after each nested dag is always a join node (exit_node). This node doesn't follow the
-default rule for input-path and dependencies. Its input-path as follows:
-'{{workflow.name}}/(join.in_funcs)>/{{tasks.<(split_parent(join).out_func)>.outputs.parameters}}'
-and its dependencies is split_parent(join).out_func.
-"""
+
+ENTRYPOINT = 'entry'
+
 
 def dns_name(name):
     """
@@ -179,8 +161,7 @@ class ArgoWorkflow:
 
     def _spec(self):
         parameters = self._parameters()
-        entrypoint = 'entry'
-        spec = {'entrypoint': entrypoint}
+        spec = {'entrypoint': ENTRYPOINT}
         if parameters:
             spec['arguments'] = {'parameters': parameters}
 
@@ -188,93 +169,97 @@ class ArgoWorkflow:
         if image_pull_secret:
             spec['imagePullSecrets'] = image_pull_secret
 
-        spec['templates'] = self._generate_templates(entrypoint)
-
+        spec['templates'] = self._generate_templates()
         return spec
 
-    def _generate_step(self):
-        steps = [Step(node,
-                      self.graph,
-                      self._default_image(),
-                      self._flow_attributes.get('env', []) + self.env,
-                      self._flow_attributes.get('envFrom', []) + self.env_from,
-                      self._commands(node, self._parameters()),
-                      visited=False)
-                 for node in self.graph.nodes.values()]
-
-        map_node_to_step = {step.node: step for step in steps}
-        start_step = steps[0]
-        sorted_steps = self._sort_steps(start_step, map_node_to_step, stack=[])
-        # need to set value of visited to False again for generate template and nested-dag
-        for step in sorted_steps:
-            step.visited = False
-        return sorted_steps, map_node_to_step
-
-    def _sort_steps(self, step, map_node_to_step, stack):
-        """
-        The aim is to do the topological sort on the graph. we traverse form start node and
-        during traversing, if node has a matching-join, we add it to stack first to be sure
-        that join runs after its in_funcs. The only reason that we need to do topological
-        sort is if the branching happen inside the nested-foreach. Because when we have
-        branching, we need to be sure all branches for the same parent add to the same DAG.
-        Because user can build his/her pipelines in any order for branching. So we should be
-        sure that one branch is not added to another nested DAG. we need to have a property
-        visited to steps that each step that once traverse, not go to stack again.
-        """
-        ordered_queue = []
-
-        if not step.visited:
-            ordered_queue.append(step)
-
-        matching_join = step.node.matching_join
-        if matching_join:
-            # if there is a matching_join for the node, we need to add it to dfs_stack before
-            # its node because join must be run always after all its in_funcs's nodes
-            matching_join_step = map_node_to_step[self.graph[matching_join]]
-            if not matching_join_step.visited:
-                matching_join_step.visited = True
-                stack.append(self.graph[matching_join])
-
-        for node in step.node.out_funcs:
-            step = map_node_to_step[self.graph[node]]
-            if not step.visited:
-                step.visited = True
-                stack.append(self.graph[node])
-
+    def _generate_steps(self):
+        # we apply depth-first-search to the graph to sort it and generate the steps
+        # at the same time. The reason for sorting is if both nested foreach and nested
+        # branch happens in the nested foreach. We should be sure that the branches and
+        # their parent must be add in the same DAG, or if user writes his/her script in
+        # any order, sort it before passing to nested DAG.
+        stack = []
+        visited = []
+        steps = []
+        nested_foreach_stack = []
+        stack.append(self.graph['start'])
         while stack:
             node = stack.pop()
-            ordered_queue.append(map_node_to_step[node])
+            if node.name not in visited:
+                visited.append(node.name)
+                steps.append(
+                    Step(node,
+                         self.graph,
+                         self._default_image(),
+                         self._flow_attributes.get('env', []) + self.env,
+                         self._flow_attributes.get('envFrom', []) + self.env_from,
+                         self._commands(node, self._parameters())
+                    )
+                )
+                for child in node.out_funcs:
+                    # the join node can be added to stack only if all its predecessors (parents)
+                    # are visited. otherwise, skip to add join node till the time that all
+                    # its in_funcs are visited
+                    if self.graph[child].type == 'join' and not \
+                            all(predecessor in visited for predecessor in self.graph[child].in_funcs):
+                        continue
+                    # store the nodes which is nested foreach in stack
+                    if self.graph[child].is_inside_foreach and node.type == 'foreach':
+                        nested_foreach_stack.append(self.graph[child])
+                    stack.append(self.graph[child])
+        return steps, nested_foreach_stack
 
-            if node.type == 'end':
-                return ordered_queue
+    def matching_join_of_split_parent(self, node):
+        return self.graph[self.graph[node.split_parents[-1]].matching_join]
 
-            return ordered_queue + self._sort_steps(map_node_to_step[node], map_node_to_step, stack)
-
-    def _generate_templates(self, entry):
-        tasks = []
-        nested_dag_templates = []
-        steps, map_node_to_step = self._generate_step()
+    def _generate_templates(self):
+        steps, nested_foreach_stack = self._generate_steps()
         templates = [s.template() for s in steps]
+        nested_dag_template = [self._generate_dag_template(steps, nested_node)
+                               for nested_node in nested_foreach_stack[::-1]]
+        main_dag_template = self._generate_dag_template(steps)
 
-        for i, step in enumerate(steps):
+        return [main_dag_template] + templates + nested_dag_template
+
+    def _generate_dag_template(self, steps, nested_node=None):
+        map_node_to_step = {step.node: step for step in steps}
+        tasks = []
+        exit_condition = None
+        nested_dag = {}
+
+        if nested_node:
+            step = map_node_to_step[nested_node]
+            join = self.matching_join_of_split_parent(step.node)
+            nested_dag = nested_dag_template(step.node, join)
+            tasks = nested_dag['dag']['tasks']
+            # This is the exit condition for the current dag
+            exit_condition = map_node_to_step[join]
+            steps = steps[steps.index(step) + 1:steps.index(exit_condition) + 1]
+
+        for step in steps:
+            if exit_condition and step == exit_condition:
+                nested_dag['dag']['tasks'] = tasks
+                return nested_dag
+
             if not step.visited:
                 step.visited = True
                 tasks.append(step.task())
                 if step.is_nested_foreach():
-                    exit_step = map_node_to_step[step.matching_join_of_split_parent()]
-                    nested_dag_block = steps[i+1:steps.index(exit_step)+1]
-                    nested_dag_templates += self._nested_dag(step, nested_dag_block, map_node_to_step)
-                    tasks.append(exit_step.task(exit_nested_dag=True))
-                    exit_step.visited = True
+                    # the join_after_nested_dag step is belonged to the upper dag if the nested dag occurred
+                    join_after_nested_dag = self.matching_join_of_split_parent(step.node)
+                    task = join_foreach_task(join_after_nested_dag, ptask=step.node.name)
+                    tasks.append(task)
+                    map_node_to_step[join_after_nested_dag].visited = True
+                    continue
 
-        dag = {
-            'name': entry,
+        main_dag_template = {
+            'name': ENTRYPOINT,
             'dag': {
                 'tasks': tasks
             }
         }
 
-        return [dag] + templates + nested_dag_templates
+        return main_dag_template
 
     def _commands(self, node, parameters):
         cmds = self.environment.get_package_commands(self.code_package_url)
@@ -350,41 +335,6 @@ class ArgoWorkflow:
         cmds.append(' '.join(entrypoint + top_level + step))
         return cmds
 
-    def _nested_dag(self, step, ordered_steps, map_node_to_step):
-        """
-        each nested foreach (nested-dag) starts with the node (entry-node) that its parent
-        is foreach and is inside foreach and exit when reach to the matching join for
-        the entry-node's parent.
-        """
-        template = []
-        tmpl = step.nested_dag_template()
-        tasks = tmpl['dag']['tasks']
-        # exit_condition is always join and this is belongs to the current dag
-        exit_condition = step.matching_join_of_split_parent()
-
-        for step in ordered_steps:
-
-            if step.node == exit_condition:
-                tmpl['dag']['tasks'] = tasks
-                template.append(tmpl)
-                return template
-
-            if not step.visited:
-                step.visited = True
-                if step.is_nested_foreach():
-                    tasks.append(step.task())
-                    template += self._nested_dag(step, ordered_steps, map_node_to_step)
-                    # exit_node is join and this is related to exit condition of inner nested dag
-                    # the node which is come after nested dag, is always join
-                    exit_step = map_node_to_step[step.matching_join_of_split_parent()]
-                    task = exit_step.task(exit_nested_dag=True)
-                    tasks.append(task)
-                    exit_step.visited = True
-                    continue
-
-                task = step.task()
-                tasks.append(task)
-
 
 class Step:
     def __init__(self,
@@ -393,8 +343,7 @@ class Step:
                  default_image,
                  env,
                  env_from,
-                 commands,
-                 visited):
+                 commands):
         self.name = dns_name(node.name)
         self.node = node
         self.graph = graph
@@ -402,7 +351,7 @@ class Step:
         self.flow_env = env
         self.flow_env_from = env_from
         self.cmds = commands
-        self.visited = visited
+        self.visited = False
         self._attr = self._parse_step_docorator(ArgoStepDecorator)
         self._attr.update(self._parse_step_docorator(ResourcesDecorator))
 
@@ -417,42 +366,12 @@ class Step:
         return self.node.is_inside_foreach and \
             self.graph[self._parent()].type == 'foreach'
 
-    def matching_join_of_split_parent(self):
-        return self.graph[self.graph[self.node.split_parents[-1]].matching_join]
-
-    def task(self, exit_nested_dag=False):
-        with_param = None
-        template = self.name
-        dependencies = [dns_name(d) for d in self.node.in_funcs]
-
-        parameters = {
-            'input-paths': self._input_paths()
-        }
-
+    def task(self):
+        if self.name == 'start':
+            return start_task()
         if self.is_nested_foreach():
-            template = 'nested-%s' % self.name
-            parameters['split-index'] = '{{item}}'
-            with_param = '{{tasks.%s.outputs.parameters.num-splits}}' % \
-                dns_name(self._parent())
-
-        if exit_nested_dag:
-            entry_nested_dag = self.graph[self.node.split_parents[-1]].out_funcs[0]
-            dependencies = [dns_name(entry_nested_dag)]
-            parameters['input-paths'] = '{{workflow.name}}/%s/{{tasks.%s.outputs.parameters}}' % \
-                                        (self._parent(), dns_name(entry_nested_dag))
-
-        task = {
-            'name': self.name,
-            'template': template,
-            'dependencies': dependencies,
-            'arguments': {
-                'parameters': [{'name': k, 'value': v}
-                               for k, v in parameters.items()]
-            }
-        }
-        if with_param:
-            task['withParam'] = with_param
-        return task
+            return child_foreach_task(self.node)
+        return regular_task(self.node)
 
     def template(self):
         tmpl = {
@@ -468,61 +387,6 @@ class Step:
             tmpl['nodeSelector'] = self._attr['nodeSelector']
         tmpl['container'] = self._container()
         return tmpl
-
-    def nested_dag_template(self):
-        output_node = self.graph[self.graph[self._parent()].matching_join].in_funcs[0]
-        outputs = {
-            'parameters': [
-                {
-                    'name': 'task-id',
-                    'valueFrom': {
-                        'parameter': '{{tasks.%s.outputs.parameters.task-id}}' % dns_name(output_node)
-                    }
-                }
-            ]
-        }
-
-        tmpl = {
-            'name': 'nested-%s' % self.name,
-            'inputs': self._inputs(),
-            'dag': {
-                'tasks': []
-            },
-            'outputs': outputs,
-        }
-
-        entry_task = {
-            'name': self.name,
-            'template': self.name,
-            'arguments': {
-                'parameters': [{'name': k['name'], 'value': "{{inputs.parameters.%s}}" % k['name']}
-                               for k in tmpl['inputs']['parameters']]
-            }
-        }
-        tmpl['dag']['tasks'].append(entry_task)
-
-        return tmpl
-
-    def _input_paths(self):
-        if self.name == 'start':
-            return '{{workflow.name}}/_parameters/0'
-
-        if self.node.type == 'join':
-            if self.graph[self.node.split_parents[-1]].type == 'foreach':
-                return self._task_params()
-            all_parents_params = [self._task_params('task-id', parent)
-                                  for parent in self.node.in_funcs]
-            return compress_list(all_parents_params)
-
-        return self._task_params('task-id')
-
-    def _task_params(self, param=None, parent=None):
-        if parent is None:
-            parent = self._parent()
-        s = 'tasks.%s.outputs.parameters' % dns_name(parent)
-        if param:
-            s += '.' + param
-        return '{{workflow.name}}/%s/{{%s}}' % (parent, s)
 
     def _inputs(self):
         params = ['input-paths']
@@ -600,3 +464,123 @@ class Step:
         env = default_env + self.flow_env + self._attr.get('env', [])
         env_from = self.flow_env_from + self._attr.get('envFrom', [])
         return env, env_from
+
+
+def start_task():
+    return {
+        'name': 'start',
+        'template': 'start',
+        'arguments': {
+            'parameters': [{
+                'name': 'input-paths',
+                'value': '{{workflow.name}}/_parameters/0'
+            }]
+        }
+    }
+
+
+def child_foreach_task(node):
+    name = dns_name(node.name)
+    pstep = node.in_funcs[-1]
+    ptask = dns_name(pstep)
+    return {
+        'name': name,
+        'template': 'nested-' + name,
+        'dependencies': [ptask],
+        'arguments': {
+            'parameters': [
+                {
+                    'name': 'input-paths',
+                    'value': '{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}' % (pstep, ptask)
+                },
+                {
+                    'name': 'split-index',
+                    'value': '{{item}}'
+                }
+            ]
+        },
+        'withParam': '{{tasks.%s.outputs.parameters.num-splits}}' % ptask,
+    }
+
+
+def dag_first_task(node):
+    name = dns_name(node.name)
+    return {
+        'name': name,
+        'template': name,
+        'arguments': {
+            'parameters': [
+                {
+                    'name': 'input-paths',
+                    'value': '{{inputs.parameters.input-paths}}'
+                },
+                {
+                    'name': 'split-index',
+                    'value': '{{inputs.parameters.split-index}}'
+                }
+            ]
+        }
+    }
+
+
+def join_foreach_task(node, ptask):
+    name = dns_name(node.name)
+    pstep = node.in_funcs[-1]
+    ptask = dns_name(ptask)
+    return {
+        'name': name,
+        'template': name,
+        'dependencies': [ptask],
+        'arguments': {
+            'parameters': [{
+                'name': 'input-paths',
+                'value': '{{workflow.name}}/%s/{{tasks.%s.outputs.parameters}}' % (pstep, ptask)
+            }]
+        }
+    }
+
+
+def regular_task(node):
+    name = dns_name(node.name)
+    paths = ['{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}' % (n, dns_name(n)) for n in node.in_funcs]
+    return {
+        'name': name,
+        'template': name,
+        'dependencies': [dns_name(n) for n in node.in_funcs],
+        'arguments': {
+            'parameters': [{
+                'name': 'input-paths',
+                'value': compress_list(paths)
+            }]
+        }
+    }
+
+def nested_dag_template(node, join):
+    name = dns_name(node.name)
+    last_dag_task = dns_name(join.in_funcs[0])
+    return {
+        'name': 'nested-%s' % name,
+        'inputs': {
+            'parameters': [
+                {
+                    'name': 'input-paths'
+                },
+                {
+                    'name': 'split-index'
+                }
+            ]
+        },
+        'outputs': {
+            'parameters': [
+                {
+                    'name': 'task-id',
+                    'valueFrom': {
+                        'parameter': '{{tasks.%s.outputs.parameters.task-id}}' % last_dag_task
+                    }
+                }
+            ]
+        },
+        'dag': {
+            'tasks': [dag_first_task(node)]
+        }
+    }
