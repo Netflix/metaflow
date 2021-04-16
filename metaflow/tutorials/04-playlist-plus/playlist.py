@@ -73,7 +73,7 @@ class PlayListFlow(FlowSpec):
         # Also grab the summary statistics.
         self.genre_stats = run.data.genre_stats
 
-        # Compute our two recomendation types in parallel.
+        # Compute our two recommendation types in parallel.
         self.next(self.bonus_movie, self.genre_movies)
 
     @conda(libraries={'editdistance': '0.5.3', 'pandas' : '0.24.2'})
