@@ -260,7 +260,8 @@ class ServiceMetadataProvider(MetadataProvider):
         if cls.INFO is None:
             raise MetaflowException('Missing Metaflow Service URL. '
                 'Specify with METAFLOW_SERVICE_URL environment variable')
-        url = os.path.join(cls.INFO, 'ping')
+        path = 'ping/'
+        url = os.path.join(cls.INFO, path)
         for i in range(METADATA_SERVICE_NUM_RETRIES):
             try:
                 if monitor:
