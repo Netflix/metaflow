@@ -7,6 +7,7 @@ from metaflow.util import get_username, compress_list
 from metaflow.metaflow_config import DATASTORE_SYSROOT_S3, METADATA_SERVICE_URL, DEFAULT_METADATA
 from metaflow.parameters import deploy_time_eval
 from metaflow.plugins.aws.batch.batch_decorator import ResourcesDecorator
+from metaflow.plugins.environment_decorator import EnvironmentDecorator
 from .argo_decorator import ArgoStepDecorator, ArgoInternalStepDecorator
 from .argo_exception import ArgoException
 from .argo_client import ArgoClient
@@ -352,10 +353,11 @@ class Step:
         self.flow_env_from = env_from
         self.cmds = commands
         self.visited = False
-        self._attr = self._parse_step_docorator(ArgoStepDecorator)
-        self._attr.update(self._parse_step_docorator(ResourcesDecorator))
+        self._attr = self._parse_step_decorator(ArgoStepDecorator)
+        self._attr.update(self._parse_step_decorator(ResourcesDecorator))
+        self._attr.update(self._parse_step_decorator(EnvironmentDecorator))
 
-    def _parse_step_docorator(self, deco_type):
+    def _parse_step_decorator(self, deco_type):
         deco = [d for d in self.node.decorators if isinstance(d, deco_type)]
         return deco[0].attributes if deco else {}
 
@@ -460,6 +462,8 @@ class Step:
             default['METAFLOW_SERVICE_URL'] = METADATA_SERVICE_URL
         if DEFAULT_METADATA:
             default['METAFLOW_DEFAULT_METADATA'] = DEFAULT_METADATA
+        # add env vars from @environment decorator if exist
+        default.update(self._attr.get('vars', {}))
         default_env = [{'name': k, 'value': v} for k, v in default.items()]
         env = default_env + self.flow_env + self._attr.get('env', [])
         env_from = self.flow_env_from + self._attr.get('envFrom', [])
@@ -554,6 +558,7 @@ def regular_task(node):
             }]
         }
     }
+
 
 def nested_dag_template(node, join):
     name = dns_name(node.name)
