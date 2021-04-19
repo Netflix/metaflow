@@ -18,6 +18,7 @@ RE = b'(\[!)?'\
      b'(.*)'
 
 # the RE groups defined above must match the MFLogline fields below
+# except utc_timestamp, which is filled in by the parser based on utc_tstamp_str
 MFLogline = namedtuple('MFLogline', ['should_persist',
                                      'version',
                                      'utc_tstamp_str',
