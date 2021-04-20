@@ -261,10 +261,10 @@ class Batch(object):
 
         if self.job.is_crashed:
             msg = next(msg for msg in 
-                [self.job.reason, self.job.status_reason, 'Task crashed']
+                [self.job.reason, self.job.status_reason, 'Task crashed.']
                  if msg is not None)
             raise BatchException(
-                '%s. '
+                '%s '
                 'This could be a transient error. '
                 'Use @retry to retry.' % msg
             )
