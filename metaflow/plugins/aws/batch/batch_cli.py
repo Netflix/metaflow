@@ -250,7 +250,8 @@ def step(
     # this information is needed for log tailing
     spec = task_spec.copy()
     spec['attempt'] = int(spec.pop('retry_count'))
-    ds = ctx.obj.datastore(mode='w', **spec)
+    spec.pop('flow_name')
+    ds = ctx.obj.flow_datastore.get_task_datastore(mode='w', **spec)
     stdout_location = ds.get_log_location(TASK_LOG_SOURCE, 'stdout')
     stderr_location = ds.get_log_location(TASK_LOG_SOURCE, 'stderr')
 
