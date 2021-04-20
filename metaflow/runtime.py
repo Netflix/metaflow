@@ -627,8 +627,7 @@ class Task(object):
         self._ds.done()
 
     def save_logs(self, logtype_to_logs):
-        locations = self._ds.save_logs(RUNTIME_LOG_SOURCE, logtype_to_logs)
-        return locations
+        self._ds.save_logs(RUNTIME_LOG_SOURCE, logtype_to_logs)
 
     def save_metadata(self, name, metadata):
         self._ds.save_metadata({name: metadata})

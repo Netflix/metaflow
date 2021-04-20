@@ -294,7 +294,7 @@ class Batch(object):
                     if should_persist:
                         line = set_should_persist(line)
                     else:
-                        line = refine(line, prefix=prefix, echo=echo)
+                        line = refine(line, prefix=prefix)
                     echo(line.strip().decode('utf-8', errors='replace'), stream)
             except Exception as ex:
                 echo('[ temporary error in fetching logs: %s ]' % ex,

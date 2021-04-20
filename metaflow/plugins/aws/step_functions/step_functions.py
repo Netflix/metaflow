@@ -568,7 +568,7 @@ class StepFunctions(object):
         task_spec = {
             'flow_name': attrs['metaflow.flow_name'],
             'step_name': attrs['metaflow.step_name'],
-            'run_id': '$METAFLOW_RUN_ID',
+            'run_id': 'sfn-$METAFLOW_RUN_ID',
             # Use AWS Batch job identifier as the globally unique 
             # task identifier.
             'task_id': '$AWS_BATCH_JOB_ID',

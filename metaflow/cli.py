@@ -32,6 +32,7 @@ from .monitor import Monitor
 from .R import use_r, metaflow_r_version
 from .mflog import mflog, LOG_SOURCES
 
+
 ERASE_TO_EOL = '\033[K'
 HIGHLIGHT = 'red'
 INDENT = ' ' * 4
@@ -310,6 +311,7 @@ def logs(obj,
     def echo_unicode(line, **kwargs):
         click.secho(line.decode('UTF-8', errors='replace'), **kwargs)
 
+    # old style logs are non mflog-style logs
     maybe_old_style = True
     for ds in ds_list:
         echo('Dumping logs of run_id=*{run_id}* '

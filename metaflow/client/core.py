@@ -1118,13 +1118,13 @@ class Task(MetaflowObject):
         # and guarantee that we always return the latest available log.
         attempt = int(self.metadata_dict.get('attempt', 0))
         components = self.path_components
-        logs = filecache.get_log_stream(
+        logs = filecache.get_logs_stream(
             ds_type, ds_root, stream, attempt, *components)
         for line in merge_logs([blob for _, blob in logs]):
             msg = to_unicode(line.msg) if as_unicode else line.msg
             yield line.utc_tstamp, msg
 
-    def _load_log_legacy(self, log_type, log_location, as_unicode=True):
+    def _load_log_legacy(self, logtype, log_location, as_unicode=True):
         # this function is used to load pre-mflog style logfiles
         global filecache
         log_info = json.loads(log_location)
@@ -1136,7 +1136,7 @@ class Task(MetaflowObject):
         if filecache is None:
             filecache = FileCache()
         ret_val = filecache.get_log_legacy(
-            ds_type, location, log_type, int(attempt), *components)
+            ds_type, location, logtype, int(attempt), *components)
         if as_unicode and (ret_val is not None):
             return ret_val.decode(encoding='utf8')
         else:

@@ -201,7 +201,7 @@ class BatchDecorator(StepDecorator):
         entries = [MetaDatum(field=k, value=v, type=k, tags=[]) for k, v in meta.items()]
         # Register book-keeping metadata for debugging.
         metadata.register_metadata(run_id, step_name, task_id, entries)
-        self._save_logs = SidecarSubProcess('save_logs_periodically')
+        self._save_logs_sidecar = SidecarSubProcess('save_logs_periodically')
 
     def task_post_step(self, step_name, flow, graph, retry_count, max_retries):
         self._save_meta()
@@ -226,7 +226,7 @@ class BatchDecorator(StepDecorator):
                     _, key = self.task_ds.parent_datastore.save_data([f])[0]
                 self.task_ds.save_metadata({'local_metadata': key})
         try:
-            self._save_logs.terminate()
+            self._save_logs_sidecar.kill()
         except:
             pass
 

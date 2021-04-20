@@ -173,9 +173,11 @@ class TaskDataStore(object):
     def parent_datastore(self):
         return self._parent
 
-    @staticmethod
-    def get_log_location(logprefix, stream):
-        return '%s_%s.log' % (logprefix, stream)
+    def get_log_location(self, logprefix, stream):
+        log_name = self._get_log_location(logprefix, stream)
+        path = self._backend.path_join(
+            self._path, self._metadata_name_for_attempt(log_name))
+        return self._backend.full_uri(path)
 
     @require_mode('r')
     def keys_for_artifacts(self, names):
@@ -350,12 +352,6 @@ class TaskDataStore(object):
         add_attempt : boolean, optional
             If True, adds the attempt identifier to the metadata. defaults to
             True
-        
-        Returns
-        -------
-        Dict : string -> string
-            The keys are the same as the ones passed in for contents and the values
-            are the paths, relative to the flow_datastore, where the metadata was stored.
         """
         return self._save_file(
             {k: json.dumps(v).encode('utf-8') for k, v in contents.items()},
@@ -582,21 +578,15 @@ class TaskDataStore(object):
             Each entry should have a string as the key indicating the type
             of the stream ('stderr', 'stdout') and as value should be bytes or
             a Path from which to stream the log.
-
-        Returns
-        -------
-        Dict : string -> string
-            The keys are built using get_log_location(logsource, stream) and the values
-            are the paths, relative to the flow_datastore, where the log was stored.
         """
         to_store_dict = {}
         for stream, data in stream_data.items():
-            n = self.get_log_location(logsource, stream)
+            n = self._get_log_location(logsource, stream)
             if isinstance(data, Path):
                 to_store_dict[n] = FileIO(str(data), mode='r')
             else:
                 to_store_dict[n] = data
-        return self._save_file(to_store_dict)
+        self._save_file(to_store_dict)
 
     def load_log_legacy(self, stream, attempt_override=None):
         """
@@ -610,7 +600,7 @@ class TaskDataStore(object):
     def load_logs(self, logsources, stream, attempt_override=None):
         paths = dict(map(
             lambda s: (self._metadata_name_for_attempt(
-                self.get_log_location(s, stream),
+                self._get_log_location(s, stream),
                 attempt_override=attempt_override), s), logsources))
         r = self._load_file(paths.keys(), add_attempt=False)
         return [(paths[k], v if v is not None else b'') for k, v in r.items()]
@@ -663,6 +653,10 @@ class TaskDataStore(object):
             name, self._attempt if attempt_override is None else
             attempt_override)
 
+    @staticmethod
+    def _get_log_location(logprefix, stream):
+        return '%s_%s.log' % (logprefix, stream)
+
     def _save_file(self, contents, allow_overwrite=False, add_attempt=True):
         """
         Saves files in the directory for this TaskDataStore. This can be
@@ -678,15 +672,8 @@ class TaskDataStore(object):
         add_attempt : boolean, optional
             If True, adds the attempt identifier to the metadata,
             defaults to True
-
-        Returns
-        -------
-        Dict : string -> string
-            The keys are the same as the ones passed in for contents and the values
-            are the paths, relative to the flow_datastore, where the file was stored.
         """
         to_store = {}
-        returned_paths = {}
         for name, value in contents.items():
             if add_attempt:
                 path = self._backend.path_join(
@@ -702,11 +689,8 @@ class TaskDataStore(object):
             else:
                 raise DataException("Metadata '%s' has an invalid type: %s" %
                                     (name, type(value)))
-            returned_paths[name] = path
-
         self._backend.save_bytes(
             to_store, overwrite=allow_overwrite)
-        return returned_paths
 
     def _load_file(self, names, add_attempt=True):
         """

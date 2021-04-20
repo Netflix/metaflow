@@ -47,7 +47,7 @@ class FileCache(object):
     def cache_dir(self):
         return self._cache_dir
 
-    def get_log_stream(
+    def get_logs_stream(
             self, ds_type, ds_root, stream, attempt, flow_name, run_id,
             step_name, task_id):
         from metaflow.mflog import LOG_SOURCES
