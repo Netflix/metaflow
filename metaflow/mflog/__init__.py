@@ -74,8 +74,9 @@ def delayed_update_while(
     condition,
     update_fn,
 ):
-    # Call update_fn() while condition_fn() returns True, with sigmoid delay between
-    # calls.
+    # Call update_fn() while condition_fn() returns not None, with sigmoid delay
+    # between update_fn() calls. Last non-none return value from condition() is
+    # returned as the result of this function.
     start_time = time.time()
     next_update_time = start_time
     next_update_delay = 1
@@ -87,8 +88,9 @@ def delayed_update_while(
             next_update_delay = update_delay(now - start_time)
             next_update_time = now + next_update_delay
 
-        if not condition():
-            return
+        res = condition()
+        if res is not None:
+            return res
 
         # We should exit this loop when the condition() returns False without
         # a long delay, regardless of the delay schedule

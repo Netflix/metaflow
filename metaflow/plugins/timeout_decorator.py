@@ -99,8 +99,8 @@ class TimeoutDecorator(StepDecorator):
         raise TimeoutException('%s\nStack when the timeout was raised:\n%s'
                                % (msg, '\n'.join(pretty_print_stack())))
 
-def get_run_time_limit_for_task(step_decos):
-    run_time_limit = 5 * 24 * 60 * 60  # 5 days.
+def get_run_time_limit_for_task(step_decos, default_limit):
+    run_time_limit = default_limit
     for deco in step_decos:
         if isinstance(deco, TimeoutDecorator):
             run_time_limit = deco.secs

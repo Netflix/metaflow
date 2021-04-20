@@ -126,6 +126,11 @@ EVENTS_SFN_ACCESS_IAM_ROLE = from_conf("METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE")
 SFN_STATE_MACHINE_PREFIX = from_conf("METAFLOW_SFN_STATE_MACHINE_PREFIX")
 
 ###
+# Kubernetes configuration
+###
+KUBERNETES_IMAGE_URI = from_conf("METAFLOW_KUBERNETES_IMAGE_URI")
+
+###
 # Conda configuration
 ###
 # Conda package root location on S3

@@ -155,7 +155,8 @@ class Batch(object):
                     step_cmds=[step_cli],
                     flow_name=flow_name,
                     stdout_path=STDOUT_PATH,
-                    stderr_path=STDERR_PATH)) \
+                    stderr_path=STDERR_PATH,
+                    extra_post_init_commands=[])) \
             .image(image) \
             .iam_role(iam_role) \
             .execution_role(execution_role) \
@@ -298,7 +299,7 @@ class Batch(object):
 
         # 2) Loop until the job has finished
         delayed_update_while(
-            condition=lambda: self.job.is_running,
+            condition=lambda: None if self.job.is_running else True,
             update_fn=_print_available_from_s3,
         )
 

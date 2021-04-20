@@ -136,6 +136,7 @@ def build_task_command(
     attempt,
     stdout_path,
     stderr_path,
+    extra_post_init_commands,
 ):
     mflog_expr = export_mflog_env_vars(datastore_type='s3',
                                         stdout_path=stdout_path,
@@ -148,6 +149,8 @@ def build_task_command(
                                         datastore_root=None)
     init_cmds = environment.get_package_commands(code_package_url)
     init_cmds.extend(environment.bootstrap_commands(step_name))
+    if extra_post_init_commands:
+        init_cmds.extend(extra_post_init_commands)
     init_expr = ' && '.join(init_cmds)
 
     stdout_dir = os.path.dirname(stdout_path)
