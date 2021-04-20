@@ -3,6 +3,7 @@ import sys
 import platform
 import re
 import tarfile
+import requests
 
 from metaflow.datastore import MetaflowDataStore
 from metaflow.datastore.datastore import TransformableObject
@@ -206,6 +207,25 @@ class BatchDecorator(StepDecorator):
         meta['aws-batch-job-attempt'] = os.environ['AWS_BATCH_JOB_ATTEMPT']
         meta['aws-batch-ce-name'] = os.environ['AWS_BATCH_CE_NAME']
         meta['aws-batch-jq-name'] = os.environ['AWS_BATCH_JQ_NAME']
+        meta['aws-batch-execution-env'] = os.environ['AWS_EXECUTION_ENV']
+
+        # Capture AWS Logs metadata. This is best effort only since
+        # only V4 of the metadata uri for the ECS container hosts this
+        # information and it is quite likely that not all consumers of 
+        # Metaflow would be running the container agent compatible with
+        # version V4.
+        # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-metadata-endpoint.html
+        try:
+            logs_meta = requests.get(
+                            url=os.environ['ECS_CONTAINER_METADATA_URI_V4']) \
+                                .json() \
+                                .get('LogOptions', {})
+            meta['aws-batch-awslogs-group'] = logs_meta.get('awslogs-group')
+            meta['aws-batch-awslogs-region'] = logs_meta.get('awslogs-region')
+            meta['aws-batch-awslogs-stream'] = logs_meta.get('awslogs-stream')
+        except:
+            pass
+
         entries = [MetaDatum(field=k, value=v, type=k, tags=[]) for k, v in meta.items()]
         # Register book-keeping metadata for debugging.
         metadata.register_metadata(run_id, step_name, task_id, entries)
