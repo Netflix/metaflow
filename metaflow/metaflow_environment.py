@@ -92,14 +92,16 @@ class MetaflowEnvironment(object):
         str : Command 
         """
 
-        return (
-            "%s -c \"" % self._python()
-            + "import boto3; "
-            + "exec('try:\\n from urlparse import urlparse\\nexcept:\\n from urllib.parse import urlparse');"
-            + "parsed = urlparse('%s');" % s3_path
-            + "boto3.client('s3').download_file(parsed.netloc, parsed.path.lstrip('/'), '%s');" % local_path
-            + "\""
-        )
+        try:
+            from urlparse import urlparse
+        except ImportError:
+            from urllib.parse import urlparse
+        
+        parsed_s3_path = urlparse(s3_path)
+        bucket = parsed_s3_path.netloc
+        key = parsed_s3_path.path.lstrip('/')
+
+        return "%s -c \'import sys; import boto3; boto3.client(sys.argv[1]).download_file(sys.argv[2], sys.argv[3], sys.argv[4])\' s3 \'%s\' \'%s\' job.tar" % (self._python(), bucket, key)
 
     def get_package_commands(self, code_package_url):
         cmds = ["set -e",
