@@ -1046,13 +1046,10 @@ class Task(MetaflowObject):
         # NOTE: mode='w' is set to avoid any S3 accesses in the datastore
         # init. We are not actually using the datastore for writing.
         S3DataStore.datastore_root =\
-            S3DataStore.get_datastore_root_from_config()
+            S3DataStore.get_datastore_root_from_config(echo=None)
 
-        # prefer string IDs (e.g. "sfn-34546') if they are available
-        run_str_id = self.parent.parent._object['runtime_id']
-        task_str_id = self._object['runtime_id']
-        run_id = run_str_id if run_str_id else str(self._object['run_number'])
-        task_id = task_str_id if task_str_id else str(self._object['id'])
+        run_id = str(self._object['run_number'])
+        task_id = str(self._object['task_id'])
 
         # It is possible that a task fails before any metadata has been
         # recorded. In this case, we assume that we are executing the

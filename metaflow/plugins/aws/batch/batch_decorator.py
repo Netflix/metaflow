@@ -210,7 +210,7 @@ class BatchDecorator(StepDecorator):
         entries = [MetaDatum(field=k, value=v, type=k, tags=[]) for k, v in meta.items()]
         # Register book-keeping metadata for debugging.
         metadata.register_metadata(run_id, step_name, task_id, entries)
-        self._save_logs = SidecarSubProcess('save_logs_periodically')
+        self._save_logs_sidecar = SidecarSubProcess('save_logs_periodically')
 
     def task_finished(self, step_name, flow, graph, is_task_ok, retry_count, max_retries):
         if self.ds_root:
@@ -232,7 +232,7 @@ class BatchDecorator(StepDecorator):
                     url = urlparse(path)
                     s3.upload_fileobj(f, url.netloc, url.path.lstrip('/'))
         try:
-            self._save_logs.terminate()
+            self._save_logs_sidecar.kill()
         except:
             pass
 

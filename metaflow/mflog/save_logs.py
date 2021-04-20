@@ -43,9 +43,6 @@ def save_logs():
                  for stream, path in zip(streams, paths)
                  if os.path.exists(path)]
 
-        # Optimization: Using S3.put_files for two tiny files
-        # is overkill (and slow: ~6s). If logs are small, we
-        # can just read them in memory and make two S3.put() calls
         if max(size for _, _, size in sizes) < SMALL_FILE_LIMIT:
             op = _read_file
         else:
@@ -55,7 +52,7 @@ def save_logs():
         ds.save_logs(TASK_LOG_SOURCE, data)
     except:
         # Upload failing is not considered a fatal error.
-        # This script shouldn't return a non-zero exit codes
+        # This script shouldn't return non-zero exit codes
         # for transient errors.
         pass
 

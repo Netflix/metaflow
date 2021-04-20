@@ -20,7 +20,7 @@ TASK_LOG_SOURCE = 'task'
 
 # Loglines from all sources need to be merged together to
 # produce a complete view of logs. Hence keep this list short
-# since every items takes an S3 access.
+# since every items takes a DataStore access.
 LOG_SOURCES = [
     RUNTIME_LOG_SOURCE,
     TASK_LOG_SOURCE
