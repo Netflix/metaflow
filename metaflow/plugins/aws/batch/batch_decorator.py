@@ -16,6 +16,7 @@ from .batch import BatchException
 from metaflow.metaflow_config import ECS_S3_ACCESS_IAM_ROLE, BATCH_JOB_QUEUE, \
                     BATCH_CONTAINER_IMAGE, BATCH_CONTAINER_REGISTRY, \
                     ECS_FARGATE_EXECUTION_ROLE
+from metaflow.sidecar import SidecarSubProcess
 
 try:
     # python2
@@ -200,6 +201,7 @@ class BatchDecorator(StepDecorator):
         entries = [MetaDatum(field=k, value=v, type=k, tags=[]) for k, v in meta.items()]
         # Register book-keeping metadata for debugging.
         metadata.register_metadata(run_id, step_name, task_id, entries)
+        self._save_logs = SidecarSubProcess('save_logs_periodically')
 
     def task_post_step(self, step_name, flow, graph, retry_count, max_retries):
         self._save_meta()
@@ -223,6 +225,10 @@ class BatchDecorator(StepDecorator):
                 with open(tar_file_path, 'rb') as f:
                     _, key = self.task_ds.parent_datastore.save_data([f])[0]
                 self.task_ds.save_metadata({'local_metadata': key})
+        try:
+            self._save_logs.terminate()
+        except:
+            pass
 
     @classmethod
     def _save_package_once(cls, flow_datastore, package):

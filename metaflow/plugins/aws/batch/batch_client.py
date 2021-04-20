@@ -563,7 +563,6 @@ class BatchWaiter(object):
             jobs=[job_id]
         )
 
-
 class BatchLogs(object):
     def __init__(self, group, stream, pos=0, sleep_on_no_data=0):
         from ..aws_client import get_aws_client

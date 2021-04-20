@@ -15,7 +15,7 @@ from metaflow.exception import MetaflowNotFound,\
 from metaflow.metaflow_config import DEFAULT_METADATA
 from metaflow.plugins import ENVIRONMENTS, METADATA_PROVIDERS
 
-from metaflow.util import cached_property, resolve_identity
+from metaflow.util import cached_property, resolve_identity, to_unicode
 
 from .filecache import FileCache
 
@@ -1086,21 +1086,57 @@ class Task(MetaflowObject):
         env = [m for m in ENVIRONMENTS + [MetaflowEnvironment] if m.TYPE == env_type][0]
         return env.get_client_info(self.path_components[0], self.metadata_dict)
 
-    def _load_log(self, logtype, as_unicode=True):
+    def _load_log(self, stream):
+        log_location = self.metadata_dict.get('log_location_%s' % stream)
+        if log_location:
+            return self._load_log_legacy(stream, log_location)
+        return ''.join(line + '\n' for _, line in self.loglines(stream))
+
+    def loglines(self, stream, as_unicode=True):
+        """
+        Return an iterator over (utc_timestamp, logline) tuples.
+
+        If as_unicode=False, logline is returned as a byte object. Otherwise,
+        it is returned as a (unicode) string.
+        """
+        from metaflow.mflog.mflog import merge_logs
         global filecache
-        ret_val = None
-        log_info = self.metadata_dict.get('log_location_%s' % logtype)
-        if log_info:
-            log_info = json.loads(log_info)
-            location = log_info['location']
-            ds_type = log_info['ds_type']
-            attempt = log_info['attempt']
-            components = self.path_components
-            # Check if we have a filecache.
-            if filecache is None:
-                filecache = FileCache()
-            ret_val = filecache.get_log(
-                ds_type, location, logtype, int(attempt), *components)
+        ds_type = self.metadata_dict.get('ds-type')
+        ds_root = self.metadata_dict.get('ds-root')
+        if ds_type is None or ds_root is None:
+            yield None, ''
+            return
+        if filecache is None:
+            filecache = FileCache()
+        # It is possible that a task fails before any metadata has been
+        # recorded. In this case, we assume that we are executing the
+        # first attempt.
+        #
+        # FIXME: Technically we are looking at the latest *recorded* attempt
+        # here. It is possible that logs exists for a newer attempt that
+        # just failed to record metadata. We could make this logic more robust
+        # and guarantee that we always return the latest available log.
+        attempt = int(self.metadata_dict.get('attempt', 0))
+        components = self.path_components
+        logs = filecache.get_log_stream(
+            ds_type, ds_root, stream, attempt, *components)
+        for line in merge_logs([blob for _, blob in logs]):
+            msg = to_unicode(line.msg) if as_unicode else line.msg
+            yield line.utc_tstamp, msg
+
+    def _load_log_legacy(self, log_type, log_location, as_unicode=True):
+        # this function is used to load pre-mflog style logfiles
+        global filecache
+        log_info = json.loads(log_location)
+        location = log_info['location']
+        ds_type = log_info['ds_type']
+        attempt = log_info['attempt']
+        components = self.path_components
+        # Check if we have a filecache.
+        if filecache is None:
+            filecache = FileCache()
+        ret_val = filecache.get_log_legacy(
+            ds_type, location, log_type, int(attempt), *components)
         if as_unicode and (ret_val is not None):
             return ret_val.decode(encoding='utf8')
         else:

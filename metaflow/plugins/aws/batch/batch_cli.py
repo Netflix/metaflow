@@ -9,7 +9,7 @@ import click
 from distutils.dir_util import copy_tree
 from io import BytesIO
 
-from .batch import Batch, BatchKilledException
+from .batch import Batch, BatchKilledException, STDOUT_PATH, STDERR_PATH
 
 from metaflow.datastore import FlowDataStore
 from metaflow.datastore.local_backend import LocalBackend
@@ -20,6 +20,8 @@ from metaflow.exception import (
     CommandException,
     METAFLOW_EXIT_DISALLOW_RETRY,
 )
+from metaflow.mflog import TASK_LOG_SOURCE
+
 
 try:
     # python2
@@ -174,8 +176,11 @@ def step(
     swappiness=None,
     **kwargs
 ):
-    def echo(batch_id, msg, stream=sys.stdout):
-        ctx.obj.echo_always("[%s] %s" % (batch_id, msg))
+    def echo(msg, stream='stderr', batch_id=None):
+        msg = util.to_unicode(msg)
+        if batch_id:
+            msg = '[%s] %s' % (batch_id, msg)
+        ctx.obj.echo_always(msg, err=(stream == sys.stderr))
 
     if R.use_r():
         entrypoint = R.entrypoint()
@@ -213,17 +218,18 @@ def step(
         )
 
     # Set batch attributes
-    attrs = {
-        "metaflow.user": util.get_username(),
-        "metaflow.flow_name": ctx.obj.flow.name,
-        "metaflow.step_name": step_name,
-        "metaflow.run_id": kwargs["run_id"],
-        "metaflow.task_id": kwargs["task_id"],
-        "metaflow.retry_count": str(retry_count),
-        "metaflow.version": ctx.obj.environment.get_environment_info()[
-            "metaflow_version"
-        ],
+    task_spec = {
+        'flow_name': ctx.obj.flow.name,
+        'step_name': step_name,
+        'run_id': kwargs['run_id'],
+        'task_id': kwargs['task_id'],
+        'retry_count': str(retry_count)
     }
+    attrs = {'metaflow.%s' % k: v for k, v in task_spec.items()}
+    attrs['metaflow.user'] = util.get_username()
+    attrs['metaflow.version'] = ctx.obj.environment.get_environment_info()[
+            "metaflow_version"
+        ]
 
     env_deco = [deco for deco in node.decorators if deco.name == "environment"]
     if env_deco:
@@ -240,12 +246,21 @@ def step(
             "Sleeping %d minutes before the next AWS Batch retry" % minutes_between_retries
         )
         time.sleep(minutes_between_retries * 60)
+
+    # this information is needed for log tailing
+    spec = task_spec.copy()
+    spec['attempt'] = int(spec.pop('retry_count'))
+    ds = ctx.obj.datastore(mode='w', **spec)
+    stdout_location = ds.get_log_location(TASK_LOG_SOURCE, 'stdout')
+    stderr_location = ds.get_log_location(TASK_LOG_SOURCE, 'stderr')
+
     batch = Batch(ctx.obj.metadata, ctx.obj.environment)
     try:
         with ctx.obj.monitor.measure("metaflow.batch.launch"):
             batch.launch_job(
                 step_name,
                 step_cli,
+                task_spec,
                 code_package_sha,
                 code_package_url,
                 ctx.obj.flow_datastore.TYPE,
@@ -273,7 +288,7 @@ def step(
         _sync_metadata(echo, ctx.obj.metadata, task_datastore, retry_count)
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
     try:
-        batch.wait(echo=echo)
+        batch.wait(stdout_location, stderr_location, echo=echo)
     except BatchKilledException:
         # don't retry killed tasks
         traceback.print_exc()

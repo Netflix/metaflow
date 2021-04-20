@@ -3,14 +3,14 @@ import pickle
 import sys
 import time
 
-from io import BufferedIOBase, RawIOBase
+from io import BufferedIOBase, FileIO, RawIOBase
 from types import MethodType, FunctionType
 
 from .. import metaflow_config
 from ..exception import MetaflowInternalError
 from ..metadata import DataArtifact, MetaDatum
 from ..parameters import Parameter
-from ..util import is_stringish, to_fileobj
+from ..util import Path, is_stringish, to_fileobj
 
 from .exceptions import ArtifactTooLarge, DataException
 
@@ -75,7 +75,8 @@ class TaskDataStore(object):
                  task_id,
                  attempt=None,
                  data_metadata=None,
-                 mode='r'):
+                 mode='r',
+                 allow_not_done=False):
 
         self._backend = flow_datastore._backend
         self.TYPE = self._backend.TYPE
@@ -118,22 +119,28 @@ class TaskDataStore(object):
                 # produced it is done. In particular, we do not allow access to
                 # a past attempt if a new attempt has started to avoid
                 # inconsistencies (depending on when the user accesses the
-                # datastore, the data may change)
+                # datastore, the data may change). We make an exception to that
+                # rule when allow_not_done is True which allows access to things
+                # like logs even for tasks that did not write a done marker
                 self._attempt = None
                 for i in range(metaflow_config.MAX_ATTEMPTS):
                     check_meta = self._metadata_name_for_attempt(
                         self.METADATA_ATTEMPT_SUFFIX, i)
                     if self.has_metadata(check_meta, add_attempt=False):
                         self._attempt = i
-                # Check if the latest attempt was completed successfully
-                if not self.has_metadata(self.METADATA_DONE_SUFFIX):
+                # Check if the latest attempt was completed successfully except
+                # if we have allow_not_done
+                data_obj = None
+                if self.has_metadata(self.METADATA_DONE_SUFFIX):
+                    data_obj = self.load_metadata([self.METADATA_DATA_SUFFIX])
+                    data_obj = data_obj[self.METADATA_DATA_SUFFIX]
+                elif self._attempt is None or not allow_not_done:
                     raise DataException(
                         "Data was not found or not finished at %s" % self._path)
 
-                data_obj = self.load_metadata([self.METADATA_DATA_SUFFIX])
-                data_obj = data_obj[self.METADATA_DATA_SUFFIX]
-                self._objects = data_obj.get('objects', {})
-                self._info = data_obj.get('info', {})
+                if data_obj is not None:
+                    self._objects = data_obj.get('objects', {})
+                    self._info = data_obj.get('info', {})
         else:
             raise DataException("Unknown datastore mode: '%s'" % self._mode)
 
@@ -165,6 +172,10 @@ class TaskDataStore(object):
     @property
     def parent_datastore(self):
         return self._parent
+
+    @staticmethod
+    def get_log_location(logprefix, stream):
+        return '%s_%s.log' % (logprefix, stream)
 
     @require_mode('r')
     def keys_for_artifacts(self, names):
@@ -339,6 +350,12 @@ class TaskDataStore(object):
         add_attempt : boolean, optional
             If True, adds the attempt identifier to the metadata. defaults to
             True
+        
+        Returns
+        -------
+        Dict : string -> string
+            The keys are the same as the ones passed in for contents and the values
+            are the paths, relative to the flow_datastore, where the metadata was stored.
         """
         return self._save_file(
             {k: json.dumps(v).encode('utf-8') for k, v in contents.items()},
@@ -550,19 +567,54 @@ class TaskDataStore(object):
                 force_v4_dict[var] = True
         self.save_artifacts(to_save, force_v4_dict)
 
-    def save_logs(self, logtype_to_bytebuffer):
-        to_store_dict = {
-            '%s.log' % k: v for k, v in logtype_to_bytebuffer.items()}
-        self._save_file(to_store_dict)
-        return {
-            k.rsplit('.', 1)[0]: self._backend.full_uri(self._backend.path_join(
-                self._path, self._metadata_name_for_attempt(k)))
-            for k in to_store_dict.keys()}
+    def save_logs(self, logsource, stream_data):
+        """
+        Save log files for multiple streams, represented as
+        a dictionary of streams. Each stream is identified by a type (a string)
+        and is either a stringish or a BytesIO object or a Path object.
 
-    def load_log(self, logtype, attempt_override=None):
+        Parameters
+        ----------
+        logsource : string
+            Identifies the source of the stream (runtime, task, etc)
+
+        stream_data : Dict[string -> bytes or Path]
+            Each entry should have a string as the key indicating the type
+            of the stream ('stderr', 'stdout') and as value should be bytes or
+            a Path from which to stream the log.
+
+        Returns
+        -------
+        Dict : string -> string
+            The keys are built using get_log_location(logsource, stream) and the values
+            are the paths, relative to the flow_datastore, where the log was stored.
+        """
+        to_store_dict = {}
+        for stream, data in stream_data.items():
+            n = self.get_log_location(logsource, stream)
+            if isinstance(data, Path):
+                to_store_dict[n] = FileIO(str(data), mode='r')
+            else:
+                to_store_dict[n] = data
+        return self._save_file(to_store_dict)
+
+    def load_log_legacy(self, stream, attempt_override=None):
+        """
+        Load old-style, pre-mflog, log file represented as a bytes object.
+        """
         name = self._metadata_name_for_attempt(
-            '%s.log' % logtype, attempt_override)
-        return self._load_file([name], add_attempt=False)[name]
+            '%s.log' % stream, attempt_override)
+        r = self._load_file([name], add_attempt=False)[name]
+        return r if r is not None else b''
+
+    def load_logs(self, logsources, stream, attempt_override=None):
+        paths = dict(map(
+            lambda s: (self._metadata_name_for_attempt(
+                self.get_log_location(s, stream),
+                attempt_override=attempt_override), s), logsources))
+        r = self._load_file(paths.keys(), add_attempt=False)
+        return [(paths[k], v if v is not None else b'') for k, v in r.items()]
+
 
     def items(self):
         if self._objects:
@@ -619,15 +671,22 @@ class TaskDataStore(object):
 
         Parameters
         ----------
-        contents : Dict: stringish or RawIOBase or BufferedIOBase
+        contents : Dict[string -> stringish or RawIOBase or BufferedIOBase]
             Dictionary of file to store
         allow_overwrite : boolean, optional
             If True, allows the overwriting of the metadata, defaults to False
         add_attempt : boolean, optional
             If True, adds the attempt identifier to the metadata,
             defaults to True
+
+        Returns
+        -------
+        Dict : string -> string
+            The keys are the same as the ones passed in for contents and the values
+            are the paths, relative to the flow_datastore, where the file was stored.
         """
         to_store = {}
+        returned_paths = {}
         for name, value in contents.items():
             if add_attempt:
                 path = self._backend.path_join(
@@ -643,8 +702,11 @@ class TaskDataStore(object):
             else:
                 raise DataException("Metadata '%s' has an invalid type: %s" %
                                     (name, type(value)))
-        path_results = self._backend.save_bytes(
+            returned_paths[name] = path
+
+        self._backend.save_bytes(
             to_store, overwrite=allow_overwrite)
+        return returned_paths
 
     def _load_file(self, names, add_attempt=True):
         """
