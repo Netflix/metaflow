@@ -1038,18 +1038,17 @@ class Task(MetaflowObject):
         If as_unicode=False, logline is returned as a byte object. Otherwise,
         it is returned as a (unicode) string.
         """
-        # TODO we won't need to load datastore here after the
-        # core convergence
-        from metaflow.datastore.s3 import S3DataStore
         from metaflow.mflog.mflog import merge_logs
         from metaflow.mflog import LOG_SOURCES
-        # NOTE: mode='w' is set to avoid any S3 accesses in the datastore
-        # init. We are not actually using the datastore for writing.
-        S3DataStore.datastore_root =\
-            S3DataStore.get_datastore_root_from_config(echo=None)
+        from metaflow.datastore import DATASTORES
 
-        run_id = str(self._object['run_number'])
-        task_id = str(self._object['task_id'])
+        ds_type = self.metadata_dict.get('ds-type')
+        ds_root = self.metadata_dict.get('ds-root')
+
+        ds_cls = DATASTORES.get(ds_type, None)
+        if ds_cls is None:
+            raise MetaflowInternalError('Datastore %s was not found' % ds_type)
+        ds_cls.datastore_root = ds_root
 
         # It is possible that a task fails before any metadata has been
         # recorded. In this case, we assume that we are executing the
@@ -1059,15 +1058,14 @@ class Task(MetaflowObject):
         # here. It is possible that logs exists for a newer attempt that
         # just failed to record metadata. We could make this logic more robust
         # and guarantee that we always return the latest available log.
-        attempt = int(self.metadata_dict.get('attempt', 0))
 
-        ds = S3DataStore(self._object['flow_id'],
-                         run_id=run_id,
-                         step_name=self._object['step_name'],
-                         task_id=task_id,
-                         attempt=attempt,
-                         mode='w')
-
+        ds = ds_cls(self._object['flow_id'],
+                    run_id=str(self._object['run_number']),
+                    step_name=self._object['step_name'],
+                    task_id=str(self._object['task_id']),
+                    mode='r',
+                    attempt=int(self.metadata_dict.get('attempt', 0)),
+                    allow_unsuccessful=True)
         logs = ds.load_logs(LOG_SOURCES, stream)
         for line in merge_logs([blob for _, blob in logs]):
             msg = to_unicode(line.msg) if as_unicode else line.msg
@@ -1080,7 +1078,7 @@ class Task(MetaflowObject):
         ds_type = log_info['ds_type']
         attempt = log_info['attempt']
         components = self.path_components
-        with filecache.get_log(ds_type, logtype, int(attempt), *components) as f:
+        with filecache.get_log_legacy(ds_type, logtype, int(attempt), *components) as f:
             ret_val = f.read()
         if as_unicode and (ret_val is not None):
             return ret_val.decode(encoding='utf8')
