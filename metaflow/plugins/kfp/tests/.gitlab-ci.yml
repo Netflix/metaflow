@@ -17,8 +17,9 @@ variables:
   ARTIFACTORY_WEB_APP_URL: https://artifactory.zgtools.net/artifactory/webapp/#/packages/docker
   _SHARED_ENV_FILE: 'shared.env'
   _IMAGE_TAG_FILE: 'image_tag_file.txt'
-  DEPLOY_INTERNAL: "false"
-  DEPLOY_NONPROD: "true" # want to mimic the example projects, which run on nonprod
+  # run on internal cluster only (to avoid interfering with customer workloads on nonprod/prod)
+  DEPLOY_INTERNAL: "true"
+  DEPLOY_NONPROD: "false"
   DEPLOY_PROD: "false"
 
 .base:job-with-artifacts:
