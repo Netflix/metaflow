@@ -616,7 +616,7 @@ def run(obj,
         user_namespace=None,
         **kwargs):
 
-    if namespace is not None:
+    if user_namespace is not None:
         namespace(user_namespace or None)
     before_run(obj, tags, decospecs + obj.environment.decospecs())
 

@@ -740,10 +740,18 @@ class CLIArgs(object):
 
     def get_args(self):
         def options(mapping):
+            """ Map a dictionary of options to a list of command-line arguments.
+
+            Values assigned to boolean values are assumed boolean flags. List values
+            are converted to repeated CLI arguments.
+
+            >>> list(options({"foo": True, "bar": False, "baz": "", "qux": ["a", "b"]}))
+            ["--foo", "--baz", "", "--qux", "a", "--qux", "b"]
+            """
             for k, v in mapping.items():
                 values = v if isinstance(v, list) else [v]
                 for value in values:
-                    if value:
+                    if value is not None and value is not False:
                         yield '--%s' % k
                         if not isinstance(value, bool):
                             yield to_unicode(value)
