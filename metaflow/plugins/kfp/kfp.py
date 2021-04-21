@@ -19,12 +19,11 @@ from metaflow.metaflow_config import (
     KFP_USER_DOMAIN,
     from_conf,
 )
-from metaflow.plugins import KfpInternalDecorator
+from metaflow.plugins import KfpInternalDecorator, EnvironmentDecorator
 from metaflow.plugins.kfp.kfp_decorator import KfpException
 from metaflow.plugins.kfp.kfp_step_function import kfp_step_function
 from .kfp_constants import (
     INPUT_PATHS_ENV_NAME,
-    SPLIT_INDEX_ENV_NAME,
     STEP_ENVIRONMENT_VARIABLES,
     TASK_ID_ENV_NAME,
 )
@@ -56,6 +55,7 @@ class KfpComponent(object):
         resource_requirements: Dict[str, str],
         kfp_decorator: KfpInternalDecorator,
         pytorch_distributed_decorator: PyTorchDistributedDecorator,
+        environment_decorator: EnvironmentDecorator,
     ):
         self.name = name
         self.cmd_template = cmd_template
@@ -68,6 +68,7 @@ class KfpComponent(object):
             else None
         )
         self.pytorch_distributed_decorator = pytorch_distributed_decorator
+        self.environment_decorator = environment_decorator
 
         def bindings(binding_name: str) -> List[str]:
             if kfp_decorator:
@@ -294,6 +295,11 @@ class KubeflowPipelines(object):
             # Defaults memory unit to megabyte
             if resource in ["memory", "memory_limit"] and value.isnumeric():
                 value = f"{value}M"
+            if (
+                resource in ["local_storage", "local_storage_limit"]
+                and value.isnumeric()
+            ):
+                value = f"{value}M"
             return value
 
         resource_requirements = {}
@@ -353,6 +359,15 @@ class KubeflowPipelines(object):
                         deco
                         for deco in node.decorators
                         if isinstance(deco, PyTorchDistributedDecorator)
+                    ),
+                    None,  # default
+                ),
+                environment_decorator=next(
+                    (
+                        deco
+                        for deco in node.decorators
+                        if isinstance(deco, EnvironmentDecorator)
+                        and "kubernetes_vars" in deco.attributes
                     ),
                     None,  # default
                 ),
@@ -508,6 +523,14 @@ class KubeflowPipelines(object):
             container_op.container.set_gpu_limit(
                 resource_requirements["gpu"],
                 vendor=gpu_vendor if gpu_vendor else "nvidia",
+            )
+        if "local_storage" in resource_requirements:
+            container_op.container.set_ephemeral_storage_request(
+                resource_requirements["local_storage"]
+            )
+        if "local_storage_limit" in resource_requirements:
+            container_op.container.set_ephemeral_storage_limit(
+                resource_requirements["local_storage_limit"]
             )
 
     def step_op(
@@ -680,11 +703,21 @@ class KubeflowPipelines(object):
 
                 visited[node.name] = container_op
 
-                pytorch_deco = kfp_component.pytorch_distributed_decorator
-                if pytorch_deco:
+                if kfp_component.pytorch_distributed_decorator:
                     container_op.add_pvolumes(
-                        {pytorch_deco.attributes["shared_volume_dir"]: volume_op.volume}
+                        {
+                            kfp_component.pytorch_distributed_decorator.attributes[
+                                "shared_volume_dir"
+                            ]: volume_op.volume
+                        }
                     )
+
+                if kfp_component.environment_decorator:
+                    envs = kfp_component.environment_decorator.attributes[
+                        "kubernetes_vars"
+                    ]
+                    for env in envs:
+                        container_op.container.add_env_variable(env)
 
                 if preceding_kfp_component_op:
                     container_op.after(preceding_kfp_component_op)

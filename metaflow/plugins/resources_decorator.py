@@ -50,6 +50,16 @@ class ResourcesDecorator(StepDecorator):
         KFP: Memory limit for this step. Default unit is MB.
             More memory units are supported, including "E", "P", "T", "G", "M", "K". (i.e. "4000M")
              Defaults None - relying on Kubernetes defaults.
+    local_storage: Union[int, str]
+        Not for AWS Batch.
+        KFP: Local ephemeral storage required.
+            This is local disk storage per step and lost after the step.
+            Default unit is MB.
+            More memory units are supported, including "E", "P", "T", "G", "M", "K". (i.e. "4000M")
+            Defaults None - relying on Kubernetes defaults.
+    local_storage_limit: Union[int, str]
+        Not for AWS Batch.
+        KFP: Local ephemeral storage limit.
     """
     name = 'resources'
 
@@ -66,4 +76,6 @@ class ResourcesDecorator(StepDecorator):
         "cpu_limit": None,
         "gpu_vendor": None,
         "memory_limit": None,
+        "local_storage": None,
+        "local_storage_limit": None
     }

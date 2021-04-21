@@ -23,9 +23,23 @@ class EnvironmentDecorator(StepDecorator):
     ----------
     vars : Dict
         Dictionary of environment variables to add/update prior to executing your step.
+    kubernetes_vars: Dict
+        Only used in KFP plugin.
+        see https://kubernetes.io/docs/tasks/inject-data-application/environment-variable-expose-pod-information
+
+        pod_name_var = V1EnvVar(
+            name="MY_POD_NAME",
+            value_from=V1EnvVarSource(
+                field_ref=V1ObjectFieldSelector(field_path="metadata.name")
+            ),
+        )
+        @environment(kubernetes_vars=[pod_name_var])
+        @step
+        def my_step(self):
+            ...
     """
     name = 'environment'
-    defaults = {'vars': {}}
+    defaults = {'vars': {}, 'kubernetes_vars': None}
 
     def step_init(self, flow, graph, step, decos, environment, datastore, logger):
         os.environ.update(self.attributes['vars'].items())
