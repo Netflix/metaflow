@@ -13,7 +13,8 @@ from . import decorators
 from . import metaflow_version
 from . import namespace
 from . import current
-from .util import resolve_identity, decompress_list, write_latest_run_id, get_latest_run_id
+from .util import resolve_identity, decompress_list, write_latest_run_id, \
+    get_latest_run_id, to_unicode
 from .task import MetaflowTask
 from .exception import CommandException, MetaflowException
 from .graph import FlowGraph
@@ -28,6 +29,8 @@ from .pylint_wrapper import PyLint
 from .event_logger import EventLogger
 from .monitor import Monitor
 from .R import use_r, metaflow_r_version
+from .mflog import mflog, LOG_SOURCES
+
 
 ERASE_TO_EOL = '\033[K'
 HIGHLIGHT = 'red'
@@ -95,7 +98,11 @@ def logger(body='',
            bad=False,
            timestamp=True):
     if timestamp:
-        tstamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+        if timestamp is True:
+            dt = datetime.now()
+        else:
+            dt = timestamp
+        tstamp = dt.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
         click.secho(tstamp + ' ', fg=LOGGER_TIMESTAMP, nl=False)
     if head:
         click.secho(head, fg=LOGGER_COLOR, nl=False)
@@ -273,8 +280,17 @@ def dump(obj,
               default=True,
               show_default=True,
               help='Show both stdout and stderr of the task.')
+@click.option('--timestamps/--no-timestamps',
+              default=False,
+              show_default=True,
+              help='Show timestamps.')
 @click.pass_obj
-def logs(obj, input_path, stdout=None, stderr=None, both=None):
+def logs(obj,
+         input_path,
+         stdout=None,
+         stderr=None,
+         both=None,
+         timestamps=False):
     types = set()
     if stdout:
         types.add('stdout')
@@ -285,6 +301,8 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None):
     if both:
         types.update(('stdout', 'stderr'))
 
+    streams = list(sorted(types, reverse=True))
+
     # Pathspec can either be run_id/step_name or run_id/step_name/task_id.
     parts = input_path.split('/')
     if len(parts) == 2:
@@ -293,7 +311,7 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None):
     elif len(parts) == 3:
         run_id, step_name, task_id = parts
     else:
-        raise CommandException("input_path should either be run_id/step_name"
+        raise CommandException("input_path should either be run_id/step_name "
                                "or run_id/step_name/task_id")
 
     if obj.datastore.datastore_root is None:
@@ -304,31 +322,71 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None):
             "Could not find the location of the datastore -- did you correctly set the "
             "METAFLOW_DATASTORE_SYSROOT_%s environment variable" % (obj.datastore.TYPE).upper())
 
-    from metaflow.datastore.datastore_set import MetaflowDatastoreSet
-    datastore_set = MetaflowDatastoreSet(
-                        obj.datastore,
-                        obj.flow.name,
-                        run_id,
-                        steps=[step_name],
-                        metadata=obj.metadata,
-                        monitor=obj.monitor,
-                        event_logger=obj.event_logger)
     if task_id:
-        ds_list = [datastore_set.get_with_pathspec(input_path)]
+        ds_list = [obj.datastore(obj.flow.name,
+                                 run_id=run_id,
+                                 step_name=step_name,
+                                 task_id=task_id,
+                                 mode='r',
+                                 allow_unsuccessful=True)]
     else:
-        ds_list = list(datastore_set) # get all tasks
-    for ds in ds_list:
-        echo('Dumping logs of run_id=*{run_id}* '
-             'step=*{step}* task_id=*{task_id}*'.format(run_id=ds.run_id,
-                                                        step=ds.step_name,
-                                                        task_id=ds.task_id),
-             fg='magenta')
+        from metaflow.datastore.datastore_set import MetaflowDatastoreSet
+        datastore_set = MetaflowDatastoreSet(
+                            obj.datastore,
+                            obj.flow.name,
+                            run_id,
+                            steps=[step_name],
+                            metadata=obj.metadata,
+                            monitor=obj.monitor,
+                            event_logger=obj.event_logger)
+        # get all successful tasks
+        ds_list = list(datastore_set)
 
-        for typ in ('stdout', 'stderr'):
-            if typ in types:
-                echo(typ, bold=True)
-                click.secho(ds.load_log(typ).decode('UTF-8', errors='replace'),
-                            nl=False)
+    if ds_list:
+        def echo_unicode(line, **kwargs):
+            click.secho(line.decode('UTF-8', errors='replace'), **kwargs)
+
+        # old style logs are non mflog-style logs
+        maybe_old_style = True
+        for ds in ds_list:
+            echo('Dumping logs of run_id=*{run_id}* '
+                 'step=*{step}* task_id=*{task_id}*'.format(run_id=ds.run_id,
+                                                            step=ds.step_name,
+                                                            task_id=ds.task_id),
+                 fg='magenta')
+
+            for stream in streams:
+                echo(stream, bold=True)
+                logs = ds.load_logs(LOG_SOURCES, stream)
+                if any(data for _, data in logs):
+                    # attempt to read new, mflog-style logs
+                    for line in mflog.merge_logs([blob for _, blob in logs]):
+                        if timestamps:
+                            ts = mflog.utc_to_local(line.utc_tstamp)
+                            tstamp = ts.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+                            click.secho(tstamp + ' ',
+                                        fg=LOGGER_TIMESTAMP,
+                                        nl=False)
+                        echo_unicode(line.msg)
+                    maybe_old_style = False
+                elif maybe_old_style:
+                    # if they are not available, we may be looking at
+                    # a legacy run (unless we have seen new-style data already
+                    # for another stream). This return an empty string if
+                    # nothing is found
+                    log = ds.load_log_legacy(stream)
+                    if log and timestamps:
+                        raise CommandException("We can't show --timestamps for "
+                                               "old runs. Sorry!")
+                    echo_unicode(log, nl=False)
+
+    elif len(parts) == 2:
+        # TODO if datastore provided a way to find unsuccessful task IDs, we
+        # could make handle this case automatically
+        raise CommandException("Successful tasks were not found at the given "
+                               "path. You can see logs for unsuccessful tasks "
+                               "by giving an exact task ID using the "
+                               "run_id/step_name/task_id format.")
 
 
 # TODO - move step and init under a separate 'internal' subcommand

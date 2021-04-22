@@ -8,6 +8,7 @@ import json
 import gzip
 from tempfile import NamedTemporaryFile
 
+from metaflow.util import Path
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_LOCAL
 from .datastore import MetaflowDataStore, DataException, only_if_not_done
 from ..metadata import MetaDatum
@@ -128,23 +129,40 @@ class LocalDataStore(MetaflowDataStore):
         return artifact_list
 
     @only_if_not_done
-    def save_log(self, logtype, bytebuffer):
+    def save_logs(self, logsource, stream_data):
         """
-        Save a task-specific log file represented as a bytes object.
+        Save log files for multiple streams, represented as
+        as a list of (stream, bytes) or (stream, Path) tuples.
         """
-        path = self.get_log_location(logtype)
-        with open(path + '.tmp', 'wb') as f:
-            f.write(bytebuffer)
-        os.rename(path + '.tmp', path)
-        return path
+        for stream, data in stream_data:
+            if isinstance(data, Path):
+                with open(str(data), 'rb') as f:
+                    data = f.read()
+            path = self.get_log_location(logsource, stream)
+            with open(path + '.tmp', 'wb') as f:
+                f.write(data)
+            os.rename(path + '.tmp', path)
 
-    def load_log(self, logtype, attempt_override=None):
+    def _read_file_or_empty(self, path):
+        if os.path.exists(path):
+            with open(path, 'rb') as f:
+                return f.read()
+        else:
+            return b''
+
+    def load_log_legacy(self, stream, attempt_override=None):
         """
-        Load a task-specific log file represented as a bytes object.
+        Load old-style, pre-mflog, log file represented as a bytes object.
         """
-        path = self.get_log_location(logtype, attempt_override)
-        with open(path, 'rb') as f:
-            return f.read()
+        f = self.filename_with_attempt_prefix('%s.log' % stream,
+                attempt_override if attempt_override is not None 
+                    else self.attempt)
+        return self._read_file_or_empty(os.path.join(self.root, f))
+
+    def load_logs(self, logsources, stream, attempt_override=None):
+        paths = [self.get_log_location(source, stream, attempt_override) 
+                    for source in logsources]
+        return list(zip(logsources, map(self._read_file_or_empty, paths)))
 
     @only_if_not_done
     def save_metadata(self, name, metadata):

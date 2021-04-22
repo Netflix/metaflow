@@ -18,6 +18,12 @@ class S3Tail(object):
         self._pos = 0
         self._tail = b''
 
+    def clone(self, s3url):
+        tail = S3Tail(s3url)
+        tail._pos = self._pos
+        tail._tail = self._tail
+        return tail
+
     @property
     def bytes_read(self):
         return self._pos
@@ -27,17 +33,14 @@ class S3Tail(object):
         return self._tail
 
     def __iter__(self):
-        while True:
-            buf = self._fill_buf()
-            if buf is None:
-                yield b''
-            else:
-                for line in buf:
-                    if line.endswith(b'\n'):
-                        yield line
-                    else:
-                        self._tail = line
-                        break
+        buf = self._fill_buf()
+        if buf is not None:
+            for line in buf:
+                if line.endswith(b'\n'):
+                    yield line
+                else:
+                    self._tail = line
+                    break
 
     @aws_retry
     def _make_range_request(self):

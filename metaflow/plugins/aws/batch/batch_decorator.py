@@ -20,6 +20,7 @@ from .batch import Batch, BatchException
 from metaflow.metaflow_config import ECS_S3_ACCESS_IAM_ROLE, BATCH_JOB_QUEUE, \
                     BATCH_CONTAINER_IMAGE, BATCH_CONTAINER_REGISTRY, \
                     ECS_FARGATE_EXECUTION_ROLE
+from metaflow.sidecar import SidecarSubProcess
 
 try:
     # python2
@@ -229,6 +230,7 @@ class BatchDecorator(StepDecorator):
         entries = [MetaDatum(field=k, value=v, type=k, tags=[]) for k, v in meta.items()]
         # Register book-keeping metadata for debugging.
         metadata.register_metadata(run_id, step_name, task_id, entries)
+        self._save_logs_sidecar = SidecarSubProcess('save_logs_periodically')
 
     def task_finished(self, step_name, flow, graph, is_task_ok, retry_count, max_retries):
         if self.ds_root:
@@ -249,6 +251,10 @@ class BatchDecorator(StepDecorator):
                             'metadata.tgz', retry_count))
                     url = urlparse(path)
                     s3.upload_fileobj(f, url.netloc, url.path.lstrip('/'))
+        try:
+            self._save_logs_sidecar.kill()
+        except:
+            pass
 
     @classmethod
     def _save_package_once(cls, datastore, package):
