@@ -61,7 +61,7 @@ class ResourcesFlow(FlowSpec):
         memory="500",
         memory_limit="1G",
     )
-    @environment(vars={"MY_ENV": "value"}, kubernetes_vars=kubernetes_vars)
+    @environment(vars={"MY_ENV": "value"}, kubernetes_vars=kubernetes_vars)  # pylint: disable=E1102
     @step
     def start(self):
         pprint.pprint(dict(os.environ))

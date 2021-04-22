@@ -1,13 +1,10 @@
 # Barebones template to ensure pipeline is triggered
 include:
   - project: 'analytics/artificial-intelligence/ai-platform/aip-infrastructure/ci-templates/ci-cd-template'
-    ref: '37d84c8a56036de2567f88f7ede7557566d3cb53' 
+    ref: '6a257a61866f39ee2c8d81e1eafcc19cf9b5d617'
     file: 'environments/devex.yml'
   - project: 'analytics/artificial-intelligence/ai-platform/aip-infrastructure/ci-templates/ci-cd-template'
-    ref: '37d84c8a56036de2567f88f7ede7557566d3cb53'  
-    file: 'blocks/aws.yml'
-  - project: 'analytics/artificial-intelligence/ai-platform/aip-infrastructure/ci-templates/ci-cd-template'
-    ref: '37d84c8a56036de2567f88f7ede7557566d3cb53'
+    ref: '6a257a61866f39ee2c8d81e1eafcc19cf9b5d617'
     file: 'blocks/docker.yml'
 
 variables:
@@ -54,7 +51,7 @@ variables:
     - 'cat ${_SHARED_ENV_FILE}'
 
     # Build Artifact (i.e: Docker Image) in Gitlab current pipeline-job-container
-    - 'docker build --no-cache -f metaflow/plugins/kfp/dockerfiles/integration_testing_full_image/Dockerfile -t ${_LOCAL_DOCKER_TAG} .'
+    - 'docker build --no-cache -f metaflow/plugins/kfp/tests/Dockerfile -t ${_LOCAL_DOCKER_TAG} .'
 
     # Function definitions for logging and uploading to docker repository
     - 'function log_upload_path {

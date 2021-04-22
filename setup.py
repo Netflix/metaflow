@@ -6,7 +6,7 @@ version = '2.2.5'
 
 # TODO: once this branch is merged or in pip use, remove this
 os.system(
-    "pip3 install 'git+https://github.com/alexlatchford/pipelines@alexla/AIP-1676#egg=kfp&subdirectory=sdk/python'"
+    "pip3 install 'git+https://github.com/zillow/pipelines@feature/zg#egg=kfp&subdirectory=sdk/python'"
 )
 
 setup(name='metaflow',

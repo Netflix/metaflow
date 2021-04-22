@@ -26,6 +26,7 @@ from .kfp_constants import (
     INPUT_PATHS_ENV_NAME,
     STEP_ENVIRONMENT_VARIABLES,
     TASK_ID_ENV_NAME,
+    SPLIT_INDEX_ENV_NAME,
 )
 from .kfp_exit_handler import exit_handler
 from .kfp_foreach_splits import graph_to_task_ids
