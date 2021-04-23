@@ -5,6 +5,7 @@ import sys
 from .util import get_username, to_unicode
 from . import metaflow_version
 from metaflow.exception import MetaflowException
+from metaflow.mflog import BASH_MFLOG, BASH_SAVE_LOGS
 from . import R
 
 version_cache = None
@@ -104,24 +105,25 @@ class MetaflowEnvironment(object):
         return "%s -c \'import sys; import boto3; boto3.client(sys.argv[1]).download_file(sys.argv[2], sys.argv[3], sys.argv[4])\' s3 \'%s\' \'%s\' job.tar" % (self._python(), bucket, key)
 
     def get_package_commands(self, code_package_url):
-        cmds = ["set -e",
-                "echo \'Setting up task environment.\'",
+        cmds = [BASH_MFLOG,
+                "mflog \'Setting up task environment.\'",
                 "%s -m pip install click requests boto3 -qqq" 
                     % self._python(),
                 "mkdir metaflow",
                 "cd metaflow",
                 "mkdir .metaflow", # mute local datastore creation log
                 "i=0; while [ $i -le 5 ]; do "
-                    "echo \'Downloading code package.\'; "
+                    "mflog \'Downloading code package.\'; "
                     "%s >/dev/null && \
-                        echo \'Code package downloaded.\' && break; "
+                        mflog \'Code package downloaded.\' && break; "
                     "sleep 10; i=$((i+1)); "
                 "done" % self.get_s3_download_command(code_package_url, 'job.tar'),
                 "if [ $i -gt 5 ]; then "
-                    "echo \'Failed to download code package from %s "
+                    "mflog \'Failed to download code package from %s "
                     "after 6 tries. Exiting...\' && exit 1; "
                 "fi" % code_package_url,
-                "tar xf job.tar"
+                "tar xf job.tar",
+                "mflog \'Task is starting.\'",
                 ]
         return cmds
 

@@ -263,6 +263,14 @@ class MetaflowTask(object):
                                          MetaDatum(field='origin-run-id',
                                                    value=str(origin_run_id),
                                                    type='origin-run-id',
+                                                   tags=[]),
+                                         MetaDatum(field='ds-type',
+                                                   value=self.datastore.TYPE,
+                                                   type='ds-type',
+                                                   tags=[]),
+                                         MetaDatum(field='ds-root',
+                                                   value=self.datastore.datastore_root,
+                                                   type='ds-root',
                                                    tags=[])])
 
         step_func = getattr(self.flow, step_name)
