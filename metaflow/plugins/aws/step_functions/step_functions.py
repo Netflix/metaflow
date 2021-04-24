@@ -578,18 +578,6 @@ class StepFunctions(object):
         # Resolve retry strategy.
         user_code_retries, total_retries= self._get_retries(node)
 
-        task_spec = {
-            'flow_name': attrs['metaflow.flow_name'],
-            'step_name': attrs['metaflow.step_name'],
-            'run_id': 'sfn-$METAFLOW_RUN_ID',
-            # Use AWS Batch job identifier as the globally unique 
-            # task identifier.
-            'task_id': '$AWS_BATCH_JOB_ID',
-            # Since retries are handled by AWS Batch, we can rely on
-            # AWS_BATCH_JOB_ATTEMPT as the job counter.
-            'retry_count': '$((AWS_BATCH_JOB_ATTEMPT-1))'
-        }
-
         return Batch(self.metadata, self.environment) \
                 .create_job(
                         step_name=node.name,
@@ -597,7 +585,14 @@ class StepFunctions(object):
                                                 input_paths,
                                                 self.code_package_url,
                                                 user_code_retries),
-                        task_spec=task_spec,
+                        flow_name=attrs['metaflow.flow_name'],
+                        run_id='sfn-$METAFLOW_RUN_ID',
+                        # Use AWS Batch job identifier as the globally unique
+                        # task identifier.
+                        task_id='$AWS_BATCH_JOB_ID',
+                        # Since retries are handled by AWS Batch, we can rely on
+                        # AWS_BATCH_JOB_ATTEMPT as the job counter.
+                        attempt='$((AWS_BATCH_JOB_ATTEMPT-1))',
                         code_package_sha=self.code_package.sha,
                         code_package_url=self.code_package_url,
                         code_package_ds=self.datastore.TYPE,
