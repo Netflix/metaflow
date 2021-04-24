@@ -11,6 +11,7 @@ from metaflow.datastore.util.s3util import get_s3_client
 from metaflow.decorators import StepDecorator
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
+from metaflow.plugins.aws.utils import sync_local_metadata_to_datastore
 from metaflow.metadata import MetaDatum
 
 from metaflow import util
@@ -21,13 +22,6 @@ from metaflow.metaflow_config import ECS_S3_ACCESS_IAM_ROLE, BATCH_JOB_QUEUE, \
                     BATCH_CONTAINER_IMAGE, BATCH_CONTAINER_REGISTRY, \
                     ECS_FARGATE_EXECUTION_ROLE
 from metaflow.sidecar import SidecarSubProcess
-
-try:
-    # python2
-    from urlparse import urlparse
-except:  # noqa E722
-    # python3
-    from urllib.parse import urlparse
 
 
 class ResourcesDecorator(StepDecorator):
@@ -234,23 +228,7 @@ class BatchDecorator(StepDecorator):
 
     def task_finished(self, step_name, flow, graph, is_task_ok, retry_count, max_retries):
         if self.ds_root:
-            # We have a local metadata service so we need to persist it to the datastore.
-            # Note that the datastore is *always* s3 (see runtime_task_created function)
-            with util.TempDir() as td:
-                tar_file_path = os.path.join(td, 'metadata.tgz')
-                with tarfile.open(tar_file_path, 'w:gz') as tar:
-                    # The local metadata is stored in the local datastore
-                    # which, for batch jobs, is always the DATASTORE_LOCAL_DIR
-                    tar.add(DATASTORE_LOCAL_DIR)
-                # At this point we upload what need to s3
-                s3, _ = get_s3_client()
-                with open(tar_file_path, 'rb') as f:
-                    path = os.path.join(
-                        self.ds_root,
-                        MetaflowDataStore.filename_with_attempt_prefix(
-                            'metadata.tgz', retry_count))
-                    url = urlparse(path)
-                    s3.upload_fileobj(f, url.netloc, url.path.lstrip('/'))
+            sync_local_metadata_to_datastore(self.ds_root, retry_count)
         try:
             self._save_logs_sidecar.kill()
         except:

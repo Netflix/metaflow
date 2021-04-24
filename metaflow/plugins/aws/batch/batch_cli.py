@@ -1,20 +1,20 @@
 import os
 import sys
-import tarfile
 import time
 import traceback
 
 import click
 
-from distutils.dir_util import copy_tree
+from .batch import Batch, BatchKilledException
 
-from .batch import Batch, BatchKilledException, STDOUT_PATH, STDERR_PATH
-
-from metaflow.datastore import MetaflowDataStore
-from metaflow.datastore.local import LocalDataStore
-from metaflow.datastore.util.s3util import get_s3_client
-from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow import util
+from metaflow.plugins.aws.utils import (
+    CommonTaskAttrs,
+    sync_local_metadata_from_datastore,
+    get_datastore_root,
+    get_writeable_datastore
+)
+
 from metaflow import R
 from metaflow.exception import (
     CommandException,
@@ -23,12 +23,6 @@ from metaflow.exception import (
 from metaflow.mflog import TASK_LOG_SOURCE
 
 
-try:
-    # python2
-    from urlparse import urlparse
-except:  # noqa E722
-    # python3
-    from urllib.parse import urlparse
 
 @click.group()
 def cli():
@@ -61,34 +55,6 @@ def _execute_cmd(func, flow_name, run_id, user, my_runs, echo):
             raise CommandException("A previous run id was not found. Specify --run-id.")
 
     func(flow_name, run_id, user, echo)
-
-
-def _sync_metadata(echo, metadata, datastore_root, attempt):
-    if metadata.TYPE == 'local':
-        def echo_none(*args, **kwargs):
-            pass
-        path = os.path.join(
-            datastore_root,
-            MetaflowDataStore.filename_with_attempt_prefix('metadata.tgz', attempt))
-        url = urlparse(path)
-        bucket = url.netloc
-        key = url.path.lstrip('/')
-        s3, err = get_s3_client()
-        try:
-            s3.head_object(Bucket=bucket, Key=key)
-            # If we are here, we can download the object
-            with util.TempDir() as td:
-                tar_file_path = os.path.join(td, 'metadata.tgz')
-                with open(tar_file_path, 'wb') as f:
-                    s3.download_fileobj(bucket, key, f)
-                with tarfile.open(tar_file_path, 'r:gz') as tar:
-                    tar.extractall(td)
-                copy_tree(
-                    os.path.join(td, DATASTORE_LOCAL_DIR),
-                    LocalDataStore.get_datastore_root_from_config(echo_none),
-                    update=True)
-        except err as e:  # noqa F841
-            pass
 
 
 @batch.command(help="List unfinished AWS Batch tasks of this flow")
@@ -231,19 +197,20 @@ def step(
             retry_deco[0].attributes.get("minutes_between_retries", 1)
         )
 
-    # Set batch attributes
-    task_spec = {
-        'flow_name': ctx.obj.flow.name,
-        'step_name': step_name,
-        'run_id': kwargs['run_id'],
-        'task_id': kwargs['task_id'],
-        'retry_count': str(retry_count)
-    }
-    attrs = {'metaflow.%s' % k: v for k, v in task_spec.items()}
-    attrs['metaflow.user'] = util.get_username()
-    attrs['metaflow.version'] = ctx.obj.environment.get_environment_info()[
+    common_attrs = CommonTaskAttrs(
+        ctx.obj.flow.name,
+        step_name,
+        kwargs['run_id'],
+        kwargs['task_id'],
+        retry_count,
+        user=util.get_username(),
+        version=ctx.obj.environment.get_environment_info()[
             "metaflow_version"
         ]
+    )
+
+    # Set batch attributes
+    attrs = common_attrs.to_dict(key_prefix='metaflow.')
 
     env_deco = [deco for deco in node.decorators if deco.name == "environment"]
     if env_deco:
@@ -251,8 +218,8 @@ def step(
     else:
         env = {}
 
-    datastore_root = os.path.join(ctx.obj.datastore.make_path(
-        ctx.obj.flow.name, kwargs['run_id'], step_name, kwargs['task_id']))
+    datastore_root = get_datastore_root(common_attrs, ctx.obj.datastore)
+
     # Add the environment variables related to the input-paths argument
     if split_vars:
         env.update(split_vars)
@@ -264,9 +231,7 @@ def step(
         time.sleep(minutes_between_retries * 60)
 
     # this information is needed for log tailing
-    spec = task_spec.copy()
-    spec['attempt'] = int(spec.pop('retry_count'))
-    ds = ctx.obj.datastore(mode='w', **spec)
+    ds = get_writeable_datastore(common_attrs, ctx.obj.datastore)
     stdout_location = ds.get_log_location(TASK_LOG_SOURCE, 'stdout')
     stderr_location = ds.get_log_location(TASK_LOG_SOURCE, 'stderr')
 
@@ -276,10 +241,13 @@ def step(
             batch.launch_job(
                 step_name,
                 step_cli,
-                task_spec,
-                code_package_sha,
-                code_package_url,
-                ctx.obj.datastore.TYPE,
+                ctx.obj.flow.name,
+                kwargs['run_id'],
+                kwargs['task_id'],
+                str(retry_count),
+                code_package_sha=code_package_sha,
+                code_package_url=code_package_url,
+                code_package_ds=ctx.obj.datastore.TYPE,
                 image=image,
                 queue=queue,
                 iam_role=iam_role,
@@ -296,13 +264,14 @@ def step(
             )
     except Exception as e:
         print(e)
-        _sync_metadata(echo, ctx.obj.metadata, datastore_root, retry_count)
+        sync_local_metadata_from_datastore(ctx.obj.metadata, datastore_root, retry_count)
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
     try:
         batch.wait(stdout_location, stderr_location, echo=echo)
     except BatchKilledException:
         # don't retry killed tasks
         traceback.print_exc()
-        _sync_metadata(echo, ctx.obj.metadata, datastore_root, retry_count)
+        sync_local_metadata_from_datastore(ctx.obj.metadata, datastore_root, retry_count)
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
-    _sync_metadata(echo, ctx.obj.metadata, datastore_root, retry_count)
+
+    sync_local_metadata_from_datastore(ctx.obj.metadata, datastore_root, retry_count)

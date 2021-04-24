@@ -18,10 +18,8 @@ from .batch_client import BatchClient
 
 from metaflow.datastore.util.s3tail import S3Tail
 from metaflow.mflog.mflog import refine, set_should_persist
-from metaflow.mflog import export_mflog_env_vars,\
-                           bash_capture_logs,\
-                           update_delay,\
-                           BASH_SAVE_LOGS
+from metaflow.mflog import delayed_update_while
+from metaflow.plugins.aws.utils import build_task_command
 
 # Redirect structured logs to /logs/
 LOGS_DIR = '/logs'
@@ -44,37 +42,6 @@ class Batch(object):
         self.environment = environment
         self._client = BatchClient()
         atexit.register(lambda: self.job.kill() if hasattr(self, 'job') else None)
-
-    def _command(self,
-                 environment,
-                 code_package_url,
-                 step_name,
-                 step_cmds,
-                 task_spec):
-        mflog_expr = export_mflog_env_vars(datastore_type='s3',
-                                           stdout_path=STDOUT_PATH,
-                                           stderr_path=STDERR_PATH,
-                                           **task_spec)
-        init_cmds = environment.get_package_commands(code_package_url)
-        init_cmds.extend(environment.bootstrap_commands(step_name))
-        init_expr = ' && '.join(init_cmds)
-        step_expr = bash_capture_logs(' && '.join(step_cmds))
-
-        # construct an entry point that
-        # 1) initializes the mflog environment (mflog_expr)
-        # 2) bootstraps a metaflow environment (init_expr)
-        # 3) executes a task (step_expr)
-        cmd_str = 'mkdir -p /logs && %s && %s && %s; ' % \
-                        (mflog_expr, init_expr, step_expr)
-        # after the task has finished, we save its exit code (fail/success)
-        # and persist the final logs. The whole entrypoint should exit
-        # with the exit code (c) of the task.
-        #
-        # Note that if step_expr OOMs, this tail expression is never executed.
-        # We lose the last logs in this scenario (although they are visible 
-        # still through AWS CloudWatch console).
-        cmd_str += 'c=$?; %s; exit $c' % BASH_SAVE_LOGS
-        return shlex.split('bash -c \"%s\"' % cmd_str)
 
     def _search_jobs(self, flow_name, run_id, user):
         if user is None:
@@ -144,7 +111,10 @@ class Batch(object):
         self,
         step_name,
         step_cli,
-        task_spec,
+        flow_name,
+        run_id,
+        task_id,
+        attempt,
         code_package_sha,
         code_package_url,
         code_package_ds,
@@ -175,8 +145,17 @@ class Batch(object):
             .job_name(job_name) \
             .job_queue(queue) \
             .command(
-                self._command(self.environment, code_package_url,
-                              step_name, [step_cli], task_spec)) \
+                build_task_command(
+                    self.environment,
+                    code_package_url,
+                    step_name=step_name,
+                    run_id=run_id,
+                    task_id=task_id,
+                    attempt=attempt,
+                    step_cmds=[step_cli],
+                    flow_name=flow_name,
+                    stdout_path=STDOUT_PATH,
+                    stderr_path=STDERR_PATH)) \
             .image(image) \
             .iam_role(iam_role) \
             .execution_role(execution_role) \
@@ -216,7 +195,10 @@ class Batch(object):
         self,
         step_name,
         step_cli,
-        task_spec,
+        flow_name,
+        run_id,
+        task_id,
+        attempt,
         code_package_sha,
         code_package_url,
         code_package_ds,
@@ -245,7 +227,10 @@ class Batch(object):
         job = self.create_job(
                         step_name,
                         step_cli,
-                        task_spec,
+                        flow_name,
+                        run_id,
+                        task_id,
+                        attempt,
                         code_package_sha,
                         code_package_url,
                         code_package_ds,
@@ -304,30 +289,19 @@ class Batch(object):
         stdout_tail = S3Tail(stdout_location)
         stderr_tail = S3Tail(stderr_location)
 
+        def _print_available_from_s3():
+            _print_available(stdout_tail, 'stdout')
+            _print_available(stderr_tail, 'stderr')
+
         # 1) Loop until the job has started
         wait_for_launch(self.job)
 
         # 2) Loop until the job has finished
-        start_time = time.time()
-        is_running = True
-        next_log_update = start_time
-        log_update_delay = 1
+        delayed_update_while(
+            condition=lambda: self.job.is_running,
+            update_fn=_print_available_from_s3,
+        )
 
-        while is_running:
-            if time.time() > next_log_update:
-                _print_available(stdout_tail, 'stdout')
-                _print_available(stderr_tail, 'stderr')
-                now = time.time()
-                log_update_delay = update_delay(now - start_time)
-                next_log_update = now + log_update_delay
-                is_running = self.job.is_running
-
-            # This sleep should never delay log updates. On the other hand,
-            # we should exit this loop when the task has finished without
-            # a long delay, regardless of the log tailing schedule
-            d = min(log_update_delay, 5.0)
-            select.poll().poll(d * 1000)
-        
         # 3) Fetch remaining logs
         #
         # It is possible that we exit the loop above before all logs have been
@@ -336,8 +310,8 @@ class Batch(object):
         # TODO if we notice AWS Batch failing to upload logs to S3, we can add a
         # HEAD request here to ensure that the file exists prior to calling
         # S3Tail and note the user about truncated logs if it doesn't
-        _print_available(stdout_tail, 'stdout')
-        _print_available(stderr_tail, 'stderr')
+
+        _print_available_from_s3()
         # In case of hard crashes (OOM), the final save_logs won't happen.
         # We fetch the remaining logs from AWS CloudWatch and persist them to 
         # Amazon S3.
