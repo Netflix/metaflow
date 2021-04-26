@@ -218,10 +218,23 @@ def get_pinned_conda_libs(python_version):
 # Check if there is a an extension to Metaflow to load and override everything
 try:
     import metaflow_custom.config.metaflow_config as extension_module
-except ImportError:
-    pass
+except ImportError as e:
+    ver = sys.version_info[0] * 10 + sys.version_info[1]
+    if ver >= 36:
+        if not isinstance(e, ModuleNotFoundError):
+            print(
+                "Cannot load metaflow_custom configuration -- "
+                "if you want to ignore, uninstall metaflow_custom package")
+            raise
 else:
-    # We load into globals whatever we have in extension_module
+    # We load into globals whatever we have in extension_module. We separately
+    # deal with debug options to allow for additional debug filters
+    imported_debug_options = []
     for n, o in extension_module.__dict__.items():
-        if not n.startswith('__') and not isinstance(o, types.ModuleType):
+        if n == 'DEBUG_OPTIONS':
+            DEBUG_OPTIONS.extend(o)
+            for typ in o:
+                vars()['METAFLOW_DEBUG_%s' % typ.upper()] = \
+                    from_conf('METAFLOW_DEBUG_%s' % typ.upper())
+        elif not n.startswith('__') and not isinstance(o, types.ModuleType):
             globals()[n] = o
