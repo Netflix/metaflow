@@ -3,6 +3,7 @@ import sys
 import platform
 import re
 import tarfile
+import requests
 
 from metaflow.datastore import MetaflowDataStore
 from metaflow.datastore.datastore import TransformableObject
@@ -19,6 +20,7 @@ from .batch import Batch, BatchException
 from metaflow.metaflow_config import ECS_S3_ACCESS_IAM_ROLE, BATCH_JOB_QUEUE, \
                     BATCH_CONTAINER_IMAGE, BATCH_CONTAINER_REGISTRY, \
                     ECS_FARGATE_EXECUTION_ROLE
+from metaflow.sidecar import SidecarSubProcess
 
 try:
     # python2
@@ -50,7 +52,7 @@ class ResourcesDecorator(StepDecorator):
     memory : int
         Memory size (in MB) required for this step. Defaults to 4096
     shared_memory : int
-        The value for the size (in MiB) of the /dev/shm volume for this step. 
+        The value for the size (in MiB) of the /dev/shm volume for this step.
         This parameter maps to the --shm-size option to docker run .
     """
     name = 'resources'
@@ -99,11 +101,11 @@ class BatchDecorator(StepDecorator):
         IAM role that AWS Batch can use to trigger AWS Fargate tasks. Defaults to the one determined by the environment
         variable METAFLOW_ECS_FARGATE_EXECUTION_ROLE https://docs.aws.amazon.com/batch/latest/userguide/execution-IAM-role.html
     shared_memory : int
-        The value for the size (in MiB) of the /dev/shm volume for this step. 
+        The value for the size (in MiB) of the /dev/shm volume for this step.
         This parameter maps to the --shm-size option to docker run.
     max_swap : int
         The total amount of swap memory (in MiB) a container can use for this step.
-        This parameter is translated to the --memory-swap option to docker run 
+        This parameter is translated to the --memory-swap option to docker run
         where the value is the sum of the container memory plus the max_swap value.
     swappiness : int
         This allows you to tune memory swappiness behavior for this step.
@@ -142,7 +144,7 @@ class BatchDecorator(StepDecorator):
                         platform.python_version_tuple()[1])
         if not BatchDecorator._get_registry(self.attributes['image']):
             if BATCH_CONTAINER_REGISTRY:
-                self.attributes['image'] = '%s/%s' % (BATCH_CONTAINER_REGISTRY.rstrip('/'), 
+                self.attributes['image'] = '%s/%s' % (BATCH_CONTAINER_REGISTRY.rstrip('/'),
                     self.attributes['image'])
 
     def step_init(self, flow, graph, step, decos, environment, datastore, logger):
@@ -205,10 +207,30 @@ class BatchDecorator(StepDecorator):
         meta['aws-batch-job-id'] = os.environ['AWS_BATCH_JOB_ID']
         meta['aws-batch-job-attempt'] = os.environ['AWS_BATCH_JOB_ATTEMPT']
         meta['aws-batch-ce-name'] = os.environ['AWS_BATCH_CE_NAME']
-        meta['aws-batch-jq-name'] = os.environ['AWS_BATCH_JQ_NAME']    
+        meta['aws-batch-jq-name'] = os.environ['AWS_BATCH_JQ_NAME']
+        meta['aws-batch-execution-env'] = os.environ['AWS_EXECUTION_ENV']
+
+        # Capture AWS Logs metadata. This is best effort only since
+        # only V4 of the metadata uri for the ECS container hosts this
+        # information and it is quite likely that not all consumers of 
+        # Metaflow would be running the container agent compatible with
+        # version V4.
+        # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-metadata-endpoint.html
+        try:
+            logs_meta = requests.get(
+                            url=os.environ['ECS_CONTAINER_METADATA_URI_V4']) \
+                                .json() \
+                                .get('LogOptions', {})
+            meta['aws-batch-awslogs-group'] = logs_meta.get('awslogs-group')
+            meta['aws-batch-awslogs-region'] = logs_meta.get('awslogs-region')
+            meta['aws-batch-awslogs-stream'] = logs_meta.get('awslogs-stream')
+        except:
+            pass
+
         entries = [MetaDatum(field=k, value=v, type=k, tags=[]) for k, v in meta.items()]
         # Register book-keeping metadata for debugging.
         metadata.register_metadata(run_id, step_name, task_id, entries)
+        self._save_logs_sidecar = SidecarSubProcess('save_logs_periodically')
 
     def task_finished(self, step_name, flow, graph, is_task_ok, retry_count, max_retries):
         if self.ds_root:
@@ -229,6 +251,10 @@ class BatchDecorator(StepDecorator):
                             'metadata.tgz', retry_count))
                     url = urlparse(path)
                     s3.upload_fileobj(f, url.netloc, url.path.lstrip('/'))
+        try:
+            self._save_logs_sidecar.kill()
+        except:
+            pass
 
     @classmethod
     def _save_package_once(cls, datastore, package):
@@ -238,10 +264,54 @@ class BatchDecorator(StepDecorator):
 
     @classmethod
     def _get_registry(cls, image):
-        pattern = re.compile('^(?:([^\/]+)\/)?(?:([^\/]+)\/)?([^@:\/]+)(?:[@:](.+))?$')
-        groups = pattern.match(image).groups()
-        registry = groups[0]
-        namespace = groups[1]
-        if not namespace and registry and not re.search(r'[:.]', registry):
-            return None
+        """
+        Explanation:
+
+            (.+?(?:[:.].+?)\/)? - [GROUP 0] REGISTRY
+                .+?                 - A registry must start with at least one character
+                (?:[:.].+?)\/       - A registry must have ":" or "." and end with "/"
+                ?                   - Make a registry optional
+            (.*?)               - [GROUP 1] REPOSITORY
+                .*?                 - Get repository name until separator
+            (?:[@:])?           - SEPARATOR
+                ?:                  - Don't capture separator
+                [@:]                - The separator must be either "@" or ":"
+                ?                   - The separator is optional
+            ((?<=[@:]).*)?      - [GROUP 2] TAG / DIGEST
+                (?<=[@:])           - A tag / digest must be preceeded by "@" or ":"
+                .*                  - Capture rest of tag / digest
+                ?                   - A tag / digest is optional
+
+        Examples:
+
+            image
+                - None
+                - image
+                - None
+            example/image
+                - None
+                - example/image
+                - None
+            example/image:tag
+                - None
+                - example/image
+                - tag
+            example.domain.com/example/image:tag
+                - example.domain.com/
+                - example/image
+                - tag
+            123.123.123.123:123/example/image:tag
+                - 123.123.123.123:123/
+                - example/image
+                - tag
+            example.domain.com/example/image@sha256:45b23dee0
+                - example.domain.com/
+                - example/image
+                - sha256:45b23dee0
+        """
+
+        pattern = re.compile(r"^(.+?(?:[:.].+?)\/)?(.*?)(?:[@:])?((?<=[@:]).*)?$")
+        registry, repository, tag = pattern.match(image).groups()
+        if registry is not None:
+            registry = registry.rstrip("/")
         return registry

@@ -8,6 +8,7 @@ from functools import wraps
 from io import BytesIO
 from itertools import takewhile
 import re
+import shlex
 
 from metaflow.exception import MetaflowUnknownUser, MetaflowInternalError
 
@@ -282,7 +283,9 @@ def get_metaflow_root():
 
 def dict_to_cli_options(params):
     for k, v in params.items():
-        if v:
+        # Omit boolean options set to false or None, but preserve options with an empty
+        # string argument.
+        if v is not False and v is not None:
             # we need special handling for 'with' since it is a reserved
             # keyword in Python, so we call it 'decospecs' in click args
             if k == 'decospecs':
@@ -294,10 +297,14 @@ def dict_to_cli_options(params):
                 yield '--%s' % k
                 if not isinstance(value, bool):
                     value = to_unicode(value)
-                    if ' ' in value:
-                        yield '\'%s\'' % value
-                    else:
+
+                    # Of the value starts with $, assume the caller wants shell variable
+                    # expansion to happen, so we pass it as is.
+                    if value.startswith("$"):
                         yield value
+                    else:
+                        # Otherwise, assume it is a literal value and quote it safely
+                        yield shlex.quote(value)
 
 
 # This function is imported from https://github.com/cookiecutter/whichcraft

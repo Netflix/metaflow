@@ -11,8 +11,14 @@ in an R Markdown Notebook.**
 - Using the Metaflow client in an R Markdown Notebook.
 
 #### To play this episode:
-1. ```cd metaflow-tutorials/R/01-playlist/```
+##### Execute the flow:
+Inside a terminal:
+1. ```cd tutorials/01-playlist/```
 2. ```Rscript playlist.R show```
 3. ```Rscript playlist.R run```
 4. ```Rscript playlist.R run --genre comedy```
-5. Open ```playlist.Rmd``` in RStudio.
+
+If you are using RStudio, you can replace the `run()` in last line in `playlist.R` with `run(genre="comedy")`, and run the episode by executing `source("playlist.R")` in RStudio.
+
+##### Inspect the results
+Open the R Markdown file ```playlist.Rmd``` in RStudio and execute the markdown cells.

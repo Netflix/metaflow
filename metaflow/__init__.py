@@ -42,6 +42,8 @@ If you have any questions, feel free to post a bug report/question on the
 Metaflow Github page.
 """
 
+import types
+
 from .event_logger import EventLogger
 
 # Flow spec
@@ -80,6 +82,18 @@ from .client import namespace,\
 from .multicore_utils import parallel_imap_unordered,\
                              parallel_map
 from .metaflow_profile import profile
+
+try:
+    import metaflow_custom.toplevel as extension_module
+except ImportError:
+    # We can only distinguish ModuleNotFound versus other issues in Py 3.6+
+    # so we ignore everything for now.
+    pass
+else:
+    # We load into globals whatever we have in extension_module
+    for n, o in extension_module.__dict__.items():
+        if not n.startswith('__') and not isinstance(o, types.ModuleType):
+            globals()[n] = o
 
 import pkg_resources
 try:

@@ -112,12 +112,19 @@ def run_test(formatter, context, coverage_dir, debug, checks):
         # run flow
         flow_ret = subprocess.call(run_cmd('run'), env=env)
         if flow_ret:
-            if formatter.should_resume:
+            if formatter.should_fail:
+                log("Flow failed as expected.")
+            elif formatter.should_resume:
                 log("Resuming flow", formatter, context)
                 flow_ret = subprocess.call(run_cmd('resume'), env=env)
-            if flow_ret:
+            else:
                 log("flow failed", formatter, context)
                 return flow_ret, path
+        elif formatter.should_fail:
+            log("The flow should have failed but it didn't. Error!",
+                formatter,
+                context)
+            return 1, path
 
         # check results
         run_id = open('run-id').read()

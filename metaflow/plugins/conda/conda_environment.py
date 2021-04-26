@@ -5,8 +5,9 @@ import tarfile
 
 from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.exception import MetaflowException
-from .conda import Conda
+from metaflow.mflog import BASH_SAVE_LOGS
 
+from .conda import Conda
 from . import get_conda_manifest_path, CONDA_MAGIC_FILE
 
 
@@ -53,10 +54,12 @@ class CondaEnvironment(MetaflowEnvironment):
         env_id = self._get_env_id(step_name)
         if env_id is not None:
             return [
-                    "echo \'Bootstrapping environment.\'",
+                    "mflog \'Bootstrapping environment...\'",
+                    BASH_SAVE_LOGS,
                     "python -m metaflow.plugins.conda.batch_bootstrap \"%s\" %s" % \
                         (self.flow.name, env_id),
-                    "echo \'Environment bootstrapped.\'"
+                    "mflog \'Environment bootstrapped.\'",
+                    BASH_SAVE_LOGS,
                 ]
         return []
 
