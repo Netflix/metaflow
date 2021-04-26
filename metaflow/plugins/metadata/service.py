@@ -7,8 +7,7 @@ from distutils.version import LooseVersion
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import METADATA_SERVICE_NUM_RETRIES, METADATA_SERVICE_HEADERS, \
     METADATA_SERVICE_URL
-<<<<<<< HEAD:metaflow/metadata/service.py
-from .metadata import MetadataProvider
+from metaflow.metadata import MetadataProvider
 from metaflow.sidecar import SidecarSubProcess
 from metaflow.sidecar_messages import MessageTypes, Message
 
@@ -17,10 +16,6 @@ from metaflow.sidecar_messages import MessageTypes, Message
 class HeartbeatTypes(object):
     RUN = 1
     TASK = 2
-=======
-from metaflow.metadata import MetadataProvider
->>>>>>> master:metaflow/plugins/metadata/service.py
-
 
 class ServiceException(MetaflowException):
     headline = 'Metaflow service error'
