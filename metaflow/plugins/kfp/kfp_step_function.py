@@ -1,10 +1,10 @@
-from typing import List
+from typing import List, Dict
 
 
 def kfp_step_function(
-    datastore_root: str,
     cmd_template: str,
     kfp_run_id: str,
+    metaflow_configs: Dict[str, str],
     passed_in_split_indexes: str = '""',  # only if is_inside_foreach
     preceding_component_inputs: List[
         str
@@ -12,8 +12,6 @@ def kfp_step_function(
     preceding_component_outputs: List[
         str
     ] = None,  # fields to be pushed into Flow state from KFP
-    metaflow_service_url: str = "",
-    metaflow_user: str = "kfp-user",
     flow_parameters_json: str = None,  # json formatted string
     **kwargs,
 ) -> object:
@@ -43,17 +41,21 @@ def kfp_step_function(
 
     cmd = cmd_template.format(
         run_id=kfp_run_id,
-        datastore_root=datastore_root,
         passed_in_split_indexes=passed_in_split_indexes,
     )
 
+    metaflow_configs_new = {
+        name: value for name, value in metaflow_configs.items() if value
+    }
+
+    if not "METAFLOW_USER" in metaflow_configs_new:
+        metaflow_configs_new["METAFLOW_USER"] = "kfp-user"
+
     env = {
         **os.environ,
-        "METAFLOW_DATASTORE_SYSROOT_S3": datastore_root,
-        "METAFLOW_SERVICE_URL": metaflow_service_url,
+        **metaflow_configs_new,
         "PRECEDING_COMPONENT_INPUTS": json.dumps(preceding_component_inputs),
         "PRECEDING_COMPONENT_OUTPUTS": json.dumps(preceding_component_outputs),
-        "METAFLOW_USER": metaflow_user,
         **preceding_component_outputs_env,
     }
     if flow_parameters_json is not None:

@@ -10,6 +10,7 @@ import kfp
 import yaml
 from kfp import dsl
 from kfp.dsl import ContainerOp, PipelineConf, VolumeOp
+from kubernetes.client import V1EnvVar, V1EnvVarSource, V1ObjectFieldSelector
 
 from metaflow.metaflow_config import (
     DATASTORE_SYSROOT_S3,
@@ -27,23 +28,23 @@ from .kfp_constants import (
     STEP_ENVIRONMENT_VARIABLES,
     TASK_ID_ENV_NAME,
     SPLIT_INDEX_ENV_NAME,
+    RETRY_COUNT,
 )
 from .kfp_exit_handler import exit_handler
 from .kfp_foreach_splits import graph_to_task_ids
 from .pytorch_distributed_decorator import PyTorchDistributedDecorator
 from ..aws.batch.batch_decorator import BatchDecorator
 from ..aws.step_functions.schedule_decorator import ScheduleDecorator
-from ..retry_decorator import RetryDecorator
 from ... import R
 from ...debug import debug
 from ...environment import MetaflowEnvironment
 from ...graph import DAGNode
 from ...plugins.resources_decorator import ResourcesDecorator
 
+# TODO: @schedule
 UNSUPPORTED_DECORATORS = (
     BatchDecorator,
     ScheduleDecorator,
-    RetryDecorator,
 )
 
 
@@ -132,6 +133,7 @@ class KubeflowPipelines(object):
         self.tags = tags
         self.namespace = namespace
         self.kfp_namespace = kfp_namespace
+        self.api_namespace = api_namespace
         self.username = username
         self.base_image = base_image
         self.s3_code_package = s3_code_package
@@ -143,31 +145,26 @@ class KubeflowPipelines(object):
         self.notify_on_error = notify_on_error
         self.notify_on_success = notify_on_success
 
-        # kfp userid needs to have the user domain
-        kfp_client_user_email = username
-        if KFP_USER_DOMAIN:
-            kfp_client_user_email += f"@{KFP_USER_DOMAIN}"
-
-        self._client = kfp.Client(
-            namespace=api_namespace, userid=kfp_client_user_email, **kwargs
-        )
-
     def create_run_on_kfp(self, experiment: str, run_name: str, flow_parameters: dict):
         """
         Creates a new run on KFP using the `kfp.Client()`.
         """
         # TODO: first create KFP Pipeline, then an experiment if provided else default experiment.
-        run_pipeline_result = self._client.create_run_from_pipeline_func(
+        # kfp userid needs to have the user domain
+        kfp_client_user_email = self.username
+        if KFP_USER_DOMAIN:
+            kfp_client_user_email += f"@{KFP_USER_DOMAIN}"
+
+        self._client = kfp.Client(
+            namespace=self.api_namespace, userid=kfp_client_user_email
+        )
+        return self._client.create_run_from_pipeline_func(
             pipeline_func=self.create_kfp_pipeline_from_flow_graph(),
-            arguments={
-                "datastore_root": DATASTORE_SYSROOT_S3,
-                "flow_parameters_json": json.dumps(flow_parameters),
-            },
+            arguments={"flow_parameters_json": json.dumps(flow_parameters)},
             experiment_name=experiment,
             run_name=run_name,
             namespace=self.kfp_namespace,
         )
-        return run_pipeline_result
 
     def create_kfp_pipeline_yaml(self, pipeline_file_path) -> str:
         """
@@ -200,7 +197,8 @@ class KubeflowPipelines(object):
         """
         # debug.subcommand is true if this env variable is set:
         #   export METAFLOW_DEBUG_SUBCOMMAND=1
-        commands = ["set -x" if debug.subcommand else "true"]
+        set_debug_command = "set -x" if debug.subcommand else "true"
+        commands = []
         commands.extend(
             environment.get_package_commands(code_package_url, pip_install=True)
             if self.s3_code_package
@@ -213,7 +211,7 @@ class KubeflowPipelines(object):
             commands
         )  # run inside subshell to capture all stdout/stderr
         # redirect stdout/stderr to separate files, using tee to display to UI
-        redirection_commands = "> >(tee -a 0.stdout.log) 2> >(tee -a 0.stderr.log >&2)"
+        redirection_commands = f"> >(tee -a ${RETRY_COUNT}.stdout.log) 2> >(tee -a ${RETRY_COUNT}.stderr.log >&2)"
 
         # Creating a template to save logs to S3. This is within a function because
         # datastore_root is not available within the scope of this function, and needs
@@ -223,7 +221,7 @@ class KubeflowPipelines(object):
             cp_command = environment.get_boto3_copy_command(
                 s3_path=(
                     os.path.join(
-                        "{datastore_root}",
+                        "$METAFLOW_DATASTORE_SYSROOT_S3",
                         f"{self.flow.name}/{{run_id}}/{step_name}/${TASK_ID_ENV_NAME}/{log_file}",
                     )
                 ),
@@ -237,10 +235,16 @@ class KubeflowPipelines(object):
 
         # TODO: see datastore get_log_location()
         #  where the ordinal is attempt/retry count
-        cp_stderr = copy_log_cmd(log_file="0.stderr.log")
-        cp_stdout = copy_log_cmd(log_file="0.stdout.log")
-        cp_logs_cmd = (
-            "set -x" if debug.subcommand else "true" f" && {cp_stderr} && {cp_stdout}"
+        cp_stderr = copy_log_cmd(log_file=f"${RETRY_COUNT}.stderr.log")
+        cp_stdout = copy_log_cmd(log_file=f"${RETRY_COUNT}.stdout.log")
+        cp_logs_cmd = f"{set_debug_command} && {cp_stderr} && {cp_stdout}"
+
+        retry_count_python = (
+            "import os;"
+            'name = os.environ.get("ARGO_NODE_NAME");'
+            'index = name.rfind("(");'
+            'res = (0 if index == -1 else name[index + 1: -1]) if name.endswith(")") else 0;'
+            f'print("{RETRY_COUNT}=" + str(res))'
         )
 
         # We capture the exit code at two places:
@@ -249,6 +253,7 @@ class KubeflowPipelines(object):
         # exit code manually because combining bash commands with ';' always results
         # in an exit code of 0, whether or not certain commands failed.
         return (
+            f"{set_debug_command}; eval `python -c '{retry_count_python}'`; "
             f"({subshell_commands}) {redirection_commands}; export exit_code_1=$?; "
             f"{cp_logs_cmd}; export exit_code_2=$?; "
             f'if [ "$exit_code_1" -ne 0 ]; then exit $exit_code_1; else exit $exit_code_2; fi'
@@ -326,7 +331,6 @@ class KubeflowPipelines(object):
             Returns the KfpComponent for each step.
             """
 
-            # TODO: @schedule, @retry
             for deco in node.decorators:
                 if isinstance(deco, UNSUPPORTED_DECORATORS):
                     raise KfpException(
@@ -418,7 +422,7 @@ class KubeflowPipelines(object):
                 "--metadata=%s" % self.metadata.TYPE,
                 "--environment=%s" % self.environment.TYPE,
                 "--datastore=s3",
-                "--datastore-root={datastore_root}",
+                "--datastore-root=$METAFLOW_DATASTORE_SYSROOT_S3",
                 "--event-logger=%s" % self.event_logger.logger_type,
                 "--monitor=%s" % self.monitor.monitor_type,
                 "--no-pylint",
@@ -455,7 +459,7 @@ class KubeflowPipelines(object):
             "--metadata=%s" % self.metadata.TYPE,
             "--environment=%s" % self.environment.TYPE,
             "--datastore=s3",
-            "--datastore-root={datastore_root}",
+            "--datastore-root=$METAFLOW_DATASTORE_SYSROOT_S3",
             "--event-logger=%s" % self.event_logger.logger_type,
             "--monitor=%s" % self.monitor.monitor_type,
             "--no-pylint",
@@ -484,9 +488,7 @@ class KubeflowPipelines(object):
             node.name,
             "--run-id %s" % kfp_run_id,
             f"--task-id ${TASK_ID_ENV_NAME}",
-            # Since retries are handled by KFP Argo, we can rely on
-            # {{retries}} as the job counter.
-            # '--retry-count {{retries}}',  # TODO: test verify, should it be -1?
+            f"--retry-count ${RETRY_COUNT}",
             "--max-user-code-retries %d" % user_code_retries,
             (
                 "--input-paths %s" % start_task_id_params_path
@@ -645,10 +647,19 @@ class KubeflowPipelines(object):
             # Disable caching because Metaflow doesn't have memoization
             if isinstance(op, ContainerOp):
                 op.execution_options.caching_strategy.max_cache_staleness = "P0D"
+                op.container.add_env_variable(
+                    V1EnvVar(
+                        name="ARGO_NODE_NAME",
+                        value_from=V1EnvVarSource(
+                            field_ref=V1ObjectFieldSelector(
+                                field_path="metadata.annotations['workflows.argoproj.io/node-name']"
+                            )
+                        ),
+                    )
+                )
 
         @dsl.pipeline(name=self.name, description=self.graph.doc)
         def kfp_pipeline_from_flow(
-            datastore_root: str = DATASTORE_SYSROOT_S3,
             flow_parameters_json: str = None,
         ):
             visited: Dict[str, ContainerOp] = {}
@@ -683,15 +694,20 @@ class KubeflowPipelines(object):
                     )
 
                 kfp_component: KfpComponent = step_to_kfp_component_map[node.name]
+                # capture metaflow configs from client to be used at runtime
+                # client configs have the highest precedence
+                metaflow_configs = dict(
+                    METAFLOW_DATASTORE_SYSROOT_S3=DATASTORE_SYSROOT_S3,
+                    METAFLOW_SERVICE_URL=METADATA_SERVICE_URL,
+                    METAFLOW_USER=METAFLOW_USER,
+                )
                 step_op_args = dict(
-                    datastore_root=datastore_root,
                     cmd_template=kfp_component.cmd_template,
                     kfp_run_id=f"kfp-{dsl.RUN_ID_PLACEHOLDER}",
+                    metaflow_configs=metaflow_configs,
                     passed_in_split_indexes=passed_in_split_indexes,
                     preceding_component_inputs=preceding_component_inputs,
                     preceding_component_outputs=kfp_component.preceding_component_outputs,
-                    metaflow_service_url=METADATA_SERVICE_URL,
-                    metaflow_user=METAFLOW_USER,
                     flow_parameters_json=flow_parameters_json
                     if node.name == "start"
                     else None,
@@ -719,6 +735,9 @@ class KubeflowPipelines(object):
                     ]
                     for env in envs:
                         container_op.container.add_env_variable(env)
+
+                if kfp_component.total_retries and kfp_component.total_retries > 0:
+                    container_op.set_retry(kfp_component.total_retries)
 
                 if preceding_kfp_component_op:
                     container_op.after(preceding_kfp_component_op)

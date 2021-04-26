@@ -275,6 +275,7 @@ def run(
         api_namespace,
         base_image,
         s3_code_package,
+        yaml_only,
         max_parallelism,
         workflow_timeout,
         notify,
@@ -370,6 +371,7 @@ def make_flow(
     api_namespace,
     base_image,
     s3_code_package,
+    yaml_only,
     max_parallelism,
     workflow_timeout,
     notify,
@@ -386,12 +388,16 @@ def make_flow(
     from metaflow.plugins.kfp.kfp import KubeflowPipelines
     from metaflow.plugins.kfp.kfp_decorator import KfpInternalDecorator
 
-    datastore = obj.datastore(
-        obj.flow.name,
-        mode="w",
-        metadata=obj.metadata,
-        event_logger=obj.event_logger,
-        monitor=obj.monitor,
+    datastore = (
+        None
+        if (not s3_code_package and yaml_only)
+        else obj.datastore(
+            obj.flow.name,
+            mode="w",
+            metadata=obj.metadata,
+            event_logger=obj.event_logger,
+            monitor=obj.monitor,
+        )
     )
 
     # Attach KFP decorator to the flow
