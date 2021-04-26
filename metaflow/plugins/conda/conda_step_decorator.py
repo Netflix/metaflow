@@ -20,6 +20,7 @@ from metaflow.metaflow_config import get_pinned_conda_libs, CONDA_PACKAGE_S3ROOT
 from metaflow.util import get_metaflow_root
 from metaflow.datatools import S3
 
+from ..conda_escape import generate_trampolines, ESCAPE_HATCH_PY
 from . import read_conda_manifest, write_to_conda_manifest
 from .conda import Conda
 
@@ -212,6 +213,14 @@ class CondaStepDecorator(StepDecorator):
         path_to_metaflow = os.path.join(get_metaflow_root(), 'metaflow')
         self.metaflow_home = tempfile.mkdtemp(dir='/tmp')
         os.symlink(path_to_metaflow, os.path.join(self.metaflow_home, 'metaflow'))
+        # Also install any Conda escape overrides directly here to enable the escape to
+        # work even in non-MF subprocesses
+        if ESCAPE_HATCH_PY is not None:
+            generate_trampolines(ESCAPE_HATCH_PY, self.metaflow_home)
+            self._logger("Conda escape will use %s as the interpreter" % ESCAPE_HATCH_PY)
+        else:
+            self._logger("Could not find a Conda escape interpreter")
+
 
     def step_init(self, flow, graph, step, decos, environment, datastore, logger):
         if environment.TYPE != 'conda':
@@ -220,6 +229,7 @@ class CondaStepDecorator(StepDecorator):
         def _logger(line, **kwargs):
             logger(line)
         self.local_root = LocalDataStore.get_datastore_root_from_config(_logger)
+        self._logger = _logger
         environment.set_local_root(self.local_root)
         self.architecture = self._architecture(decos)
         self.disable_safety_checks = self._disable_safety_checks(decos)
