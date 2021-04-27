@@ -106,6 +106,13 @@ class FileCache(object):
     def get_artifact(
             self, ds_type, ds_root, data_metadata, flow_name, run_id, step_name,
             task_id, name):
+        return self.get_artifacts(
+            ds_type, ds_root, data_metadata, flow_name, run_id, step_name,
+            task_id, [name])[name]
+
+    def get_all_artifacts(
+            self, ds_type, ds_root, data_metadata, flow_name, run_id, step_name,
+            task_id):
         ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
 
         # We get the task datastore for this task
@@ -113,7 +120,19 @@ class FileCache(object):
             run_id, step_name, task_id, data_metadata=data_metadata)
         # This will reuse the blob cache if needed. We do not have an
         # artifact cache so the unpickling happens every time here.
-        return task_ds[name]
+        return task_ds.load_artifacts([n for n, _ in task_ds.items()])
+
+    def get_artifacts(
+            self, ds_type, ds_root, data_metadata, flow_name, run_id, step_name,
+            task_id, names):
+        ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
+
+        # We get the task datastore for this task
+        task_ds = ds.get_task_datastore(
+            run_id, step_name, task_id, data_metadata=data_metadata)
+        # This will reuse the blob cache if needed. We do not have an
+        # artifact cache so the unpickling happens every time here.
+        return task_ds.load_artifacts(names)
 
     def create_file(self, path, value):
         if self._objects is None:
