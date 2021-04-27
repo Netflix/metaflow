@@ -1,16 +1,19 @@
+import json
 import os
 import sys
 import time
 import shutil
 import random
 import subprocess
-from itertools import starmap
+from io import RawIOBase, BytesIO, BufferedIOBase
+from itertools import chain, starmap
 from tempfile import mkdtemp, NamedTemporaryFile
 
 from .. import FlowSpec
 from ..current import current
 from ..metaflow_config import DATATOOLS_S3ROOT
-from ..util import is_stringish,\
+from ..util import namedtuple_with_defaults,\
+                   is_stringish,\
                    to_bytes,\
                    to_unicode,\
                    to_fileobj,\
@@ -36,6 +39,20 @@ try:
 except:
     boto_found = False
 
+def ensure_unicode(x):
+    return None if x is None else to_unicode(x)
+
+S3GetObject = namedtuple_with_defaults(
+    'S3GetObject', 'key offset length')
+
+S3PutObject = namedtuple_with_defaults(
+    'S3PutObject', 'key value path content_type metadata',
+    defaults=(None, None, None, None))
+
+RangeInfo = namedtuple_with_defaults(
+    'RangeInfo', 'total_size request_offset request_length',
+    defaults=(0, -1))
+
 NUM_S3OP_RETRIES = 8
 
 class MetaflowS3InvalidObject(MetaflowException):
@@ -53,6 +70,7 @@ class MetaflowS3NotFound(MetaflowException):
 class MetaflowS3AccessDenied(MetaflowException):
     headline = 'S3 access denied'
 
+
 class S3Object(object):
     """
     This object represents a path or an object in S3,
@@ -61,17 +79,30 @@ class S3Object(object):
     Get or list calls return one or more of S3Objects.
     """
 
-    def __init__(self, prefix, url, path, size=None):
+    def __init__(
+                 self, prefix, url, path,
+                 size=None, content_type=None, metadata=None, range_info=None):
 
         # all fields of S3Object should return a unicode object
-        def ensure_unicode(x):
-            return None if x is None else to_unicode(x)
         prefix, url, path = map(ensure_unicode, (prefix, url, path))
 
         self._size = size
         self._url = url
         self._path = path
         self._key = None
+        self._content_type = content_type
+
+        self._metadata = None
+        if metadata is not None and 'metaflow-user-attributes' in metadata:
+            self._metadata = json.loads(metadata['metaflow-user-attributes'])
+
+        if range_info and (range_info.request_length is None or\
+                range_info.request_length < 0):
+            self._range_info = RangeInfo(
+                range_info.total_size,
+                range_info.request_offset, range_info.total_size)
+        else:
+            self._range_info = range_info
 
         if path:
             self._size = os.stat(self._path).st_size
@@ -160,6 +191,39 @@ class S3Object(object):
         """
         return self._size
 
+    @property
+    def has_info(self):
+        """
+        Returns true if this S3Object contains the content-type or user-metadata.
+        If False, this means that content_type and range_info will not return the
+        proper information
+        """
+        return self._content_type is not None or self._metadata is not None
+
+    @property
+    def metadata(self):
+        """
+        Returns a dictionary of user-defined metadata
+        """
+        return self._metadata
+
+    @property
+    def content_type(self):
+        """
+        Returns the content-type of the S3 object; if unknown, returns None
+        """
+        return self._content_type
+
+    @property
+    def range_info(self):
+        """
+        Returns a namedtuple containing the following fields:
+            - total_size: size in S3 of the object
+            - request_offset: the starting offset in this S3Object
+            - request_length: the length in this S3Object
+        """
+        return self._range_info
+
     def __str__(self):
         if self._path:
             return '<S3Object %s (%d bytes, local)>' % (self._url, self._size)
@@ -242,6 +306,7 @@ class S3(object):
             # 3. use the client only with full URLs
             self._s3root = None
 
+        self._s3_client = None
         self._tmpdir = mkdtemp(dir=tmproot, prefix='metaflow.s3.')
 
     def __enter__(self):
@@ -250,21 +315,34 @@ class S3(object):
     def __exit__(self, *args):
         self.close()
 
+    def __del__(self):
+        self.close()
+
     def close(self):
         """
         Delete all temporary files downloaded in this context.
         """
         try:
             if not debug.s3client:
-                shutil.rmtree(self._tmpdir)
+                if self._tmpdir:
+                    shutil.rmtree(self._tmpdir)
+                    self._tmpdir = None
         except:
             pass
 
-    def _url(self, key):
-        # NOTE: All URLs are handled as Unicode objects (unicde in py2,
+    def reset_client(self, new_client=None, hard_reset=False):
+        if new_client:
+            self._s3_client = new_client
+        if hard_reset or self._s3_client is None:
+            from metaflow.datastore.util.s3util import get_s3_client
+            self._s3_client, _ = get_s3_client()
+
+    def _url(self, key_value):
+        # NOTE: All URLs are handled as Unicode objects (unicode in py2,
         # string in py3) internally. We expect that all URLs passed to this
         # class as either Unicode or UTF-8 encoded byte strings. All URLs
         # returned are Unicode.
+        key = getattr(key_value, 'key', key_value)
         if self._s3root is None:
             parsed = urlparse(to_unicode(key))
             if parsed.scheme == 's3' and parsed.path:
@@ -287,6 +365,28 @@ class S3(object):
             return os.path.join(self._s3root, key)
         else:
             return self._s3root
+
+    def _url_and_range(self, key_value):
+        url = self._url(key_value)
+        start = getattr(key_value, 'offset', None)
+        length = getattr(key_value, 'length', None)
+        range_str = None
+        # Range specification are inclusive so getting from offset 500 for 100
+        # bytes will read as bytes=500-599
+        if start is not None or length is not None:
+            if start is None:
+                start = 0
+            if length is None:
+                # Fetch from offset till the end of the file
+                range_str = "bytes=%d-" % start
+            elif length < 0:
+                # Fetch from end; ignore start value here
+                range_str = "bytes=-%d" % (-length)
+            else:
+                # Typical range fetch
+                range_str = "bytes=%d-%d" % (start, start + length - 1)
+        return url, range_str
+
 
     def list_paths(self, keys=None):
         """
@@ -315,7 +415,7 @@ class S3(object):
         def _list(keys):
             if keys is None:
                 keys = [None]
-            urls = (self._url(key).rstrip('/') + '/' for key in keys)
+            urls = ((self._url(key).rstrip('/') + '/', None) for key in keys)
             res = self._read_many_files('list', urls)
             for s3prefix, s3url, size in res:
                 if size:
@@ -351,15 +451,15 @@ class S3(object):
             if keys is None:
                 keys = [None]
             res = self._read_many_files('list',
-                                        map(self._url, keys),
+                                        map(self._url_and_range, keys),
                                         recursive=True)
             for s3prefix, s3url, size in res:
                 yield s3prefix, s3url, None, int(size)
         return list(starmap(S3Object, _list(keys)))
 
-    def get(self, key=None, return_missing=False):
+    def info(self, key=None, return_missing=False):
         """
-        Get a single object from S3.
+        Get information about a single object from S3
 
         Args:
             key: (optional) a suffix identifying the object.
@@ -368,28 +468,44 @@ class S3(object):
                             return it as an S3Object with .exists == False.
 
         Returns:
-            an S3Object corresponding to the object requested.
+            an S3Object containing information about the object. The
+            downloaded property will be false and exists will indicate whether
+            or not the file exists
         """
         url = self._url(key)
         src = urlparse(url)
 
-        def _download(s3, tmp):
-            s3.download_file(src.netloc, src.path.lstrip('/'), tmp)
-            return url
+        def _info(s3, tmp):
+            resp = s3.head_object(Bucket=src.netloc, Key=src.path.lstrip('/"'))
+            with open('%s' % tmp, mode='w') as f:
+                args = {
+                    'content_type': resp['ContentType'],
+                    'metadata': resp['Metadata'],
+                    'size': resp['ContentLength']}
+                json.dump(args, f)
 
+        path_info = None
         try:
-            path = self._one_boto_op(_download, url)
+            path_info = self._one_boto_op(_info, url)
         except MetaflowS3NotFound:
             if return_missing:
-                path = None
+                path_info = None
             else:
                 raise
+        if path_info:
+            with open(path_info, 'r') as f:
+                info = json.load(f)
+            return S3Object(
+                self._s3root, url,
+                path=None,
+                size=info['size'],
+                content_type=info['content_type'],
+                metadata=info['metadata'])
+        return S3Object(self._s3root, url, None)
 
-        return S3Object(self._s3root, url, path)
-
-    def get_many(self, keys, return_missing=False):
+    def info_many(self, keys, return_missing=False):
         """
-        Get many objects from S3 in parallel.
+        Get information about many objects from S3 in parallel.
 
         Args:
             keys: (required) a list of suffixes identifying the objects.
@@ -398,51 +514,193 @@ class S3(object):
                             return it as an S3Object with .exists == False.
 
         Returns:
-            a list of S3Objects corresponding to the objects requested.
+            a list of S3Objects corresponding to the objects requested. The
+            downloaded property will be false and exists will indicate whether
+            or not the file exists.
         """
-        def _get():
-            res = self._read_many_files('get',
-                                        map(self._url, keys),
-                                        allow_missing=return_missing,
-                                        verify=True,
+        def _head():
+            res = self._read_many_files('info',
+                                        map(self._url_and_range, keys),
                                         verbose=False,
                                         listing=True)
 
             for s3prefix, s3url, fname in res:
                 if fname:
-                    yield self._s3root, s3url, os.path.join(self._tmpdir, fname)
+                    # We have a metadata file to read from
+                    with open(os.path.join(self._tmpdir, fname), 'r') as f:
+                        info = json.load(f)
+                    if info['error'] is not None:
+                        # We have an error, we check if it is a missing file
+                        if info['error'] == s3op.ERROR_URL_NOT_FOUND:
+                            if return_missing:
+                                yield self._s3root, s3url, None
+                            else:
+                                raise MetaflowS3NotFound()
+                        elif info['error'] == s3op.ERROR_URL_ACCESS_DENIED:
+                            raise MetaflowS3AccessDenied()
+                        else:
+                            raise MetaflowS3Exception("Got error: %d" % info['error'])
+                    else:
+                        yield self._s3root, s3url, None, \
+                            info['size'], info['content_type'], info['metadata']
                 else:
-                    # missing entries per return_missing=True
-                    yield self._s3root, s3prefix, None, None
-        return list(starmap(S3Object, _get()))
+                    # This should not happen; we should always get a response
+                    # even if it contains an error inside it
+                    raise MetaflowS3Exception("Did not get a response to HEAD")
+        return list(starmap(S3Object, _head()))
 
-    def get_recursive(self, keys):
+    def get(self, key=None, return_missing=False, return_info=True):
         """
-        Get many objects from S3 recursively in parallel.
+        Get a single object from S3.
 
         Args:
-            keys: (required) a list of suffixes for paths to download
-                  recursively.
+            key: (optional) a suffix identifying the object. Can also be
+                 an object containing the properties `key`, `offset` and
+                 `length` to specify a range query. `S3GetObject` is such an object.
+            return_missing: (optional, default False) if set to True, do
+                            not raise an exception for a missing key but
+                            return it as an S3Object with .exists == False.
+            return_info: (optional, default True) if set to True, fetch the
+                         content-type and user metadata associated with the object.
+
+        Returns:
+            an S3Object corresponding to the object requested.
+        """
+        url, r = self._url_and_range(key)
+        src = urlparse(url)
+
+        def _download(s3, tmp):
+            if r:
+                resp = s3.get_object(
+                    Bucket=src.netloc,
+                    Key=src.path.lstrip('/'),
+                    Range=r)
+                code = str(resp['ResponseMetadata']['HTTPStatusCode'])
+                if code[0] == '2':
+                    with open(tmp, mode='w') as t:
+                        t.write(resp['Body'].read())
+                else:
+                    # TODO: Better raised error
+                    raise RuntimeError("Could not load file")
+            else:
+                s3.download_file(src.netloc, src.path.lstrip('/'), tmp)
+                return url
+
+        def _info(s3, tmp):
+            resp = s3.head_object(Bucket=src.netloc, Key=src.path.lstrip('/"'))
+            with open('%s' % tmp, mode='w') as f:
+                args = {
+                    'content_type': resp['ContentType'],
+                    'metadata': resp['Metadata']}
+                json.dump(args, f)
+
+        path_info = None
+        try:
+            path = self._one_boto_op(_download, url)
+            if return_info:
+                path_info = self._one_boto_op(_info, url)
+        except MetaflowS3NotFound:
+            if return_missing:
+                path = None
+            else:
+                raise
+        if path_info:
+            with open(path_info, 'r') as f:
+                info = json.load(f)
+            return S3Object(
+                self._s3root, url, path,
+                content_type=info['content_type'],
+                metadata=info['metadata'])
+        return S3Object(self._s3root, url, path)
+
+    def get_many(self, keys, return_missing=False, return_info=True):
+        """
+        Get many objects from S3 in parallel.
+
+        Args:
+            keys: (required) a list of suffixes identifying the objects. Each
+                  item in the list can also be an object containing the properties
+                  `key`, `offset` and `length to specify a range query.
+                  `S3GetObject` is such an object.
+            return_missing: (optional, default False) if set to True, do
+                            not raise an exception for a missing key but
+                            return it as an S3Object with .exists == False.
+            return_info: (optional, default True) if set to True, fetch the
+                         content-type and user metadata associated with the object.
 
         Returns:
             a list of S3Objects corresponding to the objects requested.
         """
         def _get():
             res = self._read_many_files('get',
-                                        map(self._url, keys),
-                                        recursive=True,
+                                        map(self._url_and_range, keys),
+                                        allow_missing=return_missing,
                                         verify=True,
                                         verbose=False,
+                                        info=return_info,
                                         listing=True)
 
             for s3prefix, s3url, fname in res:
-                yield s3prefix, s3url, os.path.join(self._tmpdir, fname)
+                if return_info:
+                    if fname:
+                        # We have a metadata file to read from
+                        with open(os.path.join(self._tmpdir, '%s_meta' % fname),
+                                'r') as f:
+                            info = json.load(f)
+                        yield self._s3root, s3url, os.path.join(self._tmpdir, fname), \
+                            None, info['content_type'], info['metadata']
+                    else:
+                        yield self._s3root, s3prefix, None
+                else:
+                    if fname:
+                        yield self._s3root, s3url, os.path.join(self._tmpdir, fname)
+                    else:
+                        # missing entries per return_missing=True
+                        yield self._s3root, s3prefix, None
         return list(starmap(S3Object, _get()))
 
-    def get_all(self):
+    def get_recursive(self, keys, return_info=False):
+        """
+        Get many objects from S3 recursively in parallel.
+
+        Args:
+            keys: (required) a list of suffixes for paths to download
+                  recursively.
+            return_info: (optional, default False) if set to True, fetch the
+                         content-type and user metadata associated with the object.
+
+        Returns:
+            a list of S3Objects corresponding to the objects requested.
+        """
+        def _get():
+            res = self._read_many_files('get',
+                                        map(self._url_and_range, keys),
+                                        recursive=True,
+                                        verify=True,
+                                        verbose=False,
+                                        info=return_info,
+                                        listing=True)
+
+            for s3prefix, s3url, fname in res:
+                if return_info:
+                    # We have a metadata file to read from
+                    with open(os.path.join(self._tmpdir, '%s_meta' % fname),
+                            'r') as f:
+                        info = json.load(f)
+                    yield self._s3root, s3url, os.path.join(self._tmpdir, fname), \
+                        None, info['content_type'], info['metadata']
+                else:
+                    yield s3prefix, s3url, os.path.join(self._tmpdir, fname)
+        return list(starmap(S3Object, _get()))
+
+    def get_all(self, return_info=False):
         """
         Get all objects from S3 recursively (in parallel). This request
         only works if S3 is initialized with a run or a s3root prefix.
+
+        Args:
+            return_info: (optional, default False) if set to True, fetch the
+                         content-type and user metadata associated with the object.
 
         Returns:
             a list of S3Objects corresponding to the objects requested.
@@ -451,47 +709,73 @@ class S3(object):
             raise MetaflowS3URLException(\
                 "Can't get_all() when S3 is initialized without a prefix")
         else:
-            return self.get_recursive([None])
+            return self.get_recursive([None], return_info)
 
-    def put(self, key, obj, overwrite=True):
+    def put(self, key, obj, overwrite=True, content_type=None, metadata=None):
         """
         Put an object to S3.
 
         Args:
-            key:       (required) suffix for the object.
-            obj:       (required) a bytes, string, or a unicode object to 
-                       be stored in S3.
-            overwrite: (optional) overwrites the key with obj, if it exists
+            key:           (required) suffix for the object.
+            obj:           (required) a bytes, string, or a unicode object to
+                           be stored in S3.
+            overwrite:     (optional) overwrites the key with obj, if it exists
+            content_type:  (optional) string representing the MIME type of the
+                           object
+            metadata:      (optional) User metadata to store alongside the object
 
         Returns:
             an S3 URL corresponding to the object stored.
         """
-
-        if not is_stringish(obj):
-            raise MetaflowS3InvalidObject(\
-                "Object corresponding to the key '%s' is not a string "
-                "or a bytes object." % key)
+        if isinstance(obj, (RawIOBase, BufferedIOBase)):
+            if not obj.readable() or not obj.seekable():
+                raise MetaflowS3InvalidObject(
+                    "Object corresponding to the key '%s' is not readable or seekable" %
+                    key)
+            blob = obj
+        else:
+            if not is_stringish(obj):
+                raise MetaflowS3InvalidObject(\
+                    "Object corresponding to the key '%s' is not a string "
+                    "or a bytes object." % key)
+            blob = to_fileobj(obj)
+        # We override the close functionality to prevent closing of the
+        # file if it is used multiple times when uploading (since upload_fileobj
+        # will/may close it on failure)
+        real_close = blob.close
+        blob.close = lambda: None
 
         url = self._url(key)
         src = urlparse(url)
-
-        def _upload(s3, tmp):
-            # we need to recreate the StringIO object for retries since
-            # apparently upload_fileobj will/may close() it
-            blob = to_fileobj(obj)
-            s3.upload_fileobj(blob, src.netloc, src.path.lstrip('/'))
+        extra_args = None
+        if content_type or metadata:
+            extra_args = {}
+            if content_type:
+                extra_args['ContentType'] = content_type
+            if metadata:
+                extra_args['Metadata'] = {
+                    'metaflow-user-attributes': json.dumps(metadata)}
+        
+        def _upload(s3, _):
+            # We make sure we are at the beginning in case we are retrying
+            blob.seek(0)
+            s3.upload_fileobj(
+                blob, src.netloc, src.path.lstrip('/'), ExtraArgs=extra_args)
 
         if overwrite:
             self._one_boto_op(_upload, url)
+            real_close()
             return url
         else:
-            def _head(s3, tmp):
+            def _head(s3, _):
                 s3.head_object(Bucket=src.netloc, Key=src.path.lstrip('/'))
 
             try:
                 self._one_boto_op(_head, url)
             except MetaflowS3NotFound:
-                self._one_boto_op(_upload, url)    
+                self._one_boto_op(_upload, url)
+            finally:
+                real_close()
             return url
 
     def put_many(self, key_objs, overwrite=True):
@@ -500,26 +784,50 @@ class S3(object):
 
         Args:
             key_objs:  (required) an iterator of (key, value) tuples. Value must
-                       be a string, bytes, or a unicode object.
+                       be a string, bytes, or a unicode object. Instead of
+                       (key, value) tuples, you can also pass any object that
+                       has the following properties 'key', 'value', 'content_type',
+                       'metadata' like the S3PutObject for example. 'key' and
+                       'value' are required but others are optional.
             overwrite: (optional) overwrites the key with obj, if it exists
 
         Returns:
             a list of (key, S3 URL) tuples corresponding to the files sent.
         """
         def _store():
-            for key, obj in key_objs:
-                if is_stringish(obj):
-                    with NamedTemporaryFile(dir=self._tmpdir,
-                                            delete=False,
-                                            mode='wb',
-                                            prefix='metaflow.s3.put_many.') as tmp:
-                        tmp.write(to_bytes(obj))
-                        tmp.close()
-                        yield tmp.name, self._url(key), key
+            for key_obj in key_objs:
+                if isinstance(key_obj, tuple):
+                    key = key_obj[0]
+                    obj = key_obj[1]
                 else:
-                    raise MetaflowS3InvalidObject(
-                        "Object corresponding to the key '%s' is not a string "
-                        "or a bytes object." % key)
+                    key = key_obj.key
+                    obj = key_obj.value
+                store_info = {
+                    'key': key,
+                    'content_type': getattr(key_obj, 'content_type', None)
+                }
+                metadata = getattr(key_obj, 'metadata', None)
+                if metadata:
+                    store_info['metadata'] = {
+                        'metaflow-user-attributes': json.dumps(metadata)}
+                if isinstance(obj, (RawIOBase, BufferedIOBase)):
+                    if not obj.readable() or not obj.seekable():
+                        raise MetaflowS3InvalidObject(
+                            "Object corresponding to the key '%s' is not readable or seekable" %
+                            key)
+                else:
+                    if not is_stringish(obj):
+                        raise MetaflowS3InvalidObject(\
+                            "Object corresponding to the key '%s' is not a string "
+                            "or a bytes object." % key)
+                    obj = to_fileobj(obj)
+                with NamedTemporaryFile(dir=self._tmpdir,
+                                        delete=False,
+                                        mode='wb',
+                                        prefix='metaflow.s3.put_many.') as tmp:
+                    tmp.write(obj.read())
+                    tmp.close()
+                    yield tmp.name, self._url(key), store_info
 
         return self._put_many_files(_store(), overwrite)
 
@@ -529,17 +837,35 @@ class S3(object):
         Put files to S3 in parallel.
 
         Args:
-            key_paths: (required) an iterator of (key, path) tuples.
+            key_paths: (required) an iterator of (key, path) tuples. Instead of
+                       (key, path) tuples, you can also pass any object that
+                       has the following properties 'key', 'path', 'content_type',
+                       'metadata' like the S3PutObject for example. 'key' and
+                       'path' are required but others are optional.
             overwrite: (optional) overwrites the key with obj, if it exists
 
         Returns:
             a list of (key, S3 URL) tuples corresponding to the files sent.
         """
         def _check():
-            for key, path in key_paths:
+            for key_path in key_paths:
+                if isinstance(key_path, tuple):
+                    key = key_path[0]
+                    path = key_path[1]
+                else:
+                    key = key_path.key
+                    path = key_path.path
+                store_info = {
+                    'key': key,
+                    'content_type': getattr(key_path, 'content_type', None),
+                }
+                metadata = getattr(key_path, 'metadata', None)
+                if metadata:
+                    store_info['metadata'] = {
+                        'metaflow-user-attributes': json.dumps(metadata)}
                 if not os.path.exists(path):
                     raise MetaflowS3NotFound("Local file not found: %s" % path)
-                yield path, self._url(key), key
+                yield path, self._url(key), store_info
 
         return self._put_many_files(_check(), overwrite)
 
@@ -550,8 +876,8 @@ class S3(object):
                                      prefix='metaflow.s3.one_file.',
                                      delete=False)
             try:
-                s3, _ = get_s3_client()
-                op(s3, tmp.name)
+                self.reset_client()
+                op(self._s3_client, tmp.name)
                 return tmp.name
             except ClientError as err:
                 error_code = s3op.normalize_client_error(err)
@@ -566,6 +892,7 @@ class S3(object):
                 # TODO specific error message for out of disk space
                 error = str(ex)
             os.unlink(tmp.name)
+            self.reset_client(hard_reset = True)
             # add some jitter to make sure retries are not synchronized
             time.sleep(2**i + random.randint(0, 10))
         raise MetaflowS3Exception("S3 operation failed.\n"\
@@ -575,15 +902,17 @@ class S3(object):
     # NOTE: re: _read_many_files and _put_many_files
     # All file IO is through binary files - we write bytes, we read
     # bytes. All inputs and outputs from these functions are Unicode.
-    # Conversion between bytes and unicode is done through url_quote
+    # Conversion between bytes and unicode is done through 
     # and url_unquote.
-    def _read_many_files(self, op, prefixes, **options):
-        prefixes = list(prefixes)
+    def _read_many_files(self, op, prefixes_and_ranges, **options):
+        prefixes_and_ranges = list(prefixes_and_ranges)
         with NamedTemporaryFile(dir=self._tmpdir,
                                 mode='wb',
                                 delete=not debug.s3client,
                                 prefix='metaflow.s3.inputs.') as inputfile:
-            inputfile.write(b'\n'.join(map(url_quote, prefixes)))
+            inputfile.write(b'\n'.join(
+                [b' '.join([url_quote(prefix)] + ([url_quote(r)] if r else []))
+                    for prefix, r in prefixes_and_ranges]))
             inputfile.flush()
             stdout, stderr = self._s3op_with_retries(op,
                                                      inputs=inputfile.name,
@@ -591,19 +920,23 @@ class S3(object):
             if stderr:
                 raise MetaflowS3Exception("Getting S3 files failed.\n"\
                                           "First prefix requested: %s\n"\
-                                          "Error: %s" % (prefixes[0], stderr))
+                                          "Error: %s" % (prefixes_and_ranges[0], stderr))
             else:
                 for line in stdout.splitlines():
                     yield tuple(map(url_unquote, line.strip(b'\n').split(b' ')))
 
-    def _put_many_files(self, url_files, overwrite):
-        url_files = list(url_files)
+    def _put_many_files(self, url_info, overwrite):
+        url_info = list(url_info)
+        url_dicts = [dict(
+            chain([
+                ('local', os.path.realpath(local)),
+                ('url', url)], info.items())) for local, url, info in url_info]
+
         with NamedTemporaryFile(dir=self._tmpdir,
                                 mode='wb',
                                 delete=not debug.s3client,
                                 prefix='metaflow.s3.put_inputs.') as inputfile:
-            lines = (b' '.join(map(url_quote, (os.path.realpath(local), url)))
-                     for local, url, _ in url_files)
+            lines = [to_bytes(json.dumps(x)) for x in url_dicts]
             inputfile.write(b'\n'.join(lines))
             inputfile.flush()
             stdout, stderr = self._s3op_with_retries('put',
@@ -614,14 +947,14 @@ class S3(object):
             if stderr:
                 raise MetaflowS3Exception("Uploading S3 files failed.\n"\
                                           "First key: %s\n"\
-                                          "Error: %s" % (url_files[0][2],
+                                          "Error: %s" % (url_info[0][2]['key'],
                                                          stderr))
             else:
                 urls = set()
                 for line in stdout.splitlines():
                     url, _, _ = map(url_unquote, line.strip(b'\n').split(b' '))
                     urls.add(url)
-                return [(key, url) for _, url, key in url_files if url in urls]
+                return [(info['key'], url) for _, url, info in url_info if url in urls]
 
     def _s3op_with_retries(self, mode, **options):
 

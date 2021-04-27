@@ -18,7 +18,8 @@ from .util import resolve_identity, decompress_list, write_latest_run_id, \
 from .task import MetaflowTask
 from .exception import CommandException, MetaflowException
 from .graph import FlowGraph
-from .datastore import DATASTORES
+from .datastore import DATASTORES, FlowDataStore, TaskDataStoreSet
+
 from .runtime import NativeRuntime
 from .package import MetaflowPackage
 from .plugins import ENVIRONMENTS, LOGGING_SIDECARS, METADATA_PROVIDERS, MONITOR_SIDECARS
@@ -208,14 +209,6 @@ def dump(obj,
               'max_value_size': max_value_size,
               'include': {t for t in include.split(',') if t}}
 
-    if obj.datastore.datastore_root is None:
-        obj.datastore.datastore_root = obj.datastore.get_datastore_root_from_config(
-            obj.echo, create_on_absent=False)
-    if obj.datastore.datastore_root is None:
-        raise CommandException(
-            "Could not find the location of the datastore -- did you correctly set the "
-            "METAFLOW_DATASTORE_SYSROOT_%s environment variable" % (obj.datastore.TYPE).upper())
-
     # Pathspec can either be run_id/step_name or run_id/step_name/task_id.
     parts = input_path.split('/')
     if len(parts) == 2:
@@ -227,16 +220,10 @@ def dump(obj,
         raise CommandException("input_path should either be run_id/step_name"
                                "or run_id/step_name/task_id")
 
-    from metaflow.datastore.datastore_set import MetaflowDatastoreSet
-
-    datastore_set = MetaflowDatastoreSet(
-                        obj.datastore,
-                        obj.flow.name,
+    datastore_set = TaskDataStoreSet(
+                        obj.flow_datastore,
                         run_id,
                         steps=[step_name],
-                        metadata=obj.metadata,
-                        monitor=obj.monitor,
-                        event_logger=obj.event_logger,
                         prefetch_data_artifacts=kwargs.get('include'))
     if task_id:
         ds_list = [datastore_set.get_with_pathspec(input_path)]
@@ -314,14 +301,8 @@ def logs(obj,
         raise CommandException("input_path should either be run_id/step_name "
                                "or run_id/step_name/task_id")
 
-    if obj.datastore.datastore_root is None:
-        obj.datastore.datastore_root = obj.datastore.get_datastore_root_from_config(
-            obj.echo, create_on_absent=False)
-    if obj.datastore.datastore_root is None:
-        raise CommandException(
-            "Could not find the location of the datastore -- did you correctly set the "
-            "METAFLOW_DATASTORE_SYSROOT_%s environment variable" % (obj.datastore.TYPE).upper())
-
+    datastore_set = TaskDataStoreSet(
+        obj.flow_datastore, run_id, steps=[step_name], allow_not_done=True)
     if task_id:
         ds_list = [obj.datastore(obj.flow.name,
                                  run_id=run_id,
@@ -330,63 +311,44 @@ def logs(obj,
                                  mode='r',
                                  allow_unsuccessful=True)]
     else:
-        from metaflow.datastore.datastore_set import MetaflowDatastoreSet
-        datastore_set = MetaflowDatastoreSet(
-                            obj.datastore,
-                            obj.flow.name,
-                            run_id,
-                            steps=[step_name],
-                            metadata=obj.metadata,
-                            monitor=obj.monitor,
-                            event_logger=obj.event_logger)
-        # get all successful tasks
-        ds_list = list(datastore_set)
+        ds_list = list(datastore_set) # get all tasks
 
-    if ds_list:
-        def echo_unicode(line, **kwargs):
-            click.secho(line.decode('UTF-8', errors='replace'), **kwargs)
+    def echo_unicode(line, **kwargs):
+        click.secho(line.decode('UTF-8', errors='replace'), **kwargs)
 
-        # old style logs are non mflog-style logs
-        maybe_old_style = True
-        for ds in ds_list:
-            echo('Dumping logs of run_id=*{run_id}* '
-                 'step=*{step}* task_id=*{task_id}*'.format(run_id=ds.run_id,
-                                                            step=ds.step_name,
-                                                            task_id=ds.task_id),
-                 fg='magenta')
+    # old style logs are non mflog-style logs
+    maybe_old_style = True
+    for ds in ds_list:
+        echo('Dumping logs of run_id=*{run_id}* '
+             'step=*{step}* task_id=*{task_id}*'.format(run_id=ds.run_id,
+                                                        step=ds.step_name,
+                                                        task_id=ds.task_id),
+             fg='magenta')
 
-            for stream in streams:
-                echo(stream, bold=True)
-                logs = ds.load_logs(LOG_SOURCES, stream)
-                if any(data for _, data in logs):
-                    # attempt to read new, mflog-style logs
-                    for line in mflog.merge_logs([blob for _, blob in logs]):
-                        if timestamps:
-                            ts = mflog.utc_to_local(line.utc_tstamp)
-                            tstamp = ts.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-                            click.secho(tstamp + ' ',
-                                        fg=LOGGER_TIMESTAMP,
-                                        nl=False)
-                        echo_unicode(line.msg)
-                    maybe_old_style = False
-                elif maybe_old_style:
-                    # if they are not available, we may be looking at
-                    # a legacy run (unless we have seen new-style data already
-                    # for another stream). This return an empty string if
-                    # nothing is found
-                    log = ds.load_log_legacy(stream)
-                    if log and timestamps:
-                        raise CommandException("We can't show --timestamps for "
-                                               "old runs. Sorry!")
-                    echo_unicode(log, nl=False)
-
-    elif len(parts) == 2:
-        # TODO if datastore provided a way to find unsuccessful task IDs, we
-        # could make handle this case automatically
-        raise CommandException("Successful tasks were not found at the given "
-                               "path. You can see logs for unsuccessful tasks "
-                               "by giving an exact task ID using the "
-                               "run_id/step_name/task_id format.")
+        for stream in streams:
+            echo(stream, bold=True)
+            logs = ds.load_logs(LOG_SOURCES, stream)
+            if any(data for _, data in logs):
+                # attempt to read new, mflog-style logs
+                for line in mflog.merge_logs([blob for _, blob in logs]):
+                    if timestamps:
+                        ts = mflog.utc_to_local(line.utc_tstamp)
+                        tstamp = ts.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+                        click.secho(tstamp + ' ',
+                                    fg=LOGGER_TIMESTAMP,
+                                    nl=False)
+                    echo_unicode(line.msg)
+                maybe_old_style = False
+            elif maybe_old_style:
+                # if they are not available, we may be looking at
+                # a legacy run (unless we have seen new-style data already
+                # for another stream). This return an empty string if
+                # nothing is found
+                log = ds.load_log_legacy(stream)
+                if log and timestamps:
+                    raise CommandException("We can't show --timestamps for "
+                                            "old runs. Sorry!")
+                echo_unicode(log, nl=False)
 
 
 # TODO - move step and init under a separate 'internal' subcommand
@@ -473,16 +435,11 @@ def step(obj,
     if decospecs:
         decorators._attach_decorators_to_step(func, decospecs)
 
-    obj.datastore.datastore_root = obj.datastore_root
-    if obj.datastore.datastore_root is None:
-        obj.datastore.datastore_root = \
-            obj.datastore.get_datastore_root_from_config(obj.echo)
-
     obj.metadata.add_sticky_tags(tags=tags)
     paths = decompress_list(input_paths) if input_paths else []
 
     task = MetaflowTask(obj.flow,
-                        obj.datastore,
+                        obj.flow_datastore,
                         obj.metadata,
                         obj.environment,
                         obj.echo,
@@ -530,15 +487,11 @@ def init(obj, run_id=None, task_id=None, tags=None, **kwargs):
     # user-specified parameters are often defined as environment
     # variables.
 
-    if obj.datastore.datastore_root is None:
-        obj.datastore.datastore_root = \
-            obj.datastore.get_datastore_root_from_config(obj.echo)
-
     obj.metadata.add_sticky_tags(tags=tags)
 
     runtime = NativeRuntime(obj.flow,
                             obj.graph,
-                            obj.datastore,
+                            obj.flow_datastore,
                             obj.metadata,
                             obj.environment,
                             obj.package,
@@ -632,7 +585,7 @@ def resume(obj,
 
     runtime = NativeRuntime(obj.flow,
                             obj.graph,
-                            obj.datastore,
+                            obj.flow_datastore,
                             obj.metadata,
                             obj.environment,
                             obj.package,
@@ -680,7 +633,7 @@ def run(obj,
 
     runtime = NativeRuntime(obj.flow,
                             obj.graph,
-                            obj.datastore,
+                            obj.flow_datastore,
                             obj.metadata,
                             obj.environment,
                             obj.package,
@@ -721,12 +674,8 @@ def before_run(obj, tags, decospecs):
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
     #obj.environment.init_environment(obj.logger)
 
-    if obj.datastore.datastore_root is None:
-        obj.datastore.datastore_root = \
-            obj.datastore.get_datastore_root_from_config(obj.echo)
-
     decorators._init_step_decorators(
-        obj.flow, obj.graph, obj.environment, obj.datastore, obj.logger)
+        obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger)
     obj.metadata.add_sticky_tags(tags=tags)
 
     # Package working directory only once per run.
@@ -850,19 +799,6 @@ def start(ctx,
                            if e.TYPE == environment][0](ctx.obj.flow)
     ctx.obj.environment.validate_environment(echo)
 
-    ctx.obj.datastore = DATASTORES[datastore]
-    ctx.obj.datastore_root = datastore_root
-
-    # It is important to initialize flow decorators early as some of the
-    # things they provide may be used by some of the objects initialize after.
-    decorators._init_flow_decorators(ctx.obj.flow,
-                                     ctx.obj.graph,
-                                     ctx.obj.environment,
-                                     ctx.obj.datastore,
-                                     ctx.obj.logger,
-                                     echo,
-                                     deco_options)
-
     ctx.obj.monitor = Monitor(monitor, ctx.obj.environment, ctx.obj.flow.name)
     ctx.obj.monitor.start()
 
@@ -871,12 +807,36 @@ def start(ctx,
                                                   ctx.obj.flow,
                                                   ctx.obj.event_logger,
                                                   ctx.obj.monitor)
-    ctx.obj.datastore = DATASTORES[datastore]
+
+    ctx.obj.datastore_impl = DATASTORES[datastore]
 
     if datastore_root is None:
         datastore_root = \
-          ctx.obj.datastore.get_datastore_root_from_config(ctx.obj.echo)
-    ctx.obj.datastore_root = ctx.obj.datastore.datastore_root = datastore_root
+          ctx.obj.datastore_impl.get_datastore_root_from_config(ctx.obj.echo)
+    if datastore_root is None:
+        raise CommandException(
+            "Could not find the location of the datastore -- did you correctly set the "
+            "METAFLOW_DATASTORE_SYSROOT_%s environment variable?" % datastore.upper())
+
+    ctx.obj.datastore_impl.datastore_root = datastore_root
+
+    FlowDataStore.default_backend_class = ctx.obj.datastore_impl
+    ctx.obj.flow_datastore = FlowDataStore(
+        ctx.obj.flow.name,
+        ctx.obj.environment,
+        ctx.obj.metadata,
+        ctx.obj.event_logger,
+        ctx.obj.monitor)
+
+    # It is important to initialize flow decorators early as some of the
+    # things they provide may be used by some of the objects initialize after.
+    decorators._init_flow_decorators(ctx.obj.flow,
+                                     ctx.obj.graph,
+                                     ctx.obj.environment,
+                                     ctx.obj.flow_datastore,
+                                     ctx.obj.logger,
+                                     echo,
+                                     deco_options)
 
     if decospecs:
         decorators._attach_decorators(ctx.obj.flow, decospecs)
@@ -885,7 +845,7 @@ def start(ctx,
     current._set_env(flow_name=ctx.obj.flow.name, is_running=False)
     parameters.set_parameter_context(ctx.obj.flow.name,
                                         ctx.obj.echo,
-                                        ctx.obj.datastore)
+                                        ctx.obj.flow_datastore)
 
     if ctx.invoked_subcommand not in ('run', 'resume'):
         # run/resume are special cases because they can add more decorators with --with,
@@ -893,7 +853,7 @@ def start(ctx,
         decorators._attach_decorators(
             ctx.obj.flow, ctx.obj.environment.decospecs())
         decorators._init_step_decorators(
-            ctx.obj.flow, ctx.obj.graph, ctx.obj.environment, ctx.obj.datastore, ctx.obj.logger)
+            ctx.obj.flow, ctx.obj.graph, ctx.obj.environment, ctx.obj.flow_datastore, ctx.obj.logger)
         #TODO (savin): Enable lazy instantiation of package
         ctx.obj.package = None
     if ctx.invoked_subcommand is None:

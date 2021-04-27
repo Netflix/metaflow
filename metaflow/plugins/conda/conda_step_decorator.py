@@ -12,12 +12,12 @@ except:
     from urllib.parse import urlparse
 
 
-from metaflow.datastore.local import LocalDataStore
 from metaflow.decorators import StepDecorator
 from metaflow.metaflow_environment import InvalidEnvironmentException
 from metaflow.metadata import MetaDatum
 from metaflow.metaflow_config import get_pinned_conda_libs, CONDA_PACKAGE_S3ROOT
 from metaflow.util import get_metaflow_root
+from metaflow.datastore import LocalBackend
 from metaflow.datatools import S3
 
 from ..conda_escape import generate_trampolines, ESCAPE_HATCH_PY
@@ -128,7 +128,7 @@ class CondaStepDecorator(StepDecorator):
                 }
             else:
                 payload = cached_deps[env_id]
-            if self.datastore.TYPE == 's3' and 'cache_urls' not in payload:
+            if self.flow_datastore.TYPE == 's3' and 'cache_urls' not in payload:
                 payload['cache_urls'] = self._cache_env()
             write_to_conda_manifest(ds_root, self.flow.name, env_id, payload)
             CondaStepDecorator.environments =\
@@ -222,20 +222,20 @@ class CondaStepDecorator(StepDecorator):
             self._logger("Could not find a Conda escape interpreter")
 
 
-    def step_init(self, flow, graph, step, decos, environment, datastore, logger):
+    def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         if environment.TYPE != 'conda':
             raise InvalidEnvironmentException('The *@conda* decorator requires '
                                               '--environment=conda')
         def _logger(line, **kwargs):
             logger(line)
-        self.local_root = LocalDataStore.get_datastore_root_from_config(_logger)
+        self.local_root = LocalBackend.get_datastore_root_from_config(_logger)
         self._logger = _logger
         environment.set_local_root(self.local_root)
         self.architecture = self._architecture(decos)
         self.disable_safety_checks = self._disable_safety_checks(decos)
         self.step = step
         self.flow = flow
-        self.datastore = datastore
+        self.flow_datastore = flow_datastore
         self.base_attributes = self._get_base_attributes()
         os.environ['PYTHONNOUSERSITE'] = '1'
 
@@ -243,12 +243,13 @@ class CondaStepDecorator(StepDecorator):
         if self.is_enabled():
             self._prepare_step_environment(step, self.local_root)
 
-    def runtime_task_created(self, datastore, task_id, split_index, input_paths, is_cloned):
+    def runtime_task_created(self, task_datastore, task_id, split_index, input_paths, is_cloned):
         if self.is_enabled():
             self.env_id = self._prepare_step_environment(self.step, self.local_root)
 
     def task_pre_step(
-            self, step_name, ds, meta, run_id, task_id, flow, graph, retry_count, max_retries):
+            self, step_name, task_datastore, meta, run_id, task_id, flow, graph, retry_count,
+            max_retries):
         meta.register_metadata(run_id, step_name, task_id,
                                    [MetaDatum(field='conda_env_id',
                                               value=self._env_id(),
