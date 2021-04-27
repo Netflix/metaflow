@@ -19,6 +19,7 @@ from metaflow.metaflow_config import get_pinned_conda_libs, CONDA_PACKAGE_S3ROOT
 from metaflow.util import get_metaflow_root
 from metaflow.datastore import LocalBackend
 from metaflow.datatools import S3
+from metaflow.unbounded_foreach import UBF_CONTROL
 
 from ..conda_escape import generate_trampolines, ESCAPE_HATCH_PY
 from . import read_conda_manifest, write_to_conda_manifest
@@ -69,15 +70,19 @@ class CondaStepDecorator(StepDecorator):
 
     def _python_version(self):
         return next(x for x in [
-                    self.attributes['python'], 
-                    self.base_attributes['python'], 
+                    self.attributes['python'],
+                    self.base_attributes['python'],
                     platform.python_version()] if x is not None)
 
-    def is_enabled(self):
-        return not next(x for x in [
-                        self.attributes['disabled'],
-                        self.base_attributes['disabled'],
-                        False] if x is not None)
+    def is_enabled(self, ubf_context=None):
+        if ubf_context == UBF_CONTROL:
+            # Disable `@conda` for ubf_control tasks indifferent to config.
+            return False
+        else:
+            return not next(x for x in [
+                            self.attributes['disabled'],
+                            self.base_attributes['disabled'],
+                            False] if x is not None)
 
     def _lib_deps(self):
         deps = get_pinned_conda_libs(self._python_version())
@@ -243,21 +248,23 @@ class CondaStepDecorator(StepDecorator):
         if self.is_enabled():
             self._prepare_step_environment(step, self.local_root)
 
-    def runtime_task_created(self, task_datastore, task_id, split_index, input_paths, is_cloned):
-        if self.is_enabled():
-            self.env_id = self._prepare_step_environment(self.step, self.local_root)
+    def runtime_task_created(self, datastore, task_id, split_index, input_paths, is_cloned,
+                             ubf_context):
+        if self.is_enabled(ubf_context):
+            self.env_id = self._prepare_step_environment(self.step)
 
     def task_pre_step(
             self, step_name, task_datastore, meta, run_id, task_id, flow, graph, retry_count,
-            max_retries):
-        meta.register_metadata(run_id, step_name, task_id,
-                                   [MetaDatum(field='conda_env_id',
-                                              value=self._env_id(),
-                                              type='conda_env_id',
-                                              tags=[])])
+            max_retries, ubf_context):
+        if self.is_enabled(ubf_context):
+            meta.register_metadata(run_id, step_name, task_id,
+                                       [MetaDatum(field='conda_env_id',
+                                                  value=self._env_id(),
+                                                  type='conda_env_id',
+                                                  tags=[])])
 
-    def runtime_step_cli(self, cli_args, retry_count, max_user_code_retries):
-        if self.is_enabled() and 'batch' not in cli_args.commands:
+    def runtime_step_cli(self, cli_args, retry_count, max_user_code_retries, ubf_context):
+        if self.is_enabled(ubf_context) and 'batch' not in cli_args.commands:
             python_path = self.metaflow_home
             if os.environ.get('PYTHONPATH') is not None:
                 python_path = os.pathsep.join([os.environ['PYTHONPATH'], python_path])

@@ -15,6 +15,7 @@ from metaflow.exception import MetaflowNotFound,\
 from metaflow.metaflow_config import DEFAULT_METADATA
 from metaflow.plugins import ENVIRONMENTS, METADATA_PROVIDERS
 
+from metaflow.unbounded_foreach import CONTROL_TASK_TAG
 from metaflow.util import cached_property, resolve_identity, to_unicode
 
 from .filecache import FileCache
@@ -1177,7 +1178,8 @@ class Step(MetaflowObject):
             A task in the step
         """
         for t in self:
-            return t
+            if CONTROL_TASK_TAG not in t.tags:
+                return t
 
     def tasks(self, *tags):
         """
@@ -1199,6 +1201,26 @@ class Step(MetaflowObject):
         """
         return self._filtered_children(*tags)
 
+    @property
+    def control_task(self):
+        children = super(Step, self).__iter__()
+        for t in children:
+            if CONTROL_TASK_TAG in t.tags:
+                return t
+
+    def control_tasks(self, *tags):
+        children = super(Step, self).__iter__()
+        filter_tags = [CONTROL_TASK_TAG]
+        filter_tags.extend(tags)
+        for child in children:
+            if all(tag in child.tags for tag in filter_tags):
+                    yield child
+
+    def __iter__(self):
+        children = super(Step, self).__iter__()
+        for t in children:
+            if CONTROL_TASK_TAG not in t.tags:
+                yield t
     @property
     def finished_at(self):
         """

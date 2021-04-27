@@ -303,8 +303,7 @@ def dict_to_cli_options(params):
             if k == 'decospecs':
                 k = 'with'
             k = k.replace('_', '-')
-            if not isinstance(v, tuple):
-                v = [v]
+            v = v if isinstance(v, list) or isinstance(v, tuple) else [v]
             for value in v:
                 yield '--%s' % k
                 if not isinstance(value, bool):

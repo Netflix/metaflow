@@ -11,8 +11,10 @@ from .exception import MetaflowInternalError,\
     MetaflowExceptionWrapper
 from .util import all_equal,\
     get_username,\
-    resolve_identity
+    resolve_identity,\
+    unicode_type
 from .current import current
+from .unbounded_foreach import UBF_CONTROL
 
 from collections import namedtuple
 
@@ -32,7 +34,8 @@ class MetaflowTask(object):
                  environment,
                  console_logger,
                  event_logger,
-                 monitor):
+                 monitor,
+                 ubf_context):
         self.flow = flow
         self.flow_datastore = flow_datastore
         self.metadata = metadata
@@ -40,6 +43,7 @@ class MetaflowTask(object):
         self.console_logger = console_logger
         self.event_logger = event_logger
         self.monitor = monitor
+        self.ubf_context = ubf_context
 
     def _exec_step_function(self, step_function, input_obj=None):
         self.environment.validate_environment(echo=self.console_logger)
@@ -155,11 +159,12 @@ class MetaflowTask(object):
                 # something strange happened upstream, the inputs list
                 # may not contain all inputs which should raise an exception
                 stack = inp['_foreach_stack']
-                if len(inputs) != stack[-1].num_splits:
+                expected_num_splits = stack[-1].num_splits
+                if expected_num_splits and len(inputs) != expected_num_splits:
                     raise MetaflowDataMissing("Foreach join *%s* expected %d "
                                               "splits but only %d inputs were "
                                               "found" % (step_name,
-                                                         stack[-1].num_splits,
+                                                         expected_num_splits,
                                                          len(inputs)))
                 # foreach-join pops the topmost frame from the stack
                 self.flow._foreach_stack = stack[:-1]
@@ -174,7 +179,7 @@ class MetaflowTask(object):
                                             "although it follows a split step."
                                             % step_name)
 
-            if split_index is None:
+            if self.ubf_context != UBF_CONTROL and split_index is None:
                 raise MetaflowInternalError("Step *%s* follows a split step "
                                             "but no split_index is "
                                             "specified." % step_name)
@@ -212,6 +217,30 @@ class MetaflowTask(object):
 
         output.clone(origin)
         output.done()
+
+    def _finalize_control_task(self):
+        # Update `_transition` which is expected by the NativeRuntime.
+        step_name = self.flow._current_step
+        next_steps = self.flow._graph[step_name].out_funcs
+        self.flow._transition = (next_steps, None, None)
+        if self.flow._task_ok:
+            # Throw an error if `_control_mapper_tasks` isn't populated.
+            mapper_tasks = self.flow._control_mapper_tasks
+            if not mapper_tasks:
+                msg = "Step *{step}* has a control task which didn't "\
+                      "specify the artifact *_control_mapper_tasks* for "\
+                      "the subsequent *{join}* step."
+                raise MetaflowInternalError(msg.format(step=step_name,
+                                                       join=next_steps[0]))
+            elif not (isinstance(mapper_tasks, list) and\
+                      isinstance(mapper_tasks[0], unicode_type)):
+                msg = "Step *{step}* has a control task which didn't "\
+                      "specify the artifact *_control_mapper_tasks* as a "\
+                      "list of strings but instead specified it as {typ} "\
+                      "with elements of {elem_typ}."
+                raise MetaflowInternalError(msg.format(step=step_name,
+                                                       typ=type(mapper_tasks),
+                                                       elem_typ=type(mapper_tasks[0])))
 
     def run_step(self,
                  step_name,
@@ -270,6 +299,11 @@ class MetaflowTask(object):
         output.init_task()
 
         if input_paths:
+            control_paths = [path for path in input_paths
+                             if path.split('/')[-1].startswith('control-')]
+            if control_paths:
+                [control_path] = control_paths
+                input_paths.remove(control_path)
             # 2. initialize input datastores
             inputs = self._init_data(run_id, join_type, input_paths)
 
@@ -330,7 +364,8 @@ class MetaflowTask(object):
                                    self.flow,
                                    self.flow._graph,
                                    retry_count,
-                                   max_user_code_retries)
+                                   max_user_code_retries,
+                                   self.ubf_context)
 
                 # decorators can actually decorate the step function,
                 # or they can replace it altogether. This functionality
@@ -341,7 +376,8 @@ class MetaflowTask(object):
                                                self.flow,
                                                self.flow._graph,
                                                retry_count,
-                                               max_user_code_retries)
+                                               max_user_code_retries,
+											   self.ubf_context)
 
             if join_type:
                 # Join step:
@@ -427,6 +463,8 @@ class MetaflowTask(object):
                 raise
 
         finally:
+            if self.ubf_context == UBF_CONTROL:
+                self._finalize_control_task()
             end = time.time() - start
 
             msg = {
