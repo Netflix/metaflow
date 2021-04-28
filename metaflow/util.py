@@ -311,7 +311,7 @@ def dict_to_cli_options(params):
 
                     # Of the value starts with $, assume the caller wants shell variable
                     # expansion to happen, so we pass it as is.
-                    if value.startswith("$"):
+                    if value.lstrip("\\").startswith("$"):
                         yield value
                     else:
                         # Otherwise, assume it is a literal value and quote it safely
