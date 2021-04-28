@@ -23,7 +23,8 @@ from .runtime import NativeRuntime
 from .package import MetaflowPackage
 from .plugins import ENVIRONMENTS, LOGGING_SIDECARS, METADATA_PROVIDERS, MONITOR_SIDECARS
 from .metaflow_config import DEFAULT_DATASTORE, DEFAULT_ENVIRONMENT, DEFAULT_EVENT_LOGGER, \
-    DEFAULT_METADATA, DEFAULT_MONITOR, DEFAULT_PACKAGE_SUFFIXES
+    DEFAULT_METADATA, DEFAULT_MONITOR, DEFAULT_PACKAGE_SUFFIXES, DEFAULT_MAX_WORKERS, \
+    DEFAULT_MAX_NUM_SPLITS
 from .metaflow_environment import MetaflowEnvironment
 from .pylint_wrapper import PyLint
 from .event_logger import EventLogger
@@ -559,11 +560,11 @@ def common_run_options(func):
                        "this option multiple times to attach multiple tags in "
                        "the run.")
     @click.option('--max-workers',
-                  default=16,
+                  default=DEFAULT_MAX_WORKERS,
                   show_default=True,
                   help='Maximum number of parallel processes.')
     @click.option('--max-num-splits',
-                  default=100,
+                  default=DEFAULT_MAX_NUM_SPLITS,
                   show_default=True,
                   help='Maximum number of splits allowed in a foreach. This '
                        'is a safety check preventing bugs from triggering '
