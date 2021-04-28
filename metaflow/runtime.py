@@ -905,10 +905,6 @@ class Worker(object):
         # Return early if the task is cloned since we don't want to
         # perform any log collection.
         if not self.task.is_cloned:
-            self.task.save_logs({
-                'stdout': self._stdout.get_buffer(),
-                'stderr': self._stderr.get_buffer()})
-
             self.task.save_metadata('runtime', {'return_code': returncode,
                                                 'killed': self.killed,
                                                 'success': returncode == 0})
@@ -931,6 +927,10 @@ class Worker(object):
                 self.task.log('Task finished successfully.',
                               system_msg=True,
                               pid=self._proc.pid)
+            self.task.save_logs({
+                'stdout': self._stdout.get_buffer(),
+                'stderr': self._stderr.get_buffer()})
+
         return returncode
 
     def __str__(self):
