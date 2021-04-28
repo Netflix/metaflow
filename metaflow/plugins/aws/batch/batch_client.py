@@ -441,8 +441,11 @@ class RunningJob(object):
 
     @property
     def is_crashed(self):
-        # TODO: Check statusmessage to find if the job crashed instead of failing
-        return self.status == 'FAILED'
+        if "crash" or "crashed" in self.status_reason:
+            return self.status == 'CRASH'
+        if "fail" or "failed" in self.status_reason:
+            return self.status == 'FAILED'
+
 
     @property
     def reason(self):
@@ -575,6 +578,12 @@ class BatchLogs(object):
         self._token = None
 
     def _get_events(self):
+        rj = RunningJob(object)
+        if rj.status_code(self):
+            if rj.is_done(self):
+                if rj.status_code(self) != 0:
+                    return rj.status_code(self), rj.status_reason(self)
+
         try:
             if self._token:
                 response = self._client.get_log_events(
