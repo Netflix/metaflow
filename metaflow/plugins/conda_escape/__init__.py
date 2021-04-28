@@ -26,8 +26,10 @@
 # THE SOFTWARE.
 
 import os
-import subprocess
-# conda_escape subpackage
+import sys
+from subprocess import Popen, PIPE
+
+from itertools import chain
 
 from .exception_transferer import RemoteInterpreterException
 from .client_modules import create_modules
@@ -38,8 +40,9 @@ from .client_modules import create_modules
 # running in the conda environment)
 def get_python3_base():
     try:
-        out = subprocess.check_output(['type', '-a', 'python3'])
-    except subprocess.CalledProcessError:
+        cmd = 'bash -i -c "type -a python3"'
+        out = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE).communicate()[0]
+    except Exception:
         return None
     lines = out.splitlines()
     if len(lines) < 2:
@@ -59,17 +62,32 @@ def generate_trampolines(python_interpreter_path, python_path):
     if os.environ.get('MF_ESCAPE_HATCH_DISABLED', False) in (True, 'True'):
         return
 
-    config_dir = os.path.dirname(os.path.abspath(__file__)) + "/configurations"
+    paths = [os.path.dirname(os.path.abspath(__file__)) + "/configurations"]
+    try:
+        import metaflow_custom.plugins.conda_escape as custom_escape
+    except ImportError as e:
+        ver = sys.version_info[0] * 10 + sys.version_info[1]
+        if ver >= 36:
+            if not isinstance(e, ModuleNotFoundError):
+                print(
+                    "Cannot load metaflow_custom conda escape configurations -- "
+                    "if you want to ignore, uninstall metaflow_custom package")
+                raise
+    else:
+        paths.append(os.path.dirname(os.path.abspath(custom_escape.__file__)) +
+                     "/configurations")
 
-    for path in os.listdir(config_dir):
-        path = os.path.join(config_dir, path)
-        if os.path.isdir(path):
-            dir_name = os.path.basename(path)
-            if dir_name.startswith('emulate_'):
-                module_names = dir_name[8:].split("__")
-                for module_name in module_names:
-                    with open(os.path.join(python_path, module_name + ".py"), mode='w') as f:
-                        f.write("""
+    for rootpath in paths:
+        for path in os.listdir(rootpath):
+            path = os.path.join(rootpath, path)
+            if os.path.isdir(path):
+                dir_name = os.path.basename(path)
+                if dir_name.startswith('emulate_'):
+                    module_names = dir_name[8:].split("__")
+                    for module_name in module_names:
+                        with open(os.path.join(
+                                python_path, module_name + ".py"), mode='w') as f:
+                            f.write("""
 import importlib
 import os
 import sys
