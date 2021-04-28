@@ -144,6 +144,7 @@ class KubeflowPipelines(object):
         self.notify = notify
         self.notify_on_error = notify_on_error
         self.notify_on_success = notify_on_success
+        self._client = None
 
     def create_run_on_kfp(self, experiment: str, run_name: str, flow_parameters: dict):
         """
@@ -158,8 +159,9 @@ class KubeflowPipelines(object):
         self._client = kfp.Client(
             namespace=self.api_namespace, userid=kfp_client_user_email
         )
+        pipeline_func, _ = self.create_kfp_pipeline_from_flow_graph()
         return self._client.create_run_from_pipeline_func(
-            pipeline_func=self.create_kfp_pipeline_from_flow_graph(),
+            pipeline_func=pipeline_func,
             arguments={"flow_parameters_json": json.dumps(flow_parameters)},
             experiment_name=experiment,
             run_name=run_name,
@@ -171,15 +173,9 @@ class KubeflowPipelines(object):
         Creates a new KFP pipeline YAML using `kfp.compiler.Compiler()`.
         Note: Intermediate pipeline YAML is saved at `pipeline_file_path`
         """
-        pipeline_conf = PipelineConf()
-        pipeline_conf.set_timeout(self.workflow_timeout)
-        if (
-            KFP_TTL_SECONDS_AFTER_FINISHED is not None
-        ):  # if None, KFP falls back to the Argo defaults
-            pipeline_conf.set_ttl_seconds_after_finished(KFP_TTL_SECONDS_AFTER_FINISHED)
-
+        pipeline_func, pipeline_conf = self.create_kfp_pipeline_from_flow_graph()
         kfp.compiler.Compiler().compile(
-            self.create_kfp_pipeline_from_flow_graph(),
+            pipeline_func,
             pipeline_file_path,
             pipeline_conf=pipeline_conf,
         )
@@ -634,7 +630,7 @@ class KubeflowPipelines(object):
         func.__signature__ = new_sig
         return func
 
-    def create_kfp_pipeline_from_flow_graph(self) -> Callable:
+    def create_kfp_pipeline_from_flow_graph(self) -> Tuple[Callable, PipelineConf]:
         """
         Returns a KFP DSL Pipeline function by walking the Metaflow Graph
         and constructing the KFP Pipeline using the KFP DSL.
@@ -657,6 +653,8 @@ class KubeflowPipelines(object):
                         ),
                     )
                 )
+
+        pipeline_conf = None  # return variable
 
         @dsl.pipeline(name=self.name, description=self.graph.doc)
         def kfp_pipeline_from_flow(
@@ -865,9 +863,10 @@ class KubeflowPipelines(object):
                 dsl.get_pipeline_conf().set_ttl_seconds_after_finished(
                     KFP_TTL_SECONDS_AFTER_FINISHED
                 )
+            pipeline_conf = dsl.get_pipeline_conf()
 
         kfp_pipeline_from_flow.__name__ = self.name
-        return kfp_pipeline_from_flow
+        return kfp_pipeline_from_flow, pipeline_conf
 
     def _create_exit_handler_op(self) -> ContainerOp:
         notify_variables: dict = {
