@@ -133,6 +133,19 @@ except ImportError as e:
             raise
 else:
     # We load into globals whatever we have in extension_module
+    # We specifically exclude any modules that may be included (like sys, os, etc)
+    # *except* for ones that are part of metaflow_custom (basically providing
+    # an aliasing mechanism)
     for n, o in extension_module.__dict__.items():
-        if not n.startswith('__') and not isinstance(o, types.ModuleType):
+        if not n.startswith('__') and (
+                not isinstance(o, types.ModuleType) or (
+                    o.__package__ and o.__package__.startswith('metaflow_custom'))):
             globals()[n] = o
+finally:
+    # Erase all temporary names to avoid leaking things
+    for _n in ['ver', 'n', 'o', 'e']:
+        try:
+            del globals()[_n]
+        except KeyError:
+            pass
+    del globals()['_n']

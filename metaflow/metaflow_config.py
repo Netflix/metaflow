@@ -227,14 +227,26 @@ except ImportError as e:
                 "if you want to ignore, uninstall metaflow_custom package")
             raise
 else:
-    # We load into globals whatever we have in extension_module. We separately
-    # deal with debug options to allow for additional debug filters
-    imported_debug_options = []
+    # We load into globals whatever we have in extension_module
+    # We specifically exclude any modules that may be included (like sys, os, etc)
+    # *except* for ones that are part of metaflow_custom (basically providing
+    # an aliasing mechanism). We separately deal with DEBUG_OPTIONS to allow
+    # for additional debug filters
     for n, o in extension_module.__dict__.items():
         if n == 'DEBUG_OPTIONS':
             DEBUG_OPTIONS.extend(o)
             for typ in o:
                 vars()['METAFLOW_DEBUG_%s' % typ.upper()] = \
                     from_conf('METAFLOW_DEBUG_%s' % typ.upper())
-        elif not n.startswith('__') and not isinstance(o, types.ModuleType):
+        elif not n.startswith('__') and (
+                not isinstance(o, types.ModuleType) or (
+                    o.__package__ and o.__package__.startswith('metaflow_custom'))):
             globals()[n] = o
+finally:
+    # Erase all temporary names to avoid leaking things
+    for _n in ['ver', 'n', 'o', 'e', 'typ']:
+        try:
+            del globals()[_n]
+        except KeyError:
+            pass
+    del globals()['_n']
