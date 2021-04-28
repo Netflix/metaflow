@@ -251,7 +251,7 @@ class CondaStepDecorator(StepDecorator):
     def runtime_task_created(self, datastore, task_id, split_index, input_paths, is_cloned,
                              ubf_context):
         if self.is_enabled(ubf_context):
-            self.env_id = self._prepare_step_environment(self.step)
+            self.env_id = self._prepare_step_environment(self.step, self.local_root)
 
     def task_pre_step(
             self, step_name, task_datastore, meta, run_id, task_id, flow, graph, retry_count,
