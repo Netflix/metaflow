@@ -84,6 +84,26 @@ from .multicore_utils import parallel_imap_unordered,\
                              parallel_map
 from .metaflow_profile import profile
 
+class _LazyLoader(object):
+    # This _LazyLoader implements the Importer Protocol defined in PEP 302
+    def __init__(self, handled):
+        self._handled = handled
+
+    def find_module(self, fullname, path=None):
+        if self._handled is not None and fullname in self._handled:
+            return self
+        return None
+
+    def load_module(self, fullname):
+        if fullname in sys.modules:
+            return sys.modules[fullname]
+        if self._handled is not None and fullname in self._handled:
+            sys.modules[fullname] = self._handled[fullname]
+        else:
+            raise ImportError
+        return sys.modules[fullname]
+
+
 try:
     import metaflow_custom.toplevel as extension_module
 except ImportError as e:
@@ -99,14 +119,18 @@ else:
     # We specifically exclude any modules that may be included (like sys, os, etc)
     # *except* for ones that are part of metaflow_custom (basically providing
     # an aliasing mechanism)
+    lazy_load_custom_modules = {}
     for n, o in extension_module.__dict__.items():
-        if not n.startswith('__') and (
-                not isinstance(o, types.ModuleType) or (
-                    o.__package__ and o.__package__.startswith('metaflow_custom'))):
+        if not n.startswith('__') and not isinstance(o, types.ModuleType):
             globals()[n] = o
+        elif isinstance(o, types.ModuleType) and o.__package__ and \
+                o.__package__.startswith('metaflow_custom'):
+            lazy_load_custom_modules['metaflow.%s' % n] = o
+    if lazy_load_custom_modules:
+        sys.meta_path.append(_LazyLoader(lazy_load_custom_modules))
 finally:
     # Erase all temporary names to avoid leaking things
-    for _n in ['ver', 'n', 'o', 'e']:
+    for _n in ['ver', 'n', 'o', 'e', 'lazy_load_custom_modules', 'extension_module']:
         try:
             del globals()[_n]
         except KeyError:
