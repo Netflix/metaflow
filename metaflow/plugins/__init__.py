@@ -1,6 +1,15 @@
+import sys
 try:
     import metaflow_custom.plugins as ext_plugins
-except ImportError:
+except ImportError as e:
+    ver = sys.version_info[0] * 10 + sys.version_info[1]
+    if ver >= 36:
+        if not isinstance(e, ModuleNotFoundError):
+            print(
+                "Cannot load metaflow_custom plugins -- "
+                "if you want to ignore, uninstall metaflow_custom package")
+            raise
+
     class _fake(object):
         def __init__(self, **kwargs):
             self.__dict__.update(kwargs)

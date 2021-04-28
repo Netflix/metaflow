@@ -128,7 +128,7 @@ except ImportError as e:
     if ver >= 36:
         if not isinstance(e, ModuleNotFoundError):
             print(
-                "Cannot load metaflow_custom configuration -- "
+                "Cannot load metaflow_custom exceptions -- "
                 "if you want to ignore, uninstall metaflow_custom package")
             raise
 else:
