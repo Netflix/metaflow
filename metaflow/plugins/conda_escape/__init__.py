@@ -68,7 +68,10 @@ def generate_trampolines(python_interpreter_path, python_path):
     except ImportError as e:
         ver = sys.version_info[0] * 10 + sys.version_info[1]
         if ver >= 36:
-            if not isinstance(e, ModuleNotFoundError):
+            # e.path is not None if the error stems from some other place than here
+            # so don't error ONLY IF the error is importing this module (but do
+            # error if there is a transitive import error)
+            if not (isinstance(e, ModuleNotFoundError) and e.path is None):
                 print(
                     "Cannot load metaflow_custom conda escape configurations -- "
                     "if you want to ignore, uninstall metaflow_custom package")
