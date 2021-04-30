@@ -18,11 +18,22 @@ class CondaEnvironment(MetaflowEnvironment):
     def __init__(self, flow):
         self.flow = flow
         self.local_root = None
+        # A conda environment sits on top of whatever default environment
+        # the user has so we get that environment to be able to forward
+        # any calls we don't handle specifically to that one.
+        from ...plugins import ENVIRONMENTS
+        from metaflow.metaflow_config import DEFAULT_ENVIRONMENT
+        self.base_env = [e for e in ENVIRONMENTS + [MetaflowEnvironment]
+            if e.TYPE == DEFAULT_ENVIRONMENT][0](self.flow)
 
     def init_environment(self, echo):
         # Print a message for now
         echo("Bootstrapping conda environment..." +
             "(this could take a few minutes)")
+        self.base_env.init_environment(echo)
+
+    def validate_environment(self, echo):
+        return self.base_env.validate_environment(echo)
 
     def decospecs(self):
         # Apply conda decorator to all steps
@@ -64,23 +75,25 @@ class CondaEnvironment(MetaflowEnvironment):
         return []
 
     def add_to_package(self):
+        files = self.base_env.add_to_package()
         # Add conda manifest file to job package at the top level.
         path = get_conda_manifest_path(self.local_root, self.flow.name)
         if os.path.exists(path):
-            return [(path, os.path.basename(path))]
-        else:
-            return []
+            files.append((path, os.path.basename(path)))
+        return files
 
     def pylint_config(self):
+        config = self.base_env.pylint_config()
         # Disable (import-error) in pylint
-        return ["--disable=F0401"]
+        config.append('--disable=F0401')
+        return config
 
     def executable(self, step_name):
         # Get relevant python interpreter for step
         executable = self._get_executable(step_name)
         if executable is not None:
             return executable
-        return super(CondaEnvironment, self).executable(step_name)
+        return self.base_env.executable(step_name)
 
     @classmethod
     def get_client_info(cls, flow_name, metadata):
@@ -104,11 +117,8 @@ class CondaEnvironment(MetaflowEnvironment):
             'deps': info[env_id]['deps']}
         return new_info
 
+    def get_package_commands(self, code_package_url):
+        return self.base_env.get_package_commands(code_package_url)
+
     def get_environment_info(self):
-        # We want to simply wrap the default environment, not necessarily the base class
-        # environment so we specifically call that one
-        from ...plugins import ENVIRONMENTS
-        from metaflow.metaflow_config import DEFAULT_ENVIRONMENT
-        base_env = [e for e in ENVIRONMENTS + [MetaflowEnvironment]
-            if e.TYPE == DEFAULT_ENVIRONMENT][0](self.flow)
-        return base_env.get_environment_info()
+        return self.base_env.get_environment_info()
