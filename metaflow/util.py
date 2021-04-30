@@ -8,7 +8,6 @@ from functools import wraps
 from io import BytesIO
 from itertools import takewhile
 import re
-import shlex
 
 from metaflow.exception import MetaflowUnknownUser, MetaflowInternalError
 
@@ -39,6 +38,7 @@ try:
         def __str__(self):
             return self.path
 
+    from pipes import quote as _quote
 except:
     # python3
     unicode_type = str
@@ -49,6 +49,7 @@ except:
     def unquote_bytes(x):
         return unquote(to_unicode(x))
 
+    from shlex import quote as _quote
 
 if sys.version_info.major >= 3 and sys.version_info.minor >= 7:
     from collections import namedtuple
@@ -315,7 +316,7 @@ def dict_to_cli_options(params):
                         yield value
                     else:
                         # Otherwise, assume it is a literal value and quote it safely
-                        yield shlex.quote(value)
+                        yield _quote(value)
 
 
 # This function is imported from https://github.com/cookiecutter/whichcraft
