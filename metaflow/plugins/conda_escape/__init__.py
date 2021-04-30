@@ -34,23 +34,16 @@ from itertools import chain
 from .exception_transferer import RemoteInterpreterException
 from .client_modules import create_modules
 
-# path to default python3 interpreter. This is the Python3 path that is, hopefully
-# system-wide. We either look for something that the user provides or we look
-# at the last priority python (ie: the base one -- not the one that is
-# running in the conda environment)
-def get_python3_base():
-    try:
-        cmd = 'bash -i -c "type -a python3"'
-        out = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE).communicate()[0]
-    except Exception:
-        return None
-    lines = out.splitlines()
-    if len(lines) < 2:
-        # Need at least conda one and non conda one
-        return None
-    return lines[-1].split(b' ')[-1].decode(encoding='utf-8')
+# Determine what is the python executable to use for the escape hatch. To do this,
+# we look for ESCAPE_HATCH_PY in the environment AND STORE IT. When metaflow
+# is first launched by the user, it is in the outside non-metaflow-created-conda
+# environment and we will consider that to be the environment we escape to.
+# Unless the user wants to override it, this will be unset and we will use
+# the Python we are running in. We then store it so that children run (*within*
+# the conda environment) use this same value
+ESCAPE_HATCH_PY = os.environ.get('METAFLOW_ESCAPE_HATCH_PY', sys.executable)
+os.environ['METAFLOW_ESCAPE_HATCH_PY'] = ESCAPE_HATCH_PY
 
-ESCAPE_HATCH_PY = os.environ.get('METAFLOW_PYTHON3_PATH', get_python3_base())
 
 def generate_trampolines(python_interpreter_path, python_path):
     # This function will look in the configurations directory and create
@@ -59,7 +52,7 @@ def generate_trampolines(python_interpreter_path, python_path):
 
     # in some cases we may want to disable escape hatch
     # functionality, in that case, set MF_ESCAPE_HATCH_DISABLED
-    if os.environ.get('MF_ESCAPE_HATCH_DISABLED', False) in (True, 'True'):
+    if os.environ.get('METAFLOW_ESCAPE_HATCH_DISABLED', False) in (True, 'True'):
         return
 
     paths = [os.path.dirname(os.path.abspath(__file__)) + "/configurations"]
