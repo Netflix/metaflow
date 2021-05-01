@@ -11,6 +11,12 @@ from metaflow.metadata import MetadataProvider
 from metaflow.sidecar import SidecarSubProcess
 from metaflow.sidecar_messages import MessageTypes, Message
 
+try:
+    # python2
+    from urlparse import urljoin
+except:  # noqa E722
+    # python3
+    from urllib.parse import urljoin
 
 # Define message enums
 class HeartbeatTypes(object):
@@ -32,10 +38,10 @@ class ServiceMetadataProvider(MetadataProvider):
 
     def __init__(self, environment, flow, event_logger, monitor):
         super(ServiceMetadataProvider, self).__init__(environment, flow, event_logger, monitor)
-        self.mli_url_task_template = METADATA_SERVICE_URL + \
-                                     '/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/heartbeat'
-        self.mli_url_run_template = METADATA_SERVICE_URL + \
-                                    '/flows/{flow_id}/runs/{run_number}/heartbeat'
+        self.mli_url_task_template = urljoin(METADATA_SERVICE_URL,
+                                             '/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/heartbeat')
+        self.mli_url_run_template = urljoin(METADATA_SERVICE_URL,
+                                            '/flows/{flow_id}/runs/{run_number}/heartbeat')
         self.sidecar_process = None
 
     @classmethod
@@ -93,7 +99,7 @@ class ServiceMetadataProvider(MetadataProvider):
         if self._already_started():
             raise Exception("heartbeat already started")
         # start sidecar
-        if self.version() == 'local' or self.version() is None or \
+        if self.version() is None or \
                 LooseVersion(self.version()) < LooseVersion('2.0.4'):
             # if local mode or old version of the service is running
             # then avoid running real heartbeat sidecar process
