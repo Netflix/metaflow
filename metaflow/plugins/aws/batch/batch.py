@@ -14,7 +14,7 @@ from metaflow.metaflow_config import BATCH_METADATA_SERVICE_URL, DATATOOLS_S3ROO
     BATCH_METADATA_SERVICE_HEADERS
 from metaflow import util
 
-from .batch_client import BatchClient
+from batch_client import BatchClient
 
 from metaflow.datastore.util.s3tail import S3Tail
 from metaflow.mflog.mflog import refine, set_should_persist
@@ -345,9 +345,23 @@ class Batch(object):
         # TODO: AWS CloudWatch fetch logs
 
         if self.job.is_crashed:
-            msg = next(msg for msg in 
-                [self.job.reason, self.job.status_reason, 'Task crashed.']
-                 if msg is not None)
+            if self.job.status_code == 1:
+                msg = next(msg for msg in ['Task failed with a general error. You may have a miscellaneous error(s), '
+                                           'such as "divide by zero" and other impermissible operations.'] if msg is
+                           not None)
+            if self.job.status_code == 2:
+                msg = next(msg for msg in ['Misuse of shell builtins. You may have a missing keyword or command, '
+                                           'or permission problem (and diff return code on a failed binary file '
+                                           'comparison).'] if msg is not None)
+            if self.job.status_code == 126:
+                msg = next(msg for msg in ['Command invoked cannot execute. May be a permission problem or command is '
+                                           'not an executable.'] if msg is not None)
+            if self.job.status_code == 127:
+                msg = next(msg for msg in ['Command not Found. May be a possible problem with $PATH or a type.'] if msg is not None)      
+            if self.job.status_code == 128:
+                msg = next(msg for msg in ['Invalid argument to exit.'] if msg is not None)   
+            if self.job.status_code > 129:
+                msg = next(msg for msg in ['Signal related error'] if msg is not None)                   
             raise BatchException(
                 '%s '
                 'This could be a transient error. '
