@@ -213,13 +213,27 @@ class CondaStepDecorator(StepDecorator):
         path_to_metaflow = os.path.join(get_metaflow_root(), 'metaflow')
         self.metaflow_home = tempfile.mkdtemp(dir='/tmp')
         os.symlink(path_to_metaflow, os.path.join(self.metaflow_home, 'metaflow'))
+
+        # Do the same for metaflow_custom
+        try:
+            import metaflow_custom as m
+        except ImportError:
+            # No additional check needed because if we are here, we already checked
+            # for other issues when loading at the toplevel
+            pass
+        else:
+            custom_paths = list(m.__path__)
+            if len(custom_paths) == 1:
+                # Regular package
+                os.symlink(custom_paths[0], os.path.join(self.metaflow_home, 'metaflow_custom'))
+            else:
+                # Namespace package; we don't symlink but add the additional paths
+                # for the conda interpreter
+                self.addl_paths = [os.path.split(p)[0] for p in custom_paths]
+
         # Also install any Conda escape overrides directly here to enable the escape to
         # work even in non-MF subprocesses
-        if ESCAPE_HATCH_PY is not None:
-            generate_trampolines(ESCAPE_HATCH_PY, self.metaflow_home)
-            self._logger("Conda escape will use %s as the interpreter" % ESCAPE_HATCH_PY)
-        else:
-            self._logger("Could not find a Conda escape interpreter")
+        generate_trampolines(ESCAPE_HATCH_PY, self.metaflow_home)
 
 
     def step_init(self, flow, graph, step, decos, environment, datastore, logger):
