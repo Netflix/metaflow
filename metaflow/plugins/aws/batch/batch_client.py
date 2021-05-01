@@ -14,7 +14,6 @@ except NameError:
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import AWS_SANDBOX_ENABLED
 
-
 class BatchClient(object):
     def __init__(self):
         from ..aws_client import get_aws_client
@@ -36,20 +35,20 @@ class BatchClient(object):
             for queue in queues
             for status in ['SUBMITTED', 'PENDING', 'RUNNABLE', 'STARTING', 'RUNNING']
             for page in self._client.get_paginator('list_jobs').paginate(
-            jobQueue=queue, jobStatus=status
-        )
+                jobQueue=queue, jobStatus=status
+            )
             for job in page['jobSummaryList']
         )
 
     def describe_jobs(self, job_ids):
-        for jobIds in [job_ids[i:i + 100] for i in range(0, len(job_ids), 100)]:
+        for jobIds in [job_ids[i:i+100] for i in range(0, len(job_ids), 100)]:
             for jobs in self._client.describe_jobs(jobs=jobIds)['jobs']:
                 yield jobs
 
     def describe_job_queue(self, job_queue):
         paginator = self._client.get_paginator('describe_job_queues').paginate(
             jobQueues=[job_queue], maxResults=1)
-        return paginator.paginate()['jobQueues'][0]
+        return paginator.paginate()['jobQueues'][0] 
 
     def job(self):
         return BatchJob(self._client)
@@ -115,12 +114,12 @@ class BatchJob(object):
                 raise BatchJobException(
                     'AWS Batch Job Queue %s not found.' % job_queue)
             compute_environment = response['jobQueues'][0] \
-                ['computeEnvironmentOrder'][0] \
-                ['computeEnvironment']
+                                    ['computeEnvironmentOrder'][0] \
+                                    ['computeEnvironment']
             response = self._client.describe_compute_environments(
                 computeEnvironments=[compute_environment])
             platform = response['computeEnvironments'][0] \
-                ['computeResources']['type']
+                            ['computeResources']['type']
 
         # compose job definition
         job_definition = {
@@ -154,31 +153,31 @@ class BatchJob(object):
             job_definition['platformCapabilities'] = ['FARGATE']
             job_definition['containerProperties']['networkConfiguration'] = \
                 {'assignPublicIp': 'ENABLED'}
-
+        
         if platform == 'EC2' or platform == 'SPOT':
             if 'linuxParameters' not in job_definition['containerProperties']:
                 job_definition['containerProperties']['linuxParameters'] = {}
             if shared_memory is not None:
-                if not (isinstance(shared_memory, (int, unicode, basestring)) and
-                        int(shared_memory) > 0):
+                if not (isinstance(shared_memory, (int, unicode, basestring)) and 
+                    int(shared_memory) > 0):
                     raise BatchJobException(
                         'Invalid shared memory size value ({}); '
                         'it should be greater than 0'.format(shared_memory))
                 else:
                     job_definition['containerProperties'] \
                         ['linuxParameters']['sharedMemorySize'] = int(shared_memory)
-            if swappiness is not None:
-                if not (isinstance(swappiness, (int, unicode, basestring)) and
-                        int(swappiness) >= 0 and int(swappiness) < 100):
+            if swappiness is not None: 
+                if not (isinstance(swappiness, (int, unicode, basestring)) and 
+                    int(swappiness) >= 0 and int(swappiness) < 100):
                     raise BatchJobException(
                         'Invalid swappiness value ({}); '
                         '(should be 0 or greater and less than 100)'.format(swappiness))
                 else:
                     job_definition['containerProperties'] \
                         ['linuxParameters']['swappiness'] = int(swappiness)
-            if max_swap is not None:
-                if not (isinstance(max_swap, (int, unicode, basestring)) and
-                        int(max_swap) >= 0):
+            if max_swap is not None: 
+                if not (isinstance(max_swap, (int, unicode, basestring)) and 
+                    int(max_swap) >= 0):
                     raise BatchJobException(
                         'Invalid swappiness value ({}); '
                         '(should be 0 or greater)'.format(max_swap))
@@ -188,7 +187,7 @@ class BatchJob(object):
 
         # check if job definition already exists
         def_name = 'metaflow_%s' % \
-                   hashlib.sha224(str(job_definition).encode('utf-8')).hexdigest()
+            hashlib.sha224(str(job_definition).encode('utf-8')).hexdigest()
         payload = {'jobDefinitionName': def_name, 'status': 'ACTIVE'}
         response = self._client.describe_job_definitions(**payload)
         if len(response['jobDefinitions']) > 0:
@@ -272,7 +271,7 @@ class BatchJob(object):
         if 'resourceRequirements' not in self.payload['containerOverrides']:
             self.payload['containerOverrides']['resourceRequirements'] = []
         self.payload['containerOverrides']['resourceRequirements'].append(
-            {'value': str(cpu), 'type': 'VCPU'}
+            {'value' : str(cpu), 'type': 'VCPU'}
         )
         return self
 
@@ -283,7 +282,7 @@ class BatchJob(object):
         if 'resourceRequirements' not in self.payload['containerOverrides']:
             self.payload['containerOverrides']['resourceRequirements'] = []
         self.payload['containerOverrides']['resourceRequirements'].append(
-            {'value': str(mem), 'type': 'MEMORY'}
+            {'value' : str(mem), 'type': 'MEMORY'}
         )
         return self
 
@@ -327,7 +326,6 @@ class BatchJob(object):
         self.payload['retryStrategy']['attempts'] = attempts
         return self
 
-
 class Throttle(object):
     def __init__(self, delta_in_secs=1, num_tries=20):
         self.delta_in_secs = delta_in_secs
@@ -351,18 +349,16 @@ class Throttle(object):
                     self._tries_left -= 1
                     if self._tries_left == 0:
                         raise ex.ex
-                    self._wait = (self.delta_in_secs * 1.2) ** (self.num_tries - self._tries_left) + \
-                                 random.randint(0, 3 * self.delta_in_secs)
-
+                    self._wait = (self.delta_in_secs*1.2)**(self.num_tries-self._tries_left) + \
+                        random.randint(0, 3*self.delta_in_secs)
         return wrapped
-
 
 class TriableException(Exception):
     def __init__(self, ex):
         self.ex = ex
 
-
 class RunningJob(object):
+
     NUM_RETRIES = 8
 
     def __init__(self, id, client):
@@ -445,10 +441,8 @@ class RunningJob(object):
 
     @property
     def is_crashed(self):
-        if "crash" or "crashed" in self.status_reason:
-            return self.status == 'CRASH'
-        if "fail" or "failed" in self.status_reason:
-            return self.status == 'FAILED'
+        # TODO: Check statusmessage to find if the job crashed instead of failing
+        return self.status == 'FAILED'
 
     @property
     def reason(self):
@@ -485,7 +479,7 @@ class RunningJob(object):
                 self.wait_for_running()
 
         if log_stream is None:
-            return
+            return 
         exception = None
         for i in range(self.NUM_RETRIES + 1):
             try:
@@ -506,7 +500,7 @@ class RunningJob(object):
                 exception = ex
                 if self.is_crashed:
                     break
-                # sys.stderr.write(repr(ex) + '\n')
+                #sys.stderr.write(repr(ex) + '\n')
                 if i < self.NUM_RETRIES:
                     time.sleep(2 ** i + random.randint(0, 5))
         raise BatchJobException(repr(exception))
@@ -569,11 +563,10 @@ class BatchWaiter(object):
             jobs=[job_id]
         )
 
-
 class BatchLogs(object):
     def __init__(self, group, stream, pos=0, sleep_on_no_data=0):
         from ..aws_client import get_aws_client
-        self._client = get_aws_client('logs', 'batch')
+        self._client = get_aws_client('logs')
         self._group = group
         self._stream = stream
         self._pos = pos
@@ -582,28 +575,6 @@ class BatchLogs(object):
         self._token = None
 
     def _get_events(self):
-        done = RunningJob.is_done
-        status_code = RunningJob.status_code
-        if done:
-            if status_code == 1:
-                return 'Task failed with a general error. \
-                You may have a miscellaneous error(s), such as "divide by zero" and other impermissible operations.'
-            if status_code == 2:
-                return 'Misuse of shell builtins. You may have a missing keyword or command, or \
-                       permission problem (and diff return code on a failed binary file comparison).'
-            if status_code == 126:
-                return 'Command invoked cannot execute. May be a permission problem or command is not an executable.'
-            if status_code == 127:
-                return 'Command not Found. May be a possible problem with $PATH or a type.'
-            if status_code == 128:
-                return '	Invalid argument to exit.'
-            if status_code == 130:
-                return 'Script terminated by Control-C.'
-            if status_code == 255:
-                return 'Exit status out of range.'
-            else:
-                return 'Task failed.'
-
         try:
             if self._token:
                 response = self._client.get_log_events(
