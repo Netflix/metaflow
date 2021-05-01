@@ -1,5 +1,6 @@
 import sys
 import traceback
+import types
 
 # worker processes that exit with this exit code are not retried
 METAFLOW_EXIT_DISALLOW_RETRY = 202
@@ -118,3 +119,42 @@ class MissingInMergeArtifactsException(MetaflowException):
     def __init__(self, msg, unhandled):
         super(MissingInMergeArtifactsException, self).__init__(msg)
         self.artifact_names = unhandled
+
+# Import any exceptions defined by a Metaflow custom package
+try:
+    import metaflow_custom.exceptions as extension_module
+except ImportError as e:
+    ver = sys.version_info[0] * 10 + sys.version_info[1]
+    if ver >= 36:
+        # e.path is not None if the error stems from some other place than here
+        # so don't error ONLY IF the error is importing this module (but do
+        # error if there is a transitive import error)
+        if not (isinstance(e, ModuleNotFoundError) and e.path is None):
+            print(
+                "Cannot load metaflow_custom exceptions -- "
+                "if you want to ignore, uninstall metaflow_custom package")
+            raise
+else:
+    # We load into globals whatever we have in extension_module
+    # We specifically exclude any modules that may be included (like sys, os, etc)
+    # *except* for ones that are part of metaflow_custom (basically providing
+    # an aliasing mechanism)
+    lazy_load_custom_modules = {}
+    for n, o in extension_module.__dict__.items():
+        if not n.startswith('__') and not isinstance(o, types.ModuleType):
+            globals()[n] = o
+        elif isinstance(o, types.ModuleType) and o.__package__ and \
+                o.__package__.startswith('metaflow_custom'):
+            lazy_load_custom_modules['metaflow.%s' % n] = o
+    if lazy_load_custom_modules:
+        from metaflow import _LazyLoader
+        sys.meta_path.append(_LazyLoader(lazy_load_custom_modules))
+finally:
+    # Erase all temporary names to avoid leaking things
+    for _n in ['ver', 'n', 'o', 'e', 'lazy_load_custom_modules',
+               'extension_module', '_LazyLoader']:
+        try:
+            del globals()[_n]
+        except KeyError:
+            pass
+    del globals()['_n']
