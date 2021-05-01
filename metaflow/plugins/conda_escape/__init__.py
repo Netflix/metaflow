@@ -55,6 +55,9 @@ def generate_trampolines(python_interpreter_path, python_path):
     if os.environ.get('METAFLOW_ESCAPE_HATCH_DISABLED', False) in (True, 'True'):
         return
 
+    if python_interpreter_path is None:
+        python_interpreter_path = ''
+
     paths = [os.path.dirname(os.path.abspath(__file__)) + "/configurations"]
     try:
         import metaflow_custom.plugins.conda_escape as custom_escape
@@ -121,6 +124,7 @@ def load():
             # server should be using
             if sys.executable == "{python_path}":
                 raise
+            print("Conda escape using executable {python_path}")
         else:
             # Inverse logic as above here.
             if sys.executable == "{python_path}":
@@ -132,6 +136,9 @@ def load():
     # Reload this module using the ModuleImporter
     importlib.import_module("{module_name}")
 
+if not "{python_path}":
+    raise RuntimeError(
+        "Trying to access an escaped module ({module_name}) without a valid interpreter")
 load()
 """ .format(
     python_path=python_interpreter_path,
