@@ -1,4 +1,5 @@
 import inspect
+import shlex
 import sys
 import traceback
 from datetime import datetime
@@ -427,7 +428,14 @@ def step(obj,
          clone_run_id=None,
          decospecs=None,
          ubf_context=None):
+
+    if opt_tag:
+        opt_tag = [shlex.split(t)[0] for t in opt_tag]
+    if input_paths:
+        input_paths = shlex.split(input_paths)[0]
+
     if opt_namespace is not None:
+        opt_namespace = shlex.split(opt_namespace)[0]
         namespace(opt_namespace or None)
 
     func = None
@@ -442,6 +450,7 @@ def step(obj,
          bold=False)
 
     if decospecs:
+        decospecs = [shlex.split(d)[0] for d in decospecs]
         decorators._attach_decorators_to_step(func, decospecs)
 
     step_kwargs = ctx.params
@@ -505,6 +514,9 @@ def init(obj, run_id=None, task_id=None, tags=None, **kwargs):
     # user-specified parameters and our internal options. Note that
     # user-specified parameters are often defined as environment
     # variables.
+
+    if tags:
+        tags = [shlex.split(t)[0] for t in tags]
 
     obj.metadata.add_sticky_tags(tags=tags)
 
@@ -833,6 +845,8 @@ def start(ctx,
     if datastore_root is None:
         datastore_root = \
           ctx.obj.datastore_impl.get_datastore_root_from_config(ctx.obj.echo)
+    else:
+        datastore_root = shlex.split(datastore_root)[0]
     if datastore_root is None:
         raise CommandException(
             "Could not find the location of the datastore -- did you correctly set the "
@@ -859,6 +873,7 @@ def start(ctx,
                                      deco_options)
 
     if decospecs:
+        decospecs = [shlex.split(d)[0] for d in decospecs]
         decorators._attach_decorators(ctx.obj.flow, decospecs)
 
     # initialize current and parameter context for deploy-time parameters
