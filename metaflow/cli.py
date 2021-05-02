@@ -1,4 +1,5 @@
 import inspect
+import shlex
 import sys
 import traceback
 from datetime import datetime
@@ -456,8 +457,15 @@ def step(obj,
          clone_only=None,
          clone_run_id=None,
          decospecs=None):
+
     if user_namespace is not None:
+        user_namespace = shlex.split(user_namespace)[0]
         namespace(user_namespace or None)
+
+    if tags:
+        tags = [shlex.split(t)[0] for t in tags]
+    if input_paths:
+        input_paths = shlex.split(input_paths)[0]
 
     func = None
     try:
@@ -471,6 +479,7 @@ def step(obj,
          bold=False)
 
     if decospecs:
+        decospecs = [shlex.split(d)[0] for d in decospecs]
         decorators._attach_decorators_to_step(func, decospecs)
 
     obj.datastore.datastore_root = obj.datastore_root
@@ -533,6 +542,8 @@ def init(obj, run_id=None, task_id=None, tags=None, **kwargs):
     if obj.datastore.datastore_root is None:
         obj.datastore.datastore_root = \
             obj.datastore.get_datastore_root_from_config(obj.echo)
+    if tags:
+        tags = [shlex.split(t)[0] for t in tags]
 
     obj.metadata.add_sticky_tags(tags=tags)
 
@@ -876,9 +887,13 @@ def start(ctx,
     if datastore_root is None:
         datastore_root = \
           ctx.obj.datastore.get_datastore_root_from_config(ctx.obj.echo)
+    else:
+        datastore_root = shlex.split(datastore_root)[0]
+
     ctx.obj.datastore_root = ctx.obj.datastore.datastore_root = datastore_root
 
     if decospecs:
+        decospecs = [shlex.split(d)[0] for d in decospecs]
         decorators._attach_decorators(ctx.obj.flow, decospecs)
 
     # initialize current and parameter context for deploy-time parameters

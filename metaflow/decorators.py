@@ -408,7 +408,7 @@ def _attach_decorators_to_step(step, decospecs):
     from .plugins import STEP_DECORATORS
     decos = {decotype.name: decotype for decotype in STEP_DECORATORS}
     for decospec in decospecs:
-        deconame = decospec.strip("'").split(':')[0]
+        deconame = decospec.split(':')[0]
         if deconame not in decos:
             raise UnknownStepDecoratorException(deconame)
         # Attach the decorator to step if it doesn't have the decorator
