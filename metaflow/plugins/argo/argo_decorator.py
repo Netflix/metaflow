@@ -82,8 +82,6 @@ class ArgoStepDecorator(StepDecorator):
         Argo input artifacts list.
     output_artifacts: list
         Argo outputs artifacts list.
-    artifacts: list
-        Argo outputs artifacts list.
    """
     name = 'argo'
     defaults = {
@@ -95,7 +93,6 @@ class ArgoStepDecorator(StepDecorator):
         'nodeSelector': {},
         'input_artifacts': [],
         'output_artifacts': [],
-        'artifacts': []
     }
 
     def step_init(self, flow, graph, step, decos, environment, datastore, logger):

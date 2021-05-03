@@ -413,7 +413,7 @@ class Step:
                 'valueFrom': {'path': ArgoInternalStepDecorator.splits_file_path}
             })
         outputs = {'parameters': params}
-        artifacts = self._attr.get('artifacts', []) + self._attr.get('output_artifacts', [])
+        artifacts = self._attr.get('output_artifacts')
         if artifacts:
             outputs['artifacts'] = artifacts
         return outputs
