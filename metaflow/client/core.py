@@ -1027,7 +1027,7 @@ class Task(MetaflowObject):
     def _load_log(self, stream):
         log_location = self.metadata_dict.get('log_location_%s' % stream)
         if log_location:
-            return self._load_log_legacy(log_location)
+            return self._load_log_legacy(log_location, stream)
         else:
             return ''.join(line + '\n' for _, line in self.loglines(stream))
 
@@ -1071,7 +1071,7 @@ class Task(MetaflowObject):
             msg = to_unicode(line.msg) if as_unicode else line.msg
             yield line.utc_tstamp, msg
 
-    def _load_log_legacy(self, log_location, as_unicode=True):
+    def _load_log_legacy(self, log_location, logtype, as_unicode=True):
         # this function is used to load pre-mflog style logfiles
         ret_val = None
         log_info = json.loads(log_location)
