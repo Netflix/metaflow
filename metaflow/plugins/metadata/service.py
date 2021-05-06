@@ -8,6 +8,7 @@ from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import METADATA_SERVICE_NUM_RETRIES, METADATA_SERVICE_HEADERS, \
     METADATA_SERVICE_URL
 from metaflow.metadata import MetadataProvider
+from metaflow.metadata.heartbeat import HB_URL_KEY
 from metaflow.sidecar import SidecarSubProcess
 from metaflow.sidecar_messages import MessageTypes, Message
 
@@ -34,7 +35,6 @@ class ServiceException(MetaflowException):
 
 class ServiceMetadataProvider(MetadataProvider):
     TYPE = 'service'
-    HB_URL_KEY = 'hb_url'
 
     def __init__(self, environment, flow, event_logger, monitor):
         super(ServiceMetadataProvider, self).__init__(environment, flow, event_logger, monitor)
@@ -97,11 +97,14 @@ class ServiceMetadataProvider(MetadataProvider):
 
     def _start_heartbeat(self, heartbeat_type, flow_id, run_id, step_name=None, task_id=None):
         if self._already_started():
+            # A single ServiceMetadataProvider instance can not start
+            # multiple heartbeat side cars of any type/combination. Either a
+            # single run heartbeat or a single task heartbeat can be started
             raise Exception("heartbeat already started")
         # start sidecar
         if self.version() is None or \
                 LooseVersion(self.version()) < LooseVersion('2.0.4'):
-            # if local mode or old version of the service is running
+            # if old version of the service is running
             # then avoid running real heartbeat sidecar process
             self.sidecar_process = SidecarSubProcess("nullSidecarHeartbeat")
         else:
@@ -112,14 +115,14 @@ class ServiceMetadataProvider(MetadataProvider):
             # create task heartbeat
             data = {
                     'flow_id': flow_id, 'run_number': run_id,
-                    "step_name": step_name, 'task_id': task_id,
+                    'step_name': step_name, 'task_id': task_id,
                     }
-            payload[self.HB_URL_KEY] = self.mli_url_task_template.format(**data)
+            payload[HB_URL_KEY] = self.mli_url_task_template.format(**data)
         elif heartbeat_type == HeartbeatTypes.RUN:
             # create run heartbeat
             data = {'flow_id': flow_id, 'run_number': run_id}
 
-            payload[self.HB_URL_KEY] = self.mli_url_run_template.format(**data)
+            payload[HB_URL_KEY] = self.mli_url_run_template.format(**data)
         else:
             raise Exception("invalid heartbeat type")
         payload["service_version"] = self.version()

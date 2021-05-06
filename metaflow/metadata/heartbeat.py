@@ -8,8 +8,11 @@ import json
 from threading import Thread
 from metaflow.sidecar_messages import MessageTypes, Message
 
+HB_URL_KEY = 'hb_url'
+
 
 class MetadataHeartBeat(object):
+
     def __init__(self):
         self.headers = {'content-type': 'application/json'}
         self.req_thread = Thread(target=self.ping)
@@ -25,7 +28,7 @@ class MetadataHeartBeat(object):
         if (not self.req_thread.is_alive()) and \
                 msg.msg_type == MessageTypes.LOG_EVENT:
             # set post url
-            self.hb_url = msg.payload['hb_url']
+            self.hb_url = msg.payload[HB_URL_KEY]
             # start thread
             self.req_thread.start()
 
