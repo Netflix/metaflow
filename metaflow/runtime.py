@@ -181,6 +181,8 @@ class NativeRuntime(object):
         self._logger('Workflow starting (run-id %s):' % self._run_id,
                      system_msg=True)
 
+        self._metadata.start_run_heartbeat(self._flow.name, self._run_id)
+
         if self._params_task:
             self._queue_push('start', {'input_paths': [self._params_task]})
         else:
@@ -228,6 +230,8 @@ class NativeRuntime(object):
             for step in self._flow:
                 for deco in step.decorators:
                     deco.runtime_finished(exception)
+
+            self._metadata.stop_heartbeat()
 
         # assert that end was executed and it was successful
         if ('end', ()) in self._finished:

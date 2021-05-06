@@ -318,6 +318,8 @@ class MetaflowTask(object):
         })
         logger = self.event_logger
         start = time.time()
+        self.metadata.start_task_heartbeat(self.flow.name, run_id, step_name,
+                                           task_id)
         try:
             # init side cars
             logger.start()
@@ -476,6 +478,7 @@ class MetaflowTask(object):
 
             # terminate side cars
             logger.terminate()
+            self.metadata.stop_heartbeat()
 
             # this writes a success marker indicating that the
             # "transaction" is done
