@@ -36,7 +36,6 @@ class MetadataHeartBeat(object):
         while True:
             try:
                 frequency_secs = self.heartbeat()
-
                 if frequency_secs is None or frequency_secs <= 0:
                     frequency_secs = self.default_frequency_secs
 
@@ -53,5 +52,9 @@ class MetadataHeartBeat(object):
             return response.json().get('wait_time_in_seconds')
 
     def shutdown(self):
-        # attempts sending on last heartbeat
-        self.heartbeat()
+        # attempts sending one last heartbeat
+        try:
+            self.heartbeat()
+        except:
+            # do nothing
+            pass
