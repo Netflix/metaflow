@@ -55,7 +55,7 @@ class MetadataHeartBeat(object):
     def heartbeat(self):
         if self.hb_url is not None:
             response = \
-                requests.post(url=self.hb_url, data="{}", headers=self.headers)
+                requests.post(url=self.hb_url, data='{}', headers=self.headers)
             # Unfortunately, response.json() returns a string that we need
             # to cast to json; however when the request encounters an error
             # the return type is a json blob :/
@@ -70,7 +70,4 @@ class MetadataHeartBeat(object):
 
     def shutdown(self):
         # attempts sending one last heartbeat
-        try:
-            self.heartbeat()
-        except:
-            pass
+        self.heartbeat()

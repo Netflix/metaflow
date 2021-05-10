@@ -33,12 +33,14 @@ def process_messages(worker):
             else:
                 raise WorkershutdownError()
         except WorkershutdownError:
-            worker.shutdown()
             break
         except Exception as e:  # todo handle other possible exceptions gracefully
             print(traceback.format_exc())
-            worker.shutdown()
             break
+    try:
+        worker.shutdown()
+    except:
+        pass
 
 
 @click.command(help="Initialize workers")
