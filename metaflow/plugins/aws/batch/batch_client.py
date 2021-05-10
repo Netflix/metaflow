@@ -14,6 +14,8 @@ except NameError:
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import AWS_SANDBOX_ENABLED
 
+AWS_LOG_RATELIM = 10
+
 class BatchClient(object):
     def __init__(self):
         from ..aws_client import get_aws_client
@@ -28,12 +30,15 @@ class BatchClient(object):
             if queue['state'] == 'ENABLED' and queue['status'] == 'VALID'
         )
 
-    def unfinished_jobs(self):
+    def unfinished_jobs(self, status_filter=None):
+        statuses = ["SUBMITTED", "PENDING", "RUNNABLE", "STARTING", "RUNNING"]
+        if status_filter in statuses:  # i.e. if not None, but must be valid  
+            statuses = [status_filter]  # e.g. just ['RUNNING']               
         queues = self.active_job_queues()
         return (
             job
             for queue in queues
-            for status in ['SUBMITTED', 'PENDING', 'RUNNABLE', 'STARTING', 'RUNNING']
+            for status in statuses
             for page in self._client.get_paginator('list_jobs').paginate(
                 jobQueue=queue, jobStatus=status
             )
@@ -462,11 +467,20 @@ class RunningJob(object):
     def log_stream_name(self):
         return self.info['container'].get('logStreamName')
 
+    @property
+    def number_running_jobs(self):
+        running_job_iter = self.client.unfinished_jobs("RUNNING")
+	return len((*running_job_iter,))
+
     def logs(self):
         def get_log_stream(job):
             log_stream_name = job.log_stream_name
-            if log_stream_name:
-                return BatchLogs('/aws/batch/job', log_stream_name, sleep_on_no_data=1)
+	    if log_stream_name:
+		return BatchLogs(
+                    "/aws/batch/job",
+                    log_stream_name,
+                    sleep_on_no_data=1 + self.number_running_jobs / AWS_LOG_RATELIM,
+                )
             else:
                 return None
 
