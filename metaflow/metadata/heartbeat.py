@@ -48,7 +48,6 @@ class MetadataHeartBeat(object):
                 time.sleep(4**retry_counter)
 
     def heartbeat(self):
-        import sys
         if self.hb_url is not None:
             response = \
                 requests.post(url=self.hb_url, data="{}", headers=self.headers)
