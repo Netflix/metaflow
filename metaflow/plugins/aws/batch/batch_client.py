@@ -16,6 +16,7 @@ from metaflow.metaflow_config import AWS_SANDBOX_ENABLED
 
 AWS_LOG_RATELIM = 10
 
+
 class BatchClient(object):
     def __init__(self):
         from ..aws_client import get_aws_client
@@ -470,13 +471,13 @@ class RunningJob(object):
     @property
     def number_running_jobs(self):
         running_job_iter = self.client.unfinished_jobs("RUNNING")
-	return len((*running_job_iter,))
+        return len((*running_job_iter,))
 
     def logs(self):
         def get_log_stream(job):
             log_stream_name = job.log_stream_name
-	    if log_stream_name:
-		return BatchLogs(
+            if log_stream_name:
+                return BatchLogs(
                     "/aws/batch/job",
                     log_stream_name,
                     sleep_on_no_data=1 + self.number_running_jobs / AWS_LOG_RATELIM,
