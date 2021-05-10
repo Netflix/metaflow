@@ -1,15 +1,20 @@
-"""
-
-"""
 import time
 import requests
+import json
 
 from threading import Thread
 from metaflow.sidecar_messages import MessageTypes, Message
 from metaflow.metaflow_config import METADATA_SERVICE_HEADERS
+from metaflow.exception import MetaflowException
 
 HB_URL_KEY = 'hb_url'
 
+
+class HeartBeatException(MetaflowException):
+    headline = 'Metaflow heart beat error'
+
+    def __init__(self, msg):
+        super(HeartBeatException, self).__init__(msg)
 
 class MetadataHeartBeat(object):
 
@@ -43,16 +48,26 @@ class MetadataHeartBeat(object):
 
                 time.sleep(frequency_secs)
                 retry_counter = 0
-            except Exception:
+            except HeartBeatException as e:
                 retry_counter = retry_counter + 1
                 time.sleep(4**retry_counter)
 
     def heartbeat(self):
         if self.hb_url is not None:
             response = \
-                requests.post(url=self.hb_url, data="{}", headers=self.headers)
-            return response.json().get('wait_time_in_seconds')
+                requests.post(url=self.hb_url, data='{}', headers=self.headers)
+            # Unfortunately, response.json() returns a string that we need
+            # to cast to json; however when the request encounters an error
+            # the return type is a json blob :/
+            if response.status_code == 200:
+                return json.loads(response.json()).get('wait_time_in_seconds')
+            else:
+                raise HeartBeatException('HeartBeat request (%s) failed'
+                                         ' (code %s): %s' % 
+                                            (self.hb_url, response.status_code,
+                                            response.text))
+        return None
 
     def shutdown(self):
-        # attempts sending on last heartbeat
+        # attempts sending one last heartbeat
         self.heartbeat()
