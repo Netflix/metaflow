@@ -12,13 +12,6 @@ from metaflow.metadata.heartbeat import HB_URL_KEY
 from metaflow.sidecar import SidecarSubProcess
 from metaflow.sidecar_messages import MessageTypes, Message
 
-try:
-    # python2
-    from urlparse import urljoin
-except:  # noqa E722
-    # python3
-    from urllib.parse import urljoin
-
 # Define message enums
 class HeartbeatTypes(object):
     RUN = 1
@@ -38,10 +31,10 @@ class ServiceMetadataProvider(MetadataProvider):
 
     def __init__(self, environment, flow, event_logger, monitor):
         super(ServiceMetadataProvider, self).__init__(environment, flow, event_logger, monitor)
-        self.mli_url_task_template = urljoin(METADATA_SERVICE_URL,
-                                             '/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/heartbeat')
-        self.mli_url_run_template = urljoin(METADATA_SERVICE_URL,
-                                            '/flows/{flow_id}/runs/{run_number}/heartbeat')
+        self.url_task_template = os.path.join(METADATA_SERVICE_URL,
+                                             'flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/heartbeat')
+        self.url_run_template = os.path.join(METADATA_SERVICE_URL,
+                                            'flows/{flow_id}/runs/{run_number}/heartbeat')
         self.sidecar_process = None
 
     @classmethod
@@ -117,12 +110,12 @@ class ServiceMetadataProvider(MetadataProvider):
                     'flow_id': flow_id, 'run_number': run_id,
                     'step_name': step_name, 'task_id': task_id,
                     }
-            payload[HB_URL_KEY] = self.mli_url_task_template.format(**data)
+            payload[HB_URL_KEY] = self.url_task_template.format(**data)
         elif heartbeat_type == HeartbeatTypes.RUN:
             # create run heartbeat
             data = {'flow_id': flow_id, 'run_number': run_id}
 
-            payload[HB_URL_KEY] = self.mli_url_run_template.format(**data)
+            payload[HB_URL_KEY] = self.url_run_template.format(**data)
         else:
             raise Exception("invalid heartbeat type")
         payload["service_version"] = self.version()
