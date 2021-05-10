@@ -6,6 +6,7 @@ import requests
 
 from threading import Thread
 from metaflow.sidecar_messages import MessageTypes, Message
+from metaflow.metaflow_config import METADATA_SERVICE_HEADERS
 
 HB_URL_KEY = 'hb_url'
 
@@ -13,7 +14,7 @@ HB_URL_KEY = 'hb_url'
 class MetadataHeartBeat(object):
 
     def __init__(self):
-        self.headers = {'content-type': 'application/json'}
+        self.headers = METADATA_SERVICE_HEADERS
         self.req_thread = Thread(target=self.ping)
         self.req_thread.daemon = True
         self.default_frequency_secs = 10
@@ -47,6 +48,7 @@ class MetadataHeartBeat(object):
                 time.sleep(4**retry_counter)
 
     def heartbeat(self):
+        import sys
         if self.hb_url is not None:
             response = \
                 requests.post(url=self.hb_url, data="{}", headers=self.headers)
