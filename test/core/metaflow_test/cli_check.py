@@ -4,7 +4,6 @@ import subprocess
 from tempfile import NamedTemporaryFile
 
 from . import MetaflowCheck, AssertArtifactFailed, AssertLogFailed, truncate
-from . import AssertTagFailed
 
 try:
     # Python 2
