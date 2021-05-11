@@ -375,7 +375,9 @@ class MetadataProvider(object):
             'ts_epoch': int(round(time.time() * 1000))}
 
     def _flow_to_json(self):
-        user = get_username()
+        # No need to store tags, sys_tags or username at the flow level
+        # since runs are the top level logical concept, which is where we
+        # store tags, sys_tags and username
         return {
             'flow_id': self._flow_name,
             'ts_epoch': int(round(time.time() * 1000))}
