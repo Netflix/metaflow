@@ -100,6 +100,9 @@ class MetaflowCheck(object):
     def artifact_dict(step, name):
         raise NotImplementedError()
 
+    def assert_log(self, step, logtype, value, exact_match=True):
+        raise NotImplementedError()
+
 def new_checker(flow):
     from . import cli_check, mli_check
     CHECKER = {
