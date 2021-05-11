@@ -20,8 +20,8 @@ class MetadataCheck(MetaflowCheck):
                                     default_namespace
         from metaflow.exception import MetaflowNamespaceMismatch
         import os
-        # test 1) USER should be the default
-        assert_equals('user:%s' % os.environ.get('USER'),
+        # test 1) METAFLOW_USER should be the default
+        assert_equals('user:%s' % os.environ.get('METAFLOW_USER'),
                       get_namespace())
         # test 2) Run should be in the listing
         assert_equals(True,
@@ -86,8 +86,8 @@ class MetadataCheck(MetaflowCheck):
         elif not exact_match and value in log_value:
             return True
         else:
-            raise AssertLogFailed("Task '%s' expected task.%s='%s' but got task.%s='%s'" %\
-                                  (task.id,
+            raise AssertLogFailed("Step '%s' expected task.%s='%s' but got task.%s='%s'" %\
+                                  (step,
                                    logtype,
                                    repr(value),
                                    logtype,

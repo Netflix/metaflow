@@ -28,7 +28,7 @@ class CliCheck(MetaflowCheck):
         else:
             subprocess.check_call(cmd)
 
-    def assert_artifact(self, step, name, value):
+    def assert_artifact(self, step, name, value, fields=None):
         for task, artifacts in self.artifact_dict(step, name).items():
             if name in artifacts:
                 if artifacts[name] != value:

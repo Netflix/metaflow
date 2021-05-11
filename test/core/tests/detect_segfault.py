@@ -11,9 +11,8 @@ class DetectSegFaultTest(MetaflowTest):
     def step_end(self):
         # cause a segfault
         import ctypes
-        libc = ctypes.cdll.LoadLibrary('libc.so.6')
         print("Crash and burn!")
-        libc.free(123)
+        ctypes.string_at(0)
 
     @steps(1, ['all'])
     def step_all(self):
@@ -21,7 +20,7 @@ class DetectSegFaultTest(MetaflowTest):
 
     def check_results(self, flow, checker):
         # CLI logs requires the exact task ID for failed tasks which
-        # we don't have here. Let's rely on the MLI checker only.
+        # we don't have here. Let's rely on the Metadata checker only.
         run = checker.get_run()
         if run:
             # loglines prior to the segfault should be persisted
