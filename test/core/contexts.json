@@ -74,7 +74,7 @@
             "python": "python3",
             "top_options": [
                 "--metadata=local",
-                "--datastore=s3",
+                "--datastore=local",
                 "--environment=local",
                 "--event-logger=nullSidecarLogger",
                 "--no-pylint",
