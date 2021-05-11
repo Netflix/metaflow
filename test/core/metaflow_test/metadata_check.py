@@ -3,7 +3,7 @@ from metaflow.util import is_stringish
 
 from . import MetaflowCheck, AssertArtifactFailed, AssertLogFailed, assert_equals, assert_exception, truncate
 
-class MliCheck(MetaflowCheck):
+class MetadataCheck(MetaflowCheck):
 
     def __init__(self, flow):
         from metaflow.client import Flow, get_namespace

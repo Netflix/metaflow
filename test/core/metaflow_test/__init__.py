@@ -104,10 +104,10 @@ class MetaflowCheck(object):
         raise NotImplementedError()
 
 def new_checker(flow):
-    from . import cli_check, mli_check
+    from . import cli_check, metadata_check
     CHECKER = {
         'CliCheck': cli_check.CliCheck,
-        'MliCheck': mli_check.MliCheck
+        'MetadataCheck': metadata_check.MetadataCheck
     }
     CLASSNAME = sys.argv[1]
     return CHECKER[CLASSNAME](flow)

@@ -23,7 +23,8 @@
                 "--tag", "\u523a\u8eab means sashimi",
                 "--tag", "multiple tags should be ok"
             ],
-            "checks": ["python2-cli", "python3-cli"],
+            "checks": ["python2-cli", "python3-cli",
+                        "python2-metadata", "python3-metadata"],
             "disabled_tests": [
                 "LargeArtifactTest"
             ]
@@ -51,7 +52,8 @@
                 "--tag", "\u523a\u8eab means sashimi",
                 "--tag", "multiple tags should be ok"
             ],
-            "checks": ["python2-cli", "python3-cli"],
+            "checks": ["python2-cli", "python3-cli",
+                        "python2-metadata", "python3-metadata"],
             "disabled_tests": [
                 "LargeArtifactTest"
             ]
@@ -79,11 +81,13 @@
                 "--tag", "\u523a\u8eab means sashimi",
                 "--tag", "multiple tags should be ok"
             ],
-            "checks": ["python3-cli"]
+            "checks": ["python3-cli", "python3-metadata"]
         }
     ],
     "checks": {
         "python2-cli": {"python": "python2", "class": "CliCheck"},
-        "python3-cli": {"python": "python3", "class": "CliCheck"}
+        "python3-cli": {"python": "python3", "class": "CliCheck"},
+        "python2-metadata": {"python": "python2", "class": "MetadataCheck"},
+        "python3-metadata": {"python": "python3", "class": "MetadataCheck"}
     }
 }
