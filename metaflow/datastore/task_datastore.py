@@ -680,6 +680,9 @@ class TaskDataStore(object):
                     self._backend.basename(path))
             else:
                 name = self._backend.basename(path)
-            with result[0] as r:
-                results[name] = r.read()
+            if result is None:
+                results[name] = None
+            else:
+                with result[0] as r:
+                    results[name] = r.read()
         return results
