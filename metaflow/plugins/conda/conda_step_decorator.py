@@ -221,7 +221,7 @@ class CondaStepDecorator(StepDecorator):
             # for other issues when loading at the toplevel
             pass
         else:
-            custom_paths = m.__path__
+            custom_paths = list(m.__path__)
             if len(custom_paths) == 1:
                 # Regular package
                 os.symlink(custom_paths[0], os.path.join(self.metaflow_home, 'metaflow_custom'))
