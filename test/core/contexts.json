@@ -27,7 +27,8 @@
             "checks": ["python2-cli", "python3-cli",
                         "python2-metadata", "python3-metadata"],
             "disabled_tests": [
-                "LargeArtifactTest"
+                "LargeArtifactTest",
+                "S3FailureTest"
             ]
         },
         {
@@ -57,7 +58,8 @@
             "checks": ["python2-cli", "python3-cli",
                         "python2-metadata", "python3-metadata"],
             "disabled_tests": [
-                "LargeArtifactTest"
+                "LargeArtifactTest",
+                "S3FailureTest"
             ]
         },
         {
@@ -72,7 +74,7 @@
             "python": "python3",
             "top_options": [
                 "--metadata=local",
-                "--datastore=local",
+                "--datastore=s3",
                 "--environment=local",
                 "--event-logger=nullSidecarLogger",
                 "--no-pylint",
@@ -84,7 +86,10 @@
                 "--tag", "\u523a\u8eab means sashimi",
                 "--tag", "multiple tags should be ok"
             ],
-            "checks": ["python3-cli", "python3-metadata"]
+            "checks": ["python3-cli", "python3-metadata"],
+            "disabled_tests": [
+                "S3FailureTest"
+            ]
         }
     ],
     "checks": {
