@@ -42,38 +42,32 @@ class MetadataCheck(MetaflowCheck):
         return self.run
 
     def assert_artifact(self, step, name, value, fields=None):
-        for task in self.run[step]:
-            for artifact in task:
-                if artifact.id == name:
-                    if fields:
-                        for field, v in fields.items():
-                            if is_stringish(artifact.data):
-                                data = json.loads(artifact.data)
-                            else:
-                                data = artifact.data
-                            if not isinstance(data, dict):
-                                raise AssertArtifactFailed(
-                                    "Task '%s' expected %s to be a dictionary; got %s" %
-                                    (task.id, name, type(data)))
-                            if data.get(field, None) != v:
-                                raise AssertArtifactFailed(
-                                    "Task '%s' expected %s[%s]=%r but got %s[%s]=%s" %
-                                    (task.id, name, field, truncate(value), name, field,
-                                     truncate(data[field])))
-                    elif artifact.data == value:
-                        break
-                    else:
-                        raise AssertArtifactFailed("Task '%s' expected %s=%r "
-                                                   "but got %s=%s" %\
-                                                   (task.id,
-                                                    name,
-                                                    truncate(value),
-                                                    name,
-                                                    truncate(artifact.data)))
+        for task, artifacts in self.artifact_dict(step, name).items():
+            if name in artifacts:
+                artifact = artifacts[name]
+                if fields:
+                    for field, v in fields.items():
+                        if is_stringish(artifact):
+                            data = json.loads(artifact)
+                        else:
+                            data = artifact
+                        if not isinstance(data, dict):
+                            raise AssertArtifactFailed(
+                                "Task '%s' expected %s to be a dictionary (got %s)" %
+                                (task, name, type(data)))
+                        if data.get(field, None) != v:
+                            raise AssertArtifactFailed(
+                                "Task '%s' expected %s[%s]=%r but got %s[%s]=%s" %
+                                (task, name, field, truncate(value), name, field,
+                                    truncate(data[field])))
+                elif artifact != value:
+                    raise AssertArtifactFailed(
+                        "Task '%s' expected %s=%r but got %s=%s" %
+                        (task, name, truncate(value), name, truncate(artifact)))
             else:
                 raise AssertArtifactFailed("Task '%s' expected %s=%s but "
                                            "the key was not found" %\
-                                            (task.id, name, truncate(value)))
+                                            (task, name, truncate(value)))
         return True
 
     def artifact_dict(self, step, name):
