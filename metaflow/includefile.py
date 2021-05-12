@@ -227,6 +227,10 @@ class FilePathClass(click.ParamType):
         self._encoding = encoding
 
     def convert(self, value, param, ctx):
+        if callable(value):
+            # Already a correct type
+            return value
+
         value = os.path.expanduser(value)
         ok, file_type, err = LocalFile.is_file_handled(value)
         if not ok:
