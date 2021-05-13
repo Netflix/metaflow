@@ -1,8 +1,8 @@
 import json
-
+from enum import IntEnum
 
 # Define message enums
-class MessageTypes(object):
+class MessageTypes(IntEnum):
     SHUTDOWN = 1
     LOG_EVENT = 2
 

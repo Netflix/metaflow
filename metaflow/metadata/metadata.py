@@ -239,6 +239,15 @@ class MetadataProvider(object):
         '''
         raise NotImplementedError()
 
+    def start_task_heartbeat(self, flow_id, run_id, step_name, task_id):
+        pass
+
+    def start_run_heartbeat(self, flow_id, run_id):
+        pass
+
+    def stop_heartbeat(self):
+        pass
+
     @classmethod
     def _get_object_internal(cls, obj_type, obj_order, sub_type, sub_order, filters=None, *args):
         '''

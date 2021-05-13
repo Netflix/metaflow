@@ -124,9 +124,13 @@ def get_version(pep440=False):
     """
 
     version = format_git_describe(call_git_describe(), pep440=pep440)
+    version_addl = None
     if version is None:  # not a git repository
         import metaflow
         version = metaflow.__version__
+        version_addl = metaflow.__version_addl__
     if version is None: # not a proper python package
         version = read_info_version()
+    if version and version_addl:
+        return '+'.join([version, version_addl])
     return version

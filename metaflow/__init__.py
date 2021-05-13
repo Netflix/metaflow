@@ -104,6 +104,7 @@ class _LazyLoader(object):
         return sys.modules[fullname]
 
 
+__version_addl__ = None
 try:
     import metaflow_custom.toplevel as extension_module
 except ImportError as e:
@@ -131,6 +132,9 @@ else:
             lazy_load_custom_modules['metaflow.%s' % n] = o
     if lazy_load_custom_modules:
         sys.meta_path.append(_LazyLoader(lazy_load_custom_modules))
+    __version_addl__ = getattr(extension_module, '__mf_customization__', '<unk>')
+    if extension_module.__version__:
+        __version_addl__ = '%s(%s)' % (__version_addl__, extension_module.__version__)
 finally:
     # Erase all temporary names to avoid leaking things
     for _n in ['ver', 'n', 'o', 'e', 'lazy_load_custom_modules', 'extension_module']:

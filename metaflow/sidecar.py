@@ -56,13 +56,14 @@ class SidecarSubProcess(object):
 
         if (self.__worker_type is not None and \
                 self.__worker_type.startswith(NULL_SIDECAR_PREFIX)) or \
-                platform.system() == 'Darwin':
-            self.__poller = NullPoller()
+                (platform.system() == 'Darwin' and sys.version_info < (3, 0)):
+                # if on darwin and running python 2 disable sidecars
+                # there is a bug with importing poll from select in some cases
+                self.__poller = NullPoller()
 
         else:
             from select import poll
             python_version = sys.executable
-
             cmdline = [python_version,
                        '-u',
                        os.path.dirname(__file__) + '/sidecar_worker.py',

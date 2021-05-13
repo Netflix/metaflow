@@ -93,9 +93,13 @@ from .conda.conda_flow_decorator import CondaFlowDecorator
 from .aws.step_functions.schedule_decorator import ScheduleDecorator
 FLOW_DECORATORS = _merge_lists([CondaFlowDecorator, ScheduleDecorator], ext_plugins.FLOW_DECORATORS, 'name')
 
-from ..mflog.save_logs_periodically import SaveLogsPeriodicallySidecar
+
 # Sidecars
-SIDECARS = {'save_logs_periodically': SaveLogsPeriodicallySidecar}
+from ..mflog.save_logs_periodically import SaveLogsPeriodicallySidecar
+from metaflow.metadata.heartbeat import MetadataHeartBeat
+
+SIDECARS = {'save_logs_periodically': SaveLogsPeriodicallySidecar,
+            'heartbeat': MetadataHeartBeat}
 SIDECARS.update(ext_plugins.SIDECARS)
 
 # Add logger
@@ -112,3 +116,4 @@ MONITOR_SIDECARS.update(ext_plugins.MONITOR_SIDECARS)
 
 SIDECARS.update(LOGGING_SIDECARS)
 SIDECARS.update(MONITOR_SIDECARS)
+
