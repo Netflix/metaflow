@@ -73,7 +73,7 @@ digraph Metaflow {
     }
 
     subgraph cluster_stepfunctions_run {
-        label="AWS Step Functions run"
+        label="AWS Step Functions trigger"
         labeljust=l
         fontsize=14
 
