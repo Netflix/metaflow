@@ -36,6 +36,9 @@ class JSONTypeClass(click.ParamType):
     name = 'JSON'
 
     def convert(self, value, param, ctx):
+        if not isinstance(value, strtype):
+            # Already a correct type
+            return value
         try:
             return json.loads(value)
         except:
