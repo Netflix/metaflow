@@ -12,7 +12,7 @@ class BasicTagTest(MetaflowTest):
         # TODO we could call self.tag() in some steps, once it is implemented
         from metaflow import get_namespace
         import os
-        user = 'user:%s' % os.environ.get('USER')
+        user = 'user:%s' % os.environ.get('METAFLOW_USER')
         assert_equals(user, get_namespace())
 
     def check_results(self, flow, checker):
@@ -25,7 +25,7 @@ class BasicTagTest(MetaflowTest):
         flow_obj = run.parent
         # test crazy unicode and spaces in tags
         # these tags must be set with --tag option in contexts.json
-        tags = (u'user:%s' % os.environ.get('USER'),
+        tags = (u'user:%s' % os.environ.get('METAFLOW_USER'),
                 u'刺身 means sashimi',
                 u'multiple tags should be ok')
         for tag in tags:

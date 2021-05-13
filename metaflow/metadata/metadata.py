@@ -374,8 +374,13 @@ class MetadataProvider(object):
             'system_tags': sys_tags,
             'ts_epoch': int(round(time.time() * 1000))}
 
-    def _flow_to_json(self, tags=[], sys_tags=[]):
-        return self._all_obj_elements(tags, sys_tags)
+    def _flow_to_json(self):
+        # No need to store tags, sys_tags or username at the flow level
+        # since runs are the top level logical concept, which is where we
+        # store tags, sys_tags and username
+        return {
+            'flow_id': self._flow_name,
+            'ts_epoch': int(round(time.time() * 1000))}
 
     def _run_to_json(self, run_id=None, tags=[], sys_tags=[]):
         if run_id is not None:
@@ -409,7 +414,7 @@ class MetadataProvider(object):
             return self._step_to_json(run_id, step_name, tags, sys_tags)
         if obj_type == 'run':
             return self._run_to_json(run_id, tags, sys_tags)
-        return self._flow_to_json(tags, sys_tags)
+        return self._flow_to_json()
 
     def _artifacts_to_json(self, run_id, step_name, task_id, attempt_id, artifacts):
         result = []

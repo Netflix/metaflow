@@ -1,10 +1,11 @@
-import json
 import os
 import sys
 import subprocess
+import json
 from tempfile import NamedTemporaryFile
 
 from metaflow.util import is_stringish
+
 from . import MetaflowCheck, AssertArtifactFailed, AssertLogFailed, truncate
 
 try:
@@ -18,8 +19,13 @@ class CliCheck(MetaflowCheck):
 
     def run_cli(self, args, capture_output=False):
         cmd = [sys.executable, 'test_flow.py']
-        cmd.extend(self.cli_options)
+
+        # remove --quiet from top level options to capture output from echo
+        # we will add --quiet in args if needed
+        cmd.extend([opt for opt in self.cli_options if opt != '--quiet'])
+
         cmd.extend(args)
+
         if capture_output:
             return subprocess.check_output(cmd)
         else:
@@ -80,7 +86,7 @@ class CliCheck(MetaflowCheck):
                  repr(value),
                  repr(log)))
         return True
-
+       
     def get_log(self, step, logtype):
         cmd = ['--quiet',
                'logs',

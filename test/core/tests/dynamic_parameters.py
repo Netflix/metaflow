@@ -16,7 +16,7 @@ def str_func(ctx):
     import os
     assert_equals(ctx.parameter_name, 'str_param')
     assert_equals(ctx.flow_name, 'DynamicParameterTestFlow')
-    assert_equals(ctx.user_name, os.environ['USER'])
+    assert_equals(ctx.user_name, os.environ['METAFLOW_USER'])
 
     if os.path.exists('str_func.only_once'):
         raise Exception("Dynamic parameter function invoked multiple times!")
