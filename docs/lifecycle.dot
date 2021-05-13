@@ -38,16 +38,6 @@ digraph Metaflow {
         package          [label="{package|create}", fillcolor=lightpink2]
     }
 
-    // subgraph cluster_deployment {
-    //     label="Deployment"
-    //     labeljust=l
-    //     fontsize=14
-
-    //     validate_dag [label="{graph|validate}", fillcolor=lightpink2]
-    //     package_init [label="{decorator|package_init}", fillcolor=lightblue2]
-    //     package      [label="{package|create}", fillcolor=lightpink2]
-    // }
-
     subgraph cluster_local_run {
         label="Local run"
         labeljust=l
@@ -82,7 +72,7 @@ digraph Metaflow {
         local_bootstrap_batch [shape="circle", label="Bootstrap\nAWS Batch", width=1, fillcolor=grey78]
     }
 
-    subgraph cluster_meson_run {
+    subgraph cluster_stepfunctions_run {
         label="AWS Step Functions run"
         labeljust=l
         fontsize=14
