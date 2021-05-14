@@ -1,0 +1,177 @@
+
+digraph Metaflow {
+
+    /*
+    LEGEND
+
+    palegreen2:      environment
+    lightblue2:      decorator
+    tan:             command
+    lightgoldenrod1: metadata
+    lightpink2:      function call
+    grey78:          event / change in control
+    
+    */
+
+    graph [fontsize=10, fontname="Noto Mono"]
+    node [width=2.5,
+          height=1,
+          shape=record,
+          fontname="Noto Mono",
+          style=filled]
+
+    edge [fontname="Nimbus Mono L"]
+
+    subgraph cluster_init {
+        label="Initialization"
+        labeljust=l
+        fontsize=14
+
+        validate_env     [label="{environment|validate_environment}", fillcolor=palegreen2]
+        flow_init        [label="{decorator|flow_init}", fillcolor=lightblue2]
+        step_init        [label="{decorator|step_init}", fillcolor=lightblue2]
+        choose_command   [shape="circle", label="choose\ncommand", width=1, fillcolor=grey78]
+        validate_dag     [label="{graph|validate}", fillcolor=lightpink2]
+        init_environment [label="{environment|init_environment}", fillcolor=palegreen2]
+        package_init     [label="{decorator|package_init}", fillcolor=lightblue2]
+        add_to_package   [label="{environment|add_to_package}", fillcolor=palegreen2]
+        package          [label="{package|create}", fillcolor=lightpink2]
+    }
+
+    subgraph cluster_local_run {
+        label="Local run"
+        labeljust=l
+        fontsize=14
+
+        command_run         [label="{command|run}", fillcolor=tan]
+        new_run_id          [label="{metadata|new_run_id}", fillcolor=lightgoldenrod1]
+        runtime_init        [label="{decorator|runtime_init}", fillcolor=lightblue2]
+        local_params        [label="{runtime|persist_parameters}", fillcolor=lightpink2]
+        start_run_heartbeat [label="{metadata|start_run_heartbeat}", fillcolor=lightgoldenrod1]
+        schedule_local_task [shape="circle", label="schedule\ntask", width=1, fillcolor=grey78]
+        runtime_finished    [label="{decorator|runtime_finished}", fillcolor=lightblue2]
+        stop_run_heartbeat  [label="{metadata|stop_run_heartbeat}", fillcolor=lightgoldenrod1]
+    }
+
+    subgraph cluster_stepfunctions_deploy {
+        label="Deploy to AWS Step Functions"
+        labeljust=l
+        fontsize=14
+
+        stepfunctions_create  [label="{command|stepfunctions create}", fillcolor=tan]
+        push_to_stepfunctions [shape="circle", label="push to AWS\nStep Functions", width=1, fillcolor=grey78]
+    }
+
+    subgraph cluster_batch {
+        label="Launch on AWS Batch"
+        labeljust=l
+        fontsize=14
+
+        batch_step            [label="{command|batch step}", fillcolor=tan]
+        launch_batch          [label="{AWS Batch|launch_job}", fillcolor=lightpink2]
+        local_bootstrap_batch [shape="circle", label="Bootstrap\nAWS Batch", width=1, fillcolor=grey78]
+    }
+
+    subgraph cluster_stepfunctions_run {
+        label="AWS Step Functions trigger"
+        labeljust=l
+        fontsize=14
+
+        stepfunctions_run [label="{AWS Step Functions|start_execution}", fillcolor=lightpink2]
+        stepfunctions_bootstrap_batch [shape="circle", label="Bootstrap\nAWS Batch", width=1, fillcolor=grey78]
+        stepfunctions_init    [label="{command|init}" fillcolor=tan]
+        stepfunctions_params  [label="{runtime|persist_parameters}", fillcolor=lightpink2]
+    }
+
+    subgraph cluster_local_task {
+        label="Initialize local task"
+        labeljust=l
+        fontsize=14
+
+        new_local_task       [label="{metadata|new_task_id}", fillcolor=lightgoldenrod1]
+        runtime_task_created [label="{decorator|runtime_task_created}", fillcolor=lightblue2]
+        runtime_step_cli     [label="{decorator|runtime_step_cli}", fillcolor=lightblue2]
+        launch_local         [shape="circle", label="execute\ntask", width=1, fillcolor=grey78]
+    }
+
+    subgraph cluster_task {
+        label="Execute Task"
+        labeljust=l
+        fontsize=14
+
+        task_entry           [label="{command|step}" fillcolor=tan]
+        register_run         [label="{metadata|register_run_id}", fillcolor=lightgoldenrod1]
+        register_task        [label="{metadata|register_task_id}", fillcolor=lightgoldenrod1]
+        start_task_heartbeat [label="{metadata|start_task_heartbeat}", fillcolor=lightgoldenrod1]
+        task_pre_step        [label="{decorator|task_pre_step}", fillcolor=lightblue2]
+        task_decorate        [label="{decorator|task_decorate}", fillcolor=lightblue2]
+        user_code            [shape="circle", label="execute\nuser code", width=1, fillcolor=grey78]
+        task_post_step       [label="{decorator|task_post_step}", fillcolor=lightblue2]
+        task_exception       [label="{decorator|task_exception}", fillcolor=lightblue2]
+        persist_artifacts    [label="{datastore|persist}", fillcolor=lightpink2]
+        stop_task_heartbeat  [label="{metadata|stop_task_heartbeat}", fillcolor=lightgoldenrod1]
+        register_artifacts   [label="{metadata|register_artifacts}", fillcolor=lightgoldenrod1]
+        task_finished        [label="{decorator|task_finished}", fillcolor=lightblue2]
+
+    }
+
+    /* initialize */
+    validate_env -> flow_init
+    flow_init -> step_init
+    step_init -> choose_command
+    choose_command -> validate_dag
+    validate_dag -> init_environment
+    init_environment -> package_init
+    package_init -> add_to_package
+    add_to_package -> package
+    package -> command_run
+    package -> stepfunctions_create
+
+    /* stepfunctions deploy */
+    stepfunctions_create -> push_to_stepfunctions
+
+    /* local run */
+    command_run -> new_run_id
+    new_run_id -> runtime_init
+    runtime_init -> local_params
+    local_params -> start_run_heartbeat
+    start_run_heartbeat -> schedule_local_task
+    schedule_local_task -> new_local_task [label="for each task"]
+    schedule_local_task -> runtime_finished
+    runtime_finished -> stop_run_heartbeat [label="flow finished"]
+
+    /* local task */
+    new_local_task -> runtime_task_created
+    runtime_task_created -> runtime_step_cli
+    runtime_step_cli -> launch_local
+    launch_local -> task_entry [label="local task"]
+    launch_local -> batch_step [label="AWS Batch task"]
+
+    /* Batch run */
+    batch_step -> launch_batch
+    launch_batch -> local_bootstrap_batch
+    local_bootstrap_batch -> task_entry
+
+    /* Step Functions run */
+    stepfunctions_run -> stepfunctions_bootstrap_batch
+    stepfunctions_bootstrap_batch -> stepfunctions_init [label="AWS Step Functions start"]
+    stepfunctions_bootstrap_batch -> task_entry [label="AWS Step Functions task"]
+    stepfunctions_init -> stepfunctions_params
+    stepfunctions_params -> task_entry
+
+    /* task */
+    task_entry -> register_run
+    register_run -> register_task
+    register_task -> start_task_heartbeat
+    start_task_heartbeat -> task_pre_step
+    task_pre_step -> task_decorate
+    task_decorate -> user_code
+    user_code -> task_post_step [label="Task success"]
+    user_code -> task_exception [label="Task failed"]
+    task_post_step -> persist_artifacts
+    task_exception -> persist_artifacts
+    persist_artifacts -> stop_task_heartbeat
+    stop_task_heartbeat -> register_artifacts
+    register_artifacts -> task_finished
+
+}
