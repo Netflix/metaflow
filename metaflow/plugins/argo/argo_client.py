@@ -8,15 +8,15 @@ from .argo_exception import ArgoException
 class ArgoClient(object):
     """Works with Argo Workflows' resources using the REST Api Server"""
 
-    def __init__(self, auth, namespace):
+    def __init__(self, auth, k8s_namespace):
         self.server = from_conf('METAFLOW_ARGO_SERVER')
         if self.server is None:
             raise ArgoException("The METAFLOW_ARGO_SERVER is needed to support "
                                 "the create, trigger or list-runs command")
         self.auth = auth
-        if namespace is None:
-            namespace = 'default'
-        self.namespace = from_conf('METAFLOW_ARGO_NAMESPACE', default=namespace)
+        if k8s_namespace is None:
+            k8s_namespace = 'default'
+        self.k8s_namespace = from_conf('METAFLOW_K8S_NAMESPACE', default=k8s_namespace)
 
     def create_template(self, name, definition):
         """
@@ -32,13 +32,13 @@ class ArgoClient(object):
             template['metadata']['annotations'] = definition['metadata'].get('annotations', {})
             url = posixpath.join(self.server,
                                  'api/v1/workflow-templates',
-                                 self.namespace,
+                                 self.k8s_namespace,
                                  name)
             r = requests.put(url, headers=h, json={'template': template})
         else:
             url = posixpath.join(self.server,
                                  'api/v1/workflow-templates',
-                                 self.namespace)
+                                 self.k8s_namespace)
             r = requests.post(url, headers=h, json={'template': definition})
         r.raise_for_status()
         return r.json()
@@ -49,7 +49,7 @@ class ArgoClient(object):
         """
         url = posixpath.join(self.server,
                              'api/v1/workflows',
-                             self.namespace)
+                             self.k8s_namespace)
         r = requests.post(url,
                           headers={'Authorization': self.auth},
                           json={'workflow': workflow})
@@ -62,7 +62,7 @@ class ArgoClient(object):
         """
         url = posixpath.join(self.server,
                              'api/v1/workflows',
-                             self.namespace)
+                             self.k8s_namespace)
         params = {
             'fields': 'items.metadata.name,items.status.phase,'
                       'items.status.startedAt,items.status.finishedAt'
@@ -82,7 +82,7 @@ class ArgoClient(object):
         """
         url = posixpath.join(self.server,
                              'api/v1/workflow-templates',
-                             self.namespace,
+                             self.k8s_namespace,
                              name)
         r = requests.get(url, headers={'Authorization': self.auth})
         if r.status_code == 404:

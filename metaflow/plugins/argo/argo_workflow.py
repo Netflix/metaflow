@@ -69,15 +69,15 @@ class ArgoWorkflow:
     def to_json(self):
         return json.dumps(self._workflow, indent=4)
 
-    def deploy(self, auth, namespace):
-        client = ArgoClient(auth, namespace)
+    def deploy(self, auth, k8s_namespace):
+        client = ArgoClient(auth, k8s_namespace)
         try:
             client.create_template(self.name, self._workflow)
         except Exception as e:
             raise ArgoException(str(e))
 
     @classmethod
-    def trigger(cls, auth, namespace, name, parameters):
+    def trigger(cls, auth, k8s_namespace, name, parameters):
         name = dns_name(name)
         workflow = {
             'apiVersion': 'argoproj.io/v1alpha1',
@@ -96,7 +96,7 @@ class ArgoWorkflow:
                 }
             }
         }
-        client = ArgoClient(auth, namespace)
+        client = ArgoClient(auth, k8s_namespace)
         try:
             template = client.get_template(name)
         except Exception as e:
@@ -110,9 +110,9 @@ class ArgoWorkflow:
             raise ArgoException(str(e))
 
     @classmethod
-    def list(cls, auth, namespace, name, phases):
+    def list(cls, auth, k8s_namespace, name, phases):
         name = dns_name(name)
-        client = ArgoClient(auth, namespace)
+        client = ArgoClient(auth, k8s_namespace)
         try:
             tmpl = client.get_template(name)
         except Exception as e:

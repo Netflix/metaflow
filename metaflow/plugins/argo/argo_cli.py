@@ -35,7 +35,8 @@ def argo(obj):
 @click.option("--token",
               default=None,
               help="Authentication token to call Argo Server.")
-@click.option('--namespace',
+@click.option('--k8s-namespace',
+              'k8s_namespace',
               default=None,
               help="Deploy into the specified kubernetes namespace.")
 @click.option('--only-json',
@@ -44,7 +45,7 @@ def argo(obj):
               help="Only print out JSON sent to Argo. Do not "
                    "deploy anything.")
 @click.pass_obj
-def create(obj, image, env, env_from, token, namespace, only_json=False):
+def create(obj, image, env, env_from, token, k8s_namespace, only_json=False):
     name = argo_workflow_name(current.flow_name.lower())
     obj.echo("Deploying *%s* to Argo Workflow Templates..." % name, bold=True)
 
@@ -84,7 +85,7 @@ def create(obj, image, env, env_from, token, namespace, only_json=False):
     if only_json:
         obj.echo_always(workflow.to_json(), err=False, no_bold=True, nl=False)
     else:
-        workflow.deploy(token, namespace)
+        workflow.deploy(token, k8s_namespace)
         obj.echo("WorkflowTemplate *{name}* pushed to "
                  "Argo Workflows successfully.\n".format(name=name),
                  bold=True)
@@ -95,11 +96,12 @@ def create(obj, image, env, env_from, token, namespace, only_json=False):
 @click.option("--token",
               default=None,
               help="Authentication token to call Argo Server.")
-@click.option('--namespace',
+@click.option('--k8s-namespace',
+              'k8s_namespace',
               default=None,
               help="Submit the Workflow in the specified kubernetes namespace.")
 @click.pass_obj
-def trigger(obj, token, namespace, **kwargs):
+def trigger(obj, token, k8s_namespace, **kwargs):
     def _convert_value(param):
         v = kwargs.get(param.name)
         return json.dumps(v) if param.kwargs.get('type') == JSONType else \
@@ -109,7 +111,7 @@ def trigger(obj, token, namespace, **kwargs):
               for _, p in obj.flow._get_parameters()
               if kwargs.get(p.name) is not None}
     name = argo_workflow_name(current.flow_name.lower())
-    response = ArgoWorkflow.trigger(token, namespace, name, params)
+    response = ArgoWorkflow.trigger(token, k8s_namespace, name, params)
     id = response['metadata']['name']
     obj.echo("Workflow *{name}* triggered on Argo Workflows "
              "(run-id *{id}*).".format(name=name, id=id), bold=True)
@@ -120,7 +122,8 @@ def trigger(obj, token, namespace, **kwargs):
 @click.option("--token",
               default=None,
               help="Authentication token to call Argo Server.")
-@click.option('--namespace',
+@click.option('--k8s-namespace',
+              'k8s_namespace',
               default=None,
               help="List workflows in the specified kubernetes namespace.")
 @click.option("--pending", default=False, is_flag=True,
@@ -133,7 +136,7 @@ def trigger(obj, token, namespace, **kwargs):
               help="List workflows in the 'Failed' state on Argo Workflows.")
 @click.option("--error", default=False, is_flag=True,
               help="List workflows in the 'Error' state on Argo Workflows.")
-def list_runs(obj, token, namespace, pending, running, succeeded, failed, error):
+def list_runs(obj, token, k8s_namespace, pending, running, succeeded, failed, error):
     states = []
     if pending:
         states.append('Pending')
@@ -147,7 +150,7 @@ def list_runs(obj, token, namespace, pending, running, succeeded, failed, error)
         states.append('Error')
 
     tmpl = argo_workflow_name(current.flow_name.lower())
-    workflows = ArgoWorkflow.list(token, namespace, tmpl, states)
+    workflows = ArgoWorkflow.list(token, k8s_namespace, tmpl, states)
     if not workflows:
         if states:
             status = ','.join(['*%s*' % s for s in states])
