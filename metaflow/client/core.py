@@ -516,7 +516,7 @@ class MetaflowObject(object):
         if self._parent is None:
             pathspec = self.pathspec
             parent_pathspec = pathspec[:pathspec.rfind('/')]
-            # We can skip the namespace check because if self._NAME >= 'run',
+            # We can skip the namespace check because if self._NAME = 'run',
             # the parent object is guaranteed to be in namespace.
             # Otherwise the check is moot for Flow since parent is singular.
             self._parent = _CLASSES[self._PARENT_CLASS](parent_pathspec, _namespace_check=False)
@@ -542,7 +542,6 @@ class MetaflowObject(object):
                 parent_pathspec = self.parent.pathspec
                 self._pathspec = os.path.join(parent_pathspec, self.id)
         return self._pathspec
-        # return '/'.join(self.path_components)
 
     @property
     def path_components(self):
