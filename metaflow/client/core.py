@@ -1,4 +1,5 @@
 from __future__ import print_function
+import os
 import time
 import tarfile
 import json
@@ -23,6 +24,9 @@ try:
 except:  # noqa E722
     # python3
     import pickle
+
+# populated at the bottom of this file
+_CLASSES = {}
 
 Metadata = namedtuple('Metadata', ['name',
                                    'value',
@@ -308,6 +312,7 @@ class MetaflowObject(object):
     """
     _NAME = 'base'
     _CHILD_CLASS = None
+    _PARENT_CLASS = None
 
     def __init__(self,
                  pathspec=None,
@@ -315,16 +320,17 @@ class MetaflowObject(object):
                  _parent=None,
                  _namespace_check=True):
         self._metaflow = Metaflow()
+        self._parent = _parent
+        self._path_components = None
         if pathspec:
             ids = pathspec.split('/')
 
-            parents = ids[:-1]
             self.id = ids[-1]
-            self._parent = self._create_parents(parents)
+            self._pathspec = pathspec
             self._object = self._get_object(*ids)
         else:
-            self._parent = _parent
             self._object = _object
+            self._pathspec = pathspec
 
         if self._NAME in ('flow', 'task'):
             self.id = str(self._object[self._NAME + '_id'])
@@ -352,15 +358,6 @@ class MetaflowObject(object):
             raise MetaflowNotFound("%s does not exist" % self)
         return result
 
-    def _create_parents(self, parents):
-        if parents:
-            parent = self._metaflow
-            for id in parents:
-                parent = parent[id]
-            return parent
-        else:
-            return None
-
     def __iter__(self):
         """
         Iterate over all child objects of this object if any.
@@ -377,11 +374,11 @@ class MetaflowObject(object):
             query_filter = {'any_tags': current_namespace}
 
         unfiltered_children = self._metaflow.metadata.get_object(
-            self._NAME, self._CHILD_CLASS._NAME, query_filter, *self.path_components)
+            self._NAME, _CLASSES[self._CHILD_CLASS]._NAME, query_filter, *self.path_components)
         unfiltered_children = unfiltered_children if unfiltered_children else []
         children = filter(
             lambda x: self._iter_filter(x),
-            (self._CHILD_CLASS(_object=obj, _parent=self, _namespace_check=False)
+            (_CLASSES[self._CHILD_CLASS](_object=obj, _parent=self, _namespace_check=False)
                 for obj in unfiltered_children))
 
         if children:
@@ -396,6 +393,10 @@ class MetaflowObject(object):
         for child in self:
             if all(tag in child.tags for tag in tags):
                 yield child
+
+    @classmethod
+    def _url_token(cls):
+        return '%ss' % cls._NAME
 
     def is_in_namespace(self):
         """
@@ -426,7 +427,7 @@ class MetaflowObject(object):
             result.append(p)
         result.append(id)
         return self._metaflow.metadata.get_object(
-            self._CHILD_CLASS._NAME, 'self', None, *result)
+            _CLASSES[self._CHILD_CLASS]._NAME, 'self', None, *result)
 
     def __getitem__(self, id):
         """
@@ -449,7 +450,7 @@ class MetaflowObject(object):
         """
         obj = self._get_child(id)
         if obj:
-            return self._CHILD_CLASS(_object=obj, _parent=self)
+            return _CLASSES[self._CHILD_CLASS](_object=obj, _parent=self)
         else:
             raise KeyError(id)
 
@@ -509,6 +510,16 @@ class MetaflowObject(object):
         MetaflowObject
             The parent of this object
         """
+        if self._NAME == 'flow':
+            return None
+        # Compute parent from pathspec and cache it.
+        if self._parent is None:
+            pathspec = self.pathspec
+            parent_pathspec = pathspec[:pathspec.rfind('/')]
+            # We can skip the namespace check because if self._NAME = 'run',
+            # the parent object is guaranteed to be in namespace.
+            # Otherwise the check is moot for Flow since parent is singular.
+            self._parent = _CLASSES[self._PARENT_CLASS](parent_pathspec, _namespace_check=False)
         return self._parent
 
     @property
@@ -524,7 +535,13 @@ class MetaflowObject(object):
         string
             Unique representation of this object
         """
-        return '/'.join(self.path_components)
+        if self._pathspec is None:
+            if self.parent is None:
+                self._pathspec = self.id
+            else:
+                parent_pathspec = self.parent.pathspec
+                self._pathspec = os.path.join(parent_pathspec, self.id)
+        return self._pathspec
 
     @property
     def path_components(self):
@@ -536,13 +553,22 @@ class MetaflowObject(object):
         List[string]
             Individual components of the pathspec
         """
-        def traverse(obj, lst):
-            lst.insert(0, obj.id)
-            if obj._parent:
-                return traverse(obj._parent, lst)
+        # Compute url_path from pathspec.
+        ids = self.pathspec.split('/')
+
+        def traverse(cls, ids_r, lst):
+            lst.insert(0, ids_r[-1])
+            if cls._PARENT_CLASS is None:
+                return lst
+            if len(ids_r) > 1:
+                cls = _CLASSES[cls._PARENT_CLASS]
+                return traverse(cls, ids_r[:-1], lst)
             else:
                 return lst
-        return traverse(self, [])
+
+        if self._path_components is None:
+            self._path_components = traverse(_CLASSES[self._NAME], ids, [])
+        return self._path_components
 
 
 class MetaflowData(object):
@@ -662,6 +688,7 @@ class DataArtifact(MetaflowObject):
     """
 
     _NAME = 'artifact'
+    _PARENT_CLASS = 'task'
     _CHILD_CLASS = None
 
     @property
@@ -756,7 +783,8 @@ class Task(MetaflowObject):
     """
 
     _NAME = 'task'
-    _CHILD_CLASS = DataArtifact
+    _PARENT_CLASS = 'step'
+    _CHILD_CLASS = 'artifact'
 
     def __init__(self, *args, **kwargs):
         super(Task, self).__init__(*args, **kwargs)
@@ -1105,7 +1133,8 @@ class Step(MetaflowObject):
     """
 
     _NAME = 'step'
-    _CHILD_CLASS = Task
+    _PARENT_CLASS = 'run'
+    _CHILD_CLASS = 'task'
 
     @property
     def task(self):
@@ -1204,7 +1233,8 @@ class Run(MetaflowObject):
     """
 
     _NAME = 'run'
-    _CHILD_CLASS = Step
+    _PARENT_CLASS = 'flow'
+    _CHILD_CLASS = 'step'
 
     def _iter_filter(self, x):
         # exclude _parameters step
@@ -1355,7 +1385,8 @@ class Flow(MetaflowObject):
     """
 
     _NAME = 'flow'
-    _CHILD_CLASS = Run
+    _PARENT_CLASS = None
+    _CHILD_CLASS = 'run'
 
     def __init__(self, *args, **kwargs):
         super(Flow, self).__init__(*args, **kwargs)
@@ -1409,3 +1440,10 @@ class Flow(MetaflowObject):
             Iterator over Run objects in this flow
         """
         return self._filtered_children(*tags)
+
+
+_CLASSES['flow'] = Flow
+_CLASSES['run'] = Run
+_CLASSES['step'] = Step
+_CLASSES['task'] = Task
+_CLASSES['artifact'] = DataArtifact
