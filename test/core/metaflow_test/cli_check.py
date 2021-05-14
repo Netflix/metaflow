@@ -4,8 +4,6 @@ import subprocess
 import json
 from tempfile import NamedTemporaryFile
 
-from metaflow.util import is_stringish
-
 from . import MetaflowCheck, AssertArtifactFailed, AssertLogFailed, truncate
 
 try:
@@ -31,29 +29,17 @@ class CliCheck(MetaflowCheck):
         else:
             subprocess.check_call(cmd)
 
-    def assert_artifact(self, step, name, value, fields=None):
+    def assert_artifact(self, step, name, value):
         for task, artifacts in self.artifact_dict(step, name).items():
             if name in artifacts:
-                artifact = artifacts[name]
-                if fields:
-                    for field, v in fields.items():
-                        if is_stringish(artifact):
-                            data = json.loads(artifact)
-                        else:
-                            data = artifact
-                        if not isinstance(data, dict):
-                            raise AssertArtifactFailed(
-                                "Task '%s' expected %s to be a dictionary (got %s)" %
-                                (task, name, type(data)))
-                        if data.get(field, None) != v:
-                            raise AssertArtifactFailed(
-                                "Task '%s' expected %s[%s]=%r but got %s[%s]=%s" %
-                                (task, name, field, truncate(value), name, field,
-                                    truncate(data[field])))
-                elif artifact != value:
-                    raise AssertArtifactFailed(
-                        "Task '%s' expected %s=%r but got %s=%s" %
-                        (task, name, truncate(value), name, truncate(artifact)))
+                if artifacts[name] != value:
+                    raise AssertArtifactFailed("Task '%s' expected %s=%s "
+                                               "but got %s=%s" %\
+                                               (task,
+                                                name,
+                                                truncate(value),
+                                                name,
+                                                truncate(artifacts[name])))
             else:
                 raise AssertArtifactFailed("Task '%s' expected %s=%s but "
                                            "the key was not found" %\

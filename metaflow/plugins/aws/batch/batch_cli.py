@@ -14,6 +14,7 @@ from metaflow.datastore import MetaflowDataStore
 from metaflow.datastore.local import LocalDataStore
 from metaflow.datastore.util.s3util import get_s3_client
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
+from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from metaflow import util
 from metaflow import R
 from metaflow.exception import (
@@ -167,6 +168,8 @@ def kill(ctx, run_id, user, my_runs):
 @click.option("--shared_memory", help="Shared Memory requirement for AWS Batch.")
 @click.option("--max_swap", help="Max Swap requirement for AWS Batch.")
 @click.option("--swappiness", help="Swappiness requirement for AWS Batch.")
+@click.option('--ubf-context', default=None,
+              type=click.Choice([None, UBF_CONTROL, UBF_TASK]))
 @click.pass_context
 def step(
     ctx,

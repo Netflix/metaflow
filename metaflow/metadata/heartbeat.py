@@ -1,6 +1,5 @@
 import time
 import requests
-import json
 
 from threading import Thread
 from metaflow.sidecar_messages import MessageTypes, Message
@@ -66,7 +65,6 @@ class MetadataHeartBeat(object):
                                          ' (code %s): %s' % 
                                             (self.hb_url, response.status_code,
                                             response.text))
-        return None
 
     def shutdown(self):
         # attempts sending one last heartbeat

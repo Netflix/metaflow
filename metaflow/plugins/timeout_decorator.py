@@ -3,7 +3,7 @@ import traceback
 
 from metaflow.exception import MetaflowException
 from metaflow.decorators import StepDecorator
-
+from metaflow.unbounded_foreach import UBF_CONTROL
 
 class TimeoutException(MetaflowException):
     headline = '@timeout'
@@ -69,9 +69,9 @@ class TimeoutDecorator(StepDecorator):
                       flow,
                       graph,
                       retry_count,
-                      max_user_code_retries):
-
-        if retry_count <= max_user_code_retries:
+                      max_user_code_retries,
+                      ubf_context):
+        if ubf_context != UBF_CONTROL and retry_count <= max_user_code_retries:
             # enable timeout only when executing user code
             self.step_name = step_name
             signal.signal(signal.SIGALRM, self._sigalrm_handler)

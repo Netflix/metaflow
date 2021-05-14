@@ -95,6 +95,7 @@ def run_test(formatter, context, coverage_dir, debug, checks):
                     'LC_ALL': 'C.UTF-8',
                     'PYTHONIOENCODING': 'utf_8',
                     'PATH': os.environ.get('PATH', '.'),
+                    'PYTHONIOENCODING': 'utf_8',
                     'PYTHONPATH': "%s:%s" % (package, pythonpath)})
 
         if 'pre_command' in context:

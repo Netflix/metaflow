@@ -172,12 +172,21 @@ class BatchDecorator(StepDecorator):
         self.package = package
         self.run_id = run_id
 
-    def runtime_task_created(
-        self, datastore, task_id, split_index, input_paths, is_cloned):
+    def runtime_task_created(self,
+                             datastore,
+                             task_id,
+                             split_index,
+                             input_paths,
+                             is_cloned,
+                             ubf_context):
         if not is_cloned:
             self._save_package_once(datastore, self.package)
 
-    def runtime_step_cli(self, cli_args, retry_count, max_user_code_retries):
+    def runtime_step_cli(self,
+                         cli_args,
+                         retry_count,
+                         max_user_code_retries,
+                         ubf_context):
         if retry_count <= max_user_code_retries:
             # after all attempts to run the user code have failed, we don't need
             # Batch anymore. We can execute possible fallback code locally.
@@ -198,7 +207,8 @@ class BatchDecorator(StepDecorator):
                       flow,
                       graph,
                       retry_count,
-                      max_retries):
+                      max_retries,
+                      ubf_context):
         if metadata.TYPE == 'local':
             self.ds_root = ds.root
         else:

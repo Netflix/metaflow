@@ -36,7 +36,8 @@ class UnknownStepDecoratorException(MetaflowException):
 
     def __init__(self, deconame):
         from .plugins import STEP_DECORATORS
-        decos = ','.join(t.name for t in STEP_DECORATORS)
+        decos = ', '.join(t.name for t in STEP_DECORATORS 
+                            if not t.name.endswith('_internal'))
         msg = "Unknown step decorator *{deconame}*. The following decorators are "\
               "supported: *{decos}*".format(deconame=deconame, decos=decos)
         super(UnknownStepDecoratorException, self).__init__(msg)
@@ -57,7 +58,7 @@ class UnknownFlowDecoratorException(MetaflowException):
 
     def __init__(self, deconame):
         from .plugins import FLOW_DECORATORS
-        decos = ','.join(t.name for t in FLOW_DECORATORS)
+        decos = ', '.join(t.name for t in FLOW_DECORATORS)
         msg = "Unknown flow decorator *{deconame}*. The following decorators are "\
               "supported: *{decos}*".format(deconame=deconame, decos=decos)
         super(UnknownFlowDecoratorException, self).__init__(msg)
@@ -220,6 +221,7 @@ class StepDecorator(Decorator):
         Returns a tuple of (user_code_retries, error_retries). Error retries
         are attempts to run the process after the user code has failed all
         its retries.
+        Return None, None to disable all retries by the (native) runtime.
         """
         return 0, 0
 
@@ -235,7 +237,8 @@ class StepDecorator(Decorator):
                              task_id,
                              split_index,
                              input_paths,
-                             is_cloned):
+                             is_cloned,
+                             ubf_context):
         """
         Called when the runtime has created a task related to this step.
         """
@@ -247,7 +250,11 @@ class StepDecorator(Decorator):
         """
         pass
 
-    def runtime_step_cli(self, cli_args, retry_count, max_user_code_retries):
+    def runtime_step_cli(self,
+                         cli_args,
+                         retry_count,
+                         max_user_code_retries,
+                         ubf_context):
         """
         Access the command line for a step execution in the runtime context.
         """
@@ -262,7 +269,8 @@ class StepDecorator(Decorator):
                       flow,
                       graph,
                       retry_count,
-                      max_user_code_retries):
+                      max_user_code_retries,
+                      ubf_context):
         """
         Run before the step function in the task context.
         """
@@ -273,7 +281,8 @@ class StepDecorator(Decorator):
                       flow,
                       graph,
                       retry_count,
-                      max_user_code_retries):
+                      max_user_code_retries,
+                      ubf_context):
         return step_func
 
     def task_post_step(self,
