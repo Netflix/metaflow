@@ -1,19 +1,17 @@
-import os
-import sys
 import json
+import os
 import platform
+import sys
 
-from metaflow.util import get_username, compress_list
+from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import DATASTORE_SYSROOT_S3, METADATA_SERVICE_URL, DEFAULT_METADATA
 from metaflow.parameters import deploy_time_eval
 from metaflow.plugins.aws.batch.batch_decorator import ResourcesDecorator
 from metaflow.plugins.environment_decorator import EnvironmentDecorator
+from metaflow.util import get_username, compress_list
+from .argo_client import ArgoClient
 from .argo_decorator import ArgoStepDecorator, ArgoInternalStepDecorator
 from .argo_exception import ArgoException
-from .argo_client import ArgoClient
-
-
-ENTRYPOINT = 'entry'
 
 
 def dns_name(name):
@@ -23,6 +21,10 @@ def dns_name(name):
     Hence template names couldn't have '_' (underscore).
     """
     return name.replace('_', '-')
+
+
+ENTRYPOINT = 'entry'
+DAG_PREFIX = 'foreach-'
 
 
 def parse_env_param(param, err_msg):
@@ -61,7 +63,7 @@ class ArgoWorkflow:
         self.env = parse_env_param(env, '"env" must be a valid JSON')
         self.env_from = parse_env_param(env_from, '"env-from" must be a valid JSON')
         self.image = image
-        self._flow_attributes = self._parse_flow_docorator()
+        self._flow_attributes = self._parse_flow_decorator()
         self._workflow = self._compile()
 
     def to_json(self):
@@ -123,24 +125,30 @@ class ArgoWorkflow:
         except Exception as e:
             raise ArgoException(str(e))
 
-    def _parse_flow_docorator(self):
+    def _parse_flow_decorator(self):
         if 'argo_base' in self.flow._flow_decorators:
             return self.flow._flow_decorators['argo_base'].attributes
         return {}
 
     def _compile(self):
+        self.parameters = self._parameters()
         return {
             'apiVersion': 'argoproj.io/v1alpha1',
             'kind': 'WorkflowTemplate',
-            'metadata': self._metadata(),
-            'spec': self._spec()
+            'metadata': {
+                'name': dns_name(self.name),
+                'labels': self._flow_attributes.get('labels'),
+                'annotations': self._flow_attributes.get('annotations'),
+            },
+            'spec': {
+                'entrypoint': ENTRYPOINT,
+                'arguments': {
+                    'parameters': self.parameters
+                },
+                'imagePullSecrets': self._flow_attributes.get('imagePullSecrets'),
+                'templates': self._generate_templates(),
+            }
         }
-
-    def _metadata(self):
-        meta = {k: v for k, v in self._flow_attributes.items()
-                if k in ('labels', 'annotations') and v}
-        meta['name'] = dns_name(self.name)
-        return meta
 
     def _parameters(self):
         parameters = []
@@ -160,116 +168,84 @@ class ArgoWorkflow:
             return image
         return 'python:%s.%s' % platform.python_version_tuple()[:2]
 
-    def _spec(self):
-        parameters = self._parameters()
-        spec = {'entrypoint': ENTRYPOINT}
-        if parameters:
-            spec['arguments'] = {'parameters': parameters}
-
-        image_pull_secret = self._flow_attributes.get('imagePullSecrets')
-        if image_pull_secret:
-            spec['imagePullSecrets'] = image_pull_secret
-
-        spec['templates'] = self._generate_templates()
-        return spec
-
-    def _generate_steps(self):
-        # we apply depth-first-search to the graph to sort it and generate the steps
-        # at the same time. The reason for sorting is if both nested foreach and nested
-        # branch happens in the nested foreach. We should be sure that the branches and
-        # their parent must be add in the same DAG, or if user writes his/her script in
-        # any order, sort it before passing to nested DAG.
-        stack = []
-        visited = []
-        steps = []
-        nested_foreach_stack = []
-        stack.append(self.graph['start'])
-        while stack:
-            node = stack.pop()
-            if node.name not in visited:
-                visited.append(node.name)
-                steps.append(
-                    Step(node,
-                         self.graph,
-                         self._default_image(),
-                         self._flow_attributes.get('env', []) + self.env,
-                         self._flow_attributes.get('envFrom', []) + self.env_from,
-                         self._commands(node, self._parameters())
-                    )
-                )
-                for child in node.out_funcs:
-                    # the join node can be added to stack only if all its predecessors (parents)
-                    # are visited. otherwise, skip to add join node till the time that all
-                    # its in_funcs are visited
-                    if self.graph[child].type == 'join' and not \
-                            all(predecessor in visited for predecessor in self.graph[child].in_funcs):
-                        continue
-                    # store the nodes which is nested foreach in stack
-                    if self.graph[child].is_inside_foreach and node.type == 'foreach':
-                        nested_foreach_stack.append(self.graph[child])
-                    stack.append(self.graph[child])
-        return steps, nested_foreach_stack
-
-    def matching_join_of_split_parent(self, node):
-        return self.graph[self.graph[node.split_parents[-1]].matching_join]
-
     def _generate_templates(self):
-        steps, nested_foreach_stack = self._generate_steps()
-        templates = [s.template() for s in steps]
-        nested_dag_template = [self._generate_dag_template(steps, nested_node)
-                               for nested_node in nested_foreach_stack[::-1]]
-        main_dag_template = self._generate_dag_template(steps)
-
-        return [main_dag_template] + templates + nested_dag_template
-
-    def _generate_dag_template(self, steps, nested_node=None):
-        map_node_to_step = {step.node: step for step in steps}
-        tasks = []
-        exit_condition = None
-        nested_dag = {}
-
-        if nested_node:
-            step = map_node_to_step[nested_node]
-            join = self.matching_join_of_split_parent(step.node)
-            nested_dag = nested_dag_template(step.node, join)
-            tasks = nested_dag['dag']['tasks']
-            # This is the exit condition for the current dag
-            exit_condition = map_node_to_step[join]
-            steps = steps[steps.index(step) + 1:steps.index(exit_condition) + 1]
-
-        for step in steps:
-            if exit_condition and step == exit_condition:
-                nested_dag['dag']['tasks'] = tasks
-                return nested_dag
-
-            if not step.visited:
-                step.visited = True
-                tasks.append(step.task())
-                if step.is_nested_foreach():
-                    # the join_after_nested_dag step is belonged to the upper dag if the nested dag occurred
-                    join_after_nested_dag = self.matching_join_of_split_parent(step.node)
-                    task = join_foreach_task(join_after_nested_dag, ptask=step.node.name)
-                    tasks.append(task)
-                    map_node_to_step[join_after_nested_dag].visited = True
-                    continue
-
-        main_dag_template = {
+        tasks, nested_dags = self._visit(self.graph['start'])
+        dag = {
             'name': ENTRYPOINT,
             'dag': {
                 'tasks': tasks
             }
         }
 
-        return main_dag_template
+        return [dag] + nested_dags + [self.container_template(self.graph[node]) for node in self.graph.nodes]
 
-    def _commands(self, node, parameters):
+    def _visit(self, node, tasks=[], nested_dags=[], exit_node=None):
+        """
+        Traverse linear nodes.
+        Special treatment of split and foreach subgraphs
+        Nested Dag is inserted for first child of foreach
+        """
+
+        def _linear_or_start_task(node):
+            if node.name == 'start':
+                return start_task()
+            else:
+                return linear_task(node)
+
+        if node.type == 'end':
+            tasks.append(linear_task(node))
+
+        elif node == exit_node:
+            pass  # end recursion
+
+        elif self._is_foreach_first_child(node):
+            tasks.append(foreach_task(node))
+            join = self.graph[self.graph[node.split_parents[-1]].matching_join]
+            # create nested dag and add tasks for foreach block
+            nested = nested_dag(node, join)
+            if node.type == 'split-and':
+                nested_tasks, nested_dags = self._visit_split(node, tasks=[dag_first_task(node)],
+                                                              nested_dags=nested_dags, exit_node=join)
+            else:
+                nested_tasks, nested_dags = self._visit(self.graph[node.out_funcs[0]], tasks=[dag_first_task(node)],
+                                                        nested_dags=nested_dags, exit_node=join)
+
+            nested['dag']['tasks'] = nested_tasks
+            nested_dags.append(nested)
+            # join ends the foreach block
+            tasks.append(join_foreach_task(join, node.name))
+            # continue with node after join
+            tasks, nested_dags = self._visit(self.graph[join.out_funcs[0]], tasks, nested_dags, exit_node)
+
+        elif node.type in ('linear', 'join', 'foreach'):
+            tasks.append(_linear_or_start_task(node))
+            tasks, nested_dags = self._visit(self.graph[node.out_funcs[0]], tasks, nested_dags, exit_node)
+
+        elif node.type == 'split-and':
+            tasks.append(_linear_or_start_task(node))
+            tasks, nested_dags = self._visit_split(node, tasks, nested_dags, exit_node)
+
+        else:
+            raise MetaflowException('Undefined node type: {} in step: {}'.format(node.type, node.name))
+
+        return tasks, nested_dags
+
+    def _visit_split(self, node, tasks, nested_dags, exit_node):
+        join = self.graph[node.matching_join]
+        # traverse branches
+        for out in node.out_funcs:
+            tasks, nested_dags = self._visit(self.graph[out], tasks, nested_dags, exit_node=join)
+        # finally continue with join node
+        return self._visit(join, tasks, nested_dags, exit_node)
+
+    def _commands(self, node):
         cmds = self.environment.get_package_commands(self.code_package_url)
         cmds.extend(self.environment.bootstrap_commands(node.name))
         cmds.append("echo 'Task is starting.'")
-        cmds.extend(self._step_commands(node, parameters))
+        cmds.extend(self._step_commands(node))
         return cmds
 
-    def _step_commands(self, node, parameters):
+    def _step_commands(self, node):
         cmds = []
         script_name = os.path.basename(sys.argv[0])
         executable = self.environment.executable(node.name)
@@ -296,7 +272,7 @@ class ArgoWorkflow:
                 '--task-id %s' % task_id_params,
             ]
             params.extend(['--%s={{workflow.parameters.%s}}' %
-                           (p['name'], p['name']) for p in parameters])
+                           (p['name'], p['name']) for p in self.parameters])
             cmds.append(' '.join(params))
             paths = '%s/_parameters/%s' % (run_id, task_id_params)
 
@@ -305,7 +281,7 @@ class ArgoWorkflow:
             # which will be used by --input-paths $METAFLOW_PARENT_PATHS
             module = 'metaflow.plugins.argo.convert_argo_aggregation'
             export_parent_tasks = 'METAFLOW_PARENT_PATHS=$(python -m %s %s)' \
-                % (module, paths)
+                                  % (module, paths)
             paths = '$METAFLOW_PARENT_PATHS'
 
             cmds.append(export_parent_tasks)
@@ -336,124 +312,87 @@ class ArgoWorkflow:
         cmds.append(' '.join(entrypoint + top_level + step))
         return cmds
 
+    def _is_foreach_first_child(self, node):
+        if node.in_funcs:
+            parent = self.graph[node.in_funcs[-1]]
+            return node.is_inside_foreach and parent.type == 'foreach'
+        return False
 
-class Step:
-    def __init__(self,
-                 node,
-                 graph,
-                 default_image,
-                 env,
-                 env_from,
-                 commands):
-        self.name = dns_name(node.name)
-        self.node = node
-        self.graph = graph
-        self.default_image = default_image
-        self.flow_env = env
-        self.flow_env_from = env_from
-        self.cmds = commands
-        self.visited = False
-        self._attr = self._parse_step_decorator(ArgoStepDecorator)
-        self._attr.update(self._parse_step_decorator(ResourcesDecorator))
-        self._attr.update(self._parse_step_decorator(EnvironmentDecorator))
+    def container_template(self, node):
+        """
+        Returns an argo container template spec. to execute a step
+        """
+        attr = parse_step_decorator(node, ArgoStepDecorator)
+        env_decorator = parse_step_decorator(node, EnvironmentDecorator)
+        res_decorator = parse_step_decorator(node, ResourcesDecorator)
 
-    def _parse_step_decorator(self, deco_type):
-        deco = [d for d in self.node.decorators if isinstance(d, deco_type)]
-        return deco[0].attributes if deco else {}
+        image = self._default_image()
+        if attr.get('image'):
+            image = attr['image']
+        env, env_from = self._prepare_environment(attr, env_decorator)
+        res = self._resources(res_decorator)
 
-    def _parent(self):
-        return self.node.in_funcs[0]
-
-    def is_nested_foreach(self):
-        return self.node.is_inside_foreach and \
-            self.graph[self._parent()].type == 'foreach'
-
-    def task(self):
-        if self.name == 'start':
-            return start_task()
-        if self.is_nested_foreach():
-            return child_foreach_task(self.node)
-        return regular_task(self.node)
-
-    def template(self):
-        tmpl = {
-            'name': self.name,
-            'inputs': self._inputs(),
-            'outputs': self._outputs()
+        template = {
+            'name': dns_name(node.name),
+            'metadata': {
+                'labels': attr.get('labels'),
+                'annotations': attr.get('annotations')
+            },
+            'inputs': {
+                'parameters': [{
+                    'name': 'input-paths'
+                }],
+                'artifacts': attr.get('input_artifacts'),
+            },
+            'outputs': {
+                'parameters': [{
+                    'name': 'task-id',
+                    'value': '{{pod.name}}'
+                }],
+                'artifacts': attr.get('output_artifacts')
+            },
+            'nodeSelector': attr.get('nodeSelector'),
+            'container': {
+                'image': image,
+                'command': ['/bin/sh'],
+                'args': ['-c', ' && '.join(self._commands(node))],
+                'env': env,
+                'envFrom': env_from,
+                'resources': {
+                    'requests': res,
+                    'limits': res
+                }
+            },
         }
-        metadata = {k: v for k, v in self._attr.items()
-                    if k in ('labels', 'annotations') and v}
-        if metadata:
-            tmpl['metadata'] = metadata
-        if self._attr.get('nodeSelector'):
-            tmpl['nodeSelector'] = self._attr['nodeSelector']
-        tmpl['container'] = self._container()
-        return tmpl
 
-    def _inputs(self):
-        params = ['input-paths']
-        if self.is_nested_foreach():
-            params.append('split-index')
-        inputs = {
-            'parameters': [{'name': ip} for ip in params]
-        }
-        artifacts = self._attr.get('input_artifacts')
-        if artifacts:
-            inputs['artifacts'] = artifacts
-        return inputs
+        if self._is_foreach_first_child(node):
+            template['inputs']['parameters'].append({
+                'name': 'split-index'
+            })
 
-    def _outputs(self):
-        params = [{
-            'name': 'task-id',
-            'value': '{{pod.name}}'
-        }]
-        if self.node.type == 'foreach':
-            params.append({
+        if node.type == 'foreach':
+            template['outputs']['parameters'].append({
                 'name': 'num-splits',
                 'valueFrom': {'path': ArgoInternalStepDecorator.splits_file_path}
             })
-        outputs = {'parameters': params}
-        artifacts = self._attr.get('output_artifacts')
-        if artifacts:
-            outputs['artifacts'] = artifacts
-        return outputs
 
-    def _container(self):
-        image = self.default_image
-        if self._attr.get('image'):
-            image = self._attr['image']
-        env, env_from = self._prepare_environment()
-        container = {
-            'image': image,
-            'command': ['/bin/sh'],
-            'args': ['-c', ' && '.join(self.cmds)],
-            'env': env,
-        }
-        if env_from:
-            container['envFrom'] = env_from
-        res = self._resources()
-        if res:
-            container['resources'] = {
-                'requests': res,
-                'limits': res
-            }
-        return container
+        return template
 
-    def _resources(self):
+    def _resources(self, attr):
         res = {}
-        cpu = self._attr.get('cpu')
+        cpu = attr.get('cpu')
         if cpu:
             res['cpu'] = int(cpu)
-        mem = self._attr.get('memory')
+        mem = attr.get('memory')
         if mem:
             # argo cluster treats memory as kb
             res['memory'] = str(mem) + 'Mi'
-        gpu = self._attr.get('gpu')
+        gpu = attr.get('gpu')
         if gpu:
             res['nvidia.com/gpu'] = int(gpu)
         return res
 
-    def _prepare_environment(self):
+    def _prepare_environment(self, attr, env_decorator):
         default = {
             'METAFLOW_USER': get_username(),
             'METAFLOW_DATASTORE_SYSROOT_S3': DATASTORE_SYSROOT_S3,
@@ -463,11 +402,16 @@ class Step:
         if DEFAULT_METADATA:
             default['METAFLOW_DEFAULT_METADATA'] = DEFAULT_METADATA
         # add env vars from @environment decorator if exist
-        default.update(self._attr.get('vars', {}))
+        default.update(env_decorator.get('vars', {}))
         default_env = [{'name': k, 'value': v} for k, v in default.items()]
-        env = default_env + self.flow_env + self._attr.get('env', [])
-        env_from = self.flow_env_from + self._attr.get('envFrom', [])
+        env = default_env + self._flow_attributes.get('env', []) + self.env + attr.get('env', [])
+        env_from = self._flow_attributes.get('envFrom', []) + self.env_from + attr.get('envFrom', [])
         return env, env_from
+
+
+def parse_step_decorator(node, deco_type):
+    deco = [d for d in node.decorators if isinstance(d, deco_type)]
+    return deco[0].attributes if deco else {}
 
 
 def start_task():
@@ -480,30 +424,6 @@ def start_task():
                 'value': '{{workflow.name}}/_parameters/0'
             }]
         }
-    }
-
-
-def child_foreach_task(node):
-    name = dns_name(node.name)
-    pstep = node.in_funcs[-1]
-    ptask = dns_name(pstep)
-    return {
-        'name': name,
-        'template': 'nested-' + name,
-        'dependencies': [ptask],
-        'arguments': {
-            'parameters': [
-                {
-                    'name': 'input-paths',
-                    'value': '{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}' % (pstep, ptask)
-                },
-                {
-                    'name': 'split-index',
-                    'value': '{{item}}'
-                }
-            ]
-        },
-        'withParam': '{{tasks.%s.outputs.parameters.num-splits}}' % ptask,
     }
 
 
@@ -527,24 +447,51 @@ def dag_first_task(node):
     }
 
 
-def join_foreach_task(node, ptask):
+def foreach_task(node):
+    """
+    the block, which encapsulates the inner steps of the foreach
+    """
     name = dns_name(node.name)
-    pstep = node.in_funcs[-1]
-    ptask = dns_name(ptask)
+    parent_node = node.in_funcs[-1]
+    parent_name = dns_name(parent_node)
+    return {
+        'name': name,  # this name is displayed in argo UI
+        'template': dns_name(DAG_PREFIX + name),
+        'dependencies': [parent_name],
+        'arguments': {
+            'parameters': [
+                {
+                    'name': 'input-paths',
+                    'value': '{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}' % (parent_node, parent_name)
+                },
+                {
+                    'name': 'split-index',
+                    'value': '{{item}}'
+                }
+            ]
+        },
+        'withParam': '{{tasks.%s.outputs.parameters.num-splits}}' % parent_name
+    }
+
+
+def join_foreach_task(node, parent_task):
+    name = dns_name(node.name)
+    parent_step = node.in_funcs[-1]
+    parent_task_name = dns_name(parent_task)
     return {
         'name': name,
         'template': name,
-        'dependencies': [ptask],
+        'dependencies': [parent_task_name],
         'arguments': {
             'parameters': [{
                 'name': 'input-paths',
-                'value': '{{workflow.name}}/%s/{{tasks.%s.outputs.parameters}}' % (pstep, ptask)
+                'value': '{{workflow.name}}/%s/{{tasks.%s.outputs.parameters}}' % (parent_step, parent_task_name)
             }]
         }
     }
 
 
-def regular_task(node):
+def linear_task(node):
     name = dns_name(node.name)
     paths = ['{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}' % (n, dns_name(n)) for n in node.in_funcs]
     return {
@@ -560,11 +507,10 @@ def regular_task(node):
     }
 
 
-def nested_dag_template(node, join):
-    name = dns_name(node.name)
+def nested_dag(node, join):
     last_dag_task = dns_name(join.in_funcs[0])
     return {
-        'name': 'nested-%s' % name,
+        'name': dns_name(DAG_PREFIX + node.name),
         'inputs': {
             'parameters': [
                 {
@@ -585,7 +531,5 @@ def nested_dag_template(node, join):
                 }
             ]
         },
-        'dag': {
-            'tasks': [dag_first_task(node)]
-        }
+        'dag': {}
     }
