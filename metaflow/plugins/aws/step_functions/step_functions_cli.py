@@ -24,9 +24,19 @@ def cli():
     pass
 
 @cli.group(help="Commands related to AWS Step Functions.")
+@click.option('--name',
+              default=None,
+              type=str,
+              help="State Machine name. The flow name is used instead "
+                   "if this option is not specified")
 @click.pass_obj
-def step_functions(obj):
+def step_functions(obj,
+                   name=None):
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
+    if name:
+        obj.state_machine_name = state_machine_name(name)
+    else:
+        obj.state_machine_name = state_machine_name(current.flow_name)
 
 @step_functions.command(help="Deploy a new version of this workflow to "
                     "AWS Step Functions.")
@@ -82,13 +92,13 @@ def create(obj,
            given_token=None,
            max_workers=None,
            workflow_timeout=None):
-    name = state_machine_name(current.flow_name)
-    obj.echo("Deploying *%s* to AWS Step Functions..." % name, bold=True)
+    obj.echo("Deploying *%s* to AWS Step Functions..." % obj.state_machine_name,
+             bold=True)
 
     check_metadata_service_version(obj)
 
-    token = resolve_token(name,
-                          name.lower(),
+    token = resolve_token(obj.state_machine_name,
+                          obj.state_machine_name.lower(),
                           obj,
                           authorize,
                           given_token,
@@ -96,7 +106,7 @@ def create(obj,
 
     flow = make_flow(obj,
                      token,
-                     name,
+                     obj.state_machine_name,
                      tags,
                      user_namespace,
                      max_workers,
@@ -107,7 +117,8 @@ def create(obj,
     else:
         flow.deploy()
         obj.echo("Workflow *{name}* pushed to "
-                 "AWS Step Functions successfully.\n".format(name=name), 
+                 "AWS Step Functions successfully.\n"
+                    .format(name=obj.state_machine_name), 
                  bold=True)
 
         flow.schedule()
@@ -277,12 +288,12 @@ def trigger(obj, **kwargs):
     params = {param.name: _convert_value(param)
               for _, param in obj.flow._get_parameters()
                 if kwargs.get(param.name) is not None}
-    name = state_machine_name(current.flow_name)
-    response = StepFunctions.trigger(name, params)
+    response = StepFunctions.trigger(obj.state_machine_name, params)
 
     id = response['executionArn'].split(':')[-1]
     obj.echo("Workflow *{name}* triggered on AWS Step Functions "
-        "(run-id *sfn-{id}*).".format(name=name, id=id), bold=True)
+        "(run-id *sfn-{id}*)."
+            .format(name=obj.state_machine_name, id=id), bold=True)
 
 
 @step_functions.command(
@@ -304,11 +315,11 @@ def trigger(obj, **kwargs):
         "AWS Step Functions.")
 @click.pass_obj
 def list_runs(obj, 
-        running=False,
-        succeeded=False,
-        failed=False,
-        timed_out=False,
-        aborted=False):
+              running=False,
+              succeeded=False,
+              failed=False,
+              timed_out=False,
+              aborted=False):
     states = []
     if running:
         states.append('RUNNING')
@@ -320,8 +331,7 @@ def list_runs(obj,
         states.append('TIMED_OUT')
     if aborted:
         states.append('ABORTED')
-    name = state_machine_name(current.flow_name)
-    executions = StepFunctions.list(name, states)
+    executions = StepFunctions.list(obj.state_machine_name, states)
     found = False
     for execution in executions:
         found = True
@@ -359,7 +369,7 @@ def list_runs(obj,
                     status += ', '
                 status += '*%s*' % state
             obj.echo('No %s executions for *%s* found on AWS Step Functions.'
-                % (status, name))
+                % (status, obj.state_machine_name))
         else:
             obj.echo('No executions for *%s* found on AWS Step Functions.' \
-                % (name))
+                % (obj.state_machine_name))
