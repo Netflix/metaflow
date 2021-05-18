@@ -30,7 +30,14 @@ digraph Metaflow {
         validate_env     [label="{environment|validate_environment}", fillcolor=palegreen2]
         flow_init        [label="{decorator|flow_init}", fillcolor=lightblue2]
         step_init        [label="{decorator|step_init}", fillcolor=lightblue2]
-        choose_command   [shape="circle", label="choose\ncommand", width=1, fillcolor=grey78]
+        choose_command   [shape="circle", label="Choose\nCommand", width=1, fillcolor=grey78]
+    }
+
+    subgraph cluster_package {
+        label="Code Package"
+        labeljust=l
+        fontsize=14
+
         validate_dag     [label="{graph|validate}", fillcolor=lightpink2]
         init_environment [label="{environment|init_environment}", fillcolor=palegreen2]
         package_init     [label="{decorator|package_init}", fillcolor=lightblue2]
@@ -39,7 +46,7 @@ digraph Metaflow {
     }
 
     subgraph cluster_local_run {
-        label="Local run"
+        label="Local Run"
         labeljust=l
         fontsize=14
 
@@ -48,9 +55,20 @@ digraph Metaflow {
         runtime_init        [label="{decorator|runtime_init}", fillcolor=lightblue2]
         local_params        [label="{runtime|persist_parameters}", fillcolor=lightpink2]
         start_run_heartbeat [label="{metadata|start_run_heartbeat}", fillcolor=lightgoldenrod1]
-        schedule_local_task [shape="circle", label="schedule\ntask", width=1, fillcolor=grey78]
+        schedule_local_task [shape="circle", label="Schedule\nTask", width=1, fillcolor=grey78]
         runtime_finished    [label="{decorator|runtime_finished}", fillcolor=lightblue2]
         stop_run_heartbeat  [label="{metadata|stop_run_heartbeat}", fillcolor=lightgoldenrod1]
+    }
+
+    subgraph cluster_init_deuce {
+        label="Initialization"
+        labeljust=l
+        fontsize=14
+
+        validate_env_deuce    [label="{environment|validate_environment}", fillcolor=palegreen2]
+        flow_init_deuce       [label="{decorator|flow_init}", fillcolor=lightblue2]
+        step_init_deuce       [label="{decorator|step_init}", fillcolor=lightblue2]
+        choose_command_deuce  [shape="circle", label="Choose\nCommand", width=1, fillcolor=grey78]
     }
 
     subgraph cluster_stepfunctions_deploy {
@@ -58,8 +76,8 @@ digraph Metaflow {
         labeljust=l
         fontsize=14
 
-        stepfunctions_create  [label="{command|stepfunctions create}", fillcolor=tan]
-        push_to_stepfunctions [shape="circle", label="push to AWS\nStep Functions", width=1, fillcolor=grey78]
+        stepfunctions_create  [label="{command|step-functions create}", fillcolor=tan]
+        push_to_stepfunctions [shape="circle", label="Push to AWS\nStep Functions", width=1, fillcolor=grey78]
     }
 
     subgraph cluster_batch {
@@ -73,25 +91,27 @@ digraph Metaflow {
     }
 
     subgraph cluster_stepfunctions_run {
-        label="AWS Step Functions trigger"
+        label="AWS Step Functions Trigger"
         labeljust=l
         fontsize=14
 
-        stepfunctions_run [label="{AWS Step Functions|start_execution}", fillcolor=lightpink2]
+        stepfunctions_trigger         [label="{command|step-functions trigger}", fillcolor=tan]
+        stepfunctions_run             [label="{AWS Step Functions|start_execution}", fillcolor=lightpink2]
         stepfunctions_bootstrap_batch [shape="circle", label="Bootstrap\nAWS Batch", width=1, fillcolor=grey78]
-        stepfunctions_init    [label="{command|init}" fillcolor=tan]
-        stepfunctions_params  [label="{runtime|persist_parameters}", fillcolor=lightpink2]
+        stepfunctions_init            [label="{command|init}" fillcolor=tan]
+        stepfunctions_params          [label="{runtime|persist_parameters}", fillcolor=lightpink2]
+        stepfunctions_task            [shape="circle", label="Execute\nTask", width=1, fillcolor=grey78]
     }
 
     subgraph cluster_local_task {
-        label="Initialize local task"
+        label="Initialize Local Task"
         labeljust=l
         fontsize=14
 
         new_local_task       [label="{metadata|new_task_id}", fillcolor=lightgoldenrod1]
         runtime_task_created [label="{decorator|runtime_task_created}", fillcolor=lightblue2]
         runtime_step_cli     [label="{decorator|runtime_step_cli}", fillcolor=lightblue2]
-        launch_local         [shape="circle", label="execute\ntask", width=1, fillcolor=grey78]
+        launch_local         [shape="circle", label="Execute\nTask", width=1, fillcolor=grey78]
     }
 
     subgraph cluster_task {
@@ -105,7 +125,7 @@ digraph Metaflow {
         start_task_heartbeat [label="{metadata|start_task_heartbeat}", fillcolor=lightgoldenrod1]
         task_pre_step        [label="{decorator|task_pre_step}", fillcolor=lightblue2]
         task_decorate        [label="{decorator|task_decorate}", fillcolor=lightblue2]
-        user_code            [shape="circle", label="execute\nuser code", width=1, fillcolor=grey78]
+        user_code            [shape="circle", label="Execute\nUser Code", width=1, fillcolor=grey78]
         task_post_step       [label="{decorator|task_post_step}", fillcolor=lightblue2]
         task_exception       [label="{decorator|task_exception}", fillcolor=lightblue2]
         persist_artifacts    [label="{datastore|persist}", fillcolor=lightpink2]
@@ -120,6 +140,12 @@ digraph Metaflow {
     flow_init -> step_init
     step_init -> choose_command
     choose_command -> validate_dag
+
+    validate_env_deuce -> flow_init_deuce
+    flow_init_deuce -> step_init_deuce
+    step_init_deuce -> choose_command_deuce
+    
+    /* package */
     validate_dag -> init_environment
     init_environment -> package_init
     package_init -> add_to_package
@@ -144,20 +170,23 @@ digraph Metaflow {
     new_local_task -> runtime_task_created
     runtime_task_created -> runtime_step_cli
     runtime_step_cli -> launch_local
-    launch_local -> task_entry [label="local task"]
-    launch_local -> batch_step [label="AWS Batch task"]
+    launch_local -> validate_env_deuce
+    choose_command_deuce -> task_entry [label="local task"]
+    choose_command_deuce -> batch_step [label="AWS Batch task"]
 
-    /* Batch run */
+    /* batch run */
     batch_step -> launch_batch
     launch_batch -> local_bootstrap_batch
-    local_bootstrap_batch -> task_entry
+    local_bootstrap_batch -> validate_env_deuce
 
-    /* Step Functions run */
+    /* step functions run */
+    stepfunctions_trigger -> stepfunctions_run
     stepfunctions_run -> stepfunctions_bootstrap_batch
     stepfunctions_bootstrap_batch -> stepfunctions_init [label="AWS Step Functions start"]
-    stepfunctions_bootstrap_batch -> task_entry [label="AWS Step Functions task"]
+    stepfunctions_bootstrap_batch -> stepfunctions_task [label="AWS Step Functions task"]
     stepfunctions_init -> stepfunctions_params
-    stepfunctions_params -> task_entry
+    stepfunctions_params -> stepfunctions_task
+    stepfunctions_task -> validate_env_deuce
 
     /* task */
     task_entry -> register_run
