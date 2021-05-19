@@ -106,6 +106,7 @@ class KubeflowPipelines(object):
         base_image=None,
         s3_code_package=True,
         tags=None,
+        experiment=None,
         namespace=None,
         kfp_namespace=None,
         api_namespace=None,
@@ -131,6 +132,7 @@ class KubeflowPipelines(object):
         self.event_logger = event_logger
         self.monitor = monitor
         self.tags = tags
+        self.experiment = experiment
         self.namespace = namespace
         self.kfp_namespace = kfp_namespace
         self.api_namespace = api_namespace
@@ -146,7 +148,7 @@ class KubeflowPipelines(object):
         self.notify_on_success = notify_on_success
         self._client = None
 
-    def create_run_on_kfp(self, experiment: str, run_name: str, flow_parameters: dict):
+    def create_run_on_kfp(self, run_name: str, flow_parameters: dict):
         """
         Creates a new run on KFP using the `kfp.Client()`.
         """
@@ -163,7 +165,7 @@ class KubeflowPipelines(object):
         return self._client.create_run_from_pipeline_func(
             pipeline_func=pipeline_func,
             arguments={"flow_parameters_json": json.dumps(flow_parameters)},
-            experiment_name=experiment,
+            experiment_name=self.experiment,
             run_name=run_name,
             namespace=self.kfp_namespace,
         )
@@ -504,7 +506,9 @@ class KubeflowPipelines(object):
         return " && ".join(cmds)
 
     @staticmethod
-    def _set_container_settings(container_op: ContainerOp, kfp_component: KfpComponent):
+    def _set_container_resources(
+        container_op: ContainerOp, kfp_component: KfpComponent
+    ):
         resource_requirements: Dict[str, str] = kfp_component.resource_requirements
         if "memory" in resource_requirements:
             container_op.container.set_memory_request(resource_requirements["memory"])
@@ -531,6 +535,20 @@ class KubeflowPipelines(object):
             container_op.container.set_ephemeral_storage_limit(
                 resource_requirements["local_storage_limit"]
             )
+
+    def _set_container_labels(
+        self, container_op: ContainerOp, node: DAGNode, metaflow_run_id: str
+    ):
+        prefix = "metaflow.org"
+        container_op.add_pod_label(f"{prefix}/flow_name", self.name)
+        container_op.add_pod_label(f"{prefix}/step", node.name)
+        container_op.add_pod_label(f"{prefix}/run_id", metaflow_run_id)
+
+        if self.experiment:
+            container_op.add_pod_label(f"{prefix}/experiment", self.experiment)
+        if self.tags and len(self.tags) > 0:
+            for tag in self.tags:
+                container_op.add_pod_label(f"{prefix}/tag_{tag}", "true")
 
     def step_op(
         self,
@@ -699,9 +717,10 @@ class KubeflowPipelines(object):
                     METAFLOW_SERVICE_URL=METADATA_SERVICE_URL,
                     METAFLOW_USER=METAFLOW_USER,
                 )
+                metaflow_run_id = f"kfp-{dsl.RUN_ID_PLACEHOLDER}"
                 step_op_args = dict(
                     cmd_template=kfp_component.cmd_template,
-                    kfp_run_id=f"kfp-{dsl.RUN_ID_PLACEHOLDER}",
+                    metaflow_run_id=metaflow_run_id,
                     metaflow_configs=metaflow_configs,
                     passed_in_split_indexes=passed_in_split_indexes,
                     preceding_component_inputs=preceding_component_inputs,
@@ -767,7 +786,8 @@ class KubeflowPipelines(object):
                         for name in next_kfp_decorator_component.preceding_component_outputs
                     }
 
-                KubeflowPipelines._set_container_settings(container_op, kfp_component)
+                KubeflowPipelines._set_container_resources(container_op, kfp_component)
+                self._set_container_labels(container_op, node, metaflow_run_id)
 
                 if node.type == "foreach":
                     # Please see nested_parallelfor.ipynb for how this works

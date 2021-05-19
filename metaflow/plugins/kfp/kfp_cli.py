@@ -270,6 +270,7 @@ def run(
         obj,
         pipeline_name if pipeline_name else obj.flow.name,
         tags,
+        experiment,
         namespace,
         kfp_namespace,
         api_namespace,
@@ -303,9 +304,7 @@ def run(
             "Deploying *%s* to Kubeflow Pipelines..." % current.flow_name,
             bold=True,
         )
-        run_pipeline_result = flow.create_run_on_kfp(
-            experiment, run_name, flow_parameters
-        )
+        run_pipeline_result = flow.create_run_on_kfp(run_name, flow_parameters)
 
         obj.echo("\nRun created successfully!\n")
 
@@ -366,6 +365,7 @@ def make_flow(
     obj,
     name,
     tags,
+    experiment,
     namespace,
     kfp_namespace,
     api_namespace,
@@ -390,7 +390,7 @@ def make_flow(
 
     datastore = (
         None
-        if (not s3_code_package and yaml_only)
+        if (not s3_code_package)
         else obj.datastore(
             obj.flow.name,
             mode="w",
@@ -436,6 +436,7 @@ def make_flow(
         base_image=base_image,
         s3_code_package=s3_code_package,
         tags=tags,
+        experiment=experiment,
         namespace=namespace,
         kfp_namespace=kfp_namespace,
         api_namespace=api_namespace,

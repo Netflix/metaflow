@@ -129,9 +129,8 @@ test:internal:
         bash -c "
           export KFP_RUN_URL_PREFIX=https://kubeflow.corp.dev-k8s.zg-aip.net/ && 
           export KFP_SDK_NAMESPACE=metaflow-integration-testing && 
-          export METAFLOW_DATASTORE_SYSROOT_S3=s3://aip-example-dev/metaflow/ && 
-          export METAFLOW_USER=${GITLAB_USER_EMAIL} &&
-          cd /home/zservice/metaflow/metaflow/plugins/kfp/tests && 
+          export USER=${GITLAB_USER_EMAIL} &&
+          cd /home/zservice/metaflow/metaflow/plugins/kfp/tests &&
           python -m pytest -s -n 2 run_integration_tests.py --image ${BUILT_IMAGE_FULL_PATH} --cov-config=setup.cfg
         "
   artifacts:
@@ -163,11 +162,10 @@ test:nonprod:
         -e AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION 
         ${BUILT_IMAGE_FULL_PATH}
         bash -c "
-          export KFP_RUN_URL_PREFIX=https://kubeflow.corp.stage-k8s.zg-aip.net/ && 
-          export KFP_SDK_NAMESPACE=metaflow-integration-testing-dev && 
-          export METAFLOW_DATASTORE_SYSROOT_S3=s3://aip-example-stage/metaflow/ && 
-          export METAFLOW_USER=${GITLAB_USER_EMAIL} &&
-          cd /home/zservice/metaflow/metaflow/plugins/kfp/tests && 
+          export KFP_RUN_URL_PREFIX=https://kubeflow.corp.stage-k8s.zg-aip.net/ &&
+          export KFP_SDK_NAMESPACE=metaflow-integration-testing-dev &&
+          export USER=${GITLAB_USER_EMAIL} &&
+          cd /home/zservice/metaflow/metaflow/plugins/kfp/tests &&
           python -m pytest -s -n 2 run_integration_tests.py --image ${BUILT_IMAGE_FULL_PATH} --cov-config=setup.cfg
         "
   artifacts:
@@ -201,9 +199,8 @@ test:prod:
         bash -c "
           export KFP_RUN_URL_PREFIX=https://kubeflow.corp.prod-k8s.zg-aip.net/ && 
           export KFP_SDK_NAMESPACE=metaflow-integration-testing-prod && 
-          export METAFLOW_DATASTORE_SYSROOT_S3=s3://aip-example-prod/metaflow/ &&
-          export METAFLOW_USER=${GITLAB_USER_EMAIL} && 
-          cd /home/zservice/metaflow/metaflow/plugins/kfp/tests && 
+          export USER=${GITLAB_USER_EMAIL} &&
+          cd /home/zservice/metaflow/metaflow/plugins/kfp/tests &&
           python -m pytest -s -n 2 run_integration_tests.py --image ${BUILT_IMAGE_FULL_PATH} --cov-config=setup.cfg
         "
   artifacts:

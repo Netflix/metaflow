@@ -3,7 +3,7 @@ from typing import List, Dict
 
 def kfp_step_function(
     cmd_template: str,
-    kfp_run_id: str,
+    metaflow_run_id: str,
     metaflow_configs: Dict[str, str],
     passed_in_split_indexes: str = '""',  # only if is_inside_foreach
     preceding_component_inputs: List[
@@ -40,7 +40,7 @@ def kfp_step_function(
     }
 
     cmd = cmd_template.format(
-        run_id=kfp_run_id,
+        run_id=metaflow_run_id,
         passed_in_split_indexes=passed_in_split_indexes,
     )
 

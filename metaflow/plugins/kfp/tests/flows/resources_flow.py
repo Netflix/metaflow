@@ -9,7 +9,7 @@ from kubernetes.client import (
     V1ResourceFieldSelector,
 )
 
-from metaflow import FlowSpec, step, environment, resources
+from metaflow import FlowSpec, step, environment, resources, current
 
 
 def get_env_vars(env_resources: Dict[str, str]) -> List[V1EnvVar]:
@@ -51,6 +51,25 @@ kubernetes_vars.append(
     )
 )
 
+annotations = {
+    "metaflow.org/flow_name": "MF_NAME",
+    "metaflow.org/step": "MF_STEP",
+    "metaflow.org/run_id": "MF_RUN_ID",
+    "metaflow.org/experiment": "MF_EXPERIMENT",
+    "metaflow.org/tag_metaflow_test": "MF_TAG_METAFLOW_TEST",
+    "metaflow.org/tag_test_t1": "MF_TAG_TEST_T1",
+}
+for annotation, env_name in annotations.items():
+    kubernetes_vars.append(
+        V1EnvVar(
+            name=env_name,
+            value_from=V1EnvVarSource(
+                field_ref=V1ObjectFieldSelector(field_path=f"metadata.labels['{annotation}']")
+            ),
+        )
+    )
+
+
 
 class ResourcesFlow(FlowSpec):
     @resources(
@@ -78,6 +97,13 @@ class ResourcesFlow(FlowSpec):
         assert os.environ.get("LOCAL_STORAGE_LIMIT") == "242000000"
         assert os.environ.get("MEMORY") == "500000000"
         assert os.environ.get("MEMORY_LIMIT") == "1000000000"
+
+        assert os.environ.get("MF_NAME") == current.flow_name
+        assert os.environ.get("MF_STEP") == current.step_name
+        assert os.environ.get("MF_RUN_ID") == current.run_id
+        assert os.environ.get("MF_EXPERIMENT") == "mf_test"
+        assert os.environ.get("MF_TAG_METAFLOW_TEST") == "true"
+        assert os.environ.get("MF_TAG_TEST_T1") == "true"
 
         self.next(self.end)
 
