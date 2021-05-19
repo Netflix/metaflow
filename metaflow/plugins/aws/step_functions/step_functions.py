@@ -45,7 +45,8 @@ class StepFunctions(object):
                  namespace=None,
                  username=None,
                  max_workers=None,
-                 workflow_timeout=None):
+                 workflow_timeout=None,
+                 is_project=False):
         self.name = name
         self.graph = graph
         self.flow = flow

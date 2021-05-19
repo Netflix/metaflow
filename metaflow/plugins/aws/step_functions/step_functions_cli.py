@@ -1,7 +1,7 @@
 import click
 import json
-from distutils.version import LooseVersion
 import re
+from distutils.version import LooseVersion
 
 from metaflow import current, decorators, parameters, JSONType
 from metaflow.metaflow_config import SFN_STATE_MACHINE_PREFIX
@@ -36,7 +36,8 @@ def cli():
 def step_functions(obj,
                    name=None):
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
-    obj.state_machine_name = resolve_state_machine_name(name)
+    obj.state_machine_name, obj.token_prefix, obj.is_project = \
+                                              resolve_state_machine_name(name)
 
 @step_functions.command(help="Deploy a new version of this workflow to "
                     "AWS Step Functions.")
@@ -103,11 +104,12 @@ def create(obj,
     check_metadata_service_version(obj)
 
     token = resolve_token(obj.state_machine_name,
-                          obj.state_machine_name.lower(),
+                          obj.token_prefix,
                           obj,
                           authorize,
                           given_token,
-                          generate_new_token)
+                          generate_new_token,
+                          obj.is_project)
 
     flow = make_flow(obj,
                      token,
@@ -115,7 +117,8 @@ def create(obj,
                      tags,
                      user_namespace,
                      max_workers,
-                     workflow_timeout)
+                     workflow_timeout,
+                     obj.is_project)
 
     if only_json:
         obj.echo_always(flow.to_json(), err=False, no_bold=True)
@@ -158,11 +161,25 @@ def resolve_state_machine_name(name):
       if SFN_STATE_MACHINE_PREFIX is not None:
           return SFN_STATE_MACHINE_PREFIX + '_' + name
       return name
+    project = current.get('project_name')
+    if project:
+        if name:
+            raise MetaflowException("--name is not supported for @projects. "
+                                    "Use --branch instead.")
+        state_machine_name = attach_prefix(current.project_flow_name)
+        project_branch = to_bytes('.'.join((project, current.branch_name)))
+        token_prefix = 'mfprj-%s' % sha1(project_branch).hexdigest()
+        is_project = True
+    else:
+        if name and VALID_NAME.search(name):
+            raise MetaflowException(
+                "Name '%s' contains invalid characters." % name)
 
-    if name and VALID_NAME.search(name):
-        raise MetaflowException("Name '%s' contains invalid characters." % name)
-    
-    return attach_prefix(name if name else current.flow_name)
+        state_machine_name = attach_prefix(name if name else current.flow_name)
+        token_prefix = state_machine_name.lower()
+        is_project = False
+
+    return state_machine_name, token_prefix, is_project
 
 def make_flow(obj,
               token,
@@ -170,7 +187,8 @@ def make_flow(obj,
               tags,
               namespace,
               max_workers,
-              workflow_timeout):
+              workflow_timeout,
+              is_project):
     datastore = obj.datastore(obj.flow.name,
                               mode='w',
                               metadata=obj.metadata,
@@ -204,16 +222,19 @@ def make_flow(obj,
                          namespace=namespace,
                          max_workers=max_workers,
                          username=get_username(),
-                         workflow_timeout=workflow_timeout)
+                         workflow_timeout=workflow_timeout,
+                         is_project=is_project)
 
 def resolve_token(name,
                   token_prefix,
                   obj,
                   authorize,
                   given_token,
-                  generate_new_token):
+                  generate_new_token,
+                  is_project):
 
     # 1) retrieve the previous deployment, if one exists
+    #TODO - Check existing deployment with is_project enabled
     workflow = StepFunctions.get_existing_deployment(name)
     if workflow is None:
         obj.echo("It seems this is the first time you are deploying *%s* to "
@@ -248,6 +269,12 @@ def resolve_token(name,
 
     # 3) do we need a new token or should we use the existing token?
     if given_token:
+        if is_project:
+            # we rely on a known prefix for @project tokens, so we can't
+            # allow the user to specify a custom token with an arbitrary prefix
+            raise MetaflowException("--new-token is not supported for "
+                                    "@projects. Use --generate-new-token to "
+                                    "create a new token.")
         if given_token.startswith('production:'):
             given_token = given_token[11:]
         token = given_token
