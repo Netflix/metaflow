@@ -82,6 +82,10 @@ def step_functions(obj,
               default=None,
               type=int,
               help="Workflow timeout in seconds.")
+@click.option('--log-execution-history',
+              is_flag=True,
+              help="Log AWS Step Functions execution history to AWS CloudWatch "
+                   "Logs log group.")
 @click.pass_obj
 def create(obj,
            tags=None,
@@ -91,7 +95,8 @@ def create(obj,
            generate_new_token=False,
            given_token=None,
            max_workers=None,
-           workflow_timeout=None):
+           workflow_timeout=None,
+           log_execution_history=False):
     obj.echo("Deploying *%s* to AWS Step Functions..." % obj.state_machine_name,
              bold=True)
 
@@ -115,7 +120,7 @@ def create(obj,
     if only_json:
         obj.echo_always(flow.to_json(), err=False, no_bold=True)
     else:
-        flow.deploy()
+        flow.deploy(log_execution_history)
         obj.echo("Workflow *{name}* pushed to "
                  "AWS Step Functions successfully.\n"
                     .format(name=obj.state_machine_name), 

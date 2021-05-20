@@ -13,7 +13,7 @@ from metaflow.plugins import ResourcesDecorator, BatchDecorator, RetryDecorator
 from metaflow.parameters import deploy_time_eval
 from metaflow.util import compress_list, dict_to_cli_options, to_pascalcase
 from metaflow.metaflow_config import SFN_IAM_ROLE, \
-    EVENTS_SFN_ACCESS_IAM_ROLE, SFN_DYNAMO_DB_TABLE
+    EVENTS_SFN_ACCESS_IAM_ROLE, SFN_DYNAMO_DB_TABLE, SFN_EXECUTION_LOG_GROUP_ARN
 from metaflow import R
 
 from .step_functions_client import StepFunctionsClient
@@ -83,7 +83,7 @@ class StepFunctions(object):
             return 'No triggers defined. '\
                 'You need to launch this workflow manually.'
 
-    def deploy(self):
+    def deploy(self, log_execution_history):
         if SFN_IAM_ROLE is None:
             raise StepFunctionsException("No IAM role found for AWS Step "
                                          "Functions. You can create one "
@@ -94,11 +94,21 @@ class StepFunctions(object):
                                          "re-configure Metaflow using "
                                          "*metaflow configure aws* on your "
                                          "terminal.")
+        if log_execution_history:
+            if SFN_EXECUTION_LOG_GROUP_ARN is None:
+                raise StepFunctionsException("No AWS CloudWatch Logs log "
+                                             "group ARN found for emitting "
+                                             "state machine execution logs for "
+                                             "your workflow. You can set it in "
+                                             "your environment by using the "
+                                             "METAFLOW_SFN_EXECUTION_LOG_GROUP_ARN "
+                                             "environment variable.")
         try:
             self._state_machine_arn = self._client.push(
                     name = self.name, 
                     definition = self.to_json(), 
-                    roleArn = SFN_IAM_ROLE
+                    role_arn = SFN_IAM_ROLE,
+                    log_execution_history = log_execution_history
                 )
         except Exception as e:
             raise StepFunctionsException(repr(e))

@@ -124,6 +124,10 @@ EVENTS_SFN_ACCESS_IAM_ROLE = from_conf("METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE")
 # Prefix for AWS Step Functions state machines. Set to stack name for Metaflow
 # sandbox.
 SFN_STATE_MACHINE_PREFIX = from_conf("METAFLOW_SFN_STATE_MACHINE_PREFIX")
+# Optional AWS CloudWatch Log Group ARN for emitting AWS Step Functions state
+# machine execution logs. This needs to be available when using the 
+# `step-functions create --log-execution-history` command.
+SFN_EXECUTION_LOG_GROUP_ARN = from_conf("METAFLOW_SFN_EXECUTION_LOG_GROUP_ARN")
 
 ###
 # Conda configuration
