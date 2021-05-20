@@ -64,7 +64,11 @@ class Batch(object):
         # 1) initializes the mflog environment (mflog_expr)
         # 2) bootstraps a metaflow environment (init_expr)
         # 3) executes a task (step_expr)
-        cmd_str = 'mkdir -p /logs && %s && %s && %s; ' % \
+
+        # the `true` command is to make sure that the generated command
+        # plays well with docker containers which have entrypoint set as
+        # eval $@
+        cmd_str = 'true && mkdir -p /logs && %s && %s && %s; ' % \
                         (mflog_expr, init_expr, step_expr)
         # after the task has finished, we save its exit code (fail/success)
         # and persist the final logs. The whole entrypoint should exit
