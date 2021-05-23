@@ -1,6 +1,7 @@
 import click
 import json
 from distutils.version import LooseVersion
+import re
 
 from metaflow import current, decorators, parameters, JSONType
 from metaflow.metaflow_config import SFN_STATE_MACHINE_PREFIX
@@ -12,6 +13,8 @@ from metaflow.util import get_username
 
 from .step_functions import StepFunctions
 from .production_token import load_token, store_token, new_token
+
+VALID_NAME = re.compile('[^a-zA-Z0-9_\-\.]')
 
 class IncorrectProductionToken(MetaflowException):
     headline = "Incorrect production token"
@@ -33,10 +36,7 @@ def cli():
 def step_functions(obj,
                    name=None):
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
-    if name:
-        obj.state_machine_name = state_machine_name(name)
-    else:
-        obj.state_machine_name = state_machine_name(current.flow_name)
+    obj.state_machine_name = resolve_state_machine_name(name)
 
 @step_functions.command(help="Deploy a new version of this workflow to "
                     "AWS Step Functions.")
@@ -153,10 +153,16 @@ def check_metadata_service_version(obj):
                                                "version of metaflow service "
                                                "(>=2.0.2).")
 
-def state_machine_name(name):
-    if SFN_STATE_MACHINE_PREFIX is not None:
-        return SFN_STATE_MACHINE_PREFIX + '_' + name
-    return name
+def resolve_state_machine_name(name):
+    def attach_prefix(name):
+      if SFN_STATE_MACHINE_PREFIX is not None:
+          return SFN_STATE_MACHINE_PREFIX + '_' + name
+      return name
+
+    if name and VALID_NAME.search(name):
+        raise MetaflowException("Name '%s' contains invalid characters." % name)
+    
+    return attach_prefix(name if name else current.flow_name)
 
 def make_flow(obj,
               token,
