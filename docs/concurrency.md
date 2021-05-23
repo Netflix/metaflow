@@ -5,7 +5,7 @@ concept parallelism:
 *Concurrency is the composition of independently executing processes,
 while parallelism is the simultaneous execution of (possibly related)
 computations* from
-[a talk by Rob Bike, Concurrency is not Parallelism](https://blog.golang.org/concurrency-is-not-parallelism):
+[a talk by Rob Pike, Concurrency is not Parallelism](https://blog.golang.org/concurrency-is-not-parallelism):
 
 **Parallelism** is a relatively straighforward and quantifiable
 concept. However, it is not always easy to decide what constructs of
