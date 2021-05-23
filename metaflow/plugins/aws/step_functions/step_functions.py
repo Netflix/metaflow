@@ -298,7 +298,16 @@ class StepFunctions(object):
     def _process_parameters(self):
         parameters = []
         has_schedule = self._cron() is not None
+        seen = set()
         for var, param in self.flow._get_parameters():
+            # Throw an exception if the parameter is specified twice.
+            norm = param.name.lower()
+            if norm in seen:
+                raise MetaflowException("Parameter *%s* is specified twice. "
+                                        "Note that parameter names are "
+                                        "case-insensitive." % param.name)
+            seen.add(norm)
+
             valuetype = param.kwargs.get('type', str)
             value = deploy_time_eval(param.kwargs.get('default'))
             required = param.kwargs.get('required', False)
@@ -309,6 +318,7 @@ class StepFunctions(object):
                                         "ambiguous. It does not have a "
                                         "default and it is not required."
                                         % param.name)
+
             # Throw an exception if a schedule is set for a flow with required
             # parameters with no defaults. We currently don't have any notion
             # of data triggers in AWS Event Bridge.
