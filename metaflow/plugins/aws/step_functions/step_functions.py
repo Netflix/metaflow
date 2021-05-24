@@ -539,7 +539,7 @@ class StepFunctions(object):
         env['METAFLOW_RUN_ID'] = attrs['metaflow.run_id.$']
         env['METAFLOW_PRODUCTION_TOKEN'] = self.production_token
         env['SFN_STATE_MACHINE'] = self.name
-        env['METAFLOW_SFN_USER'] = attrs['metaflow.owner']
+        env['METAFLOW_OWNER'] = attrs['metaflow.owner']
         # Can't set `METAFLOW_TASK_ID` due to lack of run-scoped identifiers.
         # We will instead rely on `AWS_BATCH_JOB_ID` as the task identifier.
         # Can't set `METAFLOW_RETRY_COUNT` either due to integer casting issue.

@@ -91,8 +91,8 @@ def format_name(flow_name,
         branch = 'prod'
     else:
         # For AWS Step Functions, we set the branch to the value of
-        # environment variable `METAFLOW_SFN_USER`, since AWS Step Functions
+        # environment variable `METAFLOW_OWNER`, since AWS Step Functions
         # has no notion of user name.
-        branch = 'user.%s' % os.environ.get('METAFLOW_SFN_USER', user_name)
+        branch = 'user.%s' % os.environ.get('METAFLOW_OWNER', user_name)
 
     return '.'.join((project_name, branch, flow_name)), branch
