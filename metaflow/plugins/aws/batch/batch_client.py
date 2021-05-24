@@ -377,11 +377,17 @@ class RunningJob(object):
         try:
             data = self._client.describe_jobs(jobs=[self._id])
         except self._client.exceptions.ClientError as err:
+            raise TriableException(err)
             code = err.response['ResponseMetadata']['HTTPStatusCode']
             if code == 429 or code >= 500:
                 raise TriableException(err)
             raise err
-        self._apply(data['jobs'][0])
+        try:
+            self._apply(data['jobs'][0])
+        except:
+            raise ValueError(
+                    'Unexpected response for batch.describe_jobs for '
+                    'AWS Batch job [%s]: %s' % (self._id, data))
 
     def update(self):
         self._update()
