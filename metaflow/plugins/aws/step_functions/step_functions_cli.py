@@ -23,6 +23,9 @@ class IncorrectProductionToken(MetaflowException):
 class IncorrectMetadataServiceVersion(MetaflowException):
     headline = "Incorrect version for metaflow service"
 
+class StepFunctionsStateMachineNameTooLong(MetaflowException):
+    headline = "AWS Step Functions state machine name too long"
+
 @click.group()
 def cli():
     pass
@@ -33,12 +36,17 @@ def cli():
               type=str,
               help="State Machine name. The flow name is used instead "
                    "if this option is not specified")
+@click.option('--hash-id/--no-hash-id',
+              default=False,
+              help='Enable this flag if the name of the workflow exceeds '\
+                   '80 characters.')
 @click.pass_obj
 def step_functions(obj,
-                   name=None):
+                   name=None,
+                   hash_id=None):
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
     obj.state_machine_name, obj.token_prefix, obj.is_project = \
-                                              resolve_state_machine_name(name)
+                                      resolve_state_machine_name(name, hash_id)
 
 @step_functions.command(help="Deploy a new version of this workflow to "
                     "AWS Step Functions.")
@@ -159,7 +167,7 @@ def check_metadata_service_version(obj):
                                                "version of metaflow service "
                                                "(>=2.0.2).")
 
-def resolve_state_machine_name(name):
+def resolve_state_machine_name(name, hash_id):
     def attach_prefix(name):
       if SFN_STATE_MACHINE_PREFIX is not None:
           return SFN_STATE_MACHINE_PREFIX + '_' + name
@@ -181,6 +189,26 @@ def resolve_state_machine_name(name):
         state_machine_name = attach_prefix(name if name else current.flow_name)
         token_prefix = state_machine_name.lower()
         is_project = False
+
+    # the --hash-id option is only needed due to the 80 character state machine
+    # name limit in AWS Step Functions.
+    if len(state_machine_name) > 80:
+        if hash_id:
+            name_hash = sha1(state_machine_name.encode('utf-8')).hexdigest()
+            # construct an 80 character long state machine name
+            state_machine_name =\
+                '%s_%s' % (state_machine_name[:39], name_hash)
+        else:
+            msg = "The full name of the workflow:\n*%s*\nis longer than 80 "\
+                  "characters.\n\n"\
+                  "To deploy this workflow to AWS Step Functions, please "\
+                  "use the option\n *step-functions --hash-id create*.\n\n"\
+                  "This option will make the id "\
+                  "shorter by hashing the name. We don't do this\n"\
+                  "automatically since it makes the workflow name less "\
+                  "readable. Besides this\ncosmetic issue, everything will "\
+                  "work as usual with --hash-id." % state_machine_name
+            raise StepFunctionsStateMachineNameTooLong(msg)
 
     return state_machine_name, token_prefix, is_project
 

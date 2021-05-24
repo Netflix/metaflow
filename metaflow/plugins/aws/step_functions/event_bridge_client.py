@@ -1,12 +1,12 @@
 import json
-
+from hashlib import sha1
 
 class EventBridgeClient(object):
 
     def __init__(self, name):
         from ..aws_client import get_aws_client
         self._client = get_aws_client('events')
-        self.name = name
+        self.name = format(name)
 
     def cron(self, cron):
         self.cron = cron
@@ -26,8 +26,10 @@ class EventBridgeClient(object):
             self._disable()
         else:
             self._set()
+        return self.name
 
     def _disable(self):
+        print(self.name)
         try:
             self._client.disable_rule(
                 Name=self.name
@@ -56,3 +58,12 @@ class EventBridgeClient(object):
                 }
             ]
         )
+
+# Unfortunately the Event Bridge rule names are restricted to 64 characters.
+def format(name):
+    if len(name) > 64:
+        name_hash = sha1(name.encode('utf-8')).hexdigest()
+        # construct an 64 character long rule name
+        return '%s_%s' % (name[:23], name_hash)
+    else:
+        return name

@@ -80,7 +80,7 @@ class StepFunctions(object):
             # format and push to the user for a better UX, someday.
             return 'This workflow triggers automatically '\
                 'via a cron schedule *%s* defined in AWS EventBridge.' \
-                % self.name
+                % self.event_bridge_rule
         else:
             return 'No triggers defined. '\
                 'You need to launch this workflow manually.'
@@ -130,11 +130,11 @@ class StepFunctions(object):
                                                    "using *metaflow configure "
                                                    "aws* on your terminal.")
         try:
-            EventBridgeClient(self.name) \
-                .cron(self._cron) \
-                .role_arn(EVENTS_SFN_ACCESS_IAM_ROLE) \
-                .state_machine_arn(self._state_machine_arn) \
-                .schedule()
+            self.event_bridge_rule = EventBridgeClient(self.name) \
+                                        .cron(self._cron) \
+                                        .role_arn(EVENTS_SFN_ACCESS_IAM_ROLE) \
+                                        .state_machine_arn(self._state_machine_arn) \
+                                        .schedule()
         except Exception as e:
             raise StepFunctionsSchedulingException(repr(e))
 
