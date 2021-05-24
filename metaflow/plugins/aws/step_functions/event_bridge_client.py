@@ -29,7 +29,6 @@ class EventBridgeClient(object):
         return self.name
 
     def _disable(self):
-        print(self.name)
         try:
             self._client.disable_rule(
                 Name=self.name
