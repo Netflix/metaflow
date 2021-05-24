@@ -1,4 +1,5 @@
 import click
+from hashlib import sha1
 import json
 import re
 from distutils.version import LooseVersion
@@ -9,7 +10,7 @@ from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.datastore.datastore import TransformableObject
 from metaflow.package import MetaflowPackage
 from metaflow.plugins import BatchDecorator
-from metaflow.util import get_username
+from metaflow.util import get_username, to_bytes
 
 from .step_functions import StepFunctions
 from .production_token import load_token, store_token, new_token
@@ -124,9 +125,11 @@ def create(obj,
         obj.echo_always(flow.to_json(), err=False, no_bold=True)
     else:
         flow.deploy(log_execution_history)
-        obj.echo("Workflow *{name}* pushed to "
+        obj.echo("State Machine *{state_machine}* "
+                 "for flow *{name}* pushed to "
                  "AWS Step Functions successfully.\n"
-                    .format(name=obj.state_machine_name), 
+                    .format(state_machine=obj.state_machine_name,
+                            name=current.flow_name), 
                  bold=True)
 
         flow.schedule()

@@ -11,6 +11,7 @@ import uuid
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.plugins import ResourcesDecorator, BatchDecorator, RetryDecorator
 from metaflow.parameters import deploy_time_eval
+from metaflow.decorators import flow_decorators
 from metaflow.util import compress_list, dict_to_cli_options, to_pascalcase
 from metaflow.metaflow_config import SFN_IAM_ROLE, \
     EVENTS_SFN_ACCESS_IAM_ROLE, SFN_DYNAMO_DB_TABLE, SFN_EXECUTION_LOG_GROUP_ARN
@@ -538,7 +539,7 @@ class StepFunctions(object):
         env['METAFLOW_RUN_ID'] = attrs['metaflow.run_id.$']
         env['METAFLOW_PRODUCTION_TOKEN'] = self.production_token
         env['SFN_STATE_MACHINE'] = self.name
-        #env['METAFLOW_USER'] = attrs['metaflow.owner']
+        env['METAFLOW_SFN_USER'] = attrs['metaflow.owner']
         # Can't set `METAFLOW_TASK_ID` due to lack of run-scoped identifiers.
         # We will instead rely on `AWS_BATCH_JOB_ID` as the task identifier.
         # Can't set `METAFLOW_RETRY_COUNT` either due to integer casting issue.
@@ -657,6 +658,14 @@ class StepFunctions(object):
         # Use AWS Batch job identifier as the globally unique task identifier.
         task_id = '${AWS_BATCH_JOB_ID}'
 
+        # FlowDecorators can define their own top-level options. They are
+        # responsible for adding their own top-level options and values through
+        # the get_top_level_options() hook. See similar logic in runtime.py.
+        top_opts_dict = {}
+        for deco in flow_decorators():
+            top_opts_dict.update(deco.get_top_level_options())
+        top_opts = list(dict_to_cli_options(top_opts_dict))
+
         if node.name == 'start':
             # We need a separate unique ID for the special _parameters task
             task_id_params = '%s-params' % task_id
@@ -667,7 +676,7 @@ class StepFunctions(object):
                 'python -m ' \
                 'metaflow.plugins.aws.step_functions.set_batch_environment ' \
                 'parameters %s && . `pwd`/%s' % (param_file, param_file)
-            params = entrypoint +\
+            params = entrypoint + top_opts +\
                 ['--quiet',
                  '--metadata=%s' % self.metadata.TYPE,
                  '--environment=%s' % self.environment.TYPE,
@@ -705,7 +714,7 @@ class StepFunctions(object):
                     % (parent_tasks_file, parent_tasks_file)
             cmds.append(export_parent_tasks)
 
-        top_level = [
+        top_level = top_opts + [
             '--quiet',
             '--metadata=%s' % self.metadata.TYPE,
             '--environment=%s' % self.environment.TYPE,

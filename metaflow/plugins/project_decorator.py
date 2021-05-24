@@ -3,6 +3,7 @@ from metaflow.decorators import FlowDecorator
 from metaflow import current
 from metaflow.util import get_username
 
+import os
 import re
 
 # be careful when changing these limits. Other systems that see
@@ -29,7 +30,14 @@ class ProjectDecorator(FlowDecorator):
                  "not specified.")
     }
 
-    def flow_init(self, flow, graph, environment, logger, echo, options):
+    def flow_init(self,
+                  flow,
+                  graph,
+                  environment,
+                  datastore,
+                  logger,
+                  echo,
+                  options):
         self._option_values = options
         project_name = self.attributes.get('name')
         project_flow_name, branch_name = format_name(flow.name,
@@ -37,9 +45,6 @@ class ProjectDecorator(FlowDecorator):
                                                      options['production'],
                                                      options['branch'],
                                                      get_username())
-        echo("Project flow name: *%s*\n" % project_flow_name,
-             fg='magenta',
-             highlight='green')
         is_user_branch = options['branch'] is None and not options['production']
         current._update_env({'project_name': project_name,
                              'branch_name': branch_name,
@@ -69,7 +74,7 @@ def format_name(flow_name,
                                 "%d characters." % VALID_NAME_LEN)
 
     if given_branch and deploy_prod:
-        raise MetaflowException("Specify either --deploy_prod or --branch.")
+        raise MetaflowException("Specify either --production or --branch.")
 
     if given_branch:
         if re.search(VALID_NAME_RE, given_branch):
@@ -85,6 +90,9 @@ def format_name(flow_name,
     elif deploy_prod:
         branch = 'prod'
     else:
-        branch = 'user.%s' % user_name
+        # For AWS Step Functions, we set the branch to the value of
+        # environment variable `METAFLOW_SFN_USER`, since AWS Step Functions
+        # has no notion of user name.
+        branch = 'user.%s' % os.environ.get('METAFLOW_SFN_USER', user_name)
 
     return '.'.join((project_name, branch, flow_name)), branch
