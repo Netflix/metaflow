@@ -377,7 +377,6 @@ class RunningJob(object):
         try:
             data = self._client.describe_jobs(jobs=[self._id])
         except self._client.exceptions.ClientError as err:
-            raise TriableException(err)
             code = err.response['ResponseMetadata']['HTTPStatusCode']
             if code == 429 or code >= 500:
                 raise TriableException(err)
