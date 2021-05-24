@@ -292,13 +292,15 @@ def resolve_token(name,
 @click.pass_obj
 def trigger(obj, **kwargs):
     def _convert_value(param):
-        v = kwargs.get(param.name)
-        return json.dumps(v) if param.kwargs.get('type') == JSONType else \
-            v() if callable(v) else v
+        # Swap `-` with `_` in parameter name to match click's behavior
+        val = kwargs.get(param.name.replace('-', '_').lower())
+        return json.dumps(val) if param.kwargs.get('type') == JSONType else \
+            val() if callable(val) else val
 
     params = {param.name: _convert_value(param)
               for _, param in obj.flow._get_parameters()
-                if kwargs.get(param.name) is not None}
+                if kwargs.get(param.name.replace('-', '_').lower()) is not None}
+
     response = StepFunctions.trigger(obj.state_machine_name, params)
 
     id = response['executionArn'].split(':')[-1]

@@ -249,17 +249,8 @@ def set_parameters(flow, kwargs):
         seen.add(norm)
 
     flow._success = True
-    # Impose length constraints on parameter names as some backend systems
-    # impose limits on environment variables (which are used to implement
-    # parameters)
-    parameter_list_length = 0
-    num_parameters = 0
     for var, param in flow._get_parameters():
         val = kwargs[param.name.replace('-', '_').lower()]
-        # Account for the parameter values to unicode strings or integer
-        # values. And the name to be a unicode string.
-        parameter_list_length += len((param.name + str(val)).encode("utf-8"))
-        num_parameters += 1
         # Support for delayed evaluation of parameters. This is used for
         # includefile in particular
         if callable(val):
