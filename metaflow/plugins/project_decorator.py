@@ -73,9 +73,6 @@ def format_name(flow_name,
         raise MetaflowException("The @project name must be shorter than "
                                 "%d characters." % VALID_NAME_LEN)
 
-    if given_branch and deploy_prod:
-        raise MetaflowException("Specify either --production or --branch.")
-
     if given_branch:
         if re.search(VALID_NAME_RE, given_branch):
             raise MetaflowException("The branch name must contain only "
@@ -85,8 +82,10 @@ def format_name(flow_name,
             raise MetaflowException("Branch name is too long. "
                                     "The maximum is %d characters."\
                                     % VALID_NAME_LEN)
-
-        branch = 'test.%s' % given_branch
+        if deploy_prod:
+            branch = 'prod.%s' % given_branch
+        else:
+            branch = 'test.%s' % given_branch
     elif deploy_prod:
         branch = 'prod'
     else:
