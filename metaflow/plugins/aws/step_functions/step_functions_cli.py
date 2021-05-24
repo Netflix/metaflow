@@ -237,7 +237,6 @@ def resolve_token(name,
                   is_project):
 
     # 1) retrieve the previous deployment, if one exists
-    #TODO - Check existing deployment with is_project enabled
     workflow = StepFunctions.get_existing_deployment(name)
     if workflow is None:
         obj.echo("It seems this is the first time you are deploying *%s* to "
