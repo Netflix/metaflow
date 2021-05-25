@@ -13,6 +13,7 @@ from metaflow.metaflow_config import (
     KFP_SDK_API_NAMESPACE,
     KFP_SDK_NAMESPACE,
     KFP_USER_DOMAIN,
+    KFP_MAX_PARALLELISM,
     from_conf,
 )
 from metaflow.package import MetaflowPackage
@@ -155,7 +156,7 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
 @click.option(
     "--max-parallelism",
     "-m",
-    default=10,
+    default=KFP_MAX_PARALLELISM,
     show_default=True,
     help="Maximum number of parallel pods.",
 )

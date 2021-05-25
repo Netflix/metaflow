@@ -1,5 +1,6 @@
 import os
 import pprint
+import subprocess
 from typing import Dict, List
 
 from kubernetes.client import (
@@ -64,11 +65,12 @@ for annotation, env_name in annotations.items():
         V1EnvVar(
             name=env_name,
             value_from=V1EnvVarSource(
-                field_ref=V1ObjectFieldSelector(field_path=f"metadata.labels['{annotation}']")
+                field_ref=V1ObjectFieldSelector(
+                    field_path=f"metadata.labels['{annotation}']"
+                )
             ),
         )
     )
-
 
 
 class ResourcesFlow(FlowSpec):
@@ -80,7 +82,9 @@ class ResourcesFlow(FlowSpec):
         memory="500",
         memory_limit="1G",
     )
-    @environment(vars={"MY_ENV": "value"}, kubernetes_vars=kubernetes_vars)  # pylint: disable=E1102
+    @environment(
+        vars={"MY_ENV": "value"}, kubernetes_vars=kubernetes_vars
+    )  # pylint: disable=E1102
     @step
     def start(self):
         pprint.pprint(dict(os.environ))
@@ -101,9 +105,29 @@ class ResourcesFlow(FlowSpec):
         assert os.environ.get("MF_NAME") == current.flow_name
         assert os.environ.get("MF_STEP") == current.step_name
         assert os.environ.get("MF_RUN_ID") == current.run_id
-        assert os.environ.get("MF_EXPERIMENT") == "mf_test"
+        assert os.environ.get("MF_EXPERIMENT") == "metaflow_test"
         assert os.environ.get("MF_TAG_METAFLOW_TEST") == "true"
         assert os.environ.get("MF_TAG_TEST_T1") == "true"
+
+        self.items = [1, 2]
+        self.next(self.split_step, foreach="items")
+
+    @resources(volume="11G")
+    @step
+    def split_step(self):
+        output = subprocess.check_output(
+            "df -h | grep /opt/metaflow_volume", shell=True
+        )
+        assert "11G" in str(output)
+        self.next(self.join_step)
+
+    @resources(volume="12G")
+    @step
+    def join_step(self, inputs):
+        output = subprocess.check_output(
+            "df -h | grep /opt/metaflow_volume", shell=True
+        )
+        assert "12G" in str(output)
 
         self.next(self.end)
 

@@ -6,7 +6,9 @@ from metaflow import FlowSpec, step, kfp, resources
 
 
 @kfp_component(use_code_pickling=False)
-def div_mod(dividend: int, divisor: int) -> NamedTuple("result", [('quotient', int), ('remainder', int)]):
+def div_mod(
+    dividend: int, divisor: int
+) -> NamedTuple("result", [("quotient", int), ("remainder", int)]):
     print(f"dividend={dividend}, divisor={divisor}")
     return divmod(dividend, divisor)
 
@@ -15,10 +17,8 @@ class KfpFlow(FlowSpec):
     """
     Test adding a KFP Component and decorators
     """
-    @resources(
-        cpu=0.25, cpu_limit=5,
-        memory=150, memory_limit="1G"
-    )
+
+    @resources(cpu=0.25, cpu_limit=5, memory=150, memory_limit="1G")
     @step
     def start(self):
         """
@@ -45,5 +45,5 @@ class KfpFlow(FlowSpec):
         assert int(self.remainder) == 5
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     KfpFlow()

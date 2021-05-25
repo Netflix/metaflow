@@ -53,6 +53,8 @@ class ResourcesDecorator(StepDecorator):
     local_storage: Union[int, str]
         Not for AWS Batch.
         KFP: Local ephemeral storage required.
+            NOTE: If you need to increase local ephemeral storage, then we recommend requesting storage
+            which creates a volume instead.
             This is local disk storage per step and lost after the step.
             Default unit is MB.
             More memory units are supported, including "E", "P", "T", "G", "M", "K". (i.e. "4000M")
@@ -60,6 +62,20 @@ class ResourcesDecorator(StepDecorator):
     local_storage_limit: Union[int, str]
         Not for AWS Batch.
         KFP: Local ephemeral storage limit.
+    volume: Union[int, str]
+        Not for AWS Batch.
+        KFP: Attaches a volume which by default is not accessible to subsequent steps.
+            NOTE: The volume persists state across step (container) retries.
+            Default unit is MB.
+            More memory units are supported, including "E", "P", "T", "G", "M", "K". (i.e. "4000M")
+            Defaults None - relying on Kubernetes defaults.
+    volume_mode: str
+        Not for AWS batch.
+        [ReadWriteOnce, ReadWriteMany]
+        ReadWriteOnce: can be used by this step only
+        ReadWriteMany: can be used by this step onwards.
+    volume_dir: str
+        Default "/opt/metaflow_volume"
     """
     name = 'resources'
 
@@ -77,5 +93,8 @@ class ResourcesDecorator(StepDecorator):
         "gpu_vendor": None,
         "memory_limit": None,
         "local_storage": None,
-        "local_storage_limit": None
+        "local_storage_limit": None,
+        "volume": None,
+        "volume_mode": "ReadWriteOnce",
+        "volume_dir": "/opt/metaflow_volume"
     }

@@ -58,6 +58,11 @@ KFP_SDK_NAMESPACE = from_conf('KFP_SDK_NAMESPACE', 'kubeflow')
 KFP_SDK_API_NAMESPACE = from_conf('KFP_SDK_API_NAMESPACE', 'kubeflow')
 KFP_TTL_SECONDS_AFTER_FINISHED = from_conf('KFP_TTL_SECONDS_AFTER_FINISHED', None)
 KFP_USER_DOMAIN = from_conf('KFP_USER_DOMAIN', '')
+# Note: `KFP_RUN_URL_PREFIX` is the URL prefix for KFP runs on your KFP cluster. The prefix includes
+# all parts of the URL except the run_id at the end which we append once the run is created.
+# For eg, this would look like: "https://<your-kf-cluster-url>/pipeline/#/runs/details/"
+KFP_RUN_URL_PREFIX = from_conf('KFP_RUN_URL_PREFIX', "")
+KFP_MAX_PARALLELISM = int(from_conf('KFP_MAX_PARALLELISM', 10))
 
 ###
 # Datastore configuration
@@ -179,12 +184,6 @@ if AWS_SANDBOX_ENABLED:
 # Decreasing this limit is very unsafe, as it can lead to wrong results
 # being read from old tasks.
 MAX_ATTEMPTS = 6
-
-
-# Note: `KFP_RUN_URL_PREFIX` is the URL prefix for KFP runs on your KFP cluster. The prefix includes
-# all parts of the URL except the run_id at the end which we append once the run is created.
-# For eg, this would look like: "https://<your-kf-cluster-url>/pipeline/#/runs/details/"
-KFP_RUN_URL_PREFIX = from_conf('KFP_RUN_URL_PREFIX', "")
 
 # the naughty, naughty driver.py imported by lib2to3 produces
 # spam messages to the root logger. This is what is required
