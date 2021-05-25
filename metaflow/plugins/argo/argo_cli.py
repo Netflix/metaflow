@@ -39,13 +39,17 @@ def argo(obj):
               'k8s_namespace',
               default=None,
               help="Deploy into the specified kubernetes namespace.")
+@click.option('--embedded',
+              is_flag=True,
+              default=False,
+              help="Don't download code package into step containers. "
+                   "Docker images should have a flow and all dependencies embedded.")
 @click.option('--only-json',
               is_flag=True,
               default=False,
-              help="Only print out JSON sent to Argo. Do not "
-                   "deploy anything.")
+              help="Only print out JSON sent to Argo. Do not deploy anything.")
 @click.pass_obj
-def create(obj, image, env, env_from, token, k8s_namespace, only_json=False):
+def create(obj, image, env, env_from, token, k8s_namespace, embedded, only_json=False):
     name = argo_workflow_name(current.flow_name.lower())
     obj.echo("Deploying *%s* to Argo Workflow Templates..." % name, bold=True)
 
@@ -72,7 +76,7 @@ def create(obj, image, env, env_from, token, k8s_namespace, only_json=False):
                             obj.flow,
                             obj.graph,
                             obj.package,
-                            package_url,
+                            package_url if not embedded else None,
                             obj.metadata,
                             obj.datastore,
                             obj.environment,

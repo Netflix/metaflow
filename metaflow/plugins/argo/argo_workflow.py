@@ -239,7 +239,9 @@ class ArgoWorkflow:
         return self._visit(join, tasks, nested_dags, exit_node)
 
     def _commands(self, node):
-        cmds = self.environment.get_package_commands(self.code_package_url)
+        cmds = []
+        if self.code_package_url:
+            cmds.extend(self.environment.get_package_commands(self.code_package_url))
         cmds.extend(self.environment.bootstrap_commands(node.name))
         cmds.append("echo 'Task is starting.'")
         cmds.extend(self._step_commands(node))
