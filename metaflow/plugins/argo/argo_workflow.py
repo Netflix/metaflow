@@ -27,13 +27,6 @@ ENTRYPOINT = 'entry'
 DAG_PREFIX = 'foreach-'
 
 
-def parse_env_param(param, err_msg):
-    try:
-        return json.loads(param) if param else []
-    except json.JSONDecodeError as ex:
-        raise ArgoException('{}. {}'.format(err_msg, str(ex)))
-
-
 class ArgoWorkflow:
     def __init__(self,
                  name,
@@ -47,6 +40,7 @@ class ArgoWorkflow:
                  event_logger,
                  monitor,
                  image,
+                 image_pull_secrets,
                  env,
                  env_from):
         self.name = name
@@ -60,9 +54,9 @@ class ArgoWorkflow:
         self.event_logger = event_logger
         self.monitor = monitor
         self.image = image
-        self.env = parse_env_param(env, '"env" must be a valid JSON')
-        self.env_from = parse_env_param(env_from, '"env-from" must be a valid JSON')
-        self.image = image
+        self.image_pull_secrets = image_pull_secrets
+        self.env = env
+        self.env_from = env_from
         self._flow_attributes = self._parse_flow_decorator()
         self._workflow = self._compile()
 
@@ -145,7 +139,8 @@ class ArgoWorkflow:
                 'arguments': {
                     'parameters': self.parameters
                 },
-                'imagePullSecrets': self._flow_attributes.get('imagePullSecrets'),
+                'imagePullSecrets': self.image_pull_secrets if self.image_pull_secrets \
+                                    else self._flow_attributes.get('imagePullSecrets'),
                 'templates': self._generate_templates(),
             }
         }

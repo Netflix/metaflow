@@ -10,6 +10,18 @@ from .argo_workflow import ArgoWorkflow
 from .argo_exception import ArgoException
 
 
+class JsonParam(click.ParamType):
+    name = 'json'
+
+    def convert(self, value, param, ctx):
+        try:
+            return json.loads(value) if value else param.default
+        except json.JSONDecodeError as ex:
+            self.fail('expecting a valid JSON. {}'.format(str(ex)))
+
+JSONParam = JsonParam()
+
+
 @click.group()
 def cli():
     pass
@@ -26,11 +38,17 @@ def argo(obj):
 @click.option("--image",
               default=None,
               help="Docker image requirement in name:version format.")
+@click.option("--image-pull-secrets",
+              type=JSONParam,
+              default=[],
+              help="Docker image pull secrets.")
 @click.option("--env",
-              default=None,
+              type=JSONParam,
+              default=[],
               help="Environment variables to be set for the workflow.")
 @click.option("--env-from",
-              default=None,
+              type=JSONParam,
+              default=[],
               help="Environment variables to be set for the workflow.")
 @click.option("--token",
               default=None,
@@ -49,7 +67,15 @@ def argo(obj):
               default=False,
               help="Only print out JSON sent to Argo. Do not deploy anything.")
 @click.pass_obj
-def create(obj, image, env, env_from, token, k8s_namespace, embedded, only_json=False):
+def create(obj,
+           image,
+           image_pull_secrets,
+           env,
+           env_from,
+           token,
+           k8s_namespace,
+           embedded,
+           only_json=False):
     name = argo_workflow_name(current.flow_name.lower())
     obj.echo("Deploying *%s* to Argo Workflow Templates..." % name, bold=True)
 
@@ -83,6 +109,7 @@ def create(obj, image, env, env_from, token, k8s_namespace, embedded, only_json=
                             obj.event_logger,
                             obj.monitor,
                             image,
+                            image_pull_secrets,
                             env,
                             env_from)
 
