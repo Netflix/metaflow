@@ -1,5 +1,8 @@
+import base64
 import json
 from hashlib import sha1
+
+from metaflow.util import to_bytes, to_unicode
 
 class EventBridgeClient(object):
 
@@ -58,11 +61,15 @@ class EventBridgeClient(object):
             ]
         )
 
-# Unfortunately the Event Bridge rule names are restricted to 64 characters.
 def format(name):
+    # AWS Event Bridge has a limit of 64 chars for rule names.
+    # We truncate the rule name if the computed name is greater
+    # than 64 chars and append a hashed suffix to ensure uniqueness.
     if len(name) > 64:
-        name_hash = sha1(name.encode('utf-8')).hexdigest()
+        name_hash = to_unicode(
+                        base64.b32encode(
+                            sha1(to_bytes(name)).digest()))[:16].lower()
         # construct an 64 character long rule name
-        return '%s_%s' % (name[:23], name_hash)
+        return '%s-%s' % (name[:47], name_hash)
     else:
         return name
