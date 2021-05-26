@@ -35,12 +35,12 @@ from .exception_transferer import RemoteInterpreterException
 from .client_modules import create_modules
 
 # Determine what is the python executable to use for the escape hatch. To do this,
-# we look for ESCAPE_HATCH_PY in the environment AND STORE IT. When metaflow
-# is first launched by the user, it is in the outside non-metaflow-created-conda
-# environment and we will consider that to be the environment we escape to.
-# Unless the user wants to override it, this will be unset and we will use
-# the Python we are running in. We then store it so that children run (*within*
-# the conda environment) use this same value
+# we look for ESCAPE_HATCH_PY in the environment AND store it. When metaflow
+# is first launched by the user, it is running outside any metaflow created
+# environment (like the ones created through the Conda plugin) and we will therefore
+# consider that as the environment we escape to.
+# Note that it is important to store the value back in the environment to make
+# it available to any sub-process that launch sa well.
 ESCAPE_HATCH_PY = os.environ.get('METAFLOW_ESCAPE_HATCH_PY', sys.executable)
 os.environ['METAFLOW_ESCAPE_HATCH_PY'] = ESCAPE_HATCH_PY
 
@@ -60,7 +60,7 @@ def generate_trampolines(python_interpreter_path, python_path):
 
     paths = [os.path.dirname(os.path.abspath(__file__)) + "/configurations"]
     try:
-        import metaflow_custom.plugins.conda_escape as custom_escape
+        import metaflow_custom.plugins.env_escape as custom_escape
     except ImportError as e:
         ver = sys.version_info[0] * 10 + sys.version_info[1]
         if ver >= 36:
@@ -69,7 +69,7 @@ def generate_trampolines(python_interpreter_path, python_path):
             # error if there is a transitive import error)
             if not (isinstance(e, ModuleNotFoundError) and e.path is None):
                 print(
-                    "Cannot load metaflow_custom conda escape configurations -- "
+                    "Cannot load metaflow_custom env escape configurations -- "
                     "if you want to ignore, uninstall metaflow_custom package")
                 raise
     else:
@@ -90,7 +90,7 @@ def generate_trampolines(python_interpreter_path, python_path):
 import importlib
 import os
 import sys
-from metaflow.plugins.conda_escape.client_modules import ModuleImporter
+from metaflow.plugins.env_escape.client_modules import ModuleImporter
 
 # This is a trampoline file to ensure that the ModuleImporter to handle the emulated
 # modules gets properly loaded. If multiple modules are emulated by a single configuration
@@ -124,7 +124,7 @@ def load():
             # server should be using
             if sys.executable == "{python_path}":
                 raise
-            print("Conda escape using executable {python_path}")
+            # print("Env escape using executable {python_path}")
         else:
             # Inverse logic as above here.
             if sys.executable == "{python_path}":

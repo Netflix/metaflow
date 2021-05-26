@@ -10,7 +10,7 @@ import sys
 from metaflow.datatools import S3
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 
-from ..conda_escape import generate_trampolines, ESCAPE_HATCH_PY
+from ..env_escape import generate_trampolines, ESCAPE_HATCH_PY
 
 from . import CONDA_MAGIC_FILE
 
@@ -52,9 +52,10 @@ def install_conda_environment(env_id, packages):
     if ESCAPE_HATCH_PY is not None:
         cwd = os.getcwd()
         generate_trampolines(ESCAPE_HATCH_PY, cwd)
-        print("Conda escape will use %s as the interpreter" % ESCAPE_HATCH_PY)
+        # print("Conda escape will use %s as the interpreter" % ESCAPE_HATCH_PY)
     else:
-        print("Could not find a Conda escape interpreter")
+        pass
+        # print("Could not find a Conda escape interpreter")
     os.system(' && '.join(args))
 
 if __name__ == '__main__':

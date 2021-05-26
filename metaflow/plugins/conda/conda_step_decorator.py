@@ -20,7 +20,7 @@ from metaflow.metaflow_config import get_pinned_conda_libs, CONDA_PACKAGE_S3ROOT
 from metaflow.util import get_metaflow_root
 from metaflow.datatools import S3
 
-from ..conda_escape import generate_trampolines, ESCAPE_HATCH_PY
+from ..env_escape import generate_trampolines, ESCAPE_HATCH_PY
 from . import read_conda_manifest, write_to_conda_manifest
 from .conda import Conda
 
@@ -243,7 +243,6 @@ class CondaStepDecorator(StepDecorator):
         def _logger(line, **kwargs):
             logger(line)
         self.local_root = LocalDataStore.get_datastore_root_from_config(_logger)
-        self._logger = _logger
         environment.set_local_root(self.local_root)
         self.architecture = self._architecture(decos)
         self.disable_safety_checks = self._disable_safety_checks(decos)

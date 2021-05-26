@@ -1,4 +1,4 @@
-from metaflow.plugins.conda_escape.override_decorators import (
+from metaflow.plugins.env_escape.override_decorators import (
     local_override,
     local_getattr_override,
     local_setattr_override,
@@ -84,14 +84,6 @@ class SomeException:
 
     def _deserialize_user(self, json_obj):
         self.user_value = json_obj
-
-
-# @local_exception("test_library.MyBaseException", (Exception,))
-# class SomeBaseException:
-#    pass
-# def __str__(self):
-#     return "In Client BaseException"
-
 
 @remote_exception_serialize("test_lib.SomeException")
 def some_exception_serialize(ex):

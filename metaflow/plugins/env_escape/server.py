@@ -340,7 +340,7 @@ class Server(object):
     @staticmethod
     def _flatten_dict(d):
         # Takes a dictionary of ("name1", "name2"): {"sub1": X, "sub2": Y} and
-        # returns one of "name.sub1": X, "name.sub2": Y, etc. as well as a
+        # returns one of "name1.sub1": X, "name1.sub2": Y, etc. as well as a
         # dictionary of aliases {"name1": ["name2"]}...
         result = {}
         aliases = {}
