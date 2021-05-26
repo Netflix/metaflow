@@ -4,7 +4,8 @@ import platform
 import sys
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import DATASTORE_SYSROOT_S3, METADATA_SERVICE_URL, DEFAULT_METADATA
+from metaflow.metaflow_config import DATASTORE_SYSROOT_S3
+from metaflow.metaflow_config import DEFAULT_METADATA, METADATA_SERVICE_URL, METADATA_SERVICE_HEADERS
 from metaflow.parameters import deploy_time_eval
 from metaflow.plugins.aws.batch.batch_decorator import ResourcesDecorator
 from metaflow.plugins.environment_decorator import EnvironmentDecorator
@@ -394,10 +395,12 @@ class ArgoWorkflow:
             'METAFLOW_USER': get_username(),
             'METAFLOW_DATASTORE_SYSROOT_S3': DATASTORE_SYSROOT_S3,
         }
-        if METADATA_SERVICE_URL:
-            default['METAFLOW_SERVICE_URL'] = METADATA_SERVICE_URL
         if DEFAULT_METADATA:
             default['METAFLOW_DEFAULT_METADATA'] = DEFAULT_METADATA
+        if METADATA_SERVICE_URL:
+            default['METAFLOW_SERVICE_URL'] = METADATA_SERVICE_URL
+        if METADATA_SERVICE_HEADERS:
+            default['METADATA_SERVICE_HEADERS'] = METADATA_SERVICE_HEADERS
         # add env vars from @environment decorator if exist
         default.update(env_decorator.get('vars', {}))
         default_env = [{'name': k, 'value': v} for k, v in default.items()]
