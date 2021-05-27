@@ -93,6 +93,7 @@ def run_test(formatter, context, coverage_dir, debug, checks):
         pythonpath = os.environ.get('PYTHONPATH', '.')
         env.update({'LANG': 'C.UTF-8',
                     'LC_ALL': 'C.UTF-8',
+                    'PYTHONIOENCODING': 'utf_8',
                     'PATH': os.environ.get('PATH', '.'),
                     'PYTHONPATH': "%s:%s" % (package, pythonpath)})
 
@@ -112,12 +113,19 @@ def run_test(formatter, context, coverage_dir, debug, checks):
         # run flow
         flow_ret = subprocess.call(run_cmd('run'), env=env)
         if flow_ret:
-            if formatter.should_resume:
+            if formatter.should_fail:
+                log("Flow failed as expected.")
+            elif formatter.should_resume:
                 log("Resuming flow", formatter, context)
                 flow_ret = subprocess.call(run_cmd('resume'), env=env)
-            if flow_ret:
+            else:
                 log("flow failed", formatter, context)
                 return flow_ret, path
+        elif formatter.should_fail:
+            log("The flow should have failed but it didn't. Error!",
+                formatter,
+                context)
+            return 1, path
 
         # check results
         run_id = open('run-id').read()
@@ -173,12 +181,7 @@ def run_all(ok_tests,
 
 def run_test_cases(args):
     test, ok_contexts, ok_graphs, coverage_dir, debug = args
-    # HACK: The two separate files are needed to store the output in separate
-    # S3 buckets since jenkins test doesn't have access to `dataeng` bucket.
-    if os.environ.get('METAFLOW_TEST_RUNNER', '') == 'jenkins':
-        contexts = json.load(open('jenkins_contexts.json'))
-    else:
-        contexts = json.load(open('contexts.json'))
+    contexts = json.load(open('contexts.json'))
     graphs = list(iter_graphs())
     test_name = test.__class__.__name__
     log('Loaded test %s' % test_name)

@@ -72,11 +72,11 @@ class FileCache(object):
             else:
                 raise
 
-    def get_log(self, ds_type, logtype, attempt, flow_name, run_id, step_name, task_id):
+    def get_log_legacy(self, ds_type, logtype, attempt, flow_name, run_id, step_name, task_id):
         path = self._object_path(flow_name, run_id, step_name, task_id, '_log%s' % logtype)
 
         def load_func(ds):
-            return ds.load_log(logtype, attempt_override=attempt)
+            return ds.load_log_legacy(logtype, attempt_override=attempt)
 
         return self._internal_get_data(
             ds_type, flow_name, run_id, step_name, task_id, path, load_func)

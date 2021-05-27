@@ -15,45 +15,12 @@ use the client to access information about any flow from anywhere.**
 1. Configure your sandbox: https://docs.metaflow.org/metaflow-on-aws/metaflow-sandbox
 
 #### To play this episode:
-1. ```cd metaflow-tutorials/R```
-2. ```Rscript 04-helloaws/helloaws.R run```
-3. Open ```helloaws.Rmd' in your local RStudio 
+##### Execute the flow:
+In a terminal:
+1. ```cd tutorials/04-helloaws```
+2. ```Rscript helloaws.R run```
 
-```R
-#  A flow where Metaflow prints 'Hi'.
-#  Run this flow to validate that Metaflow is installed correctly.
+If you are using RStudio, you can run this script by directly executing `source("helloaws.R")`.
 
-library(metaflow)
-
-# This is the 'start' step. All flows must have a step named 
-# 'start' that is the first step in the flow.
-start <- function(self){
-    message("HelloAWS is starting.")
-    message("Using metadata provider: ", get_metadata())
-}
-
-# A step for metaflow to introduce itself.
-hello <- function(self){
-    self$message <- "We're on the cloud! Metaflow says: Hi!"
-    print(self$message) 
-    message("Using metadata provider: ", get_metadata())
-}
-
-# This is the 'end' step. All flows must have an 'end' step, 
-# which is the last step in the flow.
-end <- function(self){
-    message("HelloAWS is all done.")
-}
-
-metaflow("HelloAWSFlow") %>%
-    step(step = "start", 
-         r_function = start, 
-         next_step = "hello") %>%
-    step(step = "hello", 
-         decorator("batch", cpu=2, memory=2048),
-         r_function = hello,  
-         next_step = "end") %>%
-    step(step = "end", 
-         r_function = end) %>% 
-    run()
-```
+##### Inspect the results:
+Open the R Markdown file ```helloaws.Rmd``` in RStudio and execute the markdown cells.

@@ -9,6 +9,7 @@ class FlowFormatter(object):
         self.graphspec = graphspec
         self.test = test
         self.should_resume = getattr(test, 'RESUME', False)
+        self.should_fail = getattr(test, 'SHOULD_FAIL', False)
         self.flow_name = '%sFlow' % self.test.__class__.__name__
         self.used = set()
         self._code_cache = {}
@@ -78,7 +79,7 @@ class FlowFormatter(object):
             tags.extend(tag.split('(')[0] for tag in step.tags)
 
         yield 0, '# -*- coding: utf-8 -*-'
-        yield 0, 'from metaflow import FlowSpec, step, Parameter, IncludeFile, JSONType'
+        yield 0, 'from metaflow import FlowSpec, step, Parameter, project, IncludeFile, JSONType'
         yield 0, 'from metaflow_test import assert_equals, '\
                                            'assert_exception, '\
                                            'ExpectationFailed, '\
