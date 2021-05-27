@@ -46,6 +46,9 @@ class ProjectDecorator(FlowDecorator):
                                                      options['branch'],
                                                      get_username())
         is_user_branch = options['branch'] is None and not options['production']
+        echo("Project: *%s*, Branch: *%s*" % (project_name, branch_name),
+             fg='magenta',
+             highlight='green')
         current._update_env({'project_name': project_name,
                              'branch_name': branch_name,
                              'is_user_branch': is_user_branch,

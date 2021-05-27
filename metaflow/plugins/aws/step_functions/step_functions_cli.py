@@ -42,7 +42,7 @@ def step_functions(obj,
                    name=None):
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
     obj.state_machine_name, obj.token_prefix, obj.is_project = \
-                                      resolve_state_machine_name(name)
+                                      resolve_state_machine_name(obj, name)
 
 @step_functions.command(help="Deploy a new version of this workflow to "
                     "AWS Step Functions.")
@@ -135,7 +135,10 @@ def create(obj,
                     .format(state_machine=obj.state_machine_name,
                             name=current.flow_name), 
                  bold=True)
-
+        if obj._is_state_machine_name_hashed:
+            obj.echo("Note that the flow was deployed with a truncated name "
+                     "due to a length limit on AWS Step Functions. The "
+                     "original long name is stored in task metadata.\n")
         flow.schedule()
         obj.echo("What will trigger execution of the workflow:", bold=True)
         obj.echo(flow.trigger_explanation(), indent=True)
@@ -163,12 +166,13 @@ def check_metadata_service_version(obj):
                                                "version of metaflow service "
                                                "(>=2.0.2).")
 
-def resolve_state_machine_name(name):
+def resolve_state_machine_name(obj, name):
     def attach_prefix(name):
       if SFN_STATE_MACHINE_PREFIX is not None:
           return SFN_STATE_MACHINE_PREFIX + '_' + name
       return name
     project = current.get('project_name')
+    obj._is_state_machine_name_hashed = False
     if project:
         if name:
             raise MetaflowException("--name is not supported for @projects. "
@@ -179,7 +183,6 @@ def resolve_state_machine_name(name):
                                         base64.b32encode(
                                             sha1(project_branch).digest()))[:16]
         is_project = True
-
         # AWS Step Functions has a limit of 80 chars for state machine names.
         # We truncate the state machine name if the computed name is greater
         # than 60 chars and append a hashed suffix to ensure uniqueness.
@@ -190,6 +193,7 @@ def resolve_state_machine_name(name):
                                   .digest()))[:16].lower()
             state_machine_name =\
                 '%s-%s' % (state_machine_name[:60], name_hash)
+            obj._is_state_machine_name_hashed = True
     else:
         if name and VALID_NAME.search(name):
             raise MetaflowException(
