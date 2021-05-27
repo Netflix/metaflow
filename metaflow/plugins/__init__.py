@@ -91,7 +91,11 @@ METADATA_PROVIDERS = _merge_lists(
 # imports from the metaflow package.
 from .conda.conda_flow_decorator import CondaFlowDecorator
 from .aws.step_functions.schedule_decorator import ScheduleDecorator
-FLOW_DECORATORS = _merge_lists([CondaFlowDecorator, ScheduleDecorator], ext_plugins.FLOW_DECORATORS, 'name')
+from .project_decorator import ProjectDecorator
+FLOW_DECORATORS = _merge_lists([CondaFlowDecorator,
+                                ScheduleDecorator,
+                                ProjectDecorator],
+                            ext_plugins.FLOW_DECORATORS, 'name')
 
 
 # Sidecars

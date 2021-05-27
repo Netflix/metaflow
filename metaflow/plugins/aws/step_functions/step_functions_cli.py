@@ -1,7 +1,9 @@
+import base64
 import click
+from hashlib import sha1
 import json
-from distutils.version import LooseVersion
 import re
+from distutils.version import LooseVersion
 
 from metaflow import current, decorators, parameters, JSONType
 from metaflow.metaflow_config import SFN_STATE_MACHINE_PREFIX
@@ -9,7 +11,7 @@ from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.datastore.datastore import TransformableObject
 from metaflow.package import MetaflowPackage
 from metaflow.plugins import BatchDecorator
-from metaflow.util import get_username
+from metaflow.util import get_username, to_bytes, to_unicode
 
 from .step_functions import StepFunctions
 from .production_token import load_token, store_token, new_token
@@ -21,6 +23,9 @@ class IncorrectProductionToken(MetaflowException):
 
 class IncorrectMetadataServiceVersion(MetaflowException):
     headline = "Incorrect version for metaflow service"
+
+class StepFunctionsStateMachineNameTooLong(MetaflowException):
+    headline = "AWS Step Functions state machine name too long"
 
 @click.group()
 def cli():
@@ -36,7 +41,8 @@ def cli():
 def step_functions(obj,
                    name=None):
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
-    obj.state_machine_name = resolve_state_machine_name(name)
+    obj.state_machine_name, obj.token_prefix, obj.is_project = \
+                                      resolve_state_machine_name(obj, name)
 
 @step_functions.command(help="Deploy a new version of this workflow to "
                     "AWS Step Functions.")
@@ -103,11 +109,12 @@ def create(obj,
     check_metadata_service_version(obj)
 
     token = resolve_token(obj.state_machine_name,
-                          obj.state_machine_name.lower(),
+                          obj.token_prefix,
                           obj,
                           authorize,
                           given_token,
-                          generate_new_token)
+                          generate_new_token,
+                          obj.is_project)
 
     flow = make_flow(obj,
                      token,
@@ -115,17 +122,23 @@ def create(obj,
                      tags,
                      user_namespace,
                      max_workers,
-                     workflow_timeout)
+                     workflow_timeout,
+                     obj.is_project)
 
     if only_json:
         obj.echo_always(flow.to_json(), err=False, no_bold=True)
     else:
         flow.deploy(log_execution_history)
-        obj.echo("Workflow *{name}* pushed to "
+        obj.echo("State Machine *{state_machine}* "
+                 "for flow *{name}* pushed to "
                  "AWS Step Functions successfully.\n"
-                    .format(name=obj.state_machine_name), 
+                    .format(state_machine=obj.state_machine_name,
+                            name=current.flow_name), 
                  bold=True)
-
+        if obj._is_state_machine_name_hashed:
+            obj.echo("Note that the flow was deployed with a truncated name "
+                     "due to a length limit on AWS Step Functions. The "
+                     "original long name is stored in task metadata.\n")
         flow.schedule()
         obj.echo("What will trigger execution of the workflow:", bold=True)
         obj.echo(flow.trigger_explanation(), indent=True)
@@ -153,16 +166,52 @@ def check_metadata_service_version(obj):
                                                "version of metaflow service "
                                                "(>=2.0.2).")
 
-def resolve_state_machine_name(name):
+def resolve_state_machine_name(obj, name):
     def attach_prefix(name):
       if SFN_STATE_MACHINE_PREFIX is not None:
           return SFN_STATE_MACHINE_PREFIX + '_' + name
       return name
+    project = current.get('project_name')
+    obj._is_state_machine_name_hashed = False
+    if project:
+        if name:
+            raise MetaflowException("--name is not supported for @projects. "
+                                    "Use --branch instead.")
+        state_machine_name = attach_prefix(current.project_flow_name)
+        project_branch = to_bytes('.'.join((project, current.branch_name)))
+        token_prefix = 'mfprj-%s' % to_unicode(
+                                        base64.b32encode(
+                                            sha1(project_branch).digest()))[:16]
+        is_project = True
+        # AWS Step Functions has a limit of 80 chars for state machine names.
+        # We truncate the state machine name if the computed name is greater
+        # than 60 chars and append a hashed suffix to ensure uniqueness.
+        if len(state_machine_name) > 60:
+            name_hash = to_unicode(
+                            base64.b32encode(
+                                sha1(to_bytes(state_machine_name)) \
+                                  .digest()))[:16].lower()
+            state_machine_name =\
+                '%s-%s' % (state_machine_name[:60], name_hash)
+            obj._is_state_machine_name_hashed = True
+    else:
+        if name and VALID_NAME.search(name):
+            raise MetaflowException(
+                "Name '%s' contains invalid characters." % name)
 
-    if name and VALID_NAME.search(name):
-        raise MetaflowException("Name '%s' contains invalid characters." % name)
-    
-    return attach_prefix(name if name else current.flow_name)
+        state_machine_name = attach_prefix(name if name else current.flow_name)
+        token_prefix = state_machine_name
+        is_project = False
+
+        if len(state_machine_name) > 80:
+            msg = "The full name of the workflow:\n*%s*\nis longer than 80 "\
+                  "characters.\n\n"\
+                  "To deploy this workflow to AWS Step Functions, please "\
+                  "assign a shorter name\nusing the option\n"\
+                  "*step-functions --name <name> create*." % state_machine_name
+            raise StepFunctionsStateMachineNameTooLong(msg)
+
+    return state_machine_name, token_prefix.lower(), is_project
 
 def make_flow(obj,
               token,
@@ -170,7 +219,8 @@ def make_flow(obj,
               tags,
               namespace,
               max_workers,
-              workflow_timeout):
+              workflow_timeout,
+              is_project):
     datastore = obj.datastore(obj.flow.name,
                               mode='w',
                               metadata=obj.metadata,
@@ -204,14 +254,16 @@ def make_flow(obj,
                          namespace=namespace,
                          max_workers=max_workers,
                          username=get_username(),
-                         workflow_timeout=workflow_timeout)
+                         workflow_timeout=workflow_timeout,
+                         is_project=is_project)
 
 def resolve_token(name,
                   token_prefix,
                   obj,
                   authorize,
                   given_token,
-                  generate_new_token):
+                  generate_new_token,
+                  is_project):
 
     # 1) retrieve the previous deployment, if one exists
     workflow = StepFunctions.get_existing_deployment(name)
@@ -248,6 +300,12 @@ def resolve_token(name,
 
     # 3) do we need a new token or should we use the existing token?
     if given_token:
+        if is_project:
+            # we rely on a known prefix for @project tokens, so we can't
+            # allow the user to specify a custom token with an arbitrary prefix
+            raise MetaflowException("--new-token is not supported for "
+                                    "@projects. Use --generate-new-token to "
+                                    "create a new token.")
         if given_token.startswith('production:'):
             given_token = given_token[11:]
         token = given_token

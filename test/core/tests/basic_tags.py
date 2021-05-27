@@ -6,6 +6,7 @@ class BasicTagTest(MetaflowTest):
     Test that tags are assigned properly.
     """
     PRIORITY = 2
+    HEADER = "@project(name='basic_tag')"
 
     @steps(0, ['all'])
     def step_all(self):
@@ -25,7 +26,9 @@ class BasicTagTest(MetaflowTest):
         flow_obj = run.parent
         # test crazy unicode and spaces in tags
         # these tags must be set with --tag option in contexts.json
-        tags = (u'user:%s' % os.environ.get('METAFLOW_USER'),
+        tags = (u'project:basic_tag',
+                u'project_branch:user.tester',
+                u'user:%s' % os.environ.get('METAFLOW_USER'),
                 u'刺身 means sashimi',
                 u'multiple tags should be ok')
         for tag in tags:

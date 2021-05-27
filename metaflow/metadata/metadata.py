@@ -4,6 +4,7 @@ import time
 from collections import namedtuple
 from datetime import datetime
 
+from metaflow.current import current
 from metaflow.exception import MetaflowInternalError
 from metaflow.util import get_username, resolve_identity
 
@@ -461,6 +462,9 @@ class MetadataProvider(object):
             tags.append('metaflow_r_version:' + env['metaflow_r_version'])
         if 'r_version_code' in env:
             tags.append('r_version:' + env['r_version_code'])
+        if 'project_name' in current:
+            tags.append('project:' + current.project_name)
+            tags.append('project_branch:' + current.branch_name)
         return tags
 
     def _register_code_package_metadata(self, run_id, step_name, task_id):
