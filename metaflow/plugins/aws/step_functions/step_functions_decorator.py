@@ -4,6 +4,7 @@ import time
 
 from metaflow.decorators import StepDecorator
 from metaflow.metadata import MetaDatum
+from metaflow.unbounded_foreach import UBF_TASK
 
 from .dynamo_db_client import DynamoDbClient
 
@@ -20,7 +21,11 @@ class StepFunctionsInternalDecorator(StepDecorator):
                       graph,
                       retry_count,
                       max_user_code_retries,
-                      ubf_context):
+                      ubf_context,
+                      input_obj):
+        if ubf_context == UBF_TASK:
+            # Don't register any metadata for tasks that don't run within SFN.
+            return
         meta = {}
         meta['aws-step-functions-execution'] = os.environ['METAFLOW_RUN_ID']
         meta['aws-step-functions-state-machine'] =\
