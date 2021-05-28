@@ -3,6 +3,7 @@ import json
 import os
 import time
 
+from metaflow.exception import TaggingException
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.metadata import MetadataProvider
 
@@ -158,6 +159,39 @@ class LocalMetadataProvider(MetadataProvider):
             if os.path.isfile(self_file):
                 result.append(LocalMetadataProvider._read_json_file(self_file))
         return MetadataProvider._apply_filter(result, filters)
+
+    @classmethod
+    def _perform_operations_internal(cls, operations):
+        to_return = []
+        for op in operations:
+            if op.op_type != 'tags':
+                raise ValueError("Only tag operations are supported")
+            # Get the object we need to update
+            obj_path = op.id.split('/')
+            obj_to_update = cls.get_object(
+                op.object_type, 'self', None, *obj_path)
+            if obj_to_update:
+                # We can perform the operation now
+                if op.operation == 'add':
+                    # We can only add tags that are not already system_tags
+                    if op.args['tag'] in obj_to_update['system_tags']:
+                        raise TaggingException(
+                            msg='Cannot add tag *%s* as it already exists as a system tag' % op.args['tag'])
+                    if op.args['tag'] not in obj_to_update['tags']:
+                        obj_to_update['tags'].append(op.args['tag'])
+                elif op.operation == 'remove':
+                    obj_to_update['tags'] = [
+                        x for x in obj_to_update['tags'] if x != op.args['tag']]
+                else:
+                    raise TaggingException(msg='Invalid operation %s' % op.operation)
+            else:
+                raise TaggingException(msg='Cannot find object %s' % op.id)
+            # Here, all went well
+            file_path = os.path.join(
+                LocalMetadataProvider._get_metadir(*obj_path), '_self.json')
+            LocalMetadataProvider._dump_json_to_file(file_path, obj_to_update, True)
+            to_return.append(obj_to_update)
+        return to_return
 
     @staticmethod
     def _makedirs(path):

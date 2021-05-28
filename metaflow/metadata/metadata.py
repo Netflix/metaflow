@@ -15,6 +15,9 @@ DataArtifact = namedtuple('DataArtifact',
 MetaDatum = namedtuple('MetaDatum',
                        'field value type tags')
 
+MetadataOperation = namedtuple('MetadataOperation',
+                               'op_type operation id object_type args')
+
 
 class MetadataProviderMeta(type):
     def __new__(metaname, classname, bases, attrs):
@@ -278,6 +281,25 @@ class MetadataProvider(object):
         '''
         raise NotImplementedError()
 
+    @classmethod
+    def _perform_operations_internal(cls, operations):
+        '''
+        Performs operations to update existing objects in the metadata.
+
+        See perform_operations
+
+        Parameters
+        ----------
+        operations : List[MetadataOperation]
+            Operations to apply; each operation will indicate what to do
+
+        Return
+        ------
+            List[object] :
+                Objects are returned after each modification
+        '''
+        raise NotImplementedError()
+
     def add_sticky_tags(self, tags=[], sys_tags=[]):
         '''
         Adds tags to be added to every run and task
@@ -365,6 +387,32 @@ class MetadataProvider(object):
             raise MetaflowInternalError(msg='Metadata can only be retrieved at the task level')
 
         return cls._get_object_internal(obj_type, type_order, sub_type, sub_order, filters, *args)
+
+    @classmethod
+    def perform_operations(cls, operations):
+        '''
+        Performs operations to update existing objects in the metadata
+
+        Parameters
+        ----------
+        operations : List[MetadataOperation]
+            Operations to apply; each operation will indicate what to do
+
+        Return
+        ------
+            List[object] :
+                Objects are returned after each modification
+        '''
+        # For now, the only operation we support are tag operations. Validate
+        # this
+        for op in operations:
+            if op.op_type != 'tags':
+                raise MetaflowInternalError(msg='Invalid operation: %s' % op.op_type)
+            if op.operation not in ['add', 'remove']:
+                raise MetaflowInternalError(msg='Invalid tag operation: %s' % op.operation)
+            if 'tag' not in op.args:
+                raise MetaflowInternalError(msg='Missing tag information')
+        return cls._perform_operations_internal(operations)
 
     def _all_obj_elements(self, tags=[], sys_tags=[]):
         user = get_username()
