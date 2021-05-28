@@ -14,6 +14,8 @@ from .argo_client import ArgoClient
 from .argo_decorator import ArgoStepDecorator, ArgoInternalStepDecorator
 from .argo_exception import ArgoException
 
+ENTRYPOINT = 'entry'
+
 
 def dns_name(name):
     """
@@ -22,10 +24,6 @@ def dns_name(name):
     Hence template names couldn't have '_' (underscore).
     """
     return name.replace('_', '-')
-
-
-ENTRYPOINT = 'entry'
-DAG_PREFIX = 'foreach-'
 
 
 class ArgoWorkflow:
@@ -172,18 +170,19 @@ class ArgoWorkflow:
                 'tasks': tasks
             }
         }
-
-        return [dag] + nested_dags + [self.container_template(self.graph[node]) for node in self.graph.nodes]
+        container_templates = [self.container_template(self.graph[node]) for node in self.graph.nodes]
+        return [dag] + nested_dags + container_templates
 
     def _visit(self, node, tasks=[], nested_dags=[], exit_node=None):
         """
-        Traverse linear nodes.
+        Traverse graph nodes.
         Special treatment of split and foreach subgraphs
-        Nested Dag is inserted for first child of foreach
         """
 
-        def _linear_or_start_task(node):
-            if node.name == 'start':
+        def _linear_or_first_dag_task(node):
+            if self._is_foreach_first_child(node):
+                return dag_first_task(node)
+            elif node.name == 'start':
                 return start_task()
             else:
                 return linear_task(node)
@@ -194,45 +193,37 @@ class ArgoWorkflow:
         elif node == exit_node:
             pass  # end recursion
 
-        elif self._is_foreach_first_child(node):
-            tasks.append(foreach_task(node))
-            join = self.graph[self.graph[node.split_parents[-1]].matching_join]
-            # create nested dag and add tasks for foreach block
-            nested = nested_dag(node, join)
-            if node.type == 'split-and':
-                nested_tasks, nested_dags = self._visit_split(node, tasks=[dag_first_task(node)],
-                                                              nested_dags=nested_dags, exit_node=join)
-            else:
-                nested_tasks, nested_dags = self._visit(self.graph[node.out_funcs[0]], tasks=[dag_first_task(node)],
-                                                        nested_dags=nested_dags, exit_node=join)
-
-            nested['dag']['tasks'] = nested_tasks
-            nested_dags.append(nested)
-            # join ends the foreach block
-            tasks.append(join_foreach_task(join, node.name))
-            # continue with node after join
-            tasks, nested_dags = self._visit(self.graph[join.out_funcs[0]], tasks, nested_dags, exit_node)
-
-        elif node.type in ('linear', 'join', 'foreach'):
-            tasks.append(_linear_or_start_task(node))
+        elif node.type in ('linear', 'join'):
+            tasks.append(_linear_or_first_dag_task(node))
             tasks, nested_dags = self._visit(self.graph[node.out_funcs[0]], tasks, nested_dags, exit_node)
 
         elif node.type == 'split-and':
-            tasks.append(_linear_or_start_task(node))
-            tasks, nested_dags = self._visit_split(node, tasks, nested_dags, exit_node)
+            tasks.append(_linear_or_first_dag_task(node))
+            join = self.graph[node.matching_join]
+            # traverse branches
+            for out in node.out_funcs:
+                tasks, nested_dags = self._visit(self.graph[out], tasks, nested_dags, exit_node=join)
+            # finally continue with join node
+            tasks, nested_dags = self._visit(join, tasks, nested_dags, exit_node)
+
+        elif node.type == 'foreach':
+            tasks.append(_linear_or_first_dag_task(node))
+            for_each = foreach_task(node)
+            tasks.append(for_each)
+            join = self.graph[node.matching_join]
+            # create nested dag and add tasks for foreach block
+            nested_tasks, nested_dags = self._visit(self.graph[node.out_funcs[0]], tasks=[], nested_dags=nested_dags,
+                                                    exit_node=join)
+            nested_dags.append(nested_dag(for_each['name'], nested_tasks))
+            # join ends the foreach block
+            tasks.append(join_foreach_task(join, parent_task=for_each))
+            # continue with node after join
+            tasks, nested_dags = self._visit(self.graph[join.out_funcs[0]], tasks, nested_dags, exit_node)
 
         else:
             raise MetaflowException('Undefined node type: {} in step: {}'.format(node.type, node.name))
 
         return tasks, nested_dags
-
-    def _visit_split(self, node, tasks, nested_dags, exit_node):
-        join = self.graph[node.matching_join]
-        # traverse branches
-        for out in node.out_funcs:
-            tasks, nested_dags = self._visit(self.graph[out], tasks, nested_dags, exit_node=join)
-        # finally continue with join node
-        return self._visit(join, tasks, nested_dags, exit_node)
 
     def _commands(self, node):
         cmds = []
@@ -311,10 +302,7 @@ class ArgoWorkflow:
         return cmds
 
     def _is_foreach_first_child(self, node):
-        if node.in_funcs:
-            parent = self.graph[node.in_funcs[-1]]
-            return node.is_inside_foreach and parent.type == 'foreach'
-        return False
+        return node.is_inside_foreach and self.graph[node.in_funcs[0]].type == 'foreach'
 
     def container_template(self, node):
         """
@@ -449,20 +437,19 @@ def dag_first_task(node):
 
 def foreach_task(node):
     """
-    the block, which encapsulates the inner steps of the foreach
+    The inner steps of foreach are encapsulated in a separate template (dag)
     """
-    name = dns_name(node.name)
-    parent_node = node.in_funcs[-1]
-    parent_name = dns_name(parent_node)
+    name = dns_name('%s-foreach-%s' % (node.name, node.foreach_param))  # displayed in argo graph
+    parent_name = dns_name(node.name)
     return {
-        'name': name,  # this name is displayed in argo UI
-        'template': dns_name(DAG_PREFIX + name),
+        'name': name,
+        'template': name,
         'dependencies': [parent_name],
         'arguments': {
             'parameters': [
                 {
                     'name': 'input-paths',
-                    'value': '{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}' % (parent_node, parent_name)
+                    'value': '{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}' % (node.name, parent_name)
                 },
                 {
                     'name': 'split-index',
@@ -477,7 +464,7 @@ def foreach_task(node):
 def join_foreach_task(node, parent_task):
     name = dns_name(node.name)
     parent_step = node.in_funcs[-1]
-    parent_task_name = dns_name(parent_task)
+    parent_task_name = parent_task['name']
     return {
         'name': name,
         'template': name,
@@ -507,10 +494,9 @@ def linear_task(node):
     }
 
 
-def nested_dag(node, join):
-    last_dag_task = dns_name(join.in_funcs[0])
+def nested_dag(name, tasks):
     return {
-        'name': dns_name(DAG_PREFIX + node.name),
+        'name': dns_name(name),
         'inputs': {
             'parameters': [
                 {
@@ -526,10 +512,12 @@ def nested_dag(node, join):
                 {
                     'name': 'task-id',
                     'valueFrom': {
-                        'parameter': '{{tasks.%s.outputs.parameters.task-id}}' % last_dag_task
+                        'parameter': '{{tasks.%s.outputs.parameters.task-id}}' % dns_name(tasks[-1]['name'])
                     }
                 }
             ]
         },
-        'dag': {}
+        'dag': {
+            'tasks': tasks
+        }
     }
