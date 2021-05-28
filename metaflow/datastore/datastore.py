@@ -114,16 +114,23 @@ class MetaflowDataStore(object):
         """
         raise NotImplementedError()
 
-    def save_log(self, logtype, bytebuffer):
+    def save_logs(self, logsource, stream_data):
         """
-        Save a log file represented as a bytes object.
-        Returns path to log file.
+        Save log files for multiple streams, represented as
+        as a list of (stream, bytes) or (stream, Path) tuples.
         """
         raise NotImplementedError()
 
-    def load_log(self, logtype, attempt_override=None):
+    def load_log_legacy(self, stream, attempt_override=None):
         """
-        Load a task-specific log file represented as a bytes object.
+        Load old-style, pre-mflog, log file represented as a bytes object.
+        """
+        raise NotImplementedError()
+
+    def load_logs(self, logsources, stream, attempt_override=None):
+        """
+        Given a list of logsources, return a list of (logsource, logblob)
+        tuples. Returns empty contents for missing log files.
         """
         raise NotImplementedError()
 
@@ -182,12 +189,13 @@ class MetaflowDataStore(object):
             return self.object_path(self.objects[artifact_name])
         return None
 
-    def get_log_location(self, logtype, attempt_override=None):
+    def get_log_location(self, logsource, stream, attempt_override=None):
         """
         Returns a string indicating the location of the log of the specified type.
         """
-        filename = self.filename_with_attempt_prefix(
-            '%s.log' % logtype, attempt_override if attempt_override is not None else self.attempt)
+        filename = self.get_log_location_for_attempt(logsource, stream,
+                        attempt_override if attempt_override is not None 
+                            else self.attempt)
         return os.path.join(self.root, filename)
 
     @classmethod
@@ -257,6 +265,14 @@ class MetaflowDataStore(object):
         Return the metadata filename (.data.json) based on `attempt`.
         """
         return cls.filename_with_attempt_prefix('data.json', attempt)
+
+    @classmethod
+    def get_log_location_for_attempt(cls, logprefix, stream, attempt):
+        """
+        Return the log_location based on `logprefix`, `stream` and `attempt`.
+        """
+        fname = '%s_%s.log' % (logprefix, stream)
+        return cls.filename_with_attempt_prefix(fname, attempt)
 
     @classmethod
     def is_metadata_filename(cls, fname):

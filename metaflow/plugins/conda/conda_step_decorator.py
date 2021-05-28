@@ -211,7 +211,24 @@ class CondaStepDecorator(StepDecorator):
         # Create a symlink to installed version of metaflow to execute user code against
         path_to_metaflow = os.path.join(get_metaflow_root(), 'metaflow')
         self.metaflow_home = tempfile.mkdtemp(dir='/tmp')
+        self.addl_paths = None
         os.symlink(path_to_metaflow, os.path.join(self.metaflow_home, 'metaflow'))
+        # Do the same for metaflow_custom
+        try:
+            import metaflow_custom as m
+        except ImportError:
+            # No additional check needed because if we are here, we already checked
+            # for other issues when loading at the toplevel
+            pass
+        else:
+            custom_paths = list(m.__path__)
+            if len(custom_paths) == 1:
+                # Regular package
+                os.symlink(custom_paths[0], os.path.join(self.metaflow_home, 'metaflow_custom'))
+            else:
+                # Namespace package; we don't symlink but add the additional paths
+                # for the conda interpreter
+                self.addl_paths = [os.path.split(p)[0] for p in custom_paths]
 
     def step_init(self, flow, graph, step, decos, environment, datastore, logger):
         if environment.TYPE != 'conda':
@@ -250,7 +267,9 @@ class CondaStepDecorator(StepDecorator):
             python_path = self.metaflow_home
             if os.environ.get('PYTHONPATH') is not None:
                 python_path = os.pathsep.join([os.environ['PYTHONPATH'], python_path])
-
+            if self.addl_paths is not None:
+                addl_paths = os.pathsep.join(self.addl_paths)
+                python_path = os.pathsep.join([addl_paths, python_path])
             env_path = os.path.dirname(self.conda.python(self.env_id))
             if os.environ.get('PATH') is not None:
                 env_path = os.pathsep.join([env_path, os.environ['PATH']])

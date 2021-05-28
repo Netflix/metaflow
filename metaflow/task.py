@@ -263,6 +263,14 @@ class MetaflowTask(object):
                                          MetaDatum(field='origin-run-id',
                                                    value=str(origin_run_id),
                                                    type='origin-run-id',
+                                                   tags=[]),
+                                         MetaDatum(field='ds-type',
+                                                   value=self.datastore.TYPE,
+                                                   type='ds-type',
+                                                   tags=[]),
+                                         MetaDatum(field='ds-root',
+                                                   value=self.datastore.datastore_root,
+                                                   type='ds-root',
                                                    tags=[])])
 
         step_func = getattr(self.flow, step_name)
@@ -310,6 +318,8 @@ class MetaflowTask(object):
         })
         logger = self.event_logger
         start = time.time()
+        self.metadata.start_task_heartbeat(self.flow.name, run_id, step_name,
+                                           task_id)
         try:
             # init side cars
             logger.start()
@@ -451,7 +461,7 @@ class MetaflowTask(object):
             }
             logger.log(msg)
 
-            attempt_ok = str(bool(int(self.flow._task_ok)))
+            attempt_ok = str(bool(self.flow._task_ok))
             self.metadata.register_metadata(run_id,
                                             step_name,
                                             task_id,
@@ -468,6 +478,7 @@ class MetaflowTask(object):
 
             # terminate side cars
             logger.terminate()
+            self.metadata.stop_heartbeat()
 
             # this writes a success marker indicating that the
             # "transaction" is done
