@@ -735,7 +735,7 @@ class CLIArgs(object):
             ["--foo", "--baz", "", "--qux", "a", "--qux", "b"]
             """
             for k, v in mapping.items():
-                values = v if isinstance(v, list) else [v]
+                values = v if isinstance(v, (list, set)) else [v]
                 for value in values:
                     if value is not None and value is not False:
                         yield '--%s' % k
