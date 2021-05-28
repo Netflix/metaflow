@@ -1,4 +1,4 @@
-from metaflow.plugins.aws.step_functions.step_functions_cli import IncorrectMetadataServiceVersion
+import json
 import os
 import requests
 import time
@@ -193,7 +193,7 @@ class ServiceMetadataProvider(MetadataProvider):
             cls._can_perform_tagging = cls._version(None) is not None and \
             LooseVersion(cls._version(None)) >= LooseVersion('2.0.6')
         if not cls._can_perform_tagging:
-            raise IncorrectMetadataServiceVersion(
+            raise MetaflowException(
                 "Tagging not supported on this version of Metaflow service. "
                 "Try again with a more recent version of metaflow service "
                 "(>= 2.0.6)")
@@ -206,7 +206,7 @@ class ServiceMetadataProvider(MetadataProvider):
                 "id": op.id,
                 "operation": op.operation,
                 "tag": op.args['tag']})
-        return cls._request(None, "/tags", data=to_send)
+        return json.loads(cls._request(None, "/tags", data=to_send))
 
     def _new_run(self, run_id=None, tags=[], sys_tags=[]):
         # first ensure that the flow exists
