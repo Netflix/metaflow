@@ -1,12 +1,16 @@
+import fcntl
 import glob
 import json
 import os
+import re
 import time
 
+from metaflow.exception import TaggingException
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.metadata import MetadataProvider
 
 
+artifact_name_expr = re.compile('[0-9]+_artifact_.*.json')
 class LocalMetadataProvider(MetadataProvider):
     TYPE = 'local'
 
@@ -37,7 +41,7 @@ class LocalMetadataProvider(MetadataProvider):
     def version(self):
         return 'local'
 
-    def new_run_id(self, tags=[], sys_tags=[]):
+    def new_run_id(self, tags=None, sys_tags=None):
         # We currently just use the timestamp to create an ID. We can be reasonably certain
         # that it is unique and this makes it possible to do without coordination or
         # reliance on POSIX locks in the filesystem.
@@ -45,7 +49,7 @@ class LocalMetadataProvider(MetadataProvider):
         self._new_run(run_id, tags, sys_tags)
         return run_id
 
-    def register_run_id(self, run_id, tags=[], sys_tags=[]):
+    def register_run_id(self, run_id, tags=None, sys_tags=None):
         try:
             # This metadata provider only generates integer IDs so if this is
             # an integer, we don't register it again (since it was "registered"
@@ -56,7 +60,7 @@ class LocalMetadataProvider(MetadataProvider):
         except ValueError:
             return self._new_run(run_id, tags, sys_tags)
 
-    def new_task_id(self, run_id, step_name, tags=[], sys_tags=[]):
+    def new_task_id(self, run_id, step_name, tags=None, sys_tags=None):
         self._task_id_seq += 1
         task_id = str(self._task_id_seq)
         self._new_task(run_id, step_name, task_id, tags, sys_tags)
@@ -66,8 +70,8 @@ class LocalMetadataProvider(MetadataProvider):
                          run_id,
                          step_name,
                          task_id,
-                         tags=[],
-                         sys_tags=[]):
+                         tags=None,
+                         sys_tags=None):
         try:
             # Same logic as register_run_id
             int(task_id)
@@ -106,32 +110,20 @@ class LocalMetadataProvider(MetadataProvider):
 
         # Special handling of self, artifact, and metadata
         if sub_type == 'self':
-            meta_path = LocalMetadataProvider._get_metadir(*args[:obj_order])
-            if meta_path is None:
-                return None
-            self_file = os.path.join(meta_path, '_self.json')
-            if os.path.isfile(self_file):
+            self_file = LocalMetadataProvider._get_object_filepaths(*args[:obj_order])
+            if self_file:
                 return MetadataProvider._apply_filter(
-                    [LocalMetadataProvider._read_json_file(self_file)], filters)[0]
+                    [LocalMetadataProvider._read_json_file(self_file[0])], filters)[0]
             return None
 
         if sub_type == 'artifact':
-            meta_path = LocalMetadataProvider._get_metadir(*args[:obj_order])
+            which_artifact = args[sub_order - 1] if len(args) >= sub_order else '*'
             result = []
-            if meta_path is None:
-                return result
-            attempt_done_files = os.path.join(meta_path, 'sysmeta_attempt-done_*')
-            attempts_done = sorted(glob.iglob(attempt_done_files))
-            if attempts_done:
-                successful_attempt = int(LocalMetadataProvider._read_json_file(
-                    attempts_done[-1])['value'])
-                which_artifact = '*'
-                if len(args) >= sub_order:
-                    which_artifact = args[sub_order - 1]
-                artifact_files = os.path.join(
-                    meta_path, '%d_artifact_%s.json' % (successful_attempt, which_artifact))
-                for obj in glob.iglob(artifact_files):
-                    result.append(LocalMetadataProvider._read_json_file(obj))
+            path_spec = list(args[:obj_order])
+            path_spec.append(which_artifact)
+            artifact_files = LocalMetadataProvider._get_object_filepaths(*path_spec)
+            if artifact_files:
+                result = [LocalMetadataProvider._read_json_file(f) for f in artifact_files]
             if len(result) == 1:
                 return result[0]
             return result
@@ -159,6 +151,63 @@ class LocalMetadataProvider(MetadataProvider):
                 result.append(LocalMetadataProvider._read_json_file(self_file))
         return MetadataProvider._apply_filter(result, filters)
 
+    @classmethod
+    def _perform_operations_internal(cls, operations):
+        ops_per_object = dict()
+        for op in operations:
+            ops = ops_per_object.setdefault(op.id, [set(), set()])
+            if op.operation == 'add':
+                ops[0].add(op.args['tag'])
+            else:
+                # Operations are checked by parent class so this is remove
+                ops[1].add(op.args['tag'])
+        # At this point, we remove any duplicates from add/remove sets since
+        # that becomes a no-op
+        for ops in ops_per_object.values():
+            ops[0] = ops[0] - ops[1]
+            ops[1] = ops[1] - ops[0]
+        # Now we can get each object and update the tags; we do this using flock
+        # to guarantee that concurrent accesses work OK.
+        results = dict()
+        for op_id, ops in ops_per_object.items():
+            # Get the object we need to update
+            obj_path = op_id.split('/')
+            obj_file = LocalMetadataProvider._get_object_filepaths(*obj_path)
+            if obj_file is None or len(obj_file) != 1:
+                results[op_id] = {
+                    'status': 'Not found',
+                    'data': 'Object %s was not found' % op_id}
+                continue
+
+            # Now get the file and open using flock
+            with open(obj_file[0], 'r+') as f:
+                # Lock released when fd is closed at the end of with
+                fcntl.flock(f, fcntl.LOCK_EX)
+
+                obj_to_update = json.load(f)
+                user_tags = set(obj_to_update['tags'])
+                sys_tags = set(obj_to_update['system_tags'])
+                if not sys_tags.isdisjoint(ops[1]):
+                    # We are trying to remove a system tag so we fail
+                    results[op_id] = {
+                        'status': 'Removing a system tag',
+                        'data': 'Cannot remove system tags %s' %
+                                (sys_tags.intersection(ops[1]))}
+                    continue
+                # At this point, we have no failures; compute the new tags
+                user_tags.update(ops[0])
+                user_tags.difference_update(ops[1])
+                obj_to_update['tags'] = list(user_tags)
+
+                f.seek(0)
+                json.dump(obj_to_update, f)
+                f.truncate()
+
+                results[op_id] = {
+                    'status': 'ok',
+                    'data': obj_to_update}
+        return results
+
     @staticmethod
     def _makedirs(path):
         # this is for python2 compatibility.
@@ -173,7 +222,11 @@ class LocalMetadataProvider(MetadataProvider):
                 raise
 
     def _ensure_meta(
-            self, obj_type, run_id, step_name, task_id, tags=[], sys_tags=[]):
+            self, obj_type, run_id, step_name, task_id, tags=None, sys_tags=None):
+        if tags is None:
+            tags = set()
+        if sys_tags is None:
+            sys_tags = set()
         subpath = self._create_and_get_metadir(self._flow_name, run_id, step_name, task_id)
         selfname = os.path.join(subpath, '_self.json')
         self._makedirs(subpath)
@@ -187,13 +240,14 @@ class LocalMetadataProvider(MetadataProvider):
                 run_id,
                 step_name,
                 task_id,
-                tags + self.sticky_tags, sys_tags + self.sticky_sys_tags)})
+                self.sticky_tags.union(tags),
+                self.sticky_sys_tags.union(sys_tags))})
 
-    def _new_run(self, run_id, tags=[], sys_tags=[]):
+    def _new_run(self, run_id, tags=None, sys_tags=None):
         self._ensure_meta('flow', None, None, None)
         self._ensure_meta('run', run_id, None, None, tags, sys_tags)
 
-    def _new_task(self, run_id, step_name, task_id, tags=[], sys_tags=[]):
+    def _new_task(self, run_id, step_name, task_id, tags=None, sys_tags=None):
         self._ensure_meta('step', run_id, step_name, None)
         self._ensure_meta('task', run_id, step_name, task_id, tags, sys_tags)
         self._register_code_package_metadata(run_id, step_name, task_id)
@@ -248,6 +302,34 @@ class LocalMetadataProvider(MetadataProvider):
         return None
 
     @staticmethod
+    def _get_object_filepaths(
+            flow_name=None, run_id=None, step_name=None, task_id=None,
+            artifact_name=None):
+        meta_path = LocalMetadataProvider._get_metadir(
+            flow_name, run_id, step_name, task_id)
+        if meta_path is None:
+            return None
+        # For non-artifacts
+        if artifact_name is None:
+            self_file = os.path.join(meta_path, '_self.json')
+            if os.path.isfile(self_file):
+                return [self_file]
+            return None
+        # For artifacts
+        results = []
+        attempt_done_files = os.path.join(meta_path, 'sysmeta_attempt-done_*')
+        attempts_done = sorted(glob.iglob(attempt_done_files))
+        if attempts_done:
+            successful_attempt = int(LocalMetadataProvider._read_json_file(
+                attempts_done[-1])['value'])
+            artifact_files = os.path.join(
+                meta_path, '%d_artifact_%s.json' % (successful_attempt, artifact_name))
+            results = list(glob.iglob(artifact_files))
+        if len(results) == 0:
+            return None
+        return results
+
+    @staticmethod
     def _dump_json_to_file(
             filepath, data, allow_overwrite=False):
         if os.path.isfile(filepath) and not allow_overwrite:
@@ -258,7 +340,15 @@ class LocalMetadataProvider(MetadataProvider):
 
     @staticmethod
     def _read_json_file(filepath):
+        # For any files that end in `_self.json` or files that are artifact
+        # files, we load using flock in case there is a concurrent modification
+        # of the tags
+        name = os.path.basename(filepath)
+        do_flock = name == '_self.json' or artifact_name_expr.match(name)
         with open(filepath, 'r') as f:
+            if do_flock:
+                # Released on close at end of with block
+                fcntl.flock(f, fcntl.LOCK_SH)
             return json.load(f)
 
     @staticmethod
