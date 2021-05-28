@@ -350,35 +350,6 @@ class MetaflowTask(object):
             self.flow._success = False
             self.flow._task_ok = None
             self.flow._exception = None
-            # Note: All internal flow attributes (ie: non-user artifacts)
-            # should either be set prior to running the user code or listed in
-            # FlowSpec._EPHEMERAL to allow for proper merging/importing of
-            # user artifacts in the user's step code.
-            decorators = step_func.decorators
-            for deco in decorators:
-
-                deco.task_pre_step(step_name,
-                                   output,
-                                   self.metadata,
-                                   run_id,
-                                   task_id,
-                                   self.flow,
-                                   self.flow._graph,
-                                   retry_count,
-                                   max_user_code_retries,
-                                   self.ubf_context)
-
-                # decorators can actually decorate the step function,
-                # or they can replace it altogether. This functionality
-                # is used e.g. by catch_decorator which switches to a
-                # fallback code if the user code has failed too many
-                # times.
-                step_func = deco.task_decorate(step_func,
-                                               self.flow,
-                                               self.flow._graph,
-                                               retry_count,
-                                               max_user_code_retries,
-                                               self.ubf_context)
 
             if join_type:
                 # Join step:
@@ -403,7 +374,6 @@ class MetaflowTask(object):
                 # which is always safe since parameters are read-only
                 current._update_env(
                     {'parameter_names': self._init_parameters(inputs[0])})
-                self._exec_step_function(step_func, input_obj)
             else:
                 # Linear step:
                 # We are running with a single input context.
@@ -422,6 +392,40 @@ class MetaflowTask(object):
                     current._update_env(
                         {'parameter_names': self._init_parameters(
                             inputs[0], do_passdown=False)})
+
+            # We execute `task_pre_step` *after* the datastore has been set
+            # in case any of the task_pre_step needs to get stuff out of the
+            # datastore for its internal purposes.
+            decorators = step_func.decorators
+            for deco in decorators:
+
+                deco.task_pre_step(step_name,
+                                   self.flow._datastore,
+                                   self.metadata,
+                                   run_id,
+                                   task_id,
+                                   self.flow,
+                                   self.flow._graph,
+                                   retry_count,
+                                   max_user_code_retries,
+                                   self.ubf_context,
+                                   inputs)
+
+                # decorators can actually decorate the step function,
+                # or they can replace it altogether. This functionality
+                # is used e.g. by catch_decorator which switches to a
+                # fallback code if the user code has failed too many
+                # times.
+                step_func = deco.task_decorate(step_func,
+                                               self.flow,
+                                               self.flow._graph,
+                                               retry_count,
+                                               max_user_code_retries,
+                                               self.ubf_context)
+
+            if join_type:
+                self._exec_step_function(step_func, input_obj)
+            else:
                 self._exec_step_function(step_func)
 
             for deco in decorators:
