@@ -19,13 +19,13 @@ Python environment.
 
 At a high-level, the escape hatch allows a Python interpreter to forward calls to another
 interpreter. To set semantics, we will say that a *client* interpreter escapes to a *server*
-interpreter. The *server* interpreter operates in a slave-like move with regards to the
+interpreter. The *server* interpreter operates in a slave-like mode with regards to the
 *client*. To give a concrete example, imagine a package ``data_accessor`` that is
-available in the base image you are executing in but not in your Conda environment.
+available in the base environment you are executing in but not in your Conda environment.
 When executing within the Conda environment,
 the *client* interpreter is the Conda Python interpreter operating within the confines of the
 Conda environment; it **escapes** to the *server* interpreter which is the Python interpreter
-present in the Docker image and in which ``data_accessor`` is accessible.
+present in the base environment and in which ``data_accessor`` is accessible.
 From a user's point-of-view, the ```data_accessor``` package can be imported
 as usual within the *client* environment; under the hood, however, any computation happening
 as part of that module actually goes through the escape-hatch and is executed by the
