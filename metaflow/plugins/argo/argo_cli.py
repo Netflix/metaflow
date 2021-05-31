@@ -1,12 +1,13 @@
 import click
 import json
+import re
 
 from metaflow import current, decorators, parameters, JSONType
 from metaflow.datastore.datastore import TransformableObject
 from metaflow.metaflow_config import from_conf
 from metaflow.package import MetaflowPackage
 from metaflow.plugins import BatchDecorator
-from .argo_workflow import ArgoWorkflow
+from .argo_workflow import ArgoWorkflow, dns_name
 from .argo_exception import ArgoException
 
 
@@ -28,9 +29,16 @@ def cli():
 
 
 @cli.group(help="Commands related to Argo Workflows.")
+@click.option('--name',
+              default=None,
+              type=str,
+              help="Workflow Template name. The flow name is used instead "
+                   "if this option is not specified.")
 @click.pass_obj
-def argo(obj):
+def argo(obj,
+         name=None):
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
+    obj.workflow_template_name = resolve_workflow_template_name(name)
 
 
 @argo.command(help="Deploy a new version of this workflow to "
@@ -76,8 +84,8 @@ def create(obj,
            k8s_namespace,
            embedded,
            only_json=False):
-    name = argo_workflow_name(current.flow_name.lower())
-    obj.echo("Deploying *%s* to Argo Workflow Templates..." % name, bold=True)
+    obj.echo("Deploying *%s* to Argo Workflow Templates..." % obj.workflow_template_name,
+             bold=True)
 
     datastore = obj.datastore(obj.flow.name,
                               mode='w',
@@ -98,7 +106,7 @@ def create(obj,
     package_url = datastore.save_data(
         obj.package.sha, TransformableObject(obj.package.blob))
 
-    workflow = ArgoWorkflow(name,
+    workflow = ArgoWorkflow(obj.workflow_template_name,
                             obj.flow,
                             obj.graph,
                             obj.package,
@@ -117,8 +125,8 @@ def create(obj,
         obj.echo_always(workflow.to_json(), err=False, no_bold=True, nl=False)
     else:
         workflow.deploy(token, k8s_namespace)
-        obj.echo("WorkflowTemplate *{name}* pushed to "
-                 "Argo Workflows successfully.\n".format(name=name),
+        obj.echo("WorkflowTemplate *{name}* is pushed to Argo Workflows successfully.\n"
+                 .format(name=obj.workflow_template_name),
                  bold=True)
 
 
@@ -141,11 +149,11 @@ def trigger(obj, token, k8s_namespace, **kwargs):
     params = {p.name: _convert_value(p)
               for _, p in obj.flow._get_parameters()
               if kwargs.get(p.name) is not None}
-    name = argo_workflow_name(current.flow_name.lower())
-    response = ArgoWorkflow.trigger(token, k8s_namespace, name, params)
+    response = ArgoWorkflow.trigger(token, k8s_namespace, obj.workflow_template_name, params)
     id = response['metadata']['name']
-    obj.echo("Workflow *{name}* triggered on Argo Workflows "
-             "(run-id *{id}*).".format(name=name, id=id), bold=True)
+    obj.echo("Workflow *{name}* is triggered on Argo Workflows (run-id *{id}*)."
+             .format(name=obj.workflow_template_name, id=id),
+             bold=True)
 
 
 @argo.command(help="List workflows on Argo Workflows.")
@@ -180,14 +188,15 @@ def list_runs(obj, token, k8s_namespace, pending, running, succeeded, failed, er
     if error:
         states.append('Error')
 
-    tmpl = argo_workflow_name(current.flow_name.lower())
-    workflows = ArgoWorkflow.list(token, k8s_namespace, tmpl, states)
+    workflows = ArgoWorkflow.list(token, k8s_namespace, obj.workflow_template_name, states)
     if not workflows:
         if states:
             status = ','.join(['*%s*' % s for s in states])
-            obj.echo('No %s workflows for *%s* found on Argo Workflows.' % (status, tmpl))
+            obj.echo('No %s workflows for *%s* found on Argo Workflows.' % \
+                     (status, obj.workflow_template_name))
         else:
-            obj.echo('No workflows for *%s* found on Argo Workflows.' % (tmpl))
+            obj.echo('No workflows for *%s* found on Argo Workflows.' % \
+                     (obj.workflow_template_name))
     for wf in workflows:
         if wf['status']['finishedAt']:
             obj.echo(
@@ -211,9 +220,19 @@ def list_runs(obj, token, k8s_namespace, pending, running, succeeded, failed, er
             )
 
 
-def argo_workflow_name(name):
-    # Prefix for Argo Workflows template.
-    argo_workflow_prefix = from_conf("ARGO_WORKFLOW_PREFIX")
-    if argo_workflow_prefix is not None:
-        return argo_workflow_prefix + '_' + name
+def resolve_workflow_template_name(name):
+    """
+    Returns a valid workflow template name.
+    """
+    if name is None:
+        name = dns_name(current.flow_name)
+
+    prefix = from_conf("ARGO_WORKFLOW_PREFIX")
+    if prefix:
+        name = prefix + '-' + name
+
+    if not re.match('^[a-z0-9]([-.a-z0-9]*[a-z0-9])?$', name):
+        raise ArgoException("Invalid workflow template name: *%s*.\n"
+                            "See https://kubernetes.io/docs/concepts/overview/working-with-objects/names/" % \
+                            name)
     return name

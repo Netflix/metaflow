@@ -1,6 +1,7 @@
 import json
 import os
 import platform
+import shlex
 import sys
 
 from metaflow.exception import MetaflowException
@@ -10,6 +11,7 @@ from metaflow.parameters import deploy_time_eval
 from metaflow.plugins.aws.batch.batch_decorator import ResourcesDecorator
 from metaflow.plugins.environment_decorator import EnvironmentDecorator
 from metaflow.util import get_username, compress_list
+from metaflow.mflog import export_mflog_env_vars, bash_capture_logs, BASH_SAVE_LOGS
 from .argo_client import ArgoClient
 from .argo_decorator import ArgoStepDecorator, ArgoInternalStepDecorator
 from .argo_exception import ArgoException
@@ -23,7 +25,7 @@ def dns_name(name):
     DNS subdomain name as defined in RFC 1123.
     Hence template names couldn't have '_' (underscore).
     """
-    return name.replace('_', '-')
+    return name.replace('_', '-').lower()
 
 
 class ArgoWorkflow:
@@ -71,7 +73,6 @@ class ArgoWorkflow:
 
     @classmethod
     def trigger(cls, auth, k8s_namespace, name, parameters):
-        name = dns_name(name)
         workflow = {
             'apiVersion': 'argoproj.io/v1alpha1',
             'kind': 'Workflow',
@@ -104,7 +105,6 @@ class ArgoWorkflow:
 
     @classmethod
     def list(cls, auth, k8s_namespace, name, phases):
-        name = dns_name(name)
         client = ArgoClient(auth, k8s_namespace)
         try:
             tmpl = client.get_template(name)
@@ -129,7 +129,7 @@ class ArgoWorkflow:
             'apiVersion': 'argoproj.io/v1alpha1',
             'kind': 'WorkflowTemplate',
             'metadata': {
-                'name': dns_name(self.name),
+                'name': self.name,
                 'labels': self._flow_attributes.get('labels'),
                 'annotations': self._flow_attributes.get('annotations'),
             },
@@ -226,13 +226,23 @@ class ArgoWorkflow:
         return tasks, nested_dags
 
     def _commands(self, node):
-        cmds = []
+        mflog_expr = export_mflog_env_vars(datastore_type='s3',
+                                           stdout_path='/tmp/mflog_stdout',
+                                           stderr_path='/tmp/mflog_stderr',
+                                           flow_name=self.flow.name,
+                                           run_id='{{workflow.name}}',
+                                           step_name=node.name,
+                                           task_id='{{pod.name}}',
+                                           retry_count=0)
+        init_cmds = []
         if self.code_package_url:
-            cmds.extend(self.environment.get_package_commands(self.code_package_url))
-        cmds.extend(self.environment.bootstrap_commands(node.name))
-        cmds.append("echo 'Task is starting.'")
-        cmds.extend(self._step_commands(node))
-        return cmds
+            init_cmds.extend(self.environment.get_package_commands(self.code_package_url))
+        init_cmds.extend(self.environment.bootstrap_commands(node.name))
+        init_expr = ' && '.join(init_cmds)
+        step_expr = bash_capture_logs(' && '.join(self._step_commands(node)))
+        cmd_str = 'true && %s && %s && %s; c=$?; %s; exit $c' % \
+            (mflog_expr, init_expr, step_expr, BASH_SAVE_LOGS)
+        return shlex.split('bash -c \"%s\"' % cmd_str)
 
     def _step_commands(self, node):
         cmds = []
@@ -317,6 +327,7 @@ class ArgoWorkflow:
             image = attr['image']
         env, env_from = self._prepare_environment(attr, env_decorator)
         res = self._resources(res_decorator)
+        cmd = self._commands(node)
 
         template = {
             'name': dns_name(node.name),
@@ -340,8 +351,8 @@ class ArgoWorkflow:
             'nodeSelector': attr.get('nodeSelector'),
             'container': {
                 'image': image,
-                'command': ['/bin/sh'],
-                'args': ['-c', ' && '.join(self._commands(node))],
+                'command': [cmd[0]],
+                'args': cmd[1:],
                 'env': env,
                 'envFrom': env_from,
                 'resources': {
