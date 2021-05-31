@@ -96,7 +96,7 @@ class EscapeTest(FlowSpec):
     @conda
     @step
     def escape_exec(self):
-        print("Running test through escape using %s" % sys.executable)
+        print("Running test through environment escape using %s" % sys.executable)
         run_test(True)
         self.next(self.join)
 

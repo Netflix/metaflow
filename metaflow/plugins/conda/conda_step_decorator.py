@@ -20,7 +20,7 @@ from metaflow.metaflow_config import get_pinned_conda_libs, CONDA_PACKAGE_S3ROOT
 from metaflow.util import get_metaflow_root
 from metaflow.datatools import S3
 
-from ..env_escape import generate_trampolines, ESCAPE_HATCH_PY
+from ..env_escape import generate_trampolines
 from . import read_conda_manifest, write_to_conda_manifest
 from .conda import Conda
 
@@ -231,9 +231,9 @@ class CondaStepDecorator(StepDecorator):
                 # for the conda interpreter
                 self.addl_paths = [os.path.split(p)[0] for p in custom_paths]
 
-        # Also install any Conda escape overrides directly here to enable the escape to
-        # work even in non-MF subprocesses
-        generate_trampolines(ESCAPE_HATCH_PY, self.metaflow_home)
+        # Also install any environment escape overrides directly here to enable
+        # the escape to work even in non metaflow-created subprocesses
+        generate_trampolines(self.metaflow_home)
 
 
     def step_init(self, flow, graph, step, decos, environment, datastore, logger):

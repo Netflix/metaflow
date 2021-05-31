@@ -124,7 +124,7 @@ class ModuleImporter(object):
         if self._client is None:
             if sys.version_info[0] < 3:
                 raise NotImplementedError(
-                    "Escape hatch imports are not supported in Python 2")
+                    "Environment escape imports are not supported in Python 2")
             # We initialize a client and query the modules we handle
             self._client = Client(self._python_path, self._config_dir)
             exports = self._client.get_exports()
@@ -223,8 +223,8 @@ class ModuleImporter(object):
 
 
 def create_modules(python_path, path, prefixes):
-    # This is a extra verification to make sure we are not trying to use the escape
-    # hatch for something that is in the system
+    # This is a extra verification to make sure we are not trying to use the
+    # environment escape for something that is in the system
     for prefix in prefixes:
         try:
             importlib.import_module(prefix)
@@ -235,10 +235,10 @@ def create_modules(python_path, path, prefixes):
             raise RuntimeError(
                 "Trying to override %s when module exists in system" % prefix)
 
-    # The first version forces the use of the escape hatch even if the module
+    # The first version forces the use of the environment escape even if the module
     # exists in the system. This is useful for testing to make sure that the
-    # escape hatch is used. The second version is more production friendly and
-    # will only use the escape hatch if the module cannot be found
+    # environment escape is used. The second version is more production friendly and
+    # will only use the environment escape if the module cannot be found
 
     # sys.meta_path.insert(0, ModuleImporter(python_path, path, prefixes))
     sys.meta_path.append(ModuleImporter(python_path, path, prefixes))

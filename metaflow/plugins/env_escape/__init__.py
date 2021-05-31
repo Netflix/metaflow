@@ -34,29 +34,28 @@ from itertools import chain
 from .exception_transferer import RemoteInterpreterException
 from .client_modules import create_modules
 
-# Determine what is the python executable to use for the escape hatch. To do this,
-# we look for ESCAPE_HATCH_PY in the environment AND store it. When metaflow
+# Determine what is the python executable to use for the environment escape. To do this,
+# we look for ENV_ESCAPE_PY in the environment AND store it. When metaflow
 # is first launched by the user, it is running outside any metaflow created
 # environment (like the ones created through the Conda plugin) and we will therefore
 # consider that as the environment we escape to.
 # Note that it is important to store the value back in the environment to make
 # it available to any sub-process that launch sa well.
-ESCAPE_HATCH_PY = os.environ.get('METAFLOW_ESCAPE_HATCH_PY', sys.executable)
-os.environ['METAFLOW_ESCAPE_HATCH_PY'] = ESCAPE_HATCH_PY
+ENV_ESCAPE_PY = os.environ.get('METAFLOW_ENV_ESCAPE_PY', sys.executable)
+os.environ['METAFLOW_ENV_ESCAPE_PY'] = ENV_ESCAPE_PY
 
 
-def generate_trampolines(python_interpreter_path, python_path):
+def generate_trampolines(python_path):
     # This function will look in the configurations directory and create
-    # files named <module>.py that will properly setup the escape hatch when
+    # files named <module>.py that will properly setup the environment escape when
     # called
 
-    # in some cases we may want to disable escape hatch
-    # functionality, in that case, set MF_ESCAPE_HATCH_DISABLED
-    if os.environ.get('METAFLOW_ESCAPE_HATCH_DISABLED', False) in (True, 'True'):
+    # in some cases we may want to disable environment escape
+    # functionality, in that case, set METAFLOW_ENV_ESCAPE_DISABLED
+    if os.environ.get('METAFLOW_ENV_ESCAPE_DISABLED', False) in (True, 'True'):
         return
 
-    if python_interpreter_path is None:
-        python_interpreter_path = ''
+    python_interpreter_path = ENV_ESCAPE_PY
 
     paths = [os.path.dirname(os.path.abspath(__file__)) + "/configurations"]
     try:
