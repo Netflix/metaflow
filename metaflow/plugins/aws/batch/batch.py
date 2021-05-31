@@ -56,9 +56,9 @@ class Batch(object):
                                            stderr_path=STDERR_PATH,
                                            **task_spec)
         init_cmds = environment.get_package_commands(code_package_url)
-        init_cmds.extend(environment.bootstrap_commands(step_name))
         init_expr = ' && '.join(init_cmds)
-        step_expr = bash_capture_logs(' && '.join(step_cmds))
+        step_expr = bash_capture_logs(' && '.join(
+                        environment.bootstrap_commands(step_name) + step_cmds))
 
         # construct an entry point that
         # 1) initializes the mflog environment (mflog_expr)

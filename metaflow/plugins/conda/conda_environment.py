@@ -65,12 +65,10 @@ class CondaEnvironment(MetaflowEnvironment):
         env_id = self._get_env_id(step_name)
         if env_id is not None:
             return [
-                    "mflog \'Bootstrapping environment...\'",
-                    BASH_SAVE_LOGS,
+                    "echo \'Bootstrapping environment...\'",
                     "python -m metaflow.plugins.conda.batch_bootstrap \"%s\" %s" % \
                         (self.flow.name, env_id),
-                    "mflog \'Environment bootstrapped.\'",
-                    BASH_SAVE_LOGS,
+                    "echo \'Environment bootstrapped.\'",
                 ]
         return []
 
