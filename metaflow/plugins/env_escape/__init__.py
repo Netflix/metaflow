@@ -26,6 +26,7 @@
 # THE SOFTWARE.
 
 import os
+import pickle
 import sys
 from subprocess import Popen, PIPE
 
@@ -41,7 +42,12 @@ from .client_modules import create_modules
 # consider that as the environment we escape to.
 # Note that it is important to store the value back in the environment to make
 # it available to any sub-process that launch sa well.
+# We also store the maximum protocol version that we support for pickle so that
+# we can determine what to use
 ENV_ESCAPE_PY = os.environ.get('METAFLOW_ENV_ESCAPE_PY', sys.executable)
+ENV_ESCAPE_PICKLE_VERSION = os.environ.get(
+    'METAFLOW_ENV_ESCAPE_PICKLE_VERSION', str(pickle.HIGHEST_PROTOCOL))
+os.environ['METAFLOW_ENV_ESCAPE_PICKLE_VERSION'] = ENV_ESCAPE_PICKLE_VERSION
 os.environ['METAFLOW_ENV_ESCAPE_PY'] = ENV_ESCAPE_PY
 
 
@@ -56,6 +62,7 @@ def generate_trampolines(python_path):
         return
 
     python_interpreter_path = ENV_ESCAPE_PY
+    max_pickle_version = int(ENV_ESCAPE_PICKLE_VERSION)
 
     paths = [os.path.dirname(os.path.abspath(__file__)) + "/configurations"]
     try:
@@ -115,7 +122,7 @@ def load():
         try:
             importlib.import_module(prefix)
         except ImportError:
-            # Here we actually have two cases: we are being imported from the client (Conda env)
+            # Here we actually have two cases: we are being imported from the client (inner env)
             # in which case we are happy (since no module exists) OR we are being imported by the
             # server in which case we could not find the underlying module so we re-raise
             # this error.
@@ -130,7 +137,7 @@ def load():
                 return
             raise RuntimeError("Trying to override '%s' when module exists in system" % prefix)
     sys.path = old_paths
-    m = ModuleImporter("{python_path}", "{path}", {prefixes})
+    m = ModuleImporter("{python_path}", {max_pickle_version}, "{path}", {prefixes})
     sys.meta_path.insert(0, m)
     # Reload this module using the ModuleImporter
     importlib.import_module("{module_name}")
@@ -141,13 +148,14 @@ if not "{python_path}":
 load()
 """ .format(
     python_path=python_interpreter_path,
+    max_pickle_version=max_pickle_version,
     path=path,
     prefixes=module_names,
     module_name=module_name
 ))
 
 
-def init(python_interpreter_path):
+def init(python_interpreter_path, max_pickle_version):
     # This function will look in the configurations directory and setup
     # the proper overrides
     config_dir = os.path.dirname(os.path.abspath(__file__)) + "/configurations"
@@ -158,4 +166,6 @@ def init(python_interpreter_path):
             dir_name = os.path.basename(path)
             if dir_name.startswith('emulate_'):
                 module_names = dir_name[8:].split("__")
-                create_modules(python_interpreter_path, path, module_names)
+                create_modules(
+                    python_interpreter_path, max_pickle_version, path,
+                    module_names)

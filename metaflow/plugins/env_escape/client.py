@@ -7,6 +7,8 @@ from subprocess import Popen, PIPE
 import sys
 import time
 
+from . import data_transferer
+
 from .consts import (
     FIELD_ARGS,
     FIELD_CONTENT,
@@ -39,12 +41,14 @@ BIND_RETRY = 0
 
 
 class Client(object):
-    def __init__(self, python_path, config_dir):
+    def __init__(self, python_path, max_pickle_version, config_dir):
         # Make sure to init these variables (used in __del__) early on in case we
         # have an exception
         self._poller = None
         self._server_process = None
         self._socket_path = None
+
+        data_transferer.defaultProtocol = max_pickle_version
 
         self._config_dir = config_dir
         # The client launches the server when created; we use
@@ -56,7 +60,8 @@ class Client(object):
         env = os.environ.copy()
         #env["PYTHONPATH"] = ":".join(sys.path)
         self._server_process = Popen(
-            [python_path, "-u", "-m", server_module, config_dir, self._socket_path],
+            [python_path, "-u", "-m", server_module, str(max_pickle_version),
+             config_dir, self._socket_path],
             env=env,
             stdout=PIPE,
             stderr=PIPE,

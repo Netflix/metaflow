@@ -1,5 +1,6 @@
 import importlib
 import itertools
+import pickle
 import re
 import sys
 
@@ -100,11 +101,12 @@ class _WrappedModule(object):
 
 class ModuleImporter(object):
     # This ModuleImporter implements the Importer Protocol defined in PEP 302
-    def __init__(self, python_path, config_dir, module_prefixes):
+    def __init__(self, python_path, max_pickle_version, config_dir, module_prefixes):
         self._module_prefixes = module_prefixes
         self._python_path = python_path
         self._config_dir = config_dir
         self._client = None
+        self._max_pickle_version = max_pickle_version
         self._handled_modules = None
         self._aliases = {}
 
@@ -126,7 +128,12 @@ class ModuleImporter(object):
                 raise NotImplementedError(
                     "Environment escape imports are not supported in Python 2")
             # We initialize a client and query the modules we handle
-            self._client = Client(self._python_path, self._config_dir)
+            # The max_pickle_version is the pickle version that the server (so
+            # the underlying interpreter we call into) supports; we determine
+            # what version the current environment support and take the minimum
+            # of those two
+            max_pickle_version = min(self._max_pickle_version, pickle.HIGHEST_PROTOCOL)
+            self._client = Client(self._python_path, max_pickle_version, self._config_dir)
             exports = self._client.get_exports()
             sys.path.insert(0, self._config_dir)
             overrides = importlib.import_module("overrides")
@@ -222,7 +229,7 @@ class ModuleImporter(object):
         return name
 
 
-def create_modules(python_path, path, prefixes):
+def create_modules(python_path, max_pickle_version, path, prefixes):
     # This is a extra verification to make sure we are not trying to use the
     # environment escape for something that is in the system
     for prefix in prefixes:
@@ -241,4 +248,4 @@ def create_modules(python_path, path, prefixes):
     # will only use the environment escape if the module cannot be found
 
     # sys.meta_path.insert(0, ModuleImporter(python_path, path, prefixes))
-    sys.meta_path.append(ModuleImporter(python_path, path, prefixes))
+    sys.meta_path.append(ModuleImporter(python_path, max_pickle_version, path, prefixes))

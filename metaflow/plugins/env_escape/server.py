@@ -5,6 +5,8 @@ import socket
 import sys
 import traceback
 
+from . import data_transferer
+
 from .consts import (
     FIELD_ARGS,
     FIELD_CONTENT,
@@ -58,8 +60,9 @@ BIND_RETRY = 1
 
 
 class Server(object):
-    def __init__(self, config_dir):
+    def __init__(self, max_pickle_version, config_dir):
 
+        self._max_pickle_version = data_transferer.defaultProtocol = max_pickle_version
         sys.path.append(config_dir)
         mappings = importlib.import_module("server_mappings")
         override_module = importlib.import_module("overrides")
@@ -393,7 +396,8 @@ class Server(object):
         return hash(target)
 
     def _handle_pickle(self, target, proto):
-        return pickle.dumps(target, protocol=proto)
+        effective_protocol = min(self._max_pickle_version, proto)
+        return pickle.dumps(target, protocol=effective_protocol)
 
     def _handle_del(self, target):
         del target
@@ -448,7 +452,8 @@ class Server(object):
 
 
 if __name__ == "__main__":
-    config_dir = sys.argv[1]
-    socket_path = sys.argv[2]
-    s = Server(config_dir)
+    max_pickle_version = int(sys.argv[1])
+    config_dir = sys.argv[2]
+    socket_path = sys.argv[3]
+    s = Server(max_pickle_version, config_dir)
     s.serve(path=socket_path)

@@ -67,6 +67,9 @@ FIELD_ANNOTATION = "a"  # Additional information that loader/dumper can use
 FIELD_INLINE_VALUE = "v"
 FIELD_INLINE_KEY = "k"
 
+# Protocol to use
+defaultProtocol = pickle.HIGHEST_PROTOCOL
+
 
 def _register_dumper(what):
     def wrapper(func):
@@ -98,7 +101,7 @@ def _load_none(obj_type, transferer, json_annotation, json_obj):
 
 @_register_dumper(_simple_types)
 def _dump_simple(obj_type, transferer, obj):
-    return (None, base64.b64encode(pickle.dumps(obj, protocol=2)).decode("utf-8"))
+    return (None, base64.b64encode(pickle.dumps(obj, protocol=defaultProtocol)).decode("utf-8"))
 
 
 @_register_loader(_simple_types)
@@ -211,7 +214,8 @@ class DataTransferer(object):
             # This is primarily used to transfer a reference to an object
             try:
                 json_obj = base64.b64encode(
-                    pickle.dumps(self._connection.pickle_object(obj), protocol=2)
+                    pickle.dumps(self._connection.pickle_object(obj),
+                                 protocol=defaultProtocol)
                 ).decode("utf-8")
             except ValueError as e:
                 raise RuntimeError("Unable to dump non base type: %s" % e)
