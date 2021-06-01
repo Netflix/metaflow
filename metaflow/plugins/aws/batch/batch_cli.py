@@ -156,6 +156,7 @@ def kill(ctx, run_id, user, my_runs):
 @click.option("--shared_memory", help="Shared Memory requirement for AWS Batch.")
 @click.option("--max_swap", help="Max Swap requirement for AWS Batch.")
 @click.option("--swappiness", help="Swappiness requirement for AWS Batch.")
+@click.option('--ubf-context', default=None, type=click.Choice([None])) #TODO: Maybe remove it altogether since it's not used here
 @click.pass_context
 def step(
     ctx,
