@@ -3,6 +3,7 @@ import traceback
 from metaflow.exception import MetaflowException,\
     MetaflowExceptionWrapper
 from metaflow.decorators import StepDecorator
+from metaflow.unbounded_foreach import UBF_CONTROL
 
 NUM_FALLBACK_RETRIES = 3
 
@@ -104,7 +105,8 @@ class CatchDecorator(StepDecorator):
                       func,
                       graph,
                       retry_count,
-                      max_user_code_retries):
+                      max_user_code_retries,
+                      ubf_context):
 
         # if the user code has failed max_user_code_retries times, @catch
         # runs a piece of fallback code instead. This way we can continue
@@ -113,7 +115,9 @@ class CatchDecorator(StepDecorator):
         def fallback_step(inputs=None):
             raise FailureHandledByCatch(retry_count)
 
-        if retry_count > max_user_code_retries:
+        # We don't run fallback for `ubf_control` since it doesn't support
+        # any retries.
+        if ubf_context != UBF_CONTROL and retry_count > max_user_code_retries:
             return fallback_step
         else:
             return step_func
