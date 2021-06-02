@@ -4,10 +4,10 @@ try:
 except ImportError as e:
     ver = sys.version_info[0] * 10 + sys.version_info[1]
     if ver >= 36:
-        # e.path is not None if the error stems from some other place than here
+        # e.name is set to the name of the package that fails to load
         # so don't error ONLY IF the error is importing this module (but do
         # error if there is a transitive import error)
-        if not (isinstance(e, ModuleNotFoundError) and e.path is None):
+        if not (isinstance(e, ModuleNotFoundError) and e.name == 'metaflow_custom'):
             print(
                 "Cannot load metaflow_custom plugins -- "
                 "if you want to ignore, uninstall metaflow_custom package")
