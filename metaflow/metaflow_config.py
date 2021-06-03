@@ -236,9 +236,6 @@ except ImportError as e:
 else:
     # We load into globals whatever we have in extension_module
     # We specifically exclude any modules that may be included (like sys, os, etc)
-    # *except* for ones that are part of metaflow_custom (basically providing
-    # an aliasing mechanism)
-    lazy_load_custom_modules = {}
     for n, o in extension_module.__dict__.items():
         if n == 'DEBUG_OPTIONS':
             DEBUG_OPTIONS.extend(o)
@@ -247,16 +244,9 @@ else:
                     from_conf('METAFLOW_DEBUG_%s' % typ.upper())
         elif not n.startswith('__') and not isinstance(o, types.ModuleType):
             globals()[n] = o
-        elif isinstance(o, types.ModuleType) and o.__package__ and \
-                o.__package__.startswith('metaflow_custom'):
-            lazy_load_custom_modules['metaflow.%s' % n] = o
-    if lazy_load_custom_modules:
-        from metaflow import _LazyLoader
-        sys.meta_path.append(_LazyLoader(lazy_load_custom_modules))
 finally:
     # Erase all temporary names to avoid leaking things
-    for _n in ['ver', 'n', 'o', 'e', 'type', 'lazy_load_custom_modules',
-               'extension_module', '_LazyLoader']:
+    for _n in ['ver', 'n', 'o', 'e', 'extension_module']:
         try:
             del globals()[_n]
         except KeyError:

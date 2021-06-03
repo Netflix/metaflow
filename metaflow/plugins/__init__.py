@@ -1,4 +1,6 @@
 import sys
+import types
+
 try:
     import metaflow_custom.plugins as ext_plugins
 except ImportError as e:
@@ -12,6 +14,29 @@ except ImportError as e:
                 "Cannot load metaflow_custom plugins -- "
                 "if you want to ignore, uninstall metaflow_custom package")
             raise
+else:
+    # We load into globals whatever we have in extension_module
+    # We specifically exclude any modules that may be included (like sys, os, etc)
+    # *except* for ones that are part of metaflow_custom (basically providing
+    # an aliasing mechanism)
+    lazy_load_custom_modules = {}
+    addl_modules = ext_plugins.__dict__.get('__mf_promote_submodules__')
+    if addl_modules:
+        # We make an alias for these modules which the metaflow_custom author
+        # wants to expose but that may not be loaded yet
+        lazy_load_custom_modules = {
+            'metaflow.plugins.%s' % k: 'metaflow_custom.plugins.%s' % k
+            for k in addl_modules}
+    for n, o in ext_plugins.__dict__.items():
+        if not n.startswith('__') and not isinstance(o, types.ModuleType):
+            globals()[n] = o
+        elif isinstance(o, types.ModuleType) and o.__package__ and \
+                o.__package__.startswith('metaflow_custom'):
+            lazy_load_custom_modules['metaflow.plugins.%s' % n] = o
+    if lazy_load_custom_modules:
+        from metaflow import _LazyLoader
+        sys.meta_path = [_LazyLoader(lazy_load_custom_modules)] + sys.meta_path
+
 
     class _fake(object):
         def __init__(self, **kwargs):
@@ -121,3 +146,11 @@ MONITOR_SIDECARS.update(ext_plugins.MONITOR_SIDECARS)
 SIDECARS.update(LOGGING_SIDECARS)
 SIDECARS.update(MONITOR_SIDECARS)
 
+# Erase all temporary names to avoid leaking things
+for _n in ['ver', 'n', 'o', 'e', 'lazy_load_custom_modules', 'ext_plugins',
+           '_LazyLoader', '_merge_lists', '_fake', 'addl_modules']:
+    try:
+        del globals()[_n]
+    except KeyError:
+        pass
+del globals()['_n']
