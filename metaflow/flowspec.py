@@ -353,11 +353,8 @@ class FlowSpec(object):
             raise MissingInMergeArtifactsException(msg, missing)
         # If things are resolved, we go and fetch from the datastore and set here
         for var, (inp, sha) in to_merge.items():
-            if self._datastore.object_exists(sha):
-                self._datastore.objects[var] = sha
-                self._datastore.info[var] = inp._datastore.info[var]
-            else:
-                setattr(self, var, getattr(inp, var))
+            self._datastore.objects[var] = sha
+            self._datastore.info[var] = inp._datastore.info[var]
 
     def next(self, *dsts, **kwargs):
         """
