@@ -15,6 +15,21 @@ except ImportError as e:
                 "Cannot load metaflow_custom plugins -- "
                 "if you want to ignore, uninstall metaflow_custom package")
             raise
+    class _fake(object):
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+
+        def get_plugin_cli(self):
+            return []
+
+    ext_plugins = _fake(
+        FLOW_DECORATORS=[],
+        STEP_DECORATORS=[],
+        ENVIRONMENTS=[],
+        METADATA_PROVIDERS=[],
+        SIDECARS={},
+        LOGGING_SIDECARS={},
+        MONITOR_SIDECARS={})
 else:
     # We load into globals whatever we have in extension_module
     # We specifically exclude any modules that may be included (like sys, os, etc)
@@ -37,23 +52,6 @@ else:
     if lazy_load_custom_modules:
         from metaflow import _LazyLoader
         sys.meta_path = [_LazyLoader(lazy_load_custom_modules)] + sys.meta_path
-
-
-    class _fake(object):
-        def __init__(self, **kwargs):
-            self.__dict__.update(kwargs)
-
-        def get_plugin_cli(self):
-            return []
-
-    ext_plugins = _fake(
-        FLOW_DECORATORS=[],
-        STEP_DECORATORS=[],
-        ENVIRONMENTS=[],
-        METADATA_PROVIDERS=[],
-        SIDECARS={},
-        LOGGING_SIDECARS={},
-        MONITOR_SIDECARS={})
 
 
 def get_plugin_cli():
