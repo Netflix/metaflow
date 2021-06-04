@@ -199,6 +199,10 @@ class S3DataStore(MetaflowDataStore):
         root = os.path.join(self.data_root, sha[:2])
         return os.path.join(root, sha)
 
+    def object_exists(self, sha):
+        path = self.object_path(sha)
+        return bool(self._head_s3_object(path))
+
     @only_if_not_done
     def save_data(self, sha, transformable_object):
         """
