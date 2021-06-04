@@ -129,7 +129,8 @@ except ImportError as e:
         # e.name is set to the name of the package that fails to load
         # so don't error ONLY IF the error is importing this module (but do
         # error if there is a transitive import error)
-        if not (isinstance(e, ModuleNotFoundError) and e.name == 'metaflow_custom'):
+        if not (isinstance(e, ModuleNotFoundError) and \
+                e.name in ['metaflow_custom', 'metaflow_custom.exceptions']):
             print(
                 "Cannot load metaflow_custom exceptions -- "
                 "if you want to ignore, uninstall metaflow_custom package")
