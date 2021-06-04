@@ -154,12 +154,6 @@ class MetaflowDataStore(object):
         """
         raise NotImplementedError()
 
-    def object_exists(self, sha):
-        """
-        Return whether object exists in datastore
-        """
-        raise NotImplementedError()
-
     @classmethod
     def get_latest_tasks(cls,
                          flow_name,

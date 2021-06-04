@@ -32,10 +32,6 @@ class LocalDataStore(MetaflowDataStore):
         root = os.path.join(self.data_root, sha[:2])
         return os.path.join(root, sha)
 
-    def object_exists(self, sha):
-        path = self.object_path(sha)
-        return os.path.exists(path)
-
     @classmethod
     def get_datastore_root_from_config(cls, echo, create_on_absent=True):
         # Compute path for DATASTORE_SYSROOT_LOCAL
