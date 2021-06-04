@@ -27,7 +27,7 @@ from .metadata import MetaDatum
 from .debug import debug
 from .decorators import flow_decorators
 from .mflog import mflog, RUNTIME_LOG_SOURCE
-from .util import to_unicode, compress_list, dict_to_cli_options, unicode_type
+from .util import to_unicode, compress_list, unicode_type
 from .unbounded_foreach import CONTROL_TASK_TAG, UBF_CONTROL, UBF_TASK
 
 MAX_WORKERS=16
@@ -864,11 +864,30 @@ class CLIArgs(object):
         self.env = {}
 
     def get_args(self):
+
+        # TODO: Make one with dict_to_cli_options; see cli_args.py for more detail
+        def _options(mapping):
+            for k, v in mapping.items():
+                if v:
+                    # we need special handling for 'with' since it is a reserved
+                    # keyword in Python, so we call it 'decospecs' in click args
+                    if k == 'decospecs':
+                        k = 'with'
+                    k = k.replace('_', '-')
+                    v = v if isinstance(v, list) or isinstance(v, tuple) else [v]
+                    for value in v:
+                        yield '--%s' % k
+                        if not isinstance(value, bool):
+                            value = to_unicode(value)
+                            if ' ' in value:
+                                yield '\'%s\'' % value
+                            else:
+                                yield value
         args = list(self.entrypoint)
-        args.extend(dict_to_cli_options(self.top_level_options))
+        args.extend(_options(self.top_level_options))
         args.extend(self.commands)
         args.extend(self.command_args)
-        args.extend(dict_to_cli_options(self.command_options))
+        args.extend(_options(self.command_options))
         return args
 
     def get_env(self):

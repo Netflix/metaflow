@@ -1,8 +1,20 @@
 # This class provides a global singleton `cli_args` which stores the `top` and
 # `step` level options for the metaflow CLI. This allows decorators to have 
 # access to the CLI options instead of relying (solely) on the click context.
-# TODO: Fold `dict_to_cli_options` as a private method of this `CLIArgs`
-from .util import dict_to_cli_options
+# TODO: We have two CLIArgs:
+#  - this one, which captures the top level and step-level options passed to the
+#    step command and is used primarily for UBF to replicate the exact command
+#    line passed
+#  - one in runtime.py which is used to construct the step command and modified by
+#    runtime_step_cli. Both are similar in nature and should be unified in some way
+#
+# TODO: dict_to_cli_options uses shlex which causes some issues with this as
+# well as the converting of options in runtime.py. We should make it so that we
+# can properly shlex things and un-shlex when using. Ideally this should all be
+# done in one place.
+
+from .util import to_unicode
+
 
 class CLIArgs(object):
     def __init__(self):
@@ -35,12 +47,32 @@ class CLIArgs(object):
         if step_kwargs is None:
             step_kwargs = self._step_kwargs
 
-        top_args_list = [arg for arg in dict_to_cli_options(top_kwargs)]
+        top_args_list = list(self._options(top_kwargs))
         cmd.extend(top_args_list)
         cmd.extend(['step', step_name])
-        step_args_list = [arg for arg in dict_to_cli_options(step_kwargs)]
+        step_args_list = list(self._options(step_kwargs))
         cmd.extend(step_args_list)
 
         return cmd
+
+    @staticmethod
+    def _options(mapping):
+        for k, v in mapping.items():
+            if v:
+                # we need special handling for 'with' since it is a reserved
+                # keyword in Python, so we call it 'decospecs' in click args
+                if k == 'decospecs':
+                    k = 'with'
+                k = k.replace('_', '-')
+                v = v if isinstance(v, list) or isinstance(v, tuple) else [v]
+                for value in v:
+                    yield '--%s' % k
+                    if not isinstance(value, bool):
+                        value = to_unicode(value)
+                        if ' ' in value:
+                            yield '\'%s\'' % value
+                        else:
+                            yield value
+
 
 cli_args = CLIArgs()

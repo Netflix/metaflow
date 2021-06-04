@@ -5,7 +5,7 @@ from metaflow.cli_args import cli_args
 from metaflow.decorators import StepDecorator
 from metaflow.exception import MetaflowException
 from metaflow.unbounded_foreach import UnboundedForeachInput, UBF_CONTROL, UBF_TASK
-from metaflow.util import dict_to_cli_options, to_unicode
+from metaflow.util import to_unicode
 
 class InternalUnboundedForeachInput(UnboundedForeachInput):
     """

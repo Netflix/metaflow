@@ -9,6 +9,7 @@ from .datastore import Inputs, MetaflowDatastoreSet
 from .exception import MetaflowInternalError,\
     MetaflowDataMissing,\
     MetaflowExceptionWrapper
+from .unbounded_foreach import UBF_CONTROL
 from .util import all_equal,\
     get_username,\
     resolve_identity, \
