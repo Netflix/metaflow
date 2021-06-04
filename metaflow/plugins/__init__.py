@@ -2,7 +2,7 @@ import sys
 import types
 
 try:
-    import metaflow_custom.plugins as ext_plugins
+    import metaflow_custom.plugins as _ext_plugins
 except ImportError as e:
     ver = sys.version_info[0] * 10 + sys.version_info[1]
     if ver >= 36:
@@ -22,7 +22,7 @@ except ImportError as e:
         def get_plugin_cli(self):
             return []
 
-    ext_plugins = _fake(
+    _ext_plugins = _fake(
         FLOW_DECORATORS=[],
         STEP_DECORATORS=[],
         ENVIRONMENTS=[],
@@ -36,20 +36,29 @@ else:
     # *except* for ones that are part of metaflow_custom (basically providing
     # an aliasing mechanism)
     lazy_load_custom_modules = {}
-    addl_modules = ext_plugins.__dict__.get('__mf_promote_submodules__')
+    addl_modules = _ext_plugins.__dict__.get('__mf_promote_submodules__')
     if addl_modules:
         # We make an alias for these modules which the metaflow_custom author
         # wants to expose but that may not be loaded yet
         lazy_load_custom_modules = {
             'metaflow.plugins.%s' % k: 'metaflow_custom.plugins.%s' % k
             for k in addl_modules}
-    for n, o in ext_plugins.__dict__.items():
+    for n, o in _ext_plugins.__dict__.items():
         if not n.startswith('__') and not isinstance(o, types.ModuleType):
             globals()[n] = o
         elif isinstance(o, types.ModuleType) and o.__package__ and \
                 o.__package__.startswith('metaflow_custom'):
             lazy_load_custom_modules['metaflow.plugins.%s' % n] = o
     if lazy_load_custom_modules:
+        # NOTE: We load things first to have metaflow_custom override things here.
+        # This does mean that for modules that have the same name (for example,
+        # if metaflow_custom.plugins also provides a conda module), it needs
+        # to provide whatever is expected below (so for example a `conda_step_decorator`
+        # file with a `CondaStepDecorator` class).
+        # We do this because we want metaflow_custom to fully override things
+        # and if we did not change sys.meta_path here, the lines below would
+        # load the non metaflow_custom modules providing for possible confusion.
+        # This keeps it cleaner.
         from metaflow import _LazyLoader
         sys.meta_path = [_LazyLoader(lazy_load_custom_modules)] + sys.meta_path
 
@@ -65,7 +74,7 @@ def get_plugin_cli():
     from .aws.batch import batch_cli
     from .aws.step_functions import step_functions_cli
 
-    return ext_plugins.get_plugin_cli() + [
+    return _ext_plugins.get_plugin_cli() + [
         package_cli.cli,
         batch_cli.cli,
         step_functions_cli.cli]
@@ -97,17 +106,17 @@ STEP_DECORATORS = _merge_lists([CatchDecorator,
                                 RetryDecorator,
                                 BatchDecorator,
                                 StepFunctionsInternalDecorator,
-                                CondaStepDecorator], ext_plugins.STEP_DECORATORS, 'name')
+                                CondaStepDecorator], _ext_plugins.STEP_DECORATORS, 'name')
 
 # Add Conda environment
 from .conda.conda_environment import CondaEnvironment
-ENVIRONMENTS = _merge_lists([CondaEnvironment], ext_plugins.ENVIRONMENTS, 'TYPE')
+ENVIRONMENTS = _merge_lists([CondaEnvironment], _ext_plugins.ENVIRONMENTS, 'TYPE')
 
 # Metadata providers
 from .metadata import LocalMetadataProvider, ServiceMetadataProvider
 
 METADATA_PROVIDERS = _merge_lists(
-    [LocalMetadataProvider, ServiceMetadataProvider], ext_plugins.METADATA_PROVIDERS, 'TYPE')
+    [LocalMetadataProvider, ServiceMetadataProvider], _ext_plugins.METADATA_PROVIDERS, 'TYPE')
 
 # Every entry in this list becomes a class-level flow decorator.
 # Add an entry here if you need a new flow-level annotation. Be
@@ -119,7 +128,7 @@ from .project_decorator import ProjectDecorator
 FLOW_DECORATORS = _merge_lists([CondaFlowDecorator,
                                 ScheduleDecorator,
                                 ProjectDecorator],
-                            ext_plugins.FLOW_DECORATORS, 'name')
+                            _ext_plugins.FLOW_DECORATORS, 'name')
 
 
 # Sidecars
@@ -128,25 +137,27 @@ from metaflow.metadata.heartbeat import MetadataHeartBeat
 
 SIDECARS = {'save_logs_periodically': SaveLogsPeriodicallySidecar,
             'heartbeat': MetadataHeartBeat}
-SIDECARS.update(ext_plugins.SIDECARS)
+SIDECARS.update(_ext_plugins.SIDECARS)
 
 # Add logger
 from .debug_logger import DebugEventLogger
 LOGGING_SIDECARS = {'debugLogger': DebugEventLogger,
                     'nullSidecarLogger': None}
-LOGGING_SIDECARS.update(ext_plugins.LOGGING_SIDECARS)
+LOGGING_SIDECARS.update(_ext_plugins.LOGGING_SIDECARS)
 
 # Add monitor
 from .debug_monitor import DebugMonitor
 MONITOR_SIDECARS = {'debugMonitor': DebugMonitor,
                     'nullSidecarMonitor': None}
-MONITOR_SIDECARS.update(ext_plugins.MONITOR_SIDECARS)
+MONITOR_SIDECARS.update(_ext_plugins.MONITOR_SIDECARS)
 
 SIDECARS.update(LOGGING_SIDECARS)
 SIDECARS.update(MONITOR_SIDECARS)
 
 # Erase all temporary names to avoid leaking things
-for _n in ['ver', 'n', 'o', 'e', 'lazy_load_custom_modules', 'ext_plugins',
+# We leave '_ext_plugins' because it is used in a function (so it needs
+# to stick around)
+for _n in ['ver', 'n', 'o', 'e', 'lazy_load_custom_modules',
            '_LazyLoader', '_merge_lists', '_fake', 'addl_modules']:
     try:
         del globals()[_n]
