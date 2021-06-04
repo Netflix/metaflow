@@ -57,10 +57,10 @@ class ServiceMetadataProvider(MetadataProvider):
     def version(self):
         return self._version(self._monitor)
 
-    def new_run_id(self, tags=[], sys_tags=[]):
+    def new_run_id(self, tags=None, sys_tags=None):
         return self._new_run(tags=tags, sys_tags=sys_tags)
 
-    def register_run_id(self, run_id, tags=[], sys_tags=[]):
+    def register_run_id(self, run_id, tags=None, sys_tags=None):
         try:
             # don't try to register an integer ID which was obtained
             # from the metadata service in the first place
@@ -69,15 +69,15 @@ class ServiceMetadataProvider(MetadataProvider):
         except ValueError:
             return self._new_run(run_id, tags=tags, sys_tags=sys_tags)
 
-    def new_task_id(self, run_id, step_name, tags=[], sys_tags=[]):
+    def new_task_id(self, run_id, step_name, tags=None, sys_tags=None):
         return self._new_task(run_id, step_name, tags=tags, sys_tags=sys_tags)
 
     def register_task_id(self,
                          run_id,
                          step_name,
                          task_id,
-                         tags=[],
-                         sys_tags=[]):
+                         tags=None,
+                         sys_tags=None):
         try:
             # don't try to register an integer ID which was obtained
             # from the metadata service in the first place
@@ -191,7 +191,7 @@ class ServiceMetadataProvider(MetadataProvider):
     def _perform_operations_internal(cls, operations):
         if cls._can_perform_tagging is None:
             cls._can_perform_tagging = cls._version(None) is not None and \
-            LooseVersion(cls._version(None)) >= LooseVersion('2.0.6')
+            LooseVersion(cls._version(None)) >= LooseVersion('2.0.5')
         if not cls._can_perform_tagging:
             raise MetaflowException(
                 "Tagging not supported on this version of Metaflow service. "
@@ -208,7 +208,7 @@ class ServiceMetadataProvider(MetadataProvider):
                 "tag": op.args['tag']})
         return json.loads(cls._request(None, "/tags", data=to_send))
 
-    def _new_run(self, run_id=None, tags=[], sys_tags=[]):
+    def _new_run(self, run_id=None, tags=None, sys_tags=None):
         # first ensure that the flow exists
         self._get_or_create('flow')
         run = self._get_or_create('run', run_id, tags=tags, sys_tags=sys_tags)
@@ -218,8 +218,8 @@ class ServiceMetadataProvider(MetadataProvider):
                   run_id,
                   step_name,
                   task_id=None,
-                  tags=[],
-                  sys_tags=[]):
+                  tags=None,
+                  sys_tags=None):
         # first ensure that the step exists
         self._get_or_create('step', run_id, step_name)
         task = self._get_or_create('task', run_id, step_name, task_id, tags=tags, sys_tags=sys_tags)
@@ -253,7 +253,12 @@ class ServiceMetadataProvider(MetadataProvider):
         return create_path + '/task'
 
     def _get_or_create(
-            self, obj_type, run_id=None, step_name=None, task_id=None, tags=[], sys_tags=[]):
+            self, obj_type, run_id=None, step_name=None, task_id=None, tags=None, sys_tags=None):
+
+        if tags is None:
+            tags = []
+        if sys_tags is None:
+            sys_tags = []
 
         def create_object():
             data = self._object_to_json(
@@ -261,8 +266,8 @@ class ServiceMetadataProvider(MetadataProvider):
                 run_id,
                 step_name,
                 task_id,
-                tags + self.sticky_tags,
-                sys_tags + self.sticky_sys_tags)
+                self.sticky_tags.union(tags),
+                self.sticky_sys_tags.union(sys_tags))
             return self._request(self._monitor, create_path, data, obj_path)
 
         always_create = False

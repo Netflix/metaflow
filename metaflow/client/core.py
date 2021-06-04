@@ -415,8 +415,8 @@ class MetaflowObject(object):
             if o not in ['add', 'remove']:
                 raise TaggingException("Invalid tagging operation %s" % o)
             if o == 'add' and t in self._system_tags:
-                raise TaggingException(
-                    "Cannot add tag *%s* as it already exists as a system tag" % t)
+                # We don't throw an error but just don't send it; it's a no-op
+                continue
             if o == 'remove':
                 if t in self._system_tags:
                     raise TaggingException("Cannot remove system tag *%s*" % t)

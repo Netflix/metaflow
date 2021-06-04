@@ -38,7 +38,7 @@ class LocalMetadataProvider(MetadataProvider):
     def version(self):
         return 'local'
 
-    def new_run_id(self, tags=[], sys_tags=[]):
+    def new_run_id(self, tags=None, sys_tags=None):
         # We currently just use the timestamp to create an ID. We can be reasonably certain
         # that it is unique and this makes it possible to do without coordination or
         # reliance on POSIX locks in the filesystem.
@@ -46,7 +46,7 @@ class LocalMetadataProvider(MetadataProvider):
         self._new_run(run_id, tags, sys_tags)
         return run_id
 
-    def register_run_id(self, run_id, tags=[], sys_tags=[]):
+    def register_run_id(self, run_id, tags=None, sys_tags=None):
         try:
             # This metadata provider only generates integer IDs so if this is
             # an integer, we don't register it again (since it was "registered"
@@ -57,7 +57,7 @@ class LocalMetadataProvider(MetadataProvider):
         except ValueError:
             return self._new_run(run_id, tags, sys_tags)
 
-    def new_task_id(self, run_id, step_name, tags=[], sys_tags=[]):
+    def new_task_id(self, run_id, step_name, tags=None, sys_tags=None):
         self._task_id_seq += 1
         task_id = str(self._task_id_seq)
         self._new_task(run_id, step_name, task_id, tags, sys_tags)
@@ -67,8 +67,8 @@ class LocalMetadataProvider(MetadataProvider):
                          run_id,
                          step_name,
                          task_id,
-                         tags=[],
-                         sys_tags=[]):
+                         tags=None,
+                         sys_tags=None):
         try:
             # Same logic as register_run_id
             int(task_id)
@@ -173,13 +173,14 @@ class LocalMetadataProvider(MetadataProvider):
             if obj_to_update:
                 # We can perform the operation now
                 if op.operation == 'add':
-                    # We can only add tags that are not already system_tags
-                    if op.args['tag'] in obj_to_update['system_tags']:
-                        raise TaggingException(
-                            msg='Cannot add tag *%s* as it already exists as a system tag' % op.args['tag'])
-                    if op.args['tag'] not in obj_to_update['tags']:
+                    # We can only add tags that are not already system_tags.
+                    # We also never add duplicate tags to view tags as a set
+                    if op.args['tag'] not in obj_to_update['system_tags'] and \
+                            op.args['tag'] not in obj_to_update['tags']:
                         obj_to_update['tags'].append(op.args['tag'])
                 elif op.operation == 'remove':
+                    # Remove all instances in case there are duplicates (from
+                    # older MF versions)
                     obj_to_update['tags'] = [
                         x for x in obj_to_update['tags'] if x != op.args['tag']]
                 else:
@@ -207,7 +208,11 @@ class LocalMetadataProvider(MetadataProvider):
                 raise
 
     def _ensure_meta(
-            self, obj_type, run_id, step_name, task_id, tags=[], sys_tags=[]):
+            self, obj_type, run_id, step_name, task_id, tags=None, sys_tags=None):
+        if tags is None:
+            tags = []
+        if sys_tags is None:
+            sys_tags = []
         subpath = self._create_and_get_metadir(self._flow_name, run_id, step_name, task_id)
         selfname = os.path.join(subpath, '_self.json')
         self._makedirs(subpath)
@@ -221,21 +226,22 @@ class LocalMetadataProvider(MetadataProvider):
                 run_id,
                 step_name,
                 task_id,
-                tags + self.sticky_tags, sys_tags + self.sticky_sys_tags)})
+                self.sticky_tags.union(tags),
+                self.sticky_sys_tags.union(sys_tags))})
 
-    def _new_run(self, run_id, tags=[], sys_tags=[]):
+    def _new_run(self, run_id, tags=None, sys_tags=None):
         self._ensure_meta('flow', None, None, None)
         self._ensure_meta('run', run_id, None, None, tags, sys_tags)
 
-    def _new_task(self, run_id, step_name, task_id, tags=[], sys_tags=[]):
+    def _new_task(self, run_id, step_name, task_id, tags=None, sys_tags=None):
         self._ensure_meta('step', run_id, step_name, None)
         self._ensure_meta('task', run_id, step_name, task_id, tags, sys_tags)
         self._register_code_package_metadata(run_id, step_name, task_id)
 
     @staticmethod
     def _make_path(
-          flow_name=None, run_id=None, step_name=None, task_id=None, pathspec=None,
-          create_on_absent=True):
+            flow_name=None, run_id=None, step_name=None, task_id=None, pathspec=None,
+            create_on_absent=True):
 
         from metaflow.datastore.local import LocalDataStore
         if LocalDataStore.datastore_root is None:

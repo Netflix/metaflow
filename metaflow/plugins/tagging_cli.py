@@ -13,35 +13,52 @@ def zip_longest(list1, list2):
         list2.extend([None] * (len(list1) - len(list2)))
     return zip(list1, list2)
 
-def format_tags(system_tags, customized_tags):
+def format_tags(system_tags, all_tags):
     import sys
 
-    header = ("*system tags (immutable)*", "*customized tags*")
-    stag_width = max([len(tag) for tag in list(system_tags) + [header[0]]])
-    ctag_width = max([len(tag) for tag in list(customized_tags) + [header[1]]])
+    max_length = max([len(t) for t in all_tags] if all_tags else [0])
 
-    # * * is hidden away by echo, hence the + 2
-    header_formatter = "{0:%d}  {1}" % (stag_width + 2)
-    lines = [header_formatter.format(*header)]
+    all_tags = sorted(all_tags)
+    if sys.version_info[0] < 3:
+        all_tags = [t if t in system_tags else '*%s*' % t.encode('utf-8') for t in all_tags]
+    else:
+        all_tags = [t if t in system_tags else '*%s*' % t for t in all_tags]
 
-    formatter = "{0:%d}  {1}" % (stag_width)
-    # seperator line under header
-    lines.extend([formatter.format("-" * stag_width, "-" * ctag_width)])
+    num_tags = len(all_tags)
 
-    for stag, ctag in zip_longest(sorted(system_tags), sorted(customized_tags)):
-        stag = stag if stag is not None else ""
-        ctag = ctag if ctag is not None else ""
-        if sys.version_info[0] < 3:
-            ctag = ctag.encode('utf-8')
-        lines.extend([formatter.format(stag, ctag)])
+    # We consider 4 spaces in between column and we consider 120 characters total
+    # width and we want 120 >= column_count*max_length + (column_count - 1)*4
+    column_count = 124 // (max_length + 4)
+    if column_count == 0:
+        column_count = 1
+        words_per_column = num_tags
+    else:
+        words_per_column = (num_tags + column_count - 1) // column_count
 
+    # Extend all_tags by empty tags to be able to easily fill up the lines
+    addl_tags = words_per_column * column_count - num_tags
+    if addl_tags > 0:
+        all_tags.extend([' ' for _ in range(addl_tags)])
+
+    lines = ["",
+             "System tags and *user tags*; only *user tags* can be removed",
+             "--------------------------------------------------------",
+             ""]
+
+    for i in range(words_per_column):
+        line_values = [all_tags[i+j*words_per_column] for j in range(column_count)]
+        length_values = [max_length + 2 if l[0] == '*'
+                         else max_length for l in line_values]
+        formatter = "    ".join(["{:<%d}" % l for l in length_values])
+        lines.append(formatter.format(*line_values))
+    lines.append("")
     return "\n".join(lines)
 
 
 def print_tags(metaflow_run_client):
     system_tags = metaflow_run_client.system_tags
-    customized_tags = metaflow_run_client.tags.difference(system_tags)
-    return format_tags(system_tags, customized_tags)
+    all_tags = metaflow_run_client.tags
+    return format_tags(system_tags, all_tags)
 
 
 def check_run_id(user_namespace, flow_name, run_id):
@@ -57,6 +74,7 @@ def check_run_id(user_namespace, flow_name, run_id):
 
 def is_prod_token(token):
     return token is not None and token.startswith("production:")
+
 
 def obtain_metaflow_run_client(obj, run_id, user_namespace):
     from metaflow.client import Run, Flow
@@ -97,7 +115,7 @@ def obtain_metaflow_run_client(obj, run_id, user_namespace):
     except MetaflowNotFound:
         raise CommandException("Run *%s* does not exist " % run_name +
                                "in any namespace.\nPlease check your --run-id.")
-    except MetaflowNamespaceMismatch as e:
+    except MetaflowNamespaceMismatch:
         namespace(None)
         metaflow_client = Run(pathspec=run_name)
 
@@ -265,22 +283,20 @@ def tag_list(obj, run_id, hide_system_tags, list_all, my_runs):
                                "to check the meaning of the two options.")
 
     system_tags = set()
-    customized_tags = set()
+    all_tags = set()
 
     if list_all or my_runs:
         user_namespace = resolve_identity() if my_runs else None
         runs = list_runs(obj, user_namespace)
         for run in runs:
-            system_tags = system_tags.union(run.system_tags)
-            customized_tags = customized_tags.union(
-                run.tags.difference(run.system_tags))
+            system_tags.update(run.system_tags)
+            all_tags.update(run.tags)
     else:
-        metaflow_run_client = obtain_metaflow_run_client(obj,
-                                                         run_id, None)
+        metaflow_run_client = obtain_metaflow_run_client(obj, run_id, None)
         system_tags = metaflow_run_client.system_tags
-        customized_tags = metaflow_run_client.tags.difference(system_tags)
+        all_tags = metaflow_run_client.tags
 
     if hide_system_tags:
-        obj.echo(format_tags([], customized_tags), err=False)
+        obj.echo(format_tags([], all_tags.difference(system_tags)), err=False)
     else:
-        obj.echo(format_tags(system_tags, customized_tags), err=False)
+        obj.echo(format_tags(system_tags, all_tags), err=False)
