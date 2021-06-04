@@ -191,7 +191,7 @@ class ServiceMetadataProvider(MetadataProvider):
     def _perform_operations_internal(cls, operations):
         if cls._can_perform_tagging is None:
             cls._can_perform_tagging = cls._version(None) is not None and \
-            LooseVersion(cls._version(None)) >= LooseVersion('2.0.5')
+            LooseVersion(cls._version(None)) >= LooseVersion('2.0.6')
         if not cls._can_perform_tagging:
             raise MetaflowException(
                 "Tagging not supported on this version of Metaflow service. "
