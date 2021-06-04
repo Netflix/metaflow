@@ -874,15 +874,12 @@ class CLIArgs(object):
                     if k == 'decospecs':
                         k = 'with'
                     k = k.replace('_', '-')
-                    v = v if isinstance(v, list) or isinstance(v, tuple) else [v]
+                    v = v if isinstance(v, (list, tuple, set)) else [v]
                     for value in v:
                         yield '--%s' % k
                         if not isinstance(value, bool):
-                            value = to_unicode(value)
-                            if ' ' in value:
-                                yield '\'%s\'' % value
-                            else:
-                                yield value
+                            yield to_unicode(value)
+
         args = list(self.entrypoint)
         args.extend(_options(self.top_level_options))
         args.extend(self.commands)
