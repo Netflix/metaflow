@@ -30,8 +30,12 @@ class BasicUnboundedForeachTest(MetaflowTest):
 
     def check_results(self, flow, checker):
         run = checker.get_run()
-
-        tasks = run['foreach_inner'].tasks()
-        task_list = list(tasks)
-        assert_equals(2, len(task_list))
-        assert_equals(1, len(list(run['foreach_inner'].control_tasks())))
+        if type(checker).__name__ == 'CliCheck':
+            # CliCheck doesn't support enlisting of tasks.
+            assert(run is None)
+        else:
+            assert(run is not None)
+            tasks = run['foreach_inner'].tasks()
+            task_list = list(tasks)
+            assert_equals(2, len(task_list))
+            assert_equals(1, len(list(run['foreach_inner'].control_tasks())))

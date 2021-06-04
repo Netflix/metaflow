@@ -35,14 +35,21 @@ class NestedUnboundedForeachTest(MetaflowTest):
         from itertools import product
 
         run = checker.get_run()
-        foreach_inner_tasks = {t.pathspec for t in run['foreach_inner'].tasks()}
-        assert_equals(36, len(foreach_inner_tasks))
-        assert_equals(6, len(list(run['foreach_inner'].control_tasks())))
+        if type(checker).__name__ == 'CliCheck':
+            # CliCheck doesn't support enlisting of tasks nor can disambiguate
+            # control vs ubf tasks while dumping artifacts.
+            assert(run is None)
+        else:
+            assert(run is not None)
+            foreach_inner_tasks = {t.pathspec for t in run['foreach_inner'].tasks()}
+            assert_equals(36, len(foreach_inner_tasks))
+            assert_equals(6, len(list(run['foreach_inner'].control_tasks())))
 
-        artifacts = checker.artifact_dict('foreach_inner', 'combo')
-        # Explicitly only consider UBF tasks since the CLIChecker isn't aware of them.
-        import os
-        got = sorted(val['combo'] for task, val in artifacts.items()
-                                  if os.path.join(flow.name, task) in foreach_inner_tasks)
-        expected = sorted(''.join(p) for p in product('abc', 'de', 'fghijk'))
-        assert_equals(expected, got)
+            artifacts = checker.artifact_dict('foreach_inner', 'combo')
+            # Explicitly only consider UBF tasks since the CLIChecker isn't aware of them.
+            step_prefix = run['foreach_inner'].pathspec
+            import os
+            got = sorted(val['combo'] for task, val in artifacts.items()
+                                      if os.path.join(step_prefix, task) in foreach_inner_tasks)
+            expected = sorted(''.join(p) for p in product('abc', 'de', 'fghijk'))
+            assert_equals(expected, got)
