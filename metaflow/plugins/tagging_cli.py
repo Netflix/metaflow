@@ -30,6 +30,7 @@ def format_tags(system_tags, all_tags):
     # width and we want 120 >= column_count*max_length + (column_count - 1)*4
     column_count = 124 // (max_length + 4)
     if column_count == 0:
+        # Make sure we have at least 1 column even for very very long tags
         column_count = 1
         words_per_column = num_tags
     else:
