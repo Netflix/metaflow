@@ -1,7 +1,6 @@
 import json
 from metaflow.decorators import FlowDecorator
 from metaflow.decorators import StepDecorator
-from .argo_exception import ArgoException
 
 
 class ArgoFlowDecorator(FlowDecorator):
@@ -94,10 +93,6 @@ class ArgoStepDecorator(StepDecorator):
         'input_artifacts': [],
         'output_artifacts': [],
     }
-
-    def step_init(self, flow, graph, step, decos, environment, datastore, logger):
-        if datastore.TYPE != 's3':
-            raise ArgoException('The *@argo* decorator requires --datastore=s3.')
 
 
 class ArgoInternalStepDecorator(StepDecorator):
