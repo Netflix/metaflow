@@ -1,7 +1,7 @@
 import sys
 import types
 
-from .s3 import S3
+from .s3 import MetaflowS3Exception, S3
 
 # Import any additional datatools defined by a Metaflow custom package
 try:
