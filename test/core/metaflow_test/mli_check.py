@@ -80,17 +80,18 @@ class MliCheck(MetaflowCheck):
         return {task.id: {name: task[name].data} for task in self.run[step]}
 
     def assert_log(self, step, logtype, value, exact_match=True):
-        for task in self.run[step]:
-            log_value = getattr(task, logtype)
-            if log_value == value:
-                break
-            elif not exact_match and value in log_value:
-                break
-            else:
-                raise AssertLogFailed("Task '%s' expected task.%s='%s' but got task.%s='%s'" %\
-                                      (task.id,
-                                       logtype,
-                                       repr(value),
-                                       logtype,
-                                       repr(log_value)))
-        return True
+        log_value = self.get_log(step, logtype)
+        if log_value == value:
+            return True
+        elif not exact_match and value in log_value:
+            return True
+        else:
+            raise AssertLogFailed("Task '%s' expected task.%s='%s' but got task.%s='%s'" %\
+                                  (task.id,
+                                   logtype,
+                                   repr(value),
+                                   logtype,
+                                   repr(log_value)))
+
+    def get_log(self, step, logtype):
+        return ''.join(getattr(task, logtype) for task in self.run[step])

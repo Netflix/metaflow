@@ -16,7 +16,8 @@ class TaskDataStoreSet(object):
                  run_id,
                  steps=None,
                  pathspecs=None,
-                 prefetch_data_artifacts=None):
+                 prefetch_data_artifacts=None,
+                 allow_not_done=False):
         if flow_datastore.blob_cache is not None:
             raise DataException("FlowDataStore already has a blob cache")
         if flow_datastore.artifact_cache is not None:
@@ -25,7 +26,7 @@ class TaskDataStoreSet(object):
         flow_datastore.artifact_cache = KeepSpecificKeysCache()
 
         task_datastores = flow_datastore.get_latest_task_datastores(
-            run_id, steps=steps, pathspecs=pathspecs)
+            run_id, steps=steps, pathspecs=pathspecs, allow_not_done=allow_not_done)
 
         if prefetch_data_artifacts:
             all_keys = []

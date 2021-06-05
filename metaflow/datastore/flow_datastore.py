@@ -78,7 +78,7 @@ class FlowDataStore(object):
         return self._backend.datastore_root
 
     def get_latest_task_datastores(
-            self, run_id=None, steps=None, pathspecs=None):
+            self, run_id=None, steps=None, pathspecs=None, allow_not_done=False):
         """Return a list of TaskDataStore for a subset of
         the tasks (consider eventual consistency for some backends like S3)
         for which the latest attempt is done.
@@ -100,6 +100,9 @@ class FlowDataStore(object):
         pathspecs : List[str], optional
             Full task specs (run_id/step_name/task_id). Can be used instead of
             specifiying run_id and steps, by default None
+        allow_not_done : bool, optional
+            If True, returns the latest attempt of a task even if that attempt
+            wasn't marked as done, by default False
 
         Returns
         -------
@@ -161,14 +164,17 @@ class FlowDataStore(object):
         latest_started_attempts = set(
             (run, step, task, attempt)
             for (run, step, task), attempt in latest_started_attempts.items())
-        latest_and_done = latest_started_attempts & done_attempts
-        latest_and_done = [(v[0], v[1], v[2], v[3], data_objs[v])
-                           for v in latest_and_done]
-        return list(itertools.starmap(self.get_task_datastore, latest_and_done))
+        if allow_not_done:
+            latest_to_fetch = latest_started_attempts
+        else:
+            latest_to_fetch = latest_started_attempts & done_attempts
+        latest_to_fetch = [(v[0], v[1], v[2], v[3], data_objs[v], 'r', allow_not_done)
+                           for v in latest_to_fetch]
+        return list(itertools.starmap(self.get_task_datastore, latest_to_fetch))
 
     def get_task_datastore(
             self, run_id, step_name, task_id, attempt=None,
-            data_metadata=None, mode='r'):
+            data_metadata=None, mode='r', allow_not_done=False):
 
         return TaskDataStore(
             self,
@@ -177,7 +183,8 @@ class FlowDataStore(object):
             task_id,
             attempt=attempt,
             data_metadata=data_metadata,
-            mode=mode)
+            mode=mode,
+            allow_not_done=allow_not_done)
 
     def save_data(self, data):
         """Saves data to the underlying content-addressed store

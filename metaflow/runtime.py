@@ -12,7 +12,7 @@ import fcntl
 import time
 import select
 import subprocess
-
+from datetime import datetime
 from io import BytesIO
 from functools import partial
 
@@ -27,7 +27,7 @@ from .datastore.exceptions import DataException
 from .metadata import MetaDatum
 from .debug import debug
 from .decorators import flow_decorators
-
+from .mflog import mflog, RUNTIME_LOG_SOURCE
 from .util import to_unicode, compress_list
 
 MAX_WORKERS=16
@@ -38,6 +38,10 @@ PROGRESS_INTERVAL = 1000 #ms
 # executing a flow. These are prefetched during the resume operation by
 # leveraging the TaskDataStoreSet.
 PREFETCH_DATA_ARTIFACTS = ['_foreach_stack', '_task_ok', '_transition']
+
+# Runtime must use logsource=RUNTIME_LOG_SOURCE for all loglines that it
+# formats according to mflog. See a comment in mflog.__init__
+mflog_msg = partial(mflog.decorate, RUNTIME_LOG_SOURCE)
 
 # TODO option: output dot graph periodically about execution
 
@@ -521,13 +525,16 @@ class Task(object):
             self.run_id, self.step, self.task_id, attempt=self.retries, mode='w')
         self._ds.init_task()
 
-    def log(self, msg, system_msg=False, pid=None):
+    def log(self, msg, system_msg=False, pid=None, timestamp=True):
         if pid:
             prefix = '[%s (pid %s)] ' % (self._path, pid)
         else:
             prefix = '[%s] ' % self._path
 
-        self._logger(msg, head=prefix, system_msg=system_msg)
+        self._logger(msg,
+                     head=prefix,
+                     system_msg=system_msg,
+                     timestamp=timestamp)
         sys.stdout.flush()
 
     def _find_origin_task(self, clone_run_id, join_type):
@@ -620,20 +627,7 @@ class Task(object):
         self._ds.done()
 
     def save_logs(self, logtype_to_logs):
-        locations = self._ds.save_logs(logtype_to_logs)
-        for logtype, location in locations.items():
-            datum = [MetaDatum(field='log_location_%s' % logtype,
-                            value=json.dumps({
-                                'ds_type': self._ds.TYPE,
-                                'location': location,
-                                'attempt': self.retries}),
-                            type='log_path',
-                            tags=[])]
-            self.metadata.register_metadata(self.run_id,
-                                            self.step,
-                                            self.task_id,
-                                            datum)
-        return locations
+        self._ds.save_logs(RUNTIME_LOG_SOURCE, logtype_to_logs)
 
     def save_metadata(self, name, metadata):
         self._ds.save_metadata({name: metadata})
@@ -673,7 +667,7 @@ class TruncatedBuffer(object):
                 self._size += len(bytedata)
             else:
                 msg = b'[TRUNCATED - MAXIMUM LOG FILE SIZE REACHED]\n'
-                self._buffer.write(msg)
+                self._buffer.write(mflog_msg(msg))
                 self._eof = True
 
     def get_bytes(self):
@@ -801,6 +795,7 @@ class Worker(object):
                                       self.task.retries,
                                       self.task.user_code_retries)
         env.update(args.get_env())
+        env['PYTHONUNBUFFERED'] = 'x'
         # the env vars are needed by the test framework, nothing else
         env['_METAFLOW_ATTEMPT'] = str(self.task.retries)
         if self.task.clone_run_id:
@@ -818,10 +813,38 @@ class Worker(object):
                                 stderr=subprocess.PIPE,
                                 stdout=subprocess.PIPE)
 
-    def write(self, msg, buf):
-        buf.write(msg)
-        text = msg.rstrip().decode(self._encoding, errors='replace')
-        self.task.log(text, pid=self._proc.pid)
+    def emit_log(self, msg, buf, system_msg=False):
+        if mflog.is_structured(msg):
+            res = mflog.parse(msg)
+            if res:
+                # parsing successful
+                plain = res.msg
+                timestamp = res.utc_tstamp
+                if res.should_persist:
+                    # in special circumstances we may receive structured
+                    # loglines that haven't been properly persisted upstream.
+                    # This is the case e.g. if a task crashes in an external
+                    # system and we retrieve the remaining logs after the crash.
+                    # Those lines are marked with a special tag, should_persist,
+                    # which we process here
+                    buf.write(mflog.unset_should_persist(msg))
+            else:
+                # parsing failed, corrupted logline. Print it as-is
+                timestamp = datetime.utcnow()
+                plain = msg
+        else:
+            # If the line isn't formatted with mflog already, we format it here.
+            plain = msg
+            timestamp = datetime.utcnow()
+            # store unformatted loglines in the buffer that will be
+            # persisted, assuming that all previously formatted loglines have
+            # been already persisted at the source.
+            buf.write(mflog_msg(msg, now=timestamp), system_msg=system_msg)
+        text = plain.strip().decode(self._encoding, errors='replace')
+        self.task.log(text,
+                      pid=self._proc.pid,
+                      timestamp=mflog.utc_to_local(timestamp),
+                      system_msg=system_msg)
 
     def read_logline(self, fd):
         fileobj, buf = self._logs[fd]
@@ -829,7 +852,7 @@ class Worker(object):
         # line buffering. If it does, things will deadlock
         line = fileobj.readline()
         if line:
-            self.write(line, buf)
+            self.emit_log(line, buf)
             return True
         else:
             return False
@@ -843,7 +866,8 @@ class Worker(object):
             return True
         if not self.cleaned:
             for fileobj, buf in self._logs.values():
-                buf.write(b'[KILLED BY ORCHESTRATOR]\n', system_msg=True)
+                msg = b'[KILLED BY ORCHESTRATOR]\n'
+                self.emit_log(msg, buf, system_msg=True)
             self.cleaned = True
         return self._proc.poll() is not None
 
@@ -881,18 +905,19 @@ class Worker(object):
         # Return early if the task is cloned since we don't want to
         # perform any log collection.
         if not self.task.is_cloned:
-            self.task.save_logs({
-                'stdout': self._stdout.get_buffer(),
-                'stderr': self._stderr.get_buffer()})
-
             self.task.save_metadata('runtime', {'return_code': returncode,
                                                 'killed': self.killed,
                                                 'success': returncode == 0})
             if returncode:
                 if not self.killed:
-                    self.task.log('Task failed.',
-                                  system_msg=True,
-                                  pid=self._proc.pid)
+                    if returncode == -11:
+                        self.emit_log(b'Task failed with a segmentation fault.',
+                                      self._stderr,
+                                      system_msg=True)
+                    else:
+                        self.emit_log(b'Task failed.',
+                                      self._stderr,
+                                      system_msg=True)
             else:
                 num = self.task.results['_foreach_num_splits']
                 if num:
@@ -902,6 +927,9 @@ class Worker(object):
                 self.task.log('Task finished successfully.',
                               system_msg=True,
                               pid=self._proc.pid)
+            self.task.save_logs({
+                'stdout': self._stdout.get_buffer(),
+                'stderr': self._stderr.get_buffer()})
 
         return returncode
 
