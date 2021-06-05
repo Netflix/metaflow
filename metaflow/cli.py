@@ -12,7 +12,7 @@ from . import parameters
 from . import decorators
 from . import metaflow_version
 from . import namespace
-from .current import current
+from . import current
 from .util import resolve_identity, decompress_list, write_latest_run_id, \
     get_latest_run_id, to_unicode
 from .task import MetaflowTask
@@ -304,7 +304,12 @@ def logs(obj,
     datastore_set = TaskDataStoreSet(
         obj.flow_datastore, run_id, steps=[step_name], allow_not_done=True)
     if task_id:
-        ds_list = [datastore_set.get_with_pathspec(input_path)]
+        ds_list = [obj.datastore(obj.flow.name,
+                                 run_id=run_id,
+                                 step_name=step_name,
+                                 task_id=task_id,
+                                 mode='r',
+                                 allow_unsuccessful=True)]
     else:
         ds_list = list(datastore_set) # get all tasks
 
@@ -622,7 +627,7 @@ def run(obj,
         user_namespace=None,
         **kwargs):
 
-    if namespace is not None:
+    if user_namespace is not None:
         namespace(user_namespace or None)
     before_run(obj, tags, decospecs + obj.environment.decospecs())
 

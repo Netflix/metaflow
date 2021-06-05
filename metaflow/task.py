@@ -297,6 +297,8 @@ class MetaflowTask(object):
             }})
         logger = self.event_logger
         start = time.time()
+        self.metadata.start_task_heartbeat(self.flow.name, run_id, step_name,
+                                           task_id)
         try:
             # init side cars
             logger.start()
@@ -440,7 +442,7 @@ class MetaflowTask(object):
             }
             logger.log(msg)
 
-            attempt_ok = str(bool(int(self.flow._task_ok)))
+            attempt_ok = str(bool(self.flow._task_ok))
             self.metadata.register_metadata(run_id,
                                             step_name,
                                             task_id,
@@ -471,3 +473,4 @@ class MetaflowTask(object):
 
             # terminate side cars
             logger.terminate()
+            self.metadata.stop_heartbeat()

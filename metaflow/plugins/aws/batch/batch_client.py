@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from collections import defaultdict, deque
 import random
 import select
@@ -381,7 +382,15 @@ class RunningJob(object):
             if code == 429 or code >= 500:
                 raise TriableException(err)
             raise err
-        self._apply(data['jobs'][0])
+        # There have been sporadic reports of empty responses to the
+        # batch.describe_jobs API call, which can potentially happen if the
+        # batch.submit_job API call is not strongly consistent(¯\_(ツ)_/¯).
+        # We add a check here to guard against that. The `update()` call
+        # will ensure that we poll `batch.describe_jobs` until we get a
+        # satisfactory response at least once through out the lifecycle of
+        # the job.
+        if len(data['jobs']) == 1:
+            self._apply(data['jobs'][0])
 
     def update(self):
         self._update()

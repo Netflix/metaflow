@@ -56,15 +56,19 @@ class Batch(object):
                                            stderr_path=STDERR_PATH,
                                            **task_spec)
         init_cmds = environment.get_package_commands(code_package_url)
-        init_cmds.extend(environment.bootstrap_commands(step_name))
         init_expr = ' && '.join(init_cmds)
-        step_expr = bash_capture_logs(' && '.join(step_cmds))
+        step_expr = bash_capture_logs(' && '.join(
+                        environment.bootstrap_commands(step_name) + step_cmds))
 
         # construct an entry point that
         # 1) initializes the mflog environment (mflog_expr)
         # 2) bootstraps a metaflow environment (init_expr)
         # 3) executes a task (step_expr)
-        cmd_str = 'mkdir -p /logs && %s && %s && %s; ' % \
+
+        # the `true` command is to make sure that the generated command
+        # plays well with docker containers which have entrypoint set as
+        # eval $@
+        cmd_str = 'true && mkdir -p /logs && %s && %s && %s; ' % \
                         (mflog_expr, init_expr, step_expr)
         # after the task has finished, we save its exit code (fail/success)
         # and persist the final logs. The whole entrypoint should exit
@@ -266,6 +270,7 @@ class Batch(object):
         self.job = job.execute()
 
     def wait(self, stdout_location, stderr_location, echo=None):
+        
         def wait_for_launch(job):
             status = job.status
             echo('Task is starting (status %s)...' % status,
@@ -341,7 +346,7 @@ class Batch(object):
         # We fetch the remaining logs from AWS CloudWatch and persist them to 
         # Amazon S3.
         #
-        # TODO: AWS CloudWatch fetch logs        
+        # TODO: AWS CloudWatch fetch logs
 
         if self.job.is_crashed:
             msg = next(msg for msg in 

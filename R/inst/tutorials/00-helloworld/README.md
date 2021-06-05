@@ -7,7 +7,10 @@ printing out 'Metaflow says: Hi!' to the terminal.**
 - Basics of Metaflow.
 - Step decorator.
 
+
 #### To play this episode:
-1. ```cd metaflow-tutorials/R/00-helloworld```
+1. ```cd tutorials/00-helloworld```
 2. ```Rscript helloworld.R show```
 3. ```Rscript helloworld.R run```
+
+If you are using RStudio, you can run this script by directly executing `source("helloworld.R")`.

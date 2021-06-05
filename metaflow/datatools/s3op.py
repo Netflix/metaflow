@@ -48,6 +48,9 @@ class S3Url(object):
         self.metadata = metadata
         self.range = range
 
+    def __str__(self):
+        return self.url
+
 # We use error codes instead of Exceptions, which are trickier to
 # handle reliably in a multi-process world
 ERROR_INVALID_URL = 4

@@ -1,6 +1,18 @@
+import sys
 try:
     import metaflow_custom.plugins as ext_plugins
-except ImportError:
+except ImportError as e:
+    ver = sys.version_info[0] * 10 + sys.version_info[1]
+    if ver >= 36:
+        # e.path is not None if the error stems from some other place than here
+        # so don't error ONLY IF the error is importing this module (but do
+        # error if there is a transitive import error)
+        if not (isinstance(e, ModuleNotFoundError) and e.path is None):
+            print(
+                "Cannot load metaflow_custom plugins -- "
+                "if you want to ignore, uninstall metaflow_custom package")
+            raise
+
     class _fake(object):
         def __init__(self, **kwargs):
             self.__dict__.update(kwargs)
@@ -79,11 +91,19 @@ METADATA_PROVIDERS = _merge_lists(
 # imports from the metaflow package.
 from .conda.conda_flow_decorator import CondaFlowDecorator
 from .aws.step_functions.schedule_decorator import ScheduleDecorator
-FLOW_DECORATORS = _merge_lists([CondaFlowDecorator, ScheduleDecorator], ext_plugins.FLOW_DECORATORS, 'name')
+from .project_decorator import ProjectDecorator
+FLOW_DECORATORS = _merge_lists([CondaFlowDecorator,
+                                ScheduleDecorator,
+                                ProjectDecorator],
+                            ext_plugins.FLOW_DECORATORS, 'name')
 
-from ..mflog.save_logs_periodically import SaveLogsPeriodicallySidecar
+
 # Sidecars
-SIDECARS = {'save_logs_periodically': SaveLogsPeriodicallySidecar}
+from ..mflog.save_logs_periodically import SaveLogsPeriodicallySidecar
+from metaflow.metadata.heartbeat import MetadataHeartBeat
+
+SIDECARS = {'save_logs_periodically': SaveLogsPeriodicallySidecar,
+            'heartbeat': MetadataHeartBeat}
 SIDECARS.update(ext_plugins.SIDECARS)
 
 # Add logger
@@ -100,3 +120,4 @@ MONITOR_SIDECARS.update(ext_plugins.MONITOR_SIDECARS)
 
 SIDECARS.update(LOGGING_SIDECARS)
 SIDECARS.update(MONITOR_SIDECARS)
+

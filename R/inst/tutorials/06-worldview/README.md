@@ -10,5 +10,5 @@ monitor all of your Metaflow flows.**
 1. Configure your sandbox: https://docs.metaflow.org/metaflow-on-aws/metaflow-sandbox
 
 #### To play this episode:
-1. ```cd metaflow-tutorials/R/06-worldview/```
+1. ```cd tutorials/06-worldview/```
 2. Open ```worldview.Rmd``` in RStudio on your local computer 

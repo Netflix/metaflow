@@ -21,7 +21,6 @@ from ..util import namedtuple_with_defaults,\
                    url_unquote
 from ..exception import MetaflowException
 from ..debug import debug
-from . import s3op
 
 try:
     # python2
@@ -519,6 +518,7 @@ class S3(object):
             or not the file exists.
         """
         def _head():
+            from . import s3op
             res = self._read_many_files('info',
                                         map(self._url_and_range, keys),
                                         verbose=False,
@@ -870,6 +870,7 @@ class S3(object):
         return self._put_many_files(_check(), overwrite)
 
     def _one_boto_op(self, op, url):
+        from . import s3op
         error = ''
         for i in range(NUM_S3OP_RETRIES):
             tmp = NamedTemporaryFile(dir=self._tmpdir,
@@ -957,7 +958,7 @@ class S3(object):
                 return [(info['key'], url) for _, url, info in url_info if url in urls]
 
     def _s3op_with_retries(self, mode, **options):
-
+        from . import s3op
         cmdline = [sys.executable, os.path.abspath(s3op.__file__), mode]
         for key, value in options.items():
             key = key.replace('_', '-')

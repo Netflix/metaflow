@@ -3,7 +3,9 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps
 class LargeArtifactTest(MetaflowTest):
     """
     Test that you can serialize large objects (over 4GB)
-    with Python3.
+    with Python3 - although on OSX, some versions of Python3 fail
+    to serialize objects over 2GB - https://bugs.python.org/issue24658
+    so YMMV.
     """
     PRIORITY = 2
 
