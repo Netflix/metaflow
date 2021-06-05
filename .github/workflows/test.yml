@@ -3,9 +3,11 @@ on:
   push:
     branches:
     - master
+    - convergence
   pull_request:
     branches:
     - master
+    - convergence
 jobs:
   test:
     name: ${{ matrix.lang }} tests on ${{ matrix.os }}
