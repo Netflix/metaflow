@@ -80,7 +80,8 @@ class S3Object(object):
 
     def __init__(
                  self, prefix, url, path,
-                 size=None, content_type=None, metadata=None, range_info=None):
+                 size=None, content_type=None, metadata=None, range_info=None,
+                 parent_s3=None):
 
         # all fields of S3Object should return a unicode object
         prefix, url, path = map(ensure_unicode, (prefix, url, path))
@@ -112,6 +113,14 @@ class S3Object(object):
         else:
             self._key = url[len(prefix.rstrip('/')) + 1:].rstrip('/')
             self._prefix = prefix
+
+        # This is to prevent Python from calling __del__ on a parent we may
+        # depend on if we have a path to read
+        # NOTE: This will *not* allow you to use a S3Object outside of the
+        # with block of S3() but will prevent things like S3().get().text from
+        # getting rid of the S3() object before getting to text
+        if path:
+            self._parent = parent_s3
 
     @property
     def exists(self):
@@ -610,8 +619,9 @@ class S3(object):
             return S3Object(
                 self._s3root, url, path,
                 content_type=info['content_type'],
-                metadata=info['metadata'])
-        return S3Object(self._s3root, url, path)
+                metadata=info['metadata'],
+                parent_s3=self)
+        return S3Object(self._s3root, url, path, parent_s3=self)
 
     def get_many(self, keys, return_missing=False, return_info=True):
         """
@@ -648,12 +658,13 @@ class S3(object):
                                 'r') as f:
                             info = json.load(f)
                         yield self._s3root, s3url, os.path.join(self._tmpdir, fname), \
-                            None, info['content_type'], info['metadata']
+                            None, info['content_type'], info['metadata'], None, self
                     else:
                         yield self._s3root, s3prefix, None
                 else:
                     if fname:
-                        yield self._s3root, s3url, os.path.join(self._tmpdir, fname)
+                        yield self._s3root, s3url, os.path.join(self._tmpdir, fname), \
+                            None, None, None, None, self
                     else:
                         # missing entries per return_missing=True
                         yield self._s3root, s3prefix, None
@@ -688,9 +699,10 @@ class S3(object):
                             'r') as f:
                         info = json.load(f)
                     yield self._s3root, s3url, os.path.join(self._tmpdir, fname), \
-                        None, info['content_type'], info['metadata']
+                        None, info['content_type'], info['metadata'], None, self
                 else:
-                    yield s3prefix, s3url, os.path.join(self._tmpdir, fname)
+                    yield s3prefix, s3url, os.path.join(self._tmpdir, fname), \
+                        None, None, None, None, self
         return list(starmap(S3Object, _get()))
 
     def get_all(self, return_info=False):
