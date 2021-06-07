@@ -11,9 +11,10 @@ from shutil import move
 
 import click
 
+from . import parameters
 from .exception import MetaflowException
 from .metaflow_config import DATATOOLS_LOCALROOT, DATATOOLS_SUFFIX
-from .parameters import context_proto, DeployTimeField, Parameter
+from .parameters import DeployTimeField, Parameter
 from .util import to_unicode
 
 try:
@@ -101,8 +102,8 @@ class Local(object):
     def get_root_from_config(cls, echo, create_on_absent=True):
         result = DATATOOLS_LOCALROOT
         if result is None:
-            from .datastore.local import LocalDataStore
-            result = LocalDataStore.get_datastore_root_from_config(echo, create_on_absent)
+            from .datastore.local_backend import LocalBackend
+            result = LocalBackend.get_datastore_root_from_config(echo, create_on_absent)
             result = os.path.join(result, DATATOOLS_SUFFIX)
             if create_on_absent and not os.path.exists(result):
                 os.mkdir(result)
