@@ -1,5 +1,5 @@
 from metaflow.metaflow_config import \
-    AWS_SANDBOX_ENABLED, AWS_SANDBOX_REGION
+    AWS_SANDBOX_ENABLED, AWS_SANDBOX_REGION, SFN_EXECUTION_LOG_GROUP_ARN
 
 
 class StepFunctionsClient(object):
@@ -17,12 +17,18 @@ class StepFunctionsClient(object):
             if state_machine['name'] == name
         ), None)
 
-    def push(self, name, definition, roleArn):
+    def push(self,
+             name,
+             definition,
+             role_arn,
+             log_execution_history):
         try:
             response = self._client.create_state_machine(
                 name = name,
                 definition = definition,
-                roleArn = roleArn
+                roleArn = role_arn,
+                loggingConfiguration = \
+                    self._default_logging_configuration(log_execution_history)
             )
             state_machine_arn = response['stateMachineArn']
         except self._client.exceptions.StateMachineAlreadyExists as e:
@@ -31,7 +37,9 @@ class StepFunctionsClient(object):
             self._client.update_state_machine(
                 stateMachineArn = state_machine_arn,
                 definition = definition,
-                roleArn = roleArn
+                roleArn = role_arn,
+                loggingConfiguration = \
+                    self._default_logging_configuration(log_execution_history)
             )
         return state_machine_arn
 
@@ -74,6 +82,24 @@ class StepFunctionsClient(object):
     def terminate_execution(self, state_machine_arn, execution_arn):
         #TODO
         pass
+
+    def _default_logging_configuration(self, log_execution_history):
+        if log_execution_history:
+            return {
+                'level': 'ALL',
+                'includeExecutionData': True,
+                'destinations': [
+                    {
+                        'cloudWatchLogsLogGroup': {
+                        'logGroupArn': SFN_EXECUTION_LOG_GROUP_ARN
+                        }
+                    }
+                ]
+            }
+        else:
+            return {
+                'level': 'OFF'
+            }
 
     def get_state_machine_arn(self, name):
         if AWS_SANDBOX_ENABLED:

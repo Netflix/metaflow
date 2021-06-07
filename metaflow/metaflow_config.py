@@ -124,6 +124,10 @@ EVENTS_SFN_ACCESS_IAM_ROLE = from_conf("METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE")
 # Prefix for AWS Step Functions state machines. Set to stack name for Metaflow
 # sandbox.
 SFN_STATE_MACHINE_PREFIX = from_conf("METAFLOW_SFN_STATE_MACHINE_PREFIX")
+# Optional AWS CloudWatch Log Group ARN for emitting AWS Step Functions state
+# machine execution logs. This needs to be available when using the 
+# `step-functions create --log-execution-history` command.
+SFN_EXECUTION_LOG_GROUP_ARN = from_conf("METAFLOW_SFN_EXECUTION_LOG_GROUP_ARN")
 
 ###
 # Conda configuration
@@ -218,10 +222,34 @@ def get_pinned_conda_libs(python_version):
 # Check if there is a an extension to Metaflow to load and override everything
 try:
     import metaflow_custom.config.metaflow_config as extension_module
-except ImportError:
-    pass
+except ImportError as e:
+    ver = sys.version_info[0] * 10 + sys.version_info[1]
+    if ver >= 36:
+        # e.name is set to the name of the package that fails to load
+        # so don't error ONLY IF the error is importing this module (but do
+        # error if there is a transitive import error)
+        if not (isinstance(e, ModuleNotFoundError) and \
+                e.name in ['metaflow_custom', 'metaflow_custom.config']):
+            print(
+                "Cannot load metaflow_custom configuration -- "
+                "if you want to ignore, uninstall metaflow_custom package")
+            raise
 else:
     # We load into globals whatever we have in extension_module
+    # We specifically exclude any modules that may be included (like sys, os, etc)
     for n, o in extension_module.__dict__.items():
-        if not n.startswith('__') and not isinstance(o, types.ModuleType):
+        if n == 'DEBUG_OPTIONS':
+            DEBUG_OPTIONS.extend(o)
+            for typ in o:
+                vars()['METAFLOW_DEBUG_%s' % typ.upper()] = \
+                    from_conf('METAFLOW_DEBUG_%s' % typ.upper())
+        elif not n.startswith('__') and not isinstance(o, types.ModuleType):
             globals()[n] = o
+finally:
+    # Erase all temporary names to avoid leaking things
+    for _n in ['ver', 'n', 'o', 'e', 'extension_module']:
+        try:
+            del globals()[_n]
+        except KeyError:
+            pass
+    del globals()['_n']

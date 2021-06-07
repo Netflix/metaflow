@@ -1,6 +1,5 @@
-from enum import IntEnum
 import json
-
+from enum import IntEnum
 
 # Define message enums
 class MessageTypes(IntEnum):
