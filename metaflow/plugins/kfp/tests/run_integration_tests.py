@@ -44,9 +44,34 @@ def obtain_flow_file_paths(flow_dir_path: str) -> List[str]:
     file_paths = [
         file_name
         for file_name in listdir(flow_dir_path)
-        if isfile(join(flow_dir_path, file_name)) and not file_name.startswith(".")
+        if isfile(join(flow_dir_path, file_name)) and not file_name.startswith(".") and not "raise_error_flow" in file_name
     ]
     return file_paths
+
+
+# this test ensures the integration tests fail correctly
+def test_raise_failure_flow(pytestconfig) -> None:
+    test_cmd = (
+        f"{_python()} flows/raise_error_flow.py --datastore=s3 kfp run "
+        f"--wait-for-completion --workflow-timeout 1800 "
+        f"--max-parallelism 3 --experiment metaflow_test --tag test_t1 "
+    )
+    if pytestconfig.getoption("image"):
+        test_cmd += (
+            f"--no-s3-code-package --base-image {pytestconfig.getoption('image')}"
+        )
+
+    run_and_wait_process = run(
+        test_cmd,
+        universal_newlines=True,
+        stdout=PIPE,
+        shell=True,
+    )
+    # this ensures the integration testing framework correctly catches a failing flow
+    # and reports the error
+    assert run_and_wait_process.returncode == 1
+
+    return
 
 
 @pytest.mark.parametrize("flow_file_path", obtain_flow_file_paths("flows"))
