@@ -839,12 +839,18 @@ def start(ctx,
     ctx.obj.datastore_impl.datastore_root = datastore_root
 
     FlowDataStore.default_backend_class = ctx.obj.datastore_impl
-    ctx.obj.flow_datastore = FlowDataStore(
+    # TODO: If upgrading to Click 8.0+, we can use ctx.with_resource instead of
+    # this other method.
+    ctx.obj.flow_datastore = fds = FlowDataStore(
         ctx.obj.flow.name,
         ctx.obj.environment,
         ctx.obj.metadata,
         ctx.obj.event_logger,
         ctx.obj.monitor)
+
+    @ctx.call_on_close
+    def close_fds():
+        fds.close()
 
     # It is important to initialize flow decorators early as some of the
     # things they provide may be used by some of the objects initialize after.

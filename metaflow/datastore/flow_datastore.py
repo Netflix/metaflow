@@ -5,6 +5,7 @@ from .. import metaflow_config
 
 from .content_addressed_store import ContentAddressedStore
 from .task_datastore import TaskDataStore
+from .util import only_if_not_closed
 
 
 class FlowDataStore(object):
@@ -53,6 +54,7 @@ class FlowDataStore(object):
             The optional root for this datastore; if not provided, use the
             default for the DataStoreBackend, optional
         """
+        self._closed = False
         backend_class = backend_class if backend_class else \
             self.default_backend_class
         if backend_class is None:
@@ -77,6 +79,11 @@ class FlowDataStore(object):
     def datastore_root(self):
         return self._backend.datastore_root
 
+    @property
+    def is_closed(self):
+        return self._closed
+
+    @only_if_not_closed
     def get_latest_task_datastores(
             self, run_id=None, steps=None, pathspecs=None, allow_not_done=False):
         """Return a list of TaskDataStore for a subset of
@@ -172,6 +179,7 @@ class FlowDataStore(object):
                            for v in latest_to_fetch]
         return list(itertools.starmap(self.get_task_datastore, latest_to_fetch))
 
+    @only_if_not_closed
     def get_task_datastore(
             self, run_id, step_name, task_id, attempt=None,
             data_metadata=None, mode='r', allow_not_done=False):
@@ -186,6 +194,7 @@ class FlowDataStore(object):
             mode=mode,
             allow_not_done=allow_not_done)
 
+    @only_if_not_closed
     def save_data(self, data):
         """Saves data to the underlying content-addressed store
 
@@ -204,6 +213,7 @@ class FlowDataStore(object):
         save_results = self.ca_store.save_blobs(data, raw=True)
         return [(r.uri, r.key) for r in save_results]
 
+    @only_if_not_closed
     def load_data(self, keys, force_raw=False):
         """Retrieves data from the underlying content-addressed store
 
@@ -225,3 +235,14 @@ class FlowDataStore(object):
         load_results = self.ca_store.load_blobs(
             keys, force_raw=force_raw)
         return [load_results[k] for k in keys]
+
+    def close(self):
+        self._closed = True
+        self._backend.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+

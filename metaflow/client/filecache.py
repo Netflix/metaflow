@@ -43,6 +43,10 @@ class FileCache(object):
         # no adverse affect in terms of having to refresh the cache.
         self._store_caches = {}
 
+    def close(self):
+        for fds in self._store_caches.values():
+            fds.close()
+
     @property
     def cache_dir(self):
         return self._cache_dir
@@ -63,7 +67,7 @@ class FileCache(object):
             self, ds_type, location, logtype, attempt, flow_name, run_id,
             step_name, task_id):
 
-        ds_cls = self._get_backend_datastore_cls(ds_type)
+        ds_cls = self.get_backend_datastore_cls(ds_type)
         ds_root = ds_cls.path_join(*ds_cls.path_split(location)[:-5])
         cache_id = self._flow_ds_type(ds_type, ds_root, flow_name)
 
@@ -88,7 +92,7 @@ class FileCache(object):
         return log
 
     def get_data(self, ds_type, flow_name, location, key):
-        ds_cls = self._get_backend_datastore_cls(ds_type)
+        ds_cls = self.get_backend_datastore_cls(ds_type)
         ds_root = ds_cls.get_datastore_root_from_location(location, flow_name)
         ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
 
@@ -97,7 +101,7 @@ class FileCache(object):
     def get_artifact_by_location(
             self, ds_type, location, data_metadata, flow_name, run_id,
             step_name, task_id, name):
-        ds_cls = self._get_backend_datastore_cls(ds_type)
+        ds_cls = self.get_backend_datastore_cls(ds_type)
         ds_root = ds_cls.get_datastore_root_from_location(location, flow_name)
         return self.get_artifact(
             ds_type, ds_root, data_metadata, flow_name, run_id, step_name,
@@ -223,7 +227,7 @@ class FileCache(object):
                 raise
 
     @staticmethod
-    def _get_backend_datastore_cls(ds_type):
+    def get_backend_datastore_cls(ds_type):
         storage_impl = DATASTORES.get(ds_type, None)
         if storage_impl is None:
             raise FileCacheException('Datastore %s was not found' % ds_type)
@@ -236,7 +240,7 @@ class FileCache(object):
         if cached_flow_datastore:
             return cached_flow_datastore
 
-        storage_impl = self._get_backend_datastore_cls(ds_type)
+        storage_impl = self.get_backend_datastore_cls(ds_type)
 
         blob_cache = self._blob_caches.setdefault(
             cache_id, BlobCache(self, cache_id))

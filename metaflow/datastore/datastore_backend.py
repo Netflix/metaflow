@@ -21,6 +21,7 @@ class DataStoreBackend(object):
 
     def __init__(self, root=None):
         self.datastore_root = root if root else self.datastore_root
+        self._closed = False
 
     @classmethod
     def get_datastore_root_from_config(cls, echo, create_on_absent=True):
@@ -95,6 +96,10 @@ class DataStoreBackend(object):
     @classmethod
     def dirname(cls, path):
         return path.rsplit('/', 1)[0]
+
+    @property
+    def is_closed(self):
+        return self._closed
 
     def full_uri(self, path):
         return self.path_join(self.datastore_root, path)
@@ -214,3 +219,16 @@ class DataStoreBackend(object):
             If the path could not be loaded, returns None for that path
         """
         raise NotImplementedError
+
+    def close(self):
+        """
+        Method that the backend can use to close out any connection, etc.
+
+        After this method is called, any calls made to the backend can be
+        errored out.
+
+        Returns
+        -------
+        None
+        """
+        self._closed = True

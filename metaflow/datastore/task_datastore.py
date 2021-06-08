@@ -26,7 +26,11 @@ def only_if_not_done(f):
 def require_mode(mode):
     def wrapper(f):
         def method(self, *args, **kwargs):
-            if self._mode != mode:
+            if self._parent.is_closed:
+                raise MetaflowInternalError(
+                    "Attempting a datastore operation '%s' after closing "
+                    "the parent datastore")
+            if mode is not None and self._mode != mode:
                 raise MetaflowInternalError(
                     "Attempting a datastore operation '%s' requiring mode '%s' "
                     "but have mode '%s'" % (f.__name__, mode, self._mode))
@@ -173,6 +177,7 @@ class TaskDataStore(object):
     def parent_datastore(self):
         return self._parent
 
+    @require_mode(None)
     def get_log_location(self, logprefix, stream):
         log_name = self._get_log_location(logprefix, stream)
         path = self._backend.path_join(
@@ -378,6 +383,7 @@ class TaskDataStore(object):
         return {k: json.loads(v) for k, v \
             in self._load_file(names, add_attempt).items()}
 
+    @require_mode(None)
     def has_metadata(self, name, add_attempt=True):
         """
         Checks if this TaskDataStore has the metadata requested
@@ -563,6 +569,8 @@ class TaskDataStore(object):
                 force_v4_dict[var] = True
         self.save_artifacts(to_save, force_v4_dict)
 
+    @only_if_not_done
+    @require_mode('w')
     def save_logs(self, logsource, stream_data):
         """
         Save log files for multiple streams, represented as
@@ -588,6 +596,7 @@ class TaskDataStore(object):
                 to_store_dict[n] = data
         self._save_file(to_store_dict)
 
+    @require_mode('r')
     def load_log_legacy(self, stream, attempt_override=None):
         """
         Load old-style, pre-mflog, log file represented as a bytes object.
@@ -597,6 +606,7 @@ class TaskDataStore(object):
         r = self._load_file([name], add_attempt=False)[name]
         return r if r is not None else b''
 
+    @require_mode('r')
     def load_logs(self, logsources, stream, attempt_override=None):
         paths = dict(map(
             lambda s: (self._metadata_name_for_attempt(
@@ -605,7 +615,7 @@ class TaskDataStore(object):
         r = self._load_file(paths.keys(), add_attempt=False)
         return [(paths[k], v if v is not None else b'') for k, v in r.items()]
 
-
+    @require_mode(None)
     def items(self):
         if self._objects:
             return self._objects.items()
@@ -657,6 +667,8 @@ class TaskDataStore(object):
     def _get_log_location(logprefix, stream):
         return '%s_%s.log' % (logprefix, stream)
 
+    @only_if_not_done
+    @require_mode('w')
     def _save_file(self, contents, allow_overwrite=False, add_attempt=True):
         """
         Saves files in the directory for this TaskDataStore. This can be
@@ -692,6 +704,7 @@ class TaskDataStore(object):
         self._backend.save_bytes(
             to_store, overwrite=allow_overwrite)
 
+    @require_mode('r')
     def _load_file(self, names, add_attempt=True):
         """
         Loads files from the TaskDataStore directory. These can be metadata,

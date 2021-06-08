@@ -282,12 +282,14 @@ def step(
             )
     except Exception as e:
         print(e)
-        task_datastore = FlowDataStore(
-            ctx.obj.flow.name, ctx.obj.environment,
-            ctx.obj.metadata, ctx.obj.event_logger, ctx.obj.monitor)\
-        .get_task_datastore(kwargs['run_id'], step_name, kwargs['task_id'])
+        with FlowDataStore(
+                ctx.obj.flow.name, ctx.obj.environment,
+                ctx.obj.metadata, ctx.obj.event_logger, ctx.obj.monitor) as fds:
 
-        _sync_metadata(echo, ctx.obj.metadata, task_datastore, retry_count)
+            task_datastore = fds.get_task_datastore(
+                kwargs['run_id'], step_name, kwargs['task_id'])
+
+            _sync_metadata(echo, ctx.obj.metadata, task_datastore, retry_count)
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
     try:
         batch.wait(stdout_location, stderr_location, echo=echo)
@@ -296,9 +298,11 @@ def step(
         traceback.print_exc()
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
     finally:
-        task_datastore = FlowDataStore(
-            ctx.obj.flow.name, ctx.obj.environment,
-            ctx.obj.metadata, ctx.obj.event_logger, ctx.obj.monitor)\
-            .get_task_datastore(kwargs['run_id'], step_name, kwargs['task_id'])
+        with FlowDataStore(
+                ctx.obj.flow.name, ctx.obj.environment,
+                ctx.obj.metadata, ctx.obj.event_logger, ctx.obj.monitor) as fds:
 
-        _sync_metadata(echo, ctx.obj.metadata, task_datastore, retry_count)
+            task_datastore = fds.get_task_datastore(
+                kwargs['run_id'], step_name, kwargs['task_id'])
+
+            _sync_metadata(echo, ctx.obj.metadata, task_datastore, retry_count)

@@ -28,32 +28,29 @@ def save_logs():
         def print_clean(line, **kwargs):
             pass
         ds_root = storage_impl.get_datastore_root_from_config(print_clean)
-    flow_datastore = FlowDataStore(
-        flow_name,
-        None,
-        backend_class=storage_impl,
-        ds_root=ds_root)
-    task_datastore = flow_datastore.get_task_datastore(
-        run_id, step_name, task_id, int(attempt), mode='w')
+    with FlowDataStore(
+            flow_name, None, backend_class=storage_impl, ds_root=ds_root) as flow_datastore:
+        task_datastore = flow_datastore.get_task_datastore(
+            run_id, step_name, task_id, int(attempt), mode='w')
 
-    try:
-        streams = ('stdout', 'stderr')
-        sizes = [(stream, path, os.path.getsize(path))
-                 for stream, path in zip(streams, paths)
-                 if os.path.exists(path)]
+        try:
+            streams = ('stdout', 'stderr')
+            sizes = [(stream, path, os.path.getsize(path))
+                    for stream, path in zip(streams, paths)
+                    if os.path.exists(path)]
 
-        if max(size for _, _, size in sizes) < SMALL_FILE_LIMIT:
-            op = _read_file
-        else:
-            op = Path
+            if max(size for _, _, size in sizes) < SMALL_FILE_LIMIT:
+                op = _read_file
+            else:
+                op = Path
 
-        data = {stream: op(path) for stream, path, _ in sizes}
-        task_datastore.save_logs(TASK_LOG_SOURCE, data)
-    except:
-        # Upload failing is not considered a fatal error.
-        # This script shouldn't return non-zero exit codes
-        # for transient errors.
-        pass
+            data = {stream: op(path) for stream, path, _ in sizes}
+            task_datastore.save_logs(TASK_LOG_SOURCE, data)
+        except:
+            # Upload failing is not considered a fatal error.
+            # This script shouldn't return non-zero exit codes
+            # for transient errors.
+            pass
 
 if __name__ == '__main__':
     save_logs()

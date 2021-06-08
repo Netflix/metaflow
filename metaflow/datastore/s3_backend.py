@@ -5,7 +5,8 @@ from itertools import starmap
 
 from ..metaflow_config import DATASTORE_SYSROOT_S3
 from .datastore_backend import DataStoreBackend
-from .exceptions import DataException
+from .util import only_if_not_closed
+
 
 
 try:
@@ -56,6 +57,7 @@ class S3Backend(DataStoreBackend):
         self.s3_datatool = None
         super(S3Backend, self).__init__(root)
 
+    @only_if_not_closed
     def reset_datatools_client(self, hard_reset=False):
         if hard_reset or self.s3_datatool is None:
             from ..datatools import S3
@@ -243,3 +245,8 @@ class S3Backend(DataStoreBackend):
                 else:
                     to_return[r.key] = None
         return to_return
+
+    def close(self):
+        if self.s3_datatool:
+            self.s3_datatool.close()
+        super(S3Backend, self).close()

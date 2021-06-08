@@ -1,5 +1,6 @@
 from __future__ import print_function
 from datetime import datetime
+import atexit
 import os
 import time
 import tarfile
@@ -73,6 +74,12 @@ filecache = None
 current_namespace = False
 
 current_metadata = False
+
+
+@atexit.register
+def _cleanup_filecache():
+    if filecache is not None:
+        filecache.close()
 
 
 def metadata(ms):

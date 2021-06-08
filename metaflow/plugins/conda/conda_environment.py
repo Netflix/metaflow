@@ -1,10 +1,13 @@
 import json
+from metaflow.datastore.flow_datastore import FlowDataStore
 import os
 import sys
 import tarfile
 
 from metaflow.metaflow_environment import MetaflowEnvironment
+from metaflow.client.filecache import FileCache
 from metaflow.exception import MetaflowException
+
 from metaflow.mflog import BASH_SAVE_LOGS
 
 from .conda import Conda
@@ -13,7 +16,6 @@ from . import get_conda_manifest_path, CONDA_MAGIC_FILE
 
 class CondaEnvironment(MetaflowEnvironment):
     TYPE = 'conda'
-    _filecache = None
 
     def __init__(self, flow):
         self.flow = flow
@@ -95,20 +97,21 @@ class CondaEnvironment(MetaflowEnvironment):
 
     @classmethod
     def get_client_info(cls, flow_name, metadata):
-        if cls._filecache is None:
-            from metaflow.client.filecache import FileCache
-            cls._filecache = FileCache()
         info = metadata.get('code-package')
         env_id = metadata.get('conda_env_id')
         if info is None or env_id is None:
             return {'type': 'conda'}
         info = json.loads(info)
-        with cls._filecache.get_data(info['ds_type'], flow_name, info['location'], info['sha']) as f:
-            with tarfile.open(fileobj=f, mode='r:gz') as tar:
-                conda_file = tar.extractfile(CONDA_MAGIC_FILE)
-            if conda_file is None:
-                return {'type': 'conda'}
-            info = json.loads(conda_file.read().decode('utf-8'))
+        ds_cls = FileCache.get_backend_datastore_cls(info['ds_type'])
+        ds_root = ds_cls.get_datastore_root_from_location(info['location'], flow_name)
+        with FlowDataStore(
+                flow_name, None, backend_class=ds_cls, ds_root=ds_root) as fds:
+            with fds.load_data(info['sha'], force_raw=True)[0] as f:
+                with tarfile.open(fileobj=f, mode='r:gz') as tar:
+                    conda_file = tar.extractfile(CONDA_MAGIC_FILE)
+                    if conda_file is None:
+                        return {'type': 'conda'}
+                    info = json.loads(conda_file.read().decode('utf-8'))
         new_info = {
             'type': 'conda',
             'explicit': info[env_id]['explicit'],

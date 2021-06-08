@@ -1,9 +1,11 @@
 import json
+from metaflow.datastore.util import only_if_not_closed
 import os
 
 from ..metaflow_config import DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_LOCAL
 from .datastore_backend import DataStoreBackend
 from .exceptions import DataException
+from .util import only_if_not_closed
 
 
 # Helper class to lazily open files returned by load_bytes to prevent
@@ -83,6 +85,7 @@ class LocalBackend(DataStoreBackend):
             else:
                 raise
 
+    @only_if_not_closed
     def is_file(self, path):
         """
         Returns True or False depending on whether path refers to a valid
@@ -102,6 +105,7 @@ class LocalBackend(DataStoreBackend):
         full_path = self.full_uri(path)
         return os.path.isfile(full_path)
 
+    @only_if_not_closed
     def info_file(self, path):
         """
         Returns a tuple where the first element is True or False depending on
@@ -129,6 +133,7 @@ class LocalBackend(DataStoreBackend):
                 return True, None
         return False, None
 
+    @only_if_not_closed
     def list_content(self, paths):
         """
         Lists the content of the datastore in the directory indicated by 'paths'.
@@ -165,6 +170,7 @@ class LocalBackend(DataStoreBackend):
                     if f != self.METADATA_DIR])
         return results
 
+    @only_if_not_closed
     def save_bytes(self, path_and_bytes, overwrite=False):
         """
         Creates objects and stores them in the datastore.
@@ -206,6 +212,7 @@ class LocalBackend(DataStoreBackend):
                 with open("%s_meta" % full_path, mode='w') as f:
                     json.dump(metadata, f)
 
+    @only_if_not_closed
     def load_bytes(self, paths):
         """
         Gets objects from the datastore
