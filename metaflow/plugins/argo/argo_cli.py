@@ -58,6 +58,14 @@ def argo(obj,
               type=JSONParam,
               default=[],
               help="Environment variables to be set for the workflow.")
+@click.option("--labels",
+              type=JSONParam,
+              default={},
+              help="Labels to attach to the workflow.")
+@click.option("--annotations",
+              type=JSONParam,
+              default={},
+              help="Annotations to attach to the workflow.")
 @click.option("--token",
               default=None,
               help="Authentication token to call Argo Server.")
@@ -80,6 +88,8 @@ def create(obj,
            image_pull_secrets,
            env,
            env_from,
+           labels,
+           annotations,
            token,
            k8s_namespace,
            embedded,
@@ -119,7 +129,9 @@ def create(obj,
                             image,
                             image_pull_secrets,
                             env,
-                            env_from)
+                            env_from,
+                            labels,
+                            annotations)
 
     if only_json:
         obj.echo_always(workflow.to_json(), err=False, no_bold=True, nl=False)

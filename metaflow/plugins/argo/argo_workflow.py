@@ -43,7 +43,9 @@ class ArgoWorkflow:
                  image,
                  image_pull_secrets,
                  env,
-                 env_from):
+                 env_from,
+                 labels,
+                 annotations):
         self.name = name
         self.flow = flow
         self.graph = graph
@@ -58,6 +60,8 @@ class ArgoWorkflow:
         self.image_pull_secrets = image_pull_secrets
         self.env = env
         self.env_from = env_from
+        self.labels = labels
+        self.annotations = annotations
         self._flow_attributes = self._parse_flow_decorator()
         self._workflow = self._compile()
 
@@ -130,8 +134,8 @@ class ArgoWorkflow:
             'kind': 'WorkflowTemplate',
             'metadata': {
                 'name': self.name,
-                'labels': self._flow_attributes.get('labels'),
-                'annotations': self._flow_attributes.get('annotations'),
+                'labels': {**self._flow_attributes.get('labels', {}), **self.labels},
+                'annotations': {**self._flow_attributes.get('annotations', {}), **self.annotations},
             },
             'spec': {
                 'entrypoint': ENTRYPOINT,
