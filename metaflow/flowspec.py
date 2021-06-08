@@ -351,10 +351,9 @@ class FlowSpec(object):
                       include=', '.join(include),
                       missing=', '.join(missing))
             raise MissingInMergeArtifactsException(msg, missing)
-        # If things are resolved, we go and fetch from the datastore and set here
-        for var, (inp, sha) in to_merge.items():
-            self._datastore.objects[var] = sha
-            self._datastore.info[var] = inp._datastore.info[var]
+        # If things are resolved, we pass down the variables from the input datastores
+        for var, (inp, _) in to_merge.items():
+            self._datastore.passdown_partial(inp.datastore, [var])
 
     def next(self, *dsts, **kwargs):
         """
