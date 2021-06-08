@@ -1,5 +1,8 @@
 import os
-import imp
+try:
+    from importlib.machinery import SourceFileLoader
+except ImportError:
+    import imp  # Python 2
 from tempfile import NamedTemporaryFile
 
 from .util import to_bytes
@@ -90,7 +93,10 @@ def run(flow_script,
     full_cmdline[0] = os.path.basename(full_cmdline[0])
     with NamedTemporaryFile(prefix="metaflowR.", delete=False) as tmp:
         tmp.write(to_bytes(flow_script))
-    module = imp.load_source('metaflowR', tmp.name)
+    try:
+        module = SourceFileLoader('metaflowR', tmp.name).load_module()
+    except NameError:
+        module = imp.load_source('metaflowR', tmp.name)  # Python 2
     flow = module.FLOW(use_cli=False)
 
     from . import exception 
