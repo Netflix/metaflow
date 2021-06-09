@@ -258,10 +258,7 @@ def run(
         if kwargs.get(param.name) is not None
     }
 
-    # Add additional tags
-    if kfp_namespace:
-        tags = tags + (kfp_namespace,)
-
+    # Add experiment as tag
     if experiment:
         tags = tags + (experiment,)
 

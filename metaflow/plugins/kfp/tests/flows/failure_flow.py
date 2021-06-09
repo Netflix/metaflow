@@ -20,7 +20,7 @@ class FailureFlow(FlowSpec):
     @retry(times=0)
     @step
     def no_retry(self):
-        argo_node_name = os.environ.get("ARGO_NODE_NAME")
+        argo_node_name = os.environ.get("MF_ARGO_NODE_NAME")
         assert not argo_node_name.endswith(")")
         assert self.retry_count == 1
         self.next(self.compute)

@@ -26,7 +26,6 @@ from kubernetes.client import (
 from metaflow.metaflow_config import (
     DATASTORE_SYSROOT_S3,
     KFP_TTL_SECONDS_AFTER_FINISHED,
-    METADATA_SERVICE_URL,
     METAFLOW_USER,
     KFP_USER_DOMAIN,
     from_conf,
@@ -252,7 +251,7 @@ class KubeflowPipelines(object):
 
         retry_count_python = (
             "import os;"
-            'name = os.environ.get("ARGO_NODE_NAME");'
+            'name = os.environ.get("MF_ARGO_NODE_NAME");'
             'index = name.rfind("(");'
             'res = (0 if index == -1 else name[index + 1: -1]) if name.endswith(")") else 0;'
             f'print("{RETRY_COUNT}=" + str(res))'
@@ -429,6 +428,17 @@ class KubeflowPipelines(object):
         kfp_run_id = "kfp-" + dsl.RUN_ID_PLACEHOLDER
         start_task_id_params_path = None
 
+        tags_extended = [
+            "--tag argo_workflow:{{workflow.name}}",
+            "--tag pod_name:$MF_POD_NAME",
+            "--tag pod_namespace:$MF_POD_NAMESPACE",
+            # TODO(talebz): A Metaflow plugin framework to customize tags, labels, etc.
+            "--tag zodiac_service:$ZODIAC_SERVICE",
+            "--tag zodiac_team:$ZODIAC_TEAM",
+        ]
+        if self.tags:
+            tags_extended.extend("--tag %s" % tag for tag in self.tags)
+
         if node.name == "start":
             # We need a separate unique ID for the special _parameters task
             task_id_params = "1-params"
@@ -443,7 +453,6 @@ class KubeflowPipelines(object):
             )
             params = entrypoint + [
                 "--quiet",
-                "--metadata=%s" % self.metadata.TYPE,
                 "--environment=%s" % self.environment.TYPE,
                 "--datastore=s3",
                 "--datastore-root=$METAFLOW_DATASTORE_SYSROOT_S3",
@@ -455,8 +464,7 @@ class KubeflowPipelines(object):
                 "--task-id %s" % task_id_params,
             ]
 
-            if self.tags:
-                params.extend("--tag %s" % tag for tag in self.tags)
+            params.extend(tags_extended)
 
             # If the start step gets retried, we must be careful not to
             # regenerate multiple parameters tasks. Hence we check first if
@@ -480,7 +488,6 @@ class KubeflowPipelines(object):
 
         top_level = [
             "--quiet",
-            "--metadata=%s" % self.metadata.TYPE,
             "--environment=%s" % self.environment.TYPE,
             "--datastore=s3",
             "--datastore-root=$METAFLOW_DATASTORE_SYSROOT_S3",
@@ -523,8 +530,9 @@ class KubeflowPipelines(object):
 
         if any(self.graph[n].type == "foreach" for n in node.in_funcs):
             step.append(f"--split-index ${SPLIT_INDEX_ENV_NAME}")
-        if self.tags:
-            step.extend("--tag %s" % tag for tag in self.tags)
+
+        step.extend(tags_extended)
+
         if self.namespace:
             step.append("--namespace %s" % self.namespace)
 
@@ -745,16 +753,23 @@ class KubeflowPipelines(object):
             # Disable caching because Metaflow doesn't have memoization
             if isinstance(op, ContainerOp):
                 op.execution_options.caching_strategy.max_cache_staleness = "P0D"
-                op.container.add_env_variable(
-                    V1EnvVar(
-                        name="ARGO_NODE_NAME",
-                        value_from=V1EnvVarSource(
-                            field_ref=V1ObjectFieldSelector(
-                                field_path="metadata.annotations['workflows.argoproj.io/node-name']"
-                            )
-                        ),
+                env_vars = {
+                    "MF_POD_NAME": "metadata.name",
+                    "MF_POD_NAMESPACE": "metadata.namespace",
+                    "MF_ARGO_NODE_NAME": "metadata.annotations['workflows.argoproj.io/node-name']",
+                    "MF_ARGO_WORKFLOW_NAME": "metadata.labels['workflows.argoproj.io/workflow']",
+                    "ZODIAC_SERVICE": "metadata.labels['zodiac.zillowgroup.net/service']",
+                    "ZODIAC_TEAM": "metadata.labels['zodiac.zillowgroup.net/team']",
+                }
+                for name, resource in env_vars.items():
+                    op.container.add_env_variable(
+                        V1EnvVar(
+                            name=name,
+                            value_from=V1EnvVarSource(
+                                field_ref=V1ObjectFieldSelector(field_path=resource)
+                            ),
+                        )
                     )
-                )
 
         pipeline_conf = None  # return variable
 
@@ -798,7 +813,6 @@ class KubeflowPipelines(object):
                 # client configs have the highest precedence
                 metaflow_configs = dict(
                     METAFLOW_DATASTORE_SYSROOT_S3=DATASTORE_SYSROOT_S3,
-                    METAFLOW_SERVICE_URL=METADATA_SERVICE_URL,
                     METAFLOW_USER=METAFLOW_USER,
                 )
                 metaflow_run_id = f"kfp-{dsl.RUN_ID_PLACEHOLDER}"
