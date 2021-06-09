@@ -59,6 +59,7 @@ from .aws.step_functions.step_functions_decorator import StepFunctionsInternalDe
 from .conda.conda_step_decorator import CondaStepDecorator
 from .kfp.kfp_decorator import KfpInternalDecorator
 from .kfp.pytorch_distributed_decorator import PyTorchDistributedDecorator
+from .kfp.accelerator_decorator import AcceleratorDecorator 
 
 STEP_DECORATORS = _merge_lists([CatchDecorator,
                                 TimeoutDecorator,
@@ -69,6 +70,7 @@ STEP_DECORATORS = _merge_lists([CatchDecorator,
                                 StepFunctionsInternalDecorator,
                                 CondaStepDecorator,
                                 PyTorchDistributedDecorator,
+                                AcceleratorDecorator,
                                 KfpInternalDecorator], ext_plugins.STEP_DECORATORS, 'name')
 
 # Add Conda environment
