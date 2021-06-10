@@ -244,8 +244,8 @@ class ArgoWorkflow:
         init_cmds.extend(self.environment.bootstrap_commands(node.name))
         init_expr = ' && '.join(init_cmds)
         step_expr = bash_capture_logs(' && '.join(self._step_commands(node)))
-        cmd_str = 'true && %s && %s && %s; c=$?; %s; exit $c' % \
-            (mflog_expr, init_expr, step_expr, BASH_SAVE_LOGS)
+        cmd = ['true', mflog_expr, init_expr, step_expr]
+        cmd_str =  '%s; c=$?; %s; exit $c' % (' && '.join(c for c in cmd if c), BASH_SAVE_LOGS)
         return shlex.split('bash -c \"%s\"' % cmd_str)
 
     def _step_commands(self, node):
