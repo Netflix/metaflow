@@ -1,4 +1,4 @@
-from metaflow import FlowSpec, Parameter, step, pytorch_distributed, resources
+from metaflow import FlowSpec, Parameter, step, resources
 
 from models.train import train_model
 from models.evaluate import evaluate_model
@@ -36,8 +36,7 @@ class HelloPyTorch(FlowSpec):
         print(f"ranks: {self.ranks}")
         self.next(self.train, foreach="ranks")
 
-    @resources(cpu=1, cpu_limit=2, gpu="1", memory="2G", memory_limit="5G")
-    @pytorch_distributed
+    @resources(cpu=1, cpu_limit=2, gpu="1", memory="2G", memory_limit="5G", volume="10G")
     @step
     def train(self):
         """

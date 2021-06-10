@@ -2,7 +2,7 @@ import os
 
 from setuptools import setup, find_packages
 
-version = '2.2.5'
+version = '2.2.5+zg1.1'
 
 # TODO: once this branch is merged or in pip use, remove this
 os.system(

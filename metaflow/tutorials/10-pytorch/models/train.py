@@ -93,7 +93,7 @@ def train_model(
         print("Using distributed PyTorch with {} backend".format(pytorch_backend))
         dist.init_process_group(
             backend=pytorch_backend,
-            init_method="file:///opt/pytorch_shared/sharedfile",
+            init_method="file:///opt/metaflow_volume/sharedfile",
             world_size=world_size,
             rank=rank,
         )

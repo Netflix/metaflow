@@ -49,7 +49,6 @@ from .kfp_constants import (
 from .kfp_exit_handler import exit_handler
 from .kfp_foreach_splits import graph_to_task_ids
 from .kfp_get_workflow_uid import get_workflow_uid
-from .pytorch_distributed_decorator import PyTorchDistributedDecorator
 from .accelerator_decorator import AcceleratorDecorator
 from ..aws.batch.batch_decorator import BatchDecorator
 from ..aws.step_functions.schedule_decorator import ScheduleDecorator
@@ -74,7 +73,6 @@ class KfpComponent(object):
         total_retries: int,
         resource_requirements: Dict[str, str],
         kfp_decorator: KfpInternalDecorator,
-        pytorch_distributed_decorator: PyTorchDistributedDecorator,
         accelerator_decorator: AcceleratorDecorator,
         environment_decorator: EnvironmentDecorator,
     ):
@@ -88,7 +86,6 @@ class KfpComponent(object):
             if kfp_decorator
             else None
         )
-        self.pytorch_distributed_decorator = pytorch_distributed_decorator
         self.accelerator_decorator = accelerator_decorator
         self.environment_decorator = environment_decorator
 
@@ -391,14 +388,6 @@ class KubeflowPipelines(object):
                     ),
                     None,  # default
                 ),
-                pytorch_distributed_decorator=next(
-                    (
-                        deco
-                        for deco in node.decorators
-                        if isinstance(deco, PyTorchDistributedDecorator)
-                    ),
-                    None,  # default
-                ),
                 accelerator_decorator=next(
                     (
                         deco
@@ -586,17 +575,9 @@ class KubeflowPipelines(object):
             container_op.container.set_ephemeral_storage_limit(
                 resource_requirements["local_storage_limit"]
             )
-        if (
-            kfp_component.pytorch_distributed_decorator
-            or "volume" in resource_requirements
-        ):
-            if kfp_component.pytorch_distributed_decorator:
-                print("This is now deprecated!")
-                mode = [VOLUME_MODE_RWM]
-                volume_dir = "/opt/pytorch_shared/"
-            else:
-                mode = resource_requirements["volume_mode"]
-                volume_dir = resource_requirements["volume_dir"]
+        if "volume" in resource_requirements:
+            mode = resource_requirements["volume_mode"]
+            volume_dir = resource_requirements["volume_dir"]
 
             volume = KubeflowPipelines._create_volume(
                 step_name=kfp_component.name,
