@@ -63,7 +63,7 @@ class ArgoWorkflow:
         self.labels = labels
         self.annotations = annotations
         self._flow_attributes = self._parse_flow_decorator()
-        self._workflow = self._compile()
+        self._workflow = remove_empty_elements(self._compile())
 
     def to_json(self):
         return json.dumps(self._workflow, indent=4)
@@ -536,3 +536,16 @@ def nested_dag(name, tasks):
             'tasks': tasks
         }
     }
+
+
+def remove_empty_elements(spec):
+    """
+    Removes empty elements from the dictionary and all sub-dictionaries.
+    """
+    if isinstance(spec, dict):
+        kids = {k: remove_empty_elements(v) for k, v in spec.items() if v}
+        return {k: v for k, v in kids.items() if v}
+    if isinstance(spec, list):
+        elems = [remove_empty_elements(v) for v in spec]
+        return [v for v in elems if v]
+    return spec
