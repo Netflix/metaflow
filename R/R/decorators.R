@@ -21,11 +21,13 @@
 #'   
 #' @return A object of class "decorator"
 #' 
-#' @usage 
+#' @export
+#' 
+#' @examples \dontrun{
 #' decorator("catch", print_exception=FALSE)
 #' decorator("resources", cpu=2, memory=10000)
+#' }
 #' 
-#' @export
 decorator <- function(x, ..., .convert_args = TRUE) {
   fmt_decorator(x, ..., .convert_args = .convert_args) %>%
     new_decorator()

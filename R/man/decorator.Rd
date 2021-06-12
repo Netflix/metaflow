@@ -4,8 +4,7 @@
 \alias{decorator}
 \title{Metaflow Decorator.}
 \usage{
-decorator("catch", print_exception=FALSE)
-decorator("resources", cpu=2, memory=10000)
+decorator(x, ..., .convert_args = TRUE)
 }
 \arguments{
 \item{x}{Type of decorator (e.g, resources, catch, retry, timeout, batch ...)}
@@ -32,4 +31,11 @@ the \emph{decorator wrappers} listed below:
 \item \code{\link{catch}}
 \item \code{\link{environment_variables}}
 }
+}
+\examples{
+\dontrun{
+decorator("catch", print_exception=FALSE)
+decorator("resources", cpu=2, memory=10000)
+}
+
 }
