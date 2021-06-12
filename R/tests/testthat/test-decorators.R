@@ -42,20 +42,6 @@ test_that("@timeout parsed correctly", {
   expect_equal(actual, expected)
 })
 
-test_that("@resources parsed correctly", {
-  skip_if_no_metaflow()
-  actual <- decorator("resources", cpu = 16, memory = 220000, disk = 150000, network = 4000)[1]
-  expected <- "@resources(cpu=16, memory=220000, disk=150000, network=4000)"
-  expect_equal(actual, expected)
-})
-
-test_that("@batch parsed corectly", {
-  skip_if_no_metaflow()
-  actual <- decorator("batch", memory = 60000, cpu = 8)[1]
-  expected <- "@batch(memory=60000, cpu=8)"
-  expect_equal(actual, expected)
-})
-
 test_that("add_decorators takes multiple args", {
   skip_if_no_metaflow()
   actual <- add_decorators(
