@@ -29,7 +29,7 @@ else:
         # We make an alias for these modules which the metaflow_custom author
         # wants to expose but that may not be loaded yet
         lazy_load_custom_modules = {
-            'metaflow.plugins.%s' % k: 'metaflow_custom.plugins.%s' % k
+            'metaflow.datatools.%s' % k: 'metaflow_custom.datatools.%s' % k
             for k in addl_modules}
     for n, o in extension_module.__dict__.items():
         if not n.startswith('__') and not isinstance(o, types.ModuleType):
