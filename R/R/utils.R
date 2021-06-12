@@ -1,3 +1,11 @@
+`%||%` <- function(x, y) {
+  if (is.null(x)) {
+    y
+  } else {
+    x
+  }
+}
+
 simple_type <- function(obj) {
   if (is.atomic(obj)) {
     return(TRUE)
