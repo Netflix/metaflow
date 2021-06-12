@@ -1,9 +1,16 @@
 #' Metaflow Decorator.
 #'
-#' Decorates the \code{step} with the parameters present in its arguments.
-#'
-#' For this method to work properly, the arguments \code{...} should be named, and decorator
-#' type should be the first argument.
+#' @description 
+#' Decorates the \code{step} with the parameters present in its arguments. For
+#' this method to work properly, the arguments \code{...} should be named, and
+#' decorator type should be the first argument.It may be more convient to use
+#' one of the _decorator wrappers_ listed below:
+#' 
+#' * \code{\link{resources}}
+#' * \code{\link{batch}}
+#' * \code{\link{retry}}
+#' * \code{\link{catch}}
+#' * \code{\link{environment_variables}}
 #'
 #' @param x Type of decorator (e.g, resources, catch, retry, timeout, batch ...)
 #' @param ... Named arguments for the decorator (e.g, `cpu=1`, `memory=1000`).
@@ -14,11 +21,9 @@
 #'   
 #' @return A decorator object
 #' 
-#' @section Usage:
-#' \preformatted{
+#' @usage 
 #' decorator("catch", print_exception=FALSE)
 #' decorator("resources", cpu=2, memory=10000)
-#' }
 #' 
 #' @export
 decorator <- function(x, ..., .convert_args = TRUE) {
