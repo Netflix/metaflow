@@ -8,7 +8,7 @@ add_decorators(decorators)
 }
 \arguments{
 \item{decorators}{List of decorators, as created by the
-\code{\link{decorators}} function.}
+\code{\link{decorator}} function.}
 }
 \value{
 character vector
