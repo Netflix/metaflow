@@ -6,16 +6,23 @@
 #' type should be the first argument.
 #'
 #' @param x Type of decorator (e.g, resources, catch, retry, timeout, batch ...)
-#' @param ... Named arguments for the decorator (e.g, cpu=1, memory=1000 ...). Note that memory unit is in MB.
+#' @param ... Named arguments for the decorator (e.g, `cpu=1`, `memory=1000`).
+#'   Note that memory unit is in MB.
+#' @param .convert_args Boolean. If `TRUE` (the default), argument values will
+#'   be converted to analogous Python values, with strings quoted and escaped.
+#'   Disable this if argument values are already formatted for Python.
+#'   
 #' @return A decorator object
+#' 
 #' @section Usage:
 #' \preformatted{
 #' decorator("catch", print_exception=FALSE)
 #' decorator("resources", cpu=2, memory=10000)
 #' }
+#' 
 #' @export
-decorator <- function(x, ...) {
-  fmt_decorator(x, ...) %>%
+decorator <- function(x, ..., .convert_args = TRUE) {
+  fmt_decorator(x, ..., .convert_args = .convert_args) %>%
     new_decorator()
 }
 
@@ -56,7 +63,7 @@ add_decorators <- function(decorators) {
 #' @inheritSection add_decorators Python decorators
 #'
 #' @param x Decorator name.
-#' @param ... Additional named arguments provided to the decorator
+#' @inheritParams decorator
 #'
 #' @return character vector of length two, in which the first element is the 
 #' translated decorator and the second element is a new line character.
@@ -66,8 +73,8 @@ add_decorators <- function(decorators) {
 #' fmt_decorator("resources", cpu = 1, memory = 1000)
 #' # returns c("@resources(cpu=1, memory=1000)", "\n")
 #' }
-fmt_decorator <- function(x, ...) {
-  args <- decorator_arguments(list(...))
+fmt_decorator <- function(x, ..., .convert_args = TRUE) {
+  args <- decorator_arguments(list(...), .convert_args = .convert_args)
   decorator_string <- paste0("@", x)
   if (is.null(args)) {
     decorator_string
@@ -83,6 +90,7 @@ fmt_decorator <- function(x, ...) {
 #'
 #' @param args Named list of arguments, as would be provided to the `...` of a
 #'   function.
+#' @inheritParams decorator
 #'
 #' @return atomic character of arguments, separated by a comma
 #' @keywords internal
@@ -91,7 +99,7 @@ fmt_decorator <- function(x, ...) {
 #' decorator_arguments(list(cpu = 1, memory = 1000))
 #' #> "cpu=1, memory=1000"
 #' }
-decorator_arguments <- function(args) {
+decorator_arguments <- function(args, .convert_args = TRUE) {
   if (length(args) == 0) {
     return(NULL)
   }
@@ -103,10 +111,17 @@ decorator_arguments <- function(args) {
     stop("duplicate decorator arguments")
   }
   unlist(lapply(seq_along(args), function(x) {
-    if (x != length(args)) {
-      paste0(names(args[x]), "=", wrap_argument(args[x]), ",")
+    
+    wrapped_arg <- if (.convert_args) {
+      wrap_argument(args[x])
     } else {
-      paste0(names(args[x]), "=", (wrap_argument(args[x])))
+      args[x]
+    }
+    
+    if (x != length(args)) {
+      paste0(names(args[x]), "=", wrapped_arg, ",")
+    } else {
+      paste0(names(args[x]), "=", wrapped_arg)
     }
   })) %>%
     paste(collapse = " ")
