@@ -51,7 +51,7 @@ new_decorator <- function(x) {
 #'   above the function they take as an input.
 #'
 #' @param decorators List of decorators, as created by the
-#'   \code{\link{decorators}} function.
+#'   \code{\link{decorator}} function.
 #'
 #' @return character vector
 #' @keywords internal
