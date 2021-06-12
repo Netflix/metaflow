@@ -1,8 +1,9 @@
 #' Decorator that sets environment variables during step execution
 #'
-#' @param ... Named environment variables and their values. For example, 
-#'   `environment_variables(foo = "bar")` will set the "foo" environment 
-#'   variable as "bar" during step execution.
+#' @param ... Named environment variables and their values, with all values
+#'   coercible to a character string.. For example, `environment_variables(foo =
+#'   "bar")` will set the "foo" environment variable as "bar" during step
+#'   execution.
 #'
 #' @inherit decorator return
 #' 
@@ -32,13 +33,15 @@ environment_variables <- function(...) {
       stop("All environment variables must be named")
     }
     
+    # Note that in this case, "TRUE" does not become Pythonic "True" ---
+    # each environment variable value is immediately coerced to a character.
     env_var_dict <- lapply(
       seq_along(env_vars),
       function(x) {
         paste0(
-          escape_quote(env_vars_names[[x]]),
+          encodeString(env_vars_names[[x]], quote = "'"),
           ": ",
-          escape_quote(env_vars[[x]])
+          encodeString(as.character(env_vars[[x]]), quote = "'")
         )
       }
     )

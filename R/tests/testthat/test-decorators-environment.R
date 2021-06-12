@@ -16,4 +16,10 @@ test_that("@environment wrapper parses correctly", {
   actual <- environment_variables(foo = "red panda", bar = "corgi")[1]
   expected <- "@environment(vars={'foo': 'red panda', 'bar': 'corgi'})"
   expect_equal(actual, expected)
+  
+  # Note that in this case, "TRUE" does not become Pythonic "True" ---
+  # each environment variable value is immediately coerced to a character.
+  actual <- environment_variables(foo = "TRUE")[1]
+  expected <- "@environment(vars={'foo': 'TRUE'})"
+  expect_equal(actual, expected)
 })

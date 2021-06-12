@@ -7,9 +7,9 @@
 environment_variables(...)
 }
 \arguments{
-\item{...}{Named environment variables and their values. For example,
-\code{environment_variables(foo = "bar")} will set the "foo" environment
-variable as "bar" during step execution.}
+\item{...}{Named environment variables and their values, with all values
+coercible to a character string.. For example, \code{environment_variables(foo = "bar")} will set the "foo" environment variable as "bar" during step
+execution.}
 }
 \value{
 A object of class "decorator"
