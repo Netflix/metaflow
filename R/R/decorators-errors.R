@@ -35,7 +35,7 @@
 #' 
 #' metaflow("RetryFlow") %>%
 #'   step(step="start", 
-#'        decorator("retry", times=3),
+#'        retry(times=3),
 #'        r_function=start, 
 #'        next_step="end") %>%
 #'   step(step="end", 
@@ -49,3 +49,51 @@ retry <- function(times = 3L, minutes_between_retries = 2L) {
     minutes_between_retries = minutes_between_retries
   )
 }
+
+#' Decorator that configures a step to catch an error
+#'
+#' @description 
+#' Use this decorator to configure a step to catch any errors that occur during
+#' evaluation. For steps that can't be safely retried, it is a good idea to use
+#' this decorator along with `retry(times = 0)`.
+#' 
+#' See \url{https://docs.metaflow.org/v/r/metaflow/failures#catching-exceptions-with-the-catch-decorator}
+#' for more information on how to use this decorator.
+#'
+#' @param var Character. Name of the artifact in which to store the caught
+#' exception. If `NULL` (the default), the exception is not stored.
+#' @param print_exception Boolean. Determines whether or not the exception is
+#'   printed to stdout when caught. Defaults to `TRUE`.
+#'
+#' @export
+#'
+#' @examples \donttest{
+#' 
+#' start <- function(self) {
+#'   stop("Oh no!")
+#' }
+#' 
+#' end <- function(self) {
+#'   message(
+#'     "Error is : ", self$start_failed
+#'   )
+#' }
+#' 
+#' metaflow("AlwaysErrors") %>%
+#'   step(
+#'     catch(var = "start_failed"),
+#'     retry(times = 0),
+#'     step = "start",
+#'     r_function = start,
+#'     next_step = "end"
+#'   ) %>%
+#'   step(
+#'     step = "end",
+#'     r_function = end
+#'   ) %>%
+#'   run()
+#' }
+catch <- function(var = NULL, print_exception = TRUE) {
+  decorator("catch", var = var, print_exception = print_exception)
+}
+
