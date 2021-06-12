@@ -30,6 +30,9 @@ Suggests:
 RoxygenNote: 7.1.1
 Roxygen: list(markdown = TRUE)
 Collate: 
+    'decorators-aws.R'
+    'decorators-environment.R'
+    'decorators-errors.R'
     'decorators.R'
     'flags.R'
     'flow.R'
