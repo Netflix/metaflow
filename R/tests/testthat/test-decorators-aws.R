@@ -1,5 +1,3 @@
-context("test-decorators-aws .R")
-
 test_that("@resources parses correctly", {
   skip_if_no_metaflow()
   actual <- decorator("resources", cpu = 16, memory = 220000, disk = 150000, network = 4000)[1]
