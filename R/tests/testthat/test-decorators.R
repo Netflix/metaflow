@@ -13,6 +13,9 @@ test_that("decorator arguments parsed correctly", {
   actual <- decorator_arguments(list(memory = 60000, cpu = 10))
   expected <- "memory=60000, cpu=10"
   expect_equal(actual, expected)
+  actual <- decorator_arguments(list(memory = 60000, image = NULL))
+  expected <- "memory=60000, image=None"
+  expect_equal(actual, expected)
 })
 
 test_that("decorator without arguments parsed correctly", {
@@ -63,4 +66,12 @@ test_that("add_decorators takes multiple args", {
   )
   expected <- c("@catch", "\n", "@batch(memory=60000, cpu=8)", "\n")
   expect_equal(actual, expected)
+})
+
+test_that("decorator with unnamed arguments errors", {
+  skip_if_no_metaflow()
+  expect_error(
+    decorator("batch", memoy = 60000, 8),
+    "All arguments to a decorator must be named"
+  )
 })

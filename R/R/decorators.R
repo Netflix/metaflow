@@ -92,18 +92,22 @@ fmt_decorator <- function(x, ...) {
 #' #> "cpu=1, memory=1000"
 #' }
 decorator_arguments <- function(args) {
+  if (length(args) == 0) {
+    return(NULL)
+  }
   argument_names <- names(args)
+  if (is.null(argument_names) || "" %in% argument_names) {
+    stop("All arguments to a decorator must be named")
+  }
   if (any(duplicated(argument_names))) {
     stop("duplicate decorator arguments")
   }
-  if (!is.null(argument_names)) {
-    unlist(lapply(seq_along(args), function(x) {
-      if (x != length(args)) {
-        paste0(names(args[x]), "=", wrap_argument(args[x]), ",")
-      } else {
-        paste0(names(args[x]), "=", (wrap_argument(args[x])))
-      }
-    })) %>%
-      paste(collapse = " ")
-  }
+  unlist(lapply(seq_along(args), function(x) {
+    if (x != length(args)) {
+      paste0(names(args[x]), "=", wrap_argument(args[x]), ",")
+    } else {
+      paste0(names(args[x]), "=", (wrap_argument(args[x])))
+    }
+  })) %>%
+    paste(collapse = " ")
 }
