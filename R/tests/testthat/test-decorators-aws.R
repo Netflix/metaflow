@@ -5,14 +5,14 @@ test_that("@resources parses correctly", {
   expect_equal(actual, expected)
 })
 
-test_that("@batch parses corectly", {
+test_that("@batch parses correctly", {
   skip_if_no_metaflow()
   actual <- decorator("batch", memory = 60000, cpu = 8)[1]
   expected <- "@batch(memory=60000, cpu=8)"
   expect_equal(actual, expected)
 })
 
-test_that("@resources wrapper parsed corectly", {
+test_that("@resources wrapper parsed correctly", {
   skip_if_no_metaflow()
   
   actual <- resources()[1]
@@ -29,7 +29,7 @@ test_that("@resources wrapper parsed corectly", {
 })
 
 
-test_that("@batch wrapper parsed corectly", {
+test_that("@batch wrapper parsed correctly", {
   skip_if_no_metaflow()
   on.exit(metaflow_load()) # Restore the config
 

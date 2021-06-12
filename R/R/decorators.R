@@ -1,10 +1,10 @@
 #' Metaflow Decorator.
 #'
 #' @description 
-#' Decorates the \code{step} with the parameters present in its arguments. For
-#' this method to work properly, the arguments \code{...} should be named, and
-#' decorator type should be the first argument.It may be more convient to use
-#' one of the _decorator wrappers_ listed below:
+#' Decorates the `step` with the parameters present in its arguments. For this
+#' method to work properly, the `...` arguments should be named, and decorator
+#' type should be the first argument. It may be more convenient to use one of
+#' the _decorator wrappers_ listed below:
 #' 
 #' * \code{\link{resources}}
 #' * \code{\link{batch}}
@@ -19,7 +19,7 @@
 #'   be converted to analogous Python values, with strings quoted and escaped.
 #'   Disable this if argument values are already formatted for Python.
 #'   
-#' @return A decorator object
+#' @return A object of class "decorator"
 #' 
 #' @usage 
 #' decorator("catch", print_exception=FALSE)

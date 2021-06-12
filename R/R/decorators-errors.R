@@ -1,9 +1,8 @@
 #' Decorator that configures a step to retry upon failure
 #' 
 #' @description 
-#' Use this decorator to configure a step to retry when it might fail.
-#' Alternatively, retry _any_ failing steps in an entire flow with 
-#' `run(with = c("retry")`.
+#' Use this decorator to configure a step to retry if it fails. Alternatively,
+#' retry _any_ failing steps in an entire flow with `run(with = c("retry")`.
 #' 
 #' See \url{https://docs.metaflow.org/v/r/metaflow/failures} for more 
 #' information on how to use this decorator.
@@ -14,6 +13,8 @@
 #'   retried.
 #' @param minutes_between_retries Integer Number of minutes between retries.
 #'   Defaults to `2`.
+#'   
+#' @inherit decorator return
 #'   
 #' @export
 #'
@@ -64,6 +65,8 @@ retry <- function(times = 3L, minutes_between_retries = 2L) {
 #' exception. If `NULL` (the default), the exception is not stored.
 #' @param print_exception Boolean. Determines whether or not the exception is
 #'   printed to stdout when caught. Defaults to `TRUE`.
+#'   
+#' @inherit decorator return
 #'
 #' @export
 #'

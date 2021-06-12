@@ -1,13 +1,13 @@
-#' Configure resources allocated to a step
+#' Decorator that configures resources allocated to a step
 #'
 #' @description 
 #' These decorators control the resources allocated to step running either
-#' locally or on _AWS Batch_. The `resources` decorator allocates resources
-#' for local execution. However, when a flow is executed with the `batch`
-#' argument, it will also control which resources requested from AWS. The
-#' `batch` decorator instead _forces_ the step to be run on _AWS Batch_. See
-#' \url{https://docs.metaflow.org/v/r/metaflow/scaling} for more information
-#' on how to use these decorators.
+#' locally or on _AWS Batch_. The `resources` decorator allocates resources for
+#' local execution. However, when a flow is executed with the `batch` argument
+#' (`run(with = c("batch")`.), it will also control which resources requested
+#' from AWS. The `batch` decorator instead _forces_ the step to be run on _AWS
+#' Batch_. See \url{https://docs.metaflow.org/v/r/metaflow/scaling} for more
+#' information on how to use these decorators.
 #'
 #' If both `resources` and `batch` decorators are provided, the maximum values
 #' from all decorators is used.
@@ -42,6 +42,8 @@
 #'   absolutely necessary. A swappiness value of `100` causes pages to be
 #'   swapped very aggressively. Accepted values are whole numbers between `0`
 #'   and `100`.
+#'   
+#' @inherit decorator return
 #'
 #' @export
 #' 
