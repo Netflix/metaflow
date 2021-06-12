@@ -25,16 +25,6 @@ test_that("decorator without arguments parsed correctly", {
   expect_equal(actual, expected)
 })
 
-test_that("@catch parsed correctly", {
-  skip_if_no_metaflow()
-  actual <- decorator("catch", var = "model_failed")[1]
-  expected <- "@catch(var='model_failed')"
-  expect_equal(actual, expected)
-  actual <- decorator("catch", print_exception = FALSE, var = "timeout")[1]
-  expected <- "@catch(print_exception=False, var='timeout')"
-  expect_equal(actual, expected)
-})
-
 test_that("@timeout parsed correctly", {
   skip_if_no_metaflow()
   actual <- decorator("timeout", seconds = 5)[1]
