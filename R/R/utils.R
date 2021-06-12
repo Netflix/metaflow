@@ -191,6 +191,9 @@ space <- function(len, type = "h") {
 
 wrap_argument <- function(x) {
   x <- x[[1]]
+  if (is.null(x)) {
+    return("None")
+  }
   if (is.character(x)) {
     x <- escape_quote(x)
   }
