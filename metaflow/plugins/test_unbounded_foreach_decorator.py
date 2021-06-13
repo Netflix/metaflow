@@ -1,3 +1,7 @@
+# NOTE: This file is an example of an unbounded-foreach implementation and is
+# used to test the functionality. This is an example only and is not part of the
+# core unbounded-foreach implementation.
+
 import os
 import subprocess
 import sys
@@ -7,16 +11,16 @@ from metaflow.exception import MetaflowException
 from metaflow.unbounded_foreach import UnboundedForeachInput, UBF_CONTROL, UBF_TASK
 from metaflow.util import to_unicode
 
-class InternalUnboundedForeachInput(UnboundedForeachInput):
+class InternalTestUnboundedForeachInput(UnboundedForeachInput):
     """
     Test class that wraps around values (any iterator) and simulates an
     unbounded-foreach instead of a bounded foreach.
     """
-    NAME = 'InternalUnboundedForeachInput'
+    NAME = 'InternalTestUnboundedForeachInput'
 
     def __init__(self, iterable):
         self.iterable = iterable
-        super(InternalUnboundedForeachInput, self).__init__()
+        super(InternalTestUnboundedForeachInput, self).__init__()
 
     def __iter__(self):
         return iter(self.iterable)
@@ -39,14 +43,14 @@ class InternalUnboundedForeachInput(UnboundedForeachInput):
     def __repr__(self):
         return '%s(%s)' % (self.NAME, self.iterable)
 
-class InternalUnboundedForeachDecorator(StepDecorator):
-    name = 'unbounded_foreach_internal'
+class InternalTestUnboundedForeachDecorator(StepDecorator):
+    name = 'unbounded_test_foreach_internal'
     results_dict = {}
 
     def __init__(self,
                  attributes=None,
                  statically_defined=False):
-        super(InternalUnboundedForeachDecorator, self).__init__(
+        super(InternalTestUnboundedForeachDecorator, self).__init__(
             attributes, statically_defined)
 
     def step_init(self,
@@ -72,9 +76,9 @@ class InternalUnboundedForeachDecorator(StepDecorator):
         # Access the `unbounded_foreach` param using `flow` (as datastore).
         assert(flow._unbounded_foreach)
         foreach_iter = flow.input
-        if not isinstance(foreach_iter, InternalUnboundedForeachInput):
+        if not isinstance(foreach_iter, InternalTestUnboundedForeachInput):
             raise MetaflowException('Expected type to be '\
-                                    'InternalUnboundedForeachInput. Found %s'\
+                                    'InternalTestUnboundedForeachInput. Found %s'\
                                     % (type(foreach_iter)))
         foreach_num_splits = sum(1 for _ in foreach_iter)
 

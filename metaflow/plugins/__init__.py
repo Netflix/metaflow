@@ -65,8 +65,8 @@ from .retry_decorator import RetryDecorator
 from .aws.batch.batch_decorator import BatchDecorator, ResourcesDecorator
 from .aws.step_functions.step_functions_decorator \
                 import StepFunctionsInternalDecorator
-from .unbounded_foreach_decorator\
-    import InternalUnboundedForeachDecorator, InternalUnboundedForeachInput
+from .test_unbounded_foreach_decorator\
+    import InternalTestUnboundedForeachDecorator, InternalTestUnboundedForeachInput
 from .conda.conda_step_decorator import CondaStepDecorator
 
 STEP_DECORATORS = _merge_lists([CatchDecorator,
@@ -77,7 +77,7 @@ STEP_DECORATORS = _merge_lists([CatchDecorator,
                                 BatchDecorator,
                                 StepFunctionsInternalDecorator,
                                 CondaStepDecorator,
-                                InternalUnboundedForeachDecorator],
+                                InternalTestUnboundedForeachDecorator],
                                     ext_plugins.STEP_DECORATORS, 'name')
 
 # Add Conda environment

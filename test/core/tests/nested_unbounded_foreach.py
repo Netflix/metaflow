@@ -5,8 +5,8 @@ class NestedUnboundedForeachTest(MetaflowTest):
 
     @steps(0, ['foreach-nested-split'], required=True)
     def split_z(self):
-        from metaflow.plugins import InternalUnboundedForeachInput
-        self.z = InternalUnboundedForeachInput(self.z)
+        from metaflow.plugins import InternalTestUnboundedForeachInput
+        self.z = InternalTestUnboundedForeachInput(self.z)
 
     @tag('unbounded_foreach_internal')
     @steps(0, ['foreach-nested-inner'], required=True)
