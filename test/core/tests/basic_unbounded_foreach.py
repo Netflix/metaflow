@@ -6,10 +6,10 @@ class BasicUnboundedForeachTest(MetaflowTest):
     @steps(0, ['foreach-split-small'], required=True)
     def split(self):
         self.my_index = None
-        from metaflow.plugins import InternalUnboundedForeachInput
-        self.arr = InternalUnboundedForeachInput(range(2))
+        from metaflow.plugins import InternalTestUnboundedForeachInput
+        self.arr = InternalTestUnboundedForeachInput(range(2))
 
-    @tag('unbounded_foreach_internal')
+    @tag('unbounded_test_foreach_internal')
     @steps(0, ['foreach-inner-small'], required=True)
     def inner(self):
         # index must stay constant over multiple steps inside foreach

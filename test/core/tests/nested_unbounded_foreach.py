@@ -8,7 +8,7 @@ class NestedUnboundedForeachTest(MetaflowTest):
         from metaflow.plugins import InternalTestUnboundedForeachInput
         self.z = InternalTestUnboundedForeachInput(self.z)
 
-    @tag('unbounded_foreach_internal')
+    @tag('unbounded_test_foreach_internal')
     @steps(0, ['foreach-nested-inner'], required=True)
     def inner(self):
         [x, y, z] = self.foreach_stack()
