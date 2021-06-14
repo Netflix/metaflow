@@ -1,8 +1,4 @@
 import os
-try:
-    from importlib.machinery import SourceFileLoader
-except ImportError:
-    import imp  # Python 2
 from tempfile import NamedTemporaryFile
 
 from .util import to_bytes
@@ -14,6 +10,15 @@ R_CONTAINER_IMAGE = None
 METAFLOW_R_VERSION = None
 R_VERSION = None
 R_VERSION_CODE = None
+
+try:
+    def source(fullname, path):
+        from importlib.machinery import SourceFileLoader
+        return SourceFileLoader(fullname, path).load_module()
+except ImportError:  # Python 2
+    def source(fullname, path):
+        import imp
+        return imp.load_source(fullname, path)
 
 def call_r(func_name, args):
     R_FUNCTIONS[func_name](*args)
@@ -93,10 +98,7 @@ def run(flow_script,
     full_cmdline[0] = os.path.basename(full_cmdline[0])
     with NamedTemporaryFile(prefix="metaflowR.", delete=False) as tmp:
         tmp.write(to_bytes(flow_script))
-    try:
-        module = SourceFileLoader('metaflowR', tmp.name).load_module()
-    except NameError:
-        module = imp.load_source('metaflowR', tmp.name)  # Python 2
+    module = source('metaflowR', tmp.name).load_module()
     flow = module.FLOW(use_cli=False)
 
     from . import exception 
