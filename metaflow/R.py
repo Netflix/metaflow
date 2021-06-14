@@ -98,7 +98,7 @@ def run(flow_script,
     full_cmdline[0] = os.path.basename(full_cmdline[0])
     with NamedTemporaryFile(prefix="metaflowR.", delete=False) as tmp:
         tmp.write(to_bytes(flow_script))
-    module = source('metaflowR', tmp.name).load_module()
+    module = source('metaflowR', tmp.name)
     flow = module.FLOW(use_cli=False)
 
     from . import exception 
