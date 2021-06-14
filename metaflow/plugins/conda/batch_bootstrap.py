@@ -9,6 +9,9 @@ import sys
 
 from metaflow.datatools import S3
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
+
+from ..env_escape import generate_trampolines, ENV_ESCAPE_PY
+
 from . import CONDA_MAGIC_FILE
 
 
@@ -46,6 +49,13 @@ def install_conda_environment(env_id, packages):
         'conda create --yes --no-default-packages -p {0} --no-deps {1} >/dev/null 2>&1'.format(os.path.join(os.getcwd(), env_id), ' '.join(packages)),
         'cd {0}'.format(os.getcwd())
     ]
+    if ENV_ESCAPE_PY is not None:
+        cwd = os.getcwd()
+        generate_trampolines(cwd)
+        # print("Environment escape will use %s as the interpreter" % ENV_ESCAPE_PY)
+    else:
+        pass
+        # print("Could not find a environment escape interpreter")
     os.system(' && '.join(args))
 
 if __name__ == '__main__':

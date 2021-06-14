@@ -20,6 +20,7 @@ from metaflow.metaflow_config import get_pinned_conda_libs, CONDA_PACKAGE_S3ROOT
 from metaflow.util import get_metaflow_root
 from metaflow.datatools import S3
 
+from ..env_escape import generate_trampolines
 from . import read_conda_manifest, write_to_conda_manifest
 from .conda import Conda
 
@@ -229,6 +230,28 @@ class CondaStepDecorator(StepDecorator):
                 # Namespace package; we don't symlink but add the additional paths
                 # for the conda interpreter
                 self.addl_paths = [os.path.split(p)[0] for p in custom_paths]
+
+        # Do the same for metaflow_custom
+        try:
+            import metaflow_custom as m
+        except ImportError:
+            # No additional check needed because if we are here, we already checked
+            # for other issues when loading at the toplevel
+            pass
+        else:
+            custom_paths = list(m.__path__)
+            if len(custom_paths) == 1:
+                # Regular package
+                os.symlink(custom_paths[0], os.path.join(self.metaflow_home, 'metaflow_custom'))
+            else:
+                # Namespace package; we don't symlink but add the additional paths
+                # for the conda interpreter
+                self.addl_paths = [os.path.split(p)[0] for p in custom_paths]
+
+        # Also install any environment escape overrides directly here to enable
+        # the escape to work even in non metaflow-created subprocesses
+        generate_trampolines(self.metaflow_home)
+
 
     def step_init(self, flow, graph, step, decos, environment, datastore, logger):
         if environment.TYPE != 'conda':

@@ -248,7 +248,6 @@ class FlowGraph(object):
                       '  shape = "record" ];'.format(node, type=nodetype)
 
         return "digraph {0.name} {{\n"\
-               "rankdir=LR;\n"\
                "{nodes}\n"\
                "{edges}\n"\
                "}}".format(self,
