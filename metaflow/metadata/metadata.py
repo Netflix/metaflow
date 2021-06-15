@@ -556,8 +556,8 @@ class MetadataProvider(object):
 
     def __init__(self, environment, flow, event_logger, monitor):
         self._task_id_seq = -1
-        self.sticky_tags = set([])
-        self.sticky_sys_tags = set([])
+        self.sticky_tags = set()
+        self.sticky_sys_tags = set()
         self._flow_name = flow.name
         self._event_logger = event_logger
         self._monitor = monitor

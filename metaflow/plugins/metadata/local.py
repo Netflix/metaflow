@@ -1,6 +1,8 @@
+import fcntl
 import glob
 import json
 import os
+import re
 import time
 
 from metaflow.exception import TaggingException
@@ -8,6 +10,7 @@ from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.metadata import MetadataProvider
 
 
+artifact_name_expr = re.compile('[0-9]+_artifact_.*.json')
 class LocalMetadataProvider(MetadataProvider):
     TYPE = 'local'
 
@@ -107,32 +110,19 @@ class LocalMetadataProvider(MetadataProvider):
 
         # Special handling of self, artifact, and metadata
         if sub_type == 'self':
-            meta_path = LocalMetadataProvider._get_metadir(*args[:obj_order])
-            if meta_path is None:
-                return None
-            self_file = os.path.join(meta_path, '_self.json')
-            if os.path.isfile(self_file):
+            self_file = LocalMetadataProvider._get_object_filepaths(*args[:obj_order])
+            if self_file:
                 return MetadataProvider._apply_filter(
-                    [LocalMetadataProvider._read_json_file(self_file)], filters)[0]
+                    [LocalMetadataProvider._read_json_file(self_file[0])], filters)[0]
             return None
 
         if sub_type == 'artifact':
-            meta_path = LocalMetadataProvider._get_metadir(*args[:obj_order])
+            which_artifact = args[sub_order - 1] if len(args) >= sub_order else '*'
             result = []
-            if meta_path is None:
-                return result
-            attempt_done_files = os.path.join(meta_path, 'sysmeta_attempt-done_*')
-            attempts_done = sorted(glob.iglob(attempt_done_files))
-            if attempts_done:
-                successful_attempt = int(LocalMetadataProvider._read_json_file(
-                    attempts_done[-1])['value'])
-                which_artifact = '*'
-                if len(args) >= sub_order:
-                    which_artifact = args[sub_order - 1]
-                artifact_files = os.path.join(
-                    meta_path, '%d_artifact_%s.json' % (successful_attempt, which_artifact))
-                for obj in glob.iglob(artifact_files):
-                    result.append(LocalMetadataProvider._read_json_file(obj))
+            artifact_files = LocalMetadataProvider._get_object_filepaths(
+                *args[:obj_order], which_artifact)
+            if artifact_files:
+                result = [LocalMetadataProvider._read_json_file(f) for f in artifact_files]
             if len(result) == 1:
                 return result[0]
             return result
@@ -162,37 +152,65 @@ class LocalMetadataProvider(MetadataProvider):
 
     @classmethod
     def _perform_operations_internal(cls, operations):
-        to_return = []
+        ops_per_object = dict()
         for op in operations:
             if op.op_type != 'tags':
                 raise ValueError("Only tag operations are supported")
-            # Get the object we need to update
-            obj_path = op.id.split('/')
-            obj_to_update = cls.get_object(
-                op.object_type, 'self', None, *obj_path)
-            if obj_to_update:
-                # We can perform the operation now
-                if op.operation == 'add':
-                    # We can only add tags that are not already system_tags.
-                    # We also never add duplicate tags to view tags as a set
-                    if op.args['tag'] not in obj_to_update['system_tags'] and \
-                            op.args['tag'] not in obj_to_update['tags']:
-                        obj_to_update['tags'].append(op.args['tag'])
-                elif op.operation == 'remove':
-                    # Remove all instances in case there are duplicates (from
-                    # older MF versions)
-                    obj_to_update['tags'] = [
-                        x for x in obj_to_update['tags'] if x != op.args['tag']]
-                else:
-                    raise TaggingException(msg='Invalid operation %s' % op.operation)
+            ops = ops_per_object.setdefault(op.id, [set(), set()])
+            if op.operation == 'add':
+                ops[0].add(op.args['tag'])
+            elif op.operation == 'remove':
+                ops[1].add(op.args['tag'])
             else:
-                raise TaggingException(msg='Cannot find object %s' % op.id)
-            # Here, all went well
-            file_path = os.path.join(
-                LocalMetadataProvider._get_metadir(*obj_path), '_self.json')
-            LocalMetadataProvider._dump_json_to_file(file_path, obj_to_update, True)
-            to_return.append(obj_to_update)
-        return to_return
+                raise TaggingException(msg='Invalid operation %s' % op.operation)
+        # At this point, we remove any duplicates from add/remove sets since
+        # that becomes a no-op
+        for ops in ops_per_object.values():
+            ops[0] = ops[0] - ops[1]
+            ops[1] = ops[1] - ops[0]
+        # Now we can get each object and update the tags; we do this using flock
+        # to guarantee that concurrent accesses work OK.
+        results = dict()
+        for op_id, ops in ops_per_object.items():
+            # Get the object we need to update
+            obj_path = op_id.split('/')
+            obj_file = LocalMetadataProvider._get_object_filepaths(*obj_path)
+            if obj_file is None or len(obj_file) != 1:
+                results[op_id] = {
+                    'status': 'Not found',
+                    'data': 'Object %s was not found' % op_id}
+                continue
+
+            # Now get the file and open using flock
+            with open(obj_file[0], 'r+') as f:
+                try:
+                    fcntl.flock(f, fcntl.LOCK_EX)
+
+                    obj_to_update = json.load(f)
+                    user_tags = set(obj_to_update['tags'])
+                    sys_tags = set(obj_to_update['system_tags'])
+                    if not sys_tags.isdisjoint(ops[1]):
+                        # We are trying to remove a system tag so we fail
+                        results[op_id] = {
+                            'status': 'Removing a system tag',
+                            'data': 'Cannot remove system tags %s' %
+                                    (sys_tags.intersection(ops[1]))}
+                        continue
+                    # At this point, we have no failures; compute the new tags
+                    user_tags.update(ops[0])
+                    user_tags.difference_update(ops[1])
+                    obj_to_update['tags'] = list(user_tags)
+
+                    f.seek(0)
+                    json.dump(obj_to_update, f)
+                    f.truncate()
+
+                    results[op_id] = {
+                        'status': 'ok',
+                        'data': obj_to_update}
+                finally:
+                    fcntl.flock(f, fcntl.LOCK_UN)
+        return results
 
     @staticmethod
     def _makedirs(path):
@@ -210,9 +228,9 @@ class LocalMetadataProvider(MetadataProvider):
     def _ensure_meta(
             self, obj_type, run_id, step_name, task_id, tags=None, sys_tags=None):
         if tags is None:
-            tags = []
+            tags = set()
         if sys_tags is None:
-            sys_tags = []
+            sys_tags = set()
         subpath = self._create_and_get_metadir(self._flow_name, run_id, step_name, task_id)
         selfname = os.path.join(subpath, '_self.json')
         self._makedirs(subpath)
@@ -256,7 +274,7 @@ class LocalMetadataProvider(MetadataProvider):
 
     @staticmethod
     def _create_and_get_metadir(
-          flow_name=None, run_id=None, step_name=None, task_id=None):
+            flow_name=None, run_id=None, step_name=None, task_id=None):
         from metaflow.datastore.local import LocalDataStore
         root_path = LocalMetadataProvider._make_path(flow_name, run_id, step_name, task_id)
         subpath = os.path.join(root_path, LocalDataStore.METADATA_DIR)
@@ -276,6 +294,35 @@ class LocalMetadataProvider(MetadataProvider):
         return None
 
     @staticmethod
+    def _get_object_filepaths(
+            flow_name=None, run_id=None, step_name=None, task_id=None,
+            artifact_name=None):
+        meta_path = LocalMetadataProvider._get_metadir(
+            flow_name, run_id, step_name, task_id)
+        if meta_path is None:
+            return None
+        # For non-artifacts
+        if artifact_name is None:
+            self_file = os.path.join(meta_path, '_self.json')
+            if os.path.isfile(self_file):
+                return [self_file]
+            return None
+        # For artifacts
+        results = []
+        attempt_done_files = os.path.join(meta_path, 'sysmeta_attempt-done_*')
+        attempts_done = sorted(glob.iglob(attempt_done_files))
+        if attempts_done:
+            successful_attempt = int(LocalMetadataProvider._read_json_file(
+                attempts_done[-1])['value'])
+            artifact_files = os.path.join(
+                meta_path, '%d_artifact_%s.json' % (successful_attempt, artifact_name))
+            results = list(glob.iglob(artifact_files))
+        if len(results) == 0:
+            return None
+        print("Returning %s" % str(results))
+        return results
+
+    @staticmethod
     def _dump_json_to_file(
             filepath, data, allow_overwrite=False):
         if os.path.isfile(filepath) and not allow_overwrite:
@@ -287,7 +334,18 @@ class LocalMetadataProvider(MetadataProvider):
     @staticmethod
     def _read_json_file(filepath):
         with open(filepath, 'r') as f:
-            return json.load(f)
+            # For any files that end in `_self.json` or files that are artifact
+            # files, we load using flock in case there is a concurrent modification
+            # of the tags
+            name = os.path.basename(filepath)
+            do_flock = name == '_self.json' or artifact_name_expr.match(name)
+            try:
+                if do_flock:
+                    fcntl.flock(f, fcntl.LOCK_SH)
+                return json.load(f)
+            finally:
+                if do_flock:
+                    fcntl.flock(f, fcntl.LOCK_UN)
 
     @staticmethod
     def _save_meta(root_dir, metadict):

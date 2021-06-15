@@ -426,16 +426,21 @@ class MetaflowObject(object):
             if o == 'remove':
                 if t in self._system_tags:
                     raise TaggingException("Cannot remove system tag *%s*" % t)
-                if t not in self._tags:
-                    raise TaggingException(
-                        "Cannot remove tag *%s* as it does not exist" % t)
             formatted_operations.append(MetadataOperation(
                 op_type='tags',
                 operation=o,
                 id=self.pathspec,
                 object_type=self._NAME,
                 args={'tag': t}))
-        self._object = self._metaflow.metadata.perform_operations(formatted_operations)[-1]
+        result = self._metaflow.metadata.perform_operations(
+            formatted_operations).get(self.pathspec, None)
+        if result and result['status'] == 'ok':
+            self._object = result['data']
+        else:
+            raise TaggingException(
+                "Unable to perform tagging operation on %s: %s" %
+                (self.pathspec, ': '.join([result['status'], result['data']])
+                 if result else '<unknown error>'))
         # Keep system tags and a set union of system tags + customized tags
         self._system_tags = self._get_tags_set(self._object.get('system_tags'), None)
         self._tags = self._get_tags_set(self._system_tags,
@@ -628,46 +633,99 @@ class MetaflowObject(object):
             self._path_components = traverse(_CLASSES[self._NAME], ids, [])
         return self._path_components
 
-    def add_tag(self, tags):
+    def add_tag(self, tag):
         """
-        Add one or more tags to the current object
+        Add the tag to the current object
+
+        If the tag is already a system tag, it is not added as a user-tag (since
+        it already exists as a system tag) but no error is returned.
 
         Parameters
         ----------
-        tags : string or List[string]
+        tag : string
+            Tag to add
+        """
+        self.add_tags([tag])
+
+    def add_tags(self, tags):
+        """
+        Add the tags to the current object
+
+        If any of the tags is already a system tag, it is not added as a
+        user-tag but no error is returned (since it already exists as a
+        system tag). On success, all tags will have been added.
+
+        Parameters
+        ----------
+        tags : Iterable over string
             Tags to add
         """
-        self.replace_tag([], tags)
+        self.replace_tags([], tags)
 
-    def remove_tag(self, tags):
+    def remove_tags(self, tags):
         """
-        Removes one or more tags to the current object
+        Remove the tags to the current object
+
+        Removing a system tag will result in an error. Removing a non-existent
+        user-tag is a no-op. On success, all tags will have been removed.
 
         Parameters
         ----------
-        tags : string or List[string]
+        tags : string or Iterable over string
             Tags to remove
         """
-        self.replace_tag(tags, [])
+        self.replace_tags(tags, [])
 
-    def replace_tag(self, remove_tags, add_tags):
+    def remove_tag(self, tag):
+        """
+        Remove the tag from the current object
+
+        Removing a system tag will result in an error. Removing a non-existent
+        user-tag is a no-op.
+
+        Parameters
+        ----------
+        tag : string
+            Tag to remove
+        """
+        self.remove_tags([tag])
+
+    def replace_tags(self, remove_tags, add_tags):
         """
         Removes and adds tags; the removal is done first
 
+        The same rules that apply to `add_tags` and `remove_tags` apply here,
+        respectively to the `add_tags` and `remove_tags` arguments.
+
         Parameters
         ----------
-        remove_tags : string or List[string]
+        remove_tags : string or Iterable over string
             Tags to remove
-        add_tags : string or List[string]
+        add_tags : string or Iterable over string
             Tags to add
         """
-        if is_stringish(remove_tags):
-            remove_tags = [remove_tags]
-        if is_stringish(add_tags):
-            add_tags = [add_tags]
+        if not all([is_stringish(x) for x in chain(remove_tags, add_tags)]):
+            print("Found tags: %s and %s" % (str(remove_tags), str(add_tags)))
+            raise ValueError("Tags can only be strings")
         operations = [('remove', tag) for tag in remove_tags]
         operations.extend(('add', tag) for tag in add_tags)
         self._tag_operations(operations)
+
+    def replace_tag(self, old_tag, new_tag):
+        """
+        Replace old_tag with new_tag
+
+        The same rules that apply to `add_tag` and `remove_tag` apply here,
+        respectively to the `new_tag` and `old_tag` arguments.
+
+        Parameters
+        ----------
+        old_tag : string
+            Tag to replace
+        new_tag : string
+            Tag to replace it with
+        """
+        self.replace_tags([old_tag], [new_tag])
 
 
 

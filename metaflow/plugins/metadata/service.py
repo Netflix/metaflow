@@ -256,9 +256,9 @@ class ServiceMetadataProvider(MetadataProvider):
             self, obj_type, run_id=None, step_name=None, task_id=None, tags=None, sys_tags=None):
 
         if tags is None:
-            tags = []
+            tags = set()
         if sys_tags is None:
-            sys_tags = []
+            sys_tags = set()
 
         def create_object():
             data = self._object_to_json(
