@@ -119,8 +119,9 @@ class LocalMetadataProvider(MetadataProvider):
         if sub_type == 'artifact':
             which_artifact = args[sub_order - 1] if len(args) >= sub_order else '*'
             result = []
-            artifact_files = LocalMetadataProvider._get_object_filepaths(
-                *args[:obj_order], which_artifact)
+            path_spec = list(args[:obj_order])
+            path_spec.append(which_artifact)
+            artifact_files = LocalMetadataProvider._get_object_filepaths(*path_spec)
             if artifact_files:
                 result = [LocalMetadataProvider._read_json_file(f) for f in artifact_files]
             if len(result) == 1:
