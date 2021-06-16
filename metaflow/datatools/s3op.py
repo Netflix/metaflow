@@ -30,7 +30,7 @@ sys.path.insert(0,\
 # multiprocessing.Pool because https://bugs.python.org/issue31886
 from metaflow.util import TempDir, url_quote, url_unquote
 from metaflow.multicore_utils import parallel_map
-from metaflow.datastore.util.s3util import aws_retry
+from metaflow.datatools.s3util import aws_retry
 
 NUM_WORKERS_DEFAULT = 64
 
@@ -111,7 +111,7 @@ def worker(result_file_name, queue, mode):
 
     with open(result_file_name, 'w') as result_file:
         try:
-            from metaflow.datastore.util.s3util import get_s3_client
+            from metaflow.datatools.s3util import get_s3_client
             s3, client_error = get_s3_client()
             while True:
                 url, idx = queue.get()
@@ -303,7 +303,7 @@ class S3Ops(object):
         self.client_error = None
 
     def reset_client(self, hard_reset=False):
-        from metaflow.datastore.util.s3util import get_s3_client
+        from metaflow.datatools.s3util import get_s3_client
         if hard_reset or self.s3 is None:
             self.s3, self.client_error = get_s3_client()
 

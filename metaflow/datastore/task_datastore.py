@@ -173,6 +173,7 @@ class TaskDataStore(object):
     def parent_datastore(self):
         return self._parent
 
+    @require_mode(None)
     def get_log_location(self, logprefix, stream):
         log_name = self._get_log_location(logprefix, stream)
         path = self._backend.path_join(
@@ -380,6 +381,7 @@ class TaskDataStore(object):
         return {k: json.loads(v) for k, v \
             in self._load_file(names, add_attempt).items()}
 
+    @require_mode(None)
     def has_metadata(self, name, add_attempt=True):
         """
         Checks if this TaskDataStore has the metadata requested
@@ -565,6 +567,8 @@ class TaskDataStore(object):
                 force_v4_dict[var] = True
         self.save_artifacts(to_save, force_v4_dict)
 
+    @only_if_not_done
+    @require_mode('w')
     def save_logs(self, logsource, stream_data):
         """
         Save log files for multiple streams, represented as
@@ -590,6 +594,7 @@ class TaskDataStore(object):
                 to_store_dict[n] = data
         self._save_file(to_store_dict)
 
+    @require_mode('r')
     def load_log_legacy(self, stream, attempt_override=None):
         """
         Load old-style, pre-mflog, log file represented as a bytes object.
@@ -599,6 +604,7 @@ class TaskDataStore(object):
         r = self._load_file([name], add_attempt=False)[name]
         return r if r is not None else b''
 
+    @require_mode('r')
     def load_logs(self, logsources, stream, attempt_override=None):
         paths = dict(map(
             lambda s: (self._metadata_name_for_attempt(
@@ -607,12 +613,13 @@ class TaskDataStore(object):
         r = self._load_file(paths.keys(), add_attempt=False)
         return [(paths[k], v if v is not None else b'') for k, v in r.items()]
 
-
+    @require_mode(None)
     def items(self):
         if self._objects:
             return self._objects.items()
         return {}
 
+    @require_mode(None)
     def to_dict(self, show_private=False, max_value_size=None, include=None):
         d = {}
         for k, _ in self.items():
@@ -627,6 +634,7 @@ class TaskDataStore(object):
                 d[k] = self[k]
         return d
 
+    @require_mode('r')
     def format(self, **kwargs):
         def lines():
             for k, v in self.to_dict(**kwargs).items():
@@ -634,19 +642,23 @@ class TaskDataStore(object):
                     .format(key=k, value=v, **self._info[k])
         return '\n'.join(line for k, line in sorted(lines()))
 
+    @require_mode('r')
     def __contains__(self, name):
         if self._objects:
             return name in self._objects
         return False
 
+    @require_mode('r')
     def __getitem__(self, name):
         return self.load_artifacts([name])[name]
 
+    @require_mode('r')
     def __iter__(self):
         if self._objects:
             return iter(self._objects)
         return iter([])
 
+    @require_mode('r')
     def __str__(self):
         return self.format(show_private=True, max_value_size=1000)
 
@@ -720,17 +732,17 @@ class TaskDataStore(object):
             else:
                 path = self._backend.path_join(self._path, name)
             to_load.append(path)
-        load_results = self._backend.load_bytes(to_load)
         results = {}
-        for path, result in load_results.items():
-            if add_attempt:
-                _, name = self.parse_attempt_metadata(
-                    self._backend.basename(path))
-            else:
-                name = self._backend.basename(path)
-            if result is None:
-                results[name] = None
-            else:
-                with result[0] as r:
-                    results[name] = r.read()
+        with self._backend.load_bytes(to_load) as load_results:
+            for path, result in load_results.items():
+                if add_attempt:
+                    _, name = self.parse_attempt_metadata(
+                        self._backend.basename(path))
+                else:
+                    name = self._backend.basename(path)
+                if result is None:
+                    results[name] = None
+                else:
+                    with result[0] as r:
+                        results[name] = r.read()
         return results

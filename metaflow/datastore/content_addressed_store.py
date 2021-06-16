@@ -139,39 +139,41 @@ class ContentAddressedStore(object):
             to_load = keys
         to_load_paths = [
             self._backend.path_join(self._prefix, k[:2], k) for k in to_load]
-        load_results = self._backend.load_bytes(to_load_paths)
-        for k, path in zip(to_load, to_load_paths):
-            # At this point, we either return the object as is (if raw) or
-            # decode it according to the encoding version
-            result, meta = load_results[path]
-            if force_raw or (meta and meta.get('cas_raw', False)):
-                with result as r:
-                    results[k] = r.read()
-            else:
-                with result as r:
-                    if meta is None:
-                        # Previous version of the datastore had no meta
-                        # information
-                        unpack_code = self._unpack_backward_compatible
-                    else:
-                        version = meta.get('cas_version', -1)
-                        if version == -1:
+        with self._backend.load_bytes(to_load_paths) as load_results:
+            for k, path in zip(to_load, to_load_paths):
+                # At this point, we either return the object as is (if raw) or
+                # decode it according to the encoding version
+                result, meta = load_results[path]
+                if force_raw or (meta and meta.get('cas_raw', False)):
+                    with result as r:
+                        results[k] = r.read()
+                else:
+                    with result as r:
+                        if meta is None:
+                            # Previous version of the datastore had no meta
+                            # information
+                            unpack_code = self._unpack_backward_compatible
+                        else:
+                            version = meta.get('cas_version', -1)
+                            if version == -1:
+                                raise DataException(
+                                    "Could not extract encoding version for %s"
+                                    % path)
+                            unpack_code = getattr(
+                                self, '_unpack_v%d' % version, None)
+                            if unpack_code is None:
+                                raise DataException(
+                                    "Unknown encoding version %d for %s -- "
+                                    "the artifact is either corrupt or you need "
+                                    "to update Metaflow" % (version, path))
+                        try:
+                            results[k] = unpack_code(r)
+                        except Exception as e:
                             raise DataException(
-                                "Could not extract encoding version for %s" % path)
-                        unpack_code = getattr(self, '_unpack_v%d' % version, None)
-                        if unpack_code is None:
-                            raise DataException(
-                                "Unknown encoding version %d for %s -- the artifact "
-                                "is either corrupt or you need to update Metaflow"
-                                % (version, path))
-                    try:
-                        results[k] = unpack_code(r)
-                    except Exception as e:
-                        raise DataException(
-                            "Could not unpack data: %s" % e)
+                                "Could not unpack data: %s" % e)
 
-            if self._blob_cache is not None:
-                self._blob_cache.register(k, results[k])
+                if self._blob_cache is not None:
+                    self._blob_cache.register(k, results[k])
         return results
 
     def _unpack_backward_compatible(self, blob):

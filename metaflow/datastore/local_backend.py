@@ -2,37 +2,8 @@ import json
 import os
 
 from ..metaflow_config import DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_LOCAL
-from .datastore_backend import DataStoreBackend
+from .datastore_backend import BytesLoader, DataStoreBackend, LazyFile
 from .exceptions import DataException
-
-
-# Helper class to lazily open files returned by load_bytes to prevent
-# possibly running out of open file descriptors
-class LazyFile(object):
-    def __init__(self, file):
-        self._file = file
-        self._open_file = None
-
-    def __enter__(self):
-        if self._open_file is None:
-            self._open_file = open(self._file, mode='rb')
-        return self
-
-    def __exit__(self, *args):
-        self.close()
-
-    def __del__(self):
-        self.close()
-
-    def close(self):
-        if self._open_file:
-            self._open_file.close()
-            self._open_file = None
-
-    def __getattr__(self, name):
-        if self._open_file is None:
-            self._open_file = open(self._file, mode='rb')
-        return getattr(self._open_file, name)
 
 class LocalBackend(DataStoreBackend):
     TYPE = 'local'
@@ -214,6 +185,14 @@ class LocalBackend(DataStoreBackend):
         for your consistency model, the caller is responsible for calling this
         multiple times in the proper order.
 
+        load_bytes should be used using a with statement:
+        with backend.load_bytes(paths) as results:
+            <do something>
+        The reason for this is that certain backends may need to clean up
+        temporary structures (for examples files used to download the bytes)
+        once done. You should not use anything emanating from `results` outside
+        of the with statement.
+
         Parameters
         ----------
         paths : List[string]
@@ -221,15 +200,16 @@ class LocalBackend(DataStoreBackend):
 
         Returns
         -------
-        Dict: string -> (BufferedIOBase, dict)
-            A dictionary is returned where the key is the path fetched and the
-            value is a tuple containing:
+        BytesLoader :
+            A BytesLoader which should be used in a with statement. The BytesLoader
+            object behaves as a dictionary string -> (BufferedIOBase, dict).
+            The key is the path fetched and the value is a tuple containing:
               - a BufferedIOBase indicating the result of loading the path.
               - a dictionary containing any additional metadata that was stored
               or None if no metadata was provided.
             If the path could not be loaded, returns None for that path
         """
-        results = {}
+        results = BytesLoader()
         for path in paths:
             full_path = self.full_uri(path)
             file_result = None

@@ -3,6 +3,69 @@ import re
 
 from .exceptions import DataException
 
+try:
+    # python 3
+    from collections.abc import MutableMapping as mappingABC
+except:
+    # python 2
+    from collections import MutableMapping as mappingABC
+
+
+# Helper class to lazily open files returned by load_bytes to prevent
+# possibly running out of open file descriptors
+class LazyFile(object):
+    def __init__(self, file):
+        self._file = file
+        self._open_file = None
+
+    def __enter__(self):
+        if self._open_file is None:
+            self._open_file = open(self._file, mode='rb')
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+    def __del__(self):
+        self.close()
+
+    def close(self):
+        if self._open_file:
+            self._open_file.close()
+            self._open_file = None
+
+    def __getattr__(self, name):
+        if self._open_file is None:
+            self._open_file = open(self._file, mode='rb')
+        return getattr(self._open_file, name)
+
+
+class BytesLoader(mappingABC):
+    def __init__(self):
+        self._wrappedDict = {}
+
+    def __getitem__(self, key):
+        return self._wrappedDict[key]
+
+    def __setitem__(self, key, value):
+        self._wrappedDict[key] = value
+
+    def __delitem__(self, key):
+        del self._wrappedDict[key]
+
+    def __iter__(self):
+        for k in self._wrappedDict.keys():
+            yield k
+
+    def __len__(self):
+        return len(self._wrappedDict)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
 class DataStoreBackend(object):
     """
     A DataStoreBackend defines the interface by which the higher-level
@@ -205,9 +268,10 @@ class DataStoreBackend(object):
 
         Returns
         -------
-        Dict: string -> (BufferedIOBase, dict)
-            A dictionary is returned where the key is the path fetched and the
-            value is a tuple containing:
+        BytesLoader :
+            A BytesLoader which should be used in a with statement. The BytesLoader
+            object behaves as a dictionary string -> (BufferedIOBase, dict).
+            The key is the path fetched and the value is a tuple containing:
               - a BufferedIOBase indicating the result of loading the path.
               - a dictionary containing any additional metadata that was stored
               or None if no metadata was provided.
