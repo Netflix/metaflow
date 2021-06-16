@@ -29,7 +29,7 @@ except:
     # python3
     from urllib.parse import urlparse
 
-from metaflow.datastore.util.s3util import get_s3_client
+from .s3util import get_s3_client
 
 try:
     import boto3

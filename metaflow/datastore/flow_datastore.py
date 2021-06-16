@@ -136,28 +136,28 @@ class FlowDataStore(object):
                         task_url,
                         TaskDataStore.metadata_name_for_attempt(suffix, attempt)
                     ))
-        get_results = self._backend.load_bytes(urls)
 
         latest_started_attempts = {}
         done_attempts = set()
         data_objs = {}
-        for name, result in get_results.items():
-            if result is not None:
-                _, run, step, task, fname = self._backend.path_split(name)
-                attempt, fname = TaskDataStore.parse_attempt_metadata(fname)
-                attempt = int(attempt)
-                if fname == TaskDataStore.METADATA_DONE_SUFFIX:
-                    done_attempts.add((run, step, task, attempt))
-                elif fname == TaskDataStore.METADATA_ATTEMPT_SUFFIX:
-                    latest_started_attempts[(run, step, task)] = \
-                        max(latest_started_attempts.get((run, step, task), 0),
-                            attempt)
-                elif fname == TaskDataStore.METADATA_DATA_SUFFIX:
-                    # This somewhat breaks the abstraction since we are using
-                    # load_bytes directly instead of load_metadata
-                    with result[0] as r:
-                        data_objs[(run, step, task, attempt)] = json.loads(
-                            r.read())
+        with self._backend.load_bytes(urls) as get_results:
+            for name, result in get_results.items():
+                if result is not None:
+                    _, run, step, task, fname = self._backend.path_split(name)
+                    attempt, fname = TaskDataStore.parse_attempt_metadata(fname)
+                    attempt = int(attempt)
+                    if fname == TaskDataStore.METADATA_DONE_SUFFIX:
+                        done_attempts.add((run, step, task, attempt))
+                    elif fname == TaskDataStore.METADATA_ATTEMPT_SUFFIX:
+                        latest_started_attempts[(run, step, task)] = \
+                            max(latest_started_attempts.get((run, step, task), 0),
+                                attempt)
+                    elif fname == TaskDataStore.METADATA_DATA_SUFFIX:
+                        # This somewhat breaks the abstraction since we are using
+                        # load_bytes directly instead of load_metadata
+                        with result[0] as r:
+                            data_objs[(run, step, task, attempt)] = json.loads(
+                                r.read())
         # We now figure out the latest attempt that started *and* finished.
         # Note that if an attempt started but didn't finish, we do *NOT* return
         # the previous attempt
