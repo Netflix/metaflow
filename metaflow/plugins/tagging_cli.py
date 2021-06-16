@@ -128,8 +128,8 @@ def tag_category_format(obj, cat, runs, is_system):
 
 
 def print_tags(obj, metaflow_run_client):
-    system_tags = {'_': metaflow_run_client.system_tags}
-    all_tags = {'_': metaflow_run_client.tags}
+    system_tags = {metaflow_run_client.pathspec: metaflow_run_client.system_tags}
+    all_tags = {metaflow_run_client.pathspec: metaflow_run_client.tags}
     return format_tags(obj, system_tags, all_tags, by_tag=False)
 
 

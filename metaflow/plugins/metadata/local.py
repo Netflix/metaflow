@@ -155,15 +155,12 @@ class LocalMetadataProvider(MetadataProvider):
     def _perform_operations_internal(cls, operations):
         ops_per_object = dict()
         for op in operations:
-            if op.op_type != 'tags':
-                raise ValueError("Only tag operations are supported")
             ops = ops_per_object.setdefault(op.id, [set(), set()])
             if op.operation == 'add':
                 ops[0].add(op.args['tag'])
-            elif op.operation == 'remove':
-                ops[1].add(op.args['tag'])
             else:
-                raise TaggingException(msg='Invalid operation %s' % op.operation)
+                # Operations are checked by parent class so this is remove
+                ops[1].add(op.args['tag'])
         # At this point, we remove any duplicates from add/remove sets since
         # that becomes a no-op
         for ops in ops_per_object.values():
@@ -184,33 +181,31 @@ class LocalMetadataProvider(MetadataProvider):
 
             # Now get the file and open using flock
             with open(obj_file[0], 'r+') as f:
-                try:
-                    fcntl.flock(f, fcntl.LOCK_EX)
+                # Lock released when fd is closed at the end of with
+                fcntl.flock(f, fcntl.LOCK_EX)
 
-                    obj_to_update = json.load(f)
-                    user_tags = set(obj_to_update['tags'])
-                    sys_tags = set(obj_to_update['system_tags'])
-                    if not sys_tags.isdisjoint(ops[1]):
-                        # We are trying to remove a system tag so we fail
-                        results[op_id] = {
-                            'status': 'Removing a system tag',
-                            'data': 'Cannot remove system tags %s' %
-                                    (sys_tags.intersection(ops[1]))}
-                        continue
-                    # At this point, we have no failures; compute the new tags
-                    user_tags.update(ops[0])
-                    user_tags.difference_update(ops[1])
-                    obj_to_update['tags'] = list(user_tags)
-
-                    f.seek(0)
-                    json.dump(obj_to_update, f)
-                    f.truncate()
-
+                obj_to_update = json.load(f)
+                user_tags = set(obj_to_update['tags'])
+                sys_tags = set(obj_to_update['system_tags'])
+                if not sys_tags.isdisjoint(ops[1]):
+                    # We are trying to remove a system tag so we fail
                     results[op_id] = {
-                        'status': 'ok',
-                        'data': obj_to_update}
-                finally:
-                    fcntl.flock(f, fcntl.LOCK_UN)
+                        'status': 'Removing a system tag',
+                        'data': 'Cannot remove system tags %s' %
+                                (sys_tags.intersection(ops[1]))}
+                    continue
+                # At this point, we have no failures; compute the new tags
+                user_tags.update(ops[0])
+                user_tags.difference_update(ops[1])
+                obj_to_update['tags'] = list(user_tags)
+
+                f.seek(0)
+                json.dump(obj_to_update, f)
+                f.truncate()
+
+                results[op_id] = {
+                    'status': 'ok',
+                    'data': obj_to_update}
         return results
 
     @staticmethod
@@ -320,7 +315,6 @@ class LocalMetadataProvider(MetadataProvider):
             results = list(glob.iglob(artifact_files))
         if len(results) == 0:
             return None
-        print("Returning %s" % str(results))
         return results
 
     @staticmethod
@@ -334,19 +328,16 @@ class LocalMetadataProvider(MetadataProvider):
 
     @staticmethod
     def _read_json_file(filepath):
+        # For any files that end in `_self.json` or files that are artifact
+        # files, we load using flock in case there is a concurrent modification
+        # of the tags
+        name = os.path.basename(filepath)
+        do_flock = name == '_self.json' or artifact_name_expr.match(name)
         with open(filepath, 'r') as f:
-            # For any files that end in `_self.json` or files that are artifact
-            # files, we load using flock in case there is a concurrent modification
-            # of the tags
-            name = os.path.basename(filepath)
-            do_flock = name == '_self.json' or artifact_name_expr.match(name)
-            try:
-                if do_flock:
-                    fcntl.flock(f, fcntl.LOCK_SH)
-                return json.load(f)
-            finally:
-                if do_flock:
-                    fcntl.flock(f, fcntl.LOCK_UN)
+            if do_flock:
+                # Released on close at end of with block
+                fcntl.flock(f, fcntl.LOCK_SH)
+            return json.load(f)
 
     @staticmethod
     def _save_meta(root_dir, metadict):
