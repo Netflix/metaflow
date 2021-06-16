@@ -330,9 +330,6 @@ class S3(object):
     def __exit__(self, *args):
         self.close()
 
-    def __del__(self):
-        self.close()
-
     def close(self):
         """
         Delete all temporary files downloaded in this context.
