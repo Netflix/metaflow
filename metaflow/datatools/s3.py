@@ -234,6 +234,21 @@ class S3Object(object):
     def __repr__(self):
         return str(self)
 
+
+class S3Client(object):
+    def __init__(self):
+        self._s3_client = None
+
+    @property
+    def client(self):
+        if self._s3_client is None:
+            self.reset_client()
+        return self._s3_client
+
+    def reset_client(self):
+        self._s3_client, _ = get_s3_client()
+
+
 class S3(object):
 
     @classmethod
@@ -245,7 +260,8 @@ class S3(object):
                  bucket=None,
                  prefix=None,
                  run=None,
-                 s3root=None):
+                 s3root=None,
+                 **kwargs):
         """
         Initialize a new context for S3 operations. This object is used as
         a context manager for a with statement.
@@ -305,7 +321,7 @@ class S3(object):
             # 3. use the client only with full URLs
             self._s3root = None
 
-        self._s3_client = None
+        self._s3_client = kwargs.get('external_client', S3Client())
         self._tmpdir = mkdtemp(dir=tmproot, prefix='metaflow.s3.')
 
     def __enter__(self):
@@ -328,13 +344,6 @@ class S3(object):
                     self._tmpdir = None
         except:
             pass
-
-    def reset_client(self, new_client=None, hard_reset=False):
-        if new_client:
-            self._s3_client = new_client
-        if hard_reset or self._s3_client is None:
-            from metaflow.datastore.util.s3util import get_s3_client
-            self._s3_client, _ = get_s3_client()
 
     def _url(self, key_value):
         # NOTE: All URLs are handled as Unicode objects (unicode in py2,
@@ -877,8 +886,7 @@ class S3(object):
                                      prefix='metaflow.s3.one_file.',
                                      delete=False)
             try:
-                self.reset_client()
-                op(self._s3_client, tmp.name)
+                op(self._s3_client.client, tmp.name)
                 return tmp.name
             except ClientError as err:
                 error_code = s3op.normalize_client_error(err)
@@ -893,7 +901,7 @@ class S3(object):
                 # TODO specific error message for out of disk space
                 error = str(ex)
             os.unlink(tmp.name)
-            self.reset_client(hard_reset = True)
+            self._s3_client.reset_client()
             # add some jitter to make sure retries are not synchronized
             time.sleep(2**i + random.randint(0, 10))
         raise MetaflowS3Exception("S3 operation failed.\n"\
