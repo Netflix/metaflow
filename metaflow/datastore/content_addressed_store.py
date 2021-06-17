@@ -137,8 +137,7 @@ class ContentAddressedStore(object):
             to_load = keys
         to_load_paths = [
             self._backend.path_join(self._prefix, k[:2], k) for k in to_load]
-        with self._backend.load_bytes(to_load_paths) as r:
-            load_results = r.data
+        with self._backend.load_bytes(to_load_paths) as load_results:
             for k, path in zip(to_load, to_load_paths):
                 # At this point, we either return the object as is (if raw) or
                 # decode it according to the encoding version

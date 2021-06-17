@@ -44,7 +44,7 @@ class CloseAfterUse(object):
         self._closer = closer
 
     def __enter__(self):
-        return self
+        return self.data
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self._closer:

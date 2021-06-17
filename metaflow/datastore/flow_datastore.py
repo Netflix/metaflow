@@ -140,8 +140,7 @@ class FlowDataStore(object):
         latest_started_attempts = {}
         done_attempts = set()
         data_objs = {}
-        with self._backend.load_bytes(urls) as r:
-            get_results = r.data
+        with self._backend.load_bytes(urls) as get_results:
             for name, result in get_results.items():
                 if result is not None:
                     _, run, step, task, fname = self._backend.path_split(name)
