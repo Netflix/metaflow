@@ -43,6 +43,7 @@ Metaflow uses a [test harness](https://docs.metaflow.org/internals-of-metaflow/t
 Much of what the test harness provides can be achieved using `pytest` directly (especially [`parametrize`](https://docs.pytest.org/en/6.2.x/parametrize.html), without writing flows against a separate API. This branch demonstrates a few ways to use `pytest` to run end-to-end flow tests:
 
 ```python
+# Example old-style FlowSpec
 from metaflow import FlowSpec, step
 
 class OldFlow(FlowSpec):
@@ -55,9 +56,10 @@ class OldFlow(FlowSpec):
         self.b = 2
 
 
-from metaflow.api import Flow, step
+# Example new-style FlowSpec
+from metaflow.api import FlowSpec, step
 
-class NewFlow(FlowSpec, metaclass=Flow):
+class NewFlow(FlowSpec):
     @step
     def start(self):
         self.a = 1
@@ -69,13 +71,13 @@ class NewFlow(FlowSpec, metaclass=Flow):
 # Test old- and new-style flows
 from metaflow.tests.utils import parametrize, run
 
-@parametrize('flow', [ OldFlow, NewFlow ])
+@parametrize('flow', [ OldFlow, NewFlow, ])
 def test_simple_foreach(flow):
-    data = run(flow)
-    assert (data.a, data.b) == (1, 2)
+  data = run(flow)
+  assert (data.a, data.b) == (1, 2)
 ```
 
-Check out the tests under [`metaflow/tests`](../tests); some highlights:
+There are many such (py)tests under [`metaflow/tests`](../tests); some highlights:
 
 #### [`test_simple_foreach.py`](../tests/test_simple_foreach.py)
 Definition of a simple `foreach`/`join` flow, in old and new styles, and a parameterized test case that runs each and verifies their data artifact outputs.
@@ -122,8 +124,8 @@ The `metaflow.api` package contains a prototype, alternate API for writing flows
 - [x] Optionally receive `self.input` as an argument to `@foreach` step (rather than having to reference `self.input` at start of step; see [`NewJoinFlow1`](../tests/flows/joins.py))
 - [x] Make `metaflow flow <file> …` default to single Flow in file
 - [x] Unittest `metaflow flow <file>:<flow> …` invocation style
-- [ ] Investigate using a `@flow` class-decorator instead of [`metaclass=Flow`](flow.py)
-- [ ] Get Pylint to accept self.input references in Flows w/o FlowSpec explicitly specified
+- [x] ~~Investigate using a `@flow` class-decorator instead of [`metaclass=Flow`](flowspec.py)~~ Turns out attaching a `metaclass` to a base `FlowSpec` class and inheriting from that seems to work well for both old- and new-style APIs.
+- [x] ~~Get Pylint to accept self.input references in Flows w/o FlowSpec explicitly specified~~ This was essentially solved by using a `FlowSpec` inheritance structure that comes with the necessary metaclass.
 
 ## TODOs <a id="todo"></a>
 In addition to the tasks listed above, some general correctness/completeness TODOs:
@@ -131,21 +133,20 @@ In addition to the tasks listed above, some general correctness/completeness TOD
 - [x] Integrate new `pytest` tests in CI ([example GHA run](https://github.com/celsiustx/metaflow/runs/2616959407))
 - [ ] Implement "conditional" decorators (`@iff`, `@ifn`)
 - [ ] Check overloaded Flow basenames / using FQNs
-- [ ] Investigate better ways to infer `cls.__file__` on old- and new-style flows
+- [x] ~~Investigate better ways to infer `cls.__file__` on old- and new-style flows~~ (done via `FlowSpecMeta` metaclass, for both old- and new-style `FlowSpec`s)
 - [ ] Testing: use fresh metaflow db in tempdirs for each case/suite
 - [ ] Investigate restoring Python 2 in CI (it was removed to get CI passing; failure was a `SyntaxError` related to default kwargs in some new code in this package)
 
 ## Examples <a id="examples"></a>
 
 ### Basic Flow <a id="basic-flow"></a>
-Here's an example diff, taken from [`test_api.py`](../tests/test_api.py) of an `OldFlow` (written against the existing `FlowSpec` API) and a `NewFlow` (using the new `metaflow.api`):
+Here's an example diff, modeled after the ([`new_`](../tests/flows/new_linear_flow.py))[`linear_flow.py`](../tests/flows/linear_flow.py) test flows, of a simple linear flow written against the existing and new `FlowSpec` APIs:
 
 ```diff
 -from metaflow import FlowSpec, step
-+from metaflow.api import Flow, step
++from metaflow.api import FlowSpec, step
 
-+class NewFlow(metaclass=Flow):
--class OldFlow(FlowSpec):
+ class LinearFlow(FlowSpec):
 -    def start(self):
 -        self.next(self.one)
      @step
@@ -180,11 +181,10 @@ These flows are checked for correctness and concordance in [`test_foreach.py`](.
 ```diff
 -from metaflow import FlowSpec, step, IncludeFile
 +from metaflow import IncludeFile
-+from metaflow.api import Flow, step, foreach, join
++from metaflow.api import FlowSpec, step, foreach, join
 
 
--class MovieStatsFlow(FlowSpec):
-+class MovieStatsFlow(metaclass=Flow):
+ class MovieStatsFlow(FlowSpec):
      movie_data = IncludeFile("movie_data",
                               help="The path to a movie metadata file.",
                               default=script_path('movies.csv'))
