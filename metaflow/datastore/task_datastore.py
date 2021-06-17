@@ -726,8 +726,7 @@ class TaskDataStore(object):
                 path = self._backend.path_join(self._path, name)
             to_load.append(path)
         results = {}
-        with self._backend.load_bytes(to_load) as r:
-            load_results = r.data
+        with self._backend.load_bytes(to_load) as load_results:
             for path, result in load_results.items():
                 if add_attempt:
                     _, name = self.parse_attempt_metadata(
