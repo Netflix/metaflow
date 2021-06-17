@@ -422,6 +422,12 @@ class MetaflowObject(object):
         return True
 
     def _filtered_children(self, *tags):
+        """
+        Returns an iterator over all children.
+
+        If tags are specified, only children associated with all specified tags
+        are returned.
+        """
         for child in self:
             if all(tag in child.tags for tag in tags):
                 yield child
@@ -512,7 +518,7 @@ class MetaflowObject(object):
 
         Returns
         -------
-        List[string]
+        Set[string]
             Tags associated with the object
         """
         return self._tags
@@ -1212,9 +1218,9 @@ class Step(MetaflowObject):
         """
         Returns an iterator over all the tasks in the step.
 
-        An optional filter is available that allows you to filter on tags. The
-        tasks returned if the filter is specified will contain all the tags
-        specified.
+        An optional filter is available that allows you to filter on tags.
+        If tags are specified, only tasks associated with all specified tags
+        are returned.
 
         Parameters
         ----------
@@ -1301,9 +1307,9 @@ class Run(MetaflowObject):
         """
         Returns an iterator over all the steps in the run.
 
-        An optional filter is available that allows you to filter on tags. The
-        steps returned if the filter is specified will contain all the tags
-        specified.
+        An optional filter is available that allows you to filter on tags.
+        If tags are specified, only steps associated with all specified tags
+        are returned.
 
         Parameters
         ----------
@@ -1482,9 +1488,9 @@ class Flow(MetaflowObject):
         """
         Returns an iterator over all the runs in the flow.
 
-        An optional filter is available that allows you to filter on tags. The
-        runs returned if the filter is specified will contain all the tags
-        specified.
+        An optional filter is available that allows you to filter on tags.
+        If tags are specified, only runs associated with all specified tags
+        are returned.
 
         Parameters
         ----------
