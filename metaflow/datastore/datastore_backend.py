@@ -3,13 +3,6 @@ import re
 
 from .exceptions import DataException
 
-try:
-    # python 3
-    from collections.abc import MutableMapping as mappingABC
-except:
-    # python 2
-    from collections import MutableMapping as mappingABC
-
 
 # Helper class to lazily open files returned by load_bytes to prevent
 # possibly running out of open file descriptors
@@ -40,31 +33,23 @@ class LazyFile(object):
         return getattr(self._open_file, name)
 
 
-class BytesLoader(mappingABC):
-    def __init__(self):
-        self._wrappedDict = {}
-
-    def __getitem__(self, key):
-        return self._wrappedDict[key]
-
-    def __setitem__(self, key, value):
-        self._wrappedDict[key] = value
-
-    def __delitem__(self, key):
-        del self._wrappedDict[key]
-
-    def __iter__(self):
-        for k in self._wrappedDict.keys():
-            yield k
-
-    def __len__(self):
-        return len(self._wrappedDict)
+class CloseAfterUse(object):
+    """
+    Class that can be used to wrap data and a closer (cleanup code).
+    This class should be used in a with statement and, when the with
+    scope exists, `close` will be called on the closer object
+    """
+    def __init__(self, data, closer=None):
+        self.data = data
+        self._closer = closer
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
+        if self._closer:
+            self._closer.close()
+
 
 class DataStoreBackend(object):
     """
@@ -268,9 +253,9 @@ class DataStoreBackend(object):
 
         Returns
         -------
-        BytesLoader :
-            A BytesLoader which should be used in a with statement. The BytesLoader
-            object behaves as a dictionary string -> (BufferedIOBase, dict).
+        CloseAfterUse :
+            A CloseAfterUse which should be used in a with statement. The data
+            in the CloseAfterUse will be a dictionary string -> (BufferedIOBase, dict).
             The key is the path fetched and the value is a tuple containing:
               - a BufferedIOBase indicating the result of loading the path.
               - a dictionary containing any additional metadata that was stored

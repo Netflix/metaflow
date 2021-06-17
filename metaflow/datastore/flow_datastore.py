@@ -41,7 +41,7 @@ class FlowDataStore(object):
             Monitor to use to measure/monitor events, by default None
         artifact_cache : Cache, optional
             A cache of artifacts fetched from the datastore. Implements
-            lookup(key) and register(key, value, write). The value will be
+            lookup(key) and register(key, value). The value will be
             the unpickled object. By default None
         blob_cache : Cache, optional
             Similar to artifact_cache but used at the blob level. The value will
@@ -140,7 +140,8 @@ class FlowDataStore(object):
         latest_started_attempts = {}
         done_attempts = set()
         data_objs = {}
-        with self._backend.load_bytes(urls) as get_results:
+        with self._backend.load_bytes(urls) as r:
+            get_results = r.data
             for name, result in get_results.items():
                 if result is not None:
                     _, run, step, task, fname = self._backend.path_split(name)

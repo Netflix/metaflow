@@ -5,7 +5,7 @@ from itertools import starmap
 
 from ..datatools.s3 import S3, S3Client, S3PutObject
 from ..metaflow_config import DATASTORE_SYSROOT_S3
-from .datastore_backend import BytesLoader, DataStoreBackend, LazyFile
+from .datastore_backend import CloseAfterUse, DataStoreBackend, LazyFile
 from .exceptions import DataException
 
 
@@ -15,25 +15,6 @@ try:
 except:
     # python3
     from urllib.parse import urlparse
-
-
-# S3BytesLoader implements the context protocol to be able to keep the S3
-# client alive (and the files that are contained in the temp directory it
-# creates) until the user of load_bytes is done with them.
-class S3BytesLoader(BytesLoader):
-    def __init__(self, s3_client):
-        self._s3 = s3_client
-        super(S3BytesLoader, self).__init__()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
-
-    def close(self):
-        if self._s3:
-            self._s3.close()
 
 
 class S3Backend(DataStoreBackend):
@@ -192,9 +173,9 @@ class S3Backend(DataStoreBackend):
 
         Returns
         -------
-        BytesLoader :
-            A BytesLoader which should be used in a with statement. The BytesLoader
-            object behaves as a dictionary string -> (BufferedIOBase, dict).
+        CloseAfterUse :
+            A CloseAfterUse which should be used in a with statement. The data
+            in the CloseAfterUse will be a dictionary string -> (BufferedIOBase, dict).
             The key is the path fetched and the value is a tuple containing:
               - a BufferedIOBase indicating the result of loading the path.
               - a dictionary containing any additional metadata that was stored
@@ -202,11 +183,11 @@ class S3Backend(DataStoreBackend):
             If the path could not be loaded, returns None for that path
         """
         if len(paths) == 0:
-            return {}
+            return CloseAfterUse({})
 
         s3 = S3(s3root=self.datastore_root,
                 tmproot=os.getcwd(), external_client=self.s3_client)
-        to_return = S3BytesLoader(s3)
+        to_return = dict()
         # We similarly do things in parallel for many files. This is again
         # a hack.
         if len(paths) > 10:
@@ -223,4 +204,4 @@ class S3Backend(DataStoreBackend):
                     to_return[r.key] = (LazyFile(r.path), r.metadata)
                 else:
                     to_return[r.key] = None
-        return to_return
+        return CloseAfterUse(to_return, closer=s3)

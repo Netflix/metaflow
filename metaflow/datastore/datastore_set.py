@@ -22,8 +22,8 @@ class TaskDataStoreSet(object):
             raise DataException("FlowDataStore already has a blob cache")
         if flow_datastore.artifact_cache is not None:
             raise DataException("FlowDataStore already has an artifact cache")
-        flow_datastore.blob_cache = KeepInitialCache()
-        flow_datastore.artifact_cache = KeepSpecificKeysCache()
+        flow_datastore.blob_cache = OnOffCache()
+        flow_datastore.artifact_cache = OnOffCache()
 
         task_datastores = flow_datastore.get_latest_task_datastores(
             run_id, steps=steps, pathspecs=pathspecs, allow_not_done=allow_not_done)
@@ -38,11 +38,11 @@ class TaskDataStoreSet(object):
                 keys_to_prefetch.remove(None)
             except KeyError:
                 pass
-            flow_datastore.artifact_cache.keys_to_cache = keys_to_prefetch
-            # Load all keys; this will update blob_cache
+            # Load all keys; this will update blob_cache and artifact_cache
             flow_datastore.load_data(keys_to_prefetch)
-            # Stop caching for any future blob
-            flow_datastore.blob_cache.flip()
+            # Stop caching for any future blob or artifact
+            flow_datastore.blob_cache.set_caching(False)
+            flow_datastore.artifact_cache.set_caching(False)
 
         self.pathspec_index_cache = {}
         self.pathspec_cache = {}
@@ -64,41 +64,20 @@ class DictCache(object):
     def __init__(self):
         self._cache = {}
 
-    def register(self, key, value, write=False):
+    def register(self, key, value):
         self._cache[key] = value
 
     def load(self, key):
         return self._cache.get(key, None)
 
-class KeepInitialCache(DictCache):
+class OnOffCache(DictCache):
     def __init__(self):
         self._is_caching = True
-        super(KeepInitialCache, self).__init__()
+        super(OnOffCache, self).__init__()
 
-    def register(self, key, value, write=False):
+    def register(self, key, value):
         if self._is_caching:
-            super(KeepInitialCache, self).register(key, value, write)
+            super(OnOffCache, self).register(key, value)
 
-    def flip(self, is_on=False):
+    def set_caching(self, is_on=True):
         self._is_caching = is_on
-
-class KeepSpecificKeysCache(DictCache):
-    def __init__(self, keys=None):
-        self._keys = keys
-        if self._keys is None:
-            self._keys = set()
-        super(KeepSpecificKeysCache, self).__init__()
-
-    def register(self, key, value, write=False):
-        if key in self._keys:
-            super(KeepSpecificKeysCache, self).register(key, value, write)
-
-    @property
-    def keys_to_cache(self):
-        return self._keys
-
-    @keys_to_cache.setter
-    def keys_to_cache(self, s):
-        if s is None:
-            s = set()
-        self._keys = s
