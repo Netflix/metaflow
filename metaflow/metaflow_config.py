@@ -88,8 +88,11 @@ CLIENT_CACHE_MAX_SIZE = from_conf('METAFLOW_CLIENT_CACHE_MAX_SIZE', 10000)
 METADATA_SERVICE_URL = from_conf('METAFLOW_SERVICE_URL')
 METADATA_SERVICE_NUM_RETRIES = from_conf('METAFLOW_SERVICE_RETRY_COUNT', 5)
 METADATA_SERVICE_AUTH_KEY = from_conf('METAFLOW_SERVICE_AUTH_KEY')
+METADATA_SERVICE_AUTH_TYPE = from_conf('METAFLOW_METADATA_SERVICE_AUTH_TYPE', 'apigw')
 METADATA_SERVICE_HEADERS = json.loads(from_conf('METAFLOW_SERVICE_HEADERS', '{}'))
-if METADATA_SERVICE_AUTH_KEY is not None:
+if METADATA_SERVICE_AUTH_KEY is not None and METADATA_SERVICE_AUTH_TYPE == 'basic':
+    METADATA_SERVICE_HEADERS['authorization'] = 'Basic {key}'.format(key=METADATA_SERVICE_AUTH_KEY)
+elif METADATA_SERVICE_AUTH_KEY is not None and METADATA_SERVICE_AUTH_TYPE == 'basic':
     METADATA_SERVICE_HEADERS['x-api-key'] = METADATA_SERVICE_AUTH_KEY
 
 ###
@@ -164,7 +167,11 @@ AWS_SANDBOX_REGION = from_conf('METAFLOW_AWS_SANDBOX_REGION')
 if AWS_SANDBOX_ENABLED:
     os.environ['AWS_DEFAULT_REGION'] = AWS_SANDBOX_REGION
     BATCH_METADATA_SERVICE_URL = AWS_SANDBOX_INTERNAL_SERVICE_URL
-    METADATA_SERVICE_HEADERS['x-api-key'] = AWS_SANDBOX_API_KEY
+    # METADATA_SERVICE_HEADERS['x-api-key'] = AWS_SANDBOX_API_KEY
+    if METADATA_SERVICE_AUTH_TYPE == 'basic':
+        METADATA_SERVICE_HEADERS['authorization'] = 'Basic {key}'.format(key=AWS_SANDBOX_API_KEY)
+    elif METADATA_SERVICE_AUTH_TYPE == 'apigw':
+        METADATA_SERVICE_HEADERS['x-api-key'] = AWS_SANDBOX_API_KEY
     SFN_STATE_MACHINE_PREFIX = from_conf('METAFLOW_AWS_SANDBOX_STACK_NAME')
 
 
@@ -225,11 +232,10 @@ try:
 except ImportError as e:
     ver = sys.version_info[0] * 10 + sys.version_info[1]
     if ver >= 36:
-        # e.name is set to the name of the package that fails to load
+        # e.path is not None if the error stems from some other place than here
         # so don't error ONLY IF the error is importing this module (but do
         # error if there is a transitive import error)
-        if not (isinstance(e, ModuleNotFoundError) and \
-                e.name in ['metaflow_custom', 'metaflow_custom.config']):
+        if not (isinstance(e, ModuleNotFoundError) and e.path is None):
             print(
                 "Cannot load metaflow_custom configuration -- "
                 "if you want to ignore, uninstall metaflow_custom package")
@@ -237,6 +243,9 @@ except ImportError as e:
 else:
     # We load into globals whatever we have in extension_module
     # We specifically exclude any modules that may be included (like sys, os, etc)
+    # *except* for ones that are part of metaflow_custom (basically providing
+    # an aliasing mechanism)
+    lazy_load_custom_modules = {}
     for n, o in extension_module.__dict__.items():
         if n == 'DEBUG_OPTIONS':
             DEBUG_OPTIONS.extend(o)
@@ -245,9 +254,16 @@ else:
                     from_conf('METAFLOW_DEBUG_%s' % typ.upper())
         elif not n.startswith('__') and not isinstance(o, types.ModuleType):
             globals()[n] = o
+        elif isinstance(o, types.ModuleType) and o.__package__ and \
+                o.__package__.startswith('metaflow_custom'):
+            lazy_load_custom_modules['metaflow.%s' % n] = o
+    if lazy_load_custom_modules:
+        from metaflow import _LazyLoader
+        sys.meta_path.append(_LazyLoader(lazy_load_custom_modules))
 finally:
     # Erase all temporary names to avoid leaking things
-    for _n in ['ver', 'n', 'o', 'e', 'extension_module']:
+    for _n in ['ver', 'n', 'o', 'e', 'type', 'lazy_load_custom_modules',
+               'extension_module', '_LazyLoader']:
         try:
             del globals()[_n]
         except KeyError:

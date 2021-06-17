@@ -4,7 +4,7 @@ cached_aws_sandbox_creds = None
 def get_aws_client(module, with_error=False, params={}):
     from metaflow.exception import MetaflowException
     from metaflow.metaflow_config import AWS_SANDBOX_ENABLED, \
-        AWS_SANDBOX_STS_ENDPOINT_URL, AWS_SANDBOX_API_KEY
+        AWS_SANDBOX_STS_ENDPOINT_URL, AWS_SANDBOX_API_KEY, METADATA_SERVICE_AUTH_TYPE
     import requests
     try:
         import boto3
@@ -18,9 +18,14 @@ def get_aws_client(module, with_error=False, params={}):
         if cached_aws_sandbox_creds is None:
             # authenticate using STS
             url = "%s/auth/token" % AWS_SANDBOX_STS_ENDPOINT_URL
-            headers = {
-                'x-api-key': AWS_SANDBOX_API_KEY
-            }
+            if METADATA_SERVICE_AUTH_TYPE == 'basic':
+                headers = {
+                    'authorization': 'Basic {key}'.format(key=AWS_SANDBOX_API_KEY)
+                }
+            elif METADATA_SERVICE_AUTH_TYPE == 'apigw':
+                headers = {
+                    'x-api-key': AWS_SANDBOX_API_KEY
+                }
             try:
                 r = requests.get(url, headers=headers)
                 r.raise_for_status()
