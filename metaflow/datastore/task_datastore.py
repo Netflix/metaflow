@@ -225,8 +225,6 @@ class TaskDataStore(object):
         originals = []
         for name, obj in artifacts.items():
             original_type = str(type(obj))
-            if self._artifact_cache is not None:
-                original_object = obj
             do_v4 = force_v4 and \
                 force_v4 if isinstance(force_v4, bool) else \
                     force_v4.get('name', False)
@@ -257,15 +255,10 @@ class TaskDataStore(object):
             }
             artifact_names.append(name)
             to_save.append(obj)
-            if self._artifact_cache is not None:
-                originals.append(original_object)
         # Use the content-addressed store to store all artifacts
         save_result = self._ca_store.save_blobs(to_save)
         for name, result in zip(artifact_names, save_result):
             self._objects[name] = result.key
-        if self._artifact_cache is not None:
-            for original, result in zip(originals, save_result):
-                self._artifact_cache.register(result.key, original, write=True)
 
     @require_mode(None)
     def load_artifacts(self, names):
@@ -733,7 +726,8 @@ class TaskDataStore(object):
                 path = self._backend.path_join(self._path, name)
             to_load.append(path)
         results = {}
-        with self._backend.load_bytes(to_load) as load_results:
+        with self._backend.load_bytes(to_load) as r:
+            load_results = r.data
             for path, result in load_results.items():
                 if add_attempt:
                     _, name = self.parse_attempt_metadata(

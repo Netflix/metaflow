@@ -2,7 +2,7 @@ import json
 import os
 
 from ..metaflow_config import DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_LOCAL
-from .datastore_backend import BytesLoader, DataStoreBackend, LazyFile
+from .datastore_backend import CloseAfterUse, DataStoreBackend, LazyFile
 from .exceptions import DataException
 
 class LocalBackend(DataStoreBackend):
@@ -200,16 +200,16 @@ class LocalBackend(DataStoreBackend):
 
         Returns
         -------
-        BytesLoader :
-            A BytesLoader which should be used in a with statement. The BytesLoader
-            object behaves as a dictionary string -> (BufferedIOBase, dict).
+        CloseAfterUse :
+            A CloseAfterUse which should be used in a with statement. The data
+            in the CloseAfterUse will be a dictionary string -> (BufferedIOBase, dict).
             The key is the path fetched and the value is a tuple containing:
               - a BufferedIOBase indicating the result of loading the path.
               - a dictionary containing any additional metadata that was stored
               or None if no metadata was provided.
             If the path could not be loaded, returns None for that path
         """
-        results = BytesLoader()
+        results = {}
         for path in paths:
             full_path = self.full_uri(path)
             file_result = None
@@ -226,4 +226,4 @@ class LocalBackend(DataStoreBackend):
                 results[path] = (file_result, metadata)
             else:
                 results[path] = None
-        return results
+        return CloseAfterUse(results)
