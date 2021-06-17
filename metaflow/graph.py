@@ -79,8 +79,9 @@ class DAGNode(object):
         if self.name == "end":
             # TYPE: end
             self.type = "end"
+            return
 
-        # ensure that the tail an expression
+        # ensure that the tail is an expression
         if not isinstance(tail, ast.Expr):
             return
 
