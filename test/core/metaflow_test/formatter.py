@@ -140,7 +140,10 @@ class FlowFormatter(object):
                                 'branch=True, '\
                                 'omit=["check_flow.py", '\
                                       '"test_flow.py", '\
-                                      '"*/click/*"])'
+                                      '"*/click/*", '\
+                                      '"*/site-packages/*", '\
+                                      '"*/core/metaflow_custom/*", '\
+                                      '"*/core/metaflow_test/*"])'
         yield 0, 'cov.start()'
         yield 0, 'import sys'
         yield 0, 'from metaflow_test import assert_equals, new_checker'
