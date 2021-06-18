@@ -1151,7 +1151,9 @@ class CliState(object):
         self.flow = flow
 
 
-def main(flow, args=None, handle_exceptions=True, entrypoint=None):
+def main(
+    flow, args=None, handle_exceptions=True, entrypoint=None, standalone_mode=True
+):
     # Ignore warning(s) and prevent spamming the end-user.
     # TODO: This serves as a short term workaround for RuntimeWarning(s) thrown
     # in py3.8 related to log buffering (bufsize=1).
@@ -1164,14 +1166,14 @@ def main(flow, args=None, handle_exceptions=True, entrypoint=None):
     state = CliState(flow)
     state.entrypoint = entrypoint
 
+    start_kwargs = dict(
+        auto_envvar_prefix="METAFLOW", obj=state, standalone_mode=standalone_mode
+    )
+    if args is not None:
+        start_kwargs["args"] = args
+
     try:
-        if args is None:
-            start(auto_envvar_prefix="METAFLOW", obj=state)
-        else:
-            try:
-                start.main(args=args, obj=state, auto_envvar_prefix="METAFLOW")
-            except SystemExit as e:
-                return e.code
+        start(**start_kwargs)
     except MetaflowException as x:
         if handle_exceptions:
             print_metaflow_exception(x)
