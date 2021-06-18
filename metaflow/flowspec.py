@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from importlib import import_module
 import os
 import sys
@@ -7,7 +8,15 @@ from itertools import islice
 from types import FunctionType, MethodType
 from typing import Any, Callable, List, Optional, Tuple
 
+import metaflow
 from . import cmd_with_io
+from .exception import (
+    MetaflowException,
+    MissingInMergeArtifactsException,
+    UnhandledInMergeArtifactsException,
+)
+from .graph import FlowGraph, parse_flow
+from .meta import FLOWSPEC_LOAD_FILE
 from .parameters import (
     DelayedEvaluationParameter,
     Parameter,
@@ -15,12 +24,6 @@ from .parameters import (
     register_main_flow,
     register_parameters,
 )
-from .exception import (
-    MetaflowException,
-    MissingInMergeArtifactsException,
-    UnhandledInMergeArtifactsException,
-)
-from .graph import FlowGraph
 from .unbounded_foreach import UnboundedForeachInput
 
 
@@ -56,13 +59,49 @@ class ParallelUBF(UnboundedForeachInput):
         return item or 0  # item is None for the control task, but it is also split 0
 
 
+@contextmanager
+def flowspec_load_ctx(file):
+    """Pass a FlowSpec's file to FlowSpec.load by temporarily storing it as an attr on the `metaflow` module.
+
+    `FlowSpec.load` can't rely on the __main__ module's __file__ to point at the FlowSpec's source file, so we pass it
+    explicitly via this side-channel."""
+    import metaflow
+
+    if hasattr(metaflow, FLOWSPEC_LOAD_FILE):
+        raise RuntimeError(
+            "Attempting to set metaflow.%s to %s but found existing value %s"
+            % (
+                FLOWSPEC_LOAD_FILE,
+                file,
+                getattr(metaflow, FLOWSPEC_LOAD_FILE),
+            )
+        )
+    setattr(metaflow, FLOWSPEC_LOAD_FILE, file)
+    yield
+    if getattr(metaflow, FLOWSPEC_LOAD_FILE) != file:
+        raise RuntimeError(
+            "Expected to remove metaflow.%s value %s but found %s"
+            % (
+                FLOWSPEC_LOAD_FILE,
+                file,
+                getattr(metaflow, FLOWSPEC_LOAD_FILE),
+            )
+        )
+    delattr(metaflow, FLOWSPEC_LOAD_FILE)
+
+
 class FlowSpecMeta(type):
     def __new__(cls, name, bases, dct):
         cls = super().__new__(cls, name, bases, dct)
 
+        # FlowSpec.load() "monkey-patches" the `metaflow` module in order to pass the filename to the class being
+        # loaded; check if that is set first.
+        file = getattr(metaflow, FLOWSPEC_LOAD_FILE, None)
         mod_name = cls.__module__
-        module = import_module(mod_name)
-        file = module.__file__
+        if not (file and mod_name == "__main__"):
+            # Otherwise, infer the flow's file from its class module
+            module = import_module(mod_name)
+            file = module.__file__
 
         # Flows are identified and run by a "path spec" comprised of their file and class name
         cls.file = file
@@ -130,6 +169,16 @@ class FlowSpec(object, metaclass=FlowSpecMeta):
         self._cached_input = {}
 
         if use_cli:
+            if (
+                args is None
+                and entrypoint is None
+                and hasattr(metaflow, FLOWSPEC_LOAD_FILE)
+            ):
+                # This FlowSpec definition is being exec'd inside a `FlowSpec.load` call, and likely has a
+                # `__name__ == '__main__'`-style handler explicitly instantiating and attempting to run the flow, which
+                # we want to skip
+                return
+
             # Use entrypoint that selects this flow via `main_cli`
             if not entrypoint:
                 entrypoint = [
@@ -152,6 +201,68 @@ class FlowSpec(object, metaclass=FlowSpecMeta):
                 handle_exceptions=standalone_mode,
                 standalone_mode=standalone_mode,
             )
+
+    @staticmethod
+    def load(*args, register_main=True):
+        """Load a FlowSpec from a path-spec ("<path>:<flow_spec name>") or 2 (file, name) strings
+
+        @param args: 1 string (flow-path spec, i.e. "<file>:<name>"; "<file>" also permissible if there is only one flow
+                     in the file) or 2 strings (flow file, flow name)
+        @param register_main: `True`, `False`, or `"overwrite"`; `True` requires that no existing main flow be set
+        """
+        if len(args) == 2:
+            file, name = args
+            if not isinstance(file, str) or not isinstance(name, str):
+                raise ValueError(
+                    "Invalid flow file/name: %s (%s), %s (%s)"
+                    % (
+                        file,
+                        type(file),
+                        name,
+                        type(name),
+                    )
+                )
+        elif len(args) == 1:
+            path_spec = args[0]
+            if isinstance(path_spec, str):
+                pcs = path_spec.rsplit(":", 1)
+                if len(pcs) == 2:
+                    file, name = pcs
+                elif len(pcs) == 1:
+                    file, name = pcs[0], None
+                else:
+                    raise ValueError("Invalid Flow path-spec: %s" % path_spec)
+            else:
+                raise ValueError(
+                    "Single argument should be (string) Flow path-spec in the form: <file>:<name>; found %s (%s)"
+                    % (path_spec, type(path_spec))
+                )
+        else:
+            raise ValueError(
+                "Expected 1 or 2 (string) args; found %d: %s"
+                % (len(args), " ".join(args))
+            )
+
+        with open(file, "r") as f:
+            src = f.read()
+
+        ctx = dict(
+            __file__=file,
+            __name__="__main__",
+        )
+        with flowspec_load_ctx(file):
+            exec(src, ctx)
+
+        if name is None:
+            flow_ast, tree = parse_flow(file)
+            name = flow_ast.name
+
+        flow_spec = ctx[name]
+
+        if register_main:
+            register_main_flow(flow_spec, overwrite=register_main == "overwrite")
+
+        return flow_spec
 
     @property
     def script_name(self) -> str:
