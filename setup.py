@@ -8,6 +8,9 @@ dir = dirname(__file__)
 with open(join(dir, "requirements.txt"), "r") as f:
     install_requires = [line.rstrip("\n") for line in f.readlines()]
 
+with open(join(dir, "requirements-test.txt"), "r") as f:
+    tests_require = [line.rstrip("\n") for line in f.readlines()]
+
 setup(
     include_package_data=True,
     name="metaflow",
@@ -47,5 +50,6 @@ setup(
         metaflow=metaflow.cmd.main_cli:start
       """,
     install_requires=install_requires,
-    tests_require=["coverage"],
+    extras_require={"test": tests_require},
+    tests_require=tests_require,
 )
