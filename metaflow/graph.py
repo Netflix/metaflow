@@ -46,6 +46,7 @@ def deindent_docstring(doc):
 class DAGNode(object):
     def __init__(self, func_ast, decos, doc):
         self.name = func_ast.name
+        self.tail = func_ast.body[-1]
         self.func_lineno = func_ast.lineno
         self.decorators = decos
         self.doc = deindent_docstring(doc)
@@ -57,11 +58,11 @@ class DAGNode(object):
         self.out_funcs = []
         self.has_tail_next = False
         self.invalid_tail_next = False
-        self.num_args = 0
+        self.num_args = len(func_ast.args.args)
         self.foreach_param = None
         self.num_parallel = 0
         self.parallel_foreach = False
-        self._parse(func_ast)
+        self._parse()
 
         # these attributes are populated by _traverse_graph
         self.in_funcs = set()
@@ -73,9 +74,8 @@ class DAGNode(object):
     def _expr_str(self, expr):
         return "%s.%s" % (expr.value.id, expr.attr)
 
-    def _parse(self, func_ast):
-        self.num_args = len(func_ast.args.args)
-        tail = func_ast.body[-1]
+    def _parse(self):
+        tail = self.tail
 
         # end doesn't need a transition
         if self.name == "end":
