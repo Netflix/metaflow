@@ -77,12 +77,10 @@ def start(ctx):
 
     import metaflow
 
-    echo("Metaflow ", fg="magenta", bold=True, nl=False)
-
     if ctx.invoked_subcommand is None:
-        echo("(%s): " % metaflow.__version__, fg="magenta", bold=False, nl=False)
-    else:
-        echo("(%s)\n" % metaflow.__version__, fg="magenta", bold=False)
+        echo(
+            "Metaflow (%s): " % metaflow.__version__, fg="magenta", bold=False, nl=False
+        )
 
     if ctx.invoked_subcommand is None:
         echo("More data science, less engineering\n", fg="magenta")
