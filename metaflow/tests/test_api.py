@@ -82,22 +82,25 @@ def test_api(flow, file):
 
 
 @parametrize(
-    'flow,func_linenos',
+    "flow,func_linenos",
     [
         ( ResourcesFlow , [ 5, py37dec(8, 2), py37dec(13, 2), 16, ],),
         ( ResourcesFlow2, [17, py37dec(8, 2), py37dec(13, 2), 19, ],),
     ],
-    ids=['ResourcesFlow', 'ResourcesFlow2'],
+    ids=["ResourcesFlow", "ResourcesFlow2"],
 )
 def test_resources_flow(flow, func_linenos):
-    file = flow_path('resources_flow.py')
+    file = flow_path("resources_flow.py")
     expected = [
-        { 'name': 'start', 'type':  'start', 'in_funcs': [       ], 'out_funcs': ['one'], 'file': file, 'decorators': [], },
-        { 'name':   'one', 'type': 'linear', 'in_funcs': ['start'], 'out_funcs': ['two'], 'file': file, 'decorators': [ResourcesDecorator(dict(memory=1_000))], },
-        { 'name':   'two', 'type': 'linear', 'in_funcs': [  'one'], 'out_funcs': ['end'], 'file': file, 'decorators': [ResourcesDecorator(dict(memory=2_000))], },
-        { 'name':   'end', 'type':    'end', 'in_funcs': [  'two'], 'out_funcs': [     ], 'file': file, 'decorators': [], },
+        { "name": "start", "type":  "start", "in_funcs": [       ], "out_funcs": ["one"], "file": file, "decorators": [                                      ], },
+        { "name":   "one", "type": "linear", "in_funcs": ["start"], "out_funcs": ["two"], "file": file, "decorators": [ResourcesDecorator(dict(memory=1_000))], },
+        { "name":   "two", "type": "linear", "in_funcs": [  "one"], "out_funcs": ["end"], "file": file, "decorators": [ResourcesDecorator(dict(memory=2_000))], },
+        { "name":   "end", "type":    "end", "in_funcs": [  "two"], "out_funcs": [     ], "file": file, "decorators": [                                      ], },
     ]
-    expected = [ dict(**o, func_lineno=func_lineno) for o, func_lineno in zip(expected, func_linenos) ]
+    expected = [
+        dict(**o, func_lineno=func_lineno)
+        for o, func_lineno in zip(expected, func_linenos)
+    ]
     check_graph(flow, expected)
 
 
