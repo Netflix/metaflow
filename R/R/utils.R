@@ -151,7 +151,7 @@ merge_artifacts <- function(flow, inputs, exclude = list()) {
 #' Helper utility to access current IDs of interest
 #'
 #' @param value one of flow_name, run_id, origin_run_id,
-#'              identifier, task_id, pathspec, namespace,
+#'              step_name, task_id, pathspec, namespace,
 #'              username, retry_count
 #' @examples
 #' \dontrun{
