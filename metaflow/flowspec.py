@@ -183,7 +183,10 @@ class FlowSpec(object, metaclass=FlowSpecMeta):
             if not entrypoint:
                 entrypoint = [
                     sys.executable,
-                    self.file,
+                    "-m",
+                    "metaflow.cmd.main_cli",
+                    "flow",
+                    self.path_spec,
                 ]
 
             # Detect invocation via `python <file>` + `__main__` handler

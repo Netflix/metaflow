@@ -36,9 +36,22 @@ class CLIArgs(object):
         return self._step_kwargs
 
     def step_command(
-        self, executable, script, step_name, top_kwargs=None, step_kwargs=None
+        self,
+        executable,
+        script,
+        step_name,
+        top_kwargs=None,
+        step_kwargs=None,
+        flow=None,
     ):
         cmd = [executable, "-u", script]
+        if flow:
+            if not script.endswith("metaflow/cmd/main_cli.py"):
+                raise RuntimeError("Unexpected entrypoint script: %s" % script)
+            cmd += [
+                "flow",
+                flow.path_spec,
+            ]
         if top_kwargs is None:
             top_kwargs = self._top_kwargs
         if step_kwargs is None:

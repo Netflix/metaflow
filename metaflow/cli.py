@@ -139,11 +139,12 @@ def cli(ctx):
 @click.pass_obj
 def check(obj, warnings=False):
     _check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint, warnings=warnings)
-    file = obj.flow.file
     echo(
         "\n*'{cmd} show'* shows a description of this flow.\n"
         "*'{cmd} run'* runs the flow locally.\n"
-        "*'{cmd} help'* shows all available commands and options.\n".format(cmd=file),
+        "*'{cmd} help'* shows all available commands and options.\n".format(
+            cmd=" ".join(["metaflow", "flow", obj.flow.path_spec])
+        ),
         highlight="magenta",
         highlight_bold=False,
     )

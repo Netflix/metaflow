@@ -107,7 +107,9 @@ def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_c
         kwargs["ubf_context"] = UBF_TASK
         kwargs["retry_count"] = str(retry_count)
 
-        cmd = cli_args.step_command(executable, script, step_name, step_kwargs=kwargs)
+        cmd = cli_args.step_command(
+            executable, script, step_name, step_kwargs=kwargs, flow=flow
+        )
         p = subprocess.Popen(cmd)
         subprocesses.append(p)
 
