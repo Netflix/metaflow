@@ -156,11 +156,46 @@ class DAGNode(object):
         )
 
 
+def parse_flow(file, name=None):
+    """Parse a FlowSpec's AST from a file
+
+    The FlowSpec must be the only top-level class found in `source` (or the only one matching `name`, if provided)
+
+    :param file: path to load a FlowSpec's AST from
+    :param name: optional class-name to load (required if multiple top-level classes exist in `file`)
+    :return: (FlowSpec ClassDef AST, full `source` AST)
+    """
+    with open(file, "r") as f:
+        source = f.read()
+    tree = ast.parse(source).body
+    roots = [
+        n
+        for n in tree
+        if isinstance(n, ast.ClassDef) and (name is None or n.name == name)
+    ]
+    if not roots:
+        if name is None:
+            raise RuntimeError("No roots found in %s" % file)
+        else:
+            raise RuntimeError("No roots found named %s in %s" % (name, file))
+    if len(roots) > 1:
+        if name is None:
+            raise RuntimeError("%d roots found in %s" % (len(roots), file))
+        else:
+            raise RuntimeError(
+                "%d roots found named %s in %s" % (len(roots), name, file)
+            )
+    root = roots[0]
+    return root, tree
+
+
 class StepVisitor(ast.NodeVisitor):
-    def __init__(self, nodes, flow):
-        self.nodes = nodes
+    def __init__(self, flow, node=None):
         self.flow = flow
+        self.nodes = {}
         super(StepVisitor, self).__init__()
+        if node:
+            self.visit(node)
 
     def visit_FunctionDef(self, node):
         func = getattr(self.flow, node.name)
@@ -177,15 +212,9 @@ class FlowGraph(object):
         self._postprocess()
 
     def _create_nodes(self, flow):
-        with open(flow.file, "r") as f:
-            source = f.read()
-        tree = ast.parse(source).body
-        root = [n for n in tree if isinstance(n, ast.ClassDef) and n.name == self.name][
-            0
-        ]
-        nodes = {}
-        StepVisitor(nodes, flow).visit(root)
-        return nodes
+        root, tree = parse_flow(flow.file, flow.name)
+        visitor = StepVisitor(flow, root)
+        return visitor.nodes
 
     def _postprocess(self):
         # any node who has a foreach as any of its split parents
