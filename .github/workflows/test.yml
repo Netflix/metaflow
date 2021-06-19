@@ -73,5 +73,3 @@ jobs:
       run: |
         cd R/tests
         Rscript run_tests.R
-
-
