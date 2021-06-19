@@ -92,25 +92,33 @@ def flowspec_load_ctx(file):
     delattr(metaflow, FLOWSPEC_LOAD_FILE)
 
 
+def infer_file(cls):
+    # FlowSpec.load() "monkey-patches" the `metaflow` module in order to pass the filename to the class being
+    # loaded; check if that is set first.
+    file = getattr(metaflow, FLOWSPEC_LOAD_FILE, None)
+    mod_name = cls.__module__
+    if not (file and mod_name == "__main__"):
+        # Otherwise, infer the flow's file from its class module
+        module = import_module(mod_name)
+        file = module.__file__
+
+    return file
+
+
 class FlowSpecMeta(type):
-    def __new__(cls, name, bases, dct):
+    def __new__(cls, name, bases, dct, nodes=None):
         cls = super().__new__(cls, name, bases, dct)
 
-        # FlowSpec.load() "monkey-patches" the `metaflow` module in order to pass the filename to the class being
-        # loaded; check if that is set first.
-        file = getattr(metaflow, FLOWSPEC_LOAD_FILE, None)
-        mod_name = cls.__module__
-        if not (file and mod_name == "__main__"):
-            # Otherwise, infer the flow's file from its class module
-            module = import_module(mod_name)
-            file = module.__file__
+        file = infer_file(cls)
+        if name == "FlowSpec" and file == __file__:
+            return cls
 
         # Flows are identified and run by a "path spec" comprised of their file and class name
         cls.file = file
         cls.name = name
         cls.path_spec = "%s:%s" % (cls.file, cls.name)
 
-        cls._graph = FlowGraph(cls)
+        cls._graph = FlowGraph(cls, nodes=nodes)
         cls._steps = [getattr(cls, node.name) for node in cls._graph]
 
         # Register this flow with global parameter-parsing machinery

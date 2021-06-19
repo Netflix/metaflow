@@ -101,7 +101,7 @@ from .metaflow_profile import profile
 from .current import current
 
 # Flow spec
-from .flowspec import FlowSpec
+from .flowspec import FlowSpec, FlowSpecMeta
 
 from .parameters import Parameter, JSONTypeClass
 

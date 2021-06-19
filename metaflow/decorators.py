@@ -554,7 +554,8 @@ def step(f):
     The step decorator. Makes a method a step in the workflow.
     """
     setattr(f, IS_STEP, True)
-    f.decorators = []
+    if not hasattr(f, "decorators"):
+        f.decorators = []
     try:
         # python 3
         f.name = f.__name__
