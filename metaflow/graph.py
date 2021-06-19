@@ -211,9 +211,13 @@ class StepVisitor(ast.NodeVisitor):
 
 
 class FlowGraph(object):
-    def __init__(self, flow):
+    def __init__(self, flow, nodes=None):
         self.name = flow.name
-        self.nodes = self._create_nodes(flow)
+        if nodes:
+            self.nodes = nodes
+        else:
+            self.nodes = self._create_nodes(flow)
+
         self.doc = deindent_docstring(flow.__doc__)
         self._traverse_graph()
         self._postprocess()
