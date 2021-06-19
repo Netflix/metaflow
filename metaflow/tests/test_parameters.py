@@ -1,10 +1,26 @@
 from metaflow._vendor.click.exceptions import NoSuchOption
 from pytest import raises
 
-from metaflow.tests.flows import ParameterFlow1, ParameterFlow2, ParameterFlow3
+from metaflow.tests.flows import (
+    NewParameterFlow1,
+    NewParameterFlow2,
+    NewParameterFlow3,
+    ParameterFlow1,
+    ParameterFlow2,
+    ParameterFlow3,
+)
+
+
 from metaflow.tests.utils import metaflow_bin, parametrize, run
 
 
+@parametrize(
+    "flow",
+    [
+        NewParameterFlow1,
+        ParameterFlow1,
+    ],
+)
 @parametrize(
     "sdk",
     [
@@ -20,7 +36,7 @@ from metaflow.tests.utils import metaflow_bin, parametrize, run
         [True, "debug mode"],
     ],
 )
-def test_parameter_flow1(sdk, debug, msg):
+def test_parameter_flow1(flow, sdk, debug, msg):
     if debug is None:
         args = []
     else:
@@ -28,19 +44,21 @@ def test_parameter_flow1(sdk, debug, msg):
 
     if sdk == "python":
         data = run(
-            ParameterFlow1,
+            flow,
             args=[
                 "run",
             ]
             + args,
         )
     else:
+        name = flow.name
+        path_spec = flow.path_spec
         data = run(
-            "ParameterFlow1",
+            name,
             cmd=[
                 metaflow_bin,
                 "flow",
-                ParameterFlow1.path_spec,
+                path_spec,
                 "run",
             ]
             + args,
@@ -52,38 +70,52 @@ def test_parameter_flow1(sdk, debug, msg):
     }
 
 
-def test_clear_main_flow():
-    # Normal ParameterFlow2 run with "--str" flag
-    data = run(ParameterFlow2, args=["run", "--str", "bbb"])
+@parametrize(
+    "Flow2",
+    [
+        ParameterFlow2,
+        NewParameterFlow2,
+    ],
+)
+@parametrize(
+    "Flow3",
+    [
+        ParameterFlow3,
+        NewParameterFlow3,
+    ],
+)
+def test_clear_main_flow(Flow2, Flow3):
+    # Normal Flow2 run with "--str" flag
+    data = run(Flow2, args=["run", "--str", "bbb"])
     assert data == {
         "string": "bbb",
         "upper": "BBB",
     }
 
-    # ParameterFlow3's "--int" flag is not allowed
+    # Flow3's "--int" flag is not allowed
     with raises(NoSuchOption):
-        run(ParameterFlow2, args=["run", "--int", "111"])
+        run(Flow2, args=["run", "--int", "111"])
 
-    # ParameterFlow2/"--str" still works
-    data = run(ParameterFlow2, args=["run", "--str", "cccc"])
+    # Flow2/"--str" still works
+    data = run(Flow2, args=["run", "--str", "cccc"])
     assert data == {
         "string": "cccc",
         "upper": "CCCC",
     }
 
-    # Switch to ParameterFlow3 / "--int" flag
-    data = run(ParameterFlow3, args=["run", "--int", "11"])
+    # Switch to Flow3 / "--int" flag
+    data = run(Flow3, args=["run", "--int", "11"])
     assert data == {
         "int": 11,
         "squared": 121,
     }
 
-    # ParameterFlow2's "--str" flag is not allowed
+    # Flow2's "--str" flag is not allowed
     with raises(NoSuchOption):
-        run(ParameterFlow3, args=["run", "--str", "ddd"])
+        run(Flow3, args=["run", "--str", "ddd"])
 
-    # ParameterFlow3/"--int" still works
-    data = run(ParameterFlow3, args=["run", "--int", "100"])
+    # Flow3/"--int" still works
+    data = run(Flow3, args=["run", "--int", "100"])
     assert data == {
         "int": 100,
         "squared": 10_000,
