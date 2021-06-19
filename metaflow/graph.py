@@ -44,10 +44,11 @@ def deindent_docstring(doc):
 
 
 class DAGNode(object):
-    def __init__(self, func_ast, decos, doc, parse=True):
+    def __init__(self, func_ast, decos, doc, parse=True, file=None, lineno=None):
         self.name = func_ast.name
         self.tail = func_ast.body[-1]
-        self.func_lineno = func_ast.lineno
+        self.func_lineno = lineno or func_ast.lineno
+        self.file = file
         self.decorators = decos
         self.doc = deindent_docstring(doc)
         self.parallel_step = any(getattr(deco, "IS_PARALLEL", False) for deco in decos)
