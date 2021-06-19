@@ -2,6 +2,8 @@ import inspect
 import ast
 import re
 
+from metaflow.meta import IS_STEP
+
 
 def deindent_docstring(doc):
     if doc:
@@ -162,7 +164,7 @@ class StepVisitor(ast.NodeVisitor):
 
     def visit_FunctionDef(self, node):
         func = getattr(self.flow, node.name)
-        if hasattr(func, "is_step"):
+        if getattr(func, IS_STEP, None):
             self.nodes[node.name] = DAGNode(node, func.decorators, func.__doc__)
 
 

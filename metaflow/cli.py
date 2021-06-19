@@ -20,6 +20,7 @@ from .util import (
     write_latest_run_id,
     get_latest_run_id,
 )
+from .meta import IS_STEP
 from .task import MetaflowTask
 from .exception import CommandException, MetaflowException
 from .graph import FlowGraph
@@ -533,7 +534,7 @@ def step(
         func = getattr(ctx.obj.flow, step_name)
     except:
         raise CommandException("Step *%s* doesn't exist." % step_name)
-    if not func.is_step:
+    if not getattr(func, IS_STEP, None):
         raise CommandException("Function *%s* is not a step." % step_name)
     echo("Executing a step, *%s*" % step_name, fg="magenta", bold=False)
 
