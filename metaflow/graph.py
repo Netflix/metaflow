@@ -2,7 +2,7 @@ import inspect
 import ast
 import re
 
-from metaflow.meta import IS_STEP
+from metaflow.meta import IS_STEP, META_KEY
 
 
 def deindent_docstring(doc):
@@ -201,6 +201,8 @@ class StepVisitor(ast.NodeVisitor):
         func = getattr(self.flow, node.name)
         if getattr(func, IS_STEP, None):
             self.nodes[node.name] = DAGNode(node, func.decorators, func.__doc__)
+        elif getattr(func, META_KEY, {}).get(IS_STEP):
+            raise RuntimeError("New-style step found: %s" % node.name)
 
 
 class FlowGraph(object):
