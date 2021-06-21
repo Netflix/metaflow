@@ -13,8 +13,13 @@ R_VERSION_CODE = None
 
 try:
     def source(fullname, path):
-        from importlib.machinery import SourceFileLoader
-        return SourceFileLoader(fullname, path).exec_module()
+        # https://stackoverflow.com/questions/19009932/import-arbitrary-python-source-file-python-3-3
+        import importlib.machinery
+        import importlib.util
+        loader = importlib.machinery.SourceFileLoader(fullname, path)
+        spec = importlib.util.spec_from_loader(loader.name, loader)
+        module = importlib.util.module_from_spec(spec)
+        loader.exec_module(module)
 except ImportError:  # Python 2
     def source(fullname, path):
         import imp
