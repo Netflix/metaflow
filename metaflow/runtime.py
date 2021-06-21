@@ -949,9 +949,6 @@ class Worker(object):
         env['PYTHONUNBUFFERED'] = 'x'
         # the env vars are needed by the test framework, nothing else
         env['_METAFLOW_ATTEMPT'] = str(self.task.retries)
-        if self.task.clone_run_id:
-            env['_METAFLOW_RESUMED_RUN'] = '1'
-            env['_METAFLOW_RESUME_ORIGIN_RUN_ID'] = str(self.task.clone_run_id)
         # NOTE bufsize=1 below enables line buffering which is required
         # by read_logline() below that relies on readline() not blocking
         # print('running', args)
