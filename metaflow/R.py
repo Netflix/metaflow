@@ -14,7 +14,7 @@ R_VERSION_CODE = None
 try:
     def source(fullname, path):
         from importlib.machinery import SourceFileLoader
-        return SourceFileLoader(fullname, path).load_module()
+        return SourceFileLoader(fullname, path).exec_module()
 except ImportError:  # Python 2
     def source(fullname, path):
         import imp
