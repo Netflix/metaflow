@@ -29,4 +29,3 @@ class EnvironmentDecorator(StepDecorator):
 
     def runtime_step_cli(self, cli_args, retry_count, max_user_code_retries, ubf_context):
         cli_args.env.update(self.attributes['vars'].items())
-

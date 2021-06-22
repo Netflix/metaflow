@@ -170,8 +170,13 @@ class BatchDecorator(StepDecorator):
         self.package = package
         self.run_id = run_id
 
-    def runtime_task_created(
-        self, task_datastore, task_id, split_index, input_paths, is_cloned, ubf_context):
+    def runtime_task_created(self,
+                             task_datastore,
+                             task_id,
+                             split_index,
+                             input_paths,
+                             is_cloned,
+                             ubf_context):
         if not is_cloned:
             self._save_package_once(self.flow_datastore, self.package)
 

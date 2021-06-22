@@ -15,7 +15,6 @@ from metaflow.exception import MetaflowNotFound,\
 
 from metaflow.metaflow_config import DEFAULT_METADATA
 from metaflow.plugins import ENVIRONMENTS, METADATA_PROVIDERS
-
 from metaflow.unbounded_foreach import CONTROL_TASK_TAG
 from metaflow.util import cached_property, resolve_identity, to_unicode
 
