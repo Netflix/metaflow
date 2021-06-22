@@ -8,6 +8,7 @@ import requests
 from metaflow.decorators import StepDecorator
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
+from metaflow.plugins.aws.utils import sync_local_metadata_to_datastore
 from metaflow.metadata import MetaDatum
 
 from metaflow import util
@@ -18,13 +19,6 @@ from metaflow.metaflow_config import ECS_S3_ACCESS_IAM_ROLE, BATCH_JOB_QUEUE, \
                     BATCH_CONTAINER_IMAGE, BATCH_CONTAINER_REGISTRY, \
                     ECS_FARGATE_EXECUTION_ROLE
 from metaflow.sidecar import SidecarSubProcess
-
-try:
-    # python2
-    from urlparse import urlparse
-except:  # noqa E722
-    # python3
-    from urllib.parse import urlparse
 
 
 class ResourcesDecorator(StepDecorator):
@@ -240,28 +234,19 @@ class BatchDecorator(StepDecorator):
         metadata.register_metadata(run_id, step_name, task_id, entries)
         self._save_logs_sidecar = SidecarSubProcess('save_logs_periodically')
 
+
     def task_post_step(self, step_name, flow, graph, retry_count, max_retries):
-        self._save_meta()
+        if self.task_ds:
+            sync_local_metadata_to_datastore(self.task_ds)
 
     def task_exception(self, step_name, flow, graph, retry_count, max_retries):
-        self._save_meta()
-
-    def _save_meta(self):
         if self.task_ds:
-            # We have a local metadata service so we need to persist it to
-            # the datastore.
-            with util.TempDir() as td:
-                tar_file_path = os.path.join(td, 'metadata.tgz')
-                with tarfile.open(tar_file_path, 'w:gz') as tar:
-                    # The local metadata is stored in the local datastore
-                    # which, for batch jobs, is always the DATASTORE_LOCAL_DIR
-                    tar.add(DATASTORE_LOCAL_DIR)
-                # At this point we store it in the datastore; we
-                # save it as raw data in the flow datastore and save a pointer
-                # to it as metadata for the task
-                with open(tar_file_path, 'rb') as f:
-                    _, key = self.task_ds.parent_datastore.save_data([f])[0]
-                self.task_ds.save_metadata({'local_metadata': key})
+            sync_local_metadata_to_datastore(self.task_ds)
+
+    def task_finished(self, step_name, flow, graph, is_task_ok, retry_count, max_retries):
+        if self.task_ds:
+            sync_local_metadata_to_datastore(self.task_ds)
+
         try:
             self._save_logs_sidecar.kill()
         except:
