@@ -26,7 +26,7 @@ def only_if_not_done(f):
 def require_mode(mode):
     def wrapper(f):
         def method(self, *args, **kwargs):
-            if self._mode != mode:
+            if mode is not None and self._mode != mode:
                 raise MetaflowInternalError(
                     "Attempting a datastore operation '%s' requiring mode '%s' "
                     "but have mode '%s'" % (f.__name__, mode, self._mode))
@@ -266,7 +266,7 @@ class TaskDataStore(object):
             for original, result in zip(originals, save_result):
                 self._artifact_cache.register(result.key, original, write=True)
 
-    @require_mode('r')
+    @require_mode(None)
     def load_artifacts(self, names):
         """
         Mirror function to save_artifacts
@@ -278,7 +278,9 @@ class TaskDataStore(object):
         example different conda environments) but it will return objects that
         can be used as the objects passed in to save_objects.
 
-        This method requires mode 'r'.
+        This method can be used in both 'r' and 'w' mode. For the latter use
+        case, this can happen when `passdown_partial` is called and an artifact
+        passed down that way is then loaded.
 
         Parameters
         ----------
@@ -517,7 +519,7 @@ class TaskDataStore(object):
         # the variables in vars (obviously, it does not download them or
         # anything but records information about them). This is used to
         # propagate parameters between datastores without actually loading the
-        # parameters
+        # parameters as well as for merge_artifacts
         for var in variables:
             sha = origin._objects.get(var)
             if sha:
