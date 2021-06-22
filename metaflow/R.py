@@ -14,12 +14,11 @@ R_VERSION_CODE = None
 try:
     def source(fullname, path):
         # https://stackoverflow.com/questions/19009932/import-arbitrary-python-source-file-python-3-3
-        import importlib.machinery
         import importlib.util
-        loader = importlib.machinery.SourceFileLoader(fullname, path)
-        spec = importlib.util.spec_from_loader(loader.name, loader)
-        module = importlib.util.module_from_spec(spec)
-        loader.exec_module(module)
+        
+        module_spec = importlib.util.spec_from_file_location(fullname, path)
+        module = importlib.util.module_from_spec(module_spec)
+        module_spec.loader.exec_module(module)
         return module
 except ImportError:  # Python 2
     def source(fullname, path):
@@ -102,7 +101,7 @@ def run(flow_script,
         metaflow_args = [metaflow_args]
     # remove any reference to local path structure from R
     full_cmdline[0] = os.path.basename(full_cmdline[0])
-    with NamedTemporaryFile(prefix="metaflowR.", delete=False) as tmp:
+    with NamedTemporaryFile(prefix="metaflowR.", suffix=".py", delete=False) as tmp:
         tmp.write(to_bytes(flow_script))
     module = source('metaflowR', tmp.name)
     flow = module.FLOW(use_cli=False)
