@@ -12,6 +12,7 @@ from metaflow.plugins.aws.batch.batch_decorator import ResourcesDecorator
 from metaflow.plugins.environment_decorator import EnvironmentDecorator
 from metaflow.util import get_username, compress_list
 from metaflow.mflog import export_mflog_env_vars, bash_capture_logs, BASH_SAVE_LOGS
+from metaflow.metaflow_environment import metaflow_version
 from .argo_client import ArgoClient
 from .argo_decorator import ArgoStepDecorator, ArgoInternalStepDecorator
 from .argo_exception import ArgoException
@@ -62,6 +63,16 @@ class ArgoWorkflow:
         self.env_from = env_from
         self.labels = labels
         self.annotations = annotations
+        self.attributes = {
+            'labels': {
+                'metaflow.workflow_template': name,
+            },
+            'annotations': {
+                'metaflow.owner': get_username(),
+                'metaflow.version': metaflow_version.get_version(),
+                'metaflow.flow_name': flow.name,
+            }
+        }
         self._flow_attributes = self._parse_flow_decorator()
         self._workflow = remove_empty_elements(self._compile())
 
@@ -118,7 +129,8 @@ class ArgoWorkflow:
             raise ArgoException("The WorkflowTemplate *%s* doesn't exist "
                                 "on Argo Workflows." % name)
         try:
-            return client.list_workflows(name + '-', phases)
+            return client.list_workflows(name, phases)
+
         except Exception as e:
             raise ArgoException(str(e))
 
@@ -129,18 +141,29 @@ class ArgoWorkflow:
 
     def _compile(self):
         self.parameters = self._parameters()
+        labels = {
+            **self._flow_attributes.get('labels', {}),
+            **self.labels,
+            **self.attributes['labels'],
+        }
+        annotations = {
+            **self._flow_attributes.get('annotations', {}),
+            **self.annotations,
+            **self.attributes['annotations'],
+        }
         return {
             'apiVersion': 'argoproj.io/v1alpha1',
             'kind': 'WorkflowTemplate',
             'metadata': {
                 'name': self.name,
-                'labels': {**self._flow_attributes.get('labels', {}), **self.labels},
-                'annotations': {**self._flow_attributes.get('annotations', {}), **self.annotations},
+                'labels': labels,
+                'annotations': annotations,
             },
             'spec': {
                 'entrypoint': ENTRYPOINT,
+                'workflowMetadata': self.attributes,
                 'arguments': {
-                    'parameters': self.parameters
+                    'parameters': self.parameters,
                 },
                 'imagePullSecrets': self.image_pull_secrets if self.image_pull_secrets \
                                     else self._flow_attributes.get('imagePullSecrets'),
@@ -333,12 +356,21 @@ class ArgoWorkflow:
         res = self._resources(res_decorator)
         cmd = self._commands(node)
 
+        metadata = {
+            'labels': {
+                **attr.get('labels', {}),
+                **self.attributes['labels'],
+            },
+            'annotations': {
+                **attr.get('annotations', {}),
+                **self.attributes['annotations'],
+                **{'metaflow.step_name': node.name},
+            },
+        }
+
         template = {
             'name': dns_name(node.name),
-            'metadata': {
-                'labels': attr.get('labels'),
-                'annotations': attr.get('annotations')
-            },
+            'metadata': metadata,
             'inputs': {
                 'parameters': [{
                     'name': 'input-paths'

@@ -209,6 +209,7 @@ def list_runs(obj, token, k8s_namespace, pending, running, succeeded, failed, er
         else:
             obj.echo('No workflows for *%s* found on Argo Workflows.' % \
                      (obj.workflow_template_name))
+        return
     for wf in workflows:
         if wf['status']['finishedAt']:
             obj.echo(

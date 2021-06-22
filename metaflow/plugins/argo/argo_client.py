@@ -56,9 +56,9 @@ class ArgoClient(object):
         r.raise_for_status()
         return r.json()
 
-    def list_workflows(self, prefix, phases):
+    def list_workflows(self, name, phases):
         """
-        Lists Argo Workflows starting with 'prefix'
+        Lists Argo Workflows spawned from the WorkflowTemplate "name"
         """
         url = posixpath.join(self.server,
                              'api/v1/workflows',
@@ -67,14 +67,13 @@ class ArgoClient(object):
             'fields': 'items.metadata.name,items.status.phase,'
                       'items.status.startedAt,items.status.finishedAt'
         }
+        selectors = ['metaflow.workflow_template=%s' % name]
         if phases:
-            params['listOptions.labelSelector'] = 'workflows.argoproj.io/phase in (%s)' % ','.join(phases)
+            selectors.append('workflows.argoproj.io/phase in (%s)' % ','.join(phases))
+        params['listOptions.labelSelector'] = ', '.join(selectors)
         r = requests.get(url, headers={'Authorization': self.auth}, params=params)
         r.raise_for_status()
-        workflows = r.json()['items']
-        if workflows is None:
-            return []
-        return [w for w in workflows if w['metadata']['name'].startswith(prefix)]
+        return r.json()['items']
 
     def get_template(self, name):
         """
