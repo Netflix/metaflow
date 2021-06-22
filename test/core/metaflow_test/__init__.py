@@ -1,6 +1,7 @@
 import sys
 import os
 from metaflow.exception import MetaflowException
+from metaflow import current
 
 def steps(prio, quals, required=False):
     def wrapper(f):
@@ -50,10 +51,10 @@ class TestRetry(MetaflowException):
                                         "Testing retry...")
 
 def is_resumed():
-    return '_METAFLOW_RESUMED_RUN' in os.environ
+    return current.origin_run_id is not None
 
 def origin_run_id_for_resume():
-    return os.environ['_METAFLOW_RESUME_ORIGIN_RUN_ID']
+    return current.origin_run_id
 
 def assert_equals(expected, got):
     if expected != got:
