@@ -877,7 +877,7 @@ class S3(object):
             try:    
                 op(self._s3_client, tmp.name)
                 return tmp.name
-            except self._s3_client_error1 as err:
+            except self._s3_client_error as err:
                 error_code = s3op.normalize_client_error(err)
                 if error_code == 404:
                     raise MetaflowS3NotFound(url)
