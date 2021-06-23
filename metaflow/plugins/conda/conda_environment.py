@@ -94,23 +94,26 @@ class CondaEnvironment(MetaflowEnvironment):
         return self.base_env.executable(step_name)
 
     @classmethod
-    def get_client_info(cls, flow_name, metadata):
+    def get_info(cls, flow_name, metadata):
         if cls._filecache is None:
             from metaflow.client.filecache import FileCache
             cls._filecache = FileCache()
         info = metadata.get('code-package')
         env_id = metadata.get('conda_env_id')
         if info is None or env_id is None:
-            return {'type': 'conda'}
+            return {'type': CondaEnvironment.TYPE}
         info = json.loads(info)
         with cls._filecache.get_data(info['ds_type'], flow_name, info['sha']) as f:
             tar = tarfile.TarFile(fileobj=f)
             conda_file = tar.extractfile(CONDA_MAGIC_FILE)
             if conda_file is None:
-                return {'type': 'conda'}
+                return {'type': CondaEnvironment.TYPE}
             info = json.loads(conda_file.read().decode('utf-8'))
+        # TODO: Provide a better schema for exposing explicit dependencies
+        # and transitive dependencies in the returned dict. The current flat
+        # structure may not work as we introduce more environment types.
         new_info = {
-            'type': 'conda',
+            'type': CondaEnvironment.TYPE,
             'explicit': info[env_id]['explicit'],
             'deps': info[env_id]['deps']}
         return new_info
