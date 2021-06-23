@@ -136,10 +136,10 @@ def kill(ctx, run_id, user, my_runs):
     "--image", help="Docker image requirement for AWS Batch. In name:version format."
 )
 @click.option(
-    "--iam_role", help="IAM role requirement for AWS Batch."
+    "--iam-role", help="IAM role requirement for AWS Batch."
 )
 @click.option(
-    "--execution_role", help="Execution role requirement for AWS Batch on Fargate."
+    "--execution-role", help="Execution role requirement for AWS Batch on Fargate."
 )
 @click.option("--cpu", help="CPU requirement for AWS Batch.")
 @click.option("--gpu", help="GPU requirement for AWS Batch.")
@@ -164,9 +164,11 @@ def kill(ctx, run_id, user, my_runs):
     default=5 * 24 * 60 * 60,
     help="Run time limit in seconds for the AWS Batch job. " "Default is 5 days."
 )
-@click.option("--shared_memory", help="Shared Memory requirement for AWS Batch.")
-@click.option("--max_swap", help="Max Swap requirement for AWS Batch.")
+@click.option("--shared-memory", help="Shared Memory requirement for AWS Batch.")
+@click.option("--max-swap", help="Max Swap requirement for AWS Batch.")
 @click.option("--swappiness", help="Swappiness requirement for AWS Batch.")
+#TODO: Maybe remove it altogether since it's not used here
+@click.option('--ubf-context', default=None, type=click.Choice([None]))
 @click.pass_context
 def step(
     ctx,

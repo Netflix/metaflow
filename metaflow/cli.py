@@ -13,6 +13,7 @@ from . import decorators
 from . import metaflow_version
 from . import namespace
 from . import current
+from .cli_args import cli_args
 from .util import resolve_identity, decompress_list, write_latest_run_id, \
     get_latest_run_id, to_unicode
 from .task import MetaflowTask
@@ -30,6 +31,7 @@ from .event_logger import EventLogger
 from .monitor import Monitor
 from .R import use_r, metaflow_r_version
 from .mflog import mflog, LOG_SOURCES
+from .unbounded_foreach import UBF_CONTROL, UBF_TASK
 
 
 ERASE_TO_EOL = '\033[K'
@@ -411,14 +413,14 @@ def logs(obj,
               show_default=True,
               help='Index of this foreach split.')
 @click.option('--tag',
-              'tags',
+              'opt_tag',
               multiple=True,
               default=None,
               help="Annotate this run with the given tag. You can specify "
                    "this option multiple times to attach multiple tags in "
                    "the task.")
 @click.option('--namespace',
-              'user_namespace',
+              'opt_namespace',
               default=None,
               help="Change namespace from the default (your username) to "
                    "the specified tag.")
@@ -442,26 +444,32 @@ def logs(obj,
               help="Add a decorator to this task. You can specify this "
               "option multiple times to attach multiple decorators "
               "to this task.")
-@click.pass_obj
-def step(obj,
+@click.option('--ubf-context',
+              default='none',
+              type=click.Choice(['none', UBF_CONTROL, UBF_TASK]),
+              help="Provides additional context if this task is of type "
+              "unbounded foreach.")
+@click.pass_context
+def step(ctx,
          step_name,
-         tags=None,
+         opt_tag=None,
          run_id=None,
          task_id=None,
          input_paths=None,
          split_index=None,
-         user_namespace=None,
+         opt_namespace=None,
          retry_count=None,
          max_user_code_retries=None,
          clone_only=None,
          clone_run_id=None,
-         decospecs=None):
-    if user_namespace is not None:
-        namespace(user_namespace or None)
+         decospecs=None,
+         ubf_context=None):
+    if opt_namespace is not None:
+        namespace(opt_namespace or None)
 
     func = None
     try:
-        func = getattr(obj.flow, step_name)
+        func = getattr(ctx.obj.flow, step_name)
     except:
         raise CommandException("Step *%s* doesn't exist." % step_name)
     if not func.is_step:
@@ -473,21 +481,30 @@ def step(obj,
     if decospecs:
         decorators._attach_decorators_to_step(func, decospecs)
 
-    obj.datastore.datastore_root = obj.datastore_root
-    if obj.datastore.datastore_root is None:
-        obj.datastore.datastore_root = \
-            obj.datastore.get_datastore_root_from_config(obj.echo)
+    ctx.obj.datastore.datastore_root = ctx.obj.datastore_root
+    if ctx.obj.datastore.datastore_root is None:
+        ctx.obj.datastore.datastore_root = \
+            ctx.obj.datastore.get_datastore_root_from_config(ctx.obj.echo)
 
-    obj.metadata.add_sticky_tags(tags=tags)
+    step_kwargs = ctx.params
+    # Remove argument `step_name` from `step_kwargs`.
+    step_kwargs.pop('step_name', None)
+    # Remove `opt_*` prefix from (some) option keys.
+    step_kwargs = dict([(k[4:], v) if k.startswith('opt_') else (k, v)
+                         for k, v in step_kwargs.items()])
+    cli_args._set_step_kwargs(step_kwargs)
+
+    ctx.obj.metadata.add_sticky_tags(tags=opt_tag)
     paths = decompress_list(input_paths) if input_paths else []
 
-    task = MetaflowTask(obj.flow,
-                        obj.datastore,
-                        obj.metadata,
-                        obj.environment,
-                        obj.echo,
-                        obj.event_logger,
-                        obj.monitor)
+    task = MetaflowTask(ctx.obj.flow,
+                        ctx.obj.datastore,
+                        ctx.obj.metadata,
+                        ctx.obj.environment,
+                        ctx.obj.echo,
+                        ctx.obj.event_logger,
+                        ctx.obj.monitor,
+                        ubf_context)
     if clone_only:
         task.clone_only(step_name,
                         run_id,
@@ -834,6 +851,7 @@ def start(ctx,
                        branch=True)
         cov.start()
 
+    cli_args._set_top_kwargs(ctx.params)
     ctx.obj.echo = echo
     ctx.obj.echo_always = echo_always
     ctx.obj.graph = FlowGraph(ctx.obj.flow.__class__)

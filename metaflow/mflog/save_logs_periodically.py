@@ -8,14 +8,6 @@ from metaflow.metaflow_profile import profile
 from metaflow.sidecar import SidecarSubProcess
 from . import update_delay, BASH_SAVE_LOGS_ARGS
 
-class SaveLogsPeriodically(object):
-
-    def __init__(self):
-        self._sidecar = SidecarSubProcess("save_logs_periodically")
-
-    def shutdown(self):
-        self._sidecar.kill()
-
 class SaveLogsPeriodicallySidecar(object):
 
     def __init__(self):

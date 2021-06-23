@@ -59,6 +59,10 @@ class SidecarSubProcess(object):
                 (platform.system() == 'Darwin' and sys.version_info < (3, 0)):
                 # if on darwin and running python 2 disable sidecars
                 # there is a bug with importing poll from select in some cases
+                #
+                # TODO: Python 2 shipped by Anaconda allows for 
+                # `from select import poll`. We can consider enabling sidecars
+                # for that distribution if needed at a later date.
                 self.__poller = NullPoller()
 
         else:
@@ -86,6 +90,8 @@ class SidecarSubProcess(object):
     def __start_subprocess(self, cmdline):
         for i in range(3):
             try:
+                # Set stdout=sys.stdout & stderr=sys.stderr
+                # to print to console the output of sidecars.
                 return subprocess.Popen(cmdline,
                                         stdin=subprocess.PIPE,
                                         stdout=open(os.devnull, 'w'),
@@ -138,4 +144,4 @@ class SidecarSubProcess(object):
                 self.logger(repr(ex))
 
     def logger(self, msg):
-        print("metaflow logger: " + msg, file=sys.stderr)
+        print("metaflow sidecar logger: " + msg, file=sys.stderr)
