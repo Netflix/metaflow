@@ -99,7 +99,7 @@ def worker(result_file_name, queue, mode):
                 'size': head['ContentLength'],
                 'content_type': head['ContentType'],
                 'metadata': head['Metadata']}
-        except ClientError as err:
+        except client_error as err:
             error_code = normalize_client_error(err)
             if error_code == 404:
                 to_return = {'error': ERROR_URL_NOT_FOUND, 'raise_error': err}
@@ -112,7 +112,7 @@ def worker(result_file_name, queue, mode):
     with open(result_file_name, 'w') as result_file:
         try:
             from metaflow.datastore.util.s3util import get_s3_client
-            s3, _ = get_s3_client()
+            s3, client_error = get_s3_client()
             while True:
                 url, idx = queue.get()
                 if url is None:
@@ -159,7 +159,7 @@ def worker(result_file_name, queue, mode):
                                 raise RuntimeError("Could not load file")
                         tmp.close()
                         os.rename(tmp.name, url.local)
-                    except ClientError as err:
+                    except client_error as err:
                         error_code = normalize_client_error(err)
                         if error_code == 404:
                             pass # We skip this
@@ -300,11 +300,12 @@ class S3Ops(object):
 
     def __init__(self):
         self.s3 = None
+        self.client_error = None
 
     def reset_client(self, hard_reset=False):
         from metaflow.datastore.util.s3util import get_s3_client
         if hard_reset or self.s3 is None:
-            self.s3, _ = get_s3_client()
+            self.s3, self.client_error = get_s3_client()
 
     @aws_retry
     def get_info(self, url):
@@ -320,7 +321,7 @@ class S3Ops(object):
                 content_type=head['ContentType'],
                 metadata=head['Metadata'],
                 range=url.range), head['ContentLength'])]
-        except ClientError as err:
+        except self.client_error as err:
             error_code = normalize_client_error(err)
             if error_code == 404:
                 return False, url, ERROR_URL_NOT_FOUND
@@ -363,7 +364,7 @@ class S3Ops(object):
             return True, prefix_url, urls
         except self.s3.exceptions.NoSuchBucket:
             return False, prefix_url, ERROR_URL_NOT_FOUND
-        except ClientError as err:
+        except self.client_error as err:
             if err.response['Error']['Code'] == 'AccessDenied':
                 return False, prefix_url, ERROR_URL_ACCESS_DENIED
             else:
@@ -768,5 +769,4 @@ def info(prefixes,
             print(format_triplet(url.prefix, url.url, url.local))
 
 if __name__ == '__main__':
-    from botocore.exceptions import ClientError
     cli(auto_envvar_prefix='S3OP')
