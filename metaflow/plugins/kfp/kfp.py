@@ -664,11 +664,17 @@ class KubeflowPipelines(object):
         self, container_op: ContainerOp, node: DAGNode, metaflow_run_id: str
     ):
         prefix = "metaflow.org"
+        # tags.ledger.zgtools.net/* pod labels required for the ZGCP Costs Ledger
+        container_op.add_pod_label("tags.ledger.zgtools.net/ai-flow-name", self.name)
         container_op.add_pod_label(f"{prefix}/flow_name", self.name)
+        container_op.add_pod_label("tags.ledger.zgtools.net/ai-step-name", node.name)
         container_op.add_pod_label(f"{prefix}/step", node.name)
         container_op.add_pod_label(f"{prefix}/run_id", metaflow_run_id)
 
         if self.experiment:
+            container_op.add_pod_label(
+                "tags.ledger.zgtools.net/ai-experiment-name", self.experiment
+            )
             container_op.add_pod_label(f"{prefix}/experiment", self.experiment)
         if self.tags and len(self.tags) > 0:
             for tag in self.tags:
