@@ -99,7 +99,7 @@ def worker(result_file_name, queue, mode):
                 'size': head['ContentLength'],
                 'content_type': head['ContentType'],
                 'metadata': head['Metadata']}
-        except ClientError as err:
+        except client_error as err:
             error_code = normalize_client_error(err)
             if error_code == 404:
                 to_return = {'error': ERROR_URL_NOT_FOUND, 'raise_error': err}
@@ -112,7 +112,7 @@ def worker(result_file_name, queue, mode):
     with open(result_file_name, 'w') as result_file:
         try:
             from metaflow.datastore.util.s3util import get_s3_client
-            s3, _ = get_s3_client()
+            s3, client_error = get_s3_client()
             while True:
                 url, idx = queue.get()
                 if url is None:
