@@ -9,6 +9,7 @@ from .parameters import Parameter
 from .exception import MetaflowException, MetaflowInternalError, \
     MissingInMergeArtifactsException, UnhandledInMergeArtifactsException
 from .graph import FlowGraph
+from .unbounded_foreach import UnboundedForeachInput
 
 # For Python 3 compatibility
 try:
@@ -355,6 +356,25 @@ class FlowSpec(object):
         for var, (inp, _) in to_merge.items():
             self._datastore.passdown_partial(inp._datastore, [var])
 
+    def _validate_ubf_step(self, step_name):
+        join_list = self._graph[step_name].out_funcs
+        if len(join_list) != 1:
+            msg = "UnboundedForeach is supported only over a single node, "\
+                  "not an arbitrary DAG. Specify a single `join` node"\
+                  " instead of multiple:{join_list}."\
+                  .format(join_list=join_list)
+            raise InvalidNextException(msg)
+        join_step = join_list[0]
+        join_node = self._graph[join_step]
+        join_type = join_node.type
+
+        if join_type != 'join':
+            msg = "UnboundedForeach found for:{node} -> {join}."\
+                  " The join type isn't valid."\
+                  .format(node=step_name,
+                          join=join_step)
+            raise InvalidNextException(msg)
+
     def next(self, *dsts, **kwargs):
         """
         Indicates the next step to execute at the end of this step
@@ -443,19 +463,24 @@ class FlowSpec(object):
                       .format(step=step, var=foreach)
                 raise InvalidNextException(msg)
 
-            try:
-                self._foreach_num_splits = sum(1 for _ in foreach_iter)
-            except TypeError:
-                msg = "Foreach variable *self.{var}* in step *{step}* "\
-                      "is not iterable. Check your variable."\
-                      .format(step=step, var=foreach)
-                raise InvalidNextException(msg)
+            if issubclass(type(foreach_iter), UnboundedForeachInput):
+                self._unbounded_foreach = True
+                self._foreach_num_splits = None
+                self._validate_ubf_step(funcs[0])
+            else:
+                try:
+                    self._foreach_num_splits = sum(1 for _ in foreach_iter)
+                except TypeError:
+                    msg = "Foreach variable *self.{var}* in step *{step}* "\
+                          "is not iterable. Check your variable."\
+                          .format(step=step, var=foreach)
+                    raise InvalidNextException(msg)
 
-            if self._foreach_num_splits == 0:
-                msg = "Foreach iterator over *{var}* in step *{step}* "\
-                      "produced zero splits. Check your variable."\
-                      .format(step=step, var=foreach)
-                raise InvalidNextException(msg)
+                if self._foreach_num_splits == 0:
+                    msg = "Foreach iterator over *{var}* in step *{step}* "\
+                          "produced zero splits. Check your variable."\
+                          .format(step=step, var=foreach)
+                    raise InvalidNextException(msg)
 
             self._foreach_var = foreach
 
