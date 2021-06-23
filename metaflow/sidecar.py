@@ -90,6 +90,8 @@ class SidecarSubProcess(object):
     def __start_subprocess(self, cmdline):
         for i in range(3):
             try:
+                # Set stdout=sys.stdout & stderr=sys.stderr
+                # to print to console the output of sidecars.
                 return subprocess.Popen(cmdline,
                                         stdin=subprocess.PIPE,
                                         stdout=open(os.devnull, 'w'),
