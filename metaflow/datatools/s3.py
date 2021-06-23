@@ -33,7 +33,6 @@ from metaflow.datastore.util.s3util import get_s3_client
 
 try:
     import boto3
-    from botocore.exceptions import ClientError
     boto_found = True
 except:
     boto_found = False
@@ -329,12 +328,10 @@ class S3(object):
         except:
             pass
 
-    def reset_client(self, new_client=None, hard_reset=False):
-        if new_client:
-            self._s3_client = new_client
+    def reset_client(self, hard_reset=False):
         if hard_reset or self._s3_client is None:
             from metaflow.datastore.util.s3util import get_s3_client
-            self._s3_client, _ = get_s3_client()
+            self._s3_client, self._s3_client_error = get_s3_client()
 
     def _url(self, key_value):
         # NOTE: All URLs are handled as Unicode objects (unicode in py2,
@@ -876,11 +873,11 @@ class S3(object):
             tmp = NamedTemporaryFile(dir=self._tmpdir,
                                      prefix='metaflow.s3.one_file.',
                                      delete=False)
-            try:
-                self.reset_client()
+            self.reset_client()
+            try:    
                 op(self._s3_client, tmp.name)
                 return tmp.name
-            except ClientError as err:
+            except self._s3_client_error1 as err:
                 error_code = s3op.normalize_client_error(err)
                 if error_code == 404:
                     raise MetaflowS3NotFound(url)
