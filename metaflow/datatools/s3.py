@@ -33,7 +33,6 @@ from metaflow.datastore.util.s3util import get_s3_client
 
 try:
     import boto3
-    from botocore.exceptions import ClientError
     boto_found = True
 except:
     boto_found = False
@@ -52,7 +51,7 @@ RangeInfo = namedtuple_with_defaults(
     'RangeInfo', 'total_size request_offset request_length',
     defaults=(0, -1))
 
-NUM_S3OP_RETRIES = 8
+NUM_S3OP_RETRIES = 7
 
 class MetaflowS3InvalidObject(MetaflowException):
     headline = 'Not a string-like object'
@@ -238,6 +237,7 @@ class S3Object(object):
 class S3Client(object):
     def __init__(self):
         self._s3_client = None
+        self._s3_error = None
 
     @property
     def client(self):
@@ -245,8 +245,14 @@ class S3Client(object):
             self.reset_client()
         return self._s3_client
 
+    @property
+    def error(self):
+        if self._s3_error is None:
+            self.reset_client()
+        return self._s3_error
+
     def reset_client(self):
-        self._s3_client, _ = get_s3_client()
+        self._s3_client, self._s3_error = get_s3_client()
 
 
 class S3(object):
@@ -878,14 +884,14 @@ class S3(object):
     def _one_boto_op(self, op, url):
         from . import s3op
         error = ''
-        for i in range(NUM_S3OP_RETRIES):
+        for i in range(NUM_S3OP_RETRIES + 1):
             tmp = NamedTemporaryFile(dir=self._tmpdir,
                                      prefix='metaflow.s3.one_file.',
                                      delete=False)
             try:
                 op(self._s3_client.client, tmp.name)
                 return tmp.name
-            except ClientError as err:
+            except self._s3_client.error as err:
                 error_code = s3op.normalize_client_error(err)
                 if error_code == 404:
                     raise MetaflowS3NotFound(url)
@@ -975,7 +981,7 @@ class S3(object):
             else:
                 cmdline.extend(('--%s' % key, value))
 
-        for i in range(NUM_S3OP_RETRIES):
+        for i in range(NUM_S3OP_RETRIES + 1):
             with NamedTemporaryFile(dir=self._tmpdir,
                                     mode='wb+',
                                     delete=not debug.s3client,

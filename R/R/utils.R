@@ -192,6 +192,49 @@ wrap_argument <- function(x) {
   x
 }
 
+#' Determine if the given string is a valid identifier in Python
+#'
+#' Python 2 and Python 3 have different rules for determining if a string is a
+#' valid variable name ("identifier"). The `is_valid_python_identifier` function
+#' will use the logic that corresponds to the version of Python that
+#' `reticulate` is using.
+#'
+#' @details
+#' For Python 2, the rules can be checked with simple regex: a Python variable
+#' name can contain upper- and lower-case letters, underscores, and numbers,
+#' although it cannot begin with a number. Python 3 is more complicated, in that
+#' it allows unicode characters. Fortunately, Python 3 introduces the string
+#' `isidentifer` method which handles the logic for us.
+#'
+#' @param identifier character, or an object that can be coerced to a
+#'   character.
+#'
+#' @return logical
+#' @keywords internal
+is_valid_python_identifier <- function(identifier) {
+  python_2 <- (substr(reticulate::py_version(), 1, 1) == "2")
+
+  if (python_2) {
+    is_valid_python_identifier_py2(identifier)
+  } else {
+    is_valid_python_identifier_py3(identifier)
+  }
+}
+
+#' @rdname is_valid_python_identifier
+is_valid_python_identifier_py2 <- function(identifier) {
+  identifier <- as.character(identifier)
+  identifier_regex <- "^[_a-zA-Z][_a-zA-Z0-9]*$"
+  grepl(identifier_regex, identifier)
+}
+
+#' @rdname is_valid_python_identifier
+is_valid_python_identifier_py3<- function(identifier) {
+  identifier <- as.character(identifier)
+  py_str <- reticulate::r_to_py(identifier)
+  py_str$isidentifier() %>% reticulate::py_to_r()
+}
+
 #' Return installation path of metaflow R library
 #' @param flowRDS path of the RDS file containing the flow object
 #' @export
