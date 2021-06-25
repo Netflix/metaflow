@@ -2,6 +2,7 @@ import os
 
 from metaflow import FlowSpec, step, resources, accelerator
 
+
 class AcceleratorFlow(FlowSpec):
     @accelerator(type="nvidia-tesla-v100")
     @resources(

@@ -146,6 +146,7 @@ def test_compile_only_accelerator_test() -> None:
             break
     assert toleration_found
 
+
 @pytest.mark.parametrize("flow_file_path", obtain_flow_file_paths("flows"))
 def test_flows(pytestconfig, flow_file_path: str) -> None:
     full_path = join("flows", flow_file_path)
