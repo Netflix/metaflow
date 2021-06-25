@@ -1,4 +1,3 @@
-import importlib
 import inspect
 import ast
 import re
@@ -169,8 +168,7 @@ class FlowGraph(object):
         self._postprocess()
 
     def _create_nodes(self, flow):
-        importlib.invalidate_caches()
-        module = importlib.import_module(flow.__module__)
+        module = __import__(flow.__module__)
         tree = ast.parse(inspect.getsource(module)).body
         root = [n for n in tree\
                 if isinstance(n, ast.ClassDef) and n.name == self.name][0]
