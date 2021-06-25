@@ -1,6 +1,5 @@
 import os
 import sys
-import tarfile
 import time
 import traceback
 
@@ -9,12 +8,19 @@ import click
 from distutils.dir_util import copy_tree
 from io import BytesIO
 
-from .batch import Batch, BatchKilledException, STDOUT_PATH, STDERR_PATH
+from .batch import Batch, BatchKilledException
 
 from metaflow.datastore import FlowDataStore
 from metaflow.datastore.local_backend import LocalBackend
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
+from .batch import Batch, BatchKilledException
+
 from metaflow import util
+from metaflow.plugins.aws.utils import (
+    CommonTaskAttrs,
+    sync_local_metadata_from_datastore,
+)
+
 from metaflow import R
 from metaflow.exception import (
     CommandException,
@@ -23,12 +29,6 @@ from metaflow.exception import (
 from metaflow.mflog import TASK_LOG_SOURCE
 
 
-try:
-    # python2
-    from urlparse import urlparse
-except:  # noqa E722
-    # python3
-    from urllib.parse import urlparse
 
 @click.group()
 def cli():
@@ -61,23 +61,6 @@ def _execute_cmd(func, flow_name, run_id, user, my_runs, echo):
             raise CommandException("A previous run id was not found. Specify --run-id.")
 
     func(flow_name, run_id, user, echo)
-
-
-def _sync_metadata(echo, metadata, task_datastore, attempt):
-    if metadata.TYPE == 'local':
-        def echo_none(*args, **kwargs):
-            pass
-        key_to_load = task_datastore.load_metadata(
-            ['local_metadata'])['local_metadata']
-        tarball = task_datastore.parent_datastore.load_data(
-            [key_to_load])[0]
-        with util.TempDir() as td:
-            with tarfile.open(fileobj=BytesIO(tarball), mode='r:gz') as tar:
-                tar.extractall(td)
-            copy_tree(
-                os.path.join(td, DATASTORE_LOCAL_DIR),
-                LocalBackend.get_datastore_root_from_config(echo_none),
-                update=True)
 
 
 @batch.command(help="List unfinished AWS Batch tasks of this flow")
@@ -219,19 +202,20 @@ def step(
             retry_deco[0].attributes.get("minutes_between_retries", 1)
         )
 
-    # Set batch attributes
-    task_spec = {
-        'flow_name': ctx.obj.flow.name,
-        'step_name': step_name,
-        'run_id': kwargs['run_id'],
-        'task_id': kwargs['task_id'],
-        'retry_count': str(retry_count)
-    }
-    attrs = {'metaflow.%s' % k: v for k, v in task_spec.items()}
-    attrs['metaflow.user'] = util.get_username()
-    attrs['metaflow.version'] = ctx.obj.environment.get_environment_info()[
+    common_attrs = CommonTaskAttrs(
+        flow_name=ctx.obj.flow.name,
+        run_id=kwargs['run_id'],
+        step_name=step_name,
+        task_id=kwargs['task_id'],
+        attempt=retry_count,
+        user=util.get_username(),
+        version=ctx.obj.environment.get_environment_info()[
             "metaflow_version"
         ]
+    )
+
+    # Set batch attributes
+    attrs = common_attrs.to_dict(key_prefix='metaflow.')
 
     env_deco = [deco for deco in node.decorators if deco.name == "environment"]
     if env_deco:
@@ -250,10 +234,12 @@ def step(
         time.sleep(minutes_between_retries * 60)
 
     # this information is needed for log tailing
-    spec = task_spec.copy()
-    spec['attempt'] = int(spec.pop('retry_count'))
-    spec.pop('flow_name')
-    ds = ctx.obj.flow_datastore.get_task_datastore(mode='w', **spec)
+    ds = ctx.obj.flow_datastore.get_task_datastore(
+        mode='w',
+        step_name=step_name,
+        task_id=kwargs['task_id'],
+        attempt=int(retry_count)
+    )
     stdout_location = ds.get_log_location(TASK_LOG_SOURCE, 'stdout')
     stderr_location = ds.get_log_location(TASK_LOG_SOURCE, 'stderr')
 
@@ -261,12 +247,15 @@ def step(
     try:
         with ctx.obj.monitor.measure("metaflow.batch.launch"):
             batch.launch_job(
-                step_name,
-                step_cli,
-                task_spec,
-                code_package_sha,
-                code_package_url,
-                ctx.obj.flow_datastore.TYPE,
+                flow_name=ctx.obj.flow.name,
+                run_id=kwargs['run_id'],
+                step_name=step_name,
+                task_id=kwargs['task_id'],
+                step_cli=step_cli,
+                attempt=str(retry_count),
+                code_package_sha=code_package_sha,
+                code_package_url=code_package_url,
+                code_package_ds=ctx.obj.datastore.TYPE,
                 image=image,
                 queue=queue,
                 iam_role=iam_role,
@@ -283,12 +272,13 @@ def step(
             )
     except Exception as e:
         print(e)
+
         task_datastore = FlowDataStore(
             ctx.obj.flow.name, ctx.obj.environment,
             ctx.obj.metadata, ctx.obj.event_logger, ctx.obj.monitor)\
         .get_task_datastore(kwargs['run_id'], step_name, kwargs['task_id'])
+        sync_local_metadata_from_datastore(ctx.obj.metadata, task_datastore)
 
-        _sync_metadata(echo, ctx.obj.metadata, task_datastore, retry_count)
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
     try:
         batch.wait(stdout_location, stderr_location, echo=echo)
@@ -302,4 +292,4 @@ def step(
             ctx.obj.metadata, ctx.obj.event_logger, ctx.obj.monitor)\
             .get_task_datastore(kwargs['run_id'], step_name, kwargs['task_id'])
 
-        _sync_metadata(echo, ctx.obj.metadata, task_datastore, retry_count)
+        sync_local_metadata_from_datastore(ctx.obj.metadata, task_datastore)
