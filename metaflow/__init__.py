@@ -46,14 +46,29 @@ import importlib
 import sys
 import types
 
+if sys.version_info[0] >= 3 and sys.version_info[1] >= 4:
+    import importlib.util
+    from importlib.machinery import ModuleSpec
 
 class _LazyLoader(object):
     # This _LazyLoader implements the Importer Protocol defined in PEP 302
     def __init__(self, handled):
+        # Modules directly loaded (this is either new modules or overrides of existing ones)
         self._handled = handled if handled else {}
 
+        # For over-ridden modules, we also handle cases of submodules and try
+        # to load it from the over-riding module first but fall back on the original
+        # module if present
+        self._prefixes = set()
+
+        # This is used to revert back to regular loading when trying to load
+        # the over-ridden module
+        self._tempexcluded = set()
+
     def find_module(self, fullname, path=None):
-        if fullname in self._handled:
+        if fullname in self._tempexcluded:
+            return None
+        if fullname in self._handled or any([fullname.startswith(x) for x in self._prefixes]):
             return self
         return None
 
@@ -61,13 +76,91 @@ class _LazyLoader(object):
         if fullname in sys.modules:
             return sys.modules[fullname]
         to_import = self._handled.get(fullname, None)
-        if isinstance(to_import, str):
+        has_underlying_orig_module = False
+        # We see if we are shadowing an existing module and, if so, we
+        # will keep track of the module we are shadowing so that it
+        # may be loaded if needed.
+        if not fullname.endswith('._orig'):
+            try:
+                # We exclude this module temporarily from what we handle to
+                # revert back to the non-shadowing mode of import
+                self._tempexcluded.add(fullname)
+                if sys.version_info[0] < 3 or sys.version_info[1] < 4:
+                    pass
+                else:
+                    spec = importlib.util.find_spec(fullname)
+                    if spec is not None:
+                        self._handled["%s._orig" % fullname] = spec
+                        has_underlying_orig_module = True
+            finally:
+                self._tempexcluded.remove(fullname)
+
+        if to_import is None and not fullname.endswith('._orig'):
+            # We are importing something we have a prefix for but not the '._orig'
+            # package since we want to do that in the last else statement
+            # below.
+            try:
+                self._tempexcluded.add(fullname)
+                # First attempt a regular load
+                tl_exception = None
+                do_raise = False
+                try:
+                    to_import = importlib.import_module(fullname)
+                except ImportError as e:
+                    tl_exception = e
+                # We swallow the exception and will rethrow if we can't load
+                # at all. This allows for a cleaner exception for the user
+                # as opposed to one about a _orig package
+                if tl_exception is not None:
+                    try:
+                        # If that fails, try to import from the orig module.
+                        # We get the prefix we matched, add ._orig (which will cause
+                        # us to load the _orig module below) and then add the last
+                        # part of the name
+                        prefix_to_use = None
+                        for p in self._prefixes:
+                            if fullname.startswith(p):
+                                prefix_to_use = p
+                                break
+                        suffix = fullname[len(prefix_to_use):]
+                        # If module doesn't exist, this will raise ImportError which
+                        # is what we want
+                        to_import = importlib.import_module(
+                            "%s._orig%s" % (prefix_to_use, suffix))
+                        sys.modules[fullname] = to_import
+                    except ImportError:
+                        # Again, swallow here to allow for a nicer message
+                        do_raise = True
+                    if do_raise:
+                        raise tl_exception
+            finally:
+                self._tempexcluded.remove(fullname)
+
+        elif isinstance(to_import, str):
             to_import = importlib.import_module(to_import)
             sys.modules[fullname] = to_import
         elif isinstance(to_import, types.ModuleType):
             sys.modules[fullname] = to_import
         else:
-            raise ImportError
+            if sys.version_info[0] < 3 or sys.version_info[1] < 4:
+                pass
+            elif isinstance(to_import, ModuleSpec):
+                # This loads modules that end in _orig
+                m = importlib.util.module_from_spec(to_import)
+                to_import.loader.exec_module(m)
+                sys.modules[fullname] = m
+            else:
+                raise ImportError
+        if has_underlying_orig_module:
+            # Check if the user wants to fully override or not
+            allowed_submodules = getattr(
+                sys.modules[fullname], '__mf_allow_shadowed_submodules__', None)
+            if allowed_submodules is not None:
+                if len(allowed_submodules) == 1 and allowed_submodules[0] == '__all__':
+                    self._prefixes.add(fullname)
+                else:
+                    self._prefixes.update(
+                        ["%s.%s" % (fullname, x) for x in allowed_submodules])
         return sys.modules[fullname]
 
 
