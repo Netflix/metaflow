@@ -46,29 +46,81 @@ import importlib
 import sys
 import types
 
+if sys.version_info[0] >= 3 and sys.version_info[1] >= 4:
+    import importlib.util
+    from importlib.machinery import ModuleSpec
+else:
+    # Something random so there is no syntax error
+    ModuleSpec = None
 
 class _LazyLoader(object):
     # This _LazyLoader implements the Importer Protocol defined in PEP 302
     def __init__(self, handled):
+        # Modules directly loaded (this is either new modules or overrides of existing ones)
         self._handled = handled if handled else {}
 
+        # This is used to revert back to regular loading when trying to load
+        # the over-ridden module
+        self._tempexcluded = set()
+
     def find_module(self, fullname, path=None):
-        if fullname in self._handled:
+        if fullname in self._tempexcluded:
+            return None
+        if fullname in self._handled or \
+                (fullname.endswith('._orig') and fullname[:-6] in self._handled):
             return self
         return None
 
     def load_module(self, fullname):
         if fullname in sys.modules:
             return sys.modules[fullname]
+        if not self._can_handle_orig_module() and fullname.endswith('._orig'):
+            # We return a nicer error message
+            raise ImportError(
+                "Attempting to load '%s' -- loading shadowed modules in Metaflow "
+                "Custom is only supported in Python 3.4+" % fullname)
         to_import = self._handled.get(fullname, None)
+        # We see if we are shadowing an existing module and, if so, we
+        # will keep track of the module we are shadowing so that it
+        # may be loaded if needed. We basically will create a ._orig submodule
+        # of sorts. This functionality only works for Python 3.4+. For anything
+        # below this, we do not create the _orig module so loading it will
+        # result in ModuleNotFound
+        if self._can_handle_orig_module() and not fullname.endswith('._orig'):
+            try:
+                # We exclude this module temporarily from what we handle to
+                # revert back to the non-shadowing mode of import
+                self._tempexcluded.add(fullname)
+                spec = importlib.util.find_spec(fullname)
+                self._handled["%s._orig" % fullname] = spec
+            finally:
+                self._tempexcluded.remove(fullname)
+
         if isinstance(to_import, str):
             to_import = importlib.import_module(to_import)
             sys.modules[fullname] = to_import
         elif isinstance(to_import, types.ModuleType):
             sys.modules[fullname] = to_import
+        elif self._can_handle_orig_module() and isinstance(to_import, ModuleSpec):
+            # This loads modules that end in _orig
+            m = importlib.util.module_from_spec(to_import)
+            to_import.loader.exec_module(m)
+            sys.modules[fullname] = m
+        elif to_import is None and fullname.endswith('._orig'):
+            # This happens when trying to access a shadowed ._orig module
+            # when actually, there is no shadowed module; print a nicer message
+            # Condition is a bit overkill and most likely only checking to_import
+            # would be OK. Being extra sure in case _LazyLoader is misused and
+            # a None value is passed in.
+            raise ImportError(
+                "Metaflow Custom shadowed module '%s' does not exist" % fullname)
         else:
             raise ImportError
         return sys.modules[fullname]
+
+    @staticmethod
+    def _can_handle_orig_module():
+        return sys.version_info[0] >= 3 and sys.version_info[1] >= 4
 
 
 from .event_logger import EventLogger
