@@ -112,6 +112,7 @@ def run(
             args=metaflow_args,
             handle_exceptions=False,
             entrypoint=full_cmdline[: -len(metaflow_args)],
+            standalone_mode=False,
         )
     except exception.MetaflowException as e:
         cli.print_metaflow_exception(e)
