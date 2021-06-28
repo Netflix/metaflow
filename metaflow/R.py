@@ -2,6 +2,8 @@ import os
 import imp
 from tempfile import NamedTemporaryFile
 
+from metaflow.parameters import register_main_flow
+
 from .util import to_bytes
 
 R_FUNCTIONS = {}
@@ -102,6 +104,8 @@ def run(
         tmp.write(to_bytes(flow_script))
     module = imp.load_source("metaflowR", tmp.name)
     flow = module.FLOW(use_cli=False)
+
+    register_main_flow(module.FLOW)
 
     from . import exception
     from . import cli

@@ -9,6 +9,7 @@ parametrize = pytest.mark.parametrize
 from metaflow import Flow
 import metaflow.metaflow_version
 from metaflow.exception import MetaflowNotFound
+from metaflow.parameters import register_main_flow
 
 
 metaflow_bin = join(dirname(python), "metaflow")
@@ -43,6 +44,8 @@ def run(flow, cmd=None, args=None, entrypoint=None):
     if cmd:
         check_call(cmd)
     else:
+        register_main_flow(flow, overwrite=True)
+
         if args is None:
             args = ("run",)
         f = flow(args=args, entrypoint=entrypoint, standalone_mode=False)

@@ -8,7 +8,13 @@ from types import FunctionType, MethodType
 from typing import Any, Callable, List, Optional, Tuple
 
 from . import cmd_with_io
-from .parameters import DelayedEvaluationParameter, Parameter
+from .parameters import (
+    DelayedEvaluationParameter,
+    Parameter,
+    has_main_flow,
+    register_main_flow,
+    register_parameters,
+)
 from .exception import (
     MetaflowException,
     MissingInMergeArtifactsException,
@@ -65,6 +71,9 @@ class FlowSpecMeta(type):
 
         cls._graph = FlowGraph(cls)
         cls._steps = [getattr(cls, node.name) for node in cls._graph]
+
+        # Register this flow with global parameter-parsing machinery
+        register_parameters(cls)
 
         return cls
 
@@ -127,6 +136,10 @@ class FlowSpec(object, metaclass=FlowSpecMeta):
                     sys.executable,
                     self.file,
                 ]
+
+            # Detect invocation via `python <file>` + `__main__` handler
+            if not has_main_flow() and cls.__module__ == "__main__":
+                register_main_flow(cls)
 
             # Import cli here (as opposed to earlier, or at the file level) to ensure custom Parameters
             # are registered before metaflow.cli is initialized
