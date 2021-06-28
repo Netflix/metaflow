@@ -947,8 +947,6 @@ class Worker(object):
                                       self.task.ubf_context)
         env.update(args.get_env())
         env['PYTHONUNBUFFERED'] = 'x'
-        # the env vars are needed by the test framework, nothing else
-        env['_METAFLOW_ATTEMPT'] = str(self.task.retries)
         # NOTE bufsize=1 below enables line buffering which is required
         # by read_logline() below that relies on readline() not blocking
         # print('running', args)
