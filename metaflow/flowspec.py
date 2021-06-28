@@ -1,4 +1,4 @@
-import inspect
+from importlib import import_module
 import os
 import sys
 import traceback
@@ -49,7 +49,26 @@ class ParallelUBF(UnboundedForeachInput):
         return item or 0  # item is None for the control task, but it is also split 0
 
 
-class FlowSpec(object):
+class FlowSpecMeta(type):
+    def __new__(cls, name, bases, dct):
+        cls = super().__new__(cls, name, bases, dct)
+
+        mod_name = cls.__module__
+        module = import_module(mod_name)
+        file = module.__file__
+
+        # Flows are identified and run by a "path spec" comprised of their file and class name
+        cls.file = file
+        cls.name = name
+        cls.path_spec = "%s:%s" % (cls.file, cls.name)
+
+        cls._graph = FlowGraph(cls)
+        cls._steps = [getattr(cls, node.name) for node in cls._graph]
+
+        return cls
+
+
+class FlowSpec(object, metaclass=FlowSpecMeta):
     """
     Main class from which all Flows should inherit.
 
@@ -72,6 +91,9 @@ class FlowSpec(object):
         "_steps",
         "index",
         "input",
+        "name",
+        "file",
+        "path_spec",
     }
     # When checking for parameters, we look at dir(self) but we want to exclude
     # attributes that are definitely not parameters and may be expensive to
@@ -91,14 +113,11 @@ class FlowSpec(object):
             Set to True if the flow is invoked from __main__ or the command line
         """
 
-        self.name = self.__class__.__name__
+        cls = self.__class__
 
         self._datastore = None
         self._transition = None
         self._cached_input = {}
-
-        self._graph = FlowGraph(self.__class__)
-        self._steps = [getattr(self, node.name) for node in self._graph]
 
         if use_cli:
             # we import cli here to make sure custom parameters in
@@ -119,7 +138,7 @@ class FlowSpec(object):
         str
             A string containing the name of the script
         """
-        fname = inspect.getfile(self.__class__)
+        fname = self.file
         if fname.endswith(".pyc"):
             fname = fname[:-1]
         return os.path.basename(fname)

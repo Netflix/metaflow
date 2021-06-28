@@ -1,4 +1,3 @@
-import inspect
 import sys
 import traceback
 from datetime import datetime
@@ -138,11 +137,11 @@ def cli(ctx):
 @click.pass_obj
 def check(obj, warnings=False):
     _check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint, warnings=warnings)
-    fname = inspect.getfile(obj.flow.__class__)
+    file = obj.flow.file
     echo(
         "\n*'{cmd} show'* shows a description of this flow.\n"
         "*'{cmd} run'* runs the flow locally.\n"
-        "*'{cmd} help'* shows all available commands and options.\n".format(cmd=fname),
+        "*'{cmd} help'* shows all available commands and options.\n".format(cmd=file),
         highlight="magenta",
         highlight_bold=False,
     )
@@ -867,7 +866,7 @@ def before_run(obj, tags, decospecs):
     # doesn't get called twice.
     if decospecs:
         decorators._attach_decorators(obj.flow, decospecs)
-        obj.graph = FlowGraph(obj.flow.__class__)
+        obj.graph = obj.flow._graph
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
     # obj.environment.init_environment(obj.logger)
 
@@ -1102,9 +1101,9 @@ def _check(graph, flow, environment, pylint=True, warnings=False, **kwargs):
     linter.run_checks(graph, **kwargs)
     echo("The graph looks good!", fg="green", bold=True, indent=True)
     if pylint:
-        echo("Running pylint...", fg="magenta", bold=False)
-        fname = inspect.getfile(flow.__class__)
-        pylint = PyLint(fname)
+        file = flow.file
+        echo("Running pylint on %s" % file, fg="magenta", bold=False)
+        pylint = PyLint(file)
         if pylint.has_pylint():
             pylint_is_happy, pylint_exception_msg = pylint.run(
                 warnings=warnings,
