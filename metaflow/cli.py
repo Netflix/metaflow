@@ -996,7 +996,7 @@ def start(
     obj.echo = echo
     obj.echo_always = echo_always
     obj.is_quiet = quiet
-    obj.graph = FlowGraph(obj.flow.__class__)
+    obj.graph = flow._graph
     obj.logger = logger
     obj.check = _check
     obj.pylint = pylint
