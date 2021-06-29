@@ -28,6 +28,7 @@ Suggests:
     knitr,
     rmarkdown
 RoxygenNote: 7.1.1
+Roxygen: list(markdown = TRUE)
 Collate: 
     'decorators.R'
     'flags.R'
