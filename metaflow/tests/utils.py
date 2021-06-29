@@ -23,7 +23,7 @@ def flow_path(name):
 
 
 # Run a flow, verify Metaflow sees one new run of that type, and return that run's data
-def run(flow):
+def run(flow, args=None, entrypoint=None):
     if isinstance(flow, str):
         name = flow
         assert cmd
@@ -37,7 +37,10 @@ def run(flow):
     except MetaflowNotFound:
         n_runs_before = 0
 
-    f = flow(args=("run",), standalone_mode=False)
+    if args is None:
+        args = ("run",)
+
+    f = flow(args=args, entrypoint=entrypoint, standalone_mode=False)
     assert f._success
 
     runs = list(Flow(name))
