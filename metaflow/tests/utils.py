@@ -26,7 +26,7 @@ def flow_path(name):
 
 
 # Run a flow, verify Metaflow sees one new run of that type, and return that run's data
-def run(flow, cmd=None, args=None, entrypoint=None):
+def run(flow, fn=None, cmd=None, args=None, entrypoint=None):
     if isinstance(flow, str):
         name = flow
         assert cmd
@@ -60,8 +60,11 @@ def run(flow, cmd=None, args=None, entrypoint=None):
     ), "n_runs_before=%d + 1 != n_runs_after=%d" % (n_runs_before, n_runs_after)
     run = runs[0]
     data = run.data
-    # By default, convert the returned MetaflowData object to a dict
-    return {k: v.data for k, v in data._artifacts.items()}
+    if fn:
+        fn(data)
+    else:
+        # By default, convert the returned MetaflowData object to a dict
+        return {k: v.data for k, v in data._artifacts.items()}
 
 
 def check_graph(flow_spec, expected):
