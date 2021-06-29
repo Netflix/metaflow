@@ -18,6 +18,7 @@ metaflow_version = metaflow.metaflow_version.get_version()
 tests_dir = dirname(__file__)
 test_flows_dir = join(tests_dir, "flows")
 metaflow_dir = dirname(tests_dir)
+tutorials_dir = join(metaflow_dir, "tutorials")
 
 
 def flow_path(name):
