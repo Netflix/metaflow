@@ -61,7 +61,7 @@ def run(flow, fn=None, cmd=None, args=None, entrypoint=None):
     run = runs[0]
     data = run.data
     if fn:
-        fn(data)
+        return fn(data)
     else:
         # By default, convert the returned MetaflowData object to a dict
         return {k: v.data for k, v in data._artifacts.items()}
