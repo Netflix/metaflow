@@ -12,23 +12,23 @@ install_metaflow(
 )
 }
 \arguments{
-\item{method}{`character`, indicates to use `"conda"` or `"virtualenv"`.}
+\item{method}{\code{character}, indicates to use \code{"conda"} or \code{"virtualenv"}.}
 
 \item{prompt}{boolean, whether or not to prompt user for confirmation before installation. Default is TRUE.}
 
-\item{version}{`character`, version of Metaflow to install. The default version
+\item{version}{\code{character}, version of Metaflow to install. The default version
 is the latest available on PyPi.}
 
-\item{...}{other arguments sent to [reticulate::conda_install()] or
-[reticulate::virtualenv_install()]}
+\item{...}{other arguments sent to \code{\link[reticulate:conda-tools]{reticulate::conda_install()}} or
+\code{\link[reticulate:virtualenv-tools]{reticulate::virtualenv_install()}}}
 }
 \description{
-This function wraps installation functions from [reticulate][reticulate::reticulate] to install the Python packages
-**metaflow** and it's Python dependencies.
+This function wraps installation functions from \link[reticulate:reticulate]{reticulate} to install the Python packages
+\strong{metaflow} and it's Python dependencies.
 }
 \details{
-This package uses the [reticulate][reticulate::reticulate] package
-to make an interface with the [Metaflow](https://metaflow.org/)
+This package uses the \link[reticulate:reticulate]{reticulate} package
+to make an interface with the \href{https://metaflow.org/}{Metaflow}
 Python package.
 }
 \examples{
@@ -38,6 +38,6 @@ install_metaflow()
 }
 }
 \seealso{
-[reticulate: Using reticulate in an R Package](https://rstudio.github.io/reticulate/articles/package.html),
-[reticulate: Installing Python Packages](https://rstudio.github.io/reticulate/articles/python_packages.html)
+\href{https://rstudio.github.io/reticulate/articles/package.html}{reticulate: Using reticulate in an R Package},
+\href{https://rstudio.github.io/reticulate/articles/python_packages.html}{reticulate: Installing Python Packages}
 }
