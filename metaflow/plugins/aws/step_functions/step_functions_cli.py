@@ -347,8 +347,13 @@ def resolve_token(name,
 
 @parameters.add_custom_parameters(deploy_mode=False)
 @step_functions.command(help="Trigger the workflow on AWS Step Functions.")
+@click.option('--run-id-file',
+                default=None,
+                show_default=True,
+                type=str,
+                help="Write the ID of this run to the file specified.")
 @click.pass_obj
-def trigger(obj, **kwargs):
+def trigger(obj, run_id_file=None, **kwargs):
     def _convert_value(param):
         # Swap `-` with `_` in parameter name to match click's behavior
         val = kwargs.get(param.name.replace('-', '_').lower())
@@ -362,9 +367,15 @@ def trigger(obj, **kwargs):
     response = StepFunctions.trigger(obj.state_machine_name, params)
 
     id = response['executionArn'].split(':')[-1]
+    run_id = 'sfn-' + id
+
+    if run_id_file:
+        with open(run_id_file, 'w') as f:
+            f.write(str(run_id))
+
     obj.echo("Workflow *{name}* triggered on AWS Step Functions "
-        "(run-id *sfn-{id}*)."
-            .format(name=obj.state_machine_name, id=id), bold=True)
+        "(run-id *{run_id}*)."
+            .format(name=obj.state_machine_name, run_id=run_id), bold=True)
 
 
 @step_functions.command(
