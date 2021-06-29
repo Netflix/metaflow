@@ -1,5 +1,6 @@
 from os.path import dirname, join
-from subprocess import check_call
+import subprocess
+from subprocess import check_call, PIPE
 from sys import executable as python, version_info
 
 import pytest
@@ -89,6 +90,20 @@ def check_graph(flow_spec, expected):
         return "[\n\t%s\n]" % "\n\t".join([str(r) for r in arr])
 
     assert actual == expected, "%s\n!=\n%s" % (pretty(actual), pretty(expected))
+
+
+def verify_output(cmd, expected_stdout, expected_stderr):
+    p = subprocess.run(cmd, stdout=PIPE, stderr=PIPE, check=True)
+    actual_stdout = p.stdout.decode()
+    actual_stderr = p.stderr.decode()
+    assert actual_stdout == expected_stdout, '"""%s""" != """%s"""' % (
+        actual_stdout,
+        expected_stdout,
+    )
+    assert actual_stderr == expected_stderr, '"""%s""" != """%s"""' % (
+        actual_stderr,
+        expected_stderr,
+    )
 
 
 def py37dec(a: int, b: int = 1) -> int:
