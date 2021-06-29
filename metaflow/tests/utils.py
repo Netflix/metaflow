@@ -1,4 +1,5 @@
 from os.path import dirname, join
+from subprocess import check_call
 from sys import executable as python, version_info
 
 import pytest
@@ -23,12 +24,14 @@ def flow_path(name):
 
 
 # Run a flow, verify Metaflow sees one new run of that type, and return that run's data
-def run(flow, args=None, entrypoint=None):
+def run(flow, cmd=None, args=None, entrypoint=None):
     if isinstance(flow, str):
         name = flow
         assert cmd
     else:
         name = flow.name
+
+    assert not (cmd and (args or entrypoint))
 
     try:
         # TODO: how does this work when multiple flows have same basename?
@@ -37,11 +40,13 @@ def run(flow, args=None, entrypoint=None):
     except MetaflowNotFound:
         n_runs_before = 0
 
-    if args is None:
-        args = ("run",)
-
-    f = flow(args=args, entrypoint=entrypoint, standalone_mode=False)
-    assert f._success
+    if cmd:
+        check_call(cmd)
+    else:
+        if args is None:
+            args = ("run",)
+        f = flow(args=args, entrypoint=entrypoint, standalone_mode=False)
+        assert f._success
 
     runs = list(Flow(name))
     n_runs_after = len(runs)
