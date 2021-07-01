@@ -1,5 +1,7 @@
+import codecs
 import json
 import os
+import pickle
 import sys
 import time
 import shutil
@@ -235,9 +237,10 @@ class S3Object(object):
 
 
 class S3Client(object):
-    def __init__(self):
+    def __init__(self, role=None):
         self._s3_client = None
         self._s3_error = None
+        self._s3_role = role
 
     @property
     def client(self):
@@ -252,7 +255,15 @@ class S3Client(object):
         return self._s3_error
 
     def reset_client(self):
-        self._s3_client, self._s3_error = get_s3_client()
+        self._s3_client, self._s3_error = get_s3_client(role=self._s3_role)
+
+    def __getstate__(self):
+        return {'client': None, 'error': None, 'role': self._s3_role}
+
+    def __setstate__(self, state):
+        self._s3_client = state['client']
+        self._s3_error = state['error']
+        self._s3_role = state['role']
 
 
 class S3(object):
@@ -980,6 +991,9 @@ class S3(object):
                     cmdline.append('--no-%s' % key)
             else:
                 cmdline.extend(('--%s' % key, value))
+        cmdline.extend((
+            '--s3client',
+            codecs.encode(pickle.dumps(self._s3_client), "base64").decode()))
 
         for i in range(NUM_S3OP_RETRIES + 1):
             with NamedTemporaryFile(dir=self._tmpdir,

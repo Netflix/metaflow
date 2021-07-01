@@ -24,6 +24,9 @@ class S3Tail(object):
         tail._tail = self._tail
         return tail
 
+    def reset_client(self, hard_reset=False):
+        self.s3, self.ClientError = get_s3_client()
+
     @property
     def bytes_read(self):
         return self._pos
