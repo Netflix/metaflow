@@ -2,7 +2,14 @@ from os.path import dirname, join
 
 from metaflow.flowspec import FlowSpec
 
-from metaflow.tests.utils import check_graph, parametrize, run, tutorials_dir
+from metaflow.tests.flows.stats_02 import NewMovieStatsFlow
+from metaflow.tests.utils import (
+    check_graph,
+    parametrize,
+    run,
+    test_flows_dir,
+    tutorials_dir,
+)
 
 
 expected_genres = [
@@ -33,6 +40,7 @@ expected_genres = [
 root_dir = dirname(dirname(__file__))
 flow_files = {
     "MovieStatsFlow": join(tutorials_dir, "02-statistics", "stats.py"),
+    "NewMovieStatsFlow": join(test_flows_dir, "stats_02.py"),
 }
 
 
@@ -40,11 +48,14 @@ flow_files = {
     "flow",
     [
         "MovieStatsFlow",
+        "NewMovieStatsFlow",
+        NewMovieStatsFlow,
     ],
 )
 def test_foreach(flow):
-    file = flow_files[flow]
-    flow = FlowSpec.load("%s:%s" % (file, flow), register_main="overwrite")
+    if isinstance(flow, str):
+        file = flow_files[flow]
+        flow = FlowSpec.load("%s:%s" % (file, flow), register_main="overwrite")
 
     expected = [
         {
