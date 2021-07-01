@@ -4,35 +4,6 @@ import re
 from .exceptions import DataException
 
 
-# Helper class to lazily open files returned by load_bytes to prevent
-# possibly running out of open file descriptors
-class LazyFile(object):
-    def __init__(self, file):
-        self._file = file
-        self._open_file = None
-
-    def __enter__(self):
-        if self._open_file is None:
-            self._open_file = open(self._file, mode='rb')
-        return self
-
-    def __exit__(self, *args):
-        self.close()
-
-    def __del__(self):
-        self.close()
-
-    def close(self):
-        if self._open_file:
-            self._open_file.close()
-            self._open_file = None
-
-    def __getattr__(self, name):
-        if self._open_file is None:
-            self._open_file = open(self._file, mode='rb')
-        return getattr(self._open_file, name)
-
-
 class CloseAfterUse(object):
     """
     Class that can be used to wrap data and a closer (cleanup code).

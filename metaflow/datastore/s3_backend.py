@@ -5,8 +5,7 @@ from itertools import starmap
 
 from ..datatools.s3 import S3, S3Client, S3PutObject
 from ..metaflow_config import DATASTORE_SYSROOT_S3
-from .datastore_backend import CloseAfterUse, DataStoreBackend, LazyFile
-from .exceptions import DataException
+from .datastore_backend import CloseAfterUse, DataStoreBackend
 
 
 try:
@@ -194,14 +193,14 @@ class S3Backend(DataStoreBackend):
             results = s3.get_many(paths, return_missing=True, return_info=True)
             for r in results:
                 if r.exists:
-                    to_return[r.key] = (LazyFile(r.path), r.metadata)
+                    to_return[r.key] = (r.path, r.metadata)
                 else:
                     to_return[r.key] = None
         else:
             for p in paths:
                 r = s3.get(p, return_missing=True, return_info=True)
                 if r.exists:
-                    to_return[r.key] = (LazyFile(r.path), r.metadata)
+                    to_return[r.key] = (r.path, r.metadata)
                 else:
                     to_return[r.key] = None
         return CloseAfterUse(to_return, closer=s3)
