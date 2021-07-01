@@ -126,7 +126,7 @@ class ContentAddressedStore(object):
             Returns the blobs as bytes
         """
         results = {}
-        to_load_paths = []
+        load_paths = []
         for key in keys:
             blob = None
             if self._blob_cache:
@@ -135,14 +135,14 @@ class ContentAddressedStore(object):
                 results[key] = blob
             else:
                 path = self._backend.path_join(self._prefix, key[:2], key)
-                to_load_paths.append(path)
+                load_paths.append((key, path))
 
         new_results = {}
-        with self._backend.load_bytes(to_load_paths) as load_results:
-            for key, path in zip(keys, to_load_paths):
+        with self._backend.load_bytes([p for _, p in load_paths]) as loaded:
+            for key, path in load_paths:
                 # At this point, we either return the object as is (if raw) or
                 # decode it according to the encoding version
-                file_path, meta = load_results[path]
+                file_path, meta = loaded[path]
                 with open(file_path, 'rb') as f:
                     if force_raw or (meta and meta.get('cas_raw', False)):
                         new_results[key] = f.read()
