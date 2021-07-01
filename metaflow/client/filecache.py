@@ -37,7 +37,7 @@ class FileCache(object):
         # task datastores to refresh them as needed. Caching FlowDataStore has
         # no adverse affect in terms of having to refresh the cache.
         self._store_caches = {}
-        self.blob_cache = FileBlobCache(self, cache_dir)
+        self.blob_cache = FileBlobCache(self, self._cache_dir)
 
     @property
     def cache_dir(self):
