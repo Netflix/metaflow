@@ -1,6 +1,8 @@
 from __future__ import print_function
 
+import codecs
 import json
+import pickle
 import time
 import math
 import sys
@@ -78,7 +80,7 @@ def normalize_client_error(err):
 
 # S3 worker pool
 
-def worker(result_file_name, queue, mode):
+def worker(result_file_name, queue, mode, s3client):
     # Interpret mode, it can either be a single op or something like
     # info_download or info_upload which implies:
     #  - for download: we need to return the information as well
@@ -93,13 +95,13 @@ def worker(result_file_name, queue, mode):
 
     def op_info(url):
         try:
-            head = s3.head_object(Bucket=url.bucket, Key=url.path)
+            head = s3client.client.head_object(Bucket=url.bucket, Key=url.path)
             to_return = {
                 'error': None,
                 'size': head['ContentLength'],
                 'content_type': head['ContentType'],
                 'metadata': head['Metadata']}
-        except client_error as err:
+        except s3client.error as err:
             error_code = normalize_client_error(err)
             if error_code == 404:
                 to_return = {'error': ERROR_URL_NOT_FOUND, 'raise_error': err}
@@ -111,8 +113,9 @@ def worker(result_file_name, queue, mode):
 
     with open(result_file_name, 'w') as result_file:
         try:
-            from metaflow.datastore.util.s3util import get_s3_client
-            s3, client_error = get_s3_client()
+            if s3client is None:
+                from metaflow.datatools.s3 import S3Client
+                s3client = S3Client()
             while True:
                 url, idx = queue.get()
                 if url is None:
@@ -142,12 +145,12 @@ def worker(result_file_name, queue, mode):
                     tmp = NamedTemporaryFile(dir='.', delete=False)
                     try:
                         if url.range is None:
-                            s3.download_file(url.bucket, url.path, tmp.name)
+                            s3client.client.download_file(url.bucket, url.path, tmp.name)
                         else:
                             # We do get_object. We don't actually do any retries
                             # here because the higher levels will do the retry if
                             # needed
-                            resp = s3.get_object(
+                            resp = s3client.client.get_object(
                                 Bucket=url.bucket,
                                 Key=url.path,
                                 Range=url.range)
@@ -159,7 +162,7 @@ def worker(result_file_name, queue, mode):
                                 raise RuntimeError("Could not load file")
                         tmp.close()
                         os.rename(tmp.name, url.local)
-                    except client_error as err:
+                    except s3client.error as err:
                         error_code = normalize_client_error(err)
                         if error_code == 404:
                             pass # We skip this
@@ -204,14 +207,14 @@ def worker(result_file_name, queue, mode):
                                 extra['ContentType'] = url.content_type
                             if url.metadata is not None:
                                 extra['Metadata'] = url.metadata
-                        s3.upload_file(url.local, url.bucket, url.path, ExtraArgs=extra)
+                        s3client.client.upload_file(url.local, url.bucket, url.path, ExtraArgs=extra)
                         # We indicate that the file was uploaded
                         result_file.write("%d %d\n" % (idx, 0))
         except:
             traceback.print_exc()
             sys.exit(ERROR_WORKER_EXCEPTION)
 
-def start_workers(mode, urls, num_workers):
+def start_workers(mode, urls, num_workers, s3client):
     # We start the minimum of len(urls) or num_workers to avoid starting
     # workers that will definitely do nothing
     num_workers = min(num_workers, len(urls))
@@ -233,7 +236,7 @@ def start_workers(mode, urls, num_workers):
     with TempDir() as output_dir:
         for i in range(num_workers):
             file_path = os.path.join(output_dir, str(i))
-            p = Process(target=worker, args=(file_path, queue, mode))
+            p = Process(target=worker, args=(file_path, queue, mode, s3client))
             p.start()
             procs[p] = file_path
 
@@ -259,14 +262,14 @@ def start_workers(mode, urls, num_workers):
             procs = new_procs
     return sz_results
 
-def process_urls(mode, urls, verbose, num_workers):
+def process_urls(mode, urls, verbose, num_workers, s3client):
 
     if verbose:
         print('%sing %d files..' % (mode.capitalize(), len(urls)),
               file=sys.stderr)
 
     start = time.time()
-    sz_results = start_workers(mode, urls, num_workers)
+    sz_results = start_workers(mode, urls, num_workers, s3client)
     end = time.time()
 
     if verbose:
@@ -298,20 +301,20 @@ def with_unit(x):
 # method. Otherwise they would be just stand-alone functions.
 class S3Ops(object):
 
-    def __init__(self):
-        self.s3 = None
-        self.client_error = None
+    def __init__(self, s3client):
+        if s3client is None:
+            from metaflow.datatools.s3 import S3Client
+            self.s3client = S3Client()
+        else:
+            self.s3client = s3client
 
     def reset_client(self, hard_reset=False):
-        from metaflow.datastore.util.s3util import get_s3_client
-        if hard_reset or self.s3 is None:
-            self.s3, self.client_error = get_s3_client()
+        self.s3client.reset_client()
 
     @aws_retry
     def get_info(self, url):
-        self.reset_client()
         try:
-            head = self.s3.head_object(Bucket=url.bucket, Key=url.path)
+            head = self.s3client.client.head_object(Bucket=url.bucket, Key=url.path)
             return True, url, [(S3Url(
                 bucket=url.bucket,
                 path=url.path,
@@ -321,7 +324,7 @@ class S3Ops(object):
                 content_type=head['ContentType'],
                 metadata=head['Metadata'],
                 range=url.range), head['ContentLength'])]
-        except self.client_error as err:
+        except self.s3client.error as err:
             error_code = normalize_client_error(err)
             if error_code == 404:
                 return False, url, ERROR_URL_NOT_FOUND
@@ -332,10 +335,9 @@ class S3Ops(object):
 
     @aws_retry
     def list_prefix(self, prefix_url, delimiter=''):
-        self.reset_client()
         url_base = 's3://%s/' % prefix_url.bucket
         try:
-            paginator = self.s3.get_paginator('list_objects_v2')
+            paginator = self.s3client.client.get_paginator('list_objects_v2')
             urls = []
             for page in paginator.paginate(Bucket=prefix_url.bucket,
                                            Prefix=prefix_url.path,
@@ -362,9 +364,9 @@ class S3Ops(object):
                                        prefix=prefix_url.url)
                         urls.append((urlobj, None))
             return True, prefix_url, urls
-        except self.s3.exceptions.NoSuchBucket:
+        except self.s3client.client.exceptions.NoSuchBucket:
             return False, prefix_url, ERROR_URL_NOT_FOUND
-        except self.client_error as err:
+        except self.s3client.error as err:
             if err.response['Error']['Code'] == 'AccessDenied':
                 return False, prefix_url, ERROR_URL_ACCESS_DENIED
             else:
@@ -373,17 +375,17 @@ class S3Ops(object):
 # We want to reuse an s3 client instance over multiple operations.
 # This is accomplished by op_ functions below.
 
-def op_get_info(urls):
-    s3 = S3Ops()
-    return [s3.get_info(url) for url in urls]
+def op_list_prefix(s3client):
+    def internal_op(prefix_urls):
+        s3 = S3Ops(s3client)
+        return [s3.list_prefix(prefix) for prefix in prefix_urls]
+    return internal_op
 
-def op_list_prefix(prefix_urls):
-    s3 = S3Ops()
-    return [s3.list_prefix(prefix) for prefix in prefix_urls]
-
-def op_list_prefix_nonrecursive(prefix_urls):
-    s3 = S3Ops()
-    return [s3.list_prefix(prefix, delimiter='/') for prefix in prefix_urls]
+def op_list_prefix_nonrecursive(s3client):
+    def internal_op(prefix_urls):
+        s3 = S3Ops(s3client)
+        return [s3.list_prefix(prefix, delimiter='/') for prefix in prefix_urls]
+    return internal_op
 
 def exit(exit_code, url):
     if exit_code == ERROR_INVALID_URL:
@@ -440,8 +442,7 @@ def generate_local_path(url, suffix=None):
 def parallel_op(op, lst, num_workers):
     # parallel op divides work equally amongst num_workers
     # processes. This is a good strategy if the cost is
-    # uniform over the units of work, e.g. op_get_info, which
-    # is a single HEAD request to S3.
+    # uniform over the units of work
     #
     # This approach is less optimal with op_list_prefix where
     # the cost of S3 listing per prefix can vary drastically.
@@ -483,11 +484,20 @@ def cli():
               default=False,
               show_default=True,
               help='Download prefixes recursively.')
+@click.option('--s3client',
+              default=None,
+              show_default=True,
+              required=False,
+              help='Pickled representation of the S3Client to use')
 @click.argument('prefixes', nargs=-1)
 def lst(prefixes,
         inputs=None,
         num_workers=None,
-        recursive=None):
+        recursive=None,
+        s3client=None):
+
+    if s3client is not None:
+        s3client = pickle.loads(codecs.decode(s3client.encode(), "base64"))
 
     urllist = []
     for prefix, _ in _populate_prefixes(prefixes, inputs):
@@ -501,7 +511,7 @@ def lst(prefixes,
             exit(ERROR_INVALID_URL, url)
         urllist.append(url)
 
-    op = op_list_prefix if recursive else op_list_prefix_nonrecursive
+    op = op_list_prefix(s3client) if recursive else op_list_prefix_nonrecursive(s3client)
     urls = []
     for success, prefix_url, ret in parallel_op(op, urllist, num_workers):
         if success:
@@ -541,12 +551,21 @@ def lst(prefixes,
               default=False,
               show_default=True,
               help='Print S3 URLs upload to on stdout.')
+@click.option('--s3client',
+              default=None,
+              show_default=True,
+              required=False,
+              help='Pickled representation of the S3Client to use')
 def put(files=None,
         filelist=None,
         num_workers=None,
         verbose=None,
         overwrite=True,
-        listing=None):
+        listing=None,
+        s3client=None):
+
+    if s3client is not None:
+        s3client = pickle.loads(codecs.decode(s3client.encode(), "base64"))
 
     def _files():
         for local, url in files:
@@ -581,7 +600,7 @@ def put(files=None,
     ul_op = 'upload'
     if not overwrite:
         ul_op = 'info_upload'
-    sz_results = process_urls(ul_op, urls, verbose, num_workers)
+    sz_results = process_urls(ul_op, urls, verbose, num_workers, s3client)
     urls = [url for url, sz in zip(urls, sz_results) if sz is not None]
     if listing:
         for url in urls:
@@ -638,6 +657,11 @@ def _populate_prefixes(prefixes, inputs):
               default=False,
               show_default=True,
               help='Print S3 URL -> local file mapping on stdout.')
+@click.option('--s3client',
+              default=None,
+              show_default=True,
+              required=False,
+              help='Pickled representation of the S3Client to use')
 @click.argument('prefixes', nargs=-1)
 def get(prefixes,
         recursive=None,
@@ -647,7 +671,11 @@ def get(prefixes,
         info=None,
         allow_missing=None,
         verbose=None,
-        listing=None):
+        listing=None,
+        s3client=None):
+
+    if s3client is not None:
+        s3client = pickle.loads(codecs.decode(s3client.encode(), "base64"))
 
     # Construct a list of URL (prefix) objects
     urllist = []
@@ -668,7 +696,7 @@ def get(prefixes,
     op = None
     dl_op = 'download'
     if recursive:
-        op = op_list_prefix
+        op = op_list_prefix(s3client)
     if verify or verbose or info:
         dl_op = 'info_download'
     if op:
@@ -690,7 +718,7 @@ def get(prefixes,
 
     # exclude the non-existent files from loading
     to_load = [url for url, size in urls if size is not None]
-    sz_results = process_urls(dl_op, to_load, verbose, num_workers)
+    sz_results = process_urls(dl_op, to_load, verbose, num_workers, s3client)
     # We check if there is any access denied
     is_denied = [sz == -ERROR_URL_ACCESS_DENIED for sz in sz_results]
     if any(is_denied):
@@ -741,12 +769,18 @@ def get(prefixes,
               default=False,
               show_default=True,
               help='Print S3 URL -> local file mapping on stdout.')
+@click.option('--s3client',
+              default=None,
+              show_default=True,
+              required=False,
+              help='Pickled representation of the S3Client to use')
 @click.argument('prefixes', nargs=-1)
 def info(prefixes,
          num_workers=None,
          inputs=None,
          verbose=None,
-         listing=None):
+         listing=None,
+         s3client=None):
 
     # Construct a list of URL (prefix) objects
     urllist = []
@@ -762,7 +796,9 @@ def info(prefixes,
             exit(ERROR_INVALID_URL, url)
         urllist.append(url)
 
-    process_urls('info', urllist, verbose, num_workers)
+    if s3client is not None:
+        s3client = pickle.loads(codecs.decode(s3client.encode(), "base64"))
+    process_urls('info', urllist, verbose, num_workers, s3client)
 
     if listing:
         for url in urllist:
