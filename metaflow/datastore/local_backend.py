@@ -2,7 +2,7 @@ import json
 import os
 
 from ..metaflow_config import DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_LOCAL
-from .datastore_backend import CloseAfterUse, DataStoreBackend, LazyFile
+from .datastore_backend import CloseAfterUse, DataStoreBackend
 from .exceptions import DataException
 
 class LocalBackend(DataStoreBackend):
@@ -215,15 +215,10 @@ class LocalBackend(DataStoreBackend):
             file_result = None
             metadata = None
             if os.path.exists(full_path):
-                try:
-                    file_result = LazyFile(full_path)
-                except OSError:
-                    pass
-            if file_result:
                 if os.path.exists("%s_meta" % full_path):
                     with open("%s_meta" % full_path, mode='r') as f:
                         metadata = json.load(f)
-                results[path] = (file_result, metadata)
+                results[path] = (full_path, metadata)
             else:
                 results[path] = None
         return CloseAfterUse(results)

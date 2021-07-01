@@ -130,9 +130,9 @@ class FlowDataStore(object):
         done_attempts = set()
         data_objs = {}
         with self._backend.load_bytes(urls) as get_results:
-            for name, result in get_results.items():
+            for key, result in get_results.items():
                 if result is not None:
-                    _, run, step, task, fname = self._backend.path_split(name)
+                    _, run, step, task, fname = self._backend.path_split(key)
                     attempt, fname = TaskDataStore.parse_attempt_metadata(fname)
                     attempt = int(attempt)
                     if fname == TaskDataStore.METADATA_DONE_SUFFIX:
@@ -144,9 +144,9 @@ class FlowDataStore(object):
                     elif fname == TaskDataStore.METADATA_DATA_SUFFIX:
                         # This somewhat breaks the abstraction since we are using
                         # load_bytes directly instead of load_metadata
-                        with result[0] as r:
-                            data_objs[(run, step, task, attempt)] = json.loads(
-                                r.read())
+                        path, _ = result
+                        with open(path, 'rb') as f:
+                            data_objs[(run, step, task, attempt)] = json.load(f)
         # We now figure out the latest attempt that started *and* finished.
         # Note that if an attempt started but didn't finish, we do *NOT* return
         # the previous attempt

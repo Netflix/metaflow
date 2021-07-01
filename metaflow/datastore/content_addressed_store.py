@@ -139,15 +139,14 @@ class ContentAddressedStore(object):
 
         new_results = {}
         with self._backend.load_bytes(to_load_paths) as load_results:
-            for k, path in zip(keys, to_load_paths):
+            for key, path in zip(keys, to_load_paths):
                 # At this point, we either return the object as is (if raw) or
                 # decode it according to the encoding version
-                result, meta = load_results[path]
-                if force_raw or (meta and meta.get('cas_raw', False)):
-                    with result as r:
-                        new_results[k] = r.read()
-                else:
-                    with result as r:
+                file_path, meta = load_results[path]
+                with open(file_path, 'rb') as f:
+                    if force_raw or (meta and meta.get('cas_raw', False)):
+                        new_results[key] = f.read()
+                    else:
                         if meta is None:
                             # Previous version of the datastore had no meta
                             # information
@@ -166,7 +165,7 @@ class ContentAddressedStore(object):
                                     "the artifact is either corrupt or you need "
                                     "to update Metaflow" % (version, path))
                         try:
-                            new_results[k] = unpack_code(r)
+                            new_results[key] = unpack_code(f)
                         except Exception as e:
                             raise DataException(
                                 "Could not unpack data: %s" % e)
