@@ -3,6 +3,7 @@ import json
 from io import BytesIO
 
 from .exceptions import DataException
+from .content_addressed_store import BlobCache
 
 """
 TaskDataStoreSet allows you to prefetch multiple (read) datastores into a
@@ -18,31 +19,22 @@ class TaskDataStoreSet(object):
                  pathspecs=None,
                  prefetch_data_artifacts=None,
                  allow_not_done=False):
-        if flow_datastore.blob_cache is not None:
-            raise DataException("FlowDataStore already has a blob cache")
-        if flow_datastore.artifact_cache is not None:
-            raise DataException("FlowDataStore already has an artifact cache")
-        flow_datastore.blob_cache = OnOffCache()
-        flow_datastore.artifact_cache = OnOffCache()
 
         task_datastores = flow_datastore.get_latest_task_datastores(
             run_id, steps=steps, pathspecs=pathspecs, allow_not_done=allow_not_done)
 
         if prefetch_data_artifacts:
-            all_keys = []
+            # produce a set of SHA keys to prefetch based on artifact names
+            prefetch = set()
             for ds in task_datastores:
-                all_keys.extend(ds.keys_for_artifacts(prefetch_data_artifacts))
-            keys_to_prefetch = set(all_keys)
-            # Remove any non-existent artifacts
-            try:
-                keys_to_prefetch.remove(None)
-            except KeyError:
-                pass
-            # Load all keys; this will update blob_cache and artifact_cache
-            flow_datastore.load_data(keys_to_prefetch)
-            # Stop caching for any future blob or artifact
-            flow_datastore.blob_cache.set_caching(False)
-            flow_datastore.artifact_cache.set_caching(False)
+                prefetch.update(ds.keys_for_artifacts(prefetch_data_artifacts))
+            # ignore missing keys
+            prefetch.discard(None)
+            
+            # prefetch artifacts and share them with all datastores
+            # in this DatastoreSet
+            cache = ImmutableBlobCache(flow_datastore.ca_store.load_blobs(prefetch))
+            flow_datastore.ca_store.set_blob_cache(cache)
 
         self.pathspec_index_cache = {}
         self.pathspec_cache = {}
@@ -60,24 +52,18 @@ class TaskDataStoreSet(object):
         for v in self.pathspec_cache.values():
             yield v
 
-class DictCache(object):
-    def __init__(self):
-        self._cache = {}
+"""
+This class ensures that blobs that correspond to artifacts that
+are common to all datastores in this set are only loaded once 
+"""
+class ImmutableBlobCache(BlobCache):
 
-    def register(self, key, value):
-        self._cache[key] = value
+    def __init__(self, preloaded):
+        self._preloaded = preloaded
 
     def load(self, key):
-        return self._cache.get(key, None)
+        return self._preloaded.get(key)
 
-class OnOffCache(DictCache):
-    def __init__(self):
-        self._is_caching = True
-        super(OnOffCache, self).__init__()
-
-    def register(self, key, value):
-        if self._is_caching:
-            super(OnOffCache, self).register(key, value)
-
-    def set_caching(self, is_on=True):
-        self._is_caching = is_on
+    def store(self, results):
+        # we cache only preloaded keys, so no need to store anything
+        pass
