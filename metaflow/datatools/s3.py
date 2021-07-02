@@ -1,7 +1,5 @@
-import codecs
 import json
 import os
-import pickle
 import sys
 import time
 import shutil
@@ -27,9 +25,11 @@ from ..debug import debug
 try:
     # python2
     from urlparse import urlparse
+    from pipes import quote as _quote
 except:
     # python3
     from urllib.parse import urlparse
+    from shlex import quote as _quote
 
 from metaflow.datastore.util.s3util import get_s3_client
 
@@ -257,14 +257,6 @@ class S3Client(object):
     def reset_client(self):
         self._s3_client, self._s3_error = get_s3_client(role=self._s3_role)
 
-    def __getstate__(self):
-        return {'client': None, 'error': None, 'role': self._s3_role}
-
-    def __setstate__(self, state):
-        self._s3_client = state['client']
-        self._s3_error = state['error']
-        self._s3_role = state['role']
-
 
 class S3(object):
 
@@ -338,7 +330,8 @@ class S3(object):
             # 3. use the client only with full URLs
             self._s3root = None
 
-        self._s3_client = kwargs.get('external_client', S3Client())
+        self._s3_role = kwargs.get('role', None)
+        self._s3_client = kwargs.get('external_client', S3Client(self._s3_role))
         self._tmpdir = mkdtemp(dir=tmproot, prefix='metaflow.s3.')
 
     def __enter__(self):
@@ -991,9 +984,8 @@ class S3(object):
                     cmdline.append('--no-%s' % key)
             else:
                 cmdline.extend(('--%s' % key, value))
-        cmdline.extend((
-            '--s3client',
-            codecs.encode(pickle.dumps(self._s3_client), "base64").decode()))
+        if self._s3_role is not None:
+            cmdline.extend(('--s3role', _quote(self._s3_role)))
 
         for i in range(NUM_S3OP_RETRIES + 1):
             with NamedTemporaryFile(dir=self._tmpdir,
