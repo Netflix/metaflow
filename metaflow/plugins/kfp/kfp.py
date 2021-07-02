@@ -664,14 +664,6 @@ class KubeflowPipelines(object):
         self, container_op: ContainerOp, node: DAGNode, metaflow_run_id: str
     ):
         prefix = "metaflow.org"
-        # tags.ledger.zgtools.net/* pod labels required for the ZGCP Costs Ledger
-        container_op.add_pod_label("tags.ledger.zgtools.net/ai-flow-name", self.name)
-        container_op.add_pod_label("tags.ledger.zgtools.net/ai-step-name", node.name)
-        if self.experiment:
-            container_op.add_pod_label(
-                "tags.ledger.zgtools.net/ai-experiment-name", self.experiment
-            )
-
         container_op.add_pod_annotation(f"{prefix}/flow_name", self.name)
         container_op.add_pod_annotation(f"{prefix}/step", node.name)
         container_op.add_pod_annotation(f"{prefix}/run_id", metaflow_run_id)
@@ -680,6 +672,16 @@ class KubeflowPipelines(object):
         if self.tags and len(self.tags) > 0:
             for tag in self.tags:
                 container_op.add_pod_annotation(f"{prefix}/tag_{tag}", "true")
+
+        # TODO(talebz): A Metaflow plugin framework to customize tags, labels, etc.
+        container_op.add_pod_label("aip.zillowgroup.net/kfp-pod-default", "true")
+        # tags.ledger.zgtools.net/* pod labels required for the ZGCP Costs Ledger
+        container_op.add_pod_label("tags.ledger.zgtools.net/ai-flow-name", self.name)
+        container_op.add_pod_label("tags.ledger.zgtools.net/ai-step-name", node.name)
+        if self.experiment:
+            container_op.add_pod_label(
+                "tags.ledger.zgtools.net/ai-experiment-name", self.experiment
+            )
 
     def step_op(
         self,
