@@ -11,13 +11,12 @@ S3_NUM_RETRIES = 7
 
 TEST_S3_RETRY = 'TEST_S3_RETRY' in os.environ
 
-def get_s3_client(role=None):
+def get_s3_client():
     from metaflow.plugins.aws.aws_client import get_aws_client
     return get_aws_client(
         's3',
         with_error=True,
-        params={'endpoint_url': S3_ENDPOINT_URL, 'verify': S3_VERIFY_CERTIFICATE},
-        role=role)
+        params={'endpoint_url': S3_ENDPOINT_URL, 'verify': S3_VERIFY_CERTIFICATE })
 
 # decorator to retry functions that access S3
 def aws_retry(f):
