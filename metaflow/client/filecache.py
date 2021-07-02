@@ -31,13 +31,18 @@ class FileCache(object):
         self._monitor = monitor
 
         self._objects = None
+        # We will have a separate blob_cache per flow and datastore type
+        # This is to respect the fact that the keys across datastore types
+        # and/or flows may not be unique (across flows is less likely but we are
+        # keeping in line with the fact that datsatores are flow based)
+        self._blob_caches = {}
+
         # We also keep a cache for FlowDataStore objects that we created because
         # some of them may have persistent connections in their backends;
         # this is purely a performance optimization. We do *not* keep track of
         # task datastores to refresh them as needed. Caching FlowDataStore has
         # no adverse affect in terms of having to refresh the cache.
         self._store_caches = {}
-        self.blob_cache = FileBlobCache(self, self._cache_dir)
 
     @property
     def cache_dir(self):
@@ -106,6 +111,18 @@ class FileCache(object):
             ds_type, ds_root, data_metadata, flow_name, run_id, step_name,
             task_id, [name])[name]
 
+    def get_all_artifacts(
+            self, ds_type, ds_root, data_metadata, flow_name, run_id, step_name,
+            task_id):
+        ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
+
+        # We get the task datastore for this task
+        task_ds = ds.get_task_datastore(
+            run_id, step_name, task_id, data_metadata=data_metadata)
+        # This will reuse the blob cache if needed. We do not have an
+        # artifact cache so the unpickling happens every time here.
+        return task_ds.load_artifacts([n for n, _ in task_ds.items()])
+
     def get_artifacts(
             self, ds_type, ds_root, data_metadata, flow_name, run_id, step_name,
             task_id, names):
@@ -115,7 +132,7 @@ class FileCache(object):
         task_ds = ds.get_task_datastore(
             run_id, step_name, task_id, data_metadata=data_metadata)
         # note that load_artifacts uses flow_datastore.castore which goes
-        # through self.blob_cache
+        # through one of the self._blob_cache
         return task_ds.load_artifacts(names)
 
     def create_file(self, path, value):
@@ -229,24 +246,27 @@ class FileCache(object):
                 self._monitor,
                 backend_class=storage_impl,
                 ds_root=ds_root)
-            cached_flow_datastore.ca_store.set_blob_cache(self.blob_cache)
+            blob_cache = self._blob_caches.setdefault(
+                cache_id, FileBlobCache(self, cache_id))
+            cached_flow_datastore.ca_store.set_blob_cache(blob_cache)
             self._store_caches[cache_id] = cached_flow_datastore
             return cached_flow_datastore
 
 class FileBlobCache(BlobCache):
 
-    def __init__(self, filecache, root):
+    def __init__(self, filecache, cache_id):
         self._filecache = filecache
-        self._root = root
+        self._cache_id = cache_id
 
     def _path(self, key):
         key_dir = key[:2]
-        return os.path.join(self._root, key_dir, '%s.blob' % key)
+        return os.path.join(
+            self._filecache.cache_dir, self._cache_id, key_dir, '%s.blob' % key)
 
-    def load(self, key):
+    def load_key(self, key):
         return self._filecache.read_file(self._path(key))
 
-    def store(self, results):
+    def store_keys(self, results):
         for key, blob in results.items():
             self._filecache.create_file(self._path(key), blob)
 

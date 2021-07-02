@@ -61,9 +61,9 @@ class ImmutableBlobCache(BlobCache):
     def __init__(self, preloaded):
         self._preloaded = preloaded
 
-    def load(self, key):
+    def load_key(self, key):
         return self._preloaded.get(key)
 
-    def store(self, results):
+    def store_keys(self, results):
         # we cache only preloaded keys, so no need to store anything
         pass

@@ -130,8 +130,8 @@ class ContentAddressedStore(object):
         for key in keys:
             blob = None
             if self._blob_cache:
-                blob = self._blob_cache.load(key)
-            if blob:
+                blob = self._blob_cache.load_key(key)
+            if blob is not None:
                 results[key] = blob
             else:
                 path = self._backend.path_join(self._prefix, key[:2], key)
@@ -171,7 +171,7 @@ class ContentAddressedStore(object):
                                 "Could not unpack data: %s" % e)
         
         if self._blob_cache:
-            self._blob_cache.store(new_results)
+            self._blob_cache.store_keys(new_results)
 
         results.update(new_results)
         return results
@@ -193,8 +193,8 @@ class ContentAddressedStore(object):
             return f.read()
 
 class BlobCache(object):
-    def load(self, key):
+    def load_key(self, key):
         pass
 
-    def store(self, results):
+    def store_keys(self, results):
         pass

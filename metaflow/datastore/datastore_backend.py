@@ -226,9 +226,10 @@ class DataStoreBackend(object):
         -------
         CloseAfterUse :
             A CloseAfterUse which should be used in a with statement. The data
-            in the CloseAfterUse will be a dictionary string -> (BufferedIOBase, dict).
+            in the CloseAfterUse will be a dictionary string -> (path, dict).
             The key is the path fetched and the value is a tuple containing:
-              - a BufferedIOBase indicating the result of loading the path.
+              - a path indicating the file that needs to be read to get the object.
+                This path may not be valid outside of the CloseAfterUse scope
               - a dictionary containing any additional metadata that was stored
               or None if no metadata was provided.
             If the path could not be loaded, returns None for that path
