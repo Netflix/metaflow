@@ -403,7 +403,7 @@ class TaskDataStore(object):
             path = self._backend.path_join(self._path, name)
         return self._backend.is_file(path)
 
-    @require_mode('r')
+    @require_mode(None)
     def get(self, name, default=None):
         """
         Convenience method around load_artifacts for a given name and with a
@@ -635,13 +635,13 @@ class TaskDataStore(object):
                     .format(key=k, value=v, **self._info[k])
         return '\n'.join(line for k, line in sorted(lines()))
 
-    @require_mode('r')
+    @require_mode(None)
     def __contains__(self, name):
         if self._objects:
             return name in self._objects
         return False
 
-    @require_mode('r')
+    @require_mode(None)
     def __getitem__(self, name):
         return self.load_artifacts([name])[name]
 
