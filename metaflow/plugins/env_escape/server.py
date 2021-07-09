@@ -80,6 +80,11 @@ class Server(object):
             {v: k for k, v in self._proxied_types.items()}
         )
 
+        # We will also proxy functions from objects as needed. This is useful
+        # for defaultdict for example since the `default_factory` function is a
+        # lambda that needs to be transferred.
+        self._class_types_to_names[type(lambda x: x)] = 'function'
+
         # Update all alias information
         for base_name, aliases in itertools.chain(
                 a1.items(), a2.items(), a3.items(), a4.items()):
