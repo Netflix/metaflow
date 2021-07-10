@@ -90,9 +90,6 @@ class TaskDataStore(object):
         self._mode = mode
         self._attempt = attempt
         self._metadata = flow_datastore.metadata
-        self._logger = flow_datastore.logger
-        self._monitor = flow_datastore.monitor
-        self._artifact_cache = flow_datastore.artifact_cache
         self._parent = flow_datastore
 
         # The GZIP encodings are for backward compatibility
@@ -164,10 +161,6 @@ class TaskDataStore(object):
     def pathspec_index(self):
         idxstr = ','.join(map(str, (f.index for f in self['_foreach_stack'])))
         return '%s/%s[%s]' % (self._run_id, self._step_name, idxstr)
-
-    @property
-    def artifact_cache(self):
-        return self._artifact_cache
 
     @property
     def parent_datastore(self):
@@ -305,16 +298,9 @@ class TaskDataStore(object):
                 raise DataException(
                     "Python 3.4 or later is required to load %s" % name)
             else:
-                # Check if the object is in the cache
-                cached_artifact = None
-                if self._artifact_cache is not None:
-                    cached_artifact = self._artifact_cache.load(
-                        self._objects[name])
-                if cached_artifact is not None:
-                    results[name] = cached_artifact
-                else:
-                    sha_to_names[self._objects[name]] = name
-                    to_load.append(self._objects[name])
+                sha = self._objects[name]
+                sha_to_names[sha] = name
+                to_load.append(sha)
         # At this point, we load what we don't have from the CAS
         # We assume that if we have one "old" style artifact, all of them are
         # like that which is an easy assumption to make since artifacts are all
@@ -322,8 +308,6 @@ class TaskDataStore(object):
         loaded_data = self._ca_store.load_blobs(to_load)
         for sha, blob in loaded_data.items():
             obj = pickle.loads(blob)
-            if self._artifact_cache:
-                self._artifact_cache.register(sha, obj)
             results[sha_to_names[sha]] = obj
         return results
 
@@ -727,15 +711,16 @@ class TaskDataStore(object):
             to_load.append(path)
         results = {}
         with self._backend.load_bytes(to_load) as load_results:
-            for path, result in load_results.items():
+            for key, result in load_results.items():
                 if add_attempt:
                     _, name = self.parse_attempt_metadata(
-                        self._backend.basename(path))
+                        self._backend.basename(key))
                 else:
-                    name = self._backend.basename(path)
+                    name = self._backend.basename(key)
                 if result is None:
                     results[name] = None
                 else:
-                    with result[0] as r:
-                        results[name] = r.read()
+                    path, _ = result
+                    with open(path, 'rb') as f:
+                        results[name] = f.read()
         return results

@@ -4,35 +4,6 @@ import re
 from .exceptions import DataException
 
 
-# Helper class to lazily open files returned by load_bytes to prevent
-# possibly running out of open file descriptors
-class LazyFile(object):
-    def __init__(self, file):
-        self._file = file
-        self._open_file = None
-
-    def __enter__(self):
-        if self._open_file is None:
-            self._open_file = open(self._file, mode='rb')
-        return self
-
-    def __exit__(self, *args):
-        self.close()
-
-    def __del__(self):
-        self.close()
-
-    def close(self):
-        if self._open_file:
-            self._open_file.close()
-            self._open_file = None
-
-    def __getattr__(self, name):
-        if self._open_file is None:
-            self._open_file = open(self._file, mode='rb')
-        return getattr(self._open_file, name)
-
-
 class CloseAfterUse(object):
     """
     Class that can be used to wrap data and a closer (cleanup code).
@@ -255,9 +226,10 @@ class DataStoreBackend(object):
         -------
         CloseAfterUse :
             A CloseAfterUse which should be used in a with statement. The data
-            in the CloseAfterUse will be a dictionary string -> (BufferedIOBase, dict).
+            in the CloseAfterUse will be a dictionary string -> (path, dict).
             The key is the path fetched and the value is a tuple containing:
-              - a BufferedIOBase indicating the result of loading the path.
+              - a path indicating the file that needs to be read to get the object.
+                This path may not be valid outside of the CloseAfterUse scope
               - a dictionary containing any additional metadata that was stored
               or None if no metadata was provided.
             If the path could not be loaded, returns None for that path

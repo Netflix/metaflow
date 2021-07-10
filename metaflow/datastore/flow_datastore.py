@@ -16,8 +16,6 @@ class FlowDataStore(object):
                  metadata=None,
                  event_logger=None,
                  monitor=None,
-                 artifact_cache=None,
-                 blob_cache=None,
                  backend_class=None,
                  ds_root=None):
         """
@@ -39,13 +37,6 @@ class FlowDataStore(object):
             EventLogger to use to report events, by default None
         monitor : Monitor, optional
             Monitor to use to measure/monitor events, by default None
-        artifact_cache : Cache, optional
-            A cache of artifacts fetched from the datastore. Implements
-            lookup(key) and register(key, value). The value will be
-            the unpickled object. By default None
-        blob_cache : Cache, optional
-            Similar to artifact_cache but used at the blob level. The value will
-            be bytes.
         backend_class : type
             Class for the backing DataStoreBackend to use; if not provided use
             default_backend_class, optional
@@ -66,12 +57,10 @@ class FlowDataStore(object):
         self.metadata = metadata
         self.logger = event_logger
         self.monitor = monitor
-        self.artifact_cache = artifact_cache
-        self.blob_cache = blob_cache
 
         self.ca_store = ContentAddressedStore(
-            self,
-            self._backend.path_join(self.flow_name, 'data'))
+            self._backend.path_join(self.flow_name, 'data'),
+            self._backend)
 
     @property
     def datastore_root(self):
@@ -141,9 +130,9 @@ class FlowDataStore(object):
         done_attempts = set()
         data_objs = {}
         with self._backend.load_bytes(urls) as get_results:
-            for name, result in get_results.items():
+            for key, result in get_results.items():
                 if result is not None:
-                    _, run, step, task, fname = self._backend.path_split(name)
+                    _, run, step, task, fname = self._backend.path_split(key)
                     attempt, fname = TaskDataStore.parse_attempt_metadata(fname)
                     attempt = int(attempt)
                     if fname == TaskDataStore.METADATA_DONE_SUFFIX:
@@ -155,9 +144,9 @@ class FlowDataStore(object):
                     elif fname == TaskDataStore.METADATA_DATA_SUFFIX:
                         # This somewhat breaks the abstraction since we are using
                         # load_bytes directly instead of load_metadata
-                        with result[0] as r:
-                            data_objs[(run, step, task, attempt)] = json.loads(
-                                r.read())
+                        path, _ = result
+                        with open(path, 'rb') as f:
+                            data_objs[(run, step, task, attempt)] = json.load(f)
         # We now figure out the latest attempt that started *and* finished.
         # Note that if an attempt started but didn't finish, we do *NOT* return
         # the previous attempt
