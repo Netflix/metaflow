@@ -141,7 +141,7 @@ class LocalBackend(DataStoreBackend):
         Creates objects and stores them in the datastore.
 
         If overwrite is False, any existing object will not be overwritten and
-        an error will be returned.
+        will be silently ignored
 
         The objects are specified in the objects dictionary where the key is the
         path to store the object and the value is a file-like object from which
@@ -169,7 +169,7 @@ class LocalBackend(DataStoreBackend):
                 byte_obj, metadata = obj, None
             full_path = self.full_uri(path)
             if not overwrite and os.path.exists(full_path):
-                raise DataException("Cannot overwrite file %s" % full_path)
+                continue
             LocalBackend._makedirs(os.path.dirname(full_path))
             with open(full_path, mode='wb') as f:
                 f.write(byte_obj.read())

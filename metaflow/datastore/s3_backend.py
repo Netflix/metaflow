@@ -106,7 +106,7 @@ class S3Backend(DataStoreBackend):
         Creates objects and stores them in the datastore.
 
         If overwrite is False, any existing object will not be overwritten and
-        an error will be returned.
+        will be silently ignored
 
         The objects are specified in the objects dictionary where the key is the
         path to store the object and the value is a file-like object from which
