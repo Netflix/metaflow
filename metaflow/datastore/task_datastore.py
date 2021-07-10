@@ -90,9 +90,6 @@ class TaskDataStore(object):
         self._mode = mode
         self._attempt = attempt
         self._metadata = flow_datastore.metadata
-        self._logger = flow_datastore.logger
-        self._monitor = flow_datastore.monitor
-        self._artifact_cache = flow_datastore.artifact_cache
         self._parent = flow_datastore
 
         # The GZIP encodings are for backward compatibility
@@ -166,13 +163,10 @@ class TaskDataStore(object):
         return '%s/%s[%s]' % (self._run_id, self._step_name, idxstr)
 
     @property
-    def artifact_cache(self):
-        return self._artifact_cache
-
-    @property
     def parent_datastore(self):
         return self._parent
 
+    @require_mode(None)
     def get_log_location(self, logprefix, stream):
         log_name = self._get_log_location(logprefix, stream)
         path = self._backend.path_join(
@@ -224,8 +218,6 @@ class TaskDataStore(object):
         originals = []
         for name, obj in artifacts.items():
             original_type = str(type(obj))
-            if self._artifact_cache is not None:
-                original_object = obj
             do_v4 = force_v4 and \
                 force_v4 if isinstance(force_v4, bool) else \
                     force_v4.get('name', False)
@@ -256,15 +248,10 @@ class TaskDataStore(object):
             }
             artifact_names.append(name)
             to_save.append(obj)
-            if self._artifact_cache is not None:
-                originals.append(original_object)
         # Use the content-addressed store to store all artifacts
         save_result = self._ca_store.save_blobs(to_save)
         for name, result in zip(artifact_names, save_result):
             self._objects[name] = result.key
-        if self._artifact_cache is not None:
-            for original, result in zip(originals, save_result):
-                self._artifact_cache.register(result.key, original, write=True)
 
     @require_mode(None)
     def load_artifacts(self, names):
@@ -311,16 +298,9 @@ class TaskDataStore(object):
                 raise DataException(
                     "Python 3.4 or later is required to load %s" % name)
             else:
-                # Check if the object is in the cache
-                cached_artifact = None
-                if self._artifact_cache is not None:
-                    cached_artifact = self._artifact_cache.load(
-                        self._objects[name])
-                if cached_artifact is not None:
-                    results[name] = cached_artifact
-                else:
-                    sha_to_names[self._objects[name]] = name
-                    to_load.append(self._objects[name])
+                sha = self._objects[name]
+                sha_to_names[sha] = name
+                to_load.append(sha)
         # At this point, we load what we don't have from the CAS
         # We assume that if we have one "old" style artifact, all of them are
         # like that which is an easy assumption to make since artifacts are all
@@ -328,8 +308,6 @@ class TaskDataStore(object):
         loaded_data = self._ca_store.load_blobs(to_load)
         for sha, blob in loaded_data.items():
             obj = pickle.loads(blob)
-            if self._artifact_cache:
-                self._artifact_cache.register(sha, obj)
             results[sha_to_names[sha]] = obj
         return results
 
@@ -380,6 +358,7 @@ class TaskDataStore(object):
         return {k: json.loads(v) for k, v \
             in self._load_file(names, add_attempt).items()}
 
+    @require_mode(None)
     def has_metadata(self, name, add_attempt=True):
         """
         Checks if this TaskDataStore has the metadata requested
@@ -408,7 +387,7 @@ class TaskDataStore(object):
             path = self._backend.path_join(self._path, name)
         return self._backend.is_file(path)
 
-    @require_mode('r')
+    @require_mode(None)
     def get(self, name, default=None):
         """
         Convenience method around load_artifacts for a given name and with a
@@ -565,6 +544,8 @@ class TaskDataStore(object):
                 force_v4_dict[var] = True
         self.save_artifacts(to_save, force_v4_dict)
 
+    @only_if_not_done
+    @require_mode('w')
     def save_logs(self, logsource, stream_data):
         """
         Save log files for multiple streams, represented as
@@ -590,6 +571,7 @@ class TaskDataStore(object):
                 to_store_dict[n] = data
         self._save_file(to_store_dict)
 
+    @require_mode('r')
     def load_log_legacy(self, stream, attempt_override=None):
         """
         Load old-style, pre-mflog, log file represented as a bytes object.
@@ -599,6 +581,7 @@ class TaskDataStore(object):
         r = self._load_file([name], add_attempt=False)[name]
         return r if r is not None else b''
 
+    @require_mode('r')
     def load_logs(self, logsources, stream, attempt_override=None):
         paths = dict(map(
             lambda s: (self._metadata_name_for_attempt(
@@ -607,12 +590,13 @@ class TaskDataStore(object):
         r = self._load_file(paths.keys(), add_attempt=False)
         return [(paths[k], v if v is not None else b'') for k, v in r.items()]
 
-
+    @require_mode(None)
     def items(self):
         if self._objects:
             return self._objects.items()
         return {}
 
+    @require_mode(None)
     def to_dict(self, show_private=False, max_value_size=None, include=None):
         d = {}
         for k, _ in self.items():
@@ -627,6 +611,7 @@ class TaskDataStore(object):
                 d[k] = self[k]
         return d
 
+    @require_mode('r')
     def format(self, **kwargs):
         def lines():
             for k, v in self.to_dict(**kwargs).items():
@@ -634,19 +619,23 @@ class TaskDataStore(object):
                     .format(key=k, value=v, **self._info[k])
         return '\n'.join(line for k, line in sorted(lines()))
 
+    @require_mode(None)
     def __contains__(self, name):
         if self._objects:
             return name in self._objects
         return False
 
+    @require_mode(None)
     def __getitem__(self, name):
         return self.load_artifacts([name])[name]
 
+    @require_mode('r')
     def __iter__(self):
         if self._objects:
             return iter(self._objects)
         return iter([])
 
+    @require_mode('r')
     def __str__(self):
         return self.format(show_private=True, max_value_size=1000)
 
@@ -720,17 +709,18 @@ class TaskDataStore(object):
             else:
                 path = self._backend.path_join(self._path, name)
             to_load.append(path)
-        load_results = self._backend.load_bytes(to_load)
         results = {}
-        for path, result in load_results.items():
-            if add_attempt:
-                _, name = self.parse_attempt_metadata(
-                    self._backend.basename(path))
-            else:
-                name = self._backend.basename(path)
-            if result is None:
-                results[name] = None
-            else:
-                with result[0] as r:
-                    results[name] = r.read()
+        with self._backend.load_bytes(to_load) as load_results:
+            for key, result in load_results.items():
+                if add_attempt:
+                    _, name = self.parse_attempt_metadata(
+                        self._backend.basename(key))
+                else:
+                    name = self._backend.basename(key)
+                if result is None:
+                    results[name] = None
+                else:
+                    path, _ = result
+                    with open(path, 'rb') as f:
+                        results[name] = f.read()
         return results

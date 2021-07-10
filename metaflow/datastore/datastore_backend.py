@@ -3,6 +3,25 @@ import re
 
 from .exceptions import DataException
 
+
+class CloseAfterUse(object):
+    """
+    Class that can be used to wrap data and a closer (cleanup code).
+    This class should be used in a with statement and, when the with
+    scope exists, `close` will be called on the closer object
+    """
+    def __init__(self, data, closer=None):
+        self.data = data
+        self._closer = closer
+
+    def __enter__(self):
+        return self.data
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self._closer:
+            self._closer.close()
+
+
 class DataStoreBackend(object):
     """
     A DataStoreBackend defines the interface by which the higher-level
@@ -205,10 +224,12 @@ class DataStoreBackend(object):
 
         Returns
         -------
-        Dict: string -> (BufferedIOBase, dict)
-            A dictionary is returned where the key is the path fetched and the
-            value is a tuple containing:
-              - a BufferedIOBase indicating the result of loading the path.
+        CloseAfterUse :
+            A CloseAfterUse which should be used in a with statement. The data
+            in the CloseAfterUse will be a dictionary string -> (path, dict).
+            The key is the path fetched and the value is a tuple containing:
+              - a path indicating the file that needs to be read to get the object.
+                This path may not be valid outside of the CloseAfterUse scope
               - a dictionary containing any additional metadata that was stored
               or None if no metadata was provided.
             If the path could not be loaded, returns None for that path

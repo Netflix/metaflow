@@ -20,7 +20,7 @@ class ContentAddressedStore(object):
 
     save_blobs_result = namedtuple('save_blobs_result', 'uri key')
 
-    def __init__(self, flow_datastore, prefix):
+    def __init__(self, prefix, backend):
         """
         Initialize a ContentAddressedStore
 
@@ -29,18 +29,19 @@ class ContentAddressedStore(object):
 
         Parameters
         ----------
-        flow_datastore : FlowDataStore
-            Flow-level datastore (parent of this and any TaskDataStore)
         prefix : string
             "Directory" that will be prepended when storing a file
+        backend_class : type
+            Class for the backing DataStoreBackend to use; if not provided use
+            default_backend_class
         """
         self._prefix = prefix
-        self._backend = flow_datastore._backend
-        self._logger = flow_datastore.logger
-        self._monitor = flow_datastore.monitor
-        self._blob_cache = flow_datastore.blob_cache
-
+        self._backend = backend
         self.TYPE = self._backend.TYPE
+        self._blob_cache = None
+
+    def set_blob_cache(self, blob_cache):
+        self._blob_cache = blob_cache
 
     def save_blobs(self, blobs, raw=False):
         """
@@ -83,26 +84,24 @@ class ContentAddressedStore(object):
             results.append(self.save_blobs_result(
                 uri=self._backend.full_uri(path) if raw else None,
                 key=sha))
-            if self._backend.is_file(path):
-                # This already exists in the backing datastore so we can skip it
-                continue
+            # We will not check if the file exists, doing it in the backend
+            # directly as it will most likely be more efficient (in the S3
+            # backend, this is done in parallel for example). We do pay the
+            # additional packing cost but this should be more minor compared to
+            # a S3 access for example.
+
             # Compute the meta information to store with the file
             meta = {
                 'cas_raw': raw,
                 'cas_version': 1
             }
-            if self._blob_cache is not None:
-                self._blob_cache.register(sha, blob, write=True)
             if raw:
                 blob = BytesIO(blob)
             else:
                 blob = self._pack_v1(blob)
 
             to_save[path] = (blob, meta)
-        # We don't actually want to overwrite but by saying =True, we avoid
-        # checking again saving some operations. We are already sure we are not
-        # sending duplicate files since we already checked.
-        self._backend.save_bytes(to_save, overwrite=True)
+        self._backend.save_bytes(to_save, overwrite=False)
         return results
 
     def load_blobs(self, keys, force_raw=False):
@@ -126,52 +125,55 @@ class ContentAddressedStore(object):
         Dict: string -> bytes:
             Returns the blobs as bytes
         """
-        to_load = []
         results = {}
-        if self._blob_cache is not None:
-            for k in keys:
-                v = self._blob_cache.load(k)
-                if v is not None:
-                    results[k] = v
-                else:
-                    to_load.append(k)
-        else:
-            to_load = keys
-        to_load_paths = [
-            self._backend.path_join(self._prefix, k[:2], k) for k in to_load]
-        load_results = self._backend.load_bytes(to_load_paths)
-        for k, path in zip(to_load, to_load_paths):
-            # At this point, we either return the object as is (if raw) or
-            # decode it according to the encoding version
-            result, meta = load_results[path]
-            if force_raw or (meta and meta.get('cas_raw', False)):
-                with result as r:
-                    results[k] = r.read()
+        load_paths = []
+        for key in keys:
+            blob = None
+            if self._blob_cache:
+                blob = self._blob_cache.load_key(key)
+            if blob is not None:
+                results[key] = blob
             else:
-                with result as r:
-                    if meta is None:
-                        # Previous version of the datastore had no meta
-                        # information
-                        unpack_code = self._unpack_backward_compatible
-                    else:
-                        version = meta.get('cas_version', -1)
-                        if version == -1:
-                            raise DataException(
-                                "Could not extract encoding version for %s" % path)
-                        unpack_code = getattr(self, '_unpack_v%d' % version, None)
-                        if unpack_code is None:
-                            raise DataException(
-                                "Unknown encoding version %d for %s -- the artifact "
-                                "is either corrupt or you need to update Metaflow"
-                                % (version, path))
-                    try:
-                        results[k] = unpack_code(r)
-                    except Exception as e:
-                        raise DataException(
-                            "Could not unpack data: %s" % e)
+                path = self._backend.path_join(self._prefix, key[:2], key)
+                load_paths.append((key, path))
 
-            if self._blob_cache is not None:
-                self._blob_cache.register(k, results[k])
+        new_results = {}
+        with self._backend.load_bytes([p for _, p in load_paths]) as loaded:
+            for key, path in load_paths:
+                # At this point, we either return the object as is (if raw) or
+                # decode it according to the encoding version
+                file_path, meta = loaded[path]
+                with open(file_path, 'rb') as f:
+                    if force_raw or (meta and meta.get('cas_raw', False)):
+                        new_results[key] = f.read()
+                    else:
+                        if meta is None:
+                            # Previous version of the datastore had no meta
+                            # information
+                            unpack_code = self._unpack_backward_compatible
+                        else:
+                            version = meta.get('cas_version', -1)
+                            if version == -1:
+                                raise DataException(
+                                    "Could not extract encoding version for %s"
+                                    % path)
+                            unpack_code = getattr(
+                                self, '_unpack_v%d' % version, None)
+                            if unpack_code is None:
+                                raise DataException(
+                                    "Unknown encoding version %d for %s -- "
+                                    "the artifact is either corrupt or you need "
+                                    "to update Metaflow" % (version, path))
+                        try:
+                            new_results[key] = unpack_code(f)
+                        except Exception as e:
+                            raise DataException(
+                                "Could not unpack data: %s" % e)
+        
+        if self._blob_cache:
+            self._blob_cache.store_keys(new_results)
+
+        results.update(new_results)
         return results
 
     def _unpack_backward_compatible(self, blob):
@@ -189,3 +191,10 @@ class ContentAddressedStore(object):
     def _unpack_v1(self, blob):
         with gzip.GzipFile(fileobj=blob, mode='rb') as f:
             return f.read()
+
+class BlobCache(object):
+    def load_key(self, key):
+        pass
+
+    def store_keys(self, results):
+        pass

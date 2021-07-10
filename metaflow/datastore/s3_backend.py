@@ -3,9 +3,9 @@ import os
 
 from itertools import starmap
 
+from ..datatools.s3 import S3, S3Client, S3PutObject
 from ..metaflow_config import DATASTORE_SYSROOT_S3
-from .datastore_backend import DataStoreBackend
-from .exceptions import DataException
+from .datastore_backend import CloseAfterUse, DataStoreBackend
 
 
 try:
@@ -15,52 +15,13 @@ except:
     # python3
     from urllib.parse import urlparse
 
-# Helper class that keeps a reference to the S3 client used to obtain the file
-# as well as the path to the file downloaded. We need to keep a reference
-# to the S3 client to prevent it from going away and deleting the file
-# that was downloaded with the client.
-class FileWithClientRef(object):
-    def __init__(self, client, file):
-        self._client = client
-        self._file = file
-        self._open_file = None
-
-    def __enter__(self):
-        if self._open_file is None:
-            self._open_file = open(self._file, mode='rb')
-        return self
-
-    def __exit__(self, *args):
-        self.close()
-
-    def __del__(self):
-        if self._client:
-            self._client = None
-        self.close()
-
-    def close(self):
-        if self._open_file:
-            self._open_file.close()
-            self._open_file = None
-
-    def __getattr__(self, name):
-        if self._open_file is None:
-            self._open_file = open(self._file, mode='rb')
-        return getattr(self._open_file, name)
-
 
 class S3Backend(DataStoreBackend):
     TYPE = 's3'
 
     def __init__(self, root=None):
-        self.s3_datatool = None
         super(S3Backend, self).__init__(root)
-
-    def reset_datatools_client(self, hard_reset=False):
-        if hard_reset or self.s3_datatool is None:
-            from ..datatools import S3
-            self.s3_datatool = S3(
-                s3root=self.datastore_root, tmproot=os.getcwd())
+        self.s3_client = S3Client()
 
     @classmethod
     def get_datastore_root_from_config(cls, echo, create_on_absent=True):
@@ -82,9 +43,10 @@ class S3Backend(DataStoreBackend):
         -------
         bool
         """
-        self.reset_datatools_client()
-        s3obj = self.s3_datatool.info(path, return_missing=True)
-        return s3obj.exists
+        with S3(s3root=self.datastore_root,
+                tmproot=os.getcwd(), external_client=self.s3_client) as s3:
+            s3obj = s3.info(path, return_missing=True)
+            return s3obj.exists
 
     def info_file(self, path):
         """
@@ -103,9 +65,10 @@ class S3Backend(DataStoreBackend):
         tuple
             (bool, dict)
         """
-        self.reset_datatools_client()
-        s3obj = self.s3_datatool.info(path, return_missing=True)
-        return s3obj.exists, s3obj.metadata
+        with S3(s3root=self.datastore_root,
+                tmproot=os.getcwd(), external_client=self.s3_client) as s3:
+            s3obj = s3.info(path, return_missing=True)
+            return s3obj.exists, s3obj.metadata
 
     def list_content(self, paths):
         """
@@ -132,17 +95,18 @@ class S3Backend(DataStoreBackend):
             Content of the directory
         """
         strip_prefix_len = len(self.datastore_root.rstrip('/')) + 1
-        self.reset_datatools_client()
-        results = self.s3_datatool.list_paths(paths)
-        return [self.list_content_result(
-            path=o.url[strip_prefix_len:], is_file=o.exists) for o in results]
+        with S3(s3root=self.datastore_root,
+                tmproot=os.getcwd(), external_client=self.s3_client) as s3:
+            results = s3.list_paths(paths)
+            return [self.list_content_result(
+                path=o.url[strip_prefix_len:], is_file=o.exists) for o in results]
 
     def save_bytes(self, path_and_bytes, overwrite=False):
         """
         Creates objects and stores them in the datastore.
 
         If overwrite is False, any existing object will not be overwritten and
-        an error will be returned.
+        will be silently ignored
 
         The objects are specified in the objects dictionary where the key is the
         path to store the object and the value is a file-like object from which
@@ -175,24 +139,23 @@ class S3Backend(DataStoreBackend):
                 else:
                     yield path, obj, None, None, None
 
-        self.reset_datatools_client()
-        # HACK: The S3 datatools we rely on does not currently do a good job
-        # determining if uploading things in parallel is more efficient than
-        # serially. We use a heuristic for now where if we have a lot of
-        # files, we will go in parallel and if we have few files, we will
-        # serially upload them. This is not ideal because there is also a size
-        # factor and one very large file with a few other small files, for
-        # example, would benefit from a parallel upload. The S3 datatools will
-        # be fixed to address this and this whole hack can then go away.
-        if len(path_and_bytes) > 10:
-            # Use datatools
-            from ..datatools.s3 import S3PutObject
-            self.s3_datatool.put_many(starmap(S3PutObject, _convert()), overwrite)
-        else:
-            # Sequential upload
-            for key, obj, _, _, metadata in _convert():
-                self.s3_datatool.put(
-                    key, obj, overwrite=overwrite, metadata=metadata)
+        with S3(s3root=self.datastore_root,
+                tmproot=os.getcwd(), external_client=self.s3_client) as s3:
+            # HACK: The S3 datatools we rely on does not currently do a good job
+            # determining if uploading things in parallel is more efficient than
+            # serially. We use a heuristic for now where if we have a lot of
+            # files, we will go in parallel and if we have few files, we will
+            # serially upload them. This is not ideal because there is also a size
+            # factor and one very large file with a few other small files, for
+            # example, would benefit from a parallel upload. The S3 datatools will
+            # be fixed to address this and this whole hack can then go away.
+            if len(path_and_bytes) > 10:
+                # Use put_many
+                s3.put_many(starmap(S3PutObject, _convert()), overwrite)
+            else:
+                # Sequential upload
+                for key, obj, _, _, metadata in _convert():
+                    s3.put(key, obj, overwrite=overwrite, metadata=metadata)
 
     def load_bytes(self, paths):
         """
@@ -209,37 +172,36 @@ class S3Backend(DataStoreBackend):
 
         Returns
         -------
-        Dict: string -> (BufferedIOBase, dict)
-            A dictionary is returned where the key is the path fetched and the
-            value is a tuple containing:
-              - a BufferedIOBase indicating the result of loading the path.
+        CloseAfterUse :
+            A CloseAfterUse which should be used in a with statement. The data
+            in the CloseAfterUse will be a dictionary string -> (BufferedIOBase, dict).
+            The key is the path fetched and the value is a tuple containing:
+              - a path indicating the file that needs to be read to get the object.
+                This path may not be valid outside of the CloseAfterUse scope
               - a dictionary containing any additional metadata that was stored
               or None if no metadata was provided.
             If the path could not be loaded, returns None for that path
         """
         if len(paths) == 0:
-            return {}
+            return CloseAfterUse({})
 
-        self.reset_datatools_client()
+        s3 = S3(s3root=self.datastore_root,
+                tmproot=os.getcwd(), external_client=self.s3_client)
+        to_return = dict()
         # We similarly do things in parallel for many files. This is again
         # a hack.
-        to_return = {}
         if len(paths) > 10:
-            results = self.s3_datatool.get_many(
-                paths, return_missing=True, return_info=True)
+            results = s3.get_many(paths, return_missing=True, return_info=True)
             for r in results:
                 if r.exists:
-                    to_return[r.key] = (FileWithClientRef(
-                        self.s3_datatool, r.path), r.metadata)
+                    to_return[r.key] = (r.path, r.metadata)
                 else:
                     to_return[r.key] = None
         else:
             for p in paths:
-                r = self.s3_datatool.get(
-                    p, return_missing=True, return_info=True)
+                r = s3.get(p, return_missing=True, return_info=True)
                 if r.exists:
-                    to_return[r.key] = (FileWithClientRef(
-                        self.s3_datatool, r.path), r.metadata)
+                    to_return[r.key] = (r.path, r.metadata)
                 else:
                     to_return[r.key] = None
-        return to_return
+        return CloseAfterUse(to_return, closer=s3)
