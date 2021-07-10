@@ -11,6 +11,7 @@ from metaflow.exception import MetaflowNotFound,\
                                MetaflowNamespaceMismatch,\
                                MetaflowInternalError
 
+from metaflow.includefile import IncludedFile
 from metaflow.metaflow_config import DEFAULT_METADATA
 from metaflow.plugins import ENVIRONMENTS, METADATA_PROVIDERS
 from metaflow.unbounded_foreach import CONTROL_TASK_TAG
@@ -711,6 +712,8 @@ class DataArtifact(MetaflowObject):
         sha = self._object['sha']
         with filecache.get_data(ds_type, self.path_components[0], sha) as f:
             obj = pickle.load(f)
+            if isinstance(obj, IncludedFile):
+                return obj.decode(self.id)
             return obj
 
     # TODO add
