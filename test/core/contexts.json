@@ -43,11 +43,12 @@
             "python": "python3",
             "top_options": [
                 "--metadata=local",
-                "--datastore=local",
+                "--datastore=s3",
                 "--environment=local",
                 "--event-logger=nullSidecarLogger",
                 "--no-pylint",
-                "--quiet"
+                "--quiet",
+                "--with=batch"
             ],
             "run_options": [
                 "--max-workers", "50",
