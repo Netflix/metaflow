@@ -27,5 +27,24 @@ class EnvironmentDecorator(StepDecorator):
     name = 'environment'
     defaults = {'vars': {}}
 
+    def step_init(self, flow, graph, step_name, decorators, environment, datastore, logger):
+        vars = self.attributes["vars"]
+        if isinstance(vars, str):  # env specified using --with will be a string that we must parse
+            try:
+                vars_dict = {}
+                pairs = vars.split(",")
+                for pair in pairs:
+                    k, v = pair.split(":")
+                    vars_dict[k] = v
+
+            except Exception as e:
+                raise ValueError(
+                    f"Encountered a problem parsing stringified @environment vars attribute as a dict: {e}"
+                )
+
+            logger.debug(f"Parsed stringified @environment vars attribute to dict with keys: {vars_dict.keys()}")
+            self.attributes["vars"] = vars_dict
+
+
     def runtime_step_cli(self, cli_args, retry_count, max_user_code_retries, ubf_context):
         cli_args.env.update(self.attributes['vars'].items())
