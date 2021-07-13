@@ -7,13 +7,6 @@ test_that("%||% coalesces NULLs", {
   expect_null(NULL %||% NULL)
 })
 
-test_that("serialize functions work properly", {
-  skip_if_no_metaflow()
-  py_obj <- mf_serialize(mtcars)
-  returned_obj <- mf_deserialize(py_obj)
-  expect_equal(mtcars, returned_obj)
-})
-
 test_that("can identify valid variable names for Python 2", {
   skip_if_no_metaflow()
   expect_identifier_validity <- function(identifier, valid) {
