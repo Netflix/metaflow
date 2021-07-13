@@ -39,10 +39,8 @@ class EnvironmentDecorator(StepDecorator):
 
             except Exception as e:
                 raise ValueError(
-                    f"Encountered a problem parsing stringified @environment vars attribute as a dict: {e}"
+                    "Encountered a problem parsing stringified @environment vars attribute as a dict: {}".format(e)
                 )
-
-            logger.debug(f"Parsed stringified @environment vars attribute to dict with keys: {vars_dict.keys()}")
             self.attributes["vars"] = vars_dict
 
 
