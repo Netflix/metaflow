@@ -1,17 +1,30 @@
-#' Helper utility to serialize R object to metaflow
-#' data format
+#' Serialize an R object to the Metaflow data format, and deserialize it back
 #'
-#' @param object object to serialize
-#' @return metaflow data format object
+#' @description
+#' When an object is saved to the `self` object in a step, it is serialised with
+#' `mf_serialize` and converted to a Python object via `reticulate`. When it is
+#' later retrieved from the `self` object, it is converted back into an R object
+#' and deserialized with `mf_deserialize`.
+#'
+#' @section History:
+#' In versions 2.3.0 and prior, `mf_serialize` left some objects untouched.
+#' These objects would be left unserialised, and would therefore be subject to
+#' conversion by reticulate. This occurred whenever an object was saved to the
+#' `self` object and then loaded again. For example,
+#' `self$x <- integer(); self$x` would have returned `list()`. The current
+#' approach serializes everything into raw vectors, which are not touched by
+#' reticulate. The `mf_serialize` function has not changed, and should work for
+#' both methods.
+#'
+#' @param object object to serialize or deserialize
+#' @return For `mf_serialize`, a raw vector. For `mf_deserialize`, an R object.
+#'
+#' @keywords internal
 mf_serialize <- function(object) {
   serialize(object, NULL)
 }
 
-#' Helper utility to deserialize objects from metaflow
-#' data format to R object
-#'
-#' @param object object to deserialize
-#' @return R object
+#' @rdname mf_serialize
 mf_deserialize <- function(object) {
   r_obj <- object
 

@@ -2,18 +2,35 @@
 % Please edit documentation in R/serialization.R
 \name{mf_serialize}
 \alias{mf_serialize}
-\title{Helper utility to serialize R object to metaflow
-data format}
+\alias{mf_deserialize}
+\title{Serialize an R object to the Metaflow data format, and deserialize it back}
 \usage{
 mf_serialize(object)
+
+mf_deserialize(object)
 }
 \arguments{
-\item{object}{object to serialize}
+\item{object}{object to serialize or deserialize}
 }
 \value{
-metaflow data format object
+For \code{mf_serialize}, a raw vector. For \code{mf_deserialize}, an R object.
 }
 \description{
-Helper utility to serialize R object to metaflow
-data format
+When an object is saved to the \code{self} object in a step, it is serialised with
+\code{mf_serialize} and converted to a Python object via \code{reticulate}. When it is
+later retrieved from the \code{self} object, it is converted back into an R object
+and deserialized with \code{mf_deserialize}.
 }
+\section{History}{
+
+In versions 2.3.0 and prior, \code{mf_serialize} left some objects untouched.
+These objects would be left unserialised, and would therefore be subject to
+conversion by reticulate. This occurred whenever an object was saved to the
+\code{self} object and then loaded again. For example,
+\verb{self$x <- integer(); self$x} would have returned \code{list()}. The current
+approach serializes everything into raw vectors, which are not touched by
+reticulate. The \code{mf_serialize} function has not changed, and should work for
+both methods.
+}
+
+\keyword{internal}
