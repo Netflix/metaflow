@@ -25,7 +25,7 @@ Imports:
 Suggests:
     cli,
     lubridate,
-    testthat,
+    testthat (>= 3.0.2),
     knitr,
     rmarkdown
 RoxygenNote: 7.1.1
@@ -48,6 +48,7 @@ Collate:
     'run.R'
     'utils.R'
     'run_client.R'
+    'serialization.R'
     'step.R'
     'step_client.R'
     'task_client.R'
