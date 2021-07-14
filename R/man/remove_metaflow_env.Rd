@@ -7,7 +7,7 @@
 remove_metaflow_env(prompt = TRUE)
 }
 \arguments{
-\item{prompt}{`bool`, whether to ask for user prompt before removal. Default to TRUE.}
+\item{prompt}{\code{bool}, whether to ask for user prompt before removal. Default to TRUE.}
 }
 \description{
 Remove Metaflow Python package.

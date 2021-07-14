@@ -6,8 +6,8 @@
 #' @return a string of the description of the metadata selected
 #'
 #' @param ms string. Can be a path (selects local metadata), a URL starting with http (selects
-#' the service metadata) or an explicit specification <metadata_type>@<info>; as an
-#' example, you can specify local@<path> or service@<url>.
+#' the service metadata) or an explicit specification {metadata_type}@{info}; as an
+#' example, you can specify local@{path} or service@{url}.
 #' @export
 set_metadata <- function(ms = NULL) {
   pkg.env$mf$metadata(ms)

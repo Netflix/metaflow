@@ -135,6 +135,12 @@ class Client(object):
             )
         }
 
+        # Proxied standalone functions are functions that are proxied
+        # as part of other objects like defaultdict for which we create a
+        # on-the-fly simple class that is just a callable. This is therefore
+        # a special type of self._proxied_classes
+        self._proxied_standalone_functions = {}
+
         self._export_info = {
             "classes": response[FIELD_CONTENT]["classes"],
             "functions": response[FIELD_CONTENT]["functions"],
@@ -224,10 +230,21 @@ class Client(object):
         # this connection will be converted to a local stub.
         return self._datatransferer.load(json_obj)
 
-    def get_local_class(self, name):
+    def get_local_class(self, name, obj_id=None):
         # Gets (and creates if needed), the class mapping to the remote
         # class of name 'name'.
         name = self._get_canonical_name(name)
+        if name == 'function':
+            # Special handling of pickled functions. We create a new class that
+            # simply has a __call__ method that will forward things back to
+            # the server side.
+            if obj_id is None:
+                raise RuntimeError("Local function unpickling without an object ID")
+            if obj_id not in self._proxied_standalone_functions:
+                self._proxied_standalone_functions[obj_id] = create_class(
+                    self, '__function_%s' % obj_id, {}, {}, {}, {'__call__': ''})
+            return self._proxied_standalone_functions[obj_id]
+
         if name not in self._proxied_classes:
             raise ValueError("Class '%s' is not known" % name)
         local_class = self._proxied_classes[name]
@@ -270,7 +287,7 @@ class Client(object):
         obj_id = obj.identifier
         local_instance = self._proxied_objects.get(obj_id)
         if not local_instance:
-            local_class = self.get_local_class(remote_class_name)
+            local_class = self.get_local_class(remote_class_name, obj_id)
             local_instance = local_class(self, remote_class_name, obj_id)
         return local_instance
 
