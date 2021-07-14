@@ -1,9 +1,11 @@
 from os import listdir
 from os.path import isfile, join
-from subprocess import run, PIPE
+from subprocess_tee import run
 from typing import List, Dict
 
 from .... import R
+
+from metaflow.exception import MetaflowException
 
 import kfp
 
@@ -11,6 +13,8 @@ import pytest
 
 import yaml
 import tempfile
+
+import time
 
 """
 To run these tests from your terminal, go to the tests directory and run: 
@@ -60,22 +64,14 @@ def test_raise_failure_flow(pytestconfig) -> None:
     test_cmd = (
         f"{_python()} flows/raise_error_flow.py --datastore=s3 kfp run "
         f"--wait-for-completion --workflow-timeout 1800 "
-        f"--max-parallelism 3 --experiment metaflow_test --tag test_t1 "
+        f"--max-parallelism 5 --experiment metaflow_test --tag test_t1 "
     )
     if pytestconfig.getoption("image"):
         test_cmd += (
             f"--no-s3-code-package --base-image {pytestconfig.getoption('image')}"
         )
 
-    run_and_wait_process = run(
-        test_cmd,
-        universal_newlines=True,
-        stdout=PIPE,
-        shell=True,
-    )
-    # this ensures the integration testing framework correctly catches a failing flow
-    # and reports the error
-    assert run_and_wait_process.returncode == 1
+    exponential_backoff_from_kfam_errors(test_cmd, 1)
 
     return
 
@@ -107,14 +103,13 @@ def test_compile_only_accelerator_test() -> None:
         yaml_file_path = join(yaml_tmp_dir, "accelerator_flow.yaml")
 
         compile_to_yaml_cmd = (
-            f"{_python()} flows/accelerator_flow.py --datastore=s3 kfp run "
+            f"{_python()} flows/accelerator_flow.py --datastore=s3 --with retry kfp run "
             f" --no-s3-code-package --yaml-only --pipeline-path {yaml_file_path}"
         )
 
         compile_to_yaml_process = run(
             compile_to_yaml_cmd,
             universal_newlines=True,
-            stdout=PIPE,
             shell=True,
         )
         assert compile_to_yaml_process.returncode == 0
@@ -150,30 +145,44 @@ def test_compile_only_accelerator_test() -> None:
 @pytest.mark.parametrize("flow_file_path", obtain_flow_file_paths("flows"))
 def test_flows(pytestconfig, flow_file_path: str) -> None:
     full_path = join("flows", flow_file_path)
-    # In the process below, stdout=PIPE because we only want to capture stdout.
-    # The reason is that the click echo function prints to stderr, and contains
-    # the main logs (run link, graph validation, package uploading, etc). We
-    # want to ensure these logs are visible to users and not captured.
-    # We use the print function in kfp_cli.py to print a magic token containing the
-    # run id and capture this to correctly test logging. See the
-    # `check_valid_logs_process` process.
 
     test_cmd = (
-        f"{_python()} {full_path} --datastore=s3 kfp run "
+        f"{_python()} {full_path} --datastore=s3 --with retry kfp run "
         f"--wait-for-completion --workflow-timeout 1800 "
-        f"--max-parallelism 3 --experiment metaflow_test --tag test_t1 "
+        f"--max-parallelism 5 --experiment metaflow_test --tag test_t1 "
     )
     if pytestconfig.getoption("image"):
         test_cmd += (
             f"--no-s3-code-package --base-image {pytestconfig.getoption('image')}"
         )
 
-    run_and_wait_process = run(
-        test_cmd,
-        universal_newlines=True,
-        stdout=PIPE,
-        shell=True,
-    )
-    assert run_and_wait_process.returncode == 0
+    exponential_backoff_from_kfam_errors(test_cmd, 0)
 
     return
+
+
+def exponential_backoff_from_kfam_errors(kfp_run_cmd: str, correct_return_code: int) -> None:
+    # Within this function, we use the special feature of subprocess_tee which allows us
+    # to capture both stdout and stderr (akin to stdout=PIPE, stderr=PIPE in the regular subprocess.run)
+    # as well as output to stdout and stderr (which users can see on the Gitlab logs). We check
+    # if the error message is due to a KFAM issue, and if so, we do an exponential backoff.
+
+    backoff_intervals = [0, 2, 4, 8, 16, 32]
+
+    for interval in backoff_intervals:
+        time.sleep(interval)
+
+        run_and_wait_process = run(
+            kfp_run_cmd,
+            universal_newlines=True,
+            shell=True,
+        )
+
+        if "Reason: Unauthorized" in run_and_wait_process.stderr or "Failed to connect to the KFAM service" in run_and_wait_process.stderr:
+            print(f"KFAM issue encountered. Backing off for {interval} seconds...")
+            continue
+        else:
+            assert run_and_wait_process.returncode == correct_return_code
+            break
+    else:
+        raise MetaflowException("KFAM issues not resolved after successive backoff attempts.")
