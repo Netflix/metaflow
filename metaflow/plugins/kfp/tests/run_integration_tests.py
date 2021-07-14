@@ -9,6 +9,8 @@ from metaflow.exception import MetaflowException
 
 import kfp
 
+import boto3
+
 import pytest
 
 import yaml
@@ -16,6 +18,7 @@ import tempfile
 
 import time
 
+import uuid
 """
 To run these tests from your terminal, go to the tests directory and run: 
 `python -m pytest -s -n 3 run_integration_tests.py`
@@ -47,16 +50,53 @@ def _python():
         return "python"
 
 
+non_standard_test_flows = [
+    "raise_error_flow.py",
+    "accelerator_flow.py",
+    "s3_sensor_flow.py",
+    "upload_to_s3_flow.py",
+]
+
+
 def obtain_flow_file_paths(flow_dir_path: str) -> List[str]:
     file_paths = [
         file_name
         for file_name in listdir(flow_dir_path)
         if isfile(join(flow_dir_path, file_name))
         and not file_name.startswith(".")
-        and not "raise_error_flow" in file_name
-        and not "accelerator_flow" in file_name
+        and not file_name in non_standard_test_flows
     ]
     return file_paths
+
+
+def test_s3_sensor_flow(pytestconfig) -> None:
+    # ensure the s3_sensor waits for some time before the key exists
+    file_name = f"s3-sensor-file-{uuid.uuid1()}.txt"
+
+    upload_to_s3_flow_cmd = (
+        f"{_python()} flows/upload_to_s3_flow.py --datastore=s3 kfp run "
+    )
+    s3_sensor_flow_cmd = f"{_python()} flows/s3_sensor_flow.py --datastore=s3 kfp run --wait-for-completion "
+
+    main_config_cmds = (
+        f"--workflow-timeout 1800 "
+        f"--experiment metaflow_test --tag test_t1 "
+        f"--file_name {file_name} "
+    )
+    upload_to_s3_flow_cmd += main_config_cmds
+    s3_sensor_flow_cmd += main_config_cmds
+
+    if pytestconfig.getoption("image"):
+        image_cmds = (
+            f"--no-s3-code-package --base-image {pytestconfig.getoption('image')} "
+        )
+        upload_to_s3_flow_cmd += image_cmds
+        s3_sensor_flow_cmd += image_cmds
+
+    exponential_backoff_from_kfam_errors(upload_to_s3_flow_cmd, 0)
+    exponential_backoff_from_kfam_errors(s3_sensor_flow_cmd, 0)
+
+    return
 
 
 # this test ensures the integration tests fail correctly
@@ -64,7 +104,7 @@ def test_raise_failure_flow(pytestconfig) -> None:
     test_cmd = (
         f"{_python()} flows/raise_error_flow.py --datastore=s3 kfp run "
         f"--wait-for-completion --workflow-timeout 1800 "
-        f"--max-parallelism 5 --experiment metaflow_test --tag test_t1 "
+        f"--experiment metaflow_test --tag test_t1 "
     )
     if pytestconfig.getoption("image"):
         test_cmd += (
@@ -167,9 +207,9 @@ def exponential_backoff_from_kfam_errors(kfp_run_cmd: str, correct_return_code: 
     # as well as output to stdout and stderr (which users can see on the Gitlab logs). We check
     # if the error message is due to a KFAM issue, and if so, we do an exponential backoff.
 
-    backoff_intervals = [0, 2, 4, 8, 16, 32]
+    backoff_intervals_in_seconds = [0, 2, 4, 8, 16, 32]
 
-    for interval in backoff_intervals:
+    for interval in backoff_intervals_in_seconds:
         time.sleep(interval)
 
         run_and_wait_process = run(

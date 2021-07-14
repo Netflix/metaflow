@@ -59,6 +59,7 @@ from .aws.step_functions.step_functions_decorator import StepFunctionsInternalDe
 from .conda.conda_step_decorator import CondaStepDecorator
 from .kfp.kfp_decorator import KfpInternalDecorator
 from .kfp.accelerator_decorator import AcceleratorDecorator
+from .kfp.s3_sensor_decorator import S3SensorDecorator
 
 STEP_DECORATORS = _merge_lists([CatchDecorator,
                                 TimeoutDecorator,
@@ -87,7 +88,7 @@ METADATA_PROVIDERS = _merge_lists(
 # imports from the metaflow package.
 from .conda.conda_flow_decorator import CondaFlowDecorator
 from .aws.step_functions.schedule_decorator import ScheduleDecorator
-FLOW_DECORATORS = _merge_lists([CondaFlowDecorator, ScheduleDecorator], ext_plugins.FLOW_DECORATORS, 'name')
+FLOW_DECORATORS = _merge_lists([CondaFlowDecorator, ScheduleDecorator, S3SensorDecorator], ext_plugins.FLOW_DECORATORS, 'name')
 
 # Sidecars
 SIDECARS = ext_plugins.SIDECARS

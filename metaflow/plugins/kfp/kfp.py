@@ -6,6 +6,9 @@ from collections import namedtuple
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
+import marshal
+import base64
+
 import kfp
 import yaml
 from kfp import dsl
@@ -36,6 +39,7 @@ from metaflow.metaflow_config import (
     KFP_USER_DOMAIN,
     from_conf,
 )
+from metaflow.decorators import FlowDecorator
 from metaflow.plugins import KfpInternalDecorator, EnvironmentDecorator
 from metaflow.plugins.kfp.kfp_decorator import KfpException
 from metaflow.plugins.kfp.kfp_step_function import kfp_step_function
@@ -49,6 +53,7 @@ from .kfp_constants import (
 from .kfp_exit_handler import exit_handler
 from .kfp_foreach_splits import graph_to_task_ids
 from .kfp_get_workflow_uid import get_workflow_uid
+from .kfp_s3_sensor import wait_for_s3_path
 from .accelerator_decorator import AcceleratorDecorator
 from ..aws.batch.batch_decorator import BatchDecorator
 from ..aws.step_functions.schedule_decorator import ScheduleDecorator
@@ -586,6 +591,7 @@ class KubeflowPipelines(object):
                 mode=mode,
             )
             container_op.add_pvolumes({volume_dir: volume})
+
         if kfp_component.accelerator_decorator:
             accelerator_type: str = kfp_component.accelerator_decorator.attributes[
                 "type"
@@ -620,6 +626,15 @@ class KubeflowPipelines(object):
             )
             container_op.add_affinity(affinity)
             container_op.add_toleration(toleration)
+
+    # used by the workflow_uid_op and the s3_sensor_op to tighten resources
+    # to ensure customers don't bear unnecesarily large costs
+    @staticmethod
+    def _set_minimal_container_resources(container_op: ContainerOp):
+        container_op.container.set_cpu_request("0.1")
+        container_op.container.set_cpu_limit("0.5")
+        container_op.container.set_memory_request("10M")
+        container_op.container.set_memory_limit("200M")
 
     @staticmethod
     def _create_volume(
@@ -780,6 +795,47 @@ class KubeflowPipelines(object):
         )
         func.__signature__ = new_sig
         return func
+
+    def _create_s3_sensor_op(
+        self, s3_sensor_deco: FlowDecorator, flow_parameters_json: str
+    ) -> ContainerOp:
+        path = s3_sensor_deco.path
+        timeout_seconds = s3_sensor_deco.timeout_seconds
+        polling_interval_seconds = s3_sensor_deco.polling_interval_seconds
+        path_formatter = s3_sensor_deco.path_formatter
+        os_expandvars = s3_sensor_deco.os_expandvars
+
+        # see https://github.com/kubeflow/pipelines/pull/1946/files
+        # KFP does not support the serialization of Python functions directly. The KFP team took
+        # the approach of using base64 encoding + pickle. Pickle didn't quite work out
+        # in this case because pickling a function directly stores references to the function's path,
+        # which couldn't be resolved when the path_formatter function was unpickled within the running
+        # container. Instead, we took the approach of marshalling just the code of the path_formatter
+        # function, and reconstructing the function within the kf_s3_sensor.py code.
+        if path_formatter:
+            path_formatter_code_encoded = base64.b64encode(
+                marshal.dumps(path_formatter.__code__)
+            ).decode("ascii")
+        else:
+            path_formatter_code_encoded = ""
+
+        s3_sensor_op = func_to_container_op(
+            wait_for_s3_path,
+            # We plan to add the Dockerfile of image hsezhiyan/metaflow-zillow:2.0 to this repo
+            # https://zbrt.atl.zillow.net/browse/AIP-4571
+            base_image="hsezhiyan/metaflow-zillow:2.0",
+        )(
+            path=path,
+            timeout_seconds=timeout_seconds,
+            polling_interval_seconds=polling_interval_seconds,
+            path_formatter_code_encoded=path_formatter_code_encoded,
+            flow_parameters_json=flow_parameters_json,
+            os_expandvars=os_expandvars,
+        ).set_display_name(
+            "s3_sensor"
+        )
+        KubeflowPipelines._set_minimal_container_resources(s3_sensor_op)
+        return s3_sensor_op
 
     def create_kfp_pipeline_from_flow_graph(self) -> Tuple[Callable, PipelineConf]:
         """
@@ -969,7 +1025,7 @@ class KubeflowPipelines(object):
                                 workflow_uid=workflow_uid,
                             )
 
-            workflow_uid_op = None
+            workflow_uid_op: ContainerOp = None
             if any(
                 "volume" in s.resource_requirements
                 for s in step_to_kfp_component_map.values()
@@ -979,6 +1035,15 @@ class KubeflowPipelines(object):
                     base_image="gcr.io/cloud-builders/kubectl",
                 )(work_flow_name="{{workflow.name}}").set_display_name(
                     "get_workflow_uid"
+                )
+                KubeflowPipelines._set_minimal_container_resources(workflow_uid_op)
+
+            s3_sensor_op: ContainerOp = None
+            s3_sensor_deco = self.flow._flow_decorators.get("s3_sensor")
+            if s3_sensor_deco:
+                s3_sensor_op = self._create_s3_sensor_op(
+                    s3_sensor_deco=s3_sensor_deco,
+                    flow_parameters_json=flow_parameters_json,
                 )
 
             def call_build_kfp_dag():
@@ -1003,6 +1068,13 @@ class KubeflowPipelines(object):
                 node = self.graph[step]
                 for parent_step in node.in_funcs:
                     visited[node.name].after(visited[parent_step])
+
+            # ensure the start step only begins after the s3_sensor step completes
+            if s3_sensor_op:
+                visited["start"].after(s3_sensor_op)
+                # ensure volume creation also happens after the s3_sensor step completes
+                if workflow_uid_op:
+                    workflow_uid_op.after(s3_sensor_op)
 
             dsl.get_pipeline_conf().add_op_transformer(pipeline_transform)
             dsl.get_pipeline_conf().set_parallelism(self.max_parallelism)

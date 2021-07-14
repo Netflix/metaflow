@@ -31,3 +31,8 @@ Currently, due to Gitlab's polling, it takes about 20 minutes for these tests to
 `curl -X POST "https://gitlab.zgtools.net/api/v4/projects/20508/mirror/pull?private_token=[PRIVATE_TOKEN]"`
 
 Please reach out to @hariharans on Slack (for Zillow employees) to obtain the private token to run on Zillow internal Gitlab infrastructure.
+
+# Unit Tests
+
+On top of the integration tests, we also have units tests. Currently, we only have unit tests for the
+`@s3_sensor` decorator.
