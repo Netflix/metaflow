@@ -10,7 +10,7 @@ _expected_extensions = {
     'LOGGING_SIDECARS': {},
     'MONITOR_SIDECARS': {},
     'AWS_CLIENT_PROVIDERS': [],
-    'get_plugin_cli': lambda _: []
+    'get_plugin_cli': lambda : []
 }
 
 try:
