@@ -533,6 +533,14 @@ def aws(ctx, profile):
                              default=\
                                 existing_env.get('METAFLOW_SERVICE_AUTH_KEY', ''),
                              show_default=True)
+        # Set Auth Type for the Metadata Service.
+        env['METAFLOW_METADATA_SERVICE_AUTH_TYPE'] =\
+                click.prompt(cyan('[METAFLOW_METADATA_SERVICE_AUTH_TYPE]') + 
+                             yellow(' (optional)') +
+                             ' Override API Gateway as the default auth type.',
+                             default=\
+                                existing_env.get('METAFLOW_METADATA_SERVICE_AUTH_TYPE', ''),
+                             show_default=True)
 
     # Configure AWS Batch for compute.
     if use_s3_as_datastore:
