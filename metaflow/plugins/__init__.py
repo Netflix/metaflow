@@ -9,7 +9,7 @@ _expected_extensions = {
     'SIDECARS': {},
     'LOGGING_SIDECARS': {},
     'MONITOR_SIDECARS': {},
-    'AWS_CLIENT_PROVIDER': [],
+    'AWS_CLIENT_PROVIDERS': [],
     'get_plugin_cli': lambda _: []
 }
 
@@ -177,7 +177,7 @@ SIDECARS.update(MONITOR_SIDECARS)
 
 from .aws.aws_client import Boto3ClientProvider
 AWS_CLIENT_PROVIDERS = _merge_lists(
-    [Boto3ClientProvider], _ext_plugins.AWS_CLIENT_PROVIDER, 'name')
+    [Boto3ClientProvider], _ext_plugins.AWS_CLIENT_PROVIDERS, 'name')
 
 # Erase all temporary names to avoid leaking things
 # We leave '_ext_plugins' because it is used in a function (so it needs
