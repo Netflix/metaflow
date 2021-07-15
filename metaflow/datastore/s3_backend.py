@@ -3,7 +3,8 @@ import os
 
 from itertools import starmap
 
-from ..datatools.s3 import S3, S3Client, S3PutObject
+from ..datatools.s3 import S3, S3PutObject
+from ..datatools.s3util import S3Client
 from ..metaflow_config import DATASTORE_SYSROOT_S3
 from .datastore_backend import CloseAfterUse, DataStoreBackend
 

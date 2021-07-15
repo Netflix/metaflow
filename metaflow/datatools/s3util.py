@@ -18,6 +18,28 @@ def get_s3_client():
         with_error=True,
         params={'endpoint_url': S3_ENDPOINT_URL, 'verify': S3_VERIFY_CERTIFICATE })
 
+
+class S3Client(object):
+    def __init__(self):
+        self._s3_client = None
+        self._s3_error = None
+
+    @property
+    def client(self):
+        if self._s3_client is None:
+            self.reset_client()
+        return self._s3_client
+
+    @property
+    def error(self):
+        if self._s3_error is None:
+            self.reset_client()
+        return self._s3_error
+
+    def reset_client(self):
+        self._s3_client, self._s3_error = get_s3_client()
+
+
 # decorator to retry functions that access S3
 def aws_retry(f):
     def retry_wrapper(self, *args, **kwargs):

@@ -29,7 +29,7 @@ except:
     # python3
     from urllib.parse import urlparse
 
-from .s3util import get_s3_client
+from .s3util import S3Client
 
 try:
     import boto3
@@ -232,27 +232,6 @@ class S3Object(object):
 
     def __repr__(self):
         return str(self)
-
-
-class S3Client(object):
-    def __init__(self):
-        self._s3_client = None
-        self._s3_error = None
-
-    @property
-    def client(self):
-        if self._s3_client is None:
-            self.reset_client()
-        return self._s3_client
-
-    @property
-    def error(self):
-        if self._s3_error is None:
-            self.reset_client()
-        return self._s3_error
-
-    def reset_client(self):
-        self._s3_client, self._s3_error = get_s3_client()
 
 
 class S3(object):
