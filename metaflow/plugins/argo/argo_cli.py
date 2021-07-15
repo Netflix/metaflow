@@ -112,7 +112,7 @@ def create(obj,
         obj.flow, obj.graph, obj.environment, obj.datastore, obj.logger)
 
     obj.package = MetaflowPackage(
-        obj.flow, obj.environment, obj.logger, obj.package_suffixes)
+        obj.flow, obj.environment, obj.echo, obj.package_suffixes)
     package_url = datastore.save_data(
         obj.package.sha, TransformableObject(obj.package.blob))
 
