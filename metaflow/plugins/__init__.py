@@ -180,11 +180,10 @@ AWS_CLIENT_PROVIDERS = _merge_lists(
     [Boto3ClientProvider], _ext_plugins.AWS_CLIENT_PROVIDERS, 'name')
 
 # Erase all temporary names to avoid leaking things
-# We leave '_ext_plugins' because it is used in a function (so it needs
-# to stick around)
-for _n in ['ver', 'n', 'o', 'e', 'lazy_load_custom_modules',
-           '_LazyLoader', '_merge_lists', '_fake', '_wrap',
-           '_expected_extensions', 'addl_modules']:
+# We leave '_ext_plugins' and '_expected_extensions' because they are used in
+# a function (so they need to stick around)
+for _n in ['ver', 'n', 'o', 'e', 'lazy_load_custom_modules', '_LazyLoader',
+           '_merge_lists', '_fake', '_wrap', 'addl_modules']:
     try:
         del globals()[_n]
     except KeyError:
