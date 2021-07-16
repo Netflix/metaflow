@@ -39,9 +39,8 @@ class MetaflowPackage(object):
         self.blob, self.sha = self._make()
 
     def _walk(self, root, exclude_hidden=True, addl_suffixes=None):
-        suffixes_to_check = self.suffixes
-        if addl_suffixes is not None:
-            suffixes_to_check = list(set().union(suffixes_to_check, addl_suffixes))
+        if addl_suffixes is None:
+            addl_suffixes = []
         root = to_unicode(root)  # handle files/folder with non ascii chars
         prefixlen = len('%s/' % os.path.dirname(root))
         for path, dirs, files in os.walk(root):
@@ -53,7 +52,7 @@ class MetaflowPackage(object):
             for fname in files:
                 if fname[0] == '.':
                     continue
-                if any(fname.endswith(suffix) for suffix in suffixes_to_check):
+                if any(fname.endswith(suffix) for suffix in self.suffixes + addl_suffixes):
                     p = os.path.join(path, fname)
                     yield p, p[prefixlen:]
 
