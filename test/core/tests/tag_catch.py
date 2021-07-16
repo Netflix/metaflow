@@ -1,5 +1,7 @@
 
 from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
+from metaflow import current
+
 
 class TagCatchTest(MetaflowTest):
     PRIORITY = 2
@@ -8,7 +10,7 @@ class TagCatchTest(MetaflowTest):
     @steps(0, ['start'])
     def step_start(self):
         import os, sys
-        self.test_attempt = int(os.environ['_METAFLOW_ATTEMPT'])
+        self.test_attempt = current.retry_count
         sys.stdout.write('stdout testing logs %d\n' % self.test_attempt)
         sys.stderr.write('stderr testing logs %d\n' % self.test_attempt)
         if self.test_attempt < 3:
@@ -20,7 +22,7 @@ class TagCatchTest(MetaflowTest):
     @steps(0, ['foreach-split'])
     def step_split(self):
         import os
-        if os.environ['_METAFLOW_ATTEMPT'] == '2':
+        if current.retry_count == 2:
             self.this_is_split = True
         else:
             raise TestRetry()
@@ -29,7 +31,7 @@ class TagCatchTest(MetaflowTest):
     @steps(0, ['join'])
     def step_join(self):
         import os
-        if os.environ['_METAFLOW_ATTEMPT'] == '2':
+        if current.retry_count == 2:
             self.test_attempt = inputs[0].test_attempt
         else:
             raise TestRetry()
