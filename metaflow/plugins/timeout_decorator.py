@@ -72,7 +72,7 @@ class TimeoutDecorator(StepDecorator):
                       retry_count,
                       max_user_code_retries,
                       ubf_context,
-                      input_obj):
+                      inputs):
         if ubf_context != UBF_CONTROL and retry_count <= max_user_code_retries:
             # enable timeout only when executing user code
             self.step_name = step_name

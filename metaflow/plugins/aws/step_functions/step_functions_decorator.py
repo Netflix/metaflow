@@ -22,10 +22,7 @@ class StepFunctionsInternalDecorator(StepDecorator):
                       retry_count,
                       max_user_code_retries,
                       ubf_context,
-                      input_obj):
-        if ubf_context == UBF_TASK:
-            # Don't register any metadata for tasks that don't run within SFN.
-            return
+                      inputs):
         meta = {}
         meta['aws-step-functions-execution'] = os.environ['METAFLOW_RUN_ID']
         meta['aws-step-functions-state-machine'] =\

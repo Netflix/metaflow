@@ -209,7 +209,7 @@ class BatchDecorator(StepDecorator):
                       retry_count,
                       max_retries,
                       ubf_context,
-                      input_obj):
+                      inputs):
         if metadata.TYPE == 'local':
             self.ds_root = ds.root
         else:

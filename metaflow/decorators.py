@@ -274,7 +274,7 @@ class StepDecorator(Decorator):
                       retry_count,
                       max_user_code_retries,
                       ubf_context,
-                      input_obj):
+                      inputs):
         """
         Run before the step function in the task context.
         """
