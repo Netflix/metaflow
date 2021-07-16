@@ -1,9 +1,10 @@
 Package: metaflow
 Type: Package
 Title: Metaflow for R-Lang
-Version: 2.2.0
+Version: 2.3.0
 Author: Jason Ge [aut] <jge@netflix.com>, 
-  Savin Goyal [aut, cre] <savin@netflix.com>
+  Savin Goyal [aut, cre] <savin@netflix.com>,
+  David Neuzerling [ctb] <david@neuzerling.com>
 Maintainer: Jason Ge <help@metaflow.org>
 Description: Metaflow is a human-friendly R package 
   that helps scientists and engineers build and manage real-life data science projects. 
@@ -30,6 +31,9 @@ Suggests:
 RoxygenNote: 7.1.1
 Roxygen: list(markdown = TRUE)
 Collate: 
+    'decorators-aws.R'
+    'decorators-environment.R'
+    'decorators-errors.R'
     'decorators.R'
     'flags.R'
     'flow.R'
