@@ -78,6 +78,11 @@ def argo(obj,
               default=False,
               help="Don't download code package into step containers. "
                    "Docker images should have a flow and all dependencies embedded.")
+@click.option('--max-workers',
+              default=100,
+              type=int,
+              show_default=True,
+              help="Maximum number of parallel pods.")
 @click.option('--only-json',
               is_flag=True,
               default=False,
@@ -93,6 +98,7 @@ def create(obj,
            token,
            k8s_namespace,
            embedded,
+           max_workers,
            only_json=False):
     obj.echo("Deploying *%s* to Argo Workflow Templates..." % obj.workflow_template_name,
              bold=True)
@@ -131,7 +137,8 @@ def create(obj,
                             env,
                             env_from,
                             labels,
-                            annotations)
+                            annotations,
+                            max_workers)
 
     if only_json:
         obj.echo_always(workflow.to_json(), err=False, no_bold=True, nl=False)

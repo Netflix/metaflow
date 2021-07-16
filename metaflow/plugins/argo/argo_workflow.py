@@ -46,7 +46,8 @@ class ArgoWorkflow:
                  env,
                  env_from,
                  labels,
-                 annotations):
+                 annotations,
+                 max_workers):
         self.name = name
         self.flow = flow
         self.graph = graph
@@ -73,6 +74,7 @@ class ArgoWorkflow:
                 'metaflow.flow_name': flow.name,
             }
         }
+        self.max_workers = max_workers
         self._flow_attributes = self._parse_flow_decorator()
         self._workflow = remove_empty_elements(self._compile())
 
@@ -167,6 +169,7 @@ class ArgoWorkflow:
                 },
                 'imagePullSecrets': self.image_pull_secrets if self.image_pull_secrets \
                                     else self._flow_attributes.get('imagePullSecrets'),
+                'parallelism': self.max_workers,
                 'templates': self._generate_templates(),
             }
         }
