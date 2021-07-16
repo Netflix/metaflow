@@ -25,6 +25,10 @@ class MetaflowPackage(object):
             self.metaflow_custom_root = None
         else:
             self.metaflow_custom_root = os.path.dirname(metaflow_custom.__file__)
+            self.metaflow_custom_addl_suffixes = getattr(
+                metaflow_custom,
+                'METAFLOW_CUSTOM_PACKAGE_SUFFIXES',
+                None)
 
         self.flow_name = flow.name
         self.create_time = time.time()
@@ -36,7 +40,9 @@ class MetaflowPackage(object):
                                   environment)
         self.blob = self._make()
 
-    def _walk(self, root, exclude_hidden=True):
+    def _walk(self, root, exclude_hidden=True, addl_suffixes=None):
+        if addl_suffixes is None:
+            addl_suffixes = []
         root = to_unicode(root)  # handle files/folder with non ascii chars
         prefixlen = len('%s/' % os.path.dirname(root))
         for path, dirs, files in os.walk(root):
@@ -48,7 +54,7 @@ class MetaflowPackage(object):
             for fname in files:
                 if fname[0] == '.':
                     continue
-                if any(fname.endswith(suffix) for suffix in self.suffixes):
+                if any(fname.endswith(suffix) for suffix in self.suffixes + addl_suffixes):
                     p = os.path.join(path, fname)
                     yield p, p[prefixlen:]
 
@@ -63,7 +69,10 @@ class MetaflowPackage(object):
             yield path_tuple
         # Metaflow customization if any
         if self.metaflow_custom_root:
-            for path_tuple in self._walk(self.metaflow_custom_root, exclude_hidden=False):
+            for path_tuple in self._walk(
+                    self.metaflow_custom_root,
+                    exclude_hidden=False,
+                    addl_suffixes=self.metaflow_custom_addl_suffixes):
                 yield path_tuple
         # the package folders for environment
         for path_tuple in self.environment.add_to_package():
