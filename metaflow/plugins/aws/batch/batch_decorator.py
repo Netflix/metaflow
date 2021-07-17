@@ -135,8 +135,8 @@ class BatchDecorator(StepDecorator):
                   logger):
         # Executing AWS Batch jobs requires a non-local datastore.
         if datastore.TYPE != 's3':
-            raise KubernetesException(
-                'The *@kubernetes* decorator requires --datastore=s3.')
+            raise BatchException(
+                'The *@batch* decorator requires --datastore=s3.')
 
         # Set internal state.
         self.logger = logger
