@@ -213,12 +213,7 @@ class BatchDecorator(StepDecorator):
                       retry_count,
                       max_retries,
                       ubf_context):
-        # If `local` metadata is configured, we would need to copy task
-        # execution metadata from the AWS Batch container to user's
-        # local file system after the user code has finished execution. This
-        # happens via datastore as a communication bridge.
-        self.sync_metadata = metadata.TYPE == 'local'
-
+        self.metadata = metadata
         self.datastore = datastore
 
         # task_pre_step may run locally if fallback is activated for @catch 
@@ -267,15 +262,22 @@ class BatchDecorator(StepDecorator):
                       is_task_ok,
                       retry_count,
                       max_retries):
-        if self.sync_metadata:
-            # Note that the datastore is *always* Amazon S3 (see 
-            # runtime_task_created function).
-            sync_metadata_to_S3(DATASTORE_LOCAL_DIR,
-                                self.datastore.root,
-                                retry_count)
+        # task_finished may run locally if fallback is activated for @catch 
+        # decorator.
+        if 'AWS_BATCH_JOB_ID' in os.environ:
+            # If `local` metadata is configured, we would need to copy task
+            # execution metadata from the AWS Batch container to user's
+            # local file system after the user code has finished execution.
+            # This happens via datastore as a communication bridge.
+            if self.metadata.TYPE == 'local':
+                # Note that the datastore is *always* Amazon S3 (see 
+                # runtime_task_created function).
+                sync_metadata_to_S3(DATASTORE_LOCAL_DIR,
+                                    self.datastore.root,
+                                    retry_count)
 
-        try:
-            self._save_logs_sidecar.kill()
-        except:
-            # Best effort kill
-            pass
+            try:
+                self._save_logs_sidecar.kill()
+            except:
+                # Best effort kill
+                pass
