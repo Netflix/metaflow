@@ -1,34 +1,19 @@
+import click
 import os
 import sys
-import tarfile
 import time
 import traceback
 
-import click
-
-from distutils.dir_util import copy_tree
+from metaflow import util
+from metaflow import R
+from metaflow.exception import CommandException, METAFLOW_EXIT_DISALLOW_RETRY
+from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
+from metaflow.mflog import TASK_LOG_SOURCE
 
 from .batch import Batch, BatchKilledException, STDOUT_PATH, STDERR_PATH
 
-from metaflow.datastore import MetaflowDataStore
-from metaflow.datastore.local import LocalDataStore
-from metaflow.datastore.util.s3util import get_s3_client
-from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
-from metaflow import util
-from metaflow import R
-from metaflow.exception import (
-    CommandException,
-    METAFLOW_EXIT_DISALLOW_RETRY,
-)
-from metaflow.mflog import TASK_LOG_SOURCE
+from ..aws_utils import sync_metadata_from_S3
 
-
-try:
-    # python2
-    from urlparse import urlparse
-except:  # noqa E722
-    # python3
-    from urllib.parse import urlparse
 
 @click.group()
 def cli():
@@ -61,34 +46,6 @@ def _execute_cmd(func, flow_name, run_id, user, my_runs, echo):
             raise CommandException("A previous run id was not found. Specify --run-id.")
 
     func(flow_name, run_id, user, echo)
-
-
-def _sync_metadata(echo, metadata, datastore_root, attempt):
-    if metadata.TYPE == 'local':
-        def echo_none(*args, **kwargs):
-            pass
-        path = os.path.join(
-            datastore_root,
-            MetaflowDataStore.filename_with_attempt_prefix('metadata.tgz', attempt))
-        url = urlparse(path)
-        bucket = url.netloc
-        key = url.path.lstrip('/')
-        s3, err = get_s3_client()
-        try:
-            s3.head_object(Bucket=bucket, Key=key)
-            # If we are here, we can download the object
-            with util.TempDir() as td:
-                tar_file_path = os.path.join(td, 'metadata.tgz')
-                with open(tar_file_path, 'wb') as f:
-                    s3.download_fileobj(bucket, key, f)
-                with tarfile.open(tar_file_path, 'r:gz') as tar:
-                    tar.extractall(td)
-                copy_tree(
-                    os.path.join(td, DATASTORE_LOCAL_DIR),
-                    LocalDataStore.get_datastore_root_from_config(echo_none),
-                    update=True)
-        except err as e:  # noqa F841
-            pass
 
 
 @batch.command(help="List unfinished AWS Batch tasks of this flow")
@@ -272,6 +229,12 @@ def step(
     stdout_location = ds.get_log_location(TASK_LOG_SOURCE, 'stdout')
     stderr_location = ds.get_log_location(TASK_LOG_SOURCE, 'stderr')
 
+    def _sync_metadata():
+        if ctx.obj.metadata.TYPE == 'local':
+            sync_metadata_from_S3(DATASTORE_LOCAL_DIR,
+                                  datastore_root,
+                                  retry_count)
+
     batch = Batch(ctx.obj.metadata, ctx.obj.environment)
     try:
         with ctx.obj.monitor.measure("metaflow.batch.launch"):
@@ -298,13 +261,13 @@ def step(
             )
     except Exception as e:
         print(e)
-        _sync_metadata(echo, ctx.obj.metadata, datastore_root, retry_count)
+        _sync_metadata()
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
     try:
         batch.wait(stdout_location, stderr_location, echo=echo)
     except BatchKilledException:
         # don't retry killed tasks
         traceback.print_exc()
-        _sync_metadata(echo, ctx.obj.metadata, datastore_root, retry_count)
+        _sync_metadata()
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
-    _sync_metadata(echo, ctx.obj.metadata, datastore_root, retry_count)
+    _sync_metadata()

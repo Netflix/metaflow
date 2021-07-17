@@ -1,35 +1,25 @@
 import os
 import sys
 import platform
-import re
-import tarfile
 import requests
 
-from metaflow.datastore import MetaflowDataStore
-from metaflow.datastore.datastore import TransformableObject
-from metaflow.datastore.util.s3util import get_s3_client
+from metaflow import R
+from metaflow import util
 from metaflow.decorators import StepDecorator
-from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
+from metaflow.datastore.datastore import TransformableObject
+from metaflow.metadata import MetaDatum
+from metaflow.metaflow_config import ECS_S3_ACCESS_IAM_ROLE, \
+                                        BATCH_JOB_QUEUE, \
+                                        BATCH_CONTAINER_IMAGE, \
+                                        BATCH_CONTAINER_REGISTRY, \
+                                        ECS_FARGATE_EXECUTION_ROLE, \
+                                        DATASTORE_LOCAL_DIR
 from metaflow.plugins import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
-from metaflow.metadata import MetaDatum
-
-from metaflow import util
-from metaflow import R
-
-from .batch import Batch, BatchException
-from metaflow.metaflow_config import ECS_S3_ACCESS_IAM_ROLE, BATCH_JOB_QUEUE, \
-                    BATCH_CONTAINER_IMAGE, BATCH_CONTAINER_REGISTRY, \
-                    ECS_FARGATE_EXECUTION_ROLE
 from metaflow.sidecar import SidecarSubProcess
 
-try:
-    # python2
-    from urlparse import urlparse
-except:  # noqa E722
-    # python3
-    from urllib.parse import urlparse
-
+from .batch import BatchException
+from ..aws_utils import get_docker_registry, sync_metadata_to_S3
 
 class BatchDecorator(StepDecorator):
     """
@@ -108,40 +98,72 @@ class BatchDecorator(StepDecorator):
     def __init__(self, attributes=None, statically_defined=False):
         super(BatchDecorator, self).__init__(attributes, statically_defined)
 
+        # If no docker image is explicitly specified, impute a default image.
         if not self.attributes['image']:
+            # If metaflow-config specifies a docker image, just use that.
             if BATCH_CONTAINER_IMAGE:
                 self.attributes['image'] = BATCH_CONTAINER_IMAGE
+            # If metaflow-config doesn't specify a docker image, assign a 
+            # default docker image.
             else:
+                # Metaflow-R has it's own default docker image (rocker family)
                 if R.use_r():
                     self.attributes['image'] = R.container_image()
+                # Default to vanilla Python image corresponding to major.minor
+                # version of the Python interpreter launching the flow.
                 else:
-                    self.attributes['image'] = 'python:%s.%s' % (platform.python_version_tuple()[0],
-                        platform.python_version_tuple()[1])
-        if not BatchDecorator._get_registry(self.attributes['image']):
+                    self.attributes['image'] = \
+                        'python:%s.%s' % (platform.python_version_tuple()[0],
+                                            platform.python_version_tuple()[1])
+        # Assign docker registry URL for the image.
+        if not get_docker_registry(self.attributes['image']):
             if BATCH_CONTAINER_REGISTRY:
-                self.attributes['image'] = '%s/%s' % (BATCH_CONTAINER_REGISTRY.rstrip('/'),
-                    self.attributes['image'])
+                self.attributes['image'] = \
+                    '%s/%s' % (BATCH_CONTAINER_REGISTRY.rstrip('/'),
+                                    self.attributes['image'])
 
-    def step_init(self, flow, graph, step, decos, environment, datastore, logger):
+    # Refer https://github.com/Netflix/metaflow/blob/master/docs/lifecycle.png
+    # to understand where these functions are invoked in the lifecycle of a
+    # Metaflow flow.
+    def step_init(self,
+                  flow,
+                  graph,
+                  step,
+                  decos,
+                  environment,
+                  datastore,
+                  logger):
+        # Executing AWS Batch jobs requires a non-local datastore.
         if datastore.TYPE != 's3':
-            raise BatchException('The *@batch* decorator requires --datastore=s3.')
+            raise KubernetesException(
+                'The *@kubernetes* decorator requires --datastore=s3.')
 
+        # Set internal state.
         self.logger = logger
         self.environment = environment
         self.step = step
         for deco in decos:
             if isinstance(deco, ResourcesDecorator):
                 for k, v in deco.attributes.items():
-                    # we use the larger of @resources and @batch attributes
+                    # We use the larger of @resources and @k8s attributes
+                    # TODO: Fix https://github.com/Netflix/metaflow/issues/467
                     my_val = self.attributes.get(k)
                     if not (my_val is None and v is None):
-                        self.attributes[k] = str(max(int(my_val or 0), int(v or 0)))
+                        self.attributes[k] = \
+                                        str(max(int(my_val or 0), int(v or 0)))
+        
+        # Set run time limit for the AWS Batch job.
         self.run_time_limit = get_run_time_limit_for_task(decos)
         if self.run_time_limit < 60:
             raise BatchException('The timeout for step *{step}* should be at '
-                'least 60 seconds for execution on AWS Batch'.format(step=step))
+                'least 60 seconds for execution on AWS Batch.'.format(step=step))
 
-    def runtime_init(self, flow, graph, package, run_id):
+    def runtime_init(self,
+                     flow,
+                     graph,
+                     package,
+                     run_id):
+        # Set some more internal state.
         self.flow = flow
         self.graph = graph
         self.package = package
@@ -154,8 +176,14 @@ class BatchDecorator(StepDecorator):
                              input_paths,
                              is_cloned,
                              ubf_context):
-        if not is_cloned:
-            self._save_package_once(datastore, self.package)
+        # To execute the AWS Batch job, the job container needs to have
+        # access to the code package. We store the package in the datastore
+        # which the pod is able to download as part of it's entrypoint. 
+        if not is_cloned and self.package_url is None:
+            self.package_url = datastore.save_data(
+                                    self.package.sha,
+                                    TransformableObject(self.package.blob))
+            self.package_sha = self.package.sha
 
     def runtime_step_cli(self,
                          cli_args,
@@ -164,7 +192,8 @@ class BatchDecorator(StepDecorator):
                          ubf_context):
         if retry_count <= max_user_code_retries:
             # after all attempts to run the user code have failed, we don't need
-            # Batch anymore. We can execute possible fallback code locally.
+            # to execute on AWS Batch anymore. We can execute possible fallback 
+            # code locally.
             cli_args.commands = ['batch', 'step']
             cli_args.command_args.append(self.package_sha)
             cli_args.command_args.append(self.package_url)
@@ -175,7 +204,7 @@ class BatchDecorator(StepDecorator):
 
     def task_pre_step(self,
                       step_name,
-                      ds,
+                      datastore,
                       metadata,
                       run_id,
                       task_id,
@@ -184,119 +213,69 @@ class BatchDecorator(StepDecorator):
                       retry_count,
                       max_retries,
                       ubf_context):
-        if metadata.TYPE == 'local':
-            self.ds_root = ds.root
-        else:
-            self.ds_root = None
-        meta = {}
-        meta['aws-batch-job-id'] = os.environ['AWS_BATCH_JOB_ID']
-        meta['aws-batch-job-attempt'] = os.environ['AWS_BATCH_JOB_ATTEMPT']
-        meta['aws-batch-ce-name'] = os.environ['AWS_BATCH_CE_NAME']
-        meta['aws-batch-jq-name'] = os.environ['AWS_BATCH_JQ_NAME']
-        meta['aws-batch-execution-env'] = os.environ['AWS_EXECUTION_ENV']
+        # If `local` metadata is configured, we would need to copy task
+        # execution metadata from the AWS Batch container to user's
+        # local file system after the user code has finished execution. This
+        # happens via datastore as a communication bridge.
+        self.sync_metadata = metadata.TYPE == 'local'
 
-        # Capture AWS Logs metadata. This is best effort only since
-        # only V4 of the metadata uri for the ECS container hosts this
-        # information and it is quite likely that not all consumers of 
-        # Metaflow would be running the container agent compatible with
-        # version V4.
-        # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-metadata-endpoint.html
-        try:
-            logs_meta = requests.get(
-                            url=os.environ['ECS_CONTAINER_METADATA_URI_V4']) \
-                                .json() \
-                                .get('LogOptions', {})
-            meta['aws-batch-awslogs-group'] = logs_meta.get('awslogs-group')
-            meta['aws-batch-awslogs-region'] = logs_meta.get('awslogs-region')
-            meta['aws-batch-awslogs-stream'] = logs_meta.get('awslogs-stream')
-        except:
-            pass
+        self.datastore = datastore
 
-        entries = [MetaDatum(field=k, value=v, type=k, tags=[]) for k, v in meta.items()]
-        # Register book-keeping metadata for debugging.
-        metadata.register_metadata(run_id, step_name, task_id, entries)
-        self._save_logs_sidecar = SidecarSubProcess('save_logs_periodically')
+        # task_pre_step may run locally if fallback is activated for @catch 
+        # decorator. In that scenario, we skip collecting AWS Batch execution
+        # metadata. A rudimentary way to detect non-local execution is to
+        # check for the existence of AWS_BATCH_JOB_ID environment variable.
 
-    def task_finished(self, step_name, flow, graph, is_task_ok, retry_count, max_retries):
-        if self.ds_root:
-            # We have a local metadata service so we need to persist it to the datastore.
-            # Note that the datastore is *always* s3 (see runtime_task_created function)
-            with util.TempDir() as td:
-                tar_file_path = os.path.join(td, 'metadata.tgz')
-                with tarfile.open(tar_file_path, 'w:gz') as tar:
-                    # The local metadata is stored in the local datastore
-                    # which, for batch jobs, is always the DATASTORE_LOCAL_DIR
-                    tar.add(DATASTORE_LOCAL_DIR)
-                # At this point we upload what need to s3
-                s3, _ = get_s3_client()
-                with open(tar_file_path, 'rb') as f:
-                    path = os.path.join(
-                        self.ds_root,
-                        MetaflowDataStore.filename_with_attempt_prefix(
-                            'metadata.tgz', retry_count))
-                    url = urlparse(path)
-                    s3.upload_fileobj(f, url.netloc, url.path.lstrip('/'))
+        if 'AWS_BATCH_JOB_ID' in os.environ:
+            meta = {}
+            meta['aws-batch-job-id'] = os.environ['AWS_BATCH_JOB_ID']
+            meta['aws-batch-job-attempt'] = os.environ['AWS_BATCH_JOB_ATTEMPT']
+            meta['aws-batch-ce-name'] = os.environ['AWS_BATCH_CE_NAME']
+            meta['aws-batch-jq-name'] = os.environ['AWS_BATCH_JQ_NAME']
+            meta['aws-batch-execution-env'] = os.environ['AWS_EXECUTION_ENV']
+
+            # Capture AWS Logs metadata. This is best effort only since
+            # only V4 of the metadata uri for the ECS container hosts this
+            # information and it is quite likely that not all consumers of 
+            # Metaflow would be running the container agent compatible with
+            # version V4.
+            # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-metadata-endpoint.html
+            try:
+                logs_meta = requests.get(
+                                url=os.environ['ECS_CONTAINER_METADATA_URI_V4']) \
+                                    .json() \
+                                    .get('LogOptions', {})
+                meta['aws-batch-awslogs-group'] = logs_meta.get('awslogs-group')
+                meta['aws-batch-awslogs-region'] = logs_meta.get('awslogs-region')
+                meta['aws-batch-awslogs-stream'] = logs_meta.get('awslogs-stream')
+            except:
+                pass
+
+            entries = \
+                [MetaDatum(field=k, value=v, type=k, tags=[]) 
+                    for k, v in meta.items()]
+            # Register book-keeping metadata for debugging.
+            metadata.register_metadata(run_id, step_name, task_id, entries)
+        
+            # Start MFLog sidecar to collect task logs.
+            self._save_logs_sidecar = SidecarSubProcess('save_logs_periodically')
+
+    def task_finished(self,
+                      step_name,
+                      flow,
+                      graph,
+                      is_task_ok,
+                      retry_count,
+                      max_retries):
+        if self.sync_metadata:
+            # Note that the datastore is *always* Amazon S3 (see 
+            # runtime_task_created function).
+            sync_metadata_to_S3(DATASTORE_LOCAL_DIR,
+                                self.datastore.root,
+                                retry_count)
+
         try:
             self._save_logs_sidecar.kill()
         except:
+            # Best effort kill
             pass
-
-    @classmethod
-    def _save_package_once(cls, datastore, package):
-        if cls.package_url is None:
-            cls.package_url = datastore.save_data(package.sha, TransformableObject(package.blob))
-            cls.package_sha = package.sha
-
-    @classmethod
-    def _get_registry(cls, image):
-        """
-        Explanation:
-
-            (.+?(?:[:.].+?)\/)? - [GROUP 0] REGISTRY
-                .+?                 - A registry must start with at least one character
-                (?:[:.].+?)\/       - A registry must have ":" or "." and end with "/"
-                ?                   - Make a registry optional
-            (.*?)               - [GROUP 1] REPOSITORY
-                .*?                 - Get repository name until separator
-            (?:[@:])?           - SEPARATOR
-                ?:                  - Don't capture separator
-                [@:]                - The separator must be either "@" or ":"
-                ?                   - The separator is optional
-            ((?<=[@:]).*)?      - [GROUP 2] TAG / DIGEST
-                (?<=[@:])           - A tag / digest must be preceeded by "@" or ":"
-                .*                  - Capture rest of tag / digest
-                ?                   - A tag / digest is optional
-
-        Examples:
-
-            image
-                - None
-                - image
-                - None
-            example/image
-                - None
-                - example/image
-                - None
-            example/image:tag
-                - None
-                - example/image
-                - tag
-            example.domain.com/example/image:tag
-                - example.domain.com/
-                - example/image
-                - tag
-            123.123.123.123:123/example/image:tag
-                - 123.123.123.123:123/
-                - example/image
-                - tag
-            example.domain.com/example/image@sha256:45b23dee0
-                - example.domain.com/
-                - example/image
-                - sha256:45b23dee0
-        """
-
-        pattern = re.compile(r"^(.+?(?:[:.].+?)\/)?(.*?)(?:[@:])?((?<=[@:]).*)?$")
-        registry, repository, tag = pattern.match(image).groups()
-        if registry is not None:
-            registry = registry.rstrip("/")
-        return registry
