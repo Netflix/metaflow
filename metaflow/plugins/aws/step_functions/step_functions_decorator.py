@@ -4,7 +4,6 @@ import time
 
 from metaflow.decorators import StepDecorator
 from metaflow.metadata import MetaDatum
-from metaflow.unbounded_foreach import UBF_TASK
 
 from .dynamo_db_client import DynamoDbClient
 
