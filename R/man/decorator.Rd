@@ -4,28 +4,38 @@
 \alias{decorator}
 \title{Metaflow Decorator.}
 \usage{
-decorator(x, ...)
+decorator(x, ..., .convert_args = TRUE)
 }
 \arguments{
 \item{x}{Type of decorator (e.g, resources, catch, retry, timeout, batch ...)}
 
-\item{...}{Named arguments for the decorator (e.g, cpu=1, memory=1000 ...). Note that memory unit is in MB.}
+\item{...}{Named arguments for the decorator (e.g, \code{cpu=1}, \code{memory=1000}).
+Note that memory unit is in MB.}
+
+\item{.convert_args}{Boolean. If \code{TRUE} (the default), argument values will
+be converted to analogous Python values, with strings quoted and escaped.
+Disable this if argument values are already formatted for Python.}
 }
 \value{
-A decorator object
+A object of class "decorator"
 }
 \description{
-Decorates the \code{step} with the parameters present in its arguments.
+Decorates the \code{step} with the parameters present in its arguments. For this
+method to work properly, the \code{...} arguments should be named, and decorator
+type should be the first argument. It may be more convenient to use one of
+the \emph{decorator wrappers} listed below:
+\itemize{
+\item \code{\link{resources}}
+\item \code{\link{batch}}
+\item \code{\link{retry}}
+\item \code{\link{catch}}
+\item \code{\link{environment_variables}}
 }
-\details{
-For this method to work properly, the arguments \code{...} should be named, and decorator
-type should be the first argument.
 }
-\section{Usage}{
-
-\preformatted{
+\examples{
+\dontrun{
 decorator("catch", print_exception=FALSE)
 decorator("resources", cpu=2, memory=10000)
 }
-}
 
+}

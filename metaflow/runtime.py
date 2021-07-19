@@ -12,7 +12,7 @@ import fcntl
 import time
 import select
 import subprocess
-
+from datetime import datetime
 from io import BytesIO
 from functools import partial
 
@@ -26,8 +26,9 @@ from .datastore import DataException, MetaflowDatastoreSet
 from .metadata import MetaDatum
 from .debug import debug
 from .decorators import flow_decorators
-
-from .util import to_unicode, compress_list
+from .mflog import mflog, RUNTIME_LOG_SOURCE
+from .util import to_unicode, compress_list, unicode_type
+from .unbounded_foreach import CONTROL_TASK_TAG, UBF_CONTROL, UBF_TASK
 
 MAX_WORKERS=16
 MAX_NUM_SPLITS=100
@@ -37,6 +38,10 @@ PROGRESS_INTERVAL = 1000 #ms
 # executing a flow. These are prefetched during the resume operation by
 # leveraging the MetaflowDatastoreSet.
 PREFETCH_DATA_ARTIFACTS = ['_foreach_stack', '_task_ok', '_transition']
+
+# Runtime must use logsource=RUNTIME_LOG_SOURCE for all loglines that it
+# formats according to mflog. See a comment in mflog.__init__
+mflog_msg = partial(mflog.decorate, RUNTIME_LOG_SOURCE)
 
 # TODO option: output dot graph periodically about execution
 
@@ -121,6 +126,11 @@ class NativeRuntime(object):
         self._workers = {}  # fd -> subprocess mapping
         self._finished = {}
         self._is_cloned = {}
+        # NOTE: In case of unbounded foreach, we need the following to schedule
+        # the (sibling) mapper tasks  of the control task (in case of resume);
+        # and ensure that the join tasks runs only if all dependent tasks have
+        # finished.
+        self._control_num_splits = {}  # control_task -> num_splits mapping
 
         for step in flow:
             for deco in step.decorators:
@@ -177,6 +187,8 @@ class NativeRuntime(object):
         self._logger('Workflow starting (run-id %s):' % self._run_id,
                      system_msg=True)
 
+        self._metadata.start_run_heartbeat(self._flow.name, self._run_id)
+
         if self._params_task:
             self._queue_push('start', {'input_paths': [self._params_task]})
         else:
@@ -224,6 +236,8 @@ class NativeRuntime(object):
             for step in self._flow:
                 for deco in step.decorators:
                     deco.runtime_finished(exception)
+
+            self._metadata.stop_heartbeat()
 
         # assert that end was executed and it was successful
         if ('end', ()) in self._finished:
@@ -275,35 +289,108 @@ class NativeRuntime(object):
         else:
             next_step = next_steps[0]
 
-        # matching_split is the split-parent of the finished task
-        matching_split = self._graph[self._graph[next_step].split_parents[-1]]
-        step_name, foreach_stack = task.finished_id
 
-        if matching_split.type == 'foreach':
-            # next step is a foreach join
+        unbounded_foreach = not task.results.is_none('_unbounded_foreach')
 
-            def siblings(foreach_stack):
-                top = foreach_stack[-1]
-                bottom = list(foreach_stack[:-1])
-                for index in range(top.num_splits):
-                    yield tuple(bottom + [top._replace(index=index)])
+        if unbounded_foreach:
+            # Before we queue the join, do some post-processing of runtime state
+            # (_finished, _is_cloned) for the (sibling) mapper tasks.
+            # Update state of (sibling) mapper tasks for control task.
+            if task.ubf_context == UBF_CONTROL:
+                mapper_tasks = task.results.get('_control_mapper_tasks')
+                if not mapper_tasks:
+                    msg = "Step *{step}* has a control task which didn't "\
+                          "specify the artifact *_control_mapper_tasks* for "\
+                          "the subsequent *{join}* step."
+                    raise MetaflowInternalError(msg.format(step=task.step,
+                                                           join=next_steps[0]))
+                elif not (isinstance(mapper_tasks, list) and\
+                          isinstance(mapper_tasks[0], unicode_type)):
+                    msg = "Step *{step}* has a control task which didn't "\
+                          "specify the artifact *_control_mapper_tasks* as a "\
+                          "list of strings but instead specified it as {typ} "\
+                          "with elements of {elem_typ}."
+                    raise MetaflowInternalError(
+                            msg.format(step=task.step,
+                                       typ=type(mapper_tasks),
+                                       elem_type=type(mapper_tasks[0])))
+                num_splits = len(mapper_tasks)
+                self._control_num_splits[task.path] = num_splits
+                if task.is_cloned:
+                    # Add mapper tasks to be cloned.
+                    for i in range(num_splits):
+                        # NOTE: For improved robustness, introduce 
+                        # `clone_options` as an enum so that we can force that 
+                        # clone must occur for this task.
+                        self._queue_push(task.step,
+                                         {'input_paths': task.input_paths,
+                                          'split_index': str(i),
+                                          'ubf_context': UBF_TASK})
+                else:
+                    # Update _finished since these tasks were successfully
+                    # run elsewhere so that join will be unblocked.
+                    step_name, foreach_stack = task.finished_id
+                    top = foreach_stack[-1]
+                    bottom = list(foreach_stack[:-1])
+                    for i in range(num_splits):
+                        s = tuple(bottom + [top._replace(index=i)])
+                        self._finished[(task.step, s)] = mapper_tasks[i]
+                        self._is_cloned[mapper_tasks[i]] = False
 
-            # required tasks are all split-siblings of the finished task
-            required_tasks = [self._finished.get((task.step, s))
-                              for s in siblings(foreach_stack)]
-            join_type = 'foreach'
+            # Find and check status of control task and retrieve its pathspec
+            # for retrieving unbounded foreach cardinality.
+            step_name, foreach_stack = task.finished_id
+            top = foreach_stack[-1]
+            bottom = list(foreach_stack[:-1])
+            s = tuple(bottom + [top._replace(index=None)])
+            control_path = self._finished.get((task.step, s))
+            if control_path:
+                # Control task was successful.
+                # Additionally check the state of (sibling) mapper tasks as well
+                # (for the sake of resume) before queueing join task.
+                num_splits = self._control_num_splits[control_path]
+                required_tasks = []
+                for i in range(num_splits):
+                    s = tuple(bottom + [top._replace(index=i)])
+                    required_tasks.append(self._finished.get((task.step, s)))
+                required_tasks.append(control_path)
+
+                if all(required_tasks):
+                    # all tasks to be joined are ready. Schedule the next join step.
+                    self._queue_push(next_step,
+                                     {'input_paths': required_tasks,
+                                      'join_type': 'foreach'})
         else:
-            # next step is a split-and
-            # required tasks are all branches joined by the next step
-            required_tasks = [self._finished.get((step, foreach_stack))
-                              for step in self._graph[next_step].in_funcs]
-            join_type = 'linear'
+            # matching_split is the split-parent of the finished task
+            matching_split = \
+                        self._graph[self._graph[next_step].split_parents[-1]]
+            step_name, foreach_stack = task.finished_id
 
-        if all(required_tasks):
-            # all tasks to be joined are ready. Schedule the next join step.
-            self._queue_push(next_step,
-                             {'input_paths': required_tasks,
-                              'join_type': join_type})
+            if matching_split.type == 'foreach':
+                # next step is a foreach join
+
+                def siblings(foreach_stack):
+                    top = foreach_stack[-1]
+                    bottom = list(foreach_stack[:-1])
+                    for index in range(top.num_splits):
+                        yield tuple(bottom + [top._replace(index=index)])
+
+                # required tasks are all split-siblings of the finished task
+                required_tasks = [self._finished.get((task.step, s))
+                                  for s in siblings(foreach_stack)]
+                join_type = 'foreach'
+            else:
+                # next step is a split-and
+                # required tasks are all branches joined by the next step
+                required_tasks = [self._finished.get((step, foreach_stack))
+                                  for step in self._graph[next_step].in_funcs]
+                join_type = 'linear'
+
+            if all(required_tasks):
+                # all tasks to be joined are ready. Schedule the next join step.
+                self._queue_push(next_step,
+                                 {'input_paths': required_tasks,
+                                  'join_type': join_type})
 
     def _queue_task_foreach(self, task, next_steps):
 
@@ -317,21 +404,29 @@ class NativeRuntime(object):
         else:
             next_step = next_steps[0]
 
-        num_splits = task.results['_foreach_num_splits']
-        if num_splits > self._max_num_splits:
-            msg = 'Foreach in step *{step}* yielded {num} child steps '\
-                  'which is more than the current maximum of {max} '\
-                  'children. You can raise the maximum with the '\
-                  '--max-num-splits option. '
-            raise TaskFailed(task, msg.format(step=task.step,
-                                              num=num_splits,
-                                              max=self._max_num_splits))
+        unbounded_foreach = not task.results.is_none('_unbounded_foreach')
 
-        # schedule all splits
-        for i in range(num_splits):
+        if unbounded_foreach:
+            # Need to push control process related task.
             self._queue_push(next_step,
-                             {'split_index': str(i),
-                              'input_paths': [task.path]})
+                             {'input_paths': [task.path],
+                              'ubf_context': UBF_CONTROL})  
+        else:
+            num_splits = task.results['_foreach_num_splits']
+            if num_splits > self._max_num_splits:
+                msg = 'Foreach in step *{step}* yielded {num} child steps '\
+                      'which is more than the current maximum of {max} '\
+                      'children. You can raise the maximum with the '\
+                      '--max-num-splits option. '
+                raise TaskFailed(task, msg.format(step=task.step,
+                                                  num=num_splits,
+                                                  max=self._max_num_splits))
+
+            # schedule all splits
+            for i in range(num_splits):
+                self._queue_push(next_step,
+                                 {'split_index': str(i),
+                                  'input_paths': [task.path]})
 
     def _queue_tasks(self, finished_tasks):
         # finished tasks include only successful tasks
@@ -340,7 +435,9 @@ class NativeRuntime(object):
             self._is_cloned[task.path] = task.is_cloned
 
             # CHECK: ensure that runtime transitions match with
-            # statically inferred transitions
+            # statically inferred transitions. Make an exception for control
+            # tasks, where we just rely on static analysis since we don't
+            # execute user code.
             trans = task.results.get('_transition')
             if trans:
                 next_steps = trans[0]
@@ -450,6 +547,7 @@ class Task(object):
                  monitor,
                  input_paths=None,
                  split_index=None,
+                 ubf_context=None,
                  clone_run_id=None,
                  origin_ds_set=None,
                  may_clone=False,
@@ -457,11 +555,26 @@ class Task(object):
                  logger=None,
                  task_id=None,
                  decos=[]):
+        if ubf_context == UBF_CONTROL:
+            [input_path] = input_paths
+            run, input_step, input_task = input_path.split('/')
+            # We associate the control task-id to be 1:1 with the split node
+            # where the unbounded-foreach was defined.
+            # We prefer encoding the corresponding split into the task_id of
+            # the control node; so it has access to this information quite
+            # easily. There is anyway a corresponding int id stored in the
+            # metadata backend - so this should be fine.
+            task_id = 'control-%s-%s-%s' % (run, input_step, input_task)
+        # Register only regular Metaflow (non control) tasks.
         if task_id is None:
             task_id = str(metadata.new_task_id(run_id, step))
         else:
-            # task_id is preset only by persist_parameters()
-            metadata.register_task_id(run_id, step, task_id)
+            # task_id is preset only by persist_parameters() or control tasks.
+            if ubf_context == UBF_CONTROL:
+                metadata.register_task_id(run_id, step, task_id,
+                    sys_tags=[CONTROL_TASK_TAG])
+            else:
+                metadata.register_task_id(run_id, step, task_id)
 
         self.step = step
         self.flow_name = flow.name
@@ -469,6 +582,7 @@ class Task(object):
         self.task_id = task_id
         self.input_paths = input_paths
         self.split_index = split_index
+        self.ubf_context = ubf_context
         self.decos = decos
         self.entrypoint = entrypoint
         self.environment = environment
@@ -511,13 +625,29 @@ class Task(object):
                                           task_id,
                                           split_index,
                                           input_paths,
-                                          self._is_cloned)
+                                          self._is_cloned,
+                                          ubf_context)
 
                 # determine the number of retries of this task
                 user_code_retries, error_retries = deco.step_task_retry_count()
-                self.user_code_retries = max(self.user_code_retries,
-                                             user_code_retries)
-                self.error_retries = max(self.error_retries, error_retries)
+                if user_code_retries is None and error_retries is None:
+                    # This signals the runtime that the task doesn't want any
+                    # retries indifferent to other decorator opinions.
+                    # NOTE: This is needed since we don't statically disallow 
+                    # specifying `@retry` in combination with decorators which
+                    # implement `unbounded_foreach` semantics. This allows for
+                    # ergonomic user invocation of `--with retry`; instead
+                    # choosing to specially handle this way in the runtime.
+                    self.user_code_retries = None
+                    self.error_retries = None
+                if self.user_code_retries is not None and \
+                    self.error_retries is not None:
+                    self.user_code_retries = max(self.user_code_retries,
+                                                 user_code_retries)
+                    self.error_retries = max(self.error_retries, error_retries)
+            if self.user_code_retries is None and self.error_retries is None:
+                self.user_code_retries = 0
+                self.error_retries = 0
 
     def new_attempt(self):
         self._ds = self._datastore(self.flow_name,
@@ -529,15 +659,19 @@ class Task(object):
                                    attempt=self.retries,
                                    event_logger=self.event_logger,
                                    monitor=self.monitor)
+        self._ds.init_task()
 
 
-    def log(self, msg, system_msg=False, pid=None):
+    def log(self, msg, system_msg=False, pid=None, timestamp=True):
         if pid:
             prefix = '[%s (pid %s)] ' % (self._path, pid)
         else:
             prefix = '[%s] ' % self._path
 
-        self._logger(msg, head=prefix, system_msg=system_msg)
+        self._logger(msg,
+                     head=prefix,
+                     system_msg=system_msg,
+                     timestamp=timestamp)
         sys.stdout.flush()
 
     def _find_origin_task(self, clone_run_id, join_type):
@@ -566,7 +700,7 @@ class Task(object):
             if join_type == 'foreach':
                 # foreach-join pops the topmost index
                 index = ','.join(str(s.index) for s in foreach_stack[:-1])
-            elif self.split_index:
+            elif self.split_index or self.ubf_context == UBF_CONTROL:
                 # foreach-split pushes a new index
                 index = ','.join([str(s.index) for s in foreach_stack] +
                                  [str(self.split_index)])
@@ -635,20 +769,11 @@ class Task(object):
         self._ds.persist(flow)
         self._ds.done()
 
-    def save_logs(self, logtype, logs):
-        location = self._ds.save_log(logtype, logs)
-        datum = [MetaDatum(field='log_location_%s' % logtype,
-                           value=json.dumps({
-                               'ds_type': self._ds.TYPE,
-                               'location': location,
-                               'attempt': self.retries}),
-                           type='log_path',
-                           tags=[])]
-        self.metadata.register_metadata(self.run_id,
-                                        self.step,
-                                        self.task_id,
-                                        datum)
-        return location
+    def save_logs(self, stdout_buffer, stderr_buffer):
+        self._ds.save_logs(RUNTIME_LOG_SOURCE, [
+            ('stdout', stdout_buffer),
+            ('stderr', stderr_buffer)
+        ])
 
     def save_metadata(self, name, metadata):
         self._ds.save_metadata(name, metadata)
@@ -688,7 +813,7 @@ class TruncatedBuffer(object):
                 self._size += len(bytedata)
             else:
                 msg = b'[TRUNCATED - MAXIMUM LOG FILE SIZE REACHED]\n'
-                self._buffer.write(msg)
+                self._buffer.write(mflog_msg(msg))
                 self._eof = True
 
     def get_bytes(self):
@@ -733,25 +858,33 @@ class CLIArgs(object):
             'retry-count': task.retries,
             'max-user-code-retries': task.user_code_retries,
             'tag': task.tags,
-            'namespace': get_namespace() or ''
+            'namespace': get_namespace() or '',
+            'ubf-context': task.ubf_context
         }
         self.env = {}
 
     def get_args(self):
-        def options(mapping):
+
+        # TODO: Make one with dict_to_cli_options; see cli_args.py for more detail
+        def _options(mapping):
             for k, v in mapping.items():
-                values = v if isinstance(v, list) else [v]
-                for value in values:
-                    if value:
+                if v:
+                    # we need special handling for 'with' since it is a reserved
+                    # keyword in Python, so we call it 'decospecs' in click args
+                    if k == 'decospecs':
+                        k = 'with'
+                    k = k.replace('_', '-')
+                    v = v if isinstance(v, (list, tuple, set)) else [v]
+                    for value in v:
                         yield '--%s' % k
                         if not isinstance(value, bool):
                             yield to_unicode(value)
 
         args = list(self.entrypoint)
-        args.extend(options(self.top_level_options))
+        args.extend(_options(self.top_level_options))
         args.extend(self.commands)
         args.extend(self.command_args)
-        args.extend(options(self.command_options))
+        args.extend(_options(self.command_options))
         return args
 
     def get_env(self):
@@ -810,13 +943,12 @@ class Worker(object):
             for deco in self.task.decos:
                 deco.runtime_step_cli(args,
                                       self.task.retries,
-                                      self.task.user_code_retries)
+                                      self.task.user_code_retries,
+                                      self.task.ubf_context)
         env.update(args.get_env())
+        env['PYTHONUNBUFFERED'] = 'x'
         # the env vars are needed by the test framework, nothing else
         env['_METAFLOW_ATTEMPT'] = str(self.task.retries)
-        if self.task.clone_run_id:
-            env['_METAFLOW_RESUMED_RUN'] = '1'
-            env['_METAFLOW_RESUME_ORIGIN_RUN_ID'] = str(self.task.clone_run_id)
         # NOTE bufsize=1 below enables line buffering which is required
         # by read_logline() below that relies on readline() not blocking
         # print('running', args)
@@ -829,10 +961,38 @@ class Worker(object):
                                 stderr=subprocess.PIPE,
                                 stdout=subprocess.PIPE)
 
-    def write(self, msg, buf):
-        buf.write(msg)
-        text = msg.rstrip().decode(self._encoding, errors='replace')
-        self.task.log(text, pid=self._proc.pid)
+    def emit_log(self, msg, buf, system_msg=False):
+        if mflog.is_structured(msg):
+            res = mflog.parse(msg)
+            if res:
+                # parsing successful
+                plain = res.msg
+                timestamp = res.utc_tstamp
+                if res.should_persist:
+                    # in special circumstances we may receive structured
+                    # loglines that haven't been properly persisted upstream.
+                    # This is the case e.g. if a task crashes in an external
+                    # system and we retrieve the remaining logs after the crash.
+                    # Those lines are marked with a special tag, should_persist,
+                    # which we process here
+                    buf.write(mflog.unset_should_persist(msg))
+            else:
+                # parsing failed, corrupted logline. Print it as-is
+                timestamp = datetime.utcnow()
+                plain = msg
+        else:
+            # If the line isn't formatted with mflog already, we format it here.
+            plain = msg
+            timestamp = datetime.utcnow()
+            # store unformatted loglines in the buffer that will be
+            # persisted, assuming that all previously formatted loglines have
+            # been already persisted at the source.
+            buf.write(mflog_msg(msg, now=timestamp), system_msg=system_msg)
+        text = plain.strip().decode(self._encoding, errors='replace')
+        self.task.log(text,
+                      pid=self._proc.pid,
+                      timestamp=mflog.utc_to_local(timestamp),
+                      system_msg=system_msg)
 
     def read_logline(self, fd):
         fileobj, buf = self._logs[fd]
@@ -840,7 +1000,7 @@ class Worker(object):
         # line buffering. If it does, things will deadlock
         line = fileobj.readline()
         if line:
-            self.write(line, buf)
+            self.emit_log(line, buf)
             return True
         else:
             return False
@@ -854,7 +1014,8 @@ class Worker(object):
             return True
         if not self.cleaned:
             for fileobj, buf in self._logs.values():
-                buf.write(b'[KILLED BY ORCHESTRATOR]\n', system_msg=True)
+                msg = b'[KILLED BY ORCHESTRATOR]\n'
+                self.emit_log(msg, buf, system_msg=True)
             self.cleaned = True
         return self._proc.poll() is not None
 
@@ -892,17 +1053,19 @@ class Worker(object):
         # Return early if the task is cloned since we don't want to
         # perform any log collection.
         if not self.task.is_cloned:
-            self.task.save_logs('stdout', self._stdout.get_bytes())
-            self.task.save_logs('stderr', self._stderr.get_bytes())
-
             self.task.save_metadata('runtime', {'return_code': returncode,
                                                 'killed': self.killed,
                                                 'success': returncode == 0})
             if returncode:
                 if not self.killed:
-                    self.task.log('Task failed.',
-                                  system_msg=True,
-                                  pid=self._proc.pid)
+                    if returncode == -11:
+                        self.emit_log(b'Task failed with a segmentation fault.',
+                                      self._stderr,
+                                      system_msg=True)
+                    else:
+                        self.emit_log(b'Task failed.',
+                                      self._stderr,
+                                      system_msg=True)
             else:
                 num = self.task.results['_foreach_num_splits']
                 if num:
@@ -912,7 +1075,8 @@ class Worker(object):
                 self.task.log('Task finished successfully.',
                               system_msg=True,
                               pid=self._proc.pid)
-
+            self.task.save_logs(self._stdout.get_bytes(),
+                                self._stderr.get_bytes())
         return returncode
 
     def __str__(self):

@@ -30,14 +30,39 @@ try:
     def unquote_bytes(x):
         return to_unicode(unquote(to_bytes(x)))
 
+    # this is used e.g. by datastore.save_logs to identify paths
+    class Path(object):
+
+        def __init__(path):
+            self.path = path
+
+        def __str__(self):
+            return self.path
+
+    from pipes import quote as _quote
 except:
     # python3
     unicode_type = str
     bytes_type = bytes
     from urllib.parse import quote, unquote
+    from pathlib import Path
 
     def unquote_bytes(x):
         return unquote(to_unicode(x))
+
+    from shlex import quote as _quote
+
+if sys.version_info.major >= 3 and sys.version_info.minor >= 7:
+    from collections import namedtuple
+    namedtuple_with_defaults = namedtuple
+else:
+    from collections import namedtuple
+    def namedtuple_with_defaults(typename, field_names, defaults=()):
+        T = namedtuple(typename, field_names)
+        T.__new__.__defaults__ = (None,) * len(T._fields)
+        prototype = T(*defaults)
+        T.__new__.__defaults__ = tuple(prototype)
+        return T
 
 
 class TempDir(object):
@@ -276,7 +301,9 @@ def get_metaflow_root():
 
 def dict_to_cli_options(params):
     for k, v in params.items():
-        if v:
+        # Omit boolean options set to false or None, but preserve options with an empty
+        # string argument.
+        if v is not False and v is not None:
             # we need special handling for 'with' since it is a reserved
             # keyword in Python, so we call it 'decospecs' in click args
             if k == 'decospecs':
@@ -288,10 +315,16 @@ def dict_to_cli_options(params):
                 yield '--%s' % k
                 if not isinstance(value, bool):
                     value = to_unicode(value)
-                    if ' ' in value:
-                        yield '\'%s\'' % value
-                    else:
+
+                    # Of the value starts with $, assume the caller wants shell variable
+                    # expansion to happen, so we pass it as is.
+                    # NOTE: We strip '\' to allow for various backends to use escaped
+                    # shell variables as well.
+                    if value.lstrip("\\").startswith("$"):
                         yield value
+                    else:
+                        # Otherwise, assume it is a literal value and quote it safely
+                        yield _quote(value)
 
 
 # This function is imported from https://github.com/cookiecutter/whichcraft

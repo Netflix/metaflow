@@ -1,0 +1,34 @@
+---
+title: "Episode 7: Autopilot"
+output: html_notebook
+---
+
+**This notebook shows how you can track Metaflow flows that have been scheduled to execute in the cloud.**
+
+## Import the metaflow client
+```{r}
+suppressPackageStartupMessages(library(metaflow))
+message("Current metadata provider: ", metaflow::get_metadata())
+```
+
+## Plot a timeline view of a scheduled run of MovieStatsFlow
+When you triggered your flow on AWS Step Functions using `step-functions trigger`, you would have seen an output similar to - 
+```{bash}
+...
+Workflow MovieStatsFlow triggered on AWS Step Functions (run-id sfn-dolor-sit-amet).
+...
+```
+Paste the run-id below (run_id = 'sfn-dolor-sit-amet') and run the following after the run finishes on Step Function.
+```{r}
+set_namespace(NULL)
+run = flow_client$new('MovieStatsFlow')$run('sfn-dolor-sit-amet')
+print(run$steps)
+```
+
+## Steps View
+```{r}
+for (step_name in run$steps){
+  step = run$step(step_name)
+  step$summary()
+}
+```

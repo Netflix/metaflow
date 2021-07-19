@@ -1,10 +1,11 @@
-import json
 import os
 import sys
 import subprocess
+import json
 from tempfile import NamedTemporaryFile
 
 from metaflow.util import is_stringish
+
 from . import MetaflowCheck, AssertArtifactFailed, AssertLogFailed, truncate
 
 try:
@@ -18,8 +19,13 @@ class CliCheck(MetaflowCheck):
 
     def run_cli(self, args, capture_output=False):
         cmd = [sys.executable, 'test_flow.py']
-        cmd.extend(self.cli_options)
+
+        # remove --quiet from top level options to capture output from echo
+        # we will add --quiet in args if needed
+        cmd.extend([opt for opt in self.cli_options if opt != '--quiet'])
+
         cmd.extend(args)
+
         if capture_output:
             return subprocess.check_output(cmd)
         else:
@@ -68,11 +74,7 @@ class CliCheck(MetaflowCheck):
                 return pickle.load(f)
 
     def assert_log(self, step, logtype, value, exact_match=True):
-        cmd = ['--quiet',
-               'logs',
-               '--%s' % logtype,
-               '%s/%s' % (self.run_id, step)]
-        log = self.run_cli(cmd, capture_output=True).decode('utf-8')
+        log = self.get_log(step, logtype)
         if (exact_match and log != value) or\
            (not exact_match and value not in log):
 
@@ -84,3 +86,10 @@ class CliCheck(MetaflowCheck):
                  repr(value),
                  repr(log)))
         return True
+       
+    def get_log(self, step, logtype):
+        cmd = ['--quiet',
+               'logs',
+               '--%s' % logtype,
+               '%s/%s' % (self.run_id, step)]
+        return self.run_cli(cmd, capture_output=True).decode('utf-8')

@@ -15,7 +15,7 @@ DEFAULT_SUFFIXES_LIST = DEFAULT_PACKAGE_SUFFIXES.split(',')
 
 class MetaflowPackage(object):
 
-    def __init__(self, flow, environment, logger, suffixes=DEFAULT_SUFFIXES_LIST):
+    def __init__(self, flow, environment, echo, suffixes=DEFAULT_SUFFIXES_LIST):
         self.suffixes = list(set().union(suffixes, DEFAULT_SUFFIXES_LIST))
         self.environment = environment
         self.metaflow_root = os.path.dirname(__file__)
@@ -26,7 +26,7 @@ class MetaflowPackage(object):
         else:
             self.metaflow_custom_root = os.path.dirname(metaflow_custom.__file__)
 
-        environment.init_environment(logger)
+        environment.init_environment(echo)
         for step in flow:
             for deco in step.decorators:
                 deco.package_init(flow,

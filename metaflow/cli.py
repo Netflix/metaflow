@@ -1,10 +1,12 @@
-import os
-import sys
 import inspect
+import sys
 import traceback
-from functools import wraps
 from datetime import datetime
+<<<<<<< HEAD
 import posixpath
+=======
+from functools import wraps
+>>>>>>> master
 
 import click
 
@@ -15,7 +17,9 @@ from . import decorators
 from . import metaflow_version
 from . import namespace
 from . import current
-from .util import resolve_identity, decompress_list, write_latest_run_id, get_latest_run_id
+from .cli_args import cli_args
+from .util import resolve_identity, decompress_list, write_latest_run_id, \
+    get_latest_run_id, to_unicode
 from .task import MetaflowTask
 from .exception import CommandException, MetaflowException
 from .graph import FlowGraph
@@ -25,11 +29,14 @@ from .package import MetaflowPackage
 from .plugins import ENVIRONMENTS, LOGGING_SIDECARS, METADATA_PROVIDERS, MONITOR_SIDECARS
 from .metaflow_config import DEFAULT_DATASTORE, DEFAULT_ENVIRONMENT, DEFAULT_EVENT_LOGGER, \
     DEFAULT_METADATA, DEFAULT_MONITOR, DEFAULT_PACKAGE_SUFFIXES
-from .environment import MetaflowEnvironment
+from .metaflow_environment import MetaflowEnvironment
 from .pylint_wrapper import PyLint
 from .event_logger import EventLogger
 from .monitor import Monitor
 from .R import use_r, metaflow_r_version
+from .mflog import mflog, LOG_SOURCES
+from .unbounded_foreach import UBF_CONTROL, UBF_TASK
+
 
 
 ERASE_TO_EOL = '\033[K'
@@ -92,9 +99,17 @@ def echo_always(line, **kwargs):
         click.secho(ERASE_TO_EOL, **kwargs)
 
 
-def logger(body='', system_msg=False, head='', bad=False, timestamp=True):
+def logger(body='',
+           system_msg=False,
+           head='',
+           bad=False,
+           timestamp=True):
     if timestamp:
-        tstamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+        if timestamp is True:
+            dt = datetime.now()
+        else:
+            dt = timestamp
+        tstamp = dt.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
         click.secho(tstamp + ' ', fg=LOGGER_TIMESTAMP, nl=False)
     if head:
         click.secho(head, fg=LOGGER_COLOR, nl=False)
@@ -272,8 +287,17 @@ def dump(obj,
               default=True,
               show_default=True,
               help='Show both stdout and stderr of the task.')
+@click.option('--timestamps/--no-timestamps',
+              default=False,
+              show_default=True,
+              help='Show timestamps.')
 @click.pass_obj
-def logs(obj, input_path, stdout=None, stderr=None, both=None):
+def logs(obj,
+         input_path,
+         stdout=None,
+         stderr=None,
+         both=None,
+         timestamps=False):
     types = set()
     if stdout:
         types.add('stdout')
@@ -284,6 +308,8 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None):
     if both:
         types.update(('stdout', 'stderr'))
 
+    streams = list(sorted(types, reverse=True))
+
     # Pathspec can either be run_id/step_name or run_id/step_name/task_id.
     parts = input_path.split('/')
     if len(parts) == 2:
@@ -292,7 +318,7 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None):
     elif len(parts) == 3:
         run_id, step_name, task_id = parts
     else:
-        raise CommandException("input_path should either be run_id/step_name"
+        raise CommandException("input_path should either be run_id/step_name "
                                "or run_id/step_name/task_id")
 
     if obj.datastore.datastore_root is None:
@@ -303,31 +329,71 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None):
             "Could not find the location of the datastore -- did you correctly set the "
             "METAFLOW_DATASTORE_SYSROOT_%s environment variable" % (obj.datastore.TYPE).upper())
 
-    from metaflow.datastore.datastore_set import MetaflowDatastoreSet
-    datastore_set = MetaflowDatastoreSet(
-                        obj.datastore,
-                        obj.flow.name,
-                        run_id,
-                        steps=[step_name],
-                        metadata=obj.metadata,
-                        monitor=obj.monitor,
-                        event_logger=obj.event_logger)
     if task_id:
-        ds_list = [datastore_set.get_with_pathspec(input_path)]
+        ds_list = [obj.datastore(obj.flow.name,
+                                 run_id=run_id,
+                                 step_name=step_name,
+                                 task_id=task_id,
+                                 mode='r',
+                                 allow_unsuccessful=True)]
     else:
-        ds_list = list(datastore_set) # get all tasks
-    for ds in ds_list:
-        echo('Dumping logs of run_id=*{run_id}* '
-             'step=*{step}* task_id=*{task_id}*'.format(run_id=ds.run_id,
-                                                        step=ds.step_name,
-                                                        task_id=ds.task_id),
-             fg='magenta')
+        from metaflow.datastore.datastore_set import MetaflowDatastoreSet
+        datastore_set = MetaflowDatastoreSet(
+                            obj.datastore,
+                            obj.flow.name,
+                            run_id,
+                            steps=[step_name],
+                            metadata=obj.metadata,
+                            monitor=obj.monitor,
+                            event_logger=obj.event_logger)
+        # get all successful tasks
+        ds_list = list(datastore_set)
 
-        for typ in ('stdout', 'stderr'):
-            if typ in types:
-                echo(typ, bold=True)
-                click.secho(ds.load_log(typ).decode('UTF-8', errors='replace'),
-                            nl=False)
+    if ds_list:
+        def echo_unicode(line, **kwargs):
+            click.secho(line.decode('UTF-8', errors='replace'), **kwargs)
+
+        # old style logs are non mflog-style logs
+        maybe_old_style = True
+        for ds in ds_list:
+            echo('Dumping logs of run_id=*{run_id}* '
+                 'step=*{step}* task_id=*{task_id}*'.format(run_id=ds.run_id,
+                                                            step=ds.step_name,
+                                                            task_id=ds.task_id),
+                 fg='magenta')
+
+            for stream in streams:
+                echo(stream, bold=True)
+                logs = ds.load_logs(LOG_SOURCES, stream)
+                if any(data for _, data in logs):
+                    # attempt to read new, mflog-style logs
+                    for line in mflog.merge_logs([blob for _, blob in logs]):
+                        if timestamps:
+                            ts = mflog.utc_to_local(line.utc_tstamp)
+                            tstamp = ts.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+                            click.secho(tstamp + ' ',
+                                        fg=LOGGER_TIMESTAMP,
+                                        nl=False)
+                        echo_unicode(line.msg)
+                    maybe_old_style = False
+                elif maybe_old_style:
+                    # if they are not available, we may be looking at
+                    # a legacy run (unless we have seen new-style data already
+                    # for another stream). This return an empty string if
+                    # nothing is found
+                    log = ds.load_log_legacy(stream)
+                    if log and timestamps:
+                        raise CommandException("We can't show --timestamps for "
+                                               "old runs. Sorry!")
+                    echo_unicode(log, nl=False)
+
+    elif len(parts) == 2:
+        # TODO if datastore provided a way to find unsuccessful task IDs, we
+        # could make handle this case automatically
+        raise CommandException("Successful tasks were not found at the given "
+                               "path. You can see logs for unsuccessful tasks "
+                               "by giving an exact task ID using the "
+                               "run_id/step_name/task_id format.")
 
 
 # TODO - move step and init under a separate 'internal' subcommand
@@ -352,14 +418,14 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None):
               show_default=True,
               help='Index of this foreach split.')
 @click.option('--tag',
-              'tags',
+              'opt_tag',
               multiple=True,
               default=None,
               help="Annotate this run with the given tag. You can specify "
                    "this option multiple times to attach multiple tags in "
                    "the task.")
 @click.option('--namespace',
-              'user_namespace',
+              'opt_namespace',
               default=None,
               help="Change namespace from the default (your username) to "
                    "the specified tag.")
@@ -383,26 +449,32 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None):
               help="Add a decorator to this task. You can specify this "
               "option multiple times to attach multiple decorators "
               "to this task.")
-@click.pass_obj
-def step(obj,
+@click.option('--ubf-context',
+              default='none',
+              type=click.Choice(['none', UBF_CONTROL, UBF_TASK]),
+              help="Provides additional context if this task is of type "
+              "unbounded foreach.")
+@click.pass_context
+def step(ctx,
          step_name,
-         tags=None,
+         opt_tag=None,
          run_id=None,
          task_id=None,
          input_paths=None,
          split_index=None,
-         user_namespace=None,
+         opt_namespace=None,
          retry_count=None,
          max_user_code_retries=None,
          clone_only=None,
          clone_run_id=None,
-         decospecs=None):
-    if user_namespace is not None:
-        namespace(user_namespace or None)
+         decospecs=None,
+         ubf_context=None):
+    if opt_namespace is not None:
+        namespace(opt_namespace or None)
 
     func = None
     try:
-        func = getattr(obj.flow, step_name)
+        func = getattr(ctx.obj.flow, step_name)
     except:
         raise CommandException("Step *%s* doesn't exist." % step_name)
     if not func.is_step:
@@ -415,21 +487,30 @@ def step(obj,
     if decospecs:
         decorators._attach_decorators_to_step(func, decospecs)
 
-    obj.datastore.datastore_root = obj.datastore_root
-    if obj.datastore.datastore_root is None:
-        obj.datastore.datastore_root = \
-            obj.datastore.get_datastore_root_from_config(obj.echo)
+    ctx.obj.datastore.datastore_root = ctx.obj.datastore_root
+    if ctx.obj.datastore.datastore_root is None:
+        ctx.obj.datastore.datastore_root = \
+            ctx.obj.datastore.get_datastore_root_from_config(ctx.obj.echo)
 
-    obj.metadata.add_sticky_tags(tags=tags)
+    step_kwargs = ctx.params
+    # Remove argument `step_name` from `step_kwargs`.
+    step_kwargs.pop('step_name', None)
+    # Remove `opt_*` prefix from (some) option keys.
+    step_kwargs = dict([(k[4:], v) if k.startswith('opt_') else (k, v)
+                         for k, v in step_kwargs.items()])
+    cli_args._set_step_kwargs(step_kwargs)
+
+    ctx.obj.metadata.add_sticky_tags(tags=opt_tag)
     paths = decompress_list(input_paths) if input_paths else []
 
-    task = MetaflowTask(obj.flow,
-                        obj.datastore,
-                        obj.metadata,
-                        obj.environment,
-                        obj.logger,
-                        obj.event_logger,
-                        obj.monitor)
+    task = MetaflowTask(ctx.obj.flow,
+                        ctx.obj.datastore,
+                        ctx.obj.metadata,
+                        ctx.obj.environment,
+                        ctx.obj.echo,
+                        ctx.obj.event_logger,
+                        ctx.obj.monitor,
+                        ubf_context)
     if clone_only:
         task.clone_only(step_name,
                         run_id,
@@ -616,7 +697,7 @@ def run(obj,
         user_namespace=None,
         **kwargs):
 
-    if namespace is not None:
+    if user_namespace is not None:
         namespace(user_namespace or None)
 
     before_run(obj, tags, decospecs + obj.environment.decospecs())
@@ -675,7 +756,10 @@ def before_run(obj, tags, decospecs):
     # Package working directory only once per run.
     # We explicitly avoid doing this in `start` since it is invoked for every
     # step in the run.
-    obj.package = MetaflowPackage(obj.flow, obj.environment, obj.logger, obj.package_suffixes)
+    obj.package = MetaflowPackage(obj.flow,
+                                  obj.environment,
+                                  obj.echo,
+                                  obj.package_suffixes)
 
 
 @cli.command(help='Print the Metaflow version')
@@ -774,6 +858,7 @@ def start(ctx,
                        branch=True)
         cov.start()
 
+    cli_args._set_top_kwargs(ctx.params)
     ctx.obj.echo = echo
     ctx.obj.echo_always = echo_always
     ctx.obj.graph = FlowGraph(ctx.obj.flow.__class__)
@@ -824,7 +909,7 @@ def start(ctx,
     # initialize current and parameter context for deploy-time parameters
     current._set_env(flow_name=ctx.obj.flow.name, is_running=False)
     parameters.set_parameter_context(ctx.obj.flow.name,
-                                        ctx.obj.logger,
+                                        ctx.obj.echo,
                                         ctx.obj.datastore)
 
     if ctx.invoked_subcommand not in ('run', 'resume'):

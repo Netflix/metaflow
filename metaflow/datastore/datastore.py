@@ -13,6 +13,8 @@ except:
     import pickle
 
 from types import MethodType, FunctionType
+from ..event_logger import NullEventLogger
+from ..monitor import NullMonitor
 from ..parameters import Parameter
 from ..exception import MetaflowException, MetaflowInternalError
 from ..metadata import DataArtifact
@@ -112,16 +114,23 @@ class MetaflowDataStore(object):
         """
         raise NotImplementedError()
 
-    def save_log(self, logtype, bytebuffer):
+    def save_logs(self, logsource, stream_data):
         """
-        Save a log file represented as a bytes object.
-        Returns path to log file.
+        Save log files for multiple streams, represented as
+        as a list of (stream, bytes) or (stream, Path) tuples.
         """
         raise NotImplementedError()
 
-    def load_log(self, logtype, attempt_override=None):
+    def load_log_legacy(self, stream, attempt_override=None):
         """
-        Load a task-specific log file represented as a bytes object.
+        Load old-style, pre-mflog, log file represented as a bytes object.
+        """
+        raise NotImplementedError()
+
+    def load_logs(self, logsources, stream, attempt_override=None):
+        """
+        Given a list of logsources, return a list of (logsource, logblob)
+        tuples. Returns empty contents for missing log files.
         """
         raise NotImplementedError()
 
@@ -180,12 +189,13 @@ class MetaflowDataStore(object):
             return self.object_path(self.objects[artifact_name])
         return None
 
-    def get_log_location(self, logtype, attempt_override=None):
+    def get_log_location(self, logsource, stream, attempt_override=None):
         """
         Returns a string indicating the location of the log of the specified type.
         """
-        filename = self.filename_with_attempt_prefix(
-            '%s.log' % logtype, attempt_override if attempt_override is not None else self.attempt)
+        filename = self.get_log_location_for_attempt(logsource, stream,
+                        attempt_override if attempt_override is not None 
+                            else self.attempt)
         return os.path.join(self.root, filename)
 
     @classmethod
@@ -257,6 +267,14 @@ class MetaflowDataStore(object):
         return cls.filename_with_attempt_prefix('data.json', attempt)
 
     @classmethod
+    def get_log_location_for_attempt(cls, logprefix, stream, attempt):
+        """
+        Return the log_location based on `logprefix`, `stream` and `attempt`.
+        """
+        fname = '%s_%s.log' % (logprefix, stream)
+        return cls.filename_with_attempt_prefix(fname, attempt)
+
+    @classmethod
     def is_metadata_filename(cls, fname):
         """
         Returns if the filename is a metadata filename (ends in .data.json).
@@ -321,7 +339,8 @@ class MetaflowDataStore(object):
                  event_logger=None,
                  monitor=None,
                  data_obj=None,
-                 artifact_cache=None):
+                 artifact_cache=None,
+                 allow_unsuccessful=False):
         if run_id == 'data':
             raise DataException("Run ID 'data' is reserved. "
                                 "Try with a different --run-id.")
@@ -329,9 +348,11 @@ class MetaflowDataStore(object):
             raise DataException("Datastore root not found. "
                                 "Specify with METAFLOW_DATASTORE_SYSROOT_%s "
                                 "environment variable." % self.TYPE.upper())
-        
-        self.event_logger = event_logger
-        self.monitor = monitor
+        # NOTE: calling __init__(mode='w') should be a cheap operation:
+        # no file system accesses are allowed. It is called frequently
+        # e.g. to resolve log file location.
+        self.event_logger = event_logger if event_logger else NullEventLogger()
+        self.monitor = monitor if monitor else NullMonitor()
         self.metadata = metadata
         self.run_id = run_id
         self.step_name = step_name
@@ -354,14 +375,7 @@ class MetaflowDataStore(object):
                                    task_id)
 
         self.attempt = attempt
-        if mode == 'w':
-            if run_id is not None:
-                # run_id may be None when datastore is used to save
-                # things not related to runs, e.g. the job package
-                self.save_metadata('attempt', {'time': time.time()})
-                self.objects = {}
-                self.info = {}
-        elif mode == 'r':
+        if mode == 'r':
             if data_obj is None:
                 # what is the latest attempt ID of this data store?
 
@@ -387,24 +401,36 @@ class MetaflowDataStore(object):
                         self.attempt = i
 
                 # was the latest attempt completed successfully?
-                if not self.is_done():
+                if self.is_done():
+                    # load the data from the latest attempt
+                    data_obj = self.load_metadata('data')
+                elif allow_unsuccessful and self.attempt is not None:
+                    # this mode can be used to load_logs, for instance
+                    data_obj = None
+                else:
                     raise DataException("Data was not found or not finished at %s"\
                                         % self.root)
 
-                # load the data from the latest attempt
-                data_obj = self.load_metadata('data')
-
-            self.origin = data_obj.get('origin')
-            self.objects = data_obj['objects']
-            self.info = data_obj.get('info', {})
+            if data_obj:
+                self.origin = data_obj.get('origin')
+                self.objects = data_obj['objects']
+                self.info = data_obj.get('info', {})
         elif mode == 'd':
             # Direct access mode used by the client. We effectively don't load any
             # objects and can only access things using the load_* functions
             self.origin = None
             self.objects = None
             self.info = None
-        else:
+        elif mode != 'w':
             raise DataException('Unknown datastore mode: %s' % mode)
+
+    def init_task(self):
+        # this method should be called once after datastore has been opened
+        # for task-related write operations
+        self.save_metadata('attempt', {'time': time.time()})
+        self.objects = {}
+        self.info = {}
+
 
     @property
     def pathspec(self):

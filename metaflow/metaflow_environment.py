@@ -6,6 +6,7 @@ from .metaflow_config import from_conf
 from .util import get_username, to_unicode
 from . import metaflow_version
 from metaflow.exception import MetaflowException
+from metaflow.mflog import BASH_MFLOG, BASH_SAVE_LOGS
 from . import R
 
 version_cache = None
@@ -21,13 +22,13 @@ class MetaflowEnvironment(object):
     def __init__(self, flow):
         pass
 
-    def init_environment(self, logger):
+    def init_environment(self, echo):
         """
         Run before any step decorators are initialized.
         """
         pass
 
-    def validate_environment(self, logger):
+    def validate_environment(self, echo):
         """
         Run before any command to validate that we are operating in
         a desired environment.
@@ -78,6 +79,7 @@ class MetaflowEnvironment(object):
         """
         return "Local environment"
 
+<<<<<<< HEAD:metaflow/environment.py
     def get_boto3_copy_command(self, s3_path, local_path, command="download_file"):
         if command == "download_file":
             copy_command = (
@@ -104,20 +106,34 @@ class MetaflowEnvironment(object):
                 "echo \'Setting up task environment.\'",
                 "%s -m pip install click requests boto3 -qqq"
                     % self._python() if pip_install else "true",  # true is Python pass for bash
+=======
+    def get_package_commands(self, code_package_url):
+        cmds = [BASH_MFLOG,
+                "mflog \'Setting up task environment.\'",
+                "%s -m pip install awscli click requests boto3 -qqq" 
+                    % self._python(),
+>>>>>>> master:metaflow/metaflow_environment.py
                 "mkdir metaflow",
                 "cd metaflow",
                 "mkdir .metaflow", # mute local datastore creation log
                 "i=0; while [ $i -le 5 ]; do "
+<<<<<<< HEAD:metaflow/environment.py
                     "echo \'Downloading code package.\'; "
                     "%s && \
                         echo \'Code package downloaded.\' && break; "
+=======
+                    "mflog \'Downloading code package...\'; "
+                    "%s -m awscli s3 cp %s job.tar >/dev/null && \
+                        mflog \'Code package downloaded.\' && break; "
+>>>>>>> master:metaflow/metaflow_environment.py
                     "sleep 10; i=$((i+1)); "
                 "done" % self.get_boto3_copy_command(code_package_url, "job.tar"),
                 "if [ $i -gt 5 ]; then "
-                    "echo \'Failed to download code package from %s "
+                    "mflog \'Failed to download code package from %s "
                     "after 6 tries. Exiting...\' && exit 1; "
                 "fi" % code_package_url,
-                "tar xf job.tar"
+                "tar xf job.tar",
+                "mflog \'Task is starting.\'",
                 ]
         return cmds
 

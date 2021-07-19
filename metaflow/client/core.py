@@ -1,19 +1,20 @@
 from __future__ import print_function
+import os
 import time
 import tarfile
 import json
 from collections import namedtuple
 from itertools import chain
 
-from metaflow.environment import MetaflowEnvironment
+from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.exception import MetaflowNotFound,\
                                MetaflowNamespaceMismatch,\
                                MetaflowInternalError
 
 from metaflow.metaflow_config import DEFAULT_METADATA
 from metaflow.plugins import ENVIRONMENTS, METADATA_PROVIDERS
-
-from metaflow.util import cached_property, resolve_identity
+from metaflow.unbounded_foreach import CONTROL_TASK_TAG
+from metaflow.util import cached_property, resolve_identity, to_unicode
 
 from .filecache import FileCache
 
@@ -23,6 +24,9 @@ try:
 except:  # noqa E722
     # python3
     import pickle
+
+# populated at the bottom of this file
+_CLASSES = {}
 
 Metadata = namedtuple('Metadata', ['name',
                                    'value',
@@ -308,6 +312,7 @@ class MetaflowObject(object):
     """
     _NAME = 'base'
     _CHILD_CLASS = None
+    _PARENT_CLASS = None
 
     def __init__(self,
                  pathspec=None,
@@ -315,16 +320,17 @@ class MetaflowObject(object):
                  _parent=None,
                  _namespace_check=True):
         self._metaflow = Metaflow()
+        self._parent = _parent
+        self._path_components = None
         if pathspec:
             ids = pathspec.split('/')
 
-            parents = ids[:-1]
             self.id = ids[-1]
-            self._parent = self._create_parents(parents)
+            self._pathspec = pathspec
             self._object = self._get_object(*ids)
         else:
-            self._parent = _parent
             self._object = _object
+            self._pathspec = pathspec
 
         if self._NAME in ('flow', 'task'):
             self.id = str(self._object[self._NAME + '_id'])
@@ -352,15 +358,6 @@ class MetaflowObject(object):
             raise MetaflowNotFound("%s does not exist" % self)
         return result
 
-    def _create_parents(self, parents):
-        if parents:
-            parent = self._metaflow
-            for id in parents:
-                parent = parent[id]
-            return parent
-        else:
-            return None
-
     def __iter__(self):
         """
         Iterate over all child objects of this object if any.
@@ -377,11 +374,11 @@ class MetaflowObject(object):
             query_filter = {'any_tags': current_namespace}
 
         unfiltered_children = self._metaflow.metadata.get_object(
-            self._NAME, self._CHILD_CLASS._NAME, query_filter, *self.path_components)
+            self._NAME, _CLASSES[self._CHILD_CLASS]._NAME, query_filter, *self.path_components)
         unfiltered_children = unfiltered_children if unfiltered_children else []
         children = filter(
             lambda x: self._iter_filter(x),
-            (self._CHILD_CLASS(_object=obj, _parent=self, _namespace_check=False)
+            (_CLASSES[self._CHILD_CLASS](_object=obj, _parent=self, _namespace_check=False)
                 for obj in unfiltered_children))
 
         if children:
@@ -393,9 +390,19 @@ class MetaflowObject(object):
         return True
 
     def _filtered_children(self, *tags):
+        """
+        Returns an iterator over all children.
+
+        If tags are specified, only children associated with all specified tags
+        are returned.
+        """
         for child in self:
             if all(tag in child.tags for tag in tags):
                 yield child
+
+    @classmethod
+    def _url_token(cls):
+        return '%ss' % cls._NAME
 
     def is_in_namespace(self):
         """
@@ -426,7 +433,7 @@ class MetaflowObject(object):
             result.append(p)
         result.append(id)
         return self._metaflow.metadata.get_object(
-            self._CHILD_CLASS._NAME, 'self', None, *result)
+            _CLASSES[self._CHILD_CLASS]._NAME, 'self', None, *result)
 
     def __getitem__(self, id):
         """
@@ -449,7 +456,7 @@ class MetaflowObject(object):
         """
         obj = self._get_child(id)
         if obj:
-            return self._CHILD_CLASS(_object=obj, _parent=self)
+            return _CLASSES[self._CHILD_CLASS](_object=obj, _parent=self)
         else:
             raise KeyError(id)
 
@@ -479,7 +486,7 @@ class MetaflowObject(object):
 
         Returns
         -------
-        List[string]
+        Set[string]
             Tags associated with the object
         """
         return self._tags
@@ -509,6 +516,16 @@ class MetaflowObject(object):
         MetaflowObject
             The parent of this object
         """
+        if self._NAME == 'flow':
+            return None
+        # Compute parent from pathspec and cache it.
+        if self._parent is None:
+            pathspec = self.pathspec
+            parent_pathspec = pathspec[:pathspec.rfind('/')]
+            # We can skip the namespace check because if self._NAME = 'run',
+            # the parent object is guaranteed to be in namespace.
+            # Otherwise the check is moot for Flow since parent is singular.
+            self._parent = _CLASSES[self._PARENT_CLASS](parent_pathspec, _namespace_check=False)
         return self._parent
 
     @property
@@ -524,7 +541,13 @@ class MetaflowObject(object):
         string
             Unique representation of this object
         """
-        return '/'.join(self.path_components)
+        if self._pathspec is None:
+            if self.parent is None:
+                self._pathspec = self.id
+            else:
+                parent_pathspec = self.parent.pathspec
+                self._pathspec = os.path.join(parent_pathspec, self.id)
+        return self._pathspec
 
     @property
     def path_components(self):
@@ -536,13 +559,22 @@ class MetaflowObject(object):
         List[string]
             Individual components of the pathspec
         """
-        def traverse(obj, lst):
-            lst.insert(0, obj.id)
-            if obj._parent:
-                return traverse(obj._parent, lst)
+        # Compute url_path from pathspec.
+        ids = self.pathspec.split('/')
+
+        def traverse(cls, ids_r, lst):
+            lst.insert(0, ids_r[-1])
+            if cls._PARENT_CLASS is None:
+                return lst
+            if len(ids_r) > 1:
+                cls = _CLASSES[cls._PARENT_CLASS]
+                return traverse(cls, ids_r[:-1], lst)
             else:
                 return lst
-        return traverse(self, [])
+
+        if self._path_components is None:
+            self._path_components = traverse(_CLASSES[self._NAME], ids, [])
+        return self._path_components
 
 
 class MetaflowData(object):
@@ -662,6 +694,7 @@ class DataArtifact(MetaflowObject):
     """
 
     _NAME = 'artifact'
+    _PARENT_CLASS = 'task'
     _CHILD_CLASS = None
 
     @property
@@ -756,7 +789,8 @@ class Task(MetaflowObject):
     """
 
     _NAME = 'task'
-    _CHILD_CLASS = DataArtifact
+    _PARENT_CLASS = 'step'
+    _CHILD_CLASS = 'artifact'
 
     def __init__(self, *args, **kwargs):
         super(Task, self).__init__(*args, **kwargs)
@@ -1024,16 +1058,62 @@ class Task(MetaflowObject):
         env = [m for m in ENVIRONMENTS + [MetaflowEnvironment] if m.TYPE == env_type][0]
         return env.get_client_info(self.path_components[0], self.metadata_dict)
 
-    def _load_log(self, logtype, as_unicode=True):
+    def _load_log(self, stream):
+        log_location = self.metadata_dict.get('log_location_%s' % stream)
+        if log_location:
+            return self._load_log_legacy(log_location, stream)
+        else:
+            return ''.join(line + '\n' for _, line in self.loglines(stream))
+
+    def loglines(self, stream, as_unicode=True):
+        """
+        Return an iterator over (utc_timestamp, logline) tuples.
+
+        If as_unicode=False, logline is returned as a byte object. Otherwise,
+        it is returned as a (unicode) string.
+        """
+        from metaflow.mflog.mflog import merge_logs
+        from metaflow.mflog import LOG_SOURCES
+        from metaflow.datastore import DATASTORES
+
+        ds_type = self.metadata_dict.get('ds-type')
+        ds_root = self.metadata_dict.get('ds-root')
+
+        ds_cls = DATASTORES.get(ds_type, None)
+        if ds_cls is None:
+            raise MetaflowInternalError('Datastore %s was not found' % ds_type)
+        ds_cls.datastore_root = ds_root
+
+        # It is possible that a task fails before any metadata has been
+        # recorded. In this case, we assume that we are executing the
+        # first attempt.
+        #
+        # FIXME: Technically we are looking at the latest *recorded* attempt
+        # here. It is possible that logs exists for a newer attempt that
+        # just failed to record metadata. We could make this logic more robust
+        # and guarantee that we always return the latest available log.
+
+        ds = ds_cls(self._object['flow_id'],
+                    run_id=str(self._object['run_number']),
+                    step_name=self._object['step_name'],
+                    task_id=str(self._object['task_id']),
+                    mode='r',
+                    attempt=int(self.metadata_dict.get('attempt', 0)),
+                    allow_unsuccessful=True)
+        logs = ds.load_logs(LOG_SOURCES, stream)
+        for line in merge_logs([blob for _, blob in logs]):
+            msg = to_unicode(line.msg) if as_unicode else line.msg
+            yield line.utc_tstamp, msg
+
+    def _load_log_legacy(self, log_location, logtype, as_unicode=True):
+        # this function is used to load pre-mflog style logfiles
         ret_val = None
-        log_info = self.metadata_dict.get('log_location_%s' % logtype)
-        if log_info:
-            log_info = json.loads(log_info)
-            ds_type = log_info['ds_type']
-            attempt = log_info['attempt']
-            components = self.path_components
-            with filecache.get_log(ds_type, logtype, int(attempt), *components) as f:
-                ret_val = f.read()
+        log_info = json.loads(log_location)
+        ds_type = log_info['ds_type']
+        attempt = log_info['attempt']
+        components = self.path_components
+        with filecache.get_log_legacy(ds_type, logtype, int(attempt), *components) as f:
+            ret_val = f.read()
         if as_unicode and (ret_val is not None):
             return ret_val.decode(encoding='utf8')
         else:
@@ -1059,7 +1139,8 @@ class Step(MetaflowObject):
     """
 
     _NAME = 'step'
-    _CHILD_CLASS = Task
+    _PARENT_CLASS = 'run'
+    _CHILD_CLASS = 'task'
 
     @property
     def task(self):
@@ -1074,15 +1155,16 @@ class Step(MetaflowObject):
             A task in the step
         """
         for t in self:
-            return t
+            if CONTROL_TASK_TAG not in t.tags:
+                return t
 
     def tasks(self, *tags):
         """
         Returns an iterator over all the tasks in the step.
 
-        An optional filter is available that allows you to filter on tags. The
-        tasks returned if the filter is specified will contain all the tags
-        specified.
+        An optional filter is available that allows you to filter on tags.
+        If tags are specified, only tasks associated with all specified tags
+        are returned.
 
         Parameters
         ----------
@@ -1095,6 +1177,49 @@ class Step(MetaflowObject):
             Iterator over Task objects in this step
         """
         return self._filtered_children(*tags)
+
+    @property
+    def control_task(self):
+        """
+        Returns a Control Task object belonging to this step.
+        This is useful when the step only contains one control task.
+        Returns
+        -------
+        Task
+            A control task in the step
+        """
+        children = super(Step, self).__iter__()
+        for t in children:
+            if CONTROL_TASK_TAG in t.tags:
+                return t
+
+    def control_tasks(self, *tags):
+        """
+        Returns an iterator over all the control tasks in the step.
+        An optional filter is available that allows you to filter on tags. The
+        control tasks returned if the filter is specified will contain all the
+        tags specified.
+        Parameters
+        ----------
+        tags : string
+            Tags to match
+        Returns
+        -------
+        Iterator[Task]
+            Iterator over Control Task objects in this step
+        """
+        children = super(Step, self).__iter__()
+        filter_tags = [CONTROL_TASK_TAG]
+        filter_tags.extend(tags)
+        for child in children:
+            if all(tag in child.tags for tag in filter_tags):
+                    yield child
+
+    def __iter__(self):
+        children = super(Step, self).__iter__()
+        for t in children:
+            if CONTROL_TASK_TAG not in t.tags:
+                yield t
 
     @property
     def finished_at(self):
@@ -1158,7 +1283,8 @@ class Run(MetaflowObject):
     """
 
     _NAME = 'run'
-    _CHILD_CLASS = Step
+    _PARENT_CLASS = 'flow'
+    _CHILD_CLASS = 'step'
 
     def _iter_filter(self, x):
         # exclude _parameters step
@@ -1168,9 +1294,9 @@ class Run(MetaflowObject):
         """
         Returns an iterator over all the steps in the run.
 
-        An optional filter is available that allows you to filter on tags. The
-        steps returned if the filter is specified will contain all the tags
-        specified.
+        An optional filter is available that allows you to filter on tags.
+        If tags are specified, only steps associated with all specified tags
+        are returned.
 
         Parameters
         ----------
@@ -1309,7 +1435,8 @@ class Flow(MetaflowObject):
     """
 
     _NAME = 'flow'
-    _CHILD_CLASS = Run
+    _PARENT_CLASS = None
+    _CHILD_CLASS = 'run'
 
     def __init__(self, *args, **kwargs):
         super(Flow, self).__init__(*args, **kwargs)
@@ -1348,9 +1475,9 @@ class Flow(MetaflowObject):
         """
         Returns an iterator over all the runs in the flow.
 
-        An optional filter is available that allows you to filter on tags. The
-        runs returned if the filter is specified will contain all the tags
-        specified.
+        An optional filter is available that allows you to filter on tags.
+        If tags are specified, only runs associated with all specified tags
+        are returned.
 
         Parameters
         ----------
@@ -1363,3 +1490,10 @@ class Flow(MetaflowObject):
             Iterator over Run objects in this flow
         """
         return self._filtered_children(*tags)
+
+
+_CLASSES['flow'] = Flow
+_CLASSES['run'] = Run
+_CLASSES['step'] = Step
+_CLASSES['task'] = Task
+_CLASSES['artifact'] = DataArtifact

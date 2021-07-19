@@ -60,7 +60,7 @@ def copy_coverage_files(dstdir):
     for fname in glob.glob('.coverage.*'):
         shutil.copy(fname, dstdir)
 
-def run_test(formatter, context, coverage_dir, debug, checks):
+def run_test(formatter, context, coverage_dir, debug, checks, env_base):
 
     def run_cmd(mode):
         cmd = [context['python'], '-B', 'test_flow.py']
@@ -84,22 +84,29 @@ def run_test(formatter, context, coverage_dir, debug, checks):
         with open('.coveragerc', 'w') as f:
             f.write("[run]\ndisable_warnings = module-not-measured\n")
 
+<<<<<<< HEAD
         if debug:
             print("tempdir", tempdir)
+=======
+        shutil.copytree(os.path.join(cwd, "metaflow_test"), os.path.join(tempdir, "metaflow_test"))
+>>>>>>> master
 
         path = os.path.join(tempdir, 'test_flow.py')
 
+        env = {}
+        env.update(env_base)
         # expand environment variables
         # nonce can be used to insert entropy in env vars.
         # This is useful e.g. for separating S3 paths of
         # runs, which may have clashing run_ids
-        env = dict((k, v.format(nonce=str(uuid.uuid4())))
-                   for k, v in context['env'].items())
+        env.update(dict((k, v.format(nonce=str(uuid.uuid4())))
+                   for k, v in context['env'].items()))
 
         pythonpath = os.environ.get('PYTHONPATH', '.')
         env.update({'LANG': 'C.UTF-8',
                     'LC_ALL': 'C.UTF-8',
                     'PATH': os.environ.get('PATH', '.'),
+                    'PYTHONIOENCODING': 'utf_8',
                     'PYTHONPATH': "%s:%s" % (package, pythonpath)})
 
         if 'pre_command' in context:
@@ -120,12 +127,19 @@ def run_test(formatter, context, coverage_dir, debug, checks):
             pprint.pprint(env)
         flow_ret = subprocess.call(run_cmd('run'), env=env)
         if flow_ret:
-            if formatter.should_resume:
+            if formatter.should_fail:
+                log("Flow failed as expected.")
+            elif formatter.should_resume:
                 log("Resuming flow", formatter, context)
                 flow_ret = subprocess.call(run_cmd('resume'), env=env)
-            if flow_ret:
+            else:
                 log("flow failed", formatter, context)
                 return flow_ret, path
+        elif formatter.should_fail:
+            log("The flow should have failed but it didn't. Error!",
+                formatter,
+                context)
+            return 1, path
 
         # check results
         run_id = open('run-id').read()
@@ -160,33 +174,36 @@ def run_all(ok_tests,
             ok_graphs,
             coverage_dir,
             debug,
-            num_parallel):
+            num_parallel,
+            inherit_env):
 
     tests = [test for test in sorted(iter_tests(), key=lambda x: x.PRIORITY)\
              if not ok_tests or test.__class__.__name__.lower() in ok_tests]
     failed = []
+
+    if inherit_env:
+        base_env = dict(os.environ)
+    else:
+        base_env = {}
+
     if debug or num_parallel is None:
         for test in tests:
             failed.extend(run_test_cases((test,
                                           ok_contexts,
                                           ok_graphs,
                                           coverage_dir,
-                                          debug)))
+                                          debug,
+                                          base_env)))
     else:
-        args = [(test, ok_contexts, ok_graphs, coverage_dir, debug)
+        args = [(test, ok_contexts, ok_graphs, coverage_dir, debug, base_env)
                 for test in tests]
         for fail in Pool(num_parallel).imap_unordered(run_test_cases, args):
             failed.extend(fail)
     return failed
 
 def run_test_cases(args):
-    test, ok_contexts, ok_graphs, coverage_dir, debug = args
-    # HACK: The two separate files are needed to store the output in separate
-    # S3 buckets since jenkins test doesn't have access to `dataeng` bucket.
-    if os.environ.get('METAFLOW_TEST_RUNNER', '') == 'jenkins':
-        contexts = json.load(open('jenkins_contexts.json'))
-    else:
-        contexts = json.load(open('contexts.json'))
+    test, ok_contexts, ok_graphs, coverage_dir, debug, base_env = args
+    contexts = json.load(open('contexts.json'))
     graphs = list(iter_graphs())
     test_name = test.__class__.__name__
     log('Loaded test %s' % test_name)
@@ -218,7 +235,8 @@ def run_test_cases(args):
                                      context,
                                      coverage_dir,
                                      debug,
-                                     contexts['checks'])
+                                     contexts['checks'],
+                                     base_env)
 
                 if ret:
                     tstid = '%s in context %s' % (formatter,
@@ -234,7 +252,7 @@ def run_test_cases(args):
     return failed
 
 def produce_coverage_report(coverage_dir, coverage_output):
-    COVERAGE = 'python -m coverage '
+    COVERAGE = sys.executable + ' -m coverage '
     cwd = os.getcwd()
     try:
         os.chdir(coverage_dir)
@@ -274,6 +292,10 @@ def produce_coverage_report(coverage_dir, coverage_output):
               default=False,
               help="Debug mode: Stop at the first failure, "
                    "don't delete test directory")
+@click.option("--inherit-env",
+              is_flag=True,
+              default=False,
+              help="Inherit env variables")
 @click.option("--num-parallel",
               show_default=True,
               default=None,
@@ -285,7 +307,8 @@ def cli(tests=None,
         graphs=None,
         coverage_output=None,
         num_parallel=None,
-        debug=False):
+        debug=False,
+        inherit_env=False):
 
     parse = lambda x: {t.lower() for t in x.split(',') if t}
     coverage_dir = tempfile.mkdtemp('_metaflow_test_coverage') if coverage_output else None
@@ -295,7 +318,8 @@ def cli(tests=None,
                          parse(graphs),
                          coverage_dir,
                          debug,
-                         num_parallel)
+                         num_parallel,
+                         inherit_env)
 
         if coverage_output and not debug:
             produce_coverage_report(coverage_dir,

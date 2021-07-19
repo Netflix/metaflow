@@ -1,5 +1,6 @@
 import sys
 import traceback
+import types
 
 # worker processes that exit with this exit code are not retried
 METAFLOW_EXIT_DISALLOW_RETRY = 202
@@ -118,3 +119,33 @@ class MissingInMergeArtifactsException(MetaflowException):
     def __init__(self, msg, unhandled):
         super(MissingInMergeArtifactsException, self).__init__(msg)
         self.artifact_names = unhandled
+
+# Import any exceptions defined by a Metaflow custom package
+try:
+    import metaflow_custom.exceptions as extension_module
+except ImportError as e:
+    ver = sys.version_info[0] * 10 + sys.version_info[1]
+    if ver >= 36:
+        # e.name is set to the name of the package that fails to load
+        # so don't error ONLY IF the error is importing this module (but do
+        # error if there is a transitive import error)
+        if not (isinstance(e, ModuleNotFoundError) and \
+                e.name in ['metaflow_custom', 'metaflow_custom.exceptions']):
+            print(
+                "Cannot load metaflow_custom exceptions -- "
+                "if you want to ignore, uninstall metaflow_custom package")
+            raise
+else:
+    # We load into globals whatever we have in extension_module
+    # We specifically exclude any modules that may be included (like sys, os, etc)
+    for n, o in extension_module.__dict__.items():
+        if not n.startswith('__') and not isinstance(o, types.ModuleType):
+            globals()[n] = o
+finally:
+    # Erase all temporary names to avoid leaking things
+    for _n in ['ver', 'n', 'o', 'e', 'extension_module']:
+        try:
+            del globals()[_n]
+        except KeyError:
+            pass
+    del globals()['_n']
