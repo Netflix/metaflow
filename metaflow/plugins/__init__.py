@@ -95,7 +95,8 @@ from .catch_decorator import CatchDecorator
 from .timeout_decorator import TimeoutDecorator
 from .environment_decorator import EnvironmentDecorator
 from .retry_decorator import RetryDecorator
-from .aws.batch.batch_decorator import BatchDecorator, ResourcesDecorator
+from .resources_decorator import ResourcesDecorator
+from .aws.batch.batch_decorator import BatchDecorator
 from .aws.step_functions.step_functions_decorator \
                 import StepFunctionsInternalDecorator
 from .test_unbounded_foreach_decorator\
