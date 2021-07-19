@@ -22,7 +22,7 @@ import numpy
 from .. import s3client, S3ROOT
 
 BASIC_METADATA = {
-    #'no_meta': (None, None), # No metadata at all but going through the calls
+    'no_meta': (None, None), # No metadata at all but going through the calls
     'content_no_meta': ('text/plain', None), # Content-type but no metadata
     'no_content_meta': (None, {'userkey': 'UserValue'}), # No content-type but metadata
     'isolation': ('text/plain', {'content-type': 'text/css'}), # Check isolation of user metadata
@@ -396,8 +396,9 @@ def ensure_test_data():
     print('Ensuring that test data exists at %s' % S3ROOT)
     mark = urlparse(os.path.join(S3ROOT, 'ALL_OK'))
     try:
-        # Check if parquet data exists and has been modified in the last
-        # 29 days (default TTL - 1).
+        # Check if the data exists and has been modified in the last
+        # 29 days (this should be lower than the TTL for your bucket to ensure
+        # the data is available for the test)
         import datetime
         today = datetime.date.today()
         delta = datetime.timedelta(days=29)
