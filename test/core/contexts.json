@@ -55,12 +55,7 @@
                 "--tag", "\u523a\u8eab means sashimi",
                 "--tag", "multiple tags should be ok"
             ],
-<<<<<<< HEAD
-            "checks": ["python3-cli"],
-=======
-            "checks": ["python2-cli", "python3-cli",
-                        "python2-metadata", "python3-metadata"],
->>>>>>> master
+            "checks": ["python3-cli", "python3-metadata"],
             "disabled_tests": [
                 "LargeArtifactTest",
                 "S3FailureTest"

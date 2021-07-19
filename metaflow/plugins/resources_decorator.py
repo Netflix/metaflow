@@ -49,7 +49,11 @@ class ResourcesDecorator(StepDecorator):
         Not for AWS Batch.
         KFP: Memory limit for this step. Default unit is MB.
             More memory units are supported, including "E", "P", "T", "G", "M", "K". (i.e. "4000M")
-             Defaults None - relying on Kubernetes defaults.
+            Defaults None - relying on Kubernetes defaults.
+    shared_memory : int
+        Not for KFP
+        AWS Batch: The value for the size (in MiB) of the /dev/shm volume for this step.
+            This parameter maps to the --shm-size option to docker run .
     local_storage: Union[int, str]
         Not for AWS Batch.
         KFP: Local ephemeral storage required.
@@ -87,6 +91,9 @@ class ResourcesDecorator(StepDecorator):
         "cpu": None,
         "gpu": None,
         "memory": None,
+
+        # Only AWS Batch supported attributes
+        'shared_memory': None,
 
         # Only KFP supported attributes
         "cpu_limit": None,

@@ -84,12 +84,10 @@ def run_test(formatter, context, coverage_dir, debug, checks, env_base):
         with open('.coveragerc', 'w') as f:
             f.write("[run]\ndisable_warnings = module-not-measured\n")
 
-<<<<<<< HEAD
         if debug:
             print("tempdir", tempdir)
-=======
+
         shutil.copytree(os.path.join(cwd, "metaflow_test"), os.path.join(tempdir, "metaflow_test"))
->>>>>>> master
 
         path = os.path.join(tempdir, 'test_flow.py')
 

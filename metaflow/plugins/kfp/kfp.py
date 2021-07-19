@@ -59,7 +59,7 @@ from ..aws.batch.batch_decorator import BatchDecorator
 from ..aws.step_functions.schedule_decorator import ScheduleDecorator
 from ... import R
 from ...debug import debug
-from ...environment import MetaflowEnvironment
+from ...metaflow_environment import MetaflowEnvironment
 from ...graph import DAGNode
 from ...plugins.resources_decorator import ResourcesDecorator
 

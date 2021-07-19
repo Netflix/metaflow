@@ -2,11 +2,7 @@ import inspect
 import sys
 import traceback
 from datetime import datetime
-<<<<<<< HEAD
-import posixpath
-=======
 from functools import wraps
->>>>>>> master
 
 import click
 

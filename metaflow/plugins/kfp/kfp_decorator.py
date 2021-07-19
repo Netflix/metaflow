@@ -11,6 +11,7 @@ from metaflow.decorators import StepDecorator
 from metaflow.exception import MetaflowException
 from metaflow.metadata import MetaDatum
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
+from metaflow.mflog import TASK_LOG_SOURCE
 from metaflow.plugins.kfp.kfp_constants import preceding_component_inputs_PATH
 from metaflow.plugins.kfp.kfp_foreach_splits import KfpForEachSplits
 
@@ -94,6 +95,7 @@ class KfpInternalDecorator(StepDecorator):
         graph,
         retry_count,
         max_retries,
+        ubf_context,
     ):
         """
         Analogous to step_functions_decorator.py
@@ -114,7 +116,7 @@ class KfpInternalDecorator(StepDecorator):
                     value=json.dumps(
                         {
                             "ds_type": "s3",
-                            "location": datastore.get_log_location(logtype),
+                            "location": datastore.get_log_location(TASK_LOG_SOURCE, logtype),
                             "attempt": retry_count,
                         }
                     ),

@@ -2,16 +2,12 @@ import os
 
 from setuptools import setup, find_packages
 
-<<<<<<< HEAD
-version = '2.2.5+zg1.1'
+version = '2.3.2+zg1.1'
 
 # TODO: once this branch is merged or in pip use, remove this
 os.system(
     "pip3 install 'git+https://github.com/zillow/pipelines@feature/zg#egg=kfp&subdirectory=sdk/python'"
 )
-=======
-version = '2.3.2'
->>>>>>> master
 
 setup(name='metaflow',
       version=version,
@@ -30,12 +26,8 @@ setup(name='metaflow',
         'click>=7.0',
         'requests',
         'boto3',
-<<<<<<< HEAD
-        'pylint<2.5.0',
-        'kfp'
-=======
-        'pylint'
->>>>>>> master
+        'kfp',
+        'pylint',
       ],
       tests_require = [
         'coverage'

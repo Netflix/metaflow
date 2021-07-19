@@ -1,8 +1,5 @@
-<<<<<<< HEAD
-=======
 import sys
 import types
->>>>>>> master
 
 try:
     import metaflow_custom.plugins as _ext_plugins
@@ -100,17 +97,11 @@ from .catch_decorator import CatchDecorator
 from .timeout_decorator import TimeoutDecorator
 from .environment_decorator import EnvironmentDecorator
 from .retry_decorator import RetryDecorator
-<<<<<<< HEAD
 from .resources_decorator import ResourcesDecorator
 from .aws.batch.batch_decorator import BatchDecorator
 from .aws.step_functions.step_functions_decorator import StepFunctionsInternalDecorator
-=======
-from .aws.batch.batch_decorator import BatchDecorator, ResourcesDecorator
-from .aws.step_functions.step_functions_decorator \
-                import StepFunctionsInternalDecorator
 from .test_unbounded_foreach_decorator\
     import InternalTestUnboundedForeachDecorator, InternalTestUnboundedForeachInput
->>>>>>> master
 from .conda.conda_step_decorator import CondaStepDecorator
 from .kfp.kfp_decorator import KfpInternalDecorator
 from .kfp.accelerator_decorator import AcceleratorDecorator
@@ -124,13 +115,9 @@ STEP_DECORATORS = _merge_lists([CatchDecorator,
                                 BatchDecorator,
                                 StepFunctionsInternalDecorator,
                                 CondaStepDecorator,
-<<<<<<< HEAD
+                                InternalTestUnboundedForeachDecorator,
                                 AcceleratorDecorator,
-                                KfpInternalDecorator], ext_plugins.STEP_DECORATORS, 'name')
-=======
-                                InternalTestUnboundedForeachDecorator],
-                                    _ext_plugins.STEP_DECORATORS, 'name')
->>>>>>> master
+                                KfpInternalDecorator], _ext_plugins.STEP_DECORATORS, 'name')
 
 # Add Conda environment
 from .conda.conda_environment import CondaEnvironment
@@ -148,16 +135,13 @@ METADATA_PROVIDERS = _merge_lists(
 # imports from the metaflow package.
 from .conda.conda_flow_decorator import CondaFlowDecorator
 from .aws.step_functions.schedule_decorator import ScheduleDecorator
-<<<<<<< HEAD
-FLOW_DECORATORS = _merge_lists([CondaFlowDecorator, ScheduleDecorator, S3SensorDecorator], ext_plugins.FLOW_DECORATORS, 'name')
-=======
 from .project_decorator import ProjectDecorator
 FLOW_DECORATORS = _merge_lists([CondaFlowDecorator,
                                 ScheduleDecorator,
+                                S3SensorDecorator,
                                 ProjectDecorator],
                             _ext_plugins.FLOW_DECORATORS, 'name')
 
->>>>>>> master
 
 # Sidecars
 from ..mflog.save_logs_periodically import SaveLogsPeriodicallySidecar
