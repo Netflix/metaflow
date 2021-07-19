@@ -44,14 +44,14 @@ class Boto3ClientProvider(object):
 
 def get_aws_client(module, with_error=False, params={}):
     global cached_provider_class
-    from metaflow.metaflow_config import DEFAULT_AWS_CLIENT_PROVIDER
-    from metaflow.plugins import AWS_CLIENT_PROVIDERS
     if cached_provider_class is None:
-        cached_provider_class = [p for p in AWS_CLIENT_PROVIDERS
-                                 if p.name == DEFAULT_AWS_CLIENT_PROVIDER]
-        cached_provider_class = cached_provider_class[0] \
-            if len(cached_provider_class) > 0 else None
-    if cached_provider_class is None:
-        raise ValueError("Cannot find AWS Client provider %s"
-                         % DEFAULT_AWS_CLIENT_PROVIDER)
+        from metaflow.metaflow_config import DEFAULT_AWS_CLIENT_PROVIDER
+        from metaflow.plugins import AWS_CLIENT_PROVIDERS
+        for p in AWS_CLIENT_PROVIDERS:
+            if p.name == DEFAULT_AWS_CLIENT_PROVIDER:
+                cached_provider_class = p
+                break
+        else:
+            raise ValueError("Cannot find AWS Client provider %s"
+                             % DEFAULT_AWS_CLIENT_PROVIDER)
     return cached_provider_class.get_client(module, with_error, params)
