@@ -20,7 +20,8 @@ class StepFunctionsInternalDecorator(StepDecorator):
                       graph,
                       retry_count,
                       max_user_code_retries,
-                      ubf_context):
+                      ubf_context,
+                      inputs):
         meta = {}
         meta['aws-step-functions-execution'] = os.environ['METAFLOW_RUN_ID']
         meta['aws-step-functions-state-machine'] =\

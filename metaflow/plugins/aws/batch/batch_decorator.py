@@ -200,7 +200,8 @@ class BatchDecorator(StepDecorator):
                       graph,
                       retry_count,
                       max_retries,
-                      ubf_context):
+                      ubf_context,
+                      inputs):
         if metadata.TYPE == 'local':
             self.task_ds = task_datastore
         else:

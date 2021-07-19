@@ -282,7 +282,8 @@ class CondaStepDecorator(StepDecorator):
                       graph,
                       retry_count,
                       max_retries,
-                      ubf_context):
+                      ubf_context,
+                      inputs):
         if self.is_enabled(ubf_context):
             meta.register_metadata(run_id, step_name, task_id,
                                        [MetaDatum(field='conda_env_id',
