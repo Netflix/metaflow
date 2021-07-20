@@ -1,6 +1,18 @@
 import sys
 import types
 
+_expected_extensions = {
+    'FLOW_DECORATORS': [],
+    'STEP_DECORATORS': [],
+    'ENVIRONMENTS': [],
+    'METADATA_PROVIDERS': [],
+    'SIDECARS': {},
+    'LOGGING_SIDECARS': {},
+    'MONITOR_SIDECARS': {},
+    'AWS_CLIENT_PROVIDERS': [],
+    'get_plugin_cli': lambda : []
+}
+
 try:
     import metaflow_custom.plugins as _ext_plugins
 except ImportError as e:
@@ -16,20 +28,12 @@ except ImportError as e:
                 "if you want to ignore, uninstall metaflow_custom package")
             raise
     class _fake(object):
-        def __init__(self, **kwargs):
-            self.__dict__.update(kwargs)
+        def __getattr__(self, name):
+            if name in _expected_extensions:
+                return _expected_extensions[name]
+            raise AttributeError
 
-        def get_plugin_cli(self):
-            return []
-
-    _ext_plugins = _fake(
-        FLOW_DECORATORS=[],
-        STEP_DECORATORS=[],
-        ENVIRONMENTS=[],
-        METADATA_PROVIDERS=[],
-        SIDECARS={},
-        LOGGING_SIDECARS={},
-        MONITOR_SIDECARS={})
+    _ext_plugins = _fake()
 else:
     # We load into globals whatever we have in extension_module
     # We specifically exclude any modules that may be included (like sys, os, etc)
@@ -61,6 +65,18 @@ else:
         # This keeps it cleaner.
         from metaflow import _LazyLoader
         sys.meta_path = [_LazyLoader(lazy_load_custom_modules)] + sys.meta_path
+    
+    class _wrap(object):
+        def __init__(self, obj):
+            self.__dict__ = obj.__dict__
+
+        def __getattr__(self, name):
+            if name in _expected_extensions:
+                return _expected_extensions[name]
+            raise AttributeError
+
+    _ext_plugins = _wrap(_ext_plugins)
+
 
 
 def get_plugin_cli():
@@ -160,11 +176,15 @@ MONITOR_SIDECARS.update(_ext_plugins.MONITOR_SIDECARS)
 SIDECARS.update(LOGGING_SIDECARS)
 SIDECARS.update(MONITOR_SIDECARS)
 
+from .aws.aws_client import Boto3ClientProvider
+AWS_CLIENT_PROVIDERS = _merge_lists(
+    [Boto3ClientProvider], _ext_plugins.AWS_CLIENT_PROVIDERS, 'name')
+
 # Erase all temporary names to avoid leaking things
-# We leave '_ext_plugins' because it is used in a function (so it needs
-# to stick around)
-for _n in ['ver', 'n', 'o', 'e', 'lazy_load_custom_modules',
-           '_LazyLoader', '_merge_lists', '_fake', 'addl_modules']:
+# We leave '_ext_plugins' and '_expected_extensions' because they are used in
+# a function (so they need to stick around)
+for _n in ['ver', 'n', 'o', 'e', 'lazy_load_custom_modules', '_LazyLoader',
+           '_merge_lists', '_fake', '_wrap', 'addl_modules']:
     try:
         del globals()[_n]
     except KeyError:
