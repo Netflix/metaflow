@@ -1,7 +1,7 @@
 import os
 
-from metaflow.exception import MetaflowException
 from metaflow.decorators import StepDecorator
+from metaflow.exception import MetaflowException
 
 
 class EnvironmentDecorator(StepDecorator):
@@ -27,19 +27,15 @@ class EnvironmentDecorator(StepDecorator):
     name = 'environment'
     defaults = {'vars': {}}
 
-    def step_init(self, flow, graph, step_name, decorators, environment, datastore, logger):
-        self.attributes["vars"] = self.vars_dict().items()
-
     def vars_dict(self):
         env_vars = self.attributes["vars"]
-        env_vars = env_vars.lstrip("{").rstrip("}") # strip brackets
         if isinstance(vars, str):  # env specified using --with will be a string that we must parse
             try:
                 vars_dict = {}
                 pairs = env_vars.split(",")
                 for pair in pairs:
                     k, v = pair.split(":", 1) # split on the first colon only
-                    vars_dict[k.strip()] = v.strip()
+                    vars_dict[k] = v
 
             except Exception as e:
                 raise ValueError(
