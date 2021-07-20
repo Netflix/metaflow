@@ -27,6 +27,9 @@ class EnvironmentDecorator(StepDecorator):
     name = 'environment'
     defaults = {'vars': {}}
 
+    def step_init(self, flow, graph, step_name, decorators, environment, datastore, logger):
+        self.attributes["vars"] = self.vars_dict().items()
+
     def vars_dict(self):
         vars = self.attributes["vars"]
         if isinstance(vars, str):  # env specified using --with will be a string that we must parse
