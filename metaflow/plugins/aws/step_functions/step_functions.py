@@ -388,7 +388,7 @@ class StepFunctions(object):
                         if deco.name == 'environment']
         env = {}
         if env_deco:
-            env = env_deco[0].attributes['vars']
+            env = env_deco[0].vars_dict()
 
         if node.name == 'start':
             # Initialize parameters for the flow in the `start` step.
