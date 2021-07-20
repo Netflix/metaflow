@@ -31,14 +31,15 @@ class EnvironmentDecorator(StepDecorator):
         self.attributes["vars"] = self.vars_dict().items()
 
     def vars_dict(self):
-        vars = self.attributes["vars"]
+        env_vars = self.attributes["vars"]
+        env_vars = env_vars.lstrip("{").rstrip("}") # strip brackets
         if isinstance(vars, str):  # env specified using --with will be a string that we must parse
             try:
                 vars_dict = {}
-                pairs = vars.split(",")
+                pairs = env_vars.split(",")
                 for pair in pairs:
-                    k, v = pair.split(":")
-                    vars_dict[k] = v
+                    k, v = pair.split(":", 1) # split on the first colon only
+                    vars_dict[k.strip()] = v.strip()
 
             except Exception as e:
                 raise ValueError(
@@ -46,7 +47,7 @@ class EnvironmentDecorator(StepDecorator):
                 )
             return vars_dict
         else:
-            return vars
+            return env_vars
 
     def runtime_step_cli(self, cli_args, retry_count, max_user_code_retries, ubf_context):
         cli_args.env.update(self.vars_dict().items())
