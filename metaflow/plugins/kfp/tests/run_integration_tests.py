@@ -19,6 +19,7 @@ import tempfile
 import time
 
 import uuid
+
 """
 To run these tests from your terminal, go to the tests directory and run: 
 `python -m pytest -s -n 3 run_integration_tests.py`
@@ -93,8 +94,8 @@ def test_s3_sensor_flow(pytestconfig) -> None:
         upload_to_s3_flow_cmd += image_cmds
         s3_sensor_flow_cmd += image_cmds
 
-    exponential_backoff_from_kfam_errors(upload_to_s3_flow_cmd, 0)
-    exponential_backoff_from_kfam_errors(s3_sensor_flow_cmd, 0)
+    exponential_backoff_from_platform_errors(upload_to_s3_flow_cmd, 0)
+    exponential_backoff_from_platform_errors(s3_sensor_flow_cmd, 0)
 
     return
 
@@ -111,7 +112,7 @@ def test_raise_failure_flow(pytestconfig) -> None:
             f"--no-s3-code-package --base-image {pytestconfig.getoption('image')}"
         )
 
-    exponential_backoff_from_kfam_errors(test_cmd, 1)
+    exponential_backoff_from_platform_errors(test_cmd, 1)
 
     return
 
@@ -189,25 +190,33 @@ def test_flows(pytestconfig, flow_file_path: str) -> None:
     test_cmd = (
         f"{_python()} {full_path} --datastore=s3 --with retry kfp run "
         f"--wait-for-completion --workflow-timeout 1800 "
-        f"--max-parallelism 5 --experiment metaflow_test --tag test_t1 "
+        f"--max-parallelism 3 --experiment metaflow_test --tag test_t1 "
     )
     if pytestconfig.getoption("image"):
         test_cmd += (
             f"--no-s3-code-package --base-image {pytestconfig.getoption('image')}"
         )
 
-    exponential_backoff_from_kfam_errors(test_cmd, 0)
+    exponential_backoff_from_platform_errors(test_cmd, 0)
 
     return
 
 
-def exponential_backoff_from_kfam_errors(kfp_run_cmd: str, correct_return_code: int) -> None:
+def exponential_backoff_from_platform_errors(
+    kfp_run_cmd: str, correct_return_code: int
+) -> None:
     # Within this function, we use the special feature of subprocess_tee which allows us
     # to capture both stdout and stderr (akin to stdout=PIPE, stderr=PIPE in the regular subprocess.run)
     # as well as output to stdout and stderr (which users can see on the Gitlab logs). We check
     # if the error message is due to a KFAM issue, and if so, we do an exponential backoff.
 
     backoff_intervals_in_seconds = [0, 2, 4, 8, 16, 32]
+
+    platform_error_messages = [
+        "Reason: Unauthorized",
+        "Failed to connect to the KFAM service",
+        "Failed to create a new experiment",
+    ]
 
     for interval in backoff_intervals_in_seconds:
         time.sleep(interval)
@@ -218,11 +227,16 @@ def exponential_backoff_from_kfam_errors(kfp_run_cmd: str, correct_return_code: 
             shell=True,
         )
 
-        if "Reason: Unauthorized" in run_and_wait_process.stderr or "Failed to connect to the KFAM service" in run_and_wait_process.stderr:
-            print(f"KFAM issue encountered. Backing off for {interval} seconds...")
-            continue
+        for platform_error_message in platform_error_messages:
+            if platform_error_message in run_and_wait_process.stderr:
+                print(
+                    f"Error: {run_and_wait_process.stderr}. Backing off for {interval} seconds..."
+                )
+                break
         else:
             assert run_and_wait_process.returncode == correct_return_code
             break
     else:
-        raise MetaflowException("KFAM issues not resolved after successive backoff attempts.")
+        raise MetaflowException(
+            "KFAM issues not resolved after successive backoff attempts."
+        )
