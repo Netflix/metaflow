@@ -341,7 +341,7 @@ class Uploader():
     @staticmethod
     def encode_url(url_type, url, **kwargs):
         # Avoid encoding twice (default -> URL -> _convert method of FilePath for example)
-        if url is None or len(url) == 0 or url[0] == '{':
+        if isinstance(url, IncludedFile):
             return url
         return_value = {'type': url_type, 'url': url}
         return_value.update(kwargs)
