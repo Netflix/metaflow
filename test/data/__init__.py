@@ -1,0 +1,17 @@
+import os
+
+# Can set a default path here. Note that you can update the path
+# if you want a fresh set of data
+S3ROOT = os.environ.get('METAFLOW_S3_TEST_ROOT')
+
+from metaflow.datatools.s3util import get_s3_client
+s3client, _ = get_s3_client()
+
+from metaflow import FlowSpec
+
+# ast parsing in metaflow.graph doesn't like this class
+# to be defined in test_s3.py. Defining it here works.
+class FakeFlow(FlowSpec):
+    pass
+
+
