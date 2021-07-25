@@ -29,7 +29,7 @@ class EnvironmentDecorator(StepDecorator):
 
     def vars_dict(self):
         env_vars = self.attributes["vars"]
-        if isinstance(vars, str):  # env specified using --with will be a string that we must parse
+        if isinstance(env_vars, str):  # env specified using --with will be a string that we must parse
             try:
                 vars_dict = {}
                 pairs = env_vars.split(",")
