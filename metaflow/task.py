@@ -387,7 +387,8 @@ class MetaflowTask(object):
                                    self.flow._graph,
                                    retry_count,
                                    max_user_code_retries,
-                                   self.ubf_context)
+                                   self.ubf_context,
+                                   inputs)
 
                 # decorators can actually decorate the step function,
                 # or they can replace it altogether. This functionality
