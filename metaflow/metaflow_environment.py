@@ -96,7 +96,7 @@ class MetaflowEnvironment(object):
                     "mflog \'Failed to download code package from %s "
                     "after 6 tries. Exiting...\' && exit 1; "
                 "fi" % code_package_url,
-                "tar xf job.tar",
+                "TAR_OPTIONS='--warning=no-timestamp' tar xf job.tar",
                 "mflog \'Task is starting.\'",
                 ]
         return cmds
