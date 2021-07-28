@@ -125,6 +125,11 @@ class FlowSpec(object):
             # ...and cache it in the object for faster access
             setattr(self, name, x)
             return x
+        elif isinstance(getattr(type(self), name), property):
+            raise AttributeError(
+                "Flow %s property '%s' " % (self.name, name)
+                + "depends on an attribute that is not present"
+            )
         else:
             raise AttributeError("Flow %s has no attribute '%s'" %
                                  (self.name, name))
