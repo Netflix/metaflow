@@ -127,8 +127,9 @@ class FlowSpec(object):
             return x
         elif isinstance(getattr(type(self), name), property):
             raise AttributeError(
-                "Flow %s property '%s' " % (self.name, name)
-                + "depends on an attribute that is not present"
+                "Flow %s property '%s' depends on\n" % (self.name, name)
+                + "an attribute that is not present "
+                + "or was not present in the previous step"
             )
         else:
             raise AttributeError("Flow %s has no attribute '%s'" %
