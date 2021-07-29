@@ -41,33 +41,49 @@ with open('override.txt', mode='w') as f:
             pass
 
     def check_results(self, flow, checker):
-        for step in flow:
-            checker.assert_artifact(
-                step.name,
-                'myfile_txt',
-                None,
-                fields={'type': 'uploader-v1',
-                        'is_text': True,
-                        'encoding': None})
-            checker.assert_artifact(
-                step.name,
-                'myfile_utf8',
-                None,
-                fields={'type': 'uploader-v1',
-                        'is_text': True,
-                        'encoding': 'utf8'})
-            checker.assert_artifact(
-                step.name,
-                'myfile_binary',
-                None,
-                fields={'type': 'uploader-v1',
-                        'is_text': False,
-                        'encoding': None})
-            checker.assert_artifact(
-                step.name,
-                'myfile_overriden',
-                None,
-                fields={'type': 'uploader-v1',
-                        'is_text': True,
-                        'encoding': None})
+        run = checker.get_run()
+        if run is None:
+            # CliChecker does not return a run object; we check to make sure
+            # the returned value is the blob describing the artifact
+            # (this may be improved in the future)
+            for step in flow:
+                checker.assert_artifact(
+                    step.name,
+                    'myfile_txt',
+                    None,
+                    fields={'type': 'uploader-v1',
+                            'is_text': True,
+                            'encoding': None})
+                checker.assert_artifact(
+                    step.name,
+                    'myfile_utf8',
+                    None,
+                    fields={'type': 'uploader-v1',
+                            'is_text': True,
+                            'encoding': 'utf8'})
+                checker.assert_artifact(
+                    step.name,
+                    'myfile_binary',
+                    None,
+                    fields={'type': 'uploader-v1',
+                            'is_text': False,
+                            'encoding': None})
+                checker.assert_artifact(
+                    step.name,
+                    'myfile_overriden',
+                    None,
+                    fields={'type': 'uploader-v1',
+                            'is_text': True,
+                            'encoding': None})
+        else:
+            # In the case of the client, we check the value.
+            for step in flow:
+                checker.assert_artifact(step.name, 'myfile_txt',
+                                        "Regular Text File")
+                checker.assert_artifact(step.name, 'myfile_utf8',
+                                        u"UTF Text File \u5e74")
+                checker.assert_artifact(step.name, 'myfile_binary',
+                                        u"UTF Text File \u5e74".encode(encoding='utf8'))
+                checker.assert_artifact(step.name, 'myfile_overriden',
+                                        "Override Text File")
 
