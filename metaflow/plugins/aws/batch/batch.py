@@ -219,7 +219,7 @@ class Batch(object):
             for key in ['metaflow.flow_name', 'metaflow.run_id',
                             'metaflow.step_name', 'metaflow.version', 
                             'metaflow.run_id.$', 'metaflow.user',
-                            'metaflow.owner']:
+                            'metaflow.owner', 'metaflow.production_token']:
                 if key in attrs:
                     job.tag(key, attrs.get(key))
         return job
