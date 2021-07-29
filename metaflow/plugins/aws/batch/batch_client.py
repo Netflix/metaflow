@@ -139,7 +139,10 @@ class BatchJob(object):
                         'type': 'MEMORY'
                     }
                 ]
-            }
+            },
+            # This propagates the AWS Batch resource tags to the underlying
+            # ECS tasks.
+            'propagateTags': True
         }
 
         if platform == 'FARGATE' or platform == 'FARGATE_SPOT':
