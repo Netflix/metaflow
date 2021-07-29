@@ -165,6 +165,27 @@ from .datatools import S3
 DATACLIENTS = {'local': Local,
                's3': S3}
 
+class IncludedFile(object):
+    # Thin wrapper to indicate to the MF client that this object is special
+    # and should be handled as an IncludedFile when returning it (ie: fetching
+    # the actual content)
+
+    def __init__(self, descriptor):
+        self._descriptor = json.dumps(descriptor)
+
+    @property
+    def descriptor(self):
+        return self._descriptor
+
+    def decode(self, name, var_type='Artifact'):
+        ok, file_type, err = LocalFile.is_file_handled(self._descriptor)
+        if not ok:
+            raise MetaflowException("%s '%s' could not be loaded: %s" % (var_type, name, err))
+        if file_type is None or isinstance(file_type, LocalFile):
+            raise MetaflowException("%s '%s' was not properly converted" % (var_type, name))
+        return file_type.load(self._descriptor)
+
+
 class LocalFile():
     def __init__(self, is_text, encoding, path):
         self._is_text = is_text
@@ -173,7 +194,16 @@ class LocalFile():
 
     @classmethod
     def is_file_handled(cls, path):
+        # This returns a tuple:
+        #  - True/False indicating whether the file is handled
+        #  - None if we need to create a handler for the file, a LocalFile if
+        #    we already know what to do with the file or a Uploader if the file
+        #    is already present remotely (either starting with s3:// or local://)
+        #  - An error message if file is not handled
         if path:
+            if isinstance(path, IncludedFile):
+                path = path.descriptor
+
             decoded_value = Uploader.decode_value(to_unicode(path))
             if decoded_value['type'] == 'self':
                 return True, LocalFile(
@@ -295,15 +325,10 @@ class IncludeFile(Parameter):
             name, required=required, help=help,
             type=FilePathClass(is_text, encoding), **kwargs)
 
-    def load_parameter(self, val):
-        if val is None:
-            return val
-        ok, file_type, err = LocalFile.is_file_handled(val)
-        if not ok:
-            raise MetaflowException("Parameter '%s' could not be loaded: %s" % (self.name, err))
-        if file_type is None or isinstance(file_type, LocalFile):
-            raise MetaflowException("Parameter '%s' was not properly converted" % self.name)
-        return file_type.load(val)
+    def load_parameter(self, v):
+        if v is None:
+            return v
+        return v.decode(self.name, var_type='Parameter')
 
 
 class Uploader():
@@ -316,11 +341,11 @@ class Uploader():
     @staticmethod
     def encode_url(url_type, url, **kwargs):
         # Avoid encoding twice (default -> URL -> _convert method of FilePath for example)
-        if url is None or len(url) == 0 or url[0] == '{':
+        if isinstance(url, IncludedFile):
             return url
         return_value = {'type': url_type, 'url': url}
         return_value.update(kwargs)
-        return json.dumps(return_value)
+        return IncludedFile(return_value)
 
     @staticmethod
     def decode_value(value):
