@@ -12,7 +12,6 @@ from metaflow.metaflow_config import (
     KFP_RUN_URL_PREFIX,
     KFP_SDK_API_NAMESPACE,
     KFP_SDK_NAMESPACE,
-    KFP_USER_DOMAIN,
     KFP_MAX_PARALLELISM,
     from_conf,
 )
@@ -386,18 +385,6 @@ def make_flow(
     from metaflow.plugins.kfp.kfp import KubeflowPipelines
     from metaflow.plugins.kfp.kfp_decorator import KfpInternalDecorator
 
-    datastore = (
-        None
-        if (not s3_code_package)
-        else obj.datastore(
-            obj.flow.name,
-            mode="w",
-            metadata=obj.metadata,
-            event_logger=obj.event_logger,
-            monitor=obj.monitor,
-        )
-    )
-
     # Attach KFP decorator to the flow
     decorators._attach_decorators(obj.flow, [KfpInternalDecorator.name])
     decorators._init_step_decorators(
@@ -408,13 +395,18 @@ def make_flow(
         obj.flow, obj.environment, obj.logger, obj.package_suffixes
     )
 
-    package_url = (
-        datastore.save_data(obj.package.sha, TransformableObject(obj.package.blob))
-        if s3_code_package
-        else None
-    )
-
-    if package_url:
+    package_url = None
+    if s3_code_package:
+        datastore = obj.datastore(
+            obj.flow.name,
+            mode="w",
+            metadata=obj.metadata,
+            event_logger=obj.event_logger,
+            monitor=obj.monitor,
+        )
+        package_url = datastore.save_data(
+            obj.package.sha, TransformableObject(obj.package.blob)
+        )
         obj.echo(
             "*Uploaded package to:* {package_url}".format(package_url=package_url),
             fg="cyan",

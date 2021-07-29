@@ -1,15 +1,15 @@
+import re
 from os import listdir
 from os.path import isfile, join
 from subprocess_tee import run
+import json
+import re
+import requests
 from typing import List, Dict
 
 from .... import R
 
 from metaflow.exception import MetaflowException
-
-import kfp
-
-import boto3
 
 import pytest
 
@@ -19,6 +19,7 @@ import tempfile
 import time
 
 import uuid
+
 """
 To run these tests from your terminal, go to the tests directory and run: 
 `python -m pytest -s -n 3 run_integration_tests.py`
@@ -51,8 +52,9 @@ def _python():
 
 
 non_standard_test_flows = [
-    "raise_error_flow.py",
     "accelerator_flow.py",
+    "check_error_handling_flow"
+    "raise_error_flow.py",
     "s3_sensor_flow.py",
     "upload_to_s3_flow.py",
 ]
@@ -93,25 +95,75 @@ def test_s3_sensor_flow(pytestconfig) -> None:
         upload_to_s3_flow_cmd += image_cmds
         s3_sensor_flow_cmd += image_cmds
 
-    exponential_backoff_from_kfam_errors(upload_to_s3_flow_cmd, 0)
-    exponential_backoff_from_kfam_errors(s3_sensor_flow_cmd, 0)
+    exponential_backoff_from_platform_errors(upload_to_s3_flow_cmd, 0)
+    exponential_backoff_from_platform_errors(s3_sensor_flow_cmd, 0)
 
     return
 
 
-# this test ensures the integration tests fail correctly
-def test_raise_failure_flow(pytestconfig) -> None:
+# This test ensures that a flow fails correctly,
+# and when it fails, an OpsGenie email is sent.
+def test_error_and_opsgenie_alert(pytestconfig) -> None:
     test_cmd = (
         f"{_python()} flows/raise_error_flow.py --datastore=s3 kfp run "
         f"--wait-for-completion --workflow-timeout 1800 "
-        f"--experiment metaflow_test --tag test_t1 "
+        f"--experiment metaflow_test --tag test_t1 --notify "
     )
     if pytestconfig.getoption("image"):
         test_cmd += (
             f"--no-s3-code-package --base-image {pytestconfig.getoption('image')}"
         )
 
-    exponential_backoff_from_kfam_errors(test_cmd, 1)
+    error_flow_id = exponential_backoff_from_platform_errors(test_cmd, 1)
+    opsgenie_auth_headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"GenieKey {pytestconfig.getoption('opsgenie_api_token')}",
+    }
+
+    # Look for the alert with the correct kfp_run_id in the description.
+    list_alerts_endpoint = f"https://api.opsgenie.com/v2/alerts?query=description:{error_flow_id}&limit=1&sort=createdAt&order=des"
+    list_alerts_response = requests.get(
+        list_alerts_endpoint, headers=opsgenie_auth_headers
+    )
+    assert list_alerts_response.status_code == 200
+
+    list_alerts_response_json = json.loads(list_alerts_response.text)
+    # assert we have found the alert (there should only be one alert with that kfp_run_id)
+    assert len(list_alerts_response_json["data"]) == 1
+    alert_alias = list_alerts_response_json["data"][0]["alias"]
+
+    close_alert_data = {
+        "user": "AIP Integration Testing Service",
+        "source": "AIP Integration Testing Service",
+        "note": "Closing ticket because the test is complete.",
+    }
+    close_alert_endpoint = (
+        f"https://api.opsgenie.com/v2/alerts/{alert_alias}/close?identifierType=alias"
+    )
+    close_alert_response = requests.post(
+        close_alert_endpoint,
+        data=json.dumps(close_alert_data),
+        headers=opsgenie_auth_headers,
+    )
+    # Sometimes the response status code is 202, signaling
+    # the request has been accepted and is being queued for processing.
+    assert (
+        close_alert_response.status_code == 200
+        or close_alert_response.status_code == 202
+    )
+
+    test_cmd = (
+        f"{_python()} flows/check_error_handling_flow.py "
+        f"--datastore=s3 --with retry kfp run "
+        f"--wait-for-completion --workflow-timeout 1800 "
+        f"--experiment metaflow_test --tag test_t1  "
+        f"--error-flow-id={error_flow_id}"
+    )
+    if pytestconfig.getoption("image"):
+        test_cmd += (
+            f"--no-s3-code-package --base-image {pytestconfig.getoption('image')}"
+        )
+    exponential_backoff_from_platform_errors(test_cmd, 0)
 
     return
 
@@ -189,25 +241,33 @@ def test_flows(pytestconfig, flow_file_path: str) -> None:
     test_cmd = (
         f"{_python()} {full_path} --datastore=s3 --with retry kfp run "
         f"--wait-for-completion --workflow-timeout 1800 "
-        f"--max-parallelism 5 --experiment metaflow_test --tag test_t1 "
+        f"--max-parallelism 3 --experiment metaflow_test --tag test_t1 "
     )
     if pytestconfig.getoption("image"):
         test_cmd += (
             f"--no-s3-code-package --base-image {pytestconfig.getoption('image')}"
         )
 
-    exponential_backoff_from_kfam_errors(test_cmd, 0)
+    exponential_backoff_from_platform_errors(test_cmd, 0)
 
     return
 
 
-def exponential_backoff_from_kfam_errors(kfp_run_cmd: str, correct_return_code: int) -> None:
+def exponential_backoff_from_platform_errors(
+    kfp_run_cmd: str, correct_return_code: int
+) -> str:
     # Within this function, we use the special feature of subprocess_tee which allows us
     # to capture both stdout and stderr (akin to stdout=PIPE, stderr=PIPE in the regular subprocess.run)
     # as well as output to stdout and stderr (which users can see on the Gitlab logs). We check
     # if the error message is due to a KFAM issue, and if so, we do an exponential backoff.
 
     backoff_intervals_in_seconds = [0, 2, 4, 8, 16, 32]
+
+    platform_error_messages = [
+        "Reason: Unauthorized",
+        "Failed to connect to the KFAM service",
+        "Failed to create a new experiment",
+    ]
 
     for interval in backoff_intervals_in_seconds:
         time.sleep(interval)
@@ -218,11 +278,25 @@ def exponential_backoff_from_kfam_errors(kfp_run_cmd: str, correct_return_code: 
             shell=True,
         )
 
-        if "Reason: Unauthorized" in run_and_wait_process.stderr or "Failed to connect to the KFAM service" in run_and_wait_process.stderr:
-            print(f"KFAM issue encountered. Backing off for {interval} seconds...")
-            continue
+        for platform_error_message in platform_error_messages:
+            if platform_error_message in run_and_wait_process.stderr:
+                print(
+                    f"Error: {run_and_wait_process.stderr}. Backing off for {interval} seconds..."
+                )
+                break
         else:
             assert run_and_wait_process.returncode == correct_return_code
             break
     else:
-        raise MetaflowException("KFAM issues not resolved after successive backoff attempts.")
+        raise MetaflowException(
+            "KFAM issues not resolved after successive backoff attempts."
+        )
+
+    kfp_run_id = re.search(
+        "Metaflow run_id=(.*)\n",
+        run_and_wait_process.stderr
+    ).group(
+        1
+    )
+
+    return kfp_run_id

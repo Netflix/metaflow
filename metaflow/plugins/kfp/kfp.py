@@ -4,7 +4,7 @@ import os
 import sys
 from collections import namedtuple
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union, Any
 
 import marshal
 import base64
@@ -13,7 +13,7 @@ import kfp
 import yaml
 from kfp import dsl
 from kfp.components import func_to_container_op
-from kfp.dsl import ContainerOp, PipelineConf, VOLUME_MODE_RWM
+from kfp.dsl import ContainerOp, PipelineConf
 from kfp.dsl import PipelineVolume, ResourceOp
 from kubernetes.client import (
     V1EnvVar,
@@ -49,18 +49,25 @@ from .kfp_constants import (
     TASK_ID_ENV_NAME,
     SPLIT_INDEX_ENV_NAME,
     RETRY_COUNT,
+    LOGS_DIR,
+    STDOUT_PATH,
+    STDERR_PATH,
 )
 from .kfp_exit_handler import exit_handler
-from .kfp_foreach_splits import graph_to_task_ids
+from .kfp_foreach_splits import graph_to_task_ids, KfpForEachSplits
 from .kfp_get_workflow_uid import get_workflow_uid
 from .kfp_s3_sensor import wait_for_s3_path
 from .accelerator_decorator import AcceleratorDecorator
 from ..aws.batch.batch_decorator import BatchDecorator
 from ..aws.step_functions.schedule_decorator import ScheduleDecorator
 from ... import R
-from ...debug import debug
 from ...metaflow_environment import MetaflowEnvironment
 from ...graph import DAGNode
+from metaflow.mflog import (
+    export_mflog_env_vars,
+    bash_capture_logs,
+    BASH_SAVE_LOGS,
+)
 from ...plugins.resources_decorator import ResourcesDecorator
 
 # TODO: @schedule
@@ -212,79 +219,87 @@ class KubeflowPipelines(object):
         step_name: str,
         step_cli: List[str],
         resource_requirements: Dict[str, str],
+        task_id: str,
     ) -> str:
         """
         Analogous to batch.py
         """
-        # debug.subcommand is true if this env variable is set:
-        #   export METAFLOW_DEBUG_SUBCOMMAND=1
-        set_debug_command = "set -x" if debug.subcommand else "true"
-        commands = []
-        commands.extend(
-            environment.get_package_commands(code_package_url, pip_install=True)
-            if self.s3_code_package
-            else ["cd " + str(Path(inspect.getabsfile(self.flow.__class__)).parent)]
-        )
-        commands.extend(environment.bootstrap_commands(step_name))
-        commands.append("echo 'Task is starting.'")
-        commands.extend(step_cli)
-        subshell_commands = " && ".join(
-            commands
-        )  # run inside subshell to capture all stdout/stderr
-        # redirect stdout/stderr to separate files, using tee to display to UI
-        redirection_commands = f"> >(tee -a ${RETRY_COUNT}.stdout.log) 2> >(tee -a ${RETRY_COUNT}.stderr.log >&2)"
-
-        # Creating a template to save logs to S3. This is within a function because
-        # datastore_root is not available within the scope of this function, and needs
-        # to be provided in the `step_op` function. f strings (AFAK) don't support
-        # insertion of only a partial number of placeholder strings.
-        def copy_log_cmd(log_file):
-            cp_command = environment.get_boto3_copy_command(
-                s3_path=(
-                    os.path.join(
-                        "$METAFLOW_DATASTORE_SYSROOT_S3",
-                        f"{self.flow.name}/{{run_id}}/{step_name}/${TASK_ID_ENV_NAME}/{log_file}",
-                    )
-                ),
-                local_path=log_file,
-                command="upload_file",
-            )
-            return (
-                f". {STEP_ENVIRONMENT_VARIABLES} "  # for $TASK_ID_ENV_NAME
-                f"&& {cp_command}"
-            )
-
-        # TODO: see datastore get_log_location()
-        #  where the ordinal is attempt/retry count
-        cp_stderr = copy_log_cmd(log_file=f"${RETRY_COUNT}.stderr.log")
-        cp_stdout = copy_log_cmd(log_file=f"${RETRY_COUNT}.stdout.log")
-        cp_logs_cmd = f"{set_debug_command} && {cp_stderr} && {cp_stdout}"
-
         retry_count_python = (
             "import os;"
             'name = os.environ.get("MF_ARGO_NODE_NAME");'
             'index = name.rfind("(");'
-            'res = (0 if index == -1 else name[index + 1: -1]) if name.endswith(")") else 0;'
-            f'print("{RETRY_COUNT}=" + str(res))'
+            'retry_count = (0 if index == -1 else name[index + 1: -1]) if name.endswith(")") else 0;'
+            "print(str(retry_count))"
         )
+
+        if self.graph[step_name].is_inside_foreach:
+            task_id_template = KfpForEachSplits.get_step_task_id(
+                task_id=task_id,
+                passed_in_split_indexes="{passed_in_split_indexes}",
+            )
+        else:
+            task_id_template = task_id
+
+        mflog_expr = export_mflog_env_vars(
+            flow_name=self.flow.name,
+            run_id="{run_id}",
+            step_name=step_name,
+            task_id=task_id_template,
+            retry_count=f"`python -c '{retry_count_python}'`",
+            datastore_type="s3",
+            datastore_root="$METAFLOW_DATASTORE_SYSROOT_S3",
+            stdout_path=STDOUT_PATH,
+            stderr_path=STDERR_PATH,
+        )
+
+        if self.s3_code_package:
+            init_cmds = environment.get_package_commands(
+                code_package_url, is_kfp_plugin=True
+            )
+        else:
+            init_cmds = [
+                "cd " + str(Path(inspect.getabsfile(self.flow.__class__)).parent)
+            ]
+
+        init_expr = " && ".join(init_cmds)
+
+        step_cmds = []
+        step_cmds.extend(environment.bootstrap_commands(step_name))
+        step_cmds.append("echo 'Task is starting.'")
+        step_cmds.extend(step_cli)
+
+        step_expr = bash_capture_logs(" && ".join(step_cmds))
 
         if "volume" in resource_requirements:
             volume_dir = resource_requirements["volume_dir"]
             clean_volume = f"rm -rf {os.path.join(volume_dir, '*')}"
         else:
+            # the `true` command is to make sure that the generated command
+            # plays well with docker containers which have entrypoint set as
+            # eval $@
             clean_volume = "true"
 
-        # We capture the exit code at two places:
-        # Once after the subshell/redirection commands, and once after the saving logs
-        # command. If either of these exit codes are not 0, we exit with the nonzero
-        # exit code manually because combining bash commands with ';' always results
-        # in an exit code of 0, whether or not certain commands failed.
-        return (
-            f"{set_debug_command}; {clean_volume}; eval `python -c '{retry_count_python}'`; "
-            f"({subshell_commands}) {redirection_commands}; export exit_code_1=$?; "
-            f"{cp_logs_cmd}; export exit_code_2=$?; "
-            f'if [ "$exit_code_1" -ne 0 ]; then exit $exit_code_1; else exit $exit_code_2; fi'
+        # construct an entry point that
+        # 1) Clean attached volume if any
+        # 2) Initializes the mflog environment (mflog_expr)
+        # 3) Bootstraps a metaflow environment (init_expr)
+        # 4) Executes a task (step_expr)
+        cmd_str = (
+            f"{clean_volume} "
+            f"&& mkdir -p {LOGS_DIR} && {mflog_expr} "
+            f"&& {init_expr} "
+            f"&& {step_expr};"
         )
+
+        # after the task has finished, we save its exit code (fail/success)
+        # and persist the final logs. The whole entrypoint should exit
+        # with the exit code (c) of the task.
+        #
+        # Note that if step_expr OOMs, this tail expression is never executed.
+        # We lose the last logs in this scenario.
+        cmd_str += "c=$?; %s; exit $c" % BASH_SAVE_LOGS
+
+        return cmd_str
 
     @staticmethod
     def _get_retries(node: DAGNode) -> Tuple[int, int]:
@@ -382,6 +397,7 @@ class KubeflowPipelines(object):
                     node.name,
                     [step_cli],
                     resource_requirements,
+                    task_id,
                 ),
                 total_retries=total_retries,
                 resource_requirements=resource_requirements,
@@ -515,7 +531,7 @@ class KubeflowPipelines(object):
                     "kfp step-init",
                     "--run-id %s" % kfp_run_id,
                     "--step_name %s" % node.name,
-                    "--passed_in_split_indexes {passed_in_split_indexes}",
+                    '--passed_in_split_indexes "{passed_in_split_indexes}"',
                     "--task_id %s" % task_id,  # the assigned task_id from Flow graph
                 ]
             )
@@ -878,7 +894,7 @@ class KubeflowPipelines(object):
 
             def build_kfp_dag(
                 node: DAGNode,
-                passed_in_split_indexes: str = '""',
+                passed_in_split_indexes: str = "",
                 preceding_kfp_component_op: ContainerOp = None,
                 preceding_component_outputs_dict: Dict[str, dsl.PipelineParam] = None,
                 workflow_uid: str = None,
