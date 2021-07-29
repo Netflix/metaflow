@@ -77,14 +77,45 @@ class ArgoWorkflow:
         self.max_workers = max_workers
         self._flow_attributes = self._parse_flow_decorator()
         self._workflow = remove_empty_elements(self._compile())
+        self._cron = self._cron()
 
     def to_json(self):
         return json.dumps(self._workflow, indent=4)
 
+    def trigger_explanation(self):
+        if self._cron:
+            return 'This workflow triggers automatically via CronWorkflow *%s*.' % self.name
+        else:
+            return 'No triggers defined. You need to launch this workflow manually.'
+
     def deploy(self, auth, k8s_namespace):
-        client = ArgoClient(auth, k8s_namespace)
         try:
-            client.create_template(self.name, self._workflow)
+            ArgoClient(auth, k8s_namespace).create_template(self.name, self._workflow)
+        except Exception as e:
+            raise ArgoException(str(e))
+
+    def schedule(self, auth, k8s_namespace):
+        try:
+            client = ArgoClient(auth, k8s_namespace)
+            if self._cron is None:
+                client.delete_cron_wf(self.name)
+            else:
+                cron_wf = {
+                    'apiVersion': 'argoproj.io/v1alpha1',
+                    'kind': 'CronWorkflow',
+                    'metadata': {
+                        'name': self.name
+                    },
+                    'spec': {
+                        'schedule': self._cron,
+                        'workflowSpec': {
+                            'workflowTemplateRef': {
+                                'name': self.name
+                            }
+                        }
+                    }
+                }
+                client.create_cron_wf(self.name, cron_wf)
         except Exception as e:
             raise ArgoException(str(e))
 
@@ -107,8 +138,8 @@ class ArgoWorkflow:
                 }
             }
         }
-        client = ArgoClient(auth, k8s_namespace)
         try:
+            client = ArgoClient(auth, k8s_namespace)
             template = client.get_template(name)
         except Exception as e:
             raise ArgoException(str(e))
@@ -122,8 +153,8 @@ class ArgoWorkflow:
 
     @classmethod
     def list(cls, auth, k8s_namespace, name, phases):
-        client = ArgoClient(auth, k8s_namespace)
         try:
+            client = ArgoClient(auth, k8s_namespace)
             tmpl = client.get_template(name)
         except Exception as e:
             raise ArgoException(str(e))
@@ -174,9 +205,26 @@ class ArgoWorkflow:
             }
         }
 
+    def _cron(self):
+        schedule = self.flow._flow_decorators.get('schedule')
+        if schedule:
+            # Argo's CRON expression doesn't support 6th field "Year" like AWS EventBridge
+            return ' '.join(schedule.schedule.split()[:5])
+        return None
+
     def _parameters(self):
         parameters = []
+        has_schedule = self._cron() is not None
         for _, param in self.flow._get_parameters():
+            # Throw an exception if a schedule is set for a flow with required
+            # parameters with no defaults.
+            is_required = param.kwargs.get('required', False)
+            if 'default' not in param.kwargs and is_required and has_schedule:
+                raise MetaflowException("The parameter *%s* does not have a "
+                                        "default and is required. Scheduling "
+                                        "such parameters via Argo CronWorkflow "
+                                        "is not currently supported."
+                                        % param.name)
             p = {'name': param.name}
             if 'default' in param.kwargs:
                 v = deploy_time_eval(param.kwargs.get('default'))

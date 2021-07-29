@@ -147,6 +147,9 @@ def create(obj,
         obj.echo("WorkflowTemplate *{name}* is pushed to Argo Workflows successfully.\n"
                  .format(name=obj.workflow_template_name),
                  bold=True)
+        workflow.schedule(token, k8s_namespace)
+        obj.echo("What will trigger execution of the workflow:", bold=True)
+        obj.echo(workflow.trigger_explanation(), indent=True)
 
 
 @parameters.add_custom_parameters(deploy_mode=False)
