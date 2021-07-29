@@ -113,7 +113,9 @@ class KfpInternalDecorator(StepDecorator):
                     value=json.dumps(
                         {
                             "ds_type": "s3",
-                            "location": datastore.get_log_location(TASK_LOG_SOURCE, logtype),
+                            "location": datastore.get_log_location(
+                                TASK_LOG_SOURCE, logtype
+                            ),
                             "attempt": retry_count,
                         }
                     ),
