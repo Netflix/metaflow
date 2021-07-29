@@ -813,8 +813,10 @@ class State(object):
             .parameter('RetryStrategy', 
                 to_pascalcase(job.payload['retryStrategy'])) \
             .parameter('Timeout', 
-                to_pascalcase(job.payload['timeout'])) \
-            .parameter('Tags', job.payload['tags'])
+                to_pascalcase(job.payload['timeout']))
+        # tags may not be present in all scenarios
+        if 'tags' in job.payload:
+            self.parameter('Tags', job.payload['tags'])
         return self
 
     def dynamo_db(self, table_name, primary_key, values):

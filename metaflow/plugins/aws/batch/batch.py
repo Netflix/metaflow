@@ -11,7 +11,7 @@ from requests.exceptions import HTTPError
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.metaflow_config import BATCH_METADATA_SERVICE_URL, DATATOOLS_S3ROOT, \
     DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_S3, DEFAULT_METADATA, \
-    BATCH_METADATA_SERVICE_HEADERS
+    BATCH_METADATA_SERVICE_HEADERS, BATCH_EMIT_TAGS
 from metaflow import util
 
 from .batch_client import BatchClient
@@ -215,11 +215,13 @@ class Batch(object):
             for key, value in attrs.items():
                 job.parameter(key, value)
         # Tags for AWS Batch job (for say cost attribution)
-        for key in ['metaflow.flow_name', 'metaflow.run_id',
-                        'metaflow.step_name', 'metaflow.version', 
-                        'metaflow.run_id.$']:
-            if key in attrs:
-                job.tag(key, attrs.get(key))
+        if BATCH_EMIT_TAGS:
+            for key in ['metaflow.flow_name', 'metaflow.run_id',
+                            'metaflow.step_name', 'metaflow.version', 
+                            'metaflow.run_id.$', 'metaflow.user',
+                            'metaflow.owner']:
+                if key in attrs:
+                    job.tag(key, attrs.get(key))
         return job
 
     def launch_job(
