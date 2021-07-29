@@ -66,9 +66,6 @@ class KfpInternalDecorator(StepDecorator):
         super(KfpInternalDecorator, self).__init__(attributes, statically_defined)
 
     def step_init(self, flow, graph, step, decos, environment, datastore, logger):
-        if datastore.TYPE != "s3":
-            raise KfpException("The *@kfp* decorator requires --datastore=s3.")
-
         if self.attributes["preceding_component"] is not None:
             node = graph[step]
             if step == "start":
