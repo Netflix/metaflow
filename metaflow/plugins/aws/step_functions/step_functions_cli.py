@@ -6,6 +6,7 @@ import re
 from distutils.version import LooseVersion
 
 from metaflow import current, decorators, parameters, JSONType
+from metaflow.includefile import FilePathClass
 from metaflow.metaflow_config import (
     METADATA_SERVICE_VERSION_CHECK,
     SFN_STATE_MACHINE_PREFIX,
@@ -425,13 +426,13 @@ def trigger(obj, run_id_file=None, **kwargs):
     def _convert_value(param):
         # Swap `-` with `_` in parameter name to match click's behavior
         val = kwargs.get(param.name.replace("-", "_").lower())
-        return (
-            json.dumps(val)
-            if param.kwargs.get("type") == JSONType
-            else val()
-            if callable(val)
-            else val
-        )
+        if param.kwargs.get("type") == JSONType:
+            val = json.dumps(val)
+        elif isinstance(param.kwargs.get("type"), FilePathClass):
+            if isinstance(val, parameters.DelayedEvaluationParameter):
+                val = val()
+            val = json.dumps(val.descriptor)
+        return val
 
     params = {
         param.name: _convert_value(param)

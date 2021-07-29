@@ -7,7 +7,7 @@ from itertools import islice
 from types import FunctionType, MethodType
 
 from . import cmd_with_io
-from .parameters import Parameter
+from .parameters import DelayedEvaluationParameter, Parameter
 from .exception import (
     MetaflowException,
     MissingInMergeArtifactsException,
@@ -145,9 +145,8 @@ class FlowSpec(object):
         for var, param in self._get_parameters():
             seen.add(var)
             val = kwargs[param.name.replace("-", "_").lower()]
-            # Support for delayed evaluation of parameters. This is used for
-            # includefile in particular
-            if callable(val):
+            # Support for delayed evaluation of parameters.
+            if isinstance(val, DelayedEvaluationParameter):
                 val = val()
             val = val.split(param.separator) if val and param.separator else val
             setattr(self, var, val)

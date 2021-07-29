@@ -5,6 +5,7 @@ import random
 import string
 import sys
 from datetime import datetime, timedelta
+from metaflow.includefile import FilePathClass
 
 import metaflow.util as util
 from metaflow.decorators import flow_decorators
@@ -19,7 +20,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_SECRETS,
     AIRFLOW_KUBERNETES_STARTUP_TIMEOUT,
 )
-from metaflow.parameters import deploy_time_eval
+from metaflow.parameters import DelayedEvaluationParameter, deploy_time_eval
 from metaflow.plugins.kubernetes.kubernetes import Kubernetes
 
 # TODO: Move chevron to _vendor
@@ -179,8 +180,18 @@ class Airflow(object):
             bool.__name__: "string",
             float.__name__: "number",
             JSONTypeClass.name: "string",
+            FilePathClass.name: "string",
         }
-        type_parser = {bool.__name__: lambda v: str(v)}
+
+        def _file_path_parser(v):
+            if isinstance(v, DelayedEvaluationParameter):
+                v = v()
+            return v.descriptor
+
+        type_parser = {
+            bool.__name__: lambda v: str(v),
+            FilePathClass.name: _file_path_parser,
+        }
 
         for var, param in self.flow._get_parameters():
             # Throw an exception if the parameter is specified twice.
@@ -213,9 +224,11 @@ class Airflow(object):
             if param_type is not None:
                 # Todo (fast-follow): Check if we can support more `click.Param` types
                 param_type_name = getattr(param_type, "__name__", None)
-                if not param_type_name and isinstance(param_type, JSONTypeClass):
-                    # `JSONTypeClass` has no __name__ attribute so we need to explicitly check if
-                    # `param_type` is an instance of `JSONTypeClass``
+                if not param_type_name and isinstance(
+                    param_type, (JSONTypeClass, FilePathClass)
+                ):
+                    # `JSONTypeClass`/`FilePathClass` have no __name__ attribute so
+                    # we need to explicitly check if `param_type` is an instance of those
                     param_type_name = param_type.name
 
                 if param_type_name in type_transform_dict:

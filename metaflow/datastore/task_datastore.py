@@ -16,6 +16,8 @@ from ..util import Path, is_stringish, to_fileobj
 
 from .exceptions import DataException, UnpicklableArtifactException
 
+_included_file_type = "<class 'metaflow.includefile.IncludedFile'>"
+
 
 def only_if_not_done(f):
     @wraps(f)
@@ -299,6 +301,7 @@ class TaskDataStore(object):
                     "type": str(type(obj)),
                     "encoding": encode_type,
                 }
+
                 artifact_names.append(name)
                 yield blob
 
@@ -386,7 +389,11 @@ class TaskDataStore(object):
         """
         for name in names:
             info = self._info.get(name)
-            yield name, info.get("size", 0)
+            if info["type"] == _included_file_type:
+                sz = self[name].size
+            else:
+                sz = info.get("size", 0)
+            yield name, sz
 
     @require_mode("r")
     def get_legacy_log_size(self, stream):
@@ -783,18 +790,37 @@ class TaskDataStore(object):
                 continue
             if k[0] == "_" and not show_private:
                 continue
-            if max_value_size is not None and self._info[k]["size"] > max_value_size:
-                d[k] = ArtifactTooLarge()
+
+            info = self._info[k]
+            if max_value_size is not None:
+                if info["type"] == _included_file_type:
+                    sz = self[k].size
+                else:
+                    sz = info.get("size", 0)
+
+                if sz == 0 or sz > max_value_size:
+                    d[k] = ArtifactTooLarge()
+                else:
+                    d[k] = self[k]
+                    if info["type"] == _included_file_type:
+                        d[k] = d[k].decode(k)
             else:
                 d[k] = self[k]
+                if info["type"] == _included_file_type:
+                    d[k] = d[k].decode(k)
+
         return d
 
     @require_mode("r")
     def format(self, **kwargs):
         def lines():
             for k, v in self.to_dict(**kwargs).items():
+                if self._info[k]["type"] == _included_file_type:
+                    sz = self[k].size
+                else:
+                    sz = self._info[k]["size"]
                 yield k, "*{key}* [size: {size} type: {type}] = {value}".format(
-                    key=k, value=v, **self._info[k]
+                    key=k, value=v, size=sz, type=self._info[k]["type"]
                 )
 
         return "\n".join(line for k, line in sorted(lines()))

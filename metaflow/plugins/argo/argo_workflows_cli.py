@@ -7,6 +7,7 @@ from distutils.version import LooseVersion
 from hashlib import sha1
 
 from metaflow import JSONType, current, decorators, parameters
+from metaflow.includefile import FilePathClass
 from metaflow._vendor import click
 from metaflow.metaflow_config import METADATA_SERVICE_VERSION_CHECK
 from metaflow.exception import MetaflowException, MetaflowInternalError
@@ -484,13 +485,14 @@ def trigger(obj, run_id_file=None, **kwargs):
     def _convert_value(param):
         # Swap `-` with `_` in parameter name to match click's behavior
         val = kwargs.get(param.name.replace("-", "_").lower())
-        return (
-            json.dumps(val)
-            if param.kwargs.get("type") == JSONType
-            else val()
-            if callable(val)
-            else val
-        )
+        val = kwargs.get(param.name.replace("-", "_").lower())
+        if param.kwargs.get("type") == JSONType:
+            val = json.dumps(val)
+        elif isinstance(param.kwargs.get("type"), FilePathClass):
+            if isinstance(val, parameters.DelayedEvaluationParameter):
+                val = val()
+            val = json.dumps(val.descriptor)
+        return val
 
     params = {
         param.name: _convert_value(param)

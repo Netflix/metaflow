@@ -22,7 +22,13 @@ except NameError:
 # breaking backwards compatibility but don't remove any fields!
 ParameterContext = namedtuple(
     "ParameterContext",
-    ["flow_name", "user_name", "parameter_name", "logger", "ds_type"],
+    [
+        "flow_name",
+        "user_name",
+        "parameter_name",
+        "logger",
+        "ds_type",
+    ],
 )
 
 # currently we execute only one flow per process, so we can treat
@@ -83,22 +89,36 @@ class DeployTimeField(object):
         if self.print_representation is None:
             self.print_representation = str(self.fun)
 
-    def __call__(self, full_evaluation=False):
-        # full_evaluation is True if there will be no further "convert" called
-        # by click and the parameter should be fully evaluated.
+    def __call__(self, deploy_time=False):
+        # This is called in two ways:
+        #  - through the normal Click default parameter evaluation: if a default
+        #    value is a callable, Click will call it without any argument. In other
+        #    words, deploy_time=False. This happens for a normal "run" or the "trigger"
+        #    functions for step-functions for example. Anything that has the
+        #    @add_custom_parameters decorator will trigger this. Once click calls this,
+        #    it will then pass the resulting value to the convert() functions for the
+        #    type for that Parameter.
+        #  - by deploy_time_eval which is invoked to process the parameters at
+        #    deploy_time and outside of click processing (ie: at that point, Click
+        #    is not involved since anytime deploy_time_eval is called, no custom parameters
+        #    have been added). In that situation, deploy_time will be True. Note that in
+        #    this scenario, the value should be something that can be converted to JSON.
+        # The deploy_time value can therefore be used to determine which type of
+        # processing is requested.
         ctx = context_proto._replace(parameter_name=self.parameter_name)
         try:
             try:
-                # Not all functions take two arguments
-                val = self.fun(ctx, full_evaluation)
+                # Most user-level functions may not care about the deploy_time parameter
+                # but IncludeFile does.
+                val = self.fun(ctx, deploy_time)
             except TypeError:
                 val = self.fun(ctx)
         except:
             raise ParameterFieldFailed(self.parameter_name, self.field)
         else:
-            return self._check_type(val)
+            return self._check_type(val, deploy_time)
 
-    def _check_type(self, val):
+    def _check_type(self, val, deploy_time):
         # it is easy to introduce a deploy-time function that that accidentally
         # returns a value whose type is not compatible with what is defined
         # in Parameter. Let's catch those mistakes early here, instead of
@@ -120,6 +140,15 @@ class DeployTimeField(object):
                 raise ParameterFieldTypeMismatch(msg)
             return str(val) if self.return_str else val
         else:
+            if deploy_time:
+                try:
+                    if not is_stringish(val):
+                        val = json.dumps(val)
+                except TypeError:
+                    msg += "Expected a JSON-encodable object or a string."
+                    raise ParameterFieldTypeMismatch(msg)
+                return val
+            # If not deploy_time, we expect a string
             if not is_stringish(val):
                 msg += "Expected a string."
                 raise ParameterFieldTypeMismatch(msg)
@@ -142,7 +171,7 @@ class DeployTimeField(object):
 
 def deploy_time_eval(value):
     if isinstance(value, DeployTimeField):
-        return value(full_evaluation=True)
+        return value(deploy_time=True)
     else:
         return value
 
@@ -157,6 +186,29 @@ def set_parameter_context(flow_name, echo, datastore):
         logger=echo,
         ds_type=datastore.TYPE,
     )
+
+
+class DelayedEvaluationParameter(object):
+    """
+    This is a very simple wrapper to allow parameter "conversion" to be delayed until
+    the `_set_constants` function in FlowSpec. Typically, parameters are converted
+    by click when the command line option is processed. For some parameters, like
+    IncludeFile, this is too early as it would mean we would trigger the upload
+    of the file too early. If a parameter converts to a DelayedEvaluationParameter
+    through the usual Click mechanisms, `_set_constants` knows to call it again to
+    finish converting it. In that case, it will be called with no parameters
+    """
+
+    def __init__(self, name, field, fun):
+        self._name = name
+        self._field = field
+        self._fun = fun
+
+    def __call__(self):
+        try:
+            return self._fun()
+        except Exception as e:
+            raise ParameterFieldFailed(self._name, self._field)
 
 
 class Parameter(object):

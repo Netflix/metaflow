@@ -14,7 +14,7 @@ from metaflow.exception import (
     MetaflowNamespaceMismatch,
     MetaflowInternalError,
 )
-
+from metaflow.includefile import IncludedFile
 from metaflow.metaflow_config import DEFAULT_METADATA, MAX_ATTEMPTS
 from metaflow.plugins import ENVIRONMENTS, METADATA_PROVIDERS
 from metaflow.unbounded_foreach import CONTROL_TASK_TAG
@@ -886,6 +886,7 @@ class DataArtifact(MetaflowObject):
         if filecache is None:
             # TODO: Pass proper environment to properly extract artifacts
             filecache = FileCache()
+
         # "create" the metadata information that the datastore needs
         # to access this object.
         # TODO: We can store more information in the metadata, particularly
@@ -901,12 +902,15 @@ class DataArtifact(MetaflowObject):
             },
         }
         if location.startswith(":root:"):
-            return filecache.get_artifact(ds_type, location[6:], meta, *components)
+            obj = filecache.get_artifact(ds_type, location[6:], meta, *components)
         else:
             # Older artifacts have a location information which we can use.
-            return filecache.get_artifact_by_location(
+            obj = filecache.get_artifact_by_location(
                 ds_type, location, meta, *components
             )
+        if isinstance(obj, IncludedFile):
+            return obj.decode(self.id)
+        return obj
 
     @property
     def size(self):

@@ -27,7 +27,6 @@ class MetadataCheck(MetaflowCheck):
     def _test_namespace(self):
         from metaflow.client import Flow, get_namespace, namespace, default_namespace
         from metaflow.exception import MetaflowNamespaceMismatch
-        import os
 
         # test 1) METAFLOW_USER should be the default
         assert_equals("user:%s" % os.environ.get("METAFLOW_USER"), get_namespace())
