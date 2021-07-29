@@ -111,6 +111,12 @@ BATCH_CONTAINER_REGISTRY = from_conf("METAFLOW_BATCH_CONTAINER_REGISTRY")
 BATCH_METADATA_SERVICE_URL = from_conf('METAFLOW_SERVICE_INTERNAL_URL', METADATA_SERVICE_URL)
 BATCH_METADATA_SERVICE_HEADERS = METADATA_SERVICE_HEADERS
 
+# Assign resource tags to AWS Batch jobs. Set to False by default since
+# it requires `Batch:TagResource` permissions which may not be available
+# in all Metaflow deployments. Hopefully, some day we can flip the
+# default to True.
+BATCH_EMIT_TAGS = from_conf("METAFLOW_BATCH_EMIT_TAGS", False)
+
 ###
 # AWS Step Functions configuration
 ###

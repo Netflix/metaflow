@@ -139,7 +139,10 @@ class BatchJob(object):
                         'type': 'MEMORY'
                     }
                 ]
-            }
+            },
+            # This propagates the AWS Batch resource tags to the underlying
+            # ECS tasks.
+            'propagateTags': True
         }
 
         if platform == 'FARGATE' or platform == 'FARGATE_SPOT':
@@ -317,6 +320,10 @@ class BatchJob(object):
 
     def timeout_in_secs(self, timeout_in_secs):
         self.payload['timeout']['attemptDurationSeconds'] = timeout_in_secs
+        return self
+
+    def tag(self, key, value):
+        self.payload['tags'][key] = str(value)
         return self
 
     def parameter(self, key, value):
