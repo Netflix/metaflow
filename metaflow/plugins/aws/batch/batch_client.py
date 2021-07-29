@@ -319,6 +319,10 @@ class BatchJob(object):
         self.payload['timeout']['attemptDurationSeconds'] = timeout_in_secs
         return self
 
+    def tag(self, key, value):
+        self.payload['tags'][key] = str(value)
+        return self
+
     def parameter(self, key, value):
         self.payload['parameters'][key] = str(value)
         return self

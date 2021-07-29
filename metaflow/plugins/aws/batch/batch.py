@@ -214,6 +214,12 @@ class Batch(object):
         if attrs:
             for key, value in attrs.items():
                 job.parameter(key, value)
+        # Tags for AWS Batch job (for say cost attribution)
+        for key in ['metaflow.flow_name', 'metaflow.run_id',
+                        'metaflow.step_name', 'metaflow.version', 
+                        'metaflow.run_id.$']:
+            if key in attrs:
+                job.tag(key, attrs.get(key))
         return job
 
     def launch_job(
