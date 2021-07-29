@@ -310,26 +310,17 @@ class StepFunctions(object):
                                         "case-insensitive." % param.name)
             seen.add(norm)
 
-            valuetype = param.kwargs.get('type', str)
-            value = deploy_time_eval(param.kwargs.get('default'))
-            required = param.kwargs.get('required', False)
-            # Throw an exception if the flow has optional parameters
-            # with no default value.
-            if value is None and required is False:
-                raise MetaflowException("The value of parameter *%s* is "
-                                        "ambiguous. It does not have a "
-                                        "default and it is not required."
-                                        % param.name)
-
+            is_required = param.kwargs.get('required', False)
             # Throw an exception if a schedule is set for a flow with required
             # parameters with no defaults. We currently don't have any notion
             # of data triggers in AWS Event Bridge.
-            if value is None and required and has_schedule:
+            if 'default' not in param.kwargs and is_required and has_schedule:
                 raise MetaflowException("The parameter *%s* does not have a "
                                         "default and is required. Scheduling "
                                         "such parameters via AWS Event Bridge "
                                         "is not currently supported."
                                         % param.name)
+            value = deploy_time_eval(param.kwargs.get('default'))
             parameters.append(dict(name=param.name,
                                    value=value))
         return parameters
