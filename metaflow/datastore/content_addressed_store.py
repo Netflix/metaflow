@@ -84,12 +84,9 @@ class ContentAddressedStore(object):
             results.append(self.save_blobs_result(
                 uri=self._backend.full_uri(path) if raw else None,
                 key=sha))
-            # We will not check if the file exists, doing it in the backend
-            # directly as it will most likely be more efficient (in the S3
-            # backend, this is done in parallel for example). We do pay the
-            # additional packing cost but this should be more minor compared to
-            # a S3 access for example.
-
+            if self._backend.is_file(path):
+                # This already exists in the backing datastore so we can skip it
+                continue
             # Compute the meta information to store with the file
             meta = {
                 'cas_raw': raw,
@@ -101,7 +98,10 @@ class ContentAddressedStore(object):
                 blob = self._pack_v1(blob)
 
             to_save[path] = (blob, meta)
-        self._backend.save_bytes(to_save, overwrite=False)
+        # We don't actually want to overwrite but by saying =True, we avoid
+        # checking again saving some operations. We are already sure we are not
+        # sending duplicate files since we already checked.
+        self._backend.save_bytes(to_save, overwrite=True)
         return results
 
     def load_blobs(self, keys, force_raw=False):
