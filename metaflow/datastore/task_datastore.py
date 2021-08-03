@@ -220,9 +220,9 @@ class TaskDataStore(object):
             original_type = str(type(obj))
             do_v4 = force_v4 and \
                 force_v4 if isinstance(force_v4, bool) else \
-                    force_v4.get('name', False)
+                    force_v4.get(name, False)
             if do_v4:
-                encode_type = 'pickle-v4'
+                encode_type = 'gzip+pickle-v4'
                 if encode_type not in self._encodings:
                     raise DataException(
                         "Artifact *%s* requires a serialization encoding that "
@@ -231,9 +231,9 @@ class TaskDataStore(object):
             else:
                 try:
                     obj = pickle.dumps(obj, protocol=2)
-                    encode_type = 'pickle-v2'
+                    encode_type = 'gzip+pickle-v2'
                 except (SystemError, OverflowError):
-                    encode_type = 'pickle-v4'
+                    encode_type = 'gzip+pickle-v4'
                     if encode_type not in self._encodings:
                         raise DataException(
                             "Artifact *%s* is very large (over 2GB). "
