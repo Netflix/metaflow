@@ -1,5 +1,4 @@
 import gzip
-import struct
 
 from collections import namedtuple
 from hashlib import sha1
@@ -7,6 +6,7 @@ from io import BytesIO
 
 from ..exception import MetaflowInternalError
 from .exceptions import DataException
+from .transformable_object import TransformableObject
 
 class ContentAddressedStore(object):
     """
@@ -65,7 +65,7 @@ class ContentAddressedStore(object):
 
         Parameters
         ----------
-        blobs : List of bytes objects
+        blobs : List of TransformableObject containing bytes objects
             Blobs to save. Each blob should be bytes
         raw : bool, optional
             Whether to save the bytes directly or process them, by default False
@@ -79,7 +79,7 @@ class ContentAddressedStore(object):
         to_save = {}
         results = []
         for blob in blobs:
-            sha = sha1(blob).hexdigest()
+            sha = sha1(blob.current).hexdigest()
             path = self._backend.path_join(self._prefix, sha[:2], sha)
             results.append(self.save_blobs_result(
                 uri=self._backend.full_uri(path) if raw else None,
@@ -93,9 +93,9 @@ class ContentAddressedStore(object):
                 'cas_version': 1
             }
             if raw:
-                blob = BytesIO(blob)
+                blob.transform(BytesIO)
             else:
-                blob = self._pack_v1(blob)
+                blob.transform(self._pack_v1)
 
             to_save[path] = (blob, meta)
         # We don't actually want to overwrite but by saying =True, we avoid
@@ -122,7 +122,7 @@ class ContentAddressedStore(object):
 
         Returns
         -------
-        Dict: string -> bytes:
+        Dict: string -> TransformableObject(bytes):
             Returns the blobs as bytes
         """
         results = {}
@@ -132,7 +132,7 @@ class ContentAddressedStore(object):
             if self._blob_cache:
                 blob = self._blob_cache.load_key(key)
             if blob is not None:
-                results[key] = blob
+                results[key] = TransformableObject(blob)
             else:
                 path = self._backend.path_join(self._prefix, key[:2], key)
                 load_paths.append((key, path))
@@ -172,6 +172,9 @@ class ContentAddressedStore(object):
         
         if self._blob_cache:
             self._blob_cache.store_keys(new_results)
+
+        for k in new_results:
+            new_results[k] = TransformableObject(new_results[k])
 
         results.update(new_results)
         return results

@@ -62,7 +62,10 @@ class ImmutableBlobCache(BlobCache):
         self._preloaded = preloaded
 
     def load_key(self, key):
-        return self._preloaded.get(key)
+        o = self._preloaded.get(key)
+        if o is not None:
+            return o.current
+        return None
 
     def store_keys(self, results):
         # we cache only preloaded keys, so no need to store anything

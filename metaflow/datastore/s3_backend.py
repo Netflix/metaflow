@@ -114,7 +114,8 @@ class S3Backend(DataStoreBackend):
 
         Parameters
         ----------
-        path_and_bytes : Dict: string -> (RawIOBase or BufferedIOBase, dict)
+        path_and_bytes : Dict: string ->
+                (TransformableObject(RawIOBase or BufferedIOBase), dict)
             Objects to store; the first element in the tuple is the actual data
             to store and the dictionary is additional metadata to store. Keys
             for the metadata must be ascii only string and elements can be
@@ -135,9 +136,9 @@ class S3Backend(DataStoreBackend):
             # key, value, path, content_type, metadata
             for path, obj in path_and_bytes.items():
                 if isinstance(obj, tuple):
-                    yield path, obj[0], None, None, obj[1]
+                    yield path, obj[0].current, None, None, obj[1]
                 else:
-                    yield path, obj, None, None, None
+                    yield path, obj.current, None, None, None
 
         with S3(s3root=self.datastore_root,
                 tmproot=os.getcwd(), external_client=self.s3_client) as s3:

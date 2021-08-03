@@ -194,7 +194,8 @@ class DataStoreBackend(object):
 
         Parameters
         ----------
-        path_and_bytes : Dict: string -> (RawIOBase or BufferedIOBase, dict)
+        path_and_bytes : Dict: string ->
+                (TransformableObject(RawIOBase or BufferedIOBase), dict)
             Objects to store; the first element in the tuple is the actual data
             to store and the dictionary is additional metadata to store. Keys
             for the metadata must be ascii only string and elements can be

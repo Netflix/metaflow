@@ -5,6 +5,7 @@ from .. import metaflow_config
 
 from .content_addressed_store import ContentAddressedStore
 from .task_datastore import TaskDataStore
+from .transformable_object import TransformableObject
 
 
 class FlowDataStore(object):
@@ -190,7 +191,7 @@ class FlowDataStore(object):
             the key needed to retrieve it using load_data. This is returned in
             the same order as the input.
         """
-        save_results = self.ca_store.save_blobs(data, raw=True)
+        save_results = self.ca_store.save_blobs(TransformableObject(data), raw=True)
         return [(r.uri, r.key) for r in save_results]
 
     def load_data(self, keys, force_raw=False):
@@ -213,4 +214,4 @@ class FlowDataStore(object):
         """
         load_results = self.ca_store.load_blobs(
             keys, force_raw=force_raw)
-        return [load_results[k] for k in keys]
+        return [load_results[k].current for k in keys]

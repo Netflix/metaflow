@@ -13,6 +13,7 @@ from ..parameters import Parameter
 from ..util import Path, is_stringish, to_fileobj
 
 from .exceptions import ArtifactTooLarge, DataException
+from .transformable_object import TransformableObject
 
 def only_if_not_done(f):
     def method(self, *args, **kwargs):
@@ -206,7 +207,7 @@ class TaskDataStore(object):
         ----------
         artifacts : Dict[string -> object]
             Dictionary containing the human-readable name of the object to save
-            and the object itself
+            and the object itself (as a TransformableObject)
         force_v4 : boolean or Dict[string -> boolean]
             Indicates whether the artifact should be pickled using the v4
             version of pickle. If a single boolean, applies to all artifacts.
@@ -215,9 +216,8 @@ class TaskDataStore(object):
         """
         artifact_names = []
         to_save = []
-        originals = []
         for name, obj in artifacts.items():
-            original_type = str(type(obj))
+            original_type = str(obj.original_type)
             do_v4 = force_v4 and \
                 force_v4 if isinstance(force_v4, bool) else \
                     force_v4.get(name, False)
@@ -227,10 +227,10 @@ class TaskDataStore(object):
                     raise DataException(
                         "Artifact *%s* requires a serialization encoding that "
                         "requires Python 3.4 or newer." % name)
-                obj = pickle.dumps(obj, protocol=4)
+                obj.transform(lambda x: pickle.dumps(x, protocol=4))
             else:
                 try:
-                    obj = pickle.dumps(obj, protocol=2)
+                    obj.transform(lambda x: pickle.dumps(x, protocol=2))
                     encode_type = 'gzip+pickle-v2'
                 except (SystemError, OverflowError):
                     encode_type = 'gzip+pickle-v4'
@@ -239,8 +239,8 @@ class TaskDataStore(object):
                             "Artifact *%s* is very large (over 2GB). "
                             "You need to use Python 3.4 or newer if you want to "
                             "serialize large objects." % name)
-                    obj = pickle.dumps(obj, protocol=4)
-            sz = len(obj)
+                    obj.transform(lambda x: pickle.dumps(x, protocol=4))
+            sz = len(obj.current)
             self._info[name] = {
                 'size': sz,
                 'type': original_type,
@@ -307,8 +307,8 @@ class TaskDataStore(object):
         # stored by the same implementation of the datastore for a given task.
         loaded_data = self._ca_store.load_blobs(to_load)
         for sha, blob in loaded_data.items():
-            obj = pickle.loads(blob)
-            results[sha_to_names[sha]] = obj
+            blob.transform(pickle.loads)
+            results[sha_to_names[sha]] = blob.current
         return results
 
     @only_if_not_done
@@ -528,7 +528,9 @@ class TaskDataStore(object):
                 if not (isinstance(val, MethodType) or
                         isinstance(val, FunctionType) or
                         isinstance(val, Parameter)):
-                    yield var, val, False
+                    if not var.startswith('_') and var != 'name':
+                        delattr(flow, var)
+                    yield var, TransformableObject(val), False
 
         # initialize with old values...
         if flow._datastore:
@@ -673,10 +675,10 @@ class TaskDataStore(object):
                 path = self._backend.path_join(self._path, name)
             if isinstance(value, (RawIOBase, BufferedIOBase)) and \
                     value.readable():
-                to_store[path] = value
+                to_store[path] = TransformableObject(value)
             elif is_stringish(value):
                 value = to_fileobj(value)
-                to_store[path] = value
+                to_store[path] = TransformableObject(value)
             else:
                 raise DataException("Metadata '%s' has an invalid type: %s" %
                                     (name, type(value)))

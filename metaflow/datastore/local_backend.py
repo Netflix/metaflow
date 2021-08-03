@@ -149,7 +149,8 @@ class LocalBackend(DataStoreBackend):
 
         Parameters
         ----------
-        path_and_bytes : Dict: string -> (RawIOBase or BufferedIOBase, dict)
+        path_and_bytes : Dict: string ->
+                (TransformableObject(RawIOBase or BufferedIOBase), dict)
             Objects to store; the first element in the tuple is the actual data
             to store and the dictionary is additional metadata to store. Keys
             for the metadata must be ascii only string and elements can be
@@ -172,7 +173,7 @@ class LocalBackend(DataStoreBackend):
                 continue
             LocalBackend._makedirs(os.path.dirname(full_path))
             with open(full_path, mode='wb') as f:
-                f.write(byte_obj.read())
+                f.write(byte_obj.current.read())
             if metadata:
                 with open("%s_meta" % full_path, mode='w') as f:
                     json.dump(metadata, f)
@@ -213,7 +214,6 @@ class LocalBackend(DataStoreBackend):
         results = {}
         for path in paths:
             full_path = self.full_uri(path)
-            file_result = None
             metadata = None
             if os.path.exists(full_path):
                 if os.path.exists("%s_meta" % full_path):
