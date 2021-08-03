@@ -54,24 +54,27 @@ class LocalBackend(DataStoreBackend):
             else:
                 raise
 
-    def is_file(self, path):
+    def is_file(self, paths):
         """
-        Returns True or False depending on whether path refers to a valid
+        Returns True or False depending on whether each path refers to a valid
         file-like object
 
         This method returns False if path points to a directory
 
         Parameters
         ----------
-        path : string
-            Path to the object
+        path : List[string]
+            Paths to the object
 
         Returns
         -------
-        bool
+        List[bool]
         """
-        full_path = self.full_uri(path)
-        return os.path.isfile(full_path)
+        results = []
+        for path in paths:
+            full_path = self.full_uri(path)
+            results.append(os.path.isfile(full_path))
+        return results
 
     def info_file(self, path):
         """
@@ -90,7 +93,7 @@ class LocalBackend(DataStoreBackend):
         tuple
             (bool, dict)
         """
-        file_exists = self.is_file(path)
+        file_exists = self.is_file([path])[0]
         if file_exists:
             full_meta_path = "%s_meta" % self.full_uri(path)
             try:
@@ -132,7 +135,7 @@ class LocalBackend(DataStoreBackend):
             results.extend([self.list_content_result(
                 path=self.path_join(path, f),
                 is_file=self.is_file(
-                    self.path_join(path, f))) for f in os.listdir(full_path)
+                    [self.path_join(path, f)])[0]) for f in os.listdir(full_path)
                     if f != self.METADATA_DIR])
         return results
 

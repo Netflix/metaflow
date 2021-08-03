@@ -385,7 +385,7 @@ class TaskDataStore(object):
                 self._path, self._metadata_name_for_attempt(name))
         else:
             path = self._backend.path_join(self._path, name)
-        return self._backend.is_file(path)
+        return self._backend.is_file([path])[0]
 
     @require_mode(None)
     def get(self, name, default=None):

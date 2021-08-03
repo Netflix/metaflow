@@ -118,7 +118,7 @@ class DataStoreBackend(object):
     def full_uri(self, path):
         return self.path_join(self.datastore_root, path)
 
-    def is_file(self, path):
+    def is_file(self, paths):
         """
         Returns True or False depending on whether path refers to a valid
         file-like object
@@ -127,12 +127,12 @@ class DataStoreBackend(object):
 
         Parameters
         ----------
-        path : string
+        path : List[string]
             Path to the object
 
         Returns
         -------
-        bool
+        List[bool]
         """
         raise NotImplementedError
 

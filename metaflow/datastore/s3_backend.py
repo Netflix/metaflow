@@ -27,26 +27,32 @@ class S3Backend(DataStoreBackend):
     def get_datastore_root_from_config(cls, echo, create_on_absent=True):
         return DATASTORE_SYSROOT_S3
 
-    def is_file(self, path):
+    def is_file(self, paths):
         """
-        Returns True or False depending on whether path refers to a valid
+        Returns True or False depending on whether each path refers to a valid
         file-like object
 
         This method returns False if path points to a directory
 
         Parameters
         ----------
-        path : string
+        path : List[string]
             Path to the object
 
         Returns
         -------
-        bool
+        List[bool]
         """
         with S3(s3root=self.datastore_root,
                 tmproot=os.getcwd(), external_client=self.s3_client) as s3:
-            s3obj = s3.info(path, return_missing=True)
-            return s3obj.exists
+            if len(paths) > 10:
+                s3objs = s3.info_many(paths, return_missing=True)
+                return [s3obj.exists for s3obj in s3objs]
+            else:
+                result = []
+                for path in paths:
+                    result.append(s3.info(path, return_missing=True).exists)
+                return result
 
     def info_file(self, path):
         """

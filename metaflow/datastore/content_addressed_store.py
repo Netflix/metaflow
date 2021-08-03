@@ -78,13 +78,17 @@ class ContentAddressedStore(object):
         """
         to_save = {}
         results = []
+        paths = []
         for blob in blobs:
             sha = sha1(blob.current).hexdigest()
             path = self._backend.path_join(self._prefix, sha[:2], sha)
             results.append(self.save_blobs_result(
                 uri=self._backend.full_uri(path) if raw else None,
                 key=sha))
-            if self._backend.is_file(path):
+            paths.append(path)
+        exists = self._backend.is_file(paths)
+        for blob, path, exist in zip(blobs, paths, exists):
+            if exist:
                 # This already exists in the backing datastore so we can skip it
                 continue
             # Compute the meta information to store with the file
