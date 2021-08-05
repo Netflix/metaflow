@@ -187,8 +187,7 @@ class TaskDataStore(object):
         This method requires mode 'w'.
         """
         self.save_metadata(
-            {self.METADATA_ATTEMPT_SUFFIX: {'time': time.time()}},
-            allow_overwrite=True)
+            {self.METADATA_ATTEMPT_SUFFIX: {'time': time.time()}})
 
     @only_if_not_done
     @require_mode('w')
@@ -313,7 +312,7 @@ class TaskDataStore(object):
 
     @only_if_not_done
     @require_mode('w')
-    def save_metadata(self, contents, allow_overwrite=False, add_attempt=True):
+    def save_metadata(self, contents, allow_overwrite=True, add_attempt=True):
         """
         Save task metadata. This is very similar to save_artifacts; this
         function takes a dictionary with the key being the name of the metadata
@@ -328,7 +327,7 @@ class TaskDataStore(object):
         contents : Dict[string -> JSON-ifiable objects]
             Dictionary of metadata to store
         allow_overwrite : boolean, optional
-            If True, allows the overwriting of the metadata, defaults to False
+            If True, allows the overwriting of the metadata, defaults to True
         add_attempt : boolean, optional
             If True, adds the attempt identifier to the metadata. defaults to
             True
@@ -650,7 +649,7 @@ class TaskDataStore(object):
     def _get_log_location(logprefix, stream):
         return '%s_%s.log' % (logprefix, stream)
 
-    def _save_file(self, contents, allow_overwrite=False, add_attempt=True):
+    def _save_file(self, contents, allow_overwrite=True, add_attempt=True):
         """
         Saves files in the directory for this TaskDataStore. This can be
         metadata, a log file or any other data that doesn't need to (or
@@ -661,7 +660,7 @@ class TaskDataStore(object):
         contents : Dict[string -> stringish or RawIOBase or BufferedIOBase]
             Dictionary of file to store
         allow_overwrite : boolean, optional
-            If True, allows the overwriting of the metadata, defaults to False
+            If True, allows the overwriting of the metadata, defaults to True
         add_attempt : boolean, optional
             If True, adds the attempt identifier to the metadata,
             defaults to True

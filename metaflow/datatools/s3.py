@@ -775,7 +775,7 @@ class S3(object):
                 blob, src.netloc, src.path.lstrip('/'), ExtraArgs=extra_args)
 
         if overwrite:
-            self._one_boto_op(_upload, url)
+            self._one_boto_op(_upload, url, need_tmp_file=False)
             real_close()
             return url
         else:
@@ -783,9 +783,9 @@ class S3(object):
                 s3.head_object(Bucket=src.netloc, Key=src.path.lstrip('/'))
 
             try:
-                self._one_boto_op(_head, url)
+                self._one_boto_op(_head, url, need_tmp_file=False)
             except MetaflowS3NotFound:
-                self._one_boto_op(_upload, url)
+                self._one_boto_op(_upload, url, need_tmp_file=False)
             finally:
                 real_close()
             return url
@@ -881,17 +881,19 @@ class S3(object):
 
         return self._put_many_files(_check(), overwrite)
 
-    def _one_boto_op(self, op, url):
-        from . import s3op
+    def _one_boto_op(self, op, url, need_tmp_file=True):
         error = ''
         for i in range(NUM_S3OP_RETRIES + 1):
-            tmp = NamedTemporaryFile(dir=self._tmpdir,
-                                     prefix='metaflow.s3.one_file.',
-                                     delete=False)
+            tmp = None
+            if need_tmp_file:
+                tmp = NamedTemporaryFile(dir=self._tmpdir,
+                                        prefix='metaflow.s3.one_file.',
+                                        delete=False)
             try:
-                op(self._s3_client.client, tmp.name)
-                return tmp.name
+                op(self._s3_client.client, tmp.name if tmp else None)
+                return tmp.name if tmp else None
             except self._s3_client.error as err:
+                from . import s3op
                 error_code = s3op.normalize_client_error(err)
                 if error_code == 404:
                     raise MetaflowS3NotFound(url)
@@ -903,7 +905,8 @@ class S3(object):
             except Exception as ex:
                 # TODO specific error message for out of disk space
                 error = str(ex)
-            os.unlink(tmp.name)
+            if need_tmp_file:
+                os.unlink(tmp.name)
             self._s3_client.reset_client()
             # add some jitter to make sure retries are not synchronized
             time.sleep(2**i + random.randint(0, 10))
