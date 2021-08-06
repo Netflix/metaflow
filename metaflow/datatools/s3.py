@@ -33,6 +33,9 @@ from .s3util import get_s3_client
 
 try:
     import boto3
+    from boto3.s3.transfer import TransferConfig
+    DOWNLOAD_FILE_THRESHOLD = 2 * TransferConfig().multipart_threshold
+    DOWNLOAD_MAX_CHUNK = 2 * 1024 * 1024 * 1024 - 1
     boto_found = True
 except:
     boto_found = False
@@ -488,30 +491,26 @@ class S3(object):
 
         def _info(s3, tmp):
             resp = s3.head_object(Bucket=src.netloc, Key=src.path.lstrip('/"'))
-            with open('%s' % tmp, mode='w') as f:
-                args = {
-                    'content_type': resp['ContentType'],
-                    'metadata': resp['Metadata'],
-                    'size': resp['ContentLength']}
-                json.dump(args, f)
+            return {
+                'content_type': resp['ContentType'],
+                'metadata': resp['Metadata'],
+                'size': resp['ContentLength']}
 
-        path_info = None
+        info_results = None
         try:
-            path_info = self._one_boto_op(_info, url)
+            _, info_results = self._one_boto_op(_info, url, need_tmp_file=False)
         except MetaflowS3NotFound:
             if return_missing:
-                path_info = None
+                info_results = None
             else:
                 raise
-        if path_info:
-            with open(path_info, 'r') as f:
-                info = json.load(f)
+        if info_results:
             return S3Object(
                 self._s3root, url,
                 path=None,
-                size=info['size'],
-                content_type=info['content_type'],
-                metadata=info['metadata'])
+                size=info_results['size'],
+                content_type=info_results['content_type'],
+                metadata=info_results['metadata'])
         return S3Object(self._s3root, url, None)
 
     def info_many(self, keys, return_missing=False):
@@ -587,42 +586,51 @@ class S3(object):
                     Bucket=src.netloc,
                     Key=src.path.lstrip('/'),
                     Range=r)
-                code = str(resp['ResponseMetadata']['HTTPStatusCode'])
-                if code[0] == '2':
-                    with open(tmp, mode='w') as t:
-                        t.write(resp['Body'].read())
-                else:
-                    # TODO: Better raised error
-                    raise RuntimeError("Could not load file")
             else:
+                resp = s3.get_object(
+                    Bucket=src.netloc,
+                    Key=src.path.lstrip('/'))
+            sz = resp['ContentLength']
+            if not r and sz > DOWNLOAD_FILE_THRESHOLD:
+                # In this case, it is more efficient to use download_file as it
+                # will download multiple parts in parallel (it does it after
+                # multipart_threshold)
                 s3.download_file(src.netloc, src.path.lstrip('/'), tmp)
-                return url
-
-        def _info(s3, tmp):
-            resp = s3.head_object(Bucket=src.netloc, Key=src.path.lstrip('/"'))
-            with open('%s' % tmp, mode='w') as f:
-                args = {
-                    'content_type': resp['ContentType'],
-                    'metadata': resp['Metadata']}
-                json.dump(args, f)
-
-        path_info = None
-        try:
-            path = self._one_boto_op(_download, url)
+            else:
+                # We read at most 2GB at a time because of
+                # https://bugs.python.org/issue42853.
+                # We will be in that case only if we have a ranged query that
+                # is more than 2 GB so quite rare. In all other cases, we use
+                # this to read at most multipart_threshold bytes anyways so
+                # the 2 GB limit will have no impact.
+                # NOTE: For some weird reason, if you pass a large value to
+                # read, it delays the call so we always pass it either what
+                # remains or 2GB, whichever is smallest.
+                with open(tmp, mode='wb') as t:
+                    remaining = sz
+                    while remaining > 0:
+                        remaining -= t.write(resp['Body'].read(
+                            min(remaining, DOWNLOAD_MAX_CHUNK)))
             if return_info:
-                path_info = self._one_boto_op(_info, url)
+                return {
+                    'content_type': resp['ContentType'],
+                    'metadata': resp['Metadata']
+                }
+            return None
+
+        addl_info = None
+        try:
+            path, addl_info = self._one_boto_op(_download, url)
         except MetaflowS3NotFound:
             if return_missing:
                 path = None
             else:
                 raise
-        if path_info:
-            with open(path_info, 'r') as f:
-                info = json.load(f)
+        if addl_info:
             return S3Object(
                 self._s3root, url, path,
-                content_type=info['content_type'],
-                metadata=info['metadata'])
+                content_type=addl_info['content_type'],
+                metadata=addl_info['metadata'])
         return S3Object(self._s3root, url, path)
 
     def get_many(self, keys, return_missing=False, return_info=True):
@@ -890,8 +898,9 @@ class S3(object):
                                         prefix='metaflow.s3.one_file.',
                                         delete=False)
             try:
-                op(self._s3_client.client, tmp.name if tmp else None)
-                return tmp.name if tmp else None
+                side_results = op(
+                    self._s3_client.client, tmp.name if tmp else None)
+                return tmp.name if tmp else None, side_results
             except self._s3_client.error as err:
                 from . import s3op
                 error_code = s3op.normalize_client_error(err)
