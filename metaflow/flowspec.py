@@ -1,6 +1,8 @@
 from contextlib import contextmanager
 from importlib import import_module
 import os
+from os import getcwd, listdir
+from os.path import exists
 import sys
 import traceback
 
@@ -246,6 +248,10 @@ class FlowSpec(object, metaclass=FlowSpecMeta):
                 % (len(args), " ".join(args))
             )
 
+        if not exists(file):
+            raise ValueError(
+                "File %s not found in %s (contents: %s)" % (file, getcwd(), listdir())
+            )
         with open(file, "r") as f:
             src = f.read()
 
