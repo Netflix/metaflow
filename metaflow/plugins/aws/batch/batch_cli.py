@@ -184,7 +184,28 @@ def step(
     else:
         if executable is None:
             executable = ctx.obj.environment.executable(step_name)
-        entrypoint = "%s -u %s" % (executable, os.path.basename(sys.argv[0]))
+
+        # Parse flow pathspec (file + name) from sys.argv; two forms are recognized:
+        # - `metaflow main_cli.py flow <path_spec> …`
+        # - `python -m metaflow.cmd.main_cli flow <path_spec> …`
+        flow_pathspec = None
+        pcs = sys.argv[0].rsplit(os.sep, 3)
+        if (
+            len(pcs) == 4
+            and pcs[-3:] == ["metaflow", "cmd", "main_cli.py"]
+            and sys.argv[1] == "flow"
+        ):
+            flow_pathspec = sys.argv[2]
+        elif sys.argv[1:4] == ["-m", "metaflow.cmd.main_cli", "flow"]:
+            flow_pathspec = sys.argv[4]
+
+        if flow_pathspec:
+            entrypoint = "%s -m metaflow.cmd.main_cli flow %s" % (
+                executable,
+                flow_pathspec,
+            )
+        else:
+            raise RuntimeError("Unrecognized entrypoint: %s" % " ".join(sys.argv))
 
     top_args = " ".join(util.dict_to_cli_options(ctx.parent.parent.params))
 
