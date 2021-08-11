@@ -4,7 +4,6 @@ import subprocess
 import json
 from tempfile import NamedTemporaryFile
 
-from metaflow.includefile import IncludedFile
 from metaflow.util import is_stringish
 
 from . import MetaflowCheck, AssertArtifactFailed, AssertLogFailed, truncate
@@ -40,8 +39,6 @@ class CliCheck(MetaflowCheck):
                     for field, v in fields.items():
                         if is_stringish(artifact):
                             data = json.loads(artifact)
-                        elif isinstance(artifact, IncludedFile):
-                            data = json.loads(artifact.descriptor)
                         else:
                             data = artifact
                         if not isinstance(data, dict):
