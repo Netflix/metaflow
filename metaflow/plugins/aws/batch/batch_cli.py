@@ -169,6 +169,7 @@ def kill(ctx, run_id, user, my_runs):
 @click.option("--swappiness", help="Swappiness requirement for AWS Batch.")
 #TODO: Maybe remove it altogether since it's not used here
 @click.option('--ubf-context', default=None, type=click.Choice([None]))
+@click.option('--mount-host-volumes', default=None)
 @click.pass_context
 def step(
     ctx,
@@ -187,6 +188,7 @@ def step(
     shared_memory=None,
     max_swap=None,
     swappiness=None,
+    host_volumes=None,
     **kwargs
 ):
     def echo(msg, stream='stderr', batch_id=None):
@@ -294,7 +296,8 @@ def step(
                 max_swap=max_swap,
                 swappiness=swappiness,
                 env=env,
-                attrs=attrs
+                attrs=attrs,
+                host_volumes=host_volumes,
             )
     except Exception as e:
         print(e)

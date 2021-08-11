@@ -101,7 +101,8 @@ class BatchJob(object):
                                  execution_role,
                                  shared_memory,
                                  max_swap,
-                                 swappiness):
+                                 swappiness,
+                                 host_volumes):
         # identify platform from any compute environment associated with the
         # queue
         if AWS_SANDBOX_ENABLED:
@@ -189,6 +190,19 @@ class BatchJob(object):
                     job_definition['containerProperties'] \
                         ['linuxParameters']['maxSwap'] = int(max_swap)
 
+        if host_volumes:
+            volume_paths = host_volumes.split(',')
+            job_definition['containerProperties']['volumes'] = []
+            job_definition['containerProperties']['mountPoints'] = []
+            for host_path in volume_paths:
+                name = host_path.replace('/', '_')
+                job_definition['containerProperties']['volumes'].append(
+                    {'name': name, 'host': {'sourcePath': host_path}}
+                )
+                job_definition['containerProperties']['mountPoints'].append(
+                    {"sourceVolume": name, "containerPath": host_path}
+                )
+
         # check if job definition already exists
         def_name = 'metaflow_%s' % \
             hashlib.sha224(str(job_definition).encode('utf-8')).hexdigest()
@@ -219,7 +233,8 @@ class BatchJob(object):
                 execution_role,
                 shared_memory,
                 max_swap,
-                swappiness):
+                swappiness,
+                host_volumes):
         self.payload['jobDefinition'] = \
             self._register_job_definition(image,
                                           iam_role,
@@ -227,7 +242,8 @@ class BatchJob(object):
                                           execution_role,
                                           shared_memory,
                                           max_swap,
-                                          swappiness)
+                                          swappiness,
+                                          host_volumes)
         return self
 
     def job_name(self, job_name):
