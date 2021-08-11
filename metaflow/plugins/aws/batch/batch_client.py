@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from collections import defaultdict, deque
+from contextlib import contextmanager
 import random
 import select
 import sys
@@ -14,6 +15,77 @@ except NameError:
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import AWS_SANDBOX_ENABLED
+from metaflow.metaflow_config import BATCH_DESCRIBE_JOBS_THROTTLE_DELTA as DELTA
+from metaflow.metaflow_config import BATCH_DESCRIBE_JOBS_THROTTLE_TRIES as TRIES
+
+
+class Throttle(object):
+    def __init__(self, delta_in_secs=DELTA, num_tries=TRIES):
+        self._now = time.time()
+        self.delta_in_secs = int(delta_in_secs)  # Cast if from env variable
+        self.num_tries = int(num_tries)  # Cast if from env variable
+        self._reset()
+
+    def _reset(self):
+        self._tries_left = self.num_tries
+
+    def __call__(self, func):
+        def wrapped(*args, **kwargs):
+            # Don't poll incessantly
+            wait = self.delta_in_secs - (time.time() - self._now)
+            if wait > 0:
+                time.sleep(wait)
+                self._now = time.time()
+            # Throttle til failure
+            while "throttling":
+                try:
+                    value = func(*args, **kwargs)
+                except TriableException as ex:
+                    self._tries_left -= 1
+                    if self._tries_left == 0:
+                        raise ex.ex
+                    backoff = (self.delta_in_secs*1.2)**(self.num_tries-self._tries_left)
+                    jitter = random.randint(0, 3*self.delta_in_secs)
+                    time.sleep(backoff + jitter)
+                else:
+                    self._reset()
+                    return value
+        return wrapped
+
+
+@contextmanager
+def manage_client_error(batch_client):
+    try:
+        yield
+    except batch_client.exceptions.ClientError as err:
+        code = err.response['ResponseMetadata']['HTTPStatusCode']
+        if code == 429 or code >= 500:
+            raise TriableException(err)
+        raise err
+
+
+@Throttle()
+def _describe_job_definitions(batch_client, **payload):
+    with manage_client_error(batch_client):
+        return batch_client.describe_job_definitions(**payload)
+
+
+@Throttle()
+def _describe_jobs(batch_client, jobs):
+    with manage_client_error(batch_client):
+        return batch_client.describe_jobs(jobs=jobs)
+
+
+def describe_jobs(batch_client, jobs):
+    # There have been sporadic reports of empty responses to the
+    # batch.describe_jobs API call, which can potentially happen if the
+    # batch.submit_job API call is not strongly consistent(¯\_(ツ)_/¯).
+    # We poll here to guard against that.
+    data = {'jobs': []}
+    while not data['jobs']:
+        data = _describe_jobs(batch_client, jobs)  # Throttled til failure
+    return data
+
 
 class BatchClient(object):
     def __init__(self):
@@ -43,13 +115,13 @@ class BatchClient(object):
 
     def describe_jobs(self, job_ids):
         for jobIds in [job_ids[i:i+100] for i in range(0, len(job_ids), 100)]:
-            for jobs in self._client.describe_jobs(jobs=jobIds)['jobs']:
+            for jobs in describe_jobs(self._client, jobIds)['jobs']:
                 yield jobs
 
     def describe_job_queue(self, job_queue):
         paginator = self._client.get_paginator('describe_job_queues').paginate(
             jobQueues=[job_queue], maxResults=1)
-        return paginator.paginate()['jobQueues'][0] 
+        return paginator.paginate()['jobQueues'][0]
 
     def job(self):
         return BatchJob(self._client)
@@ -94,6 +166,7 @@ class BatchJob(object):
         job = RunningJob(response['jobId'], self._client)
         return job.update()
 
+    
     def _register_job_definition(self,
                                  image,
                                  job_role,
@@ -193,7 +266,7 @@ class BatchJob(object):
         def_name = 'metaflow_%s' % \
             hashlib.sha224(str(job_definition).encode('utf-8')).hexdigest()
         payload = {'jobDefinitionName': def_name, 'status': 'ACTIVE'}
-        response = self._client.describe_job_definitions(**payload)
+        response = _describe_job_definitions(self._client, **payload)
         if len(response['jobDefinitions']) > 0:
             return response['jobDefinitions'][0]['jobDefinitionArn']
 
@@ -334,32 +407,6 @@ class BatchJob(object):
         self.payload['retryStrategy']['attempts'] = attempts
         return self
 
-class Throttle(object):
-    def __init__(self, delta_in_secs=1, num_tries=20):
-        self.delta_in_secs = delta_in_secs
-        self.num_tries = num_tries
-        self._now = None
-        self._reset()
-
-    def _reset(self):
-        self._tries_left = self.num_tries
-        self._wait = self.delta_in_secs
-
-    def __call__(self, func):
-        def wrapped(*args, **kwargs):
-            now = time.time()
-            if self._now is None or (now - self._now > self._wait):
-                self._now = now
-                try:
-                    func(*args, **kwargs)
-                    self._reset()
-                except TriableException as ex:
-                    self._tries_left -= 1
-                    if self._tries_left == 0:
-                        raise ex.ex
-                    self._wait = (self.delta_in_secs*1.2)**(self.num_tries-self._tries_left) + \
-                        random.randint(0, 3*self.delta_in_secs)
-        return wrapped
 
 class TriableException(Exception):
     def __init__(self, ex):
@@ -380,15 +427,8 @@ class RunningJob(object):
     def _apply(self, data):
         self._data = data
 
-    @Throttle()
     def _update(self):
-        try:
-            data = self._client.describe_jobs(jobs=[self._id])
-        except self._client.exceptions.ClientError as err:
-            code = err.response['ResponseMetadata']['HTTPStatusCode']
-            if code == 429 or code >= 500:
-                raise TriableException(err)
-            raise err
+        data = describe_jobs(self._client, jobs=[self._id])
         # There have been sporadic reports of empty responses to the
         # batch.describe_jobs API call, which can potentially happen if the
         # batch.submit_job API call is not strongly consistent(¯\_(ツ)_/¯).
