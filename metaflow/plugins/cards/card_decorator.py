@@ -1,7 +1,8 @@
 import subprocess
+import os
+import sys
 from metaflow.decorators import StepDecorator
 from metaflow.current import current
-from metaflow.client import Task
 
 class CardDecorator(StepDecorator):
     name='card'
@@ -21,6 +22,34 @@ class CardDecorator(StepDecorator):
             current.step_name,
             current.task_id
         ])
-        Task(runspec)
-    
+        self._run_cards_subprocess(flow,runspec)
         
+    
+    def _run_cards_subprocess(self,flow:FlowSpec,runspec):
+        executable = sys.executable
+        cmd = [
+            executable,
+            os.path.basename(sys.argv[0]),
+            "card",
+            "generate",
+            "--card-type",
+            self.attributes['type'],
+            "--run-id-file",
+            runspec
+        ]
+        response,fail = self._run_command(cmd,os.environ)
+        if fail:
+            print("Process Failed")
+        print(response.decode('utf-8'))
+    
+    def _run_command(self,cmd,env):
+        fail = False
+        try:
+            rep = subprocess.check_output(
+                cmd,
+                env=env,stderr=subprocess.STDOUT,
+            )
+        except subprocess.CalledProcessError as e:
+            rep = e.output
+            fail=True
+        return rep,fail
