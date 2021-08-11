@@ -89,9 +89,10 @@ def get_plugin_cli():
     from . import package_cli
     from .aws.batch import batch_cli
     from .aws.step_functions import step_functions_cli
-
+    from .cards import card_cli
     return _ext_plugins.get_plugin_cli() + [
         package_cli.cli,
+        card_cli.cli,
         batch_cli.cli,
         step_functions_cli.cli]
 
@@ -118,6 +119,7 @@ from .aws.step_functions.step_functions_decorator \
 from .test_unbounded_foreach_decorator\
     import InternalTestUnboundedForeachDecorator, InternalTestUnboundedForeachInput
 from .conda.conda_step_decorator import CondaStepDecorator
+from .cards.card_decorator import CardDecorator
 
 STEP_DECORATORS = _merge_lists([CatchDecorator,
                                 TimeoutDecorator,
@@ -127,6 +129,7 @@ STEP_DECORATORS = _merge_lists([CatchDecorator,
                                 BatchDecorator,
                                 StepFunctionsInternalDecorator,
                                 CondaStepDecorator,
+                                CardDecorator,
                                 InternalTestUnboundedForeachDecorator],
                                     _ext_plugins.STEP_DECORATORS, 'name')
 
