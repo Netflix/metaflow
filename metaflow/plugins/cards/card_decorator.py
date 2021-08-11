@@ -25,7 +25,7 @@ class CardDecorator(StepDecorator):
         self._run_cards_subprocess(flow,runspec)
         
     
-    def _run_cards_subprocess(self,flow:FlowSpec,runspec):
+    def _run_cards_subprocess(self,flow,runspec):
         executable = sys.executable
         cmd = [
             executable,
