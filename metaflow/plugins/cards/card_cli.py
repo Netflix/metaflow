@@ -24,5 +24,15 @@ def card():
 @click.pass_context
 def generate(ctx, run_id_file=None,card_type=None):
     assert run_id_file is not None
-    datastore : MetaflowDataStore = ctx.obj.datastore
-    print("generating New cards with datastore : ",ctx.obj.datastore)
+    Datastore : MetaflowDataStore = ctx.obj.datastore
+    flow_name,runid,step_name,task_id = run_id_file.split('/')
+    datastore_instance = Datastore(
+        flow_name,
+        run_id = runid,
+        step_name = step_name,
+        task_id = task_id,
+    )
+    from .renderer.basic import BasicRenderer
+    rendered_info = BasicRenderer().render(datastore_instance)
+    print(rendered_info)
+    # todo : Save the copy of the Card in the `Datastore`
