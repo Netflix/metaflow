@@ -38,7 +38,8 @@ def generate(ctx, run_path_spec=None,card_type=None,metadata_path=None):
     from .renderer.basic import BasicRenderer
     rendered_info = BasicRenderer().render(task)
     # Save the copy of the Card in the `Datastore`
-    write_datastore:MetaflowDataStore = Datastore(
+    # :MetaflowDataStore 
+    write_datastore = Datastore(
         flow_name,
         run_id = runid,
         step_name = step_name,
