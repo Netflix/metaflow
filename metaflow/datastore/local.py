@@ -9,7 +9,7 @@ import gzip
 from tempfile import NamedTemporaryFile
 
 from metaflow.util import Path
-from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_LOCAL
+from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_LOCAL,DATASTORE_CARDS_LOCAL_DIR,DATASTORE_CARD_LOCALROOT
 from .datastore import MetaflowDataStore, DataException, only_if_not_done
 from ..metadata import MetaDatum
 
@@ -67,6 +67,43 @@ class LocalDataStore(MetaflowDataStore):
         else:
             result = os.path.join(result, DATASTORE_LOCAL_DIR)
         return result
+
+    @classmethod
+    def get_card_root_from_config(cls, echo, create_on_absent=True):
+        # Compute path for DATASTORE_SYSROOT_LOCAL
+        result = DATASTORE_CARD_LOCALROOT
+        if result is None:
+            try:
+                # Python2
+                current_path = os.getcwdu()
+            except: # noqa E722
+                current_path = os.getcwd()
+            check_dir = os.path.join(current_path, DATASTORE_CARDS_LOCAL_DIR)
+            check_dir = os.path.realpath(check_dir)
+            orig_path = check_dir
+            top_level_reached = False
+            while not os.path.isdir(check_dir):
+                new_path = os.path.dirname(current_path)
+                if new_path == current_path:
+                    top_level_reached = True
+                    break  # We are no longer making upward progress
+                current_path = new_path
+                check_dir = os.path.join(current_path, DATASTORE_CARDS_LOCAL_DIR)
+            if top_level_reached:
+                if create_on_absent:
+                    # Could not find any directory to use so create a new one
+                    echo('Creating local datastore in current directory (%s)' % orig_path,
+                         fg='magenta', bold=True)
+                    os.mkdir(orig_path)
+                    result = orig_path
+                else:
+                    return None
+            else:
+                result = check_dir
+        else:
+            result = os.path.join(result, DATASTORE_CARDS_LOCAL_DIR)
+        return result
+
 
     @classmethod
     def get_latest_tasks(cls,
@@ -225,6 +262,7 @@ class LocalDataStore(MetaflowDataStore):
     
     @only_if_not_done
     def save_card(self, card_name, card_html):
+        self._makedirs(self.resolved_card_root)
         card_location = self.get_card_location(card_name, card_html)
         with open(card_location + '.tmp', 'wb') as f:
             f.write(bytes(card_html,'utf-8'))

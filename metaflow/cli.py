@@ -210,6 +210,7 @@ def dump(obj,
               'max_value_size': max_value_size,
               'include': {t for t in include.split(',') if t}}
 
+    # [DSC] Its okay if we don't add a Add METAFLOW_CARD_S3ROOT here as this is a utility function
     if obj.datastore.datastore_root is None:
         obj.datastore.datastore_root = obj.datastore.get_datastore_root_from_config(
             obj.echo, create_on_absent=False)
@@ -316,6 +317,7 @@ def logs(obj,
         raise CommandException("input_path should either be run_id/step_name "
                                "or run_id/step_name/task_id")
 
+    # [DSC] Its okay if we don't add a Add METAFLOW_CARD_S3ROOT here as this is a utility function
     if obj.datastore.datastore_root is None:
         obj.datastore.datastore_root = obj.datastore.get_datastore_root_from_config(
             obj.echo, create_on_absent=False)
@@ -481,6 +483,11 @@ def step(ctx,
     if decospecs:
         decorators._attach_decorators_to_step(func, decospecs)
 
+    ctx.obj.datastore.card_root = ctx.obj.card_root
+    if ctx.obj.datastore.card_root is None:
+        ctx.obj.datastore.card_root = \
+            ctx.obj.datastore.get_card_root_from_config(ctx.obj.echo)
+
     ctx.obj.datastore.datastore_root = ctx.obj.datastore_root
     if ctx.obj.datastore.datastore_root is None:
         ctx.obj.datastore.datastore_root = \
@@ -546,6 +553,10 @@ def init(obj, run_id=None, task_id=None, tags=None, **kwargs):
     # user-specified parameters and our internal options. Note that
     # user-specified parameters are often defined as environment
     # variables.
+    # TODO: Validate if card root needs to be set here. 
+    if obj.datastore.card_root is None:
+        obj.datastore.card_root = \
+            obj.datastore.get_card_root_from_config(obj.echo)
 
     if obj.datastore.datastore_root is None:
         obj.datastore.datastore_root = \
@@ -736,7 +747,10 @@ def before_run(obj, tags, decospecs):
         decorators._attach_decorators(obj.flow, decospecs)
         obj.graph = FlowGraph(obj.flow.__class__)
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
-    #obj.environment.init_environment(obj.logger)
+    
+    if obj.datastore.card_root is None:
+        obj.datastore.card_root = \
+            obj.datastore.get_card_root_from_config(obj.echo)
 
     if obj.datastore.datastore_root is None:
         obj.datastore.datastore_root = \
@@ -785,6 +799,8 @@ def version(obj):
               help='Data backend type')
 @click.option('--datastore-root',
               help='Root path for datastore')
+@click.option('--card-root',
+              help='Root path for @card')
 @click.option('--package-suffixes',
               help='A comma-separated list of file suffixes to include '
                    'in the code package.',
@@ -821,6 +837,7 @@ def start(ctx,
           environment=None,
           datastore=None,
           datastore_root=None,
+          card_root=None,
           decospecs=None,
           package_suffixes=None,
           pylint=None,
@@ -870,6 +887,7 @@ def start(ctx,
 
     ctx.obj.datastore = DATASTORES[datastore]
     ctx.obj.datastore_root = datastore_root
+    ctx.obj.card_root = card_root
 
     # It is important to initialize flow decorators early as some of the
     # things they provide may be used by some of the objects initialize after.
@@ -895,6 +913,12 @@ def start(ctx,
         datastore_root = \
           ctx.obj.datastore.get_datastore_root_from_config(ctx.obj.echo)
     ctx.obj.datastore_root = ctx.obj.datastore.datastore_root = datastore_root
+
+    if card_root is None:
+        card_root = \
+          ctx.obj.datastore.get_card_root_from_config(ctx.obj.echo)
+    
+    ctx.obj.card_root = ctx.obj.datastore.card_root = card_root
 
     if decospecs:
         decorators._attach_decorators(ctx.obj.flow, decospecs)

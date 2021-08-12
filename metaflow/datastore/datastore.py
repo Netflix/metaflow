@@ -23,6 +23,52 @@ from .. import metaflow_config
 class DataException(MetaflowException):
     headline = "Data store error"
 
+class CardPathBuilder(object):
+
+    @classmethod
+    def path_spec_resolver(cls,
+                  pathspec):
+        run_id,step_name,task_id = None,None,None,None
+        splits = pathspec.split('/')
+        if len(splits) == 1: # only flowname mentioned
+            return splits[0],run_id,step_name,task_id
+        elif len(splits) == 2:# flowname , runid mentioned
+            return splits[0],splits[1],step_name,task_id
+        elif len(splits) == 3: # flowname , runid , stepname
+            return splits[0],splits[1],splits[2],task_id
+        elif len(splits) == 4:# flowname ,runid ,stepname , taskid
+            return splits[0],splits[1],splits[2],splits[3]
+
+    @classmethod
+    def make_path(cls,
+                  sysroot,
+                  flow_name,
+                  run_id=None,
+                  step_name=None,
+                  task_id=None,
+                  pathspec=None):
+        if sysroot is None:
+            return None
+        if pathspec is not None:
+            flow_name,run_id,step_name,task_id = cls.path_spec_resolver(pathspec)
+        if flow_name is None:
+            return sysroot
+        elif run_id is None:
+            # todo :[DSC][FUTURE] find namespace here
+            # todo :[DSC][FUTURE] what happens when user has namepsace set to none; 
+            #             What do we default to here ?
+            # todo : [DSC][STEPFN] : Step functions workflows break here. 
+            from metaflow import get_namespace
+            namespacename = get_namespace()
+            if not namespacename:
+                return os.path.join(sysroot, flow_name,'cards',)
+            else:
+                # cls.card_root/$flow_id/cards/$namespace/cards/$card_name-$hash.html
+                return os.path.join(sysroot, flow_name,'cards',namespacename,'cards')
+        elif task_id is None:
+            return os.path.join(sysroot, flow_name,'runs', run_id,'cards')
+        else:
+            return os.path.join(sysroot, flow_name,'runs' ,run_id,'tasks', task_id,'cards')
 class Inputs(object):
     """
     split-and: inputs.step_a.x inputs.step_b.x
@@ -82,6 +128,7 @@ class TransformableObject(object):
 
 class MetaflowDataStore(object):
     datastore_root = None
+    card_root = None
 
     # Datastore needs to implement the methods below
     def save_metadata(self, name, data):
@@ -196,7 +243,8 @@ class MetaflowDataStore(object):
         return None
 
     def get_card_location(self,card_name,card_html):
-        return os.path.join(self.root, '%s-%s.html' % (card_name,sha1(bytes(card_html,'utf-8')).hexdigest()))
+        return os.path.join(self.resolved_card_root,\
+                         '%s-%s.html' % (card_name,sha1(bytes(card_html,'utf-8')).hexdigest()))
 
     def get_log_location(self, logsource, stream, attempt_override=None):
         """
@@ -215,6 +263,14 @@ class MetaflowDataStore(object):
         """
         return getattr(metaflow_config,
                        'DATASTORE_SYSROOT_%s' % cls.TYPE.upper())
+    @classmethod
+    def get_card_root_from_config(cls, echo, create_on_absent=True):
+        """
+        Returns a default choice for datastore_root from metaflow_config
+        depending on the datastore type.
+        """
+        return getattr(metaflow_config,
+                       'DATASTORE_CARD_%sROOT' % (cls.TYPE.upper()))
 
     @classmethod
     def decode_gzip_data(cls, filename, fileobj=None):
@@ -256,6 +312,37 @@ class MetaflowDataStore(object):
             return os.path.join(sysroot, flow_name, run_id, step_name)
         else:
             return os.path.join(sysroot, flow_name, run_id, step_name, task_id)
+    
+    @classmethod
+    def make_card_path(cls,
+                  flow_name,
+                  run_id=None,
+                  step_name=None,
+                  task_id=None,
+                  pathspec=None):
+        """
+        Return the path for a given card using this datastore.
+        Callers are expected to invoke this function with a sequence of non-None
+        values depending on the nested path they want.
+        
+        todo : [DSC] Write a better comment here. 
+        Task-level cards, produced by @card, are stored at:
+            cls.card_root/$flow_id/runs/$run_id/tasks/$task_id/cards/$card_name-$hash.html
+        
+        Run-level cards that summarize results of a single run are stored at:
+            cls.card_root/$flow_id/runs/$run_id/cards/$card_name-$hash.html
+
+        Flow-level cards that summarize results of multiple runs are stored at :
+            cls.card_root/$flow_id/cards/$namespace/cards/$card_name-$hash.html
+
+        """
+        sysroot = cls.card_root
+        return CardPathBuilder.make_path(sysroot,flow_name,
+                  run_id=run_id,
+                  step_name=step_name,
+                  task_id=task_id,
+                  pathspec=pathspec)
+        
 
     @classmethod
     def filename_with_attempt_prefix(cls, name, attempt):
@@ -382,7 +469,11 @@ class MetaflowDataStore(object):
                                    run_id,
                                    step_name,
                                    task_id)
-
+        
+        self.resolved_card_root = self.make_card_path(flow_name,
+                                   run_id,
+                                   step_name,
+                                   task_id)
         self.attempt = attempt
         if mode == 'r':
             if data_obj is None:

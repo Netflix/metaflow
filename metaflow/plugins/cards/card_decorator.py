@@ -12,7 +12,8 @@ from metaflow.util import to_unicode, compress_list, unicode_type
 class CardDecorator(StepDecorator):
     name='card'
     defaults = {
-        'type':'basic'
+        'type':'basic',
+        'level': 'task' # flow,task,run
     }
     
     def __init__(self, *args, **kwargs):
@@ -36,7 +37,7 @@ class CardDecorator(StepDecorator):
             current.step_name,
             current.task_id
         ])
-        self._run_cards_subprocess(flow,runspec)
+        self._run_cards_subprocess(runspec)
     
     def step_init(self, flow, graph, step_name, decorators, environment, datastore, logger):
         self._environment = environment
@@ -70,7 +71,7 @@ class CardDecorator(StepDecorator):
             top_level_options.update(deco.get_top_level_options())
         return list(_options(top_level_options))
     
-    def _run_cards_subprocess(self,flow,runspec):
+    def _run_cards_subprocess(self,runspec):
         from metaflow import get_metadata
         executable = sys.executable
         cmd = [
@@ -78,16 +79,15 @@ class CardDecorator(StepDecorator):
             os.path.basename(sys.argv[0]),]
         cmd+= self._create_top_level_args() +[
             "card",
-            "generate",
+            "create",
             "--card-type",
             self.attributes['type'],
             "--run-path-spec",
             runspec,
-            # todo : remove --metadata-path from here. 
+            # todo : test correctness of get_metadata() in future 
             "--metadata-path",
             get_metadata()
         ]
-        print(cmd)
         response,fail = self._run_command(cmd,os.environ)
         if fail:
             # todo : Handle failure scenarios better. 

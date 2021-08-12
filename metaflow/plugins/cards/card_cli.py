@@ -11,7 +11,7 @@ def cli():
 def card():
     pass
 
-@card.command(help='generate the HTML card')
+@card.command(help='create the HTML card')
 @click.option('--card-type',
                 default=None,
                 show_default=True,
@@ -28,7 +28,7 @@ def card():
                 type=str,
                 help="Metadata of the run instance.")
 @click.pass_context
-def generate(ctx, run_path_spec=None,card_type=None,metadata_path=None):
+def create(ctx, run_path_spec=None,card_type=None,metadata_path=None):
     from metaflow import get_metadata,metadata
     metadata(metadata_path)
     assert run_path_spec is not None

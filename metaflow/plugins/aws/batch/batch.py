@@ -11,7 +11,7 @@ from requests.exceptions import HTTPError
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.metaflow_config import BATCH_METADATA_SERVICE_URL, DATATOOLS_S3ROOT, \
     DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_S3, DEFAULT_METADATA, \
-    BATCH_METADATA_SERVICE_HEADERS, BATCH_EMIT_TAGS
+    BATCH_METADATA_SERVICE_HEADERS, BATCH_EMIT_TAGS,DATASTORE_CARD_S3ROOT
 from metaflow import util
 
 from .batch_client import BatchClient
@@ -203,6 +203,7 @@ class Batch(object):
             .environment_variable('METAFLOW_SERVICE_HEADERS', json.dumps(BATCH_METADATA_SERVICE_HEADERS)) \
             .environment_variable('METAFLOW_DATASTORE_SYSROOT_S3', DATASTORE_SYSROOT_S3) \
             .environment_variable('METAFLOW_DATATOOLS_S3ROOT', DATATOOLS_S3ROOT) \
+            .environment_variable('METAFLOW_CARD_S3ROOT', DATASTORE_CARD_S3ROOT) \
             .environment_variable('METAFLOW_DEFAULT_DATASTORE', 's3') \
             .environment_variable('METAFLOW_DEFAULT_METADATA', DEFAULT_METADATA)
             # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync between the local user 
