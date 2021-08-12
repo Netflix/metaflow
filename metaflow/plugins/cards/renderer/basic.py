@@ -5,9 +5,9 @@ class BasicRenderer(Renderer):
     TYPE='basic'
 
     def render(self, task):
-        datastore_info = task.artifacts
+        datastore_info = task.data
         mustache = self._get_mustache()
-        content_str = '\n'.join([f"<p>{key} : {value}</p>" for key,value in datastore_info.items()])
+        content_str = '\n'.join([f"<p>{key} : {value.data}</p>" for key,value in task.data._artifacts.items()])
         TEMPLATE = f"""
         <html>
         <head>
