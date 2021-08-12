@@ -625,9 +625,10 @@ def remove_empty_elements(spec):
     """
     Removes empty elements from the dictionary and all sub-dictionaries.
     """
+    whitelist = ['none']        # Don't eliminate artifact's {"archive": {"none": {}}}
     if isinstance(spec, dict):
-        kids = {k: remove_empty_elements(v) for k, v in spec.items() if v}
-        return {k: v for k, v in kids.items() if v}
+        kids = {k: remove_empty_elements(v) for k, v in spec.items() if v or k in whitelist}
+        return {k: v for k, v in kids.items() if v or k in whitelist}
     if isinstance(spec, list):
         elems = [remove_empty_elements(v) for v in spec]
         return [v for v in elems if v]
