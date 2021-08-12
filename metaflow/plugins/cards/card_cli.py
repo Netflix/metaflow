@@ -34,5 +34,17 @@ def generate(ctx, run_id_file=None,card_type=None):
     )
     from .renderer.basic import BasicRenderer
     rendered_info = BasicRenderer().render(datastore_instance)
-    print(rendered_info)
-    # todo : Save the copy of the Card in the `Datastore`
+    # Save the copy of the Card in the `Datastore`
+    write_datastore:MetaflowDataStore = Datastore(
+        flow_name,
+        run_id = runid,
+        step_name = step_name,
+        task_id = task_id,
+        mode='w'
+    )
+    # todo : Create a new function in the datastore to store cards
+    # todo : move mustache From remote dependency to in-MF dep;
+    write_datastore.save_logs(
+        'card',
+        [(card_type, bytes(rendered_info,'utf-8'))]
+    )

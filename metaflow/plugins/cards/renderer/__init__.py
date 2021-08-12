@@ -3,7 +3,7 @@ class Renderer(object):
     
     def _get_mustache(self):
         try:
-            import pystache as pt
+            from .. import chevron as pt
             return pt
         except ImportError:
             return None
