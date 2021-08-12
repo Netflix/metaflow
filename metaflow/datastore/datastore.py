@@ -196,7 +196,7 @@ class MetaflowDataStore(object):
         return None
 
     def get_card_location(self,card_name,card_html):
-        return os.path.join(self.root, '%s-%s.html' % (card_name,sha1(card_html).hexdigest()))
+        return os.path.join(self.root, '%s-%s.html' % (card_name,sha1(bytes(card_html,'utf-8')).hexdigest()))
 
     def get_log_location(self, logsource, stream, attempt_override=None):
         """
