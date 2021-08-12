@@ -75,8 +75,8 @@ class CardDecorator(StepDecorator):
         executable = sys.executable
         cmd = [
             executable,
-            os.path.basename(sys.argv[0]),
-            *self._create_top_level_args(),
+            os.path.basename(sys.argv[0]),]
+        cmd+= self._create_top_level_args() +[
             "card",
             "generate",
             "--card-type",
@@ -87,6 +87,7 @@ class CardDecorator(StepDecorator):
             "--metadata-path",
             get_metadata()
         ]
+        print(cmd)
         response,fail = self._run_command(cmd,os.environ)
         if fail:
             # todo : Handle failure scenarios better. 
