@@ -57,7 +57,6 @@ class CardPathBuilder(object):
             # todo :[DSC][FUTURE] find namespace here
             # todo :[DSC][FUTURE] what happens when user has namepsace set to none; 
             #             What do we default to here ?
-            # todo : [DSC][STEPFN] : Step functions workflows break here. 
             from metaflow import get_namespace
             namespacename = get_namespace()
             if not namespacename:
