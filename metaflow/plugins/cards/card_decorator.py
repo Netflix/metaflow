@@ -17,9 +17,9 @@ class CardDecorator(StepDecorator):
     
     def __init__(self, *args, **kwargs):
         super(CardDecorator,self).__init__(*args, **kwargs)
-        self._datastore:MetaflowDataStore = None
-        self._environment:MetaflowEnvironment = None
-        self._metadata:MetadataProvider= None
+        self._datastore = None
+        self._environment = None
+        self._metadata= None
     
     def task_pre_step(self, step_name, datastore, metadata, run_id, task_id, flow, graph, retry_count, max_user_code_retries, ubf_context, inputs):
         self._metadata = metadata
