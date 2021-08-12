@@ -222,6 +222,13 @@ class LocalDataStore(MetaflowDataStore):
         """
         with gzip.open(self.object_path(sha), 'rb') as f:
             return f.read()
+    
+    @only_if_not_done
+    def save_card(self, card_name, card_html):
+        card_location = self.get_card_location(card_name, card_html)
+        with open(card_location + '.tmp', 'wb') as f:
+            f.write(bytes(card_html,'utf-8'))
+        os.rename(card_location + '.tmp', card_location)
 
     @only_if_not_done
     def done(self):

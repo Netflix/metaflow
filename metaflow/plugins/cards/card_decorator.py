@@ -30,8 +30,6 @@ class CardDecorator(StepDecorator):
             # todo : What do we do when underlying `step` soft-fails. 
             # Todo : What do we do when underlying `@card` fails in some way?
             return 
-        # todo : Launch as task 
-        # todo : write command that will call the sub process CLI
         runspec = '/'.join([
             current.flow_name,
             current.run_id,
@@ -57,6 +55,7 @@ class CardDecorator(StepDecorator):
 
         top_level_options = {
             'quiet': True,
+            'metadata': self._metadata.TYPE,
             'coverage': 'coverage' in sys.modules,
             'environment': self._environment.TYPE,
             'datastore': self._datastore.TYPE,
@@ -84,6 +83,7 @@ class CardDecorator(StepDecorator):
             self.attributes['type'],
             "--run-path-spec",
             runspec,
+            # todo : remove --metadata-path from here. 
             "--metadata-path",
             get_metadata()
         ]

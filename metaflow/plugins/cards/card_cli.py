@@ -47,7 +47,6 @@ def generate(ctx, run_path_spec=None,card_type=None,metadata_path=None):
     )
     # todo : Create a new function in the datastore to store cards
     # todo : move mustache From remote dependency to in-MF dep;
-    write_datastore.save_logs(
-        'card',
-        [(card_type, bytes(rendered_info,'utf-8'))]
+    write_datastore.save_card(
+        card_type,rendered_info
     )

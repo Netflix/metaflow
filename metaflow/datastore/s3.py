@@ -258,6 +258,11 @@ class S3DataStore(MetaflowDataStore):
             return self._get_s3_object(path)
         else:
             return b''
+    
+    @only_if_not_done
+    def save_card(self, card_name, card_html):
+        with self.S3() as s3:
+            s3.put(self.get_card_location(card_name, card_html), card_html)
 
     def load_logs(self, logsources, stream, attempt_override=None):
         urls = [self.get_log_location(source, stream, attempt_override) 

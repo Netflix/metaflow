@@ -120,6 +120,12 @@ class MetaflowDataStore(object):
         as a list of (stream, bytes) or (stream, Path) tuples.
         """
         raise NotImplementedError()
+    
+    def save_card(self, card_name, card_string):
+        """
+        Save a card to the datastore
+        """
+        raise NotImplementedError()
 
     def load_log_legacy(self, stream, attempt_override=None):
         """
@@ -188,6 +194,9 @@ class MetaflowDataStore(object):
         if self.objects:
             return self.object_path(self.objects[artifact_name])
         return None
+
+    def get_card_location(self,card_name,card_html):
+        return os.path.join(self.root, '%s-%s.html' % (card_name,sha1(card_html).hexdigest()))
 
     def get_log_location(self, logsource, stream, attempt_override=None):
         """
