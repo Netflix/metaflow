@@ -48,6 +48,7 @@ DEFAULT_EVENT_LOGGER = from_conf('METAFLOW_DEFAULT_EVENT_LOGGER', 'nullSidecarLo
 DEFAULT_METADATA = from_conf('METAFLOW_DEFAULT_METADATA', 'local')
 DEFAULT_MONITOR = from_conf('METAFLOW_DEFAULT_MONITOR', 'nullSidecarMonitor')
 DEFAULT_PACKAGE_SUFFIXES = from_conf('METAFLOW_DEFAULT_PACKAGE_SUFFIXES', '.py,.R,.RDS')
+DEFAULT_AWS_CLIENT_PROVIDER = from_conf('METAFLOW_DEFAULT_AWS_CLIENT_PROVIDER', 'boto3')
 
 
 ###
@@ -109,6 +110,12 @@ BATCH_CONTAINER_REGISTRY = from_conf("METAFLOW_BATCH_CONTAINER_REGISTRY")
 # Metadata service URL for AWS Batch
 BATCH_METADATA_SERVICE_URL = from_conf('METAFLOW_SERVICE_INTERNAL_URL', METADATA_SERVICE_URL)
 BATCH_METADATA_SERVICE_HEADERS = METADATA_SERVICE_HEADERS
+
+# Assign resource tags to AWS Batch jobs. Set to False by default since
+# it requires `Batch:TagResource` permissions which may not be available
+# in all Metaflow deployments. Hopefully, some day we can flip the
+# default to True.
+BATCH_EMIT_TAGS = from_conf("METAFLOW_BATCH_EMIT_TAGS", False)
 
 ###
 # AWS Step Functions configuration
