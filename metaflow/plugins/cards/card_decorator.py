@@ -7,6 +7,7 @@ from metaflow.datastore.datastore import MetaflowDataStore
 from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.metadata.metadata import MetadataProvider
 from metaflow.util import to_unicode, compress_list, unicode_type
+# from metaflow import get_metadata
 
 class CardDecorator(StepDecorator):
     name='card'
@@ -47,10 +48,6 @@ class CardDecorator(StepDecorator):
         def _options(mapping):
             for k, v in mapping.items():
                 if v:
-                    # we need special handling for 'with' since it is a reserved
-                    # keyword in Python, so we call it 'decospecs' in click args
-                    if k == 'decospecs':
-                        k = 'with'
                     k = k.replace('_', '-')
                     v = v if isinstance(v, (list, tuple, set)) else [v]
                     for value in v:
@@ -61,7 +58,6 @@ class CardDecorator(StepDecorator):
         top_level_options = {
             'quiet': True,
             'coverage': 'coverage' in sys.modules,
-            'metadata': self._metadata.TYPE,
             'environment': self._environment.TYPE,
             'datastore': self._datastore.TYPE,
             'datastore-root': self._datastore.datastore_root,
@@ -76,8 +72,8 @@ class CardDecorator(StepDecorator):
         return list(_options(top_level_options))
     
     def _run_cards_subprocess(self,flow,runspec):
+        from metaflow import get_metadata
         executable = sys.executable
-        
         cmd = [
             executable,
             os.path.basename(sys.argv[0]),
@@ -86,8 +82,10 @@ class CardDecorator(StepDecorator):
             "generate",
             "--card-type",
             self.attributes['type'],
-            "--run-id-file",
-            runspec
+            "--run-path-spec",
+            runspec,
+            "--metadata-path",
+            get_metadata()
         ]
         response,fail = self._run_command(cmd,os.environ)
         if fail:

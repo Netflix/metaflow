@@ -17,17 +17,24 @@ def card():
                 show_default=True,
                 type=str,
                 help="Type of card being created")
-@click.option('--run-id-file',
+@click.option('--run-path-spec',
                 default=None,
                 show_default=True,
                 type=str,
-                help="Write the ID of this run to the file specified.")
+                help="Path spec of the run.")
+@click.option('--metadata-path',
+                default=None,
+                show_default=True,
+                type=str,
+                help="Metadata of the run instance.")
 @click.pass_context
-def generate(ctx, run_id_file=None,card_type=None):
-    assert run_id_file is not None
+def generate(ctx, run_path_spec=None,card_type=None,metadata_path=None):
+    from metaflow import get_metadata,metadata
+    metadata(metadata_path)
+    assert run_path_spec is not None
     Datastore = ctx.obj.datastore
-    flow_name,runid,step_name,task_id = run_id_file.split('/')
-    task = Task(run_id_file)
+    flow_name,runid,step_name,task_id = run_path_spec.split('/')
+    task = Task(run_path_spec)
     from .renderer.basic import BasicRenderer
     rendered_info = BasicRenderer().render(task)
     # Save the copy of the Card in the `Datastore`
