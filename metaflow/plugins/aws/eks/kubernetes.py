@@ -23,6 +23,7 @@ from metaflow.mflog import (
     bash_capture_logs,
     update_delay,
     BASH_SAVE_LOGS,
+    TASK_LOG_SOURCE,
 )
 from metaflow.mflog.mflog import refine, set_should_persist
 
@@ -50,42 +51,47 @@ class Kubernetes(object):
         datastore,
         metadata,
         environment,
-    ):
-        self.datastore = datastore
-        self.metadata = metadata
-        self.environment = environment
-
-        # TODO: Issue a kill request for all pending Kubernetes Batch jobs at exit.
-        # atexit.register(
-        #     lambda: self.job.kill() if hasattr(self, 'job') else None)
-
-    def _command(
-        self,
         flow_name,
         run_id,
         step_name,
         task_id,
         attempt,
+    ):
+        self._datastore = datastore
+        self._metadata = metadata
+        self._environment = environment
+
+        self._flow_name = flow_name
+        self._run_id = run_id
+        self._step_name = step_name
+        self._task_id = task_id
+        self._attempt = str(attempt)
+
+        # TODO: Issue a kill request for all pending Kubernetes jobs at exit.
+        # atexit.register(
+        #     lambda: self.job.kill() if hasattr(self, 'job') else None)
+
+    def _command(
+        self,
         code_package_url,
         step_cmds,
     ):
-        print("lo")
         mflog_expr = export_mflog_env_vars(
-            flow_name=flow_name,
-            run_id=run_id,
-            step_name=step_name,
-            task_id=task_id,
-            retry_count=attempt,
-            datastore_type=self.datastore.TYPE,
+            flow_name=self._flow_name,
+            run_id=self._run_id,
+            step_name=self._step_name,
+            task_id=self._task_id,
+            retry_count=self._attempt,
+            datastore_type=self._datastore.TYPE,
             stdout_path=STDOUT_PATH,
             stderr_path=STDERR_PATH,
         )
-        return ["echo", "hello"]
-        init_cmds = self.environment.get_package_commands(code_package_url)
+        init_cmds = self._environment.get_package_commands(code_package_url)
         init_expr = " && ".join(init_cmds)
         step_expr = bash_capture_logs(
             " && ".join(
-                self.environment.bootstrap_commands(step_name) + step_cmds
+                self._environment.bootstrap_commands(self._step_name)
+                + step_cmds
             )
         )
 
@@ -109,38 +115,22 @@ class Kubernetes(object):
         # Note that if step_expr OOMs, this tail expression is never executed.
         # We lose the last logs in this scenario.
         #
-        # TODO: Find a way to capture hard exit logs.
+        # TODO: Find a way to capture hard exit logs in Kubernetes.
         cmd_str += "c=$?; %s; exit $c" % BASH_SAVE_LOGS
-        print("lo")
         return shlex.split('bash -c "%s"' % cmd_str)
 
-    def _name(self, user, flow_name, run_id, step_name, task_id, attempt):
-        print("hi")
-        return (
-            "{user}-{flow_name}-{run_id}-"
-            "{step_name}-{task_id}-{attempt}".format(
-                user=user,
-                flow_name=flow_name,
-                run_id=str(run_id) if run_id is not None else "",
-                step_name=step_name,
-                task_id=str(task_id) if task_id is not None else "",
-                attempt=str(attempt) if attempt is not None else "",
-            ).lower()
-        )
+    def launch_job(self, **kwargs):
+        self._job = self.create_job(**kwargs).execute()
 
     def create_job(
         self,
         user,
-        flow_name,
-        run_id,
-        step_name,
-        task_id,
-        attempt,
         code_package_sha,
         code_package_url,
         code_package_ds,
         step_cli,
         docker_image,
+        namespace=None,
         service_account=None,
         cpu=None,
         gpu=None,
@@ -148,113 +138,92 @@ class Kubernetes(object):
         run_time_limit=None,
         env={},
     ):
+        # TODO: Test for DNS-1123 compliance.
+        #
+        # Set the pathspec (along with attempt) as the Kubernetes job name.
+        # Kubernetes job names are supposed to be unique within a Kubernetes
+        # namespace and compliant with DNS-1123. The pathspec (with attempt)
+        # can provide that guarantee, however, for flows launched via AWS Step
+        # Functions (and potentially Argo), we may not get the task_id or the
+        # attempt_id while submitting the job to the Kubernetes cluster. If
+        # that is indeed the case, we can rely on Kubernetes to generate a name
+        # for us.
+        job_name = "-".join(
+            [
+                self._flow_name,
+                self._run_id,
+                self._step_name,
+                self._task_id,
+                self._attempt,
+            ]
+        ).lower()
+
         job = (
             KubernetesClient()
-            .job()
-            .create(
-                name=self._name(
-                    user=user,
-                    flow_name=flow_name,
-                    run_id=run_id,
-                    step_name=step_name,
-                    task_id=task_id,
-                    attempt=attempt,
-                )
+            .job(
+                name=job_name,
+                namespace=namespace,
+                service_account=service_account,
+                command=self._command(
+                    code_package_url=code_package_url,
+                    step_cmds=[step_cli],
+                ),
+                image=docker_image,
+                cpu=cpu,
+                memory=memory,
+                timeout_in_seconds=run_time_limit,
+                # Retries are handled by Metaflow runtime
+                retries=0,
             )
+            .environment_variable(
+                # This is needed since `boto3` is not smart enough to figure out
+                # AWS region by itself.
+                "AWS_DEFAULT_REGION",
+                "us-west-2",
+            )
+            .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
+            .environment_variable("METAFLOW_CODE_URL", code_package_url)
+            .environment_variable("METAFLOW_CODE_DS", code_package_ds)
+            .environment_variable("METAFLOW_USER", user)
+            .environment_variable(
+                "METAFLOW_SERVICE_URL", BATCH_METADATA_SERVICE_URL
+            )
+            .environment_variable(
+                "METAFLOW_SERVICE_HEADERS",
+                json.dumps(BATCH_METADATA_SERVICE_HEADERS),
+            )
+            .environment_variable(
+                "METAFLOW_DATASTORE_SYSROOT_S3", DATASTORE_SYSROOT_S3
+            )
+            .environment_variable("METAFLOW_DATATOOLS_S3ROOT", DATATOOLS_S3ROOT)
+            .environment_variable("METAFLOW_DEFAULT_DATASTORE", "s3")
+            .environment_variable("METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA)
+            .environment_variable("METAFLOW_KUBERNETES_WORKLOAD", 1)
         )
 
-        print(job)
-        print("lk")
-        # job.name("hello")
-        print("lk1")
-        print(job)
-        print("yahoo")
-        job.name(
-            self._name(
-                user=user,
-                flow_name=flow_name,
-                run_id=run_id,
-                step_name=step_name,
-                task_id=task_id,
-                attempt=attempt,
-            )
-        ).command(
-            self._command(
-                flow_name=flow_name,
-                run_id=run_id,
-                step_name=step_name,
-                task_id=task_id,
-                attempt=attempt,
-                code_package_url=code_package_url,
-                step_cmds=[step_cli],
-            )
-        ).image(
-            docker_image
-        ).service_account(
-            "s3-full-access"
-        ).cpu(
-            cpu
-        ).gpu(
-            gpu
-        ).memory(
-            memory
-        ).timeout_in_secs(
-            run_time_limit
-        ).environment_variable(
-            "AWS_DEFAULT_REGION", "us-west-2"
-        ).environment_variable(
-            "METAFLOW_CODE_SHA", code_package_sha
-        ).environment_variable(
-            "METAFLOW_CODE_URL", code_package_url
-        ).environment_variable(
-            "METAFLOW_CODE_DS", code_package_ds
-        ).environment_variable(
-            "METAFLOW_USER", user
-        ).environment_variable(
-            "METAFLOW_SERVICE_URL", BATCH_METADATA_SERVICE_URL
-        ).environment_variable(
-            "METAFLOW_SERVICE_HEADERS",
-            json.dumps(BATCH_METADATA_SERVICE_HEADERS),
-        ).environment_variable(
-            "METAFLOW_DATASTORE_SYSROOT_S3", DATASTORE_SYSROOT_S3
-        ).environment_variable(
-            "METAFLOW_DATATOOLS_S3ROOT", DATATOOLS_S3ROOT
-        ).environment_variable(
-            "METAFLOW_DEFAULT_DATASTORE", "s3"
-        ).environment_variable(
-            "METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA
-        ).annotation(
-            "metaflow-flow-name", flow_name
-        ).annotation(
-            "metaflow-run-id", run_id
-        ).annotation(
-            "metaflow-step-name", step_name
-        ).annotation(
-            "metaflow-task-id", task_id
-        ).annotation(
-            "metaflow-attempt", attempt
-        ).annotation(
-            "metaflow-user", user
-        )
-        # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata
-        # sync between the local user instance and the remote Kubernetes
-        # instance assumes metadata is stored in DATASTORE_LOCAL_DIR
-        # on the remote Kubernetes instance; this happens when
-        # METAFLOW_DATASTORE_SYSROOT_LOCAL is NOT set (see
-        # get_datastore_root_from_config in datastore/local.py).
+        # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync
+        # between the local user instance and the remote Kubernetes pod
+        # assumes metadata is stored in DATASTORE_LOCAL_DIR on the Kubernetes
+        # pod; this happens when METAFLOW_DATASTORE_SYSROOT_LOCAL is NOT set (
+        # see get_datastore_root_from_config in datastore/local.py).
         for name, value in env.items():
             job.environment_variable(name, value)
 
-        # A Container in a Pod may fail for a number of reasons, such as
-        # because the process in it exited with a non-zero exit code, or the
-        # Container was killed due to OOM etc. If this happens, fail the pod
-        # and let Metaflow handle the retries.
-        job.restart_policy("Never").retries(0)
+        # TODO: Add labels and annotations
 
-        return job
+        return job.create()
 
-    def wait(self, job, stdout_location, stderr_location, echo=None):
-        self.job = job
+    def wait(self, echo=None):
+        ds = self._datastore(
+            mode="w",
+            flow_name=self._flow_name,
+            run_id=self._run_id,
+            step_name=self._step_name,
+            task_id=self._task_id,
+            attempt=int(self._attempt),
+        )
+        stdout_location = ds.get_log_location(TASK_LOG_SOURCE, "stdout")
+        stderr_location = ds.get_log_location(TASK_LOG_SOURCE, "stderr")
 
         def wait_for_launch(job):
             status = job.status
@@ -273,14 +242,13 @@ class Kubernetes(object):
                         job_id=job.id,
                     )
                     t = time.time()
-                if job.is_running or job.is_done or job.is_crashed:
+                if job.is_running or job.is_done:
                     break
                 select.poll().poll(200)
 
-        prefix = b"[%s] " % util.to_bytes(self.job.id)
-
         def _print_available(tail, stream, should_persist=False):
             # print the latest batch of lines from S3Tail
+            prefix = b"[%s] " % util.to_bytes(self._job.id)
             try:
                 for line in tail:
                     if should_persist:
@@ -292,14 +260,14 @@ class Kubernetes(object):
                 echo(
                     "[ temporary error in fetching logs: %s ]" % ex,
                     "stderr",
-                    batch_id=self.job.id,
+                    job_id=self._job.id,
                 )
 
         stdout_tail = S3Tail(stdout_location)
         stderr_tail = S3Tail(stderr_location)
 
         # 1) Loop until the job has started
-        wait_for_launch(self.job)
+        wait_for_launch(self._job)
 
         # 2) Loop until the job has finished
         start_time = time.time()
@@ -314,7 +282,7 @@ class Kubernetes(object):
                 now = time.time()
                 log_update_delay = update_delay(now - start_time)
                 next_log_update = now + log_update_delay
-                is_running = self.job.is_running
+                is_running = self._job.is_running
 
             # This sleep should never delay log updates. On the other hand,
             # we should exit this loop when the task has finished without
@@ -338,27 +306,26 @@ class Kubernetes(object):
         #
         # TODO: AWS CloudWatch fetch logs
 
-        if self.job.is_crashed:
+        if self._job.has_failed:
             msg = next(
                 msg
                 for msg in [
-                    self.job.reason,
-                    self.job.status_reason,
-                    "Task crashed.",
+                    self._job.reason,
+                    "Task crashed",
                 ]
                 if msg is not None
             )
-            raise BatchException(
-                "%s "
+            raise KubernetesException(
+                "%s. "
                 "This could be a transient error. "
                 "Use @retry to retry." % msg
             )
         else:
-            if self.job.is_running:
+            if self._job.is_running:
                 # Kill the job if it is still running by throwing an exception.
-                raise BatchException("Task failed!")
+                raise KubernetesKilledException("Task failed!")
             echo(
-                "Task finished with exit code %s." % self.job.status_code,
+                "Task finished with exit code %s." % self._job.status_code,
                 "stderr",
-                batch_id=self.job.id,
+                job_id=self._job.id,
             )

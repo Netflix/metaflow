@@ -90,16 +90,23 @@ def step(
         ctx.obj.echo_always(msg, err=(stream == sys.stderr))
 
     node = ctx.obj.graph[step_name]
-    if ctx.obj.datastore.datastore_root is None:
-        ctx.obj.datastore.datastore_root = (
-            ctx.obj.datastore.get_datastore_root_from_config(echo)
-        )
+    # TODO: Verify if this check is needed anymore?
+    # if ctx.obj.datastore.datastore_root is None:
+    #     ctx.obj.datastore.datastore_root = (
+    #         ctx.obj.datastore.get_datastore_root_from_config(echo)
+    #     )
 
     # Construct entrypoint CLI
     if executable is None:
         executable = ctx.obj.environment.executable(step_name)
-    entrypoint = "%s -u %s" % (executable, os.path.basename(sys.argv[0]))
 
+    # Set environment
+    env = {}
+    env_deco = [deco for deco in node.decorators if deco.name == "environment"]
+    if env_deco:
+        env = env_deco[0].attributes["vars"]
+
+    # Set input paths.
     input_paths = kwargs.get("input_paths")
     split_vars = None
     if input_paths:
@@ -110,54 +117,16 @@ def step(
             for i in range(0, len(input_paths), max_size)
         }
         kwargs["input_paths"] = "".join("${%s}" % s for s in split_vars.keys())
-    
-    step_args = " ".join(util.dict_to_cli_options(kwargs))
-    step_cli = u"{entrypoint} {top_args} step {step} {step_args}".format(
-        entrypoint=entrypoint,
-        top_args=" ".join(util.dict_to_cli_options(ctx.parent.parent.params)),
-        step=step_name,
-        step_args=" ".join(util.dict_to_cli_options(kwargs)),
-    )
+        env.update(split_vars)
 
     # Set retry policy.
-    retry_count = kwargs.get("retry_count", 0)
+    retry_count = int(kwargs.get("retry_count", 0))
     retry_deco = [deco for deco in node.decorators if deco.name == "retry"]
     minutes_between_retries = None
     if retry_deco:
         minutes_between_retries = int(
             retry_deco[0].attributes.get("minutes_between_retries", 2)
         )
-
-    # Set task attributes
-    task_spec = {
-        "flow_name": ctx.obj.flow.name,
-        "step_name": step_name,
-        "run_id": kwargs["run_id"],
-        "task_id": kwargs["task_id"],
-        "retry_count": str(retry_count),
-    }
-    attrs = {"metaflow.%s" % k: v for k, v in task_spec.items()}
-    attrs["metaflow.user"] = util.get_username()
-    attrs["metaflow.version"] = ctx.obj.environment.get_environment_info()[
-        "metaflow_version"
-    ]
-
-    # Set environment
-    env_deco = [deco for deco in node.decorators if deco.name == "environment"]
-    if env_deco:
-        env = env_deco[0].attributes["vars"]
-    else:
-        env = {}
-
-    datastore_root = os.path.join(
-        ctx.obj.datastore.make_path(
-            ctx.obj.flow.name, kwargs["run_id"], step_name, kwargs["task_id"]
-        )
-    )
-    # Add the environment variables related to the input-paths argument
-    if split_vars:
-        env.update(split_vars)
-
     if retry_count:
         ctx.obj.echo_always(
             "Sleeping %d minutes before the next retry"
@@ -165,46 +134,56 @@ def step(
         )
         time.sleep(minutes_between_retries * 60)
 
-    # this information is needed for log tailing
-    spec = task_spec.copy()
-    spec["attempt"] = int(spec.pop("retry_count"))
-    # ds = ctx.obj.datastore(mode='w', **spec)
-    # stdout_location = ds.get_log_location(TASK_LOG_SOURCE, 'stdout')
-    # stderr_location = ds.get_log_location(TASK_LOG_SOURCE, 'stderr')
+    datastore_root = os.path.join(
+        ctx.obj.datastore.make_path(
+            ctx.obj.flow.name, kwargs["run_id"], step_name, kwargs["task_id"]
+        )
+    )
 
-    kubernetes = Kubernetes(
-        ctx.obj.datastore, ctx.obj.metadata, ctx.obj.environment
+    step_cli = u"{entrypoint} {top_args} step {step} {step_args}".format(
+        entrypoint="%s -u %s" % (executable, os.path.basename(sys.argv[0])),
+        top_args=" ".join(util.dict_to_cli_options(ctx.parent.parent.params)),
+        step=step_name,
+        step_args=" ".join(util.dict_to_cli_options(kwargs)),
     )
 
     try:
+        kubernetes = Kubernetes(
+            datastore=ctx.obj.datastore,
+            metadata=ctx.obj.metadata,
+            environment=ctx.obj.environment,
+            flow_name=ctx.obj.flow.name,
+            run_id=kwargs["run_id"],
+            step_name=step_name,
+            task_id=kwargs["task_id"],
+            attempt=retry_count,
+        )
+        # Configure and launch Kubernetes job.
         with ctx.obj.monitor.measure("metaflow.aws.eks.launch_job"):
-            job = kubernetes.create_job(
+            kubernetes.launch_job(
                 user=util.get_username(),
-                flow_name=ctx.obj.flow.name,
-                run_id=kwargs["run_id"],
-                step_name=step_name,
-                task_id=kwargs["task_id"],
-                attempt=str(retry_count),
                 code_package_sha=code_package_sha,
                 code_package_url=code_package_url,
                 code_package_ds=ctx.obj.datastore.TYPE,
                 step_cli=step_cli,
                 docker_image=image,
-                service_account=service_account,
+                namespace="default",  # TODO: Fetch from config
+                service_account="s3-full-access",  # service_account,
                 cpu=cpu,
                 gpu=gpu,
                 memory=memory,
                 run_time_limit=run_time_limit,
                 env=env,
-            ).execute()
+            )
     except Exception as e:
-        print(e)
+        traceback.print_exc()
         sync_metadata_from_S3(ctx.obj.metadata, datastore_root, retry_count)
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
     try:
-        kubernetes.wait(job=job, echo=echo)
+        # Wait for the Kubernetes job to finish.
+        kubernetes.wait(echo=echo)
     except KubernetesKilledException:
-        # don't retry killed tasks
+        # Don't retry killed jobs.
         traceback.print_exc()
         sync_metadata_from_S3(ctx.obj.metadata, datastore_root, retry_count)
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)

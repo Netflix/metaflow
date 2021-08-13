@@ -294,7 +294,7 @@ def step(
                 attrs=attrs,
             )
     except Exception as e:
-        print(e)
+        traceback.print_exc()
         _sync_metadata()
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
     try:

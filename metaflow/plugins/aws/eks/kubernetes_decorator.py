@@ -3,7 +3,6 @@ import sys
 import platform
 import requests
 
-from metaflow import R
 from metaflow import util
 from metaflow.decorators import StepDecorator
 from metaflow.datastore.datastore import TransformableObject
@@ -68,6 +67,8 @@ class KubernetesDecorator(StepDecorator):
         "memory": "4096",
         "image": None,
         "shared_memory": None,
+        # "namespace",
+        # "service_account"
     }
     package_url = None
     package_sha = None
@@ -78,7 +79,7 @@ class KubernetesDecorator(StepDecorator):
             attributes, statically_defined
         )
 
-        # TODO: Unify the logic
+        # TODO: Unify the logic with AWS Batch
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:
             # If metaflow-config specifies a docker image, just use that.
@@ -87,16 +88,12 @@ class KubernetesDecorator(StepDecorator):
             # If metaflow-config doesn't specify a docker image, assign a
             # default docker image.
             else:
-                # Metaflow-R has it's own default docker image (rocker family)
-                if R.use_r():
-                    self.attributes["image"] = R.container_image()
                 # Default to vanilla Python image corresponding to major.minor
                 # version of the Python interpreter launching the flow.
-                else:
-                    self.attributes["image"] = "python:%s.%s" % (
-                        platform.python_version_tuple()[0],
-                        platform.python_version_tuple()[1],
-                    )
+                self.attributes["image"] = "python:%s.%s" % (
+                    platform.python_version_tuple()[0],
+                    platform.python_version_tuple()[1],
+                )
         # Assign docker registry URL for the image.
         if not get_docker_registry(self.attributes["image"]):
             if BATCH_CONTAINER_REGISTRY:
@@ -181,8 +178,7 @@ class KubernetesDecorator(StepDecorator):
             cli_args.command_args.append(self.package_url)
             cli_args.command_options.update(self.attributes)
             cli_args.command_options["run-time-limit"] = self.run_time_limit
-            if not R.use_r():
-                cli_args.entrypoint[0] = sys.executable
+            cli_args.entrypoint[0] = sys.executable
 
     def task_pre_step(
         self,
@@ -203,10 +199,26 @@ class KubernetesDecorator(StepDecorator):
         # task_pre_step may run locally if fallback is activated for @catch
         # decorator. In that scenario, we skip collecting Kubernetes execution
         # metadata. A rudimentary way to detect non-local execution is to
-        # check for the existence of FOO environment variable.
+        # check for the existence of METAFLOW_KUBERNETES_WORKLOAD environment
+        # variable.
 
-        if "FOO" in os.environ:
-            # TODO: Emit k8s related metadata
+        if "METAFLOW_KUBERNETES_WORKLOAD" in os.environ:
+            meta = {}
+            meta["kubernetes-pod-id"] = os.environ["METAFLOW_KUBERNETES_POD_ID"]
+            meta["kubernetes-pod-name"] = os.environ[
+                "METAFLOW_KUBERNETES_POD_NAME"
+            ]
+            meta["kubernetes-pod-namespace"] = os.environ[
+                "METAFLOW_KUBERNETES_POD_NAMESPACE"
+            ]
+            # meta['kubernetes-job-attempt'] = ?
+
+            entries = [
+                MetaDatum(field=k, value=v, type=k, tags=[])
+                for k, v in meta.items()
+            ]
+            # Register book-keeping metadata for debugging.
+            metadata.register_metadata(run_id, step_name, task_id, entries)
 
             # Start MFLog sidecar to collect task logs.
             self._save_logs_sidecar = SidecarSubProcess(
@@ -218,7 +230,7 @@ class KubernetesDecorator(StepDecorator):
     ):
         # task_finished may run locally if fallback is activated for @catch
         # decorator.
-        if "FOO" in os.environ:
+        if "METAFLOW_KUBERNETES_WORKLOAD" in os.environ:
             # If `local` metadata is configured, we would need to copy task
             # execution metadata from the Kubernetes container to user's
             # local file system after the user code has finished execution.
