@@ -63,6 +63,9 @@ class MetaflowRObject:
         """
         return self.length
     
+    def __eq__(self, other):
+        return self.data == other.data
+    
     def __getitem__(self, x):
         """Prepare an indexed value of the R object
         
@@ -110,6 +113,9 @@ class MetaflowRObjectIndex:
         
         if index < 0 or index >= len(full_object):
             raise IndexError("index of MetaflowRObject out of range")
+        
+    def __eq__(self, other):
+        return (self.full_object == other.full_object and self.index == other.index)
         
     @property
     def r_index(self):

@@ -93,29 +93,35 @@ test_that("Python understands R object length", {
   expect_same_length(mtcars)
 })
 
-test_that("indexing is handled in R with special Python classes", {
+test_that("special Python classes work", {
   # Serialized R objects are converted to bytearrays in Python. If Python were
   # to take an index, it would return a single byte in the bytearray. To avoid
   # this, in Metaflow Python we define a MetaflowRObjectIndex which delays
   # taking the indexed value until the object can be deserialized in R.
 
-  a_list <- list("red panda", 5, FALSE)
-  serialised_list <- mf_serialize(a_list)
+  list_a <- list("red panda", 5, FALSE)
+  serialised_list_a <- mf_serialize(list_a)
 
-  expect_s3_class(serialised_list, "metaflow.R.MetaflowRObject")
-  expect_s3_class(serialised_list[0L], "metaflow.R.MetaflowRObjectIndex")
+  expect_s3_class(serialised_list_a, "metaflow.R.MetaflowRObject")
+  expect_s3_class(serialised_list_a[0L], "metaflow.R.MetaflowRObjectIndex")
 
-  expect_equal(mf_deserialize(serialised_list[0L]), "red panda")
-  expect_equal(mf_deserialize(serialised_list[1L]), 5)
-  expect_equal(mf_deserialize(serialised_list[2L]), FALSE)
+  expect_equal(mf_deserialize(serialised_list_a[0L]), "red panda")
+  expect_equal(mf_deserialize(serialised_list_a[1L]), 5)
+  expect_equal(mf_deserialize(serialised_list_a[2L]), FALSE)
 
   expect_error(
-    serialised_list[-1L],
+    serialised_list_a[-1L],
     "IndexError: index of MetaflowRObject out of range"
   )
   expect_error(
-    serialised_list[3L],
+    serialised_list_a[3L],
     "IndexError: index of MetaflowRObject out of range"
   )
+
+  # equality of serialised objects
+  list_b <- list("red panda", 5, FALSE)
+  serialised_list_b <- mf_serialize(list_b)
+  expect_equal(serialised_list_a, serialised_list_b)
+  expect_equal(serialised_list_a[0L], serialised_list_b[0L])
 
 })
