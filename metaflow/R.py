@@ -12,6 +12,118 @@ METAFLOW_R_VERSION = None
 R_VERSION = None
 R_VERSION_CODE = None
 
+class MetaflowRObject:
+    """Wrapper for serialised R data
+    
+    R objects are presented to Python as bytearrays. This causes issues when
+    Python attempts to index the object, as it doesn't understand the structure
+    of the R object. For example, the R vector `c(1, 2, 3)` is serialised to a
+    bytearray of length 55. If this array is provided as a `foreach` argument
+    Python will attempt to generate 55 tasks for the following step, rather than
+    the expected 3.
+    
+    The solution here is to initialise the `MetaflowRObject` class from R with
+    the serialised data and the length of the object as if it were deserialised.
+    We override the `__len__` method so that it returns this value. Indexing
+    this object returns a `MetaflowRObjectIndex` which prevents Python from
+    doing the actual indexing, instead delaying it until the object is in R and
+    can be properly deserialized.
+    
+    Parameters
+    ----------
+    data : bytearray
+        Serialised data, converted via reticulate from an R raw vector to a
+        Python bytearray.
+    length : int
+        The length of the object when deserialized in R. Because this
+        information comes from outside Python, it must be provided manually at
+        initialisation. It is returned by the usual Python `len` function.
+        
+    Attributes
+    ----------
+    data : bytearray
+        Serialised data, converted via reticulate from an R `raw` vector to a
+        Python `bytearray`.
+    length : int
+        The length of the object when deserialized in R. Because this
+        information comes from outside Python, it must be provided manually at
+        initialisation. It is returned by the usual Python `len` function.
+    """
+    def __init__(self, data, length):
+        self.data = data
+        self.length = length
+    
+    def __len__(self):
+        """Return the length of the object as if it were deserialized in R
+        
+        Returns
+        -------
+        int
+            The length of the object as if it were deserialized in R.
+        """
+        return self.length
+    
+    def __getitem__(self, x):
+        """Prepare an indexed value of the R object
+        
+        If Python indexes the data, it will retrieve a byte from the bytearray
+        instead of an element of the deserialized R object. Instead we return an
+        object of MetaflowRObjectIndex, which is effectively a copy of the full
+        object along with the intended index. This can later be deserialised and
+        indexed in R.
+        
+        Returns
+        -------
+        MetaflowRObjectIndex
+        """
+        return MetaflowRObjectIndex(self, x)
+
+
+class MetaflowRObjectIndex:
+    """Wrap an indexed value of a MetaflowR
+    
+    If Python indexes the data, it will retrieve a byte from the bytearray
+    instead of an element of the deserialized R object. Instead we return an
+    object of MetaflowRObjectIndex, which is effectively a copy of the full
+    object along with the intended index. This can later be deserialised and
+    indexed in R.
+    
+    Parameters
+    ----------
+    full_object : MetaflowRObject
+        The full object to be indexed.
+    index : int
+        The intended index to be taken. This should be the Python index, that
+        is, the index in which `[0]` is the first element.
+
+    Attributes
+    ----------
+    full_object : MetaflowRObject
+        The full object to be indexed.
+    index : int
+        The intended index to be taken. This should be the Python index, that
+        is, the index in which `[0]` is the first element.
+    """
+    def __init__(self, full_object, index):
+        self.full_object = full_object
+        self.index = index
+        
+        if index < 0 or index >= len(full_object):
+            raise IndexError("index of MetaflowRObject out of range")
+        
+    @property
+    def r_index(self):
+        """Return the equivalent index of the object in R
+        
+        R is a 1-indexed language, so this property handles the conversion.
+        
+        Returns
+        -------
+        int
+        """
+        return self.index + 1
+
+
 def call_r(func_name, args):
     R_FUNCTIONS[func_name](*args)
 

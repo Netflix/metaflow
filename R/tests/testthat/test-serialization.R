@@ -73,3 +73,49 @@ test_that("R objects are invertible", {
   expect_invertible(matrix(c(1,2,3,4), nrow = 2, ncol = 2))
   expect_invertible(structure(list(1, 2, 3), class = "custom")) # custom class
 })
+
+test_that("Python understands R object length", {
+  expect_same_length <- function(object) {
+    eval(bquote({
+      python_length <- object %>%
+        mf_serialize() %>%
+        reticulate::r_to_py() %>%
+        reticulate::py_len()
+
+      expect_equal(length(object), python_length)
+    }))
+  }
+
+  expect_same_length(0)
+  expect_same_length(list())
+  expect_same_length(integer(0))
+  expect_same_length(c(1, 2))
+  expect_same_length(mtcars)
+})
+
+test_that("indexing is handled in R with special Python classes", {
+  # Serialized R objects are converted to bytearrays in Python. If Python were
+  # to take an index, it would return a single byte in the bytearray. To avoid
+  # this, in Metaflow Python we define a MetaflowRObjectIndex which delays
+  # taking the indexed value until the object can be deserialized in R.
+
+  a_list <- list("red panda", 5, FALSE)
+  serialised_list <- mf_serialize(a_list)
+
+  expect_s3_class(serialised_list, "metaflow.R.MetaflowRObject")
+  expect_s3_class(serialised_list[0L], "metaflow.R.MetaflowRObjectIndex")
+
+  expect_equal(mf_deserialize(serialised_list[0L]), "red panda")
+  expect_equal(mf_deserialize(serialised_list[1L]), 5)
+  expect_equal(mf_deserialize(serialised_list[2L]), FALSE)
+
+  expect_error(
+    serialised_list[-1L],
+    "IndexError: index of MetaflowRObject out of range"
+  )
+  expect_error(
+    serialised_list[3L],
+    "IndexError: index of MetaflowRObject out of range"
+  )
+
+})

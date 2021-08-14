@@ -21,26 +21,36 @@
 #'
 #' @keywords internal
 mf_serialize <- function(object) {
-  serialize(object, NULL)
+  pkg.env$mf$R$MetaflowRObject(
+    data = serialize(object, connection = NULL),
+    length = length(object)
+  )
 }
 
 #' @rdname mf_serialize
+#' @export
 mf_deserialize <- function(object) {
-  r_obj <- object
+  UseMethod("mf_deserialize", object)
+}
 
-  if (is.raw(object)) {
-    # for bytearray try to unserialize
-    tryCatch(
-      {
-        r_obj <- object %>% unserialize()
-      },
-      error = function(e) {
-        r_obj <- object
-      }
-    )
-  }
+#' @export
+mf_deserialize.metaflow.R.MetaflowRObject <- function(object) {
+  unserialize(object$data)
+}
 
-  return(r_obj)
+#' @export
+mf_deserialize.metaflow.R.MetaflowRObjectIndex <- function(object) {
+  mf_deserialize.metaflow.R.MetaflowRObject(object$full_object)[[object$r_index]]
+}
+
+#' @export
+mf_deserialize.raw <- function(object) {
+  tryCatch(unserialize(object), error = function(e) {object})
+}
+
+#' @export
+mf_deserialize.default <- function(object) {
+  object
 }
 
 #' Overload getter for self object
