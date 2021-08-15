@@ -44,8 +44,7 @@ def sync_local_metadata_from_datastore(metadata, task_datastore):
         pass
     key_to_load = task_datastore.load_metadata(
         ['local_metadata'])['local_metadata']
-    tarball = task_datastore.parent_datastore.load_data(
-        [key_to_load])[0]
+    tarball = next(task_datastore.parent_datastore.load_data([key_to_load]))
     with util.TempDir() as td:
         with tarfile.open(fileobj=BytesIO(tarball), mode='r:gz') as tar:
             tar.extractall(td)
