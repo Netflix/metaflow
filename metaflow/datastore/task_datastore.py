@@ -190,7 +190,7 @@ class TaskDataStore(object):
 
     @only_if_not_done
     @require_mode('w')
-    def save_artifacts(self, artifacts_iter, force_v4=False):
+    def save_artifacts(self, artifacts_iter, force_v4=False, len_hint=0):
         """
         Saves Metaflow Artifacts (Python objects) to the datastore and stores
         any relevant metadata needed to retrieve them.
@@ -248,7 +248,8 @@ class TaskDataStore(object):
                 artifact_names.append(name)
                 yield blob
         # Use the content-addressed store to store all artifacts
-        save_result = self._ca_store.save_blobs(pickle_iter())
+        save_result = self._ca_store.save_blobs(pickle_iter(),
+                                                len_hint=len_hint)
         for name, result in zip(artifact_names, save_result):
             self._objects[name] = result.key
 
@@ -511,21 +512,6 @@ class TaskDataStore(object):
         flow : FlowSpec
             Flow to persist
         """
-        def artifacts_iter():
-            for var in dir(flow):
-                if var.startswith('__') or var in flow._EPHEMERAL:
-                    continue
-                # Skip over properties of the class (Parameters)
-                if hasattr(flow.__class__, var) and \
-                        isinstance(getattr(flow.__class__, var), property):
-                    continue
-                val = getattr(flow, var)
-                if not (isinstance(val, MethodType) or
-                        isinstance(val, FunctionType) or
-                        isinstance(val, Parameter)):
-                    if not var.startswith('_') and var != 'name':
-                        delattr(flow, var)
-                    yield var, val
 
         # initialize with old values...
         if flow._datastore:
@@ -533,7 +519,29 @@ class TaskDataStore(object):
             self._info.update(flow._datastore._info)
 
         # ...overwrite with new
-        self.save_artifacts(artifacts_iter())
+        valid_artifacts = []
+        for var in dir(flow):
+            if var.startswith('__') or var in flow._EPHEMERAL:
+                continue
+            # Skip over properties of the class (Parameters)
+            if hasattr(flow.__class__, var) and \
+                    isinstance(getattr(flow.__class__, var), property):
+                continue
+
+            val = getattr(flow, var)
+            if not (isinstance(val, MethodType) or
+                    isinstance(val, FunctionType) or
+                    isinstance(val, Parameter)):
+                valid_artifacts.append((var, val))
+
+        def artifacts_iter():
+            while valid_artifacts:
+                var, val = valid_artifacts.pop()
+                if not var.startswith('_') and var != 'name':
+                    delattr(flow, var)
+                yield var, val
+
+        self.save_artifacts(artifacts_iter(), len_hint=len(valid_artifacts))
 
     @only_if_not_done
     @require_mode('w')

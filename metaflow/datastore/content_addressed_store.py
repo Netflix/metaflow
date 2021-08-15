@@ -42,7 +42,7 @@ class ContentAddressedStore(object):
     def set_blob_cache(self, blob_cache):
         self._blob_cache = blob_cache
 
-    def save_blobs(self, blob_iter, raw=False):
+    def save_blobs(self, blob_iter, raw=False, len_hint=0):
         """
         Saves blobs of data to the datastore
 
@@ -74,32 +74,16 @@ class ContentAddressedStore(object):
             The list order is the same as the blobs passed in. The URI will be
             None if raw is False.
         """
-        to_save = {}
         results = []
-        paths = []
-        blobs = []
-        for blob in blob_iter:
-            sha = sha1(blob).hexdigest()
-            path = self._backend.path_join(self._prefix, sha[:2], sha)
-            results.append(self.save_blobs_result(
-                uri=self._backend.full_uri(path) if raw else None,
-                key=sha))
-            paths.append(path)
-            blobs.append(blob)
-
-        # TODO: Instead of keeping all blobs in memory at once, we could
-        # perform is_file in batches
-        exists = self._backend.is_file(paths)
-        to_save = list(zip(blobs, paths, exists))
-        # drop extra references to blobs
-        blobs = None
-
         def packing_iter():
-            # we avoid storing duplicate versions of each blob by consuming
-            # the to_save list destructively
-            while to_save:
-                blob, path, exist = to_save.pop()
-                if not exist:
+            for blob in blob_iter:
+                sha = sha1(blob).hexdigest()
+                path = self._backend.path_join(self._prefix, sha[:2], sha)
+                results.append(self.save_blobs_result(
+                    uri=self._backend.full_uri(path) if raw else None,
+                    key=sha))
+
+                if not self._backend.is_file([path])[0]:
                     # only process blobs that don't exist already in the
                     # backing datastore
                     meta = {
@@ -116,7 +100,7 @@ class ContentAddressedStore(object):
         # sending duplicate files since we already checked.
         self._backend.save_bytes(packing_iter(),
                                  overwrite=True,
-                                 len_hint=len(to_save))
+                                 len_hint=len_hint)
         return results
 
     def load_blobs(self, keys, force_raw=False):
