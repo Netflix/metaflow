@@ -508,6 +508,10 @@ class TaskDataStore(object):
         """
         Persist any new artifacts that were produced when running flow
 
+        NOTE: This is a DESTRUCTIVE operation that deletes artifacts from
+        the given flow to conserve memory. Don't rely on artifact attributes
+        of the flow object after calling this function.
+
         Parameters
         ----------
         flow : FlowSpec
@@ -536,9 +540,14 @@ class TaskDataStore(object):
                 valid_artifacts.append((var, val))
 
         def artifacts_iter():
+            # we consume the valid_artifacts list destructively to
+            # make sure we don't keep references to artifacts. We
+            # want to avoid keeping original artifacts and encoded
+            # artifacts in memory simultaneously
             while valid_artifacts:
                 var, val = valid_artifacts.pop()
                 if not var.startswith('_') and var != 'name':
+                    # NOTE: Destructive mutation of the flow object
                     delattr(flow, var)
                 yield var, val
 
