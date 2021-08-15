@@ -153,8 +153,11 @@ class S3Backend(DataStoreBackend):
             # files, we will go in parallel and if we have few files, we will
             # serially upload them. This is not ideal because there is also a size
             # factor and one very large file with a few other small files, for
-            # example, would benefit from a parallel upload. The S3 datatools will
-            # be fixed to address this and this whole hack can then go away.
+            # example, would benefit from a parallel upload.
+            #
+            # A better approach would be to e.g. write all blobs to temp files
+            # and based on the total size and number of files use either put_files
+            # (which avoids re-writing the files) or s3.put sequentially. 
             if len_hint > 10:
                 # Use put_many
                 s3.put_many(starmap(S3PutObject, _convert()), overwrite)
