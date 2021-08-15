@@ -107,9 +107,10 @@ class FileCache(object):
     def get_artifact(
             self, ds_type, ds_root, data_metadata, flow_name, run_id, step_name,
             task_id, name):
-        return self.get_artifacts(
+        _, obj = next(self.get_artifacts(
             ds_type, ds_root, data_metadata, flow_name, run_id, step_name,
-            task_id, [name])[name]
+            task_id, [name]))
+        return obj
 
     def get_all_artifacts(
             self, ds_type, ds_root, data_metadata, flow_name, run_id, step_name,
@@ -121,7 +122,7 @@ class FileCache(object):
             run_id, step_name, task_id, data_metadata=data_metadata)
         # This will reuse the blob cache if needed. We do not have an
         # artifact cache so the unpickling happens every time here.
-        return task_ds.load_artifacts([n for n, _ in task_ds.items()])
+        return dict(task_ds.load_artifacts([n for n, _ in task_ds.items()]))
 
     def get_artifacts(
             self, ds_type, ds_root, data_metadata, flow_name, run_id, step_name,
@@ -266,8 +267,7 @@ class FileBlobCache(BlobCache):
     def load_key(self, key):
         return self._filecache.read_file(self._path(key))
 
-    def store_keys(self, results):
-        for key, blob in results.items():
-            self._filecache.create_file(self._path(key), blob)
+    def store_key(self, key, blob):
+        self._filecache.create_file(self._path(key), blob)
 
 

@@ -13,7 +13,6 @@ from ..parameters import Parameter
 from ..util import Path, is_stringish, to_fileobj
 
 from .exceptions import ArtifactTooLarge, DataException
-from .transformable_object import TransformableObject
 
 def only_if_not_done(f):
     def method(self, *args, **kwargs):
@@ -191,7 +190,7 @@ class TaskDataStore(object):
 
     @only_if_not_done
     @require_mode('w')
-    def save_artifacts(self, artifacts, force_v4=False):
+    def save_artifacts(self, artifacts_iter, force_v4=False):
         """
         Saves Metaflow Artifacts (Python objects) to the datastore and stores
         any relevant metadata needed to retrieve them.
@@ -204,9 +203,9 @@ class TaskDataStore(object):
 
         Parameters
         ----------
-        artifacts : Dict[string -> object]
-            Dictionary containing the human-readable name of the object to save
-            and the object itself (as a TransformableObject)
+        artifacts : Iterator[(string, object)]
+            Iterator over the human-readable name of the object to save
+            and the object itself
         force_v4 : boolean or Dict[string -> boolean]
             Indicates whether the artifact should be pickled using the v4
             version of pickle. If a single boolean, applies to all artifacts.
@@ -215,40 +214,41 @@ class TaskDataStore(object):
         """
         artifact_names = []
         to_save = []
-        for name, obj in artifacts.items():
-            original_type = str(obj.original_type)
-            do_v4 = force_v4 and \
-                force_v4 if isinstance(force_v4, bool) else \
-                    force_v4.get(name, False)
-            if do_v4:
-                encode_type = 'gzip+pickle-v4'
-                if encode_type not in self._encodings:
-                    raise DataException(
-                        "Artifact *%s* requires a serialization encoding that "
-                        "requires Python 3.4 or newer." % name)
-                obj.transform(lambda x: pickle.dumps(x, protocol=4))
-            else:
-                try:
-                    obj.transform(lambda x: pickle.dumps(x, protocol=2))
-                    encode_type = 'gzip+pickle-v2'
-                except (SystemError, OverflowError):
+
+        def pickle_iter():
+            for name, obj in artifacts_iter:
+                original_type = str(type(obj))
+                do_v4 = force_v4 and \
+                    force_v4 if isinstance(force_v4, bool) else \
+                        force_v4.get(name, False)
+                if do_v4:
                     encode_type = 'gzip+pickle-v4'
                     if encode_type not in self._encodings:
                         raise DataException(
-                            "Artifact *%s* is very large (over 2GB). "
-                            "You need to use Python 3.4 or newer if you want to "
-                            "serialize large objects." % name)
-                    obj.transform(lambda x: pickle.dumps(x, protocol=4))
-            sz = len(obj.current)
-            self._info[name] = {
-                'size': sz,
-                'type': original_type,
-                'encoding': encode_type
-            }
-            artifact_names.append(name)
-            to_save.append(obj)
+                            "Artifact *%s* requires a serialization encoding that "
+                            "requires Python 3.4 or newer." % name)
+                    blob = pickle.dumps(obj, protocol=4)
+                else:
+                    try:
+                        blob = pickle.dumps(obj, protocol=2)
+                        encode_type = 'gzip+pickle-v2'
+                    except (SystemError, OverflowError):
+                        encode_type = 'gzip+pickle-v4'
+                        if encode_type not in self._encodings:
+                            raise DataException(
+                                "Artifact *%s* is very large (over 2GB). "
+                                "You need to use Python 3.4 or newer if you want to "
+                                "serialize large objects." % name)
+                        blob = pickle.dumps(obj, protocol=4)
+                self._info[name] = {
+                    'size': len(blob),
+                    'type': original_type,
+                    'encoding': encode_type
+                }
+                artifact_names.append(name)
+                yield blob
         # Use the content-addressed store to store all artifacts
-        save_result = self._ca_store.save_blobs(to_save)
+        save_result = self._ca_store.save_blobs(pickle_iter())
         for name, result in zip(artifact_names, save_result):
             self._objects[name] = result.key
 
@@ -275,10 +275,9 @@ class TaskDataStore(object):
 
         Returns
         -------
-        Dict[string -> object] :
-            Dictionary containing the objects retrieved.
+        Iterator[(string, object)] :
+            An iterator over objects retrieved.
         """
-        results = {}
         if not self._info:
             raise DataException(
                 "No info object available to retrieve artifacts")
@@ -304,11 +303,8 @@ class TaskDataStore(object):
         # We assume that if we have one "old" style artifact, all of them are
         # like that which is an easy assumption to make since artifacts are all
         # stored by the same implementation of the datastore for a given task.
-        loaded_data = self._ca_store.load_blobs(to_load)
-        for sha, blob in loaded_data.items():
-            blob.transform(pickle.loads)
-            results[sha_to_names[sha]] = blob.current
-        return results
+        for sha, blob in self._ca_store.load_blobs(to_load):
+            yield sha_to_names[sha], pickle.loads(blob)
 
     @only_if_not_done
     @require_mode('w')
@@ -515,7 +511,7 @@ class TaskDataStore(object):
         flow : FlowSpec
             Flow to persist
         """
-        def serializable_attributes():
+        def artifacts_iter():
             for var in dir(flow):
                 if var.startswith('__') or var in flow._EPHEMERAL:
                     continue
@@ -529,7 +525,7 @@ class TaskDataStore(object):
                         isinstance(val, Parameter)):
                     if not var.startswith('_') and var != 'name':
                         delattr(flow, var)
-                    yield var, TransformableObject(val), False
+                    yield var, val
 
         # initialize with old values...
         if flow._datastore:
@@ -537,13 +533,7 @@ class TaskDataStore(object):
             self._info.update(flow._datastore._info)
 
         # ...overwrite with new
-        to_save = {}
-        force_v4_dict = {}
-        for var, obj, force_v4 in serializable_attributes():
-            to_save[var] = obj
-            if force_v4:
-                force_v4_dict[var] = True
-        self.save_artifacts(to_save, force_v4_dict)
+        self.save_artifacts(artifacts_iter())
 
     @only_if_not_done
     @require_mode('w')
@@ -628,7 +618,8 @@ class TaskDataStore(object):
 
     @require_mode(None)
     def __getitem__(self, name):
-        return self.load_artifacts([name])[name]
+        _, obj = next(self.load_artifacts([name]))
+        return obj
 
     @require_mode('r')
     def __iter__(self):
@@ -665,24 +656,22 @@ class TaskDataStore(object):
             If True, adds the attempt identifier to the metadata,
             defaults to True
         """
-        to_store = {}
-        for name, value in contents.items():
-            if add_attempt:
-                path = self._backend.path_join(
-                    self._path, self._metadata_name_for_attempt(name))
-            else:
-                path = self._backend.path_join(self._path, name)
-            if isinstance(value, (RawIOBase, BufferedIOBase)) and \
-                    value.readable():
-                to_store[path] = TransformableObject(value)
-            elif is_stringish(value):
-                value = to_fileobj(value)
-                to_store[path] = TransformableObject(value)
-            else:
-                raise DataException("Metadata '%s' has an invalid type: %s" %
-                                    (name, type(value)))
-        self._backend.save_bytes(
-            to_store, overwrite=allow_overwrite)
+        def blob_iter():
+            for name, value in contents.items():
+                if add_attempt:
+                    path = self._backend.path_join(
+                        self._path, self._metadata_name_for_attempt(name))
+                else:
+                    path = self._backend.path_join(self._path, name)
+                if isinstance(value, (RawIOBase, BufferedIOBase)) and \
+                        value.readable():
+                    yield path, value
+                elif is_stringish(value):
+                    yield path, to_fileobj(value)
+                else:
+                    raise DataException("Metadata '%s' has an invalid type: %s" %
+                                        (name, type(value)))
+        self._backend.save_bytes(blob_iter(), overwrite=allow_overwrite)
 
     def _load_file(self, names, add_attempt=True):
         """
@@ -712,16 +701,15 @@ class TaskDataStore(object):
             to_load.append(path)
         results = {}
         with self._backend.load_bytes(to_load) as load_results:
-            for key, result in load_results.items():
+            for key, path, meta in load_results:
                 if add_attempt:
                     _, name = self.parse_attempt_metadata(
                         self._backend.basename(key))
                 else:
                     name = self._backend.basename(key)
-                if result is None:
+                if path is None:
                     results[name] = None
                 else:
-                    path, _ = result
                     with open(path, 'rb') as f:
                         results[name] = f.read()
         return results

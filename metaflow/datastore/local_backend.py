@@ -139,7 +139,7 @@ class LocalBackend(DataStoreBackend):
                     if f != self.METADATA_DIR])
         return results
 
-    def save_bytes(self, path_and_bytes, overwrite=False):
+    def save_bytes(self, path_and_bytes_iter, overwrite=False, len_hint=0):
         """
         Creates objects and stores them in the datastore.
 
@@ -152,21 +152,23 @@ class LocalBackend(DataStoreBackend):
 
         Parameters
         ----------
-        path_and_bytes : Dict: string ->
-                (TransformableObject(RawIOBase or BufferedIOBase), dict)
-            Objects to store; the first element in the tuple is the actual data
-            to store and the dictionary is additional metadata to store. Keys
-            for the metadata must be ascii only string and elements can be
-            anything that can be converted to a string using json.dumps. If you
-            have no metadata, you can simply pass a RawIOBase or BufferedIOBase.
+        path_and_bytes_iter : Iterator[(string, bytes)]
+            Iterator over objects to store; the first element in the tuple is
+            the actual data to store and the dictionary is additional metadata to
+            store. Keys for the metadata must be ascii only string and elements
+            can be anything that can be converted to a string using json.dumps.
+            If you have no metadata, you can simply pass a RawIOBase or
+            BufferedIOBase.
         overwrite : bool
             True if the objects can be overwritten. Defaults to False.
+        len_hint : integer
+            Estimated number of items produced by the iterator
 
         Returns
         -------
         None
         """
-        for path, obj in path_and_bytes.items():
+        for path, obj in path_and_bytes_iter:
             if isinstance(obj, tuple):
                 byte_obj, metadata = obj
             else:
@@ -176,7 +178,7 @@ class LocalBackend(DataStoreBackend):
                 continue
             LocalBackend._makedirs(os.path.dirname(full_path))
             with open(full_path, mode='wb') as f:
-                f.write(byte_obj.current.read())
+                f.write(byte_obj.read())
             if metadata:
                 with open("%s_meta" % full_path, mode='w') as f:
                     json.dump(metadata, f)
@@ -214,15 +216,15 @@ class LocalBackend(DataStoreBackend):
               or None if no metadata was provided.
             If the path could not be loaded, returns None for that path
         """
-        results = {}
-        for path in paths:
-            full_path = self.full_uri(path)
-            metadata = None
-            if os.path.exists(full_path):
-                if os.path.exists("%s_meta" % full_path):
-                    with open("%s_meta" % full_path, mode='r') as f:
-                        metadata = json.load(f)
-                results[path] = (full_path, metadata)
-            else:
-                results[path] = None
-        return CloseAfterUse(results)
+        def iter_results():
+            for path in paths:
+                full_path = self.full_uri(path)
+                metadata = None
+                if os.path.exists(full_path):
+                    if os.path.exists("%s_meta" % full_path):
+                        with open("%s_meta" % full_path, mode='r') as f:
+                            metadata = json.load(f)
+                    yield path, full_path, metadata
+                else:
+                    yield path, None, None
+        return CloseAfterUse(iter_results())

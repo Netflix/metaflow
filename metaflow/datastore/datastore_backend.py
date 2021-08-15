@@ -194,13 +194,13 @@ class DataStoreBackend(object):
 
         Parameters
         ----------
-        path_and_bytes : Dict: string ->
-                (TransformableObject(RawIOBase or BufferedIOBase), dict)
-            Objects to store; the first element in the tuple is the actual data
-            to store and the dictionary is additional metadata to store. Keys
-            for the metadata must be ascii only string and elements can be
-            anything that can be converted to a string using json.dumps. If you
-            have no metadata, you can simply pass a RawIOBase or BufferedIOBase.
+        path_and_bytes_iter : Iterator[(string, bytes)]
+            Iterator over objects to store; the first element in the tuple is
+            the actual data to store and the dictionary is additional metadata to
+            store. Keys for the metadata must be ascii only string and elements
+            can be anything that can be converted to a string using json.dumps.
+            If you have no metadata, you can simply pass a RawIOBase or
+            BufferedIOBase.
         overwrite : bool
             True if the objects can be overwritten. Defaults to False.
 

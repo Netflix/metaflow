@@ -6,7 +6,6 @@ from io import BytesIO
 
 from ..exception import MetaflowInternalError
 from .exceptions import DataException
-from .transformable_object import TransformableObject
 
 class ContentAddressedStore(object):
     """
@@ -43,7 +42,7 @@ class ContentAddressedStore(object):
     def set_blob_cache(self, blob_cache):
         self._blob_cache = blob_cache
 
-    def save_blobs(self, blobs, raw=False):
+    def save_blobs(self, blob_iter, raw=False):
         """
         Saves blobs of data to the datastore
 
@@ -65,8 +64,7 @@ class ContentAddressedStore(object):
 
         Parameters
         ----------
-        blobs : List of TransformableObject containing bytes objects
-            Blobs to save. Each blob should be bytes
+        blob_iter : Iterator over bytes objects to save
         raw : bool, optional
             Whether to save the bytes directly or process them, by default False
 
@@ -79,33 +77,46 @@ class ContentAddressedStore(object):
         to_save = {}
         results = []
         paths = []
-        for blob in blobs:
-            sha = sha1(blob.current).hexdigest()
+        blobs = []
+        for blob in blob_iter:
+            sha = sha1(blob).hexdigest()
             path = self._backend.path_join(self._prefix, sha[:2], sha)
             results.append(self.save_blobs_result(
                 uri=self._backend.full_uri(path) if raw else None,
                 key=sha))
             paths.append(path)
-        exists = self._backend.is_file(paths)
-        for blob, path, exist in zip(blobs, paths, exists):
-            if exist:
-                # This already exists in the backing datastore so we can skip it
-                continue
-            # Compute the meta information to store with the file
-            meta = {
-                'cas_raw': raw,
-                'cas_version': 1
-            }
-            if raw:
-                blob.transform(BytesIO)
-            else:
-                blob.transform(self._pack_v1)
+            blobs.append(blob)
 
-            to_save[path] = (blob, meta)
+        # TODO: Instead of keeping all blobs in memory at once, we could
+        # perform is_file in batches
+        exists = self._backend.is_file(paths)
+        to_save = list(zip(blobs, paths, exists))
+        # drop extra references to blobs
+        blobs = None
+
+        def packing_iter():
+            # we avoid storing duplicate versions of each blob by consuming
+            # the to_save list destructively
+            while to_save:
+                blob, path, exist = to_save.pop()
+                if not exist:
+                    # only process blobs that don't exist already in the
+                    # backing datastore
+                    meta = {
+                        'cas_raw': raw,
+                        'cas_version': 1
+                    }
+                    if raw:
+                        yield path, (BytesIO(blob), meta)
+                    else:
+                        yield path, (self._pack_v1(blob), meta)
+
         # We don't actually want to overwrite but by saying =True, we avoid
         # checking again saving some operations. We are already sure we are not
         # sending duplicate files since we already checked.
-        self._backend.save_bytes(to_save, overwrite=True)
+        self._backend.save_bytes(packing_iter(),
+                                 overwrite=True,
+                                 len_hint=len(to_save))
         return results
 
     def load_blobs(self, keys, force_raw=False):
@@ -126,30 +137,26 @@ class ContentAddressedStore(object):
 
         Returns
         -------
-        Dict: string -> TransformableObject(bytes):
-            Returns the blobs as bytes
+        Returns an iterator of (string, bytes) tuples
         """
-        results = {}
         load_paths = []
         for key in keys:
             blob = None
             if self._blob_cache:
                 blob = self._blob_cache.load_key(key)
             if blob is not None:
-                results[key] = TransformableObject(blob)
+                yield key, blob
             else:
                 path = self._backend.path_join(self._prefix, key[:2], key)
                 load_paths.append((key, path))
 
-        new_results = {}
         with self._backend.load_bytes([p for _, p in load_paths]) as loaded:
-            for key, path in load_paths:
+            for (key, _), (_, file_path, meta) in zip(load_paths, loaded):
                 # At this point, we either return the object as is (if raw) or
                 # decode it according to the encoding version
-                file_path, meta = loaded[path]
                 with open(file_path, 'rb') as f:
                     if force_raw or (meta and meta.get('cas_raw', False)):
-                        new_results[key] = f.read()
+                        blob = f.read()
                     else:
                         if meta is None:
                             # Previous version of the datastore had no meta
@@ -169,19 +176,15 @@ class ContentAddressedStore(object):
                                     "the artifact is either corrupt or you need "
                                     "to update Metaflow" % (version, path))
                         try:
-                            new_results[key] = unpack_code(f)
+                            blob = unpack_code(f)
                         except Exception as e:
                             raise DataException(
                                 "Could not unpack data: %s" % e)
-        
-        if self._blob_cache:
-            self._blob_cache.store_keys(new_results)
 
-        for k in new_results:
-            new_results[k] = TransformableObject(new_results[k])
+                if self._blob_cache:
+                    self._blob_cache.store_key(key, blob)
 
-        results.update(new_results)
-        return results
+                yield key, blob
 
     def _unpack_backward_compatible(self, blob):
         # This is the backward compatible unpack
@@ -203,5 +206,5 @@ class BlobCache(object):
     def load_key(self, key):
         pass
 
-    def store_keys(self, results):
+    def store_key(self, key, blob):
         pass

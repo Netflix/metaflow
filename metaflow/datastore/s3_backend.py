@@ -107,7 +107,7 @@ class S3Backend(DataStoreBackend):
             return [self.list_content_result(
                 path=o.url[strip_prefix_len:], is_file=o.exists) for o in results]
 
-    def save_bytes(self, path_and_bytes, overwrite=False):
+    def save_bytes(self, path_and_bytes_iter, overwrite=False, len_hint=0):
         """
         Creates objects and stores them in the datastore.
 
@@ -120,31 +120,30 @@ class S3Backend(DataStoreBackend):
 
         Parameters
         ----------
-        path_and_bytes : Dict: string ->
-                (TransformableObject(RawIOBase or BufferedIOBase), dict)
-            Objects to store; the first element in the tuple is the actual data
-            to store and the dictionary is additional metadata to store. Keys
-            for the metadata must be ascii only string and elements can be
-            anything that can be converted to a string using json.dumps. If you
-            have no metadata, you can simply pass a RawIOBase or BufferedIOBase.
+        path_and_bytes_iter : Iterator[(string, bytes)]
+            Iterator over objects to store; the first element in the tuple is
+            the actual data to store and the dictionary is additional metadata to
+            store. Keys for the metadata must be ascii only string and elements
+            can be anything that can be converted to a string using json.dumps.
+            If you have no metadata, you can simply pass a RawIOBase or
+            BufferedIOBase.
         overwrite : bool
             True if the objects can be overwritten. Defaults to False.
+        len_hint : integer
+            Estimated number of items produced by the iterator
 
         Returns
         -------
         None
         """
-        if len(path_and_bytes) == 0:
-            return
-
         def _convert():
             # Output format is the same as what is needed for S3PutObject:
             # key, value, path, content_type, metadata
-            for path, obj in path_and_bytes.items():
+            for path, obj in path_and_bytes_iter:
                 if isinstance(obj, tuple):
-                    yield path, obj[0].current, None, None, obj[1]
+                    yield path, obj[0], None, None, obj[1]
                 else:
-                    yield path, obj.current, None, None, None
+                    yield path, obj, None, None, None
 
         with S3(s3root=self.datastore_root,
                 tmproot=os.getcwd(), external_client=self.s3_client) as s3:
@@ -156,7 +155,7 @@ class S3Backend(DataStoreBackend):
             # factor and one very large file with a few other small files, for
             # example, would benefit from a parallel upload. The S3 datatools will
             # be fixed to address this and this whole hack can then go away.
-            if len(path_and_bytes) > 10:
+            if len_hint > 10:
                 # Use put_many
                 s3.put_many(starmap(S3PutObject, _convert()), overwrite)
             else:
@@ -190,25 +189,26 @@ class S3Backend(DataStoreBackend):
             If the path could not be loaded, returns None for that path
         """
         if len(paths) == 0:
-            return CloseAfterUse({})
+            return CloseAfterUse(iter([]))
 
         s3 = S3(s3root=self.datastore_root,
                 tmproot=os.getcwd(), external_client=self.s3_client)
-        to_return = dict()
-        # We similarly do things in parallel for many files. This is again
-        # a hack.
-        if len(paths) > 10:
-            results = s3.get_many(paths, return_missing=True, return_info=True)
-            for r in results:
-                if r.exists:
-                    to_return[r.key] = (r.path, r.metadata)
-                else:
-                    to_return[r.key] = None
-        else:
-            for p in paths:
-                r = s3.get(p, return_missing=True, return_info=True)
-                if r.exists:
-                    to_return[r.key] = (r.path, r.metadata)
-                else:
-                    to_return[r.key] = None
-        return CloseAfterUse(to_return, closer=s3)
+
+        def iter_results():
+            # We similarly do things in parallel for many files. This is again
+            # a hack.
+            if len(paths) > 10:
+                results = s3.get_many(paths, return_missing=True, return_info=True)
+                for r in results:
+                    if r.exists:
+                        yield r.key, r.path, r.metadata
+                    else:
+                        yield r.key, None, None
+            else:
+                for p in paths:
+                    r = s3.get(p, return_missing=True, return_info=True)
+                    if r.exists:
+                        yield r.key, r.path, r.metadata
+                    else:
+                        yield r.key, None, None
+        return CloseAfterUse(iter_results(), closer=s3)

@@ -5,8 +5,6 @@ from .. import metaflow_config
 
 from .content_addressed_store import ContentAddressedStore
 from .task_datastore import TaskDataStore
-from .transformable_object import TransformableObject
-
 
 class FlowDataStore(object):
     default_backend_class = None
@@ -131,8 +129,8 @@ class FlowDataStore(object):
         done_attempts = set()
         data_objs = {}
         with self._backend.load_bytes(urls) as get_results:
-            for key, result in get_results.items():
-                if result is not None:
+            for key, path, meta in get_results:
+                if path is not None:
                     _, run, step, task, fname = self._backend.path_split(key)
                     attempt, fname = TaskDataStore.parse_attempt_metadata(fname)
                     attempt = int(attempt)
@@ -145,7 +143,6 @@ class FlowDataStore(object):
                     elif fname == TaskDataStore.METADATA_DATA_SUFFIX:
                         # This somewhat breaks the abstraction since we are using
                         # load_bytes directly instead of load_metadata
-                        path, _ = result
                         with open(path, 'rb') as f:
                             data_objs[(run, step, task, attempt)] = json.load(f)
         # We now figure out the latest attempt that started *and* finished.
@@ -176,13 +173,13 @@ class FlowDataStore(object):
             mode=mode,
             allow_not_done=allow_not_done)
 
-    def save_data(self, data):
+    def save_data(self, data_iter):
         """Saves data to the underlying content-addressed store
 
         Parameters
         ----------
-        data : List[bytes]
-            Data to save; each item in the list will be saved individually.
+        data : Iterator[bytes]
+            Iterator over blobs to save; each item in the list will be saved individually.
 
         Returns
         -------
@@ -191,7 +188,7 @@ class FlowDataStore(object):
             the key needed to retrieve it using load_data. This is returned in
             the same order as the input.
         """
-        save_results = self.ca_store.save_blobs(TransformableObject(data), raw=True)
+        save_results = self.ca_store.save_blobs(data_iter, raw=True)
         return [(r.uri, r.key) for r in save_results]
 
     def load_data(self, keys, force_raw=False):
@@ -209,9 +206,8 @@ class FlowDataStore(object):
 
         Returns
         -------
-        List[bytes]
-            Fetched data returned in the order of the keys
+        Iterator[bytes]
+            Iterator over fetched bytes returned in the order of the keys
         """
-        load_results = self.ca_store.load_blobs(
-            keys, force_raw=force_raw)
-        return [load_results[k].current for k in keys]
+        for key, blob in self.ca_store.load_blobs(keys, force_raw=force_raw):
+            yield blob
