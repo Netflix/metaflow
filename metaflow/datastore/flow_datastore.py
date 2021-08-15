@@ -207,7 +207,7 @@ class FlowDataStore(object):
         Returns
         -------
         Iterator[bytes]
-            Iterator over fetched bytes returned in the order of the keys
+            Iterator over (key, blob) tuples
         """
         for key, blob in self.ca_store.load_blobs(keys, force_raw=force_raw):
-            yield blob
+            yield key, blob
