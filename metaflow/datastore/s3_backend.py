@@ -114,9 +114,9 @@ class S3Backend(DataStoreBackend):
         If overwrite is False, any existing object will not be overwritten and
         will be silently ignored
 
-        The objects are specified in the objects dictionary where the key is the
-        path to store the object and the value is a file-like object from which
-        bytes can be read.
+        The objects are specified in an iterator over (key, path) tuples where
+        the key is the path to store the object and the value is a file-like 
+        object from which bytes can be read.
 
         Parameters
         ----------
@@ -155,9 +155,15 @@ class S3Backend(DataStoreBackend):
             # factor and one very large file with a few other small files, for
             # example, would benefit from a parallel upload.
             #
+            # In the case of save_artifacts, currently len_hint is based on the
+            # total number of artifacts, not taking into account how many of them
+            # already exist in the CAS, i.e. it can be a gross overestimate. As a
+            # result, it is possible we take a latency hit by using put_many only
+            # for a few artifacts.
+            #
             # A better approach would be to e.g. write all blobs to temp files
             # and based on the total size and number of files use either put_files
-            # (which avoids re-writing the files) or s3.put sequentially. 
+            # (which avoids re-writing the files) or s3.put sequentially.
             if len_hint > 10:
                 # Use put_many
                 s3.put_many(starmap(S3PutObject, _convert()), overwrite)
@@ -183,13 +189,8 @@ class S3Backend(DataStoreBackend):
         -------
         CloseAfterUse :
             A CloseAfterUse which should be used in a with statement. The data
-            in the CloseAfterUse will be a dictionary string -> (BufferedIOBase, dict).
-            The key is the path fetched and the value is a tuple containing:
-              - a path indicating the file that needs to be read to get the object.
-                This path may not be valid outside of the CloseAfterUse scope
-              - a dictionary containing any additional metadata that was stored
-              or None if no metadata was provided.
-            If the path could not be loaded, returns None for that path
+            in the CloseAfterUse will be an iterator over (key, path, metadata)
+            tuples. Path and metadata will be None if the key was missing.
         """
         if len(paths) == 0:
             return CloseAfterUse(iter([]))

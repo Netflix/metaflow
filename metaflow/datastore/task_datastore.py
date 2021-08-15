@@ -211,9 +211,10 @@ class TaskDataStore(object):
             version of pickle. If a single boolean, applies to all artifacts.
             If a dictionary, applies to the object named only. Defaults to False
             if not present or not specified
+        len_hint: integer
+            Estimated number of items in artifacts_iter
         """
         artifact_names = []
-        to_save = []
 
         def pickle_iter():
             for name, obj in artifacts_iter:
@@ -513,12 +514,12 @@ class TaskDataStore(object):
             Flow to persist
         """
 
-        # initialize with old values...
         if flow._datastore:
             self._objects.update(flow._datastore._objects)
             self._info.update(flow._datastore._info)
 
-        # ...overwrite with new
+        # we create a list of valid_artifacts in advance, outside of
+        # artifacts_iter so we can provide a len_hint below
         valid_artifacts = []
         for var in dir(flow):
             if var.startswith('__') or var in flow._EPHEMERAL:
