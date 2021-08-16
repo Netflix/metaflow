@@ -3,7 +3,6 @@ import os
 import sys
 from metaflow.decorators import StepDecorator,flow_decorators
 from metaflow.current import current
-from metaflow.datastore.datastore import MetaflowDataStore
 from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.metadata.metadata import MetadataProvider
 from metaflow.util import to_unicode, compress_list, unicode_type
@@ -18,13 +17,18 @@ class CardDecorator(StepDecorator):
     
     def __init__(self, *args, **kwargs):
         super(CardDecorator,self).__init__(*args, **kwargs)
-        self._datastore = None
+        self._task_datastore = None
         self._environment = None
         self._metadata= None
     
-    def task_pre_step(self, step_name, datastore, metadata, run_id, task_id, flow, graph, retry_count, max_user_code_retries, ubf_context, inputs):
+    def step_init(self, flow, graph, step_name, decorators, environment, flow_datastore, logger):
+        self._flow_datastore = flow_datastore
+        self._environment = environment
+    
+    def task_pre_step(self, step_name, task_datastore, metadata, run_id, task_id, flow, graph, retry_count, max_user_code_retries, ubf_context, inputs):
+        self._task_datastore = task_datastore
         self._metadata = metadata
-        self._datastore = datastore
+        
 
     def task_finished(self, step_name, flow, graph, is_task_ok, retry_count, max_user_code_retries):
         if not is_task_ok:
@@ -39,9 +43,6 @@ class CardDecorator(StepDecorator):
         ])
         self._run_cards_subprocess(runspec)
     
-    def step_init(self, flow, graph, step_name, decorators, environment, datastore, logger):
-        self._environment = environment
-        # over here we get datastore class and not the iinstance
          
     def _create_top_level_args(self):
         def _options(mapping):
@@ -59,8 +60,8 @@ class CardDecorator(StepDecorator):
             'metadata': self._metadata.TYPE,
             'coverage': 'coverage' in sys.modules,
             'environment': self._environment.TYPE,
-            'datastore': self._datastore.TYPE,
-            'datastore-root': self._datastore.datastore_root,
+            'datastore': self._flow_datastore.TYPE,
+            'datastore-root': self._flow_datastore.datastore_root,
             # We don't provide --with as all execution is taking place in 
             # the context of the main processs
         }
@@ -89,6 +90,7 @@ class CardDecorator(StepDecorator):
             get_metadata()
         ]
         response,fail = self._run_command(cmd,os.environ)
+        # print( response)
         if fail:
             # todo : Handle failure scenarios better. 
             print("Process Failed",response.decode('utf-8'))

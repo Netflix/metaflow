@@ -4,7 +4,7 @@ import os
 from itertools import starmap
 
 from ..datatools.s3 import S3, S3Client, S3PutObject
-from ..metaflow_config import DATASTORE_SYSROOT_S3
+from ..metaflow_config import DATASTORE_CARD_S3ROOT, DATASTORE_SYSROOT_S3
 from .datastore_backend import CloseAfterUse, DataStoreBackend
 
 
@@ -26,6 +26,10 @@ class S3Backend(DataStoreBackend):
     @classmethod
     def get_datastore_root_from_config(cls, echo, create_on_absent=True):
         return DATASTORE_SYSROOT_S3
+
+    @classmethod
+    def get_card_root_from_config(cls, echo, create_on_absent=True):
+        return DATASTORE_CARD_S3ROOT
 
     def is_file(self, path):
         """

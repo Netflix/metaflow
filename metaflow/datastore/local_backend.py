@@ -1,7 +1,7 @@
 import json
 import os
 
-from ..metaflow_config import DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_LOCAL
+from ..metaflow_config import DATASTORE_CARDS_LOCAL_DIR, DATASTORE_CARD_LOCALROOT, DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_LOCAL
 from .datastore_backend import CloseAfterUse, DataStoreBackend
 from .exceptions import DataException
 
@@ -12,13 +12,19 @@ class LocalBackend(DataStoreBackend):
     @classmethod
     def get_datastore_root_from_config(cls, echo, create_on_absent=True):
         result = DATASTORE_SYSROOT_LOCAL
-        if result is None:
+        return cls.get_root_dir_from_path(result,DATASTORE_LOCAL_DIR,echo,create_on_absent=create_on_absent)
+
+    @classmethod
+    def get_root_dir_from_path(cls,result_dir,local_dir_name,echo, create_on_absent=True):
+        # Todo: find a better function name
+        result= None
+        if result_dir is None:
             try:
                 # Python2
                 current_path = os.getcwdu()
             except: # noqa E722
                 current_path = os.getcwd()
-            check_dir = os.path.join(current_path, DATASTORE_LOCAL_DIR)
+            check_dir = os.path.join(current_path, local_dir_name)
             check_dir = os.path.realpath(check_dir)
             orig_path = check_dir
             top_level_reached = False
@@ -28,7 +34,7 @@ class LocalBackend(DataStoreBackend):
                     top_level_reached = True
                     break  # We are no longer making upward progress
                 current_path = new_path
-                check_dir = os.path.join(current_path, DATASTORE_LOCAL_DIR)
+                check_dir = os.path.join(current_path, local_dir_name)
             if top_level_reached:
                 if create_on_absent:
                     # Could not find any directory to use so create a new one
@@ -41,8 +47,14 @@ class LocalBackend(DataStoreBackend):
             else:
                 result = check_dir
         else:
-            result = os.path.join(result, DATASTORE_LOCAL_DIR)
+            result = os.path.join(result_dir, local_dir_name)
         return result
+        
+    @classmethod
+    def get_card_root_from_config(cls, echo, create_on_absent=True):
+        result = DATASTORE_CARD_LOCALROOT
+        return cls.get_root_dir_from_path(result,DATASTORE_CARDS_LOCAL_DIR,echo,\
+            create_on_absent=create_on_absent)
 
     @staticmethod
     def _makedirs(path):
