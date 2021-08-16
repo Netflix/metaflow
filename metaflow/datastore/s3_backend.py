@@ -28,21 +28,6 @@ class S3Backend(DataStoreBackend):
         return DATASTORE_SYSROOT_S3
 
     def is_file(self, paths):
-        """
-        Returns True or False depending on whether each path refers to a valid
-        file-like object
-
-        This method returns False if path points to a directory
-
-        Parameters
-        ----------
-        path : List[string]
-            Path to the object
-
-        Returns
-        -------
-        List[bool]
-        """
         with S3(s3root=self.datastore_root,
                 tmproot=os.getcwd(), external_client=self.s3_client) as s3:
             if len(paths) > 10:
@@ -55,51 +40,12 @@ class S3Backend(DataStoreBackend):
                 return result
 
     def info_file(self, path):
-        """
-        Returns a tuple where the first element is True or False depending on
-        whether path refers to a valid file-like object (like is_file) and the
-        second element is a dictionary of metadata associated with the file or
-        None if the file does not exist or there is no metadata.
-
-        Parameters
-        ----------
-        path : string
-            Path to the object
-
-        Returns
-        -------
-        tuple
-            (bool, dict)
-        """
         with S3(s3root=self.datastore_root,
                 tmproot=os.getcwd(), external_client=self.s3_client) as s3:
             s3obj = s3.info(path, return_missing=True)
             return s3obj.exists, s3obj.metadata
 
     def list_content(self, paths):
-        """
-        Lists the content of the datastore in the directory indicated by 'paths'.
-
-        This is similar to executing a 'ls'; it will only list the content one
-        level down and simply returns the paths to the elements present as well
-        as whether or not those elements are files (if not, they are further
-        directories that can be traversed)
-
-        The path returned always include the path passed in. As an example,
-        if your filesystem contains the files: A/b.txt A/c.txt and the directory
-        A/D, on return, you would get, for an input of ['A']:
-        [('A/b.txt', True), ('A/c.txt', True), ('A/D', False)]
-
-        Parameters
-        ----------
-        paths : List[string]
-            Directories to list
-
-        Returns
-        -------
-        List[list_content_result]
-            Content of the directory
-        """
         strip_prefix_len = len(self.datastore_root.rstrip('/')) + 1
         with S3(s3root=self.datastore_root,
                 tmproot=os.getcwd(), external_client=self.s3_client) as s3:
@@ -108,34 +54,6 @@ class S3Backend(DataStoreBackend):
                 path=o.url[strip_prefix_len:], is_file=o.exists) for o in results]
 
     def save_bytes(self, path_and_bytes_iter, overwrite=False, len_hint=0):
-        """
-        Creates objects and stores them in the datastore.
-
-        If overwrite is False, any existing object will not be overwritten and
-        will be silently ignored
-
-        The objects are specified in an iterator over (key, path) tuples where
-        the key is the path to store the object and the value is a file-like 
-        object from which bytes can be read.
-
-        Parameters
-        ----------
-        path_and_bytes_iter : Iterator[(string, bytes)]
-            Iterator over objects to store; the first element in the tuple is
-            the actual data to store and the dictionary is additional metadata to
-            store. Keys for the metadata must be ascii only string and elements
-            can be anything that can be converted to a string using json.dumps.
-            If you have no metadata, you can simply pass a RawIOBase or
-            BufferedIOBase.
-        overwrite : bool
-            True if the objects can be overwritten. Defaults to False.
-        len_hint : integer
-            Estimated number of items produced by the iterator
-
-        Returns
-        -------
-        None
-        """
         def _convert():
             # Output format is the same as what is needed for S3PutObject:
             # key, value, path, content_type, metadata
@@ -173,25 +91,6 @@ class S3Backend(DataStoreBackend):
                     s3.put(key, obj, overwrite=overwrite, metadata=metadata)
 
     def load_bytes(self, paths):
-        """
-        Gets objects from the datastore
-
-        Note that objects may be fetched in parallel so if order is important
-        for your consistency model, the caller is responsible for calling this
-        multiple times in the proper order.
-
-        Parameters
-        ----------
-        paths : List[string]
-            Paths to fetch
-
-        Returns
-        -------
-        CloseAfterUse :
-            A CloseAfterUse which should be used in a with statement. The data
-            in the CloseAfterUse will be an iterator over (key, path, metadata)
-            tuples. Path and metadata will be None if the key was missing.
-        """
         if len(paths) == 0:
             return CloseAfterUse(iter([]))
 

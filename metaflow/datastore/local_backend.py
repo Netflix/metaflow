@@ -55,21 +55,6 @@ class LocalBackend(DataStoreBackend):
                 raise
 
     def is_file(self, paths):
-        """
-        Returns True or False depending on whether each path refers to a valid
-        file-like object
-
-        This method returns False if path points to a directory
-
-        Parameters
-        ----------
-        path : List[string]
-            Paths to the object
-
-        Returns
-        -------
-        List[bool]
-        """
         results = []
         for path in paths:
             full_path = self.full_uri(path)
@@ -77,22 +62,6 @@ class LocalBackend(DataStoreBackend):
         return results
 
     def info_file(self, path):
-        """
-        Returns a tuple where the first element is True or False depending on
-        whether path refers to a valid file-like object (like is_file) and the
-        second element is a dictionary of metadata associated with the file or
-        None if the file does not exist or there is no metadata.
-
-        Parameters
-        ----------
-        path : string
-            Path to the object
-
-        Returns
-        -------
-        tuple
-            (bool, dict)
-        """
         file_exists = self.is_file([path])[0]
         if file_exists:
             full_meta_path = "%s_meta" % self.full_uri(path)
@@ -104,29 +73,6 @@ class LocalBackend(DataStoreBackend):
         return False, None
 
     def list_content(self, paths):
-        """
-        Lists the content of the datastore in the directory indicated by 'paths'.
-
-        This is similar to executing a 'ls'; it will only list the content one
-        level down and simply returns the paths to the elements present as well
-        as whether or not those elements are files (if not, they are further
-        directories that can be traversed)
-
-        The path returned always include the path passed in. As an example,
-        if your filesystem contains the files: A/b.txt A/c.txt and the directory
-        A/D, on return, you would get, for an input of ['A']:
-        [('A/b.txt', True), ('A/c.txt', True), ('A/D', False)]
-
-        Parameters
-        ----------
-        paths : List[string]
-            Directories to list
-
-        Returns
-        -------
-        List[list_content_result]
-            Content of the directory
-        """
         results = []
         for path in paths:
             if path == self.METADATA_DIR:
@@ -140,34 +86,6 @@ class LocalBackend(DataStoreBackend):
         return results
 
     def save_bytes(self, path_and_bytes_iter, overwrite=False, len_hint=0):
-        """
-        Creates objects and stores them in the datastore.
-
-        If overwrite is False, any existing object will not be overwritten and
-        will be silently ignored
-
-        The objects are specified in an iterator over (key, path) tuples where
-        the key is the path to store the object and the value is a file-like 
-        bject from which bytes can be read.
-
-        Parameters
-        ----------
-        path_and_bytes_iter : Iterator[(string, bytes)]
-            Iterator over objects to store; the first element in the tuple is
-            the actual data to store and the dictionary is additional metadata to
-            store. Keys for the metadata must be ascii only string and elements
-            can be anything that can be converted to a string using json.dumps.
-            If you have no metadata, you can simply pass a RawIOBase or
-            BufferedIOBase.
-        overwrite : bool
-            True if the objects can be overwritten. Defaults to False.
-        len_hint : integer
-            Estimated number of items produced by the iterator
-
-        Returns
-        -------
-        None
-        """
         for path, obj in path_and_bytes_iter:
             if isinstance(obj, tuple):
                 byte_obj, metadata = obj
@@ -184,33 +102,6 @@ class LocalBackend(DataStoreBackend):
                     json.dump(metadata, f)
 
     def load_bytes(self, paths):
-        """
-        Gets objects from the datastore
-
-        Note that objects may be fetched in parallel so if order is important
-        for your consistency model, the caller is responsible for calling this
-        multiple times in the proper order.
-
-        load_bytes should be used using a with statement:
-        with backend.load_bytes(paths) as results:
-            <do something>
-        The reason for this is that certain backends may need to clean up
-        temporary structures (for examples files used to download the bytes)
-        once done. You should not use anything emanating from `results` outside
-        of the with statement.
-
-        Parameters
-        ----------
-        paths : List[string]
-            Paths to fetch
-
-        Returns
-        -------
-        CloseAfterUse :
-            A CloseAfterUse which should be used in a with statement. The data
-            in the CloseAfterUse will be an iterator over (key, path, metadata)
-            tuples. Path and metadata will be None if the key was missing.
-        """
         def iter_results():
             for path in paths:
                 full_path = self.full_uri(path)

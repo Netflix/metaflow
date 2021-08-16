@@ -67,6 +67,8 @@ class ContentAddressedStore(object):
         blob_iter : Iterator over bytes objects to save
         raw : bool, optional
             Whether to save the bytes directly or process them, by default False
+        len_hint : Hint of the number of blobs that will be produced by the
+            iterator, by default 0
 
         Returns
         -------

@@ -218,7 +218,6 @@ class TaskDataStore(object):
 
         def pickle_iter():
             for name, obj in artifacts_iter:
-                original_type = str(type(obj))
                 do_v4 = force_v4 and \
                     force_v4 if isinstance(force_v4, bool) else \
                         force_v4.get(name, False)
@@ -243,7 +242,7 @@ class TaskDataStore(object):
                         blob = pickle.dumps(obj, protocol=4)
                 self._info[name] = {
                     'size': len(blob),
-                    'type': original_type,
+                    'type': str(type(obj)),
                     'encoding': encode_type
                 }
                 artifact_names.append(name)
@@ -547,7 +546,9 @@ class TaskDataStore(object):
             while valid_artifacts:
                 var, val = valid_artifacts.pop()
                 if not var.startswith('_') and var != 'name':
-                    # NOTE: Destructive mutation of the flow object
+                    # NOTE: Destructive mutation of the flow object. We keep
+                    # around artifacts called 'name' and anything starting with
+                    # '_' as they are used by the Metaflow runtime.
                     delattr(flow, var)
                 yield var, val
 
