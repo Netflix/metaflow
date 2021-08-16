@@ -27,10 +27,6 @@ class S3Backend(DataStoreBackend):
     def get_datastore_root_from_config(cls, echo, create_on_absent=True):
         return DATASTORE_SYSROOT_S3
 
-    @classmethod
-    def get_card_root_from_config(cls, echo, create_on_absent=True):
-        return DATASTORE_CARD_S3ROOT
-
     def is_file(self, path):
         """
         Returns True or False depending on whether path refers to a valid

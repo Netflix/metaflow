@@ -1,5 +1,6 @@
 import sys
 import types
+import importlib
 
 _expected_extensions = {
     'FLOW_DECORATORS': [],
@@ -10,8 +11,20 @@ _expected_extensions = {
     'LOGGING_SIDECARS': {},
     'MONITOR_SIDECARS': {},
     'AWS_CLIENT_PROVIDERS': [],
-    'get_plugin_cli': lambda : []
+    'get_plugin_cli': lambda : [],
+    'CARD_MODULES': []
 }
+
+
+# Code from https://packaging.python.org/guides/creating-and-discovering-plugins/#using-namespace-packages
+def iter_namespace(ns_pkg):
+    import pkgutil
+    # Specifying the second argument (prefix) to iter_modules makes the
+    # returned name an absolute name instead of a relative one. This allows
+    # import_module to work without having to do additional modification to
+    # the name.
+    return pkgutil.iter_modules(ns_pkg.__path__, ns_pkg.__name__ + ".")
+
 
 try:
     import metaflow_custom.plugins as _ext_plugins
@@ -77,7 +90,40 @@ else:
 
     _ext_plugins = _wrap(_ext_plugins)
 
-
+MF_CARDS_EXTERNAL_MODULES = []
+try: 
+    import metaflow_cards as _card_modules
+except ImportError as e:
+    ver = sys.version_info[0] * 10 + sys.version_info[1]
+    if ver >= 36:
+        # e.name is set to the name of the package that fails to load
+        # so don't error ONLY IF the error is importing this module (but do
+        # error if there is a transitive import error)
+        if not (isinstance(e, ModuleNotFoundError) and \
+                e.name == 'metaflow_cards'):
+            print(
+                "Cannot load metaflow_cards -- "
+                "if you want to ignore, uninstall metaflow_cards package")
+            raise
+else:
+    lazy_load_card_modules = {}
+    for finder, name, ispkg in iter_namespace(_card_modules):
+        card_module = importlib.import_module(name)
+        try:
+            # Register the rules here
+            # Inside metaflow_cards.custom_package.__init__ add 
+                # : from . import YourCustomCardModule as render
+            assert card_module.render is not None
+            lazy_load_card_modules[name] = card_module.render
+            # isinstance(action_package.render)
+            # todo : Find a way to check and register the CARDModule
+            # todo : check if the registrations are happening in a clean way
+            MF_CARDS_EXTERNAL_MODULES.append(card_module.render)
+            # 
+        except AttributeError as e:
+            print(
+                f"Ignoring import of module {name} since it lacks an associated render method."
+            )
 
 def get_plugin_cli():
     # it is important that CLIs are not imported when
@@ -156,6 +202,8 @@ FLOW_DECORATORS = _merge_lists([CondaFlowDecorator,
                                 ProjectDecorator],
                             _ext_plugins.FLOW_DECORATORS, 'name')
 
+# CARD_MODULES
+# CARD_MODULES = _merge_lists([],[_ext_plugins.CARD_MODULES]+MF_CARDS_EXTERNAL_MODULES,'name')
 
 # Sidecars
 from ..mflog.save_logs_periodically import SaveLogsPeriodicallySidecar

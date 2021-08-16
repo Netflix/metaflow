@@ -5,6 +5,7 @@ from ...datastore.task_datastore import \
     only_if_not_done,\
     require_mode
 
+CARD_DIRECTORY_NAME = 'mf.cards'
 class CardPathBuilder(object):
 
     @classmethod
@@ -41,14 +42,26 @@ class CardPathBuilder(object):
             from metaflow import get_namespace
             namespacename = get_namespace()
             if not namespacename:
-                return os.path.join(sysroot, flow_name,'cards',)
+                pth_arr = [sysroot,CARD_DIRECTORY_NAME,flow_name,'cards']
+                if sysroot == '':
+                    pth_arr.pop(0)
+                return os.path.join(*pth_arr)
             else:
+                pth_arr = [sysroot, CARD_DIRECTORY_NAME,flow_name,'cards',namespacename,'cards']
+                if sysroot == '':
+                    pth_arr.pop(0)
                 # cls.card_root/$flow_id/cards/$namespace/cards/$card_name-$hash.html
-                return os.path.join(sysroot, flow_name,'cards',namespacename,'cards')
+                return os.path.join(*pth_arr)
         elif task_id is None:
-            return os.path.join(sysroot, flow_name,'runs', run_id,'cards')
+            pth_arr = [sysroot, CARD_DIRECTORY_NAME,flow_name,'runs', run_id,'cards']
+            if sysroot == '':
+                pth_arr.pop(0)
+            return os.path.join(*pth_arr)
         else:
-            return os.path.join(sysroot, flow_name,'runs' ,run_id,'tasks', task_id,'cards')
+            pth_arr = [sysroot,CARD_DIRECTORY_NAME, flow_name,'runs' ,run_id,'tasks', task_id,'cards']
+            if sysroot == '':
+                pth_arr.pop(0)
+            return os.path.join(*pth_arr)
 
 
 class CardDatastore(object):
@@ -83,7 +96,7 @@ class CardDatastore(object):
             # for local and s3 datastore backend
         
         # todo: main root card path comes here
-        self._root_path = self._backend.get_card_root_from_config(None)
+        
         self._path_spec = path_spec
         self._is_done_set = False
     
@@ -97,14 +110,17 @@ class CardDatastore(object):
     @require_mode('w')
     def save_card(self,card_name,card_html, overwrite=False):
         card_path = CardPathBuilder.make_path(
-            self._root_path,
+            # Adding this to avoid errors with s3; 
+            # S3Backend has s3root set which requires a relative path 
+            # over an absolute path; Providing relative path for local datastore 
+            # also works similarly;
+            "",
             self._flow_name,
             run_id=self._run_id,
             task_id=self._task_id,
             pathspec=self._path_spec,
         )
         card_path = self.get_card_location(card_path,card_name,card_html)
-        
         self._backend.save_bytes(
             {card_path:BytesIO(bytes(card_html,'utf-8'),)},
             overwrite=overwrite

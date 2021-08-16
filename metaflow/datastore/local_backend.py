@@ -49,13 +49,7 @@ class LocalBackend(DataStoreBackend):
         else:
             result = os.path.join(result_dir, local_dir_name)
         return result
-        
-    @classmethod
-    def get_card_root_from_config(cls, echo, create_on_absent=True):
-        result = DATASTORE_CARD_LOCALROOT
-        return cls.get_root_dir_from_path(result,DATASTORE_CARDS_LOCAL_DIR,echo,\
-            create_on_absent=create_on_absent)
-
+    
     @staticmethod
     def _makedirs(path):
         try:

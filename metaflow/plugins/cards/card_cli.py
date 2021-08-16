@@ -36,7 +36,6 @@ def create(ctx, run_path_spec=None,card_type=None,metadata_path=None):
     task = Task(run_path_spec)
     from .renderer.basic import BasicRenderer
     rendered_info = BasicRenderer().render(task)
-    print(ctx.obj.__dict__)
     card_datastore = CardDatastore(ctx.obj.flow_datastore,\
                                 runid,\
                                 step_name,\

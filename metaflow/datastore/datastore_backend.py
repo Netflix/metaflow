@@ -96,10 +96,6 @@ class DataStoreBackend(object):
         return m.group('root')
 
     @classmethod
-    def get_card_root_from_config(cls, echo, create_on_absent=True):
-        raise NotImplementedError()
-
-    @classmethod
     def path_join(cls, *components):
         if len(components) == 0:
             return ''
