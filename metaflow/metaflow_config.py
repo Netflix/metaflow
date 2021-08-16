@@ -56,11 +56,13 @@ DEFAULT_AWS_CLIENT_PROVIDER = from_conf('METAFLOW_DEFAULT_AWS_CLIENT_PROVIDER', 
 ###
 # Path to the local directory to store artifacts for 'local' datastore.
 DATASTORE_LOCAL_DIR = '.metaflow'
+DATASTORE_CARDS_LOCAL_DIR = '.metaflow_cards'
 DATASTORE_SYSROOT_LOCAL = from_conf('METAFLOW_DATASTORE_SYSROOT_LOCAL')
 # S3 bucket and prefix to store artifacts for 's3' datastore.
 DATASTORE_SYSROOT_S3 = from_conf('METAFLOW_DATASTORE_SYSROOT_S3')
 # S3 datatools root location
 DATATOOLS_SUFFIX = from_conf('METAFLOW_DATATOOLS_SUFFIX', 'data')
+
 DATATOOLS_S3ROOT = from_conf(
     'METAFLOW_DATATOOLS_S3ROOT', 
         '%s/%s' % (from_conf('METAFLOW_DATASTORE_SYSROOT_S3'), DATATOOLS_SUFFIX)
@@ -69,6 +71,17 @@ DATATOOLS_S3ROOT = from_conf(
 DATATOOLS_LOCALROOT = from_conf(
     'METAFLOW_DATATOOLS_LOCALROOT',
         '%s/%s' % (from_conf('METAFLOW_DATASTORE_SYSROOT_LOCAL'), DATATOOLS_SUFFIX)
+            if from_conf('METAFLOW_DATASTORE_SYSROOT_LOCAL') else None)
+
+DATASTORE_CARD_SUFFIX = from_conf('METAFLOW_CARD_SUFFIX','cards')
+DATASTORE_CARD_S3ROOT = from_conf(
+    'METAFLOW_CARD_S3ROOT', 
+        '%s/%s' % (from_conf('METAFLOW_DATASTORE_SYSROOT_S3'), DATASTORE_CARD_SUFFIX)
+            if from_conf('METAFLOW_DATASTORE_SYSROOT_S3') else None)
+
+DATASTORE_CARD_LOCALROOT = from_conf(
+    'METAFLOW_CARD_LOCALROOT',
+        '%s' % DATASTORE_CARDS_LOCAL_DIR
             if from_conf('METAFLOW_DATASTORE_SYSROOT_LOCAL') else None)
 
 # S3 endpoint url 
@@ -110,6 +123,12 @@ BATCH_CONTAINER_REGISTRY = from_conf("METAFLOW_BATCH_CONTAINER_REGISTRY")
 # Metadata service URL for AWS Batch
 BATCH_METADATA_SERVICE_URL = from_conf('METAFLOW_SERVICE_INTERNAL_URL', METADATA_SERVICE_URL)
 BATCH_METADATA_SERVICE_HEADERS = METADATA_SERVICE_HEADERS
+
+# Assign resource tags to AWS Batch jobs. Set to False by default since
+# it requires `Batch:TagResource` permissions which may not be available
+# in all Metaflow deployments. Hopefully, some day we can flip the
+# default to True.
+BATCH_EMIT_TAGS = from_conf("METAFLOW_BATCH_EMIT_TAGS", False)
 
 ###
 # AWS Step Functions configuration
