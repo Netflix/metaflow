@@ -173,13 +173,16 @@ class FlowDataStore(object):
             mode=mode,
             allow_not_done=allow_not_done)
 
-    def save_data(self, data_iter):
+    def save_data(self, data_iter, len_hint=0):
         """Saves data to the underlying content-addressed store
 
         Parameters
         ----------
         data : Iterator[bytes]
             Iterator over blobs to save; each item in the list will be saved individually.
+        len_hint : int
+            Estimate of the number of items that will be produced by the iterator,
+            by default 0.
 
         Returns
         -------
@@ -188,7 +191,7 @@ class FlowDataStore(object):
             the key needed to retrieve it using load_data. This is returned in
             the same order as the input.
         """
-        save_results = self.ca_store.save_blobs(data_iter, raw=True)
+        save_results = self.ca_store.save_blobs(data_iter, raw=True, len_hint=len_hint)
         return [(r.uri, r.key) for r in save_results]
 
     def load_data(self, keys, force_raw=False):

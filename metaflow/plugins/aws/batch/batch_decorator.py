@@ -256,7 +256,8 @@ class BatchDecorator(StepDecorator):
     @classmethod
     def _save_package_once(cls, flow_datastore, package):
         if cls.package_url is None:
-            cls.package_url, cls.package_sha = flow_datastore.save_data([package.blob])[0]
+            cls.package_url, cls.package_sha = flow_datastore.save_data(
+                [package.blob], len_hint=1)[0]
 
     @classmethod
     def _get_registry(cls, image):

@@ -231,7 +231,8 @@ def make_flow(obj,
 
     obj.package = MetaflowPackage(
         obj.flow, obj.environment, obj.echo, obj.package_suffixes)
-    package_url, package_sha = flow_datastore.save_data([obj.package.blob])[0]
+    package_url, package_sha = flow_datastore.save_data(
+        [obj.package.blob], len_hint=1)[0]
 
     return StepFunctions(name,
                          obj.graph,
