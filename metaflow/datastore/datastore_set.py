@@ -33,7 +33,8 @@ class TaskDataStoreSet(object):
             
             # prefetch artifacts and share them with all datastores
             # in this DatastoreSet
-            cache = ImmutableBlobCache(flow_datastore.ca_store.load_blobs(prefetch))
+            preloaded = dict(flow_datastore.ca_store.load_blobs(prefetch))
+            cache = ImmutableBlobCache(preloaded)
             flow_datastore.ca_store.set_blob_cache(cache)
 
         self.pathspec_index_cache = {}
@@ -64,6 +65,6 @@ class ImmutableBlobCache(BlobCache):
     def load_key(self, key):
         return self._preloaded.get(key)
 
-    def store_keys(self, results):
+    def store_key(self, key, blob):
         # we cache only preloaded keys, so no need to store anything
         pass

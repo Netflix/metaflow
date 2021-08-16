@@ -107,9 +107,10 @@ class FileCache(object):
     def get_artifact(
             self, ds_type, ds_root, data_metadata, flow_name, run_id, step_name,
             task_id, name):
-        return self.get_artifacts(
+        _, obj = next(self.get_artifacts(
             ds_type, ds_root, data_metadata, flow_name, run_id, step_name,
-            task_id, [name])[name]
+            task_id, [name]))
+        return obj
 
     def get_all_artifacts(
             self, ds_type, ds_root, data_metadata, flow_name, run_id, step_name,
@@ -266,8 +267,7 @@ class FileBlobCache(BlobCache):
     def load_key(self, key):
         return self._filecache.read_file(self._path(key))
 
-    def store_keys(self, results):
-        for key, blob in results.items():
-            self._filecache.create_file(self._path(key), blob)
+    def store_key(self, key, blob):
+        self._filecache.create_file(self._path(key), blob)
 
 

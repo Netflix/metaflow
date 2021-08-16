@@ -236,6 +236,7 @@ def step(
     # this information is needed for log tailing
     ds = ctx.obj.flow_datastore.get_task_datastore(
         mode='w',
+        run_id=kwargs['run_id'],
         step_name=step_name,
         task_id=kwargs['task_id'],
         attempt=int(retry_count)
@@ -255,7 +256,7 @@ def step(
                 attempt=str(retry_count),
                 code_package_sha=code_package_sha,
                 code_package_url=code_package_url,
-                code_package_ds=ctx.obj.datastore.TYPE,
+                code_package_ds=ctx.obj.flow_datastore.TYPE,
                 image=image,
                 queue=queue,
                 iam_role=iam_role,
@@ -272,7 +273,6 @@ def step(
             )
     except Exception as e:
         print(e)
-
         task_datastore = FlowDataStore(
             ctx.obj.flow.name, ctx.obj.environment,
             ctx.obj.metadata, ctx.obj.event_logger, ctx.obj.monitor)\
