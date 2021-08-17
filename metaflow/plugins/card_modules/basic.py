@@ -5,7 +5,6 @@ class BasicCard(MetaflowCard):
     name='basic'
 
     def render(self, task):
-        datastore_info = task.data
         mustache = self._get_mustache()
         content_str = '\n'.join([
             f"<p>{key} : {value.data}</p>" 
