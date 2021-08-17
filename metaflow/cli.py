@@ -734,8 +734,6 @@ def version(obj):
               help='Data backend type')
 @click.option('--datastore-root',
               help='Root path for datastore')
-@click.option('--card-root',
-              help='Root path for datastore')
 @click.option('--package-suffixes',
               help='A comma-separated list of file suffixes to include '
                    'in the code package.',
@@ -772,7 +770,6 @@ def start(ctx,
           environment=None,
           datastore=None,
           datastore_root=None,
-          card_root=None,
           decospecs=None,
           package_suffixes=None,
           pylint=None,

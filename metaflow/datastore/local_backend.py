@@ -1,7 +1,7 @@
 import json
 import os
 
-from ..metaflow_config import DATASTORE_CARDS_LOCAL_DIR, DATASTORE_CARD_LOCALROOT, DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_LOCAL
+from ..metaflow_config import DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_LOCAL
 from .datastore_backend import CloseAfterUse, DataStoreBackend
 from .exceptions import DataException
 
