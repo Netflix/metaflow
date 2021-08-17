@@ -7,7 +7,7 @@ class BasicCard(MetaflowCard):
     def render(self, task):
         mustache = self._get_mustache()
         content_str = '\n'.join([
-            f"<p>{key} : {value.data}</p>" 
+            "<p>%s : %s</p>" % (key,value.data)
             for key,value in task.data._artifacts.items()
         ])
         TEMPLATE = f"""

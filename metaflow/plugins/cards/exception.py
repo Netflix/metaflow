@@ -6,7 +6,7 @@ class CardNotFoundException(MetaflowException):
     
     def __init__(self, card_name):
         exc = traceback.format_exc()
-        msg = f"Card named {card_name} not found. Check the `type` "\
-                "attribute in @card"
+        msg = "Card named %s not found. Check the `type` "\
+                "attribute in @card" % (card_name)
         super(CardNotFoundException, self).__init__(msg)
 
