@@ -12,7 +12,7 @@ _expected_extensions = {
     'MONITOR_SIDECARS': {},
     'AWS_CLIENT_PROVIDERS': [],
     'get_plugin_cli': lambda : [],
-    'CARD_MODULES': []
+    'CARDS': []
 }
 
 
@@ -113,16 +113,22 @@ else:
             # Register the rules here
             # Inside metaflow_cards.custom_package.__init__ add 
                 # : from . import YourCustomCardModule as render
-            assert card_module.render is not None
-            lazy_load_card_modules[name] = card_module.render
-            # isinstance(action_package.render)
-            # todo : Find a way to check and register the CARDModule
+            assert card_module.CARDS is not None
+            lazy_load_card_modules[name] = card_module.CARDS
+            assert isinstance(card_module.CARDS,list)
+            # todo: Check if types need to be validated; 
             # todo : check if the registrations are happening in a clean way
-            MF_CARDS_EXTERNAL_MODULES.append(card_module.render)
+            MF_CARDS_EXTERNAL_MODULES.extend(card_module.CARDS)
             # 
         except AttributeError as e:
             print(
-                f"Ignoring import of module {name} since it lacks an associated render method."
+                f"Ignoring import of module {name} since "
+                "it lacks an associated CARDS attribute."
+            )
+        except AssertionError as e:
+            print(
+                f"Ignoring import of module {name} since the CARDS attribute "
+                "is not a `list`."
             )
 
 def get_plugin_cli():
@@ -203,8 +209,9 @@ FLOW_DECORATORS = _merge_lists([CondaFlowDecorator,
                                 ProjectDecorator],
                             _ext_plugins.FLOW_DECORATORS, 'name')
 
-# CARD_MODULES
-# CARD_MODULES = _merge_lists([],[_ext_plugins.CARD_MODULES]+MF_CARDS_EXTERNAL_MODULES,'name')
+# Cards
+from .card_modules.basic import BasicCard
+CARDS = _merge_lists([BasicCard],MF_CARDS_EXTERNAL_MODULES,'name')
 
 # Sidecars
 from ..mflog.save_logs_periodically import SaveLogsPeriodicallySidecar

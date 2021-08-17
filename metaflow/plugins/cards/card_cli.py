@@ -1,5 +1,6 @@
 from metaflow.client import Task
-from metaflow.plugins.cards.card_datastore import CardDatastore
+from .card_datastore import CardDatastore
+from .exception import CardNotFoundException
 import click
 
 @click.group()
@@ -34,26 +35,21 @@ def create(ctx, run_path_spec=None,card_type=None,metadata_path=None):
     assert run_path_spec is not None
     flow_name,runid,step_name,task_id = run_path_spec.split('/')
     task = Task(run_path_spec)
-    from .renderer.basic import BasicRenderer
-    rendered_info = BasicRenderer().render(task)
+    from metaflow.plugins import CARDS
+
+    filtered_cards = [CardClass for CardClass in CARDS if CardClass.name == card_type]
+    if len(filtered_cards) == 0:
+        raise CardNotFoundException(card_type)
+    
     card_datastore = CardDatastore(ctx.obj.flow_datastore,\
                                 runid,\
                                 step_name,\
                                 task_id,\
                                 mode='w',\
                                 path_spec=run_path_spec)
-    # Save the copy of the Card in the `Datastore`
-    # :MetaflowDataStore 
+    
+    filtered_card = filtered_cards[0]
+    # save card to datastore
+    rendered_info = filtered_card().render(task)
     card_datastore.save_card(card_type,rendered_info)
-    # write_datastore = Datastore(
-    #     flow_name,
-    #     run_id = runid,
-    #     step_name = step_name,
-    #     task_id = task_id,
-    #     mode='w'
-    # )
-    # # todo : Create a new function in the datastore to store cards
-    # # todo : move mustache From remote dependency to in-MF dep;
-    # write_datastore.save_card(
-    #     card_type,rendered_info
-    # )
+    

@@ -95,7 +95,7 @@ class CardDatastore(object):
             # Figure if the path should follow the same pattern 
             # for local and s3 datastore backend
         
-        # todo: main root card path comes here
+        # todo: Check if main root is needed;
         
         self._path_spec = path_spec
         self._is_done_set = False
@@ -122,7 +122,7 @@ class CardDatastore(object):
         )
         card_path = self.get_card_location(card_path,card_name,card_html)
         self._backend.save_bytes(
-            {card_path:BytesIO(bytes(card_html,'utf-8'),)},
+            [(card_path,BytesIO(bytes(card_html,'utf-8')))],
             overwrite=overwrite
         )
         pass

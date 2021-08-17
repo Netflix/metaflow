@@ -1,13 +1,16 @@
-from . import Renderer
+from .card import MetaflowCard
 
-class BasicRenderer(Renderer):
+class BasicCard(MetaflowCard):
 
-    TYPE='basic'
+    name='basic'
 
     def render(self, task):
         datastore_info = task.data
         mustache = self._get_mustache()
-        content_str = '\n'.join([f"<p>{key} : {value.data}</p>" for key,value in task.data._artifacts.items()])
+        content_str = '\n'.join([
+            f"<p>{key} : {value.data}</p>" 
+            for key,value in task.data._artifacts.items()
+        ])
         TEMPLATE = f"""
         <html>
         <head>
