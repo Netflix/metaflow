@@ -162,7 +162,7 @@ def worker(result_file_name, queue, mode):
                             result_file.write("%d %d\n" % (idx, -ERROR_URL_NOT_FOUND))
                             continue
                         elif error_code == 403:
-                            result_file.write("%d %d\n", (idx, -ERROR_URL_ACCESS_DENIED))
+                            result_file.write("%d %d\n" % (idx, -ERROR_URL_ACCESS_DENIED))
                             continue
                         else:
                             raise
