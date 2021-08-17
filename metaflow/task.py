@@ -350,6 +350,10 @@ class MetaflowTask(object):
             self.flow._success = False
             self.flow._task_ok = None
             self.flow._exception = None
+            # Note: All internal flow attributes (ie: non-user artifacts)
+            # should either be set prior to running the user code or listed in
+            # FlowSpec._EPHEMERAL to allow for proper merging/importing of
+            # user artifacts in the user's step code.
 
             if join_type:
                 # Join step:
@@ -400,7 +404,7 @@ class MetaflowTask(object):
             for deco in decorators:
 
                 deco.task_pre_step(step_name,
-                                   self.flow._datastore,
+                                   output,
                                    self.metadata,
                                    run_id,
                                    task_id,

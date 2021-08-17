@@ -58,7 +58,7 @@ class DataStoreBackend(object):
     def get_datastore_root_from_location(cls, path, flow_name):
         """Extracts the datastore_root location from a path using
         a content-addressed store.
-        
+
         NOTE: This leaks some detail of the content-addressed store so not ideal
 
         This method will raise an exception if the flow_name is not as expected
@@ -118,7 +118,7 @@ class DataStoreBackend(object):
     def full_uri(self, path):
         return self.path_join(self.datastore_root, path)
 
-    def is_file(self, path):
+    def is_file(self, paths):
         """
         Returns True or False depending on whether path refers to a valid
         file-like object
@@ -127,12 +127,12 @@ class DataStoreBackend(object):
 
         Parameters
         ----------
-        path : string
+        path : List[string]
             Path to the object
 
         Returns
         -------
-        bool
+        List[bool]
         """
         raise NotImplementedError
 
@@ -181,27 +181,34 @@ class DataStoreBackend(object):
         """
         raise NotImplementedError
 
-    def save_bytes(self, path_and_bytes, overwrite=False):
+    def save_bytes(self, path_and_bytes_iter, overwrite=False, len_hint=0):
         """
         Creates objects and stores them in the datastore.
 
         If overwrite is False, any existing object will not be overwritten and
         an error will be returned.
 
-        The objects are specified in the objects dictionary where the key is the
-        path to store the object and the value is a file-like object from which
-        bytes can be read.
+        The objects are specified in an iterator over (path, obj) tuples where
+        the path is the path to store the object and the value is a file-like
+        object from which bytes can be read.
 
         Parameters
         ----------
-        path_and_bytes : Dict: string -> (RawIOBase or BufferedIOBase, dict)
-            Objects to store; the first element in the tuple is the actual data
-            to store and the dictionary is additional metadata to store. Keys
-            for the metadata must be ascii only string and elements can be
-            anything that can be converted to a string using json.dumps. If you
-            have no metadata, you can simply pass a RawIOBase or BufferedIOBase.
+        path_and_bytes_iter : Iterator[(string, (RawIOBase|BufferedIOBase, metadata))]
+            Iterator over objects to store; the first element in the outermost
+            tuple is the path to store the bytes at. The second element in the
+            outermost tuple is either a RawIOBase or BufferedIOBase or a tuple
+            where the first element is a RawIOBase or BufferedIOBase and the
+            second element is a dictionary of metadata to associate with the
+            object.
+            Keys for the metadata must be ascii only string and elements
+            can be anything that can be converted to a string using json.dumps.
+            If you have no metadata, you can simply pass a RawIOBase or
+            BufferedIOBase.
         overwrite : bool
             True if the objects can be overwritten. Defaults to False.
+        len_hint : int
+            Estimated number of items produced by the iterator
 
         Returns
         -------
@@ -226,12 +233,12 @@ class DataStoreBackend(object):
         -------
         CloseAfterUse :
             A CloseAfterUse which should be used in a with statement. The data
-            in the CloseAfterUse will be a dictionary string -> (path, dict).
-            The key is the path fetched and the value is a tuple containing:
-              - a path indicating the file that needs to be read to get the object.
-                This path may not be valid outside of the CloseAfterUse scope
-              - a dictionary containing any additional metadata that was stored
-              or None if no metadata was provided.
-            If the path could not be loaded, returns None for that path
+            in the CloseAfterUse will be an iterator over (key, path, metadata)
+            tuples. Path and metadata will be None if the key was missing.
+            Metadata will be None if no metadata is present; otherwise it is
+            a dictionary of metadata associated with the object.
+
+            Note that the file at `path` may no longer be accessible outside of
+            the scope of the returned object.
         """
         raise NotImplementedError

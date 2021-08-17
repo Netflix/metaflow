@@ -30,7 +30,7 @@ def sync_local_metadata_to_datastore(task_ds):
         # save it as raw data in the flow datastore and save a pointer
         # to it as metadata for the task
         with open(tar_file_path, 'rb') as f:
-            _, key = task_ds.parent_datastore.save_data([f])[0]
+            _, key = task_ds.parent_datastore.save_data([f], len_hint=1)[0]
         task_ds.save_metadata({'local_metadata': key})
 
 
@@ -44,8 +44,7 @@ def sync_local_metadata_from_datastore(metadata, task_datastore):
         pass
     key_to_load = task_datastore.load_metadata(
         ['local_metadata'])['local_metadata']
-    tarball = task_datastore.parent_datastore.load_data(
-        [key_to_load])[0]
+    _, tarball = next(task_datastore.parent_datastore.load_data([key_to_load]))
     with util.TempDir() as td:
         with tarfile.open(fileobj=BytesIO(tarball), mode='r:gz') as tar:
             tar.extractall(td)
