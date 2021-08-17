@@ -10,13 +10,13 @@ class BasicCard(MetaflowCard):
             "<p>%s : %s</p>" % (key,value.data)
             for key,value in task.data._artifacts.items()
         ])
-        TEMPLATE = f"""
+        TEMPLATE = """
         <html>
         <head>
         </head>
         <body>
-        {content_str}
+        %s
         </body>
         </html>
-        """
+        """ % (content_str)
         return mustache.render(TEMPLATE)
