@@ -78,7 +78,7 @@ class CardDatastore(object):
                  data_metadata=None,
                  mode='r',
                  path_spec = None,
-                 allow_not_done=False) -> None:
+                 allow_not_done=False):
         self._backend = flow_datastore._backend
         self._flow_name = flow_datastore.flow_name
         self.TYPE = self._backend.TYPE
