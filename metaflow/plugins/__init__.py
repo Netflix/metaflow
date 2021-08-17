@@ -123,12 +123,12 @@ else:
             # 
         except AttributeError as e:
             print(
-                f"Ignoring import of module {name} since "
+                f"Ignoring import of module {name} since "\
                 "it lacks an associated CARDS attribute."
             )
         except AssertionError as e:
             print(
-                f"Ignoring import of module {name} since the CARDS attribute "
+                f"Ignoring import of module {name} since the CARDS attribute "\
                 "is not a `list`."
             )
 
