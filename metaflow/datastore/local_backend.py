@@ -12,19 +12,13 @@ class LocalBackend(DataStoreBackend):
     @classmethod
     def get_datastore_root_from_config(cls, echo, create_on_absent=True):
         result = DATASTORE_SYSROOT_LOCAL
-        return cls.get_root_dir_from_path(result,DATASTORE_LOCAL_DIR,echo,create_on_absent=create_on_absent)
-
-    @classmethod
-    def get_root_dir_from_path(cls,result_dir,local_dir_name,echo, create_on_absent=True):
-        # Todo: find a better function name
-        result= None
-        if result_dir is None:
+        if result is None:
             try:
                 # Python2
                 current_path = os.getcwdu()
             except: # noqa E722
                 current_path = os.getcwd()
-            check_dir = os.path.join(current_path, local_dir_name)
+            check_dir = os.path.join(current_path, DATASTORE_LOCAL_DIR)
             check_dir = os.path.realpath(check_dir)
             orig_path = check_dir
             top_level_reached = False
@@ -34,7 +28,7 @@ class LocalBackend(DataStoreBackend):
                     top_level_reached = True
                     break  # We are no longer making upward progress
                 current_path = new_path
-                check_dir = os.path.join(current_path, local_dir_name)
+                check_dir = os.path.join(current_path, DATASTORE_LOCAL_DIR)
             if top_level_reached:
                 if create_on_absent:
                     # Could not find any directory to use so create a new one
@@ -47,7 +41,7 @@ class LocalBackend(DataStoreBackend):
             else:
                 result = check_dir
         else:
-            result = os.path.join(result_dir, local_dir_name)
+            result = os.path.join(result, DATASTORE_LOCAL_DIR)
         return result
     
     @staticmethod

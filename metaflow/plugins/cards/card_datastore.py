@@ -31,8 +31,10 @@ class CardPathBuilder(object):
                   pathspec=None):
         if sysroot is None:
             return None
+
         if pathspec is not None:
             flow_name,run_id,step_name,task_id = cls.path_spec_resolver(pathspec)
+
         if flow_name is None:
             return sysroot
         elif run_id is None:
@@ -43,25 +45,16 @@ class CardPathBuilder(object):
             namespacename = get_namespace()
             if not namespacename:
                 pth_arr = [sysroot,CARD_DIRECTORY_NAME,flow_name,'cards']
-                if sysroot == '':
-                    pth_arr.pop(0)
-                return os.path.join(*pth_arr)
             else:
                 pth_arr = [sysroot, CARD_DIRECTORY_NAME,flow_name,'cards',namespacename,'cards']
-                if sysroot == '':
-                    pth_arr.pop(0)
-                # cls.card_root/$flow_id/cards/$namespace/cards/$card_name-$hash.html
-                return os.path.join(*pth_arr)
         elif task_id is None:
             pth_arr = [sysroot, CARD_DIRECTORY_NAME,flow_name,'runs', run_id,'cards']
-            if sysroot == '':
-                pth_arr.pop(0)
-            return os.path.join(*pth_arr)
         else:
             pth_arr = [sysroot,CARD_DIRECTORY_NAME, flow_name,'runs' ,run_id,'tasks', task_id,'cards']
-            if sysroot == '':
-                pth_arr.pop(0)
-            return os.path.join(*pth_arr)
+        
+        if sysroot == '':
+            pth_arr.pop(0)
+        return os.path.join(*pth_arr)
 
 
 class CardDatastore(object):
@@ -85,17 +78,16 @@ class CardDatastore(object):
         self._step_name = step_name
         self._task_id = task_id
         self._mode = mode
+        self._path_spec = path_spec
+        self._is_done_set = False
+        # Todo : Do we need attempt here;
+        # As cards are rendered best effort attempt may not be 
+        # super useful
         self._attempt = attempt
-        self._parent = flow_datastore
         # TODO : 
             # Figure if the path should follow the same pattern 
             # for local and s3 datastore backend
-        
-        # todo: Check if main root is needed;
-        
-        self._path_spec = path_spec
-        self._is_done_set = False
-    
+        # todo: Check if main root is needed; 
     
     @classmethod
     def get_card_location(cls,base_path,card_name,card_html):
