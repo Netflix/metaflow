@@ -90,6 +90,7 @@ else:
 
     _ext_plugins = _wrap(_ext_plugins)
 
+# Loading modules related to Metaflow Cards here
 MF_CARDS_EXTERNAL_MODULES = []
 try: 
     import metaflow_cards as _card_modules

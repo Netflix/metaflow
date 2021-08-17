@@ -83,8 +83,8 @@ class MetaflowPackage(object):
                     exclude_hidden=False,
                     addl_suffixes=self.metaflow_custom_addl_suffixes):
                 yield path_tuple
-        
-        if self.metaflow_cards_addl_suffixes:
+        # Metaflow cards if any
+        if self.metaflow_cards_root:
             for path_tuple in self._walk(
                     self.metaflow_cards_root,
                     exclude_hidden=False,
