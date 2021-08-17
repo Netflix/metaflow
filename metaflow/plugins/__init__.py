@@ -123,13 +123,13 @@ else:
             # 
         except AttributeError as e:
             print(
-                f"Ignoring import of module {name} since "\
-                "it lacks an associated CARDS attribute."
+                "Ignoring import of module %s since "\
+                "it lacks an associated CARDS attribute." % (name)
             )
         except AssertionError as e:
             print(
-                f"Ignoring import of module {name} since the CARDS attribute "\
-                "is not a `list`."
+                "Ignoring import of module %s since the CARDS attribute "\
+                "is not a `list`." % (name)
             )
 
 def get_plugin_cli():
