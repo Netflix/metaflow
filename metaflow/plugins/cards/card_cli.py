@@ -52,4 +52,4 @@ def create(ctx, run_path_spec=None,card_type=None,metadata_path=None):
     # save card to datastore
     rendered_info = filtered_card().render(task)
     card_datastore.save_card(card_type,rendered_info)
-    
+    card_datastore.done()
