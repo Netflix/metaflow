@@ -31,7 +31,6 @@ class MetaflowPackage(object):
                 None)
 
         self.custom_package_paths = [] 
-        # Metaflow card import
         self.flow_name = flow.name
         self.create_time = time.time()
         environment.init_environment(echo)
