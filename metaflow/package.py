@@ -40,9 +40,10 @@ class MetaflowPackage(object):
                 deco.package_init(flow,
                                   step.__name__,
                                   environment)
-            for deco in step.decorators:
+                # Add custom package paths for decorators
                 for path_tuple in deco.add_to_package(self._walk):
-                    self.custom_package_paths.append(path_tuple)
+                   self.custom_package_paths.append(path_tuple)
+
         self.blob = self._make()
 
     def _walk(self, root, exclude_hidden=True, addl_suffixes=None):
