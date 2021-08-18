@@ -36,7 +36,8 @@ else:
         try:
             # Register the rules here
             # Inside metaflow_cards.custom_package.__init__ add 
-                # : from . import YourCustomCardModule as render
+                # from .some_card_module import SomeCard 
+                # CARDS = [SomeCard]
             assert card_module.CARDS is not None
             lazy_load_card_modules[name] = card_module.CARDS
             assert isinstance(card_module.CARDS,list)
