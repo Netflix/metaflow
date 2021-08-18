@@ -1,6 +1,5 @@
 import sys
 import types
-import importlib
 
 _expected_extensions = {
     'FLOW_DECORATORS': [],

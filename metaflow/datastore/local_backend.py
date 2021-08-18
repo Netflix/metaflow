@@ -43,7 +43,7 @@ class LocalBackend(DataStoreBackend):
         else:
             result = os.path.join(result, DATASTORE_LOCAL_DIR)
         return result
-    
+
     @staticmethod
     def _makedirs(path):
         try:
