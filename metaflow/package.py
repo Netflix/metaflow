@@ -29,16 +29,9 @@ class MetaflowPackage(object):
                 metaflow_custom,
                 'METAFLOW_CUSTOM_PACKAGE_SUFFIXES',
                 None)
-        
-        # Metaflow card import
-        try:
-            import metaflow_cards
-        except ImportError:
-            self.metaflow_cards_root = None
-        else:
-            self.metaflow_cards_root = os.path.dirname(metaflow_cards.__file__)
-            self.metaflow_cards_addl_suffixes = ['.js','.css','.html']
 
+        self.custom_package_paths = [] 
+        # Metaflow card import
         self.flow_name = flow.name
         self.create_time = time.time()
         environment.init_environment(echo)
@@ -47,6 +40,9 @@ class MetaflowPackage(object):
                 deco.package_init(flow,
                                   step.__name__,
                                   environment)
+            for deco in step.decorators:
+                for path_tuple in deco.add_to_package(self._walk):
+                    self.custom_package_paths.append(path_tuple)
         self.blob = self._make()
 
     def _walk(self, root, exclude_hidden=True, addl_suffixes=None):
@@ -83,13 +79,10 @@ class MetaflowPackage(object):
                     exclude_hidden=False,
                     addl_suffixes=self.metaflow_custom_addl_suffixes):
                 yield path_tuple
-        # Metaflow cards if any
-        if self.metaflow_cards_root:
-            for path_tuple in self._walk(
-                    self.metaflow_cards_root,
-                    exclude_hidden=False,
-                    addl_suffixes=self.metaflow_cards_addl_suffixes):
-                yield path_tuple
+             
+        # Any custom packages exposed via decorators
+        for path_tuple in self.custom_package_paths:
+            yield path_tuple
 
         # the package folders for environment
         for path_tuple in self.environment.add_to_package():

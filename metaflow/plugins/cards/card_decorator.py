@@ -21,6 +21,25 @@ class CardDecorator(StepDecorator):
         self._environment = None
         self._metadata= None
     
+    def add_to_package(self,package_finder):
+        return list(self._load_card_package(package_finder))
+
+    def _load_card_package(self,package_finder):
+        try:
+            import metaflow_cards
+        except ImportError:
+            metaflow_cards_root = None
+        else:
+            metaflow_cards_root = os.path.dirname(metaflow_cards.__file__)
+            metaflow_cards_addl_suffixes = ['.js','.css','.html']
+        # Metaflow cards if any
+        if metaflow_cards_root:
+            for path_tuple in package_finder(
+                    metaflow_cards_root,
+                    exclude_hidden=False,
+                    addl_suffixes=metaflow_cards_addl_suffixes):
+                yield path_tuple
+    
     def step_init(self, flow, graph, step_name, decorators, environment, flow_datastore, logger):
         self._flow_datastore = flow_datastore
         self._environment = environment
@@ -90,7 +109,6 @@ class CardDecorator(StepDecorator):
             get_metadata()
         ]
         response,fail = self._run_command(cmd,os.environ)
-        # print( response)
         if fail:
             # todo : Handle failure scenarios better. 
             print("Process Failed",response.decode('utf-8'))

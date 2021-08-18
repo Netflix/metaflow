@@ -214,6 +214,13 @@ class StepDecorator(Decorator):
         Called to determine package components
         """
         pass
+    
+    def add_to_package(self,package_finder):
+        """
+        Called to add custom packages needed for decorator
+        package_finder:  MetaflowPackage._walk 
+        """
+        return []
 
     def step_task_retry_count(self):
         """
