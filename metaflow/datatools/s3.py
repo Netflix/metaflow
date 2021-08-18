@@ -9,6 +9,7 @@ from io import RawIOBase, BytesIO, BufferedIOBase
 from itertools import chain, starmap
 from tempfile import mkdtemp, NamedTemporaryFile
 
+from . import read_in_chunks
 from .. import FlowSpec
 from ..current import current
 from ..metaflow_config import DATATOOLS_S3ROOT
@@ -597,20 +598,8 @@ class S3(object):
                 # multipart_threshold)
                 s3.download_file(src.netloc, src.path.lstrip('/'), tmp)
             else:
-                # We read at most 2GB at a time because of
-                # https://bugs.python.org/issue42853.
-                # We will be in that case only if we have a ranged query that
-                # is more than 2 GB so quite rare. In all other cases, we use
-                # this to read at most multipart_threshold bytes anyways so
-                # the 2 GB limit will have no impact.
-                # NOTE: For some weird reason, if you pass a large value to
-                # read, it delays the call so we always pass it either what
-                # remains or 2GB, whichever is smallest.
                 with open(tmp, mode='wb') as t:
-                    remaining = sz
-                    while remaining > 0:
-                        remaining -= t.write(resp['Body'].read(
-                            min(remaining, DOWNLOAD_MAX_CHUNK)))
+                    read_in_chunks(t, resp['Body'], sz, DOWNLOAD_MAX_CHUNK)
             if return_info:
                 return {
                     'content_type': resp['ContentType'],

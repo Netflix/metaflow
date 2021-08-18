@@ -28,10 +28,12 @@ import click
 # PYTHONPATH for the parent Metaflow explicitly.
 sys.path.insert(0,\
     os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+
 # we use Metaflow's parallel_imap_unordered instead of
 # multiprocessing.Pool because https://bugs.python.org/issue31886
 from metaflow.util import TempDir, url_quote, url_unquote
 from metaflow.multicore_utils import parallel_map
+from metaflow.datatools import read_in_chunks
 from metaflow.datatools.s3util import aws_retry
 
 NUM_WORKERS_DEFAULT = 64
@@ -149,19 +151,7 @@ def worker(result_file_name, queue, mode):
                             # multipart_threshold)
                             s3.download_file(url.bucket, url.path, tmp.name)
                         else:
-                            # We read at most 2GB at a time because of
-                            # https://bugs.python.org/issue42853.
-                            # We will be in that case only if we have a ranged query that
-                            # is more than 2 GB so quite rare. In all other cases, we use
-                            # this to read at most multipart_threshold bytes anyways so
-                            # the 2 GB limit will have no impact.
-                            # NOTE: For some weird reason, if you pass a large value to
-                            # read, it delays the call so we always pass it either what
-                            # remains or 2GB, whichever is smallest.
-                            remaining = sz
-                            while remaining > 0:
-                                remaining -= tmp.write(resp['Body'].read(
-                                    min(remaining, DOWNLOAD_MAX_CHUNK)))
+                            read_in_chunks(tmp, resp['Body'], sz, DOWNLOAD_MAX_CHUNK)
                         tmp.close()
                         os.rename(tmp.name, url.local)
                     except client_error as err:
@@ -172,7 +162,7 @@ def worker(result_file_name, queue, mode):
                             result_file.write("%d %d\n" % (idx, -ERROR_URL_NOT_FOUND))
                             continue
                         elif error_code == 403:
-                            result_file.write("%d %d\n", (idx, -ERROR_URL_ACCESS_DENIED))
+                            result_file.write("%d %d\n" % (idx, -ERROR_URL_ACCESS_DENIED))
                             continue
                         else:
                             raise
