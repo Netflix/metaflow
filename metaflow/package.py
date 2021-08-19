@@ -31,6 +31,7 @@ class MetaflowPackage(object):
                 None)
 
         self.flow_name = flow.name
+        self._flow = flow
         self.create_time = time.time()
         environment.init_environment(echo)
         for step in flow:
@@ -38,6 +39,7 @@ class MetaflowPackage(object):
                 deco.package_init(flow,
                                   step.__name__,
                                   environment)
+
         self.blob = self._make()
 
     def _walk(self, root, exclude_hidden=True, addl_suffixes=None):
@@ -74,6 +76,19 @@ class MetaflowPackage(object):
                     exclude_hidden=False,
                     addl_suffixes=self.metaflow_custom_addl_suffixes):
                 yield path_tuple
+             
+        # Any custom packages exposed via decorators
+        deco_module_paths = set()
+        for step in self._flow:
+            for deco in step.decorators:
+                for path_tuple in deco.add_to_package():
+                    file_path,_ = path_tuple
+                    # Check if the path is not duplicated as
+                    # many steps can have the same card
+                    if file_path not in deco_module_paths:
+                        deco_module_paths.add(file_path)
+                        yield path_tuple            
+        
         # the package folders for environment
         for path_tuple in self.environment.add_to_package():
             yield path_tuple
