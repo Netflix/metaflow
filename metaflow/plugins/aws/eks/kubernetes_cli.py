@@ -176,7 +176,9 @@ def step(
                 env=env,
             )
     except Exception as e:
-        traceback.print_exc()
+        # TODO: Make sure all errors pretty print nicely.
+        # traceback.print_exc()
+        print(str(e))
         sync_metadata_from_S3(ctx.obj.metadata, datastore_root, retry_count)
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
     try:

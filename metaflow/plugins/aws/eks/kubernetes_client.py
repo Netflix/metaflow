@@ -72,18 +72,39 @@ class KubernetesJob(object):
                 )
             )
 
+        # TODO(s)
+        # 1. Find a way to ensure that a pod is cleanly terminated automatically
+        #    if the container fails to start properly (invalid docker image
+        #    etc.)
+
+        # A discerning eye would notice and question the choice of using the
+        # V1Job construct over the V1Pod construct given that we don't rely on
+        # any of the V1Job semantics. The only reasons at the moment are -
+        #     1. It makes the Kubernetes UIs (Octant, Lens) a bit more easy on
+        #        the eyes, although even that can be questioned.
+        #     2. AWS Step Functions, at the moment (Aug' 21) only supports
+        #        executing Jobs and not Pods as part of it's publicly declared
+        #        API. When we ship the AWS Step Functions integration with EKS,
+        #        it will hopefully lessen our workload.
+        #
+        # The current implementation assumes that there is only one unique Pod
+        # (unique UID) per Metaflow task attempt.
         self._job = self._client.V1Job(
             api_version="batch/v1",
             kind="Job",
             metadata=self._client.V1ObjectMeta(
                 # Annotations are for humans
                 annotations=self._kwargs.get("annotations", {}),
-                # While labels are for kubernetes
+                # While labels are for Kubernetes
                 labels=self._kwargs.get("labels", {}),
                 name=self._kwargs["name"],  # Unique within the namespace
                 namespace=self._kwargs["namespace"],  # Defaults to `default`
             ),
             spec=self._client.V1JobSpec(
+                # Retries are handled by Metaflow when it is responsible for
+                # executing the flow. The responsibility is moved to Kubernetes
+                # when AWS Step Functions / Argo are responsible for the
+                # execution.
                 backoff_limit=self._kwargs.get("retries", 0),
                 ttl_seconds_after_finished=0,  # Delete the job immediately
                 template=self._client.V1PodTemplateSpec(
@@ -94,7 +115,7 @@ class KubernetesJob(object):
                         namespace=self._kwargs["namespace"],
                     ),
                     spec=self._client.V1PodSpec(
-                        # Timeout is set on the pod
+                        # Timeout is set on the pod and not the job (important!)
                         active_deadline_seconds=self._kwargs[
                             "timeout_in_seconds"
                         ],
@@ -112,7 +133,8 @@ class KubernetesJob(object):
                                 # And some downward API magic. Add (key, value)
                                 # pairs below to make pod metadata available
                                 # within Kubernetes container.
-                                # TODO: Figure out a way to make container
+                                #
+                                # TODO: Figure out a way to make job
                                 # metadata visible within the container
                                 + [
                                     self._client.V1EnvVar(
@@ -142,6 +164,7 @@ class KubernetesJob(object):
                         ],
                         # image_pull_secrets=?,
                         # preemption_policy=?,
+                        #
                         # A Container in a Pod may fail for a number of
                         # reasons, such as because the process in it exited
                         # with a non-zero exit code, or the Container was
@@ -221,16 +244,18 @@ class KubernetesJob(object):
 
 class RunningJob(object):
 
-    # TODO: Handle V1JobConditions in V1JobStatus properly
+    # StateMachine implementation for the lifecycle behavior documented in
+    # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
 
     def __init__(self, client, name, namespace):
         self._client = client
         self._name = name
         self._namespace = namespace
 
-        data = self._update()
-        self._status = data["status"]
-        self._id = data["metadata"]["uid"]
+        self._pod = None
+
+        self.update()
+        self._id = self._pod["metadata"]["labels"]["controller-uid"]
 
     def __repr__(self):
         return "{}('{}/{}')".format(
@@ -240,19 +265,20 @@ class RunningJob(object):
     def _update(self):
         try:
             return (
-                self._client.BatchV1Api()
-                .read_namespaced_job_status(
-                    name=self._name, namespace=self._namespace
+                self._client.CoreV1Api()
+                .list_namespaced_pod(
+                    namespace=self._namespace,
+                    label_selector="job-name={}".format(self._name),
                 )
-                .to_dict()
+                .to_dict()["items"][0]
             )
         except self._client.rest.ApiException as e:
             # TODO: Handle failures
             raise e
 
     def update(self):
-        self._status = self._update()["status"]
-        print(self._status)
+        self._pod = self._update()
+        # print(self._pod["status"])
         return self
 
     @property
@@ -261,43 +287,43 @@ class RunningJob(object):
 
     @property
     def is_done(self):
-        if (self._status.get("failed") or 0) + (
-            self._status.get("succeeded") or 0
-        ) != 1:
-            # If not done yet, reload the state and check again.
+        def _done():
+            return self._pod["status"]["phase"] in ("Succeeded", "Failed")
+
+        if not _done():
+            # if not done, check for newer status
             self.update()
-            return (self._status.get("failed") or 0) + (
-                self._status.get("succeeded") or 0
-            ) == 1
-        else:
-            return True
+        return _done()
 
     @property
     def status(self):
-        if self.is_running:
-            return "RUNNING"
-        if self.has_failed:
-            return "FAILED"
-        if self.has_succeeded:
-            return "SUCCEEDED"
-        # TODO: Is the state ever UNKNOWN?
-        return "UNKNOWN"
+        if not self.is_done:
+            # if not done, check for newer status (see the implementation of
+            # self.is_done)
+            pass
+        return self._pod["status"]["phase"]
 
     @property
-    def is_running(self):
-        return not self.is_done and ((self._status.get("active") or 0) > 0)
+    def has_succeeded(self):
+        return self.status == "Succeeded"
 
     @property
     def has_failed(self):
-        return self.is_done and ((self._status.get("failed") or 0) > 0)
+        return self.status == "Failed"
+
+    @property
+    def is_running(self):
+        return self.status == "Running"
+
+    @property
+    def container_status(self):
+        return (
+            self._pod["status"].get("container_statuses", [{}])[0].get("state")
+        )
 
     @property
     def reason(self):
         return "foo"
-
-    @property
-    def has_succeeded(self):
-        return self.is_done and ((self._status.get("succeeded") or 0) > 0)
 
     @property
     def status_code(self):

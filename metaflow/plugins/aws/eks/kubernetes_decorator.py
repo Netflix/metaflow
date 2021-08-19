@@ -204,6 +204,7 @@ class KubernetesDecorator(StepDecorator):
 
         if "METAFLOW_KUBERNETES_WORKLOAD" in os.environ:
             meta = {}
+            # TODO: Get kubernetes job id and job name
             meta["kubernetes-pod-id"] = os.environ["METAFLOW_KUBERNETES_POD_ID"]
             meta["kubernetes-pod-name"] = os.environ[
                 "METAFLOW_KUBERNETES_POD_NAME"
