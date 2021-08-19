@@ -21,25 +21,40 @@ class CardDecorator(StepDecorator):
         self._environment = None
         self._metadata= None
     
-    def add_to_package(self,package_finder):
-        return list(self._load_card_package(package_finder))
+    def add_to_package(self):
+        return list(self._load_card_package())
 
-    def _load_card_package(self,package_finder):
+    def _load_card_package(self):
         try:
             import metaflow_cards
         except ImportError:
             metaflow_cards_root = None
         else:
             metaflow_cards_root = os.path.dirname(metaflow_cards.__file__)
-            metaflow_cards_addl_suffixes = ['.js','.css','.html']
-        # Metaflow cards if any
+        
         if metaflow_cards_root:
-            for path_tuple in package_finder(
-                    metaflow_cards_root,
-                    exclude_hidden=False,
-                    addl_suffixes=metaflow_cards_addl_suffixes):
+            # What if a file is too large and 
+            # gets tagged along the metaflow_cards
+            # path; In such cases we can have huge tarballs 
+            # that get created;
+            # Should we have package suffixes added over here? 
+            for path_tuple in \
+                self._walk(metaflow_cards_root):
                 yield path_tuple
     
+    def _walk(self,root):
+        root = to_unicode(root)  # handle files/folder with non ascii chars
+        prefixlen = len('%s/' % os.path.dirname(root))
+        for path, dirs, files in os.walk(root):
+            for fname in files:
+                # ignoring filesnames which are hidden;
+                # TODO : Should we ignore hidden filenames
+                if fname[0] == '.':
+                    continue
+
+                p = os.path.join(path, fname)
+                yield p, p[prefixlen:]
+
     def step_init(self, flow, graph, step_name, decorators, environment, flow_datastore, logger):
         self._flow_datastore = flow_datastore
         self._environment = environment

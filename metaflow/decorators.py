@@ -215,10 +215,9 @@ class StepDecorator(Decorator):
         """
         pass
     
-    def add_to_package(self,package_finder):
+    def add_to_package(self):
         """
-        Called to add custom packages needed for decorator
-        package_finder:  MetaflowPackage._walk 
+        Called to add custom packages needed for a decorator
         """
         return []
 
