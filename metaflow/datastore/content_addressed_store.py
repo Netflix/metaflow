@@ -1,5 +1,4 @@
 import gzip
-import struct
 
 from collections import namedtuple
 from hashlib import sha1
@@ -43,7 +42,7 @@ class ContentAddressedStore(object):
     def set_blob_cache(self, blob_cache):
         self._blob_cache = blob_cache
 
-    def save_blobs(self, blobs, raw=False):
+    def save_blobs(self, blob_iter, raw=False, len_hint=0):
         """
         Saves blobs of data to the datastore
 
@@ -65,10 +64,11 @@ class ContentAddressedStore(object):
 
         Parameters
         ----------
-        blobs : List of bytes objects
-            Blobs to save. Each blob should be bytes
+        blob_iter : Iterator over bytes objects to save
         raw : bool, optional
             Whether to save the bytes directly or process them, by default False
+        len_hint : Hint of the number of blobs that will be produced by the
+            iterator, by default 0
 
         Returns
         -------
@@ -76,32 +76,33 @@ class ContentAddressedStore(object):
             The list order is the same as the blobs passed in. The URI will be
             None if raw is False.
         """
-        to_save = {}
         results = []
-        for blob in blobs:
-            sha = sha1(blob).hexdigest()
-            path = self._backend.path_join(self._prefix, sha[:2], sha)
-            results.append(self.save_blobs_result(
-                uri=self._backend.full_uri(path) if raw else None,
-                key=sha))
-            # We will not check if the file exists, doing it in the backend
-            # directly as it will most likely be more efficient (in the S3
-            # backend, this is done in parallel for example). We do pay the
-            # additional packing cost but this should be more minor compared to
-            # a S3 access for example.
+        def packing_iter():
+            for blob in blob_iter:
+                sha = sha1(blob).hexdigest()
+                path = self._backend.path_join(self._prefix, sha[:2], sha)
+                results.append(self.save_blobs_result(
+                    uri=self._backend.full_uri(path) if raw else None,
+                    key=sha))
 
-            # Compute the meta information to store with the file
-            meta = {
-                'cas_raw': raw,
-                'cas_version': 1
-            }
-            if raw:
-                blob = BytesIO(blob)
-            else:
-                blob = self._pack_v1(blob)
+                if not self._backend.is_file([path])[0]:
+                    # only process blobs that don't exist already in the
+                    # backing datastore
+                    meta = {
+                        'cas_raw': raw,
+                        'cas_version': 1
+                    }
+                    if raw:
+                        yield path, (BytesIO(blob), meta)
+                    else:
+                        yield path, (self._pack_v1(blob), meta)
 
-            to_save[path] = (blob, meta)
-        self._backend.save_bytes(to_save, overwrite=False)
+        # We don't actually want to overwrite but by saying =True, we avoid
+        # checking again saving some operations. We are already sure we are not
+        # sending duplicate files since we already checked.
+        self._backend.save_bytes(packing_iter(),
+                                 overwrite=True,
+                                 len_hint=len_hint)
         return results
 
     def load_blobs(self, keys, force_raw=False):
@@ -122,30 +123,26 @@ class ContentAddressedStore(object):
 
         Returns
         -------
-        Dict: string -> bytes:
-            Returns the blobs as bytes
+        Returns an iterator of (string, bytes) tuples
         """
-        results = {}
         load_paths = []
         for key in keys:
             blob = None
             if self._blob_cache:
                 blob = self._blob_cache.load_key(key)
             if blob is not None:
-                results[key] = blob
+                yield key, blob
             else:
                 path = self._backend.path_join(self._prefix, key[:2], key)
                 load_paths.append((key, path))
 
-        new_results = {}
         with self._backend.load_bytes([p for _, p in load_paths]) as loaded:
-            for key, path in load_paths:
+            for (key, _), (_, file_path, meta) in zip(load_paths, loaded):
                 # At this point, we either return the object as is (if raw) or
                 # decode it according to the encoding version
-                file_path, meta = loaded[path]
                 with open(file_path, 'rb') as f:
                     if force_raw or (meta and meta.get('cas_raw', False)):
-                        new_results[key] = f.read()
+                        blob = f.read()
                     else:
                         if meta is None:
                             # Previous version of the datastore had no meta
@@ -165,16 +162,15 @@ class ContentAddressedStore(object):
                                     "the artifact is either corrupt or you need "
                                     "to update Metaflow" % (version, path))
                         try:
-                            new_results[key] = unpack_code(f)
+                            blob = unpack_code(f)
                         except Exception as e:
                             raise DataException(
                                 "Could not unpack data: %s" % e)
-        
-        if self._blob_cache:
-            self._blob_cache.store_keys(new_results)
 
-        results.update(new_results)
-        return results
+                if self._blob_cache:
+                    self._blob_cache.store_key(key, blob)
+
+                yield key, blob
 
     def _unpack_backward_compatible(self, blob):
         # This is the backward compatible unpack
@@ -196,5 +192,5 @@ class BlobCache(object):
     def load_key(self, key):
         pass
 
-    def store_keys(self, results):
+    def store_key(self, key, blob):
         pass
