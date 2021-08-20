@@ -164,7 +164,8 @@ class Batch(object):
         max_swap=None,
         swappiness=None,
         env={},
-        attrs={}
+        attrs={},
+        host_volumes=None,
     ):
         job_name = self._job_name(
             attrs.get('metaflow.user'),
@@ -186,7 +187,7 @@ class Batch(object):
             .execution_role(execution_role) \
             .job_def(image, iam_role,
                 queue, execution_role, shared_memory,
-                max_swap, swappiness) \
+                max_swap, swappiness, host_volumes=host_volumes) \
             .cpu(cpu) \
             .gpu(gpu) \
             .memory(memory) \
@@ -244,6 +245,7 @@ class Batch(object):
         shared_memory=None,
         max_swap=None,
         swappiness=None,
+        host_volumes=None,
         env={},
         attrs={},
         ):
@@ -272,8 +274,9 @@ class Batch(object):
                         shared_memory,
                         max_swap,
                         swappiness,
-                        env,
-                        attrs
+                        env=env,
+                        attrs=attrs,
+                        host_volumes=host_volumes
         )
         self.job = job.execute()
 
