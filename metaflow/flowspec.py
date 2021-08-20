@@ -246,6 +246,8 @@ class FlowSpec(object):
                 #                 self.x is not available
                 self._cached_input[stack_index] = None
             else:
+                if isinstance(var, Parameter):
+                    var = var.load_parameter(self._datastore[frame.var])
                 try:
                     self._cached_input[stack_index] = var[frame.index]
                 except TypeError:
