@@ -1,4 +1,5 @@
 from collections import defaultdict
+import os
 
 try:
     unicode
@@ -8,7 +9,6 @@ except NameError:
 
 from metaflow.exception import MetaflowException
 
-# TODO (savin): Ensure that the client works swimmingly well with the sandbox.
 class KubernetesClient(object):
     def __init__(self):
         # TODO (savin): Look into removing the usage of Kubernetes Python SDK
@@ -16,8 +16,6 @@ class KubernetesClient(object):
         # aggressively drops support for older kubernetes clusters, continued
         # dependency on it may bite our users.
 
-        # TODO (savin): Look into various ways to configure the Kubernetes
-        # client.
         try:
             # Kubernetes is a soft dependency.
             from kubernetes import client, config
@@ -26,8 +24,12 @@ class KubernetesClient(object):
                 "Could not import module 'kubernetes'. Install kubernetes "
                 "Python package (https://pypi.org/project/kubernetes/) first."
             )
-
-        config.load_kube_config()
+        if os.getenv('KUBERNETES_SERVICE_HOST'):
+            # We’re inside a pod, auth via ServiceAccount assigned to us
+            config.load_incluster_config()
+        else:
+            # Use kubeconfig, likely $HOME/.kube/config
+            config.load_kube_config()
         self._client = client
 
     def job(self, **kwargs):

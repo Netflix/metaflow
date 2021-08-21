@@ -67,6 +67,7 @@ class KubernetesDecorator(StepDecorator):
         "memory": "4096",
         "image": None,
         "shared_memory": None,
+        "node_pool": None
         # "namespace",
         # "service_account"
     }

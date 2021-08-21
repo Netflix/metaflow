@@ -5,7 +5,7 @@ import select
 import atexit
 import shlex
 import time
-import warnings
+import re
 
 from metaflow import util
 from metaflow.datastore.util.s3tail import S3Tail
@@ -199,6 +199,12 @@ class Kubernetes(object):
             .environment_variable("METAFLOW_DEFAULT_DATASTORE", "s3")
             .environment_variable("METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA)
             .environment_variable("METAFLOW_KUBERNETES_WORKLOAD", 1)
+            .label("app", "metaflow")
+            .label("metaflow/flow_name", self._flow_name)
+            .label("metaflow/run_id", self._run_id)
+            .label("metaflow/step_name", self._step_name)
+            .label("metaflow/task_id", self._task_id)
+            .label("metaflow/attempt", self._attempt)
         )
 
         # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync
@@ -209,7 +215,28 @@ class Kubernetes(object):
         for name, value in env.items():
             job.environment_variable(name, value)
 
-        # TODO: Add labels and annotations
+        # Add labels to the Kubernetes job
+        #
+        # Apply recommended labels https://kubernetes.io/docs/concepts/overview/working-with-objects/common-labels/
+        #
+        # TODO: 1. Verify the behavior of high cardinality labels like instance,
+        #          version etc. in the app.kubernetes.io namespace before 
+        #          introducing them here.
+        job.label("app.kubernetes.io/name", "metaflow-task").label(
+            "app.kubernetes.io/part-of", "metaflow"
+        ).label("app.kubernetes.io/created-by", user)
+        # Add Metaflow system tags as labels as well!
+        # 
+        # TODO  1. Label values must be an empty string or consist of 
+        #          alphanumeric characters, '-', '_' or '.', and must start and 
+        #          end with an alphanumeric character. Fix the simple regex
+        #          match below.
+        for sys_tag in self._metadata.sticky_sys_tags:
+            job.label(
+                "metaflow/%s" % sys_tag[: sys_tag.index(":")],
+                re.sub("[^A-Za-z0-9.-_]", ".", sys_tag[sys_tag.index(":") + 1 :]),
+            )
+        # TODO: Add annotations based on https://kubernetes.io/blog/2021/04/20/annotating-k8s-for-humans/
 
         return job.create()
 

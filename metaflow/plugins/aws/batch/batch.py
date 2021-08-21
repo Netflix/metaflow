@@ -4,7 +4,6 @@ import os
 import select
 import shlex
 import time
-import warnings
 
 from metaflow import util
 from metaflow.datastore.util.s3tail import S3Tail
