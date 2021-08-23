@@ -191,10 +191,9 @@ class BatchJob(object):
                         ['linuxParameters']['maxSwap'] = int(max_swap)
 
         if host_volumes:
-            volume_paths = host_volumes.split(',')
             job_definition['containerProperties']['volumes'] = []
             job_definition['containerProperties']['mountPoints'] = []
-            for host_path in volume_paths:
+            for host_path in host_volumes:
                 name = host_path.replace('/', '_')
                 job_definition['containerProperties']['volumes'].append(
                     {'name': name, 'host': {'sourcePath': host_path}}
