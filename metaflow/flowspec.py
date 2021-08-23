@@ -43,6 +43,7 @@ class FlowSpec(object):
     # Name starting with '__', methods, functions and Parameters do not need
     # to be listed.
     _EPHEMERAL = {'_EPHEMERAL',
+                  '_NON_PARAMETERS',
                   '_datastore',
                   '_cached_input',
                   '_graph',
@@ -50,6 +51,11 @@ class FlowSpec(object):
                   '_steps',
                   'index',
                   'input'}
+    # When checking for parameters, we look at dir(self) but we want to exclude
+    # attributes that are definitely not parameters and may be expensive to
+    # compute (like anything related to the `foreach_stack`). We don't need to exclude
+    # names starting with `_` as those are already excluded from `_get_parameters`.
+    _NON_PARAMETERS = {'cmd', 'foreach_stack', 'index', 'input', 'script_name', 'name'}
 
     _flow_decorators = {}
 
@@ -95,7 +101,7 @@ class FlowSpec(object):
 
     def _get_parameters(self):
         for var in dir(self):
-            if var[0] == '_':
+            if var[0] == '_' or var in self._NON_PARAMETERS:
                 continue
             try:
                 val = getattr(self, var)
@@ -223,7 +229,6 @@ class FlowSpec(object):
                 for i, frame in enumerate(self._foreach_stack)]
 
     def _find_input(self, stack_index=None):
-
         if stack_index is None:
             stack_index = len(self._foreach_stack) - 1
 
