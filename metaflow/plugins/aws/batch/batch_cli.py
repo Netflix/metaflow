@@ -169,7 +169,7 @@ def kill(ctx, run_id, user, my_runs):
 @click.option("--swappiness", help="Swappiness requirement for AWS Batch.")
 #TODO: Maybe remove it altogether since it's not used here
 @click.option('--ubf-context', default=None, type=click.Choice([None]))
-@click.option('--mount-host-volumes', default=None)
+@click.option('--host-volumes', multiple=True)
 @click.pass_context
 def step(
     ctx,
