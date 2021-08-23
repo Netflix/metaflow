@@ -1,6 +1,9 @@
 from os import listdir
 from os.path import isfile, join
 from subprocess_tee import run
+import json
+import re
+import requests
 from typing import List, Dict
 
 from .... import R
@@ -100,19 +103,56 @@ def test_s3_sensor_flow(pytestconfig) -> None:
     return
 
 
-# this test ensures the integration tests fail correctly
-def test_raise_failure_flow(pytestconfig) -> None:
+# This test ensures that a flow fails correctly,
+# and when it fails, an OpsGenie email is sent.
+def test_error_and_opsgenie_alert(pytestconfig) -> None:
     test_cmd = (
         f"{_python()} flows/raise_error_flow.py --datastore=s3 kfp run "
         f"--wait-for-completion --workflow-timeout 1800 "
-        f"--experiment metaflow_test --tag test_t1 "
+        f"--experiment metaflow_test --tag test_t1 --notify "
     )
     if pytestconfig.getoption("image"):
         test_cmd += (
             f"--no-s3-code-package --base-image {pytestconfig.getoption('image')}"
         )
 
-    exponential_backoff_from_platform_errors(test_cmd, 1)
+    kfp_run_id = exponential_backoff_from_platform_errors(test_cmd, 1)
+    opsgenie_auth_headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"GenieKey {pytestconfig.getoption('opsgenie_api_token')}",
+    }
+
+    # Look for the alert with the correct kfp_run_id in the description.
+    list_alerts_endpoint = f"https://api.opsgenie.com/v2/alerts?query=description:{kfp_run_id}&limit=1&sort=createdAt&order=des"
+    list_alerts_response = requests.get(
+        list_alerts_endpoint, headers=opsgenie_auth_headers
+    )
+    assert list_alerts_response.status_code == 200
+
+    list_alerts_response_json = json.loads(list_alerts_response.text)
+    # assert we have found the alert (there should only be one alert with that kfp_run_id)
+    assert len(list_alerts_response_json["data"]) == 1
+    alert_alias = list_alerts_response_json["data"][0]["alias"]
+
+    close_alert_data = {
+        "user": "AIP Integration Testing Service",
+        "source": "AIP Integration Testing Service",
+        "note": "Closing ticket because the test is complete.",
+    }
+    close_alert_endpoint = (
+        f"https://api.opsgenie.com/v2/alerts/{alert_alias}/close?identifierType=alias"
+    )
+    close_alert_response = requests.post(
+        close_alert_endpoint,
+        data=json.dumps(close_alert_data),
+        headers=opsgenie_auth_headers,
+    )
+    # Sometimes the response status code is 202, signaling
+    # the request has been accepted and is being queued for processing.
+    assert (
+        close_alert_response.status_code == 200
+        or close_alert_response.status_code == 202
+    )
 
     return
 
@@ -204,7 +244,7 @@ def test_flows(pytestconfig, flow_file_path: str) -> None:
 
 def exponential_backoff_from_platform_errors(
     kfp_run_cmd: str, correct_return_code: int
-) -> None:
+) -> str:
     # Within this function, we use the special feature of subprocess_tee which allows us
     # to capture both stdout and stderr (akin to stdout=PIPE, stderr=PIPE in the regular subprocess.run)
     # as well as output to stdout and stderr (which users can see on the Gitlab logs). We check
@@ -240,3 +280,7 @@ def exponential_backoff_from_platform_errors(
         raise MetaflowException(
             "KFAM issues not resolved after successive backoff attempts."
         )
+    kfp_run_id = re.search("Metaflow run_id=(.*)\n", run_and_wait_process.stderr).group(
+        1
+    )
+    return kfp_run_id
