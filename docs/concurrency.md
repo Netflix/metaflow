@@ -76,7 +76,7 @@ subcommand is also used to clone many datastores concurrently during
 
 #### How to Observe
 
-Set the environment variable `METAFLOW_DEBUG_SUBPROCESS=1` to see the
+Set the environment variable `METAFLOW_DEBUG_SUBCOMMAND=1` to see the
 exact command line that is used to launch a subcommand task. You can
 re-execute the task simply by re-executing the command line manually.
 However, be careful when re-executing commands from real runs, as you
