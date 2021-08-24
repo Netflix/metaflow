@@ -138,7 +138,11 @@ class Kubernetes(object):
         run_time_limit=None,
         env={},
     ):
-        # TODO: Test for DNS-1123 compliance.
+        # TODO: Test for DNS-1123 compliance. Python names can have underscores
+        #       which are not valid Kubernetes names. We can potentially make
+        #       the pathspec DNS-1123 compliant by stripping away underscores
+        #       etc. and relying on Kubernetes to attach a suffix to make the
+        #       name unique within a namespace.
         #
         # Set the pathspec (along with attempt) as the Kubernetes job name.
         # Kubernetes job names are supposed to be unique within a Kubernetes
@@ -255,7 +259,7 @@ class Kubernetes(object):
         def wait_for_launch(job):
             status = job.status
             echo(
-                "Task is starting (status %s)..." % status.upper(),
+                "Task is starting (status %s)..." % status,
                 "stderr",
                 job_id=job.id,
             )
@@ -264,7 +268,7 @@ class Kubernetes(object):
                 if status != job.status or (time.time() - t) > 30:
                     status = job.status
                     echo(
-                        "Task is starting (status %s)..." % status.upper(),
+                        "Task is starting (status %s)..." % status,
                         "stderr",
                         job_id=job.id,
                     )

@@ -25,7 +25,7 @@ class KubernetesClient(object):
                 "Python package (https://pypi.org/project/kubernetes/) first."
             )
         if os.getenv('KUBERNETES_SERVICE_HOST'):
-            # We’re inside a pod, auth via ServiceAccount assigned to us
+            # We’re inside a pod, authenticate via ServiceAccount assigned to us
             config.load_incluster_config()
         else:
             # Use kubeconfig, likely $HOME/.kube/config
@@ -34,10 +34,6 @@ class KubernetesClient(object):
 
     def job(self, **kwargs):
         return KubernetesJob(self._client, **kwargs)
-
-    def attach_job(self, job_id):
-        job = RunningJob(job_id, self._client)
-        return job.update()
 
 
 class KubernetesJobException(MetaflowException):
@@ -246,8 +242,41 @@ class KubernetesJob(object):
 
 class RunningJob(object):
 
-    # StateMachine implementation for the lifecycle behavior documented in
+    # State Machine implementation for the lifecycle behavior documented in
     # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
+
+    # To ascertain the status of V1Job, we peer into the lifecycle status of
+    # the pod it is responsible for executing. Unfortunately, the `phase`
+    # attributes (pending, running, succeeded, failed etc.) only provide 
+    # partial answers and the official API conventions guide suggests that
+    # it may soon be deprecated (however, not anytime soon - see 
+    # https://github.com/kubernetes/kubernetes/issues/7856). `conditions` otoh
+    # provide a deeper understanding about the state of the pod; however 
+    # conditions are not state machines and can be oscillating - from the 
+    # offical API conventions guide:
+    #     In general, condition values may change back and forth, but some
+    #     condition transitions may be monotonic, depending on the resource and
+    #     condition type. However, conditions are observations and not, 
+    #     themselves, state machines, nor do we define comprehensive state 
+    #     machines for objects, nor behaviors associated with state 
+    #     transitions. The system is level-based rather than edge-triggered, 
+    #     and should assume an Open World.
+    # In this implementation, we synthesize our notion of "phase" state 
+    # machine from `conditions`, since Kubernetes won't do it for us (for 
+    # many good reasons).
+    #
+    #
+    #
+    # `conditions` can be of the following types - 
+    #    1. (kubelet) Initialized (always True since we don't rely on init
+    #       containers)
+    #    2. (kubelet) ContainersReady
+    #    3. (kubelet) Ready (same as ContainersReady since we don't use 
+    #       ReadinessGates -
+    #       https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/status/generate.go)
+    #    4. (kube-scheduler) PodScheduled 
+    #       (https://github.com/kubernetes/kubernetes/blob/master/pkg/scheduler/scheduler.go)
+    #    5. (kube-scheduler) Unschedulable
 
     def __init__(self, client, name, namespace):
         self._client = client
@@ -257,6 +286,7 @@ class RunningJob(object):
         self._pod = None
 
         self.update()
+        # Get the V1Job id (controller for the pod)
         self._id = self._pod["metadata"]["labels"]["controller-uid"]
 
     def __repr__(self):
@@ -264,7 +294,7 @@ class RunningJob(object):
             self.__class__.__name__, self._namespace, self._name
         )
 
-    def _update(self):
+    def _fetch(self):
         try:
             return (
                 self._client.CoreV1Api()
@@ -279,8 +309,8 @@ class RunningJob(object):
             raise e
 
     def update(self):
-        self._pod = self._update()
-        # print(self._pod["status"])
+        self._pod = self._fetch()
+        print(self._pod["status"].get("container_statuses", [{}])[0].get("state"))
         return self
 
     @property
@@ -303,19 +333,24 @@ class RunningJob(object):
             # if not done, check for newer status (see the implementation of
             # self.is_done)
             pass
-        return self._pod["status"]["phase"]
+        return (self._pod["status"]["phase"], "foo")
 
     @property
     def has_succeeded(self):
-        return self.status == "Succeeded"
+        return self.status[0] == "Succeeded"
 
     @property
     def has_failed(self):
-        return self.status == "Failed"
+        return self.status[0] == "Failed"
 
     @property
     def is_running(self):
-        return self.status == "Running"
+        return self.status[0] == "Running"
+
+
+    @property
+    def is_pending(self):
+        return self.status[0] == "Pending"
 
     @property
     def container_status(self):

@@ -63,13 +63,12 @@ class KubernetesDecorator(StepDecorator):
     name = "kubernetes"
     defaults = {
         "cpu": "1",
-        "gpu": "0",
         "memory": "4096",
         "image": None,
         "shared_memory": None,
-        "node_pool": None
-        # "namespace",
-        # "service_account"
+        "node_pool": None,
+        "namespace": None,
+        "service_account": None,
     }
     package_url = None
     package_sha = None
