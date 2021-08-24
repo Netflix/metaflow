@@ -130,7 +130,8 @@ class Batch(object):
         max_swap=None,
         swappiness=None,
         env={},
-        attrs={}
+        attrs={},
+        host_volumes=None,
     ):
         job_name = self._job_name(
             attrs.get('metaflow.user'),
@@ -161,7 +162,7 @@ class Batch(object):
             .execution_role(execution_role) \
             .job_def(image, iam_role,
                 queue, execution_role, shared_memory,
-                max_swap, swappiness) \
+                max_swap, swappiness, host_volumes=host_volumes) \
             .cpu(cpu) \
             .gpu(gpu) \
             .memory(memory) \
@@ -222,6 +223,7 @@ class Batch(object):
         shared_memory=None,
         max_swap=None,
         swappiness=None,
+        host_volumes=None,
         env={},
         attrs={},
         ):
@@ -233,28 +235,26 @@ class Batch(object):
                     ' specified and no valid & enabled queue found.'
                 )
         job = self.create_job(
-                        flow_name=flow_name,
-                        run_id=run_id,
-                        step_name=step_name,
-                        task_id=task_id,
-                        step_cli=step_cli,
-                        attempt=attempt,
-                        code_package_sha=code_package_sha,
-                        code_package_url=code_package_url,
-                        code_package_ds=code_package_ds,
-                        image=image,
-                        queue=queue,
-                        iam_role=iam_role,
-                        execution_role=execution_role,
-                        cpu=cpu,
-                        gpu=gpu,
-                        memory=memory,
-                        run_time_limit=run_time_limit,
-                        shared_memory=shared_memory,
-                        max_swap=max_swap,
-                        swappiness=swappiness,
+                        step_name,
+                        step_cli,
+                        task_spec,
+                        code_package_sha,
+                        code_package_url,
+                        code_package_ds,
+                        image,
+                        queue,
+                        iam_role,
+                        execution_role,
+                        cpu,
+                        gpu,
+                        memory,
+                        run_time_limit,
+                        shared_memory,
+                        max_swap,
+                        swappiness,
                         env=env,
-                        attrs=attrs
+                        attrs=attrs,
+                        host_volumes=host_volumes
         )
         self.job = job.execute()
 
