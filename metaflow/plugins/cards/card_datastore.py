@@ -133,4 +133,4 @@ class CardDatastore(object):
                             shutil.copy(path,main_path)
                             url = 'file://' + os.path.abspath(main_path)
                             webbrowser.open(url)
-                            
+                            break
