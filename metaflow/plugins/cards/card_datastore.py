@@ -1,11 +1,13 @@
 from hashlib import sha1
 from io import BytesIO
 import os
-from ...datastore.task_datastore import \
-    only_if_not_done,\
-    require_mode
+import shutil
+from metaflow.datastore.local_backend import LocalBackend
+import webbrowser
+from .exception import CardNotPresentException
 
 CARD_DIRECTORY_NAME = 'mf.cards'
+TEMP_DIR_NAME = 'metaflow_card_cache'
 class CardPathBuilder(object):
 
     @classmethod
@@ -56,7 +58,6 @@ class CardPathBuilder(object):
             pth_arr.pop(0)
         return os.path.join(*pth_arr)
 
-
 class CardDatastore(object):
     root = None
     # Todo : 
@@ -67,9 +68,6 @@ class CardDatastore(object):
                  run_id,
                  step_name,
                  task_id,
-                 attempt=None,
-                 data_metadata=None,
-                 mode='r',
                  path_spec = None):
         self._backend = flow_datastore._backend
         self._flow_name = flow_datastore.flow_name
@@ -77,45 +75,62 @@ class CardDatastore(object):
         self._run_id = run_id
         self._step_name = step_name
         self._task_id = task_id
-        self._mode = mode
         self._path_spec = path_spec
-        self._is_done_set = False
-        # Todo : Do we need attempt here;
+        self._temp_card_save_path = self._get_card_path(base_pth=TEMP_DIR_NAME)
+        # if self.TYPE != 'local':
+        LocalBackend._makedirs(self._temp_card_save_path)
+        
+
         # As cards are rendered best effort attempt may not be 
         # super useful
-        self._attempt = attempt
         # TODO : 
             # Figure if the path should follow the same pattern 
             # for local and s3 datastore backend
-        # todo: Check if main root is needed; 
+            # todo: Check if main root is needed;
     
     @classmethod
     def get_card_location(cls,base_path,card_name,card_html):
         return os.path.join(base_path,\
                          '%s-%s.html' % (card_name,sha1(bytes(card_html,'utf-8')).hexdigest()))
-
-    @only_if_not_done
-    @require_mode('w')
-    def save_card(self,card_name,card_html, overwrite=True):
-        card_path = CardPathBuilder.make_path(
+    
+    def _get_card_path(self,base_pth=""):
+        return CardPathBuilder.make_path(
             # Adding this to avoid errors with s3; 
             # S3Backend has s3root set which requires a relative path 
             # over an absolute path; Providing relative path for local datastore 
             # also works similarly;
-            "",
+            base_pth,
             self._flow_name,
             run_id=self._run_id,
             task_id=self._task_id,
             pathspec=self._path_spec,
         )
-        card_path = self.get_card_location(card_path,card_name,card_html)
+
+    def save_card(self,card_name,card_html, overwrite=True):
+        card_path = self.get_card_location(self._get_card_path(),card_name,card_html)
         self._backend.save_bytes(
             [(card_path,BytesIO(bytes(card_html,'utf-8')))],
             overwrite=overwrite
         )
-        pass
 
-    @only_if_not_done
-    @require_mode('w')
-    def done(self):
-        self._is_done_set = True
+    def view_card(self,card_type):
+        card_path = self._get_card_path()
+        card_paths = self._backend.list_content([card_path])
+        if len(card_paths) == 0 :
+            # If there are no files found on the Path then raise an error of 
+            raise CardNotPresentException(self._flow_name,self._run_id,self._step_name,card_type)
+        
+        for task_card_path in card_paths:
+            if task_card_path.is_file:
+                # We have found the card file.
+                with self._backend.load_bytes([task_card_path.path]) as get_results:
+                    for key, path, meta in get_results:
+                        if path is not None:
+                            main_path = path
+                            # if self.TYPE != 'local':
+                            file_name = key.split('/')[-1]
+                            main_path = os.path.join(self._temp_card_save_path,file_name)
+                            shutil.copy(path,main_path)
+                            url = 'file://' + os.path.abspath(main_path)
+                            webbrowser.open(url)
+                            
