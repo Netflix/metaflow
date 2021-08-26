@@ -1,4 +1,3 @@
-from collections import defaultdict
 import os
 
 try:
@@ -8,6 +7,7 @@ except NameError:
     basestring = str
 
 from metaflow.exception import MetaflowException
+
 
 class KubernetesClient(object):
     def __init__(self):
@@ -24,11 +24,16 @@ class KubernetesClient(object):
                 "Could not import module 'kubernetes'. Install kubernetes "
                 "Python package (https://pypi.org/project/kubernetes/) first."
             )
-        if os.getenv('KUBERNETES_SERVICE_HOST'):
+        if os.getenv("KUBERNETES_SERVICE_HOST"):
             # We’re inside a pod, authenticate via ServiceAccount assigned to us
             config.load_incluster_config()
         else:
             # Use kubeconfig, likely $HOME/.kube/config
+            # TODO (savin):
+            #     1. Support generating kubeconfig on the fly using boto3
+            #     2. Support auth via OIDC - https://docs.aws.amazon.com/eks/latest/userguide/authenticate-oidc-identity-provider.html
+            # Supporting the above auth mechanisms (atleast 1.) should be
+            # good enough for the initial rollout.
             config.load_kube_config()
         self._client = client
 
@@ -44,6 +49,9 @@ class KubernetesJob(object):
     def __init__(self, client, **kwargs):
         self._client = client
         self._kwargs = kwargs
+
+        # Kubernetes namespace defaults to `default`
+        self._kwargs["namespace"] = self._kwargs["namespace"] or "default"
 
     def create(self):
         # Check that job attributes are sensible.
@@ -69,11 +77,11 @@ class KubernetesJob(object):
                     self._kwargs["memory"]
                 )
             )
-
         # TODO(s)
         # 1. Find a way to ensure that a pod is cleanly terminated automatically
         #    if the container fails to start properly (invalid docker image
         #    etc.)
+        # 2. Add support for GPUs.
 
         # A discerning eye would notice and question the choice of using the
         # V1Job construct over the V1Pod construct given that we don't rely on
@@ -118,7 +126,6 @@ class KubernetesJob(object):
                             "timeout_in_seconds"
                         ],
                         # affinity=?,
-                        # automount_service_account_token=?,
                         containers=[
                             self._client.V1Container(
                                 command=self._kwargs["command"],
@@ -149,6 +156,14 @@ class KubernetesJob(object):
                                         "METAFLOW_KUBERNETES_POD_ID": "metadata.uid",
                                     }.items()
                                 ],
+                                env_from=[
+                                    self._client.V1EnvFromSource(
+                                        secret_ref=self._client.V1SecretEnvSource(
+                                            name=str(k)
+                                        )
+                                    )
+                                    for k in self._kwargs.get("secrets", [])
+                                ],
                                 image=self._kwargs["image"],
                                 name=self._kwargs["name"],
                                 resources=self._client.V1ResourceRequirements(
@@ -160,7 +175,18 @@ class KubernetesJob(object):
                                 ),
                             )
                         ],
+                        node_selector={
+                            # TODO: What should be the format of node selector -
+                            #       key:value or key=value?
+                            str(k.split("=", 1)[0]): str(k.split("=", 1)[1])
+                            for k in self._kwargs.get("node_selector", [])
+                        },
+                        # TODO (savin): At some point in the very near future,
+                        #               support docker access secrets.
                         # image_pull_secrets=?,
+                        #
+                        # TODO (savin): We should, someday, get into the pod
+                        #               priority business
                         # preemption_policy=?,
                         #
                         # A Container in a Pod may fail for a number of
@@ -247,36 +273,38 @@ class RunningJob(object):
 
     # To ascertain the status of V1Job, we peer into the lifecycle status of
     # the pod it is responsible for executing. Unfortunately, the `phase`
-    # attributes (pending, running, succeeded, failed etc.) only provide 
+    # attributes (pending, running, succeeded, failed etc.) only provide
     # partial answers and the official API conventions guide suggests that
-    # it may soon be deprecated (however, not anytime soon - see 
+    # it may soon be deprecated (however, not anytime soon - see
     # https://github.com/kubernetes/kubernetes/issues/7856). `conditions` otoh
-    # provide a deeper understanding about the state of the pod; however 
-    # conditions are not state machines and can be oscillating - from the 
+    # provide a deeper understanding about the state of the pod; however
+    # conditions are not state machines and can be oscillating - from the
     # offical API conventions guide:
     #     In general, condition values may change back and forth, but some
     #     condition transitions may be monotonic, depending on the resource and
-    #     condition type. However, conditions are observations and not, 
-    #     themselves, state machines, nor do we define comprehensive state 
-    #     machines for objects, nor behaviors associated with state 
-    #     transitions. The system is level-based rather than edge-triggered, 
+    #     condition type. However, conditions are observations and not,
+    #     themselves, state machines, nor do we define comprehensive state
+    #     machines for objects, nor behaviors associated with state
+    #     transitions. The system is level-based rather than edge-triggered,
     #     and should assume an Open World.
-    # In this implementation, we synthesize our notion of "phase" state 
-    # machine from `conditions`, since Kubernetes won't do it for us (for 
+    # In this implementation, we synthesize our notion of "phase" state
+    # machine from `conditions`, since Kubernetes won't do it for us (for
     # many good reasons).
     #
     #
     #
-    # `conditions` can be of the following types - 
+    # `conditions` can be of the following types -
     #    1. (kubelet) Initialized (always True since we don't rely on init
     #       containers)
     #    2. (kubelet) ContainersReady
-    #    3. (kubelet) Ready (same as ContainersReady since we don't use 
+    #    3. (kubelet) Ready (same as ContainersReady since we don't use
     #       ReadinessGates -
     #       https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/status/generate.go)
-    #    4. (kube-scheduler) PodScheduled 
+    #    4. (kube-scheduler) PodScheduled
     #       (https://github.com/kubernetes/kubernetes/blob/master/pkg/scheduler/scheduler.go)
     #    5. (kube-scheduler) Unschedulable
+    #
+    # WIP...
 
     def __init__(self, client, name, namespace):
         self._client = client
@@ -310,7 +338,9 @@ class RunningJob(object):
 
     def update(self):
         self._pod = self._fetch()
-        print(self._pod["status"].get("container_statuses", [{}])[0].get("state"))
+        # print(
+        #     self._pod["status"].get("container_statuses", [{}])[0].get("state")
+        # )
         return self
 
     @property
@@ -333,24 +363,23 @@ class RunningJob(object):
             # if not done, check for newer status (see the implementation of
             # self.is_done)
             pass
-        return (self._pod["status"]["phase"], "foo")
+        return self._pod["status"]["phase"]
 
     @property
     def has_succeeded(self):
-        return self.status[0] == "Succeeded"
+        return self.status == "Succeeded"
 
     @property
     def has_failed(self):
-        return self.status[0] == "Failed"
+        return self.status == "Failed"
 
     @property
     def is_running(self):
-        return self.status[0] == "Running"
-
+        return self.status == "Running"
 
     @property
     def is_pending(self):
-        return self.status[0] == "Pending"
+        return self.status == "Pending"
 
     @property
     def container_status(self):

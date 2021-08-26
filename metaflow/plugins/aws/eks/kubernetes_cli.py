@@ -35,16 +35,42 @@ def kubernetes():
 @click.argument("step-name")
 @click.argument("code-package-sha")
 @click.argument("code-package-url")
-@click.option("--executable", help="Executable requirement for Kubernetes job.")
-@click.option("--image", help="Docker image requirement for Kubernetes job.")
+@click.option(
+    "--executable",
+    help="Executable requirement for Kubernetes job on Amazon EKS.",
+)
+@click.option(
+    "--image", help="Docker image requirement for Kubernetes job on Amazon EKS."
+)
 @click.option(
     "--service-account",
-    # TODO: Support more auth mechanisms besides IRSA
     help="IRSA requirement for Kubernetes job on Amazon EKS.",
 )
-@click.option("--cpu", help="CPU requirement for Kubernetes job.")
-@click.option("--gpu", help="GPU requirement for Kubernetes job.")
-@click.option("--memory", help="Memory requirement for Kubernetes job.")
+@click.option(
+    "--secrets",
+    multiple=True,
+    default=None,
+    help="Secrets for Kubernetes job on Amazon EKS.",
+)
+@click.option(
+    "--node-selector",
+    multiple=True,
+    default=None,
+    help="NodeSelector for Kubernetes job on Amazon EKS.",
+)
+@click.option(
+    # Note that ideally we would have liked to use `namespace` rather than
+    # `name-space` but unfortunately, `namespace` is already reserved for
+    # Metaflow namespaces.
+    "--name-space",
+    default=None,
+    help="Namespace for Kubernetes job on Amazon EKS.",
+)
+@click.option("--cpu", help="CPU requirement for Kubernetes job on Amazon EKS.")
+@click.option("--gpu", help="GPU requirement for Kubernetes job on Amazon EKS.")
+@click.option(
+    "--memory", help="Memory requirement for Kubernetes job on Amazon EKS."
+)
 @click.option("--run-id", help="Passed to the top-level 'step'.")
 @click.option("--task-id", help="Passed to the top-level 'step'.")
 @click.option("--input-paths", help="Passed to the top-level 'step'.")
@@ -77,6 +103,9 @@ def step(
     executable=None,
     image=None,
     service_account=None,
+    secrets=None,
+    node_selector=None,
+    name_space=None,
     cpu=None,
     gpu=None,
     memory=None,
@@ -167,8 +196,10 @@ def step(
                 code_package_ds=ctx.obj.datastore.TYPE,
                 step_cli=step_cli,
                 docker_image=image,
-                namespace="default",  # TODO: Fetch from config
-                service_account="s3-full-access",  # service_account,
+                service_account=service_account,
+                secrets=secrets,
+                node_selector=node_selector,
+                namespace=name_space,
                 cpu=cpu,
                 gpu=gpu,
                 memory=memory,
