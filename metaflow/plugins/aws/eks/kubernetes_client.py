@@ -225,6 +225,8 @@ class KubernetesJob(object):
                         # TODO (savin): At some point in the very near future,
                         #               support custom volumes (PVCs/EVCs).
                         # volumes=?,
+                        #
+                        # TODO (savin): Set termination_message_policy
                     ),
                 ),
             ),
