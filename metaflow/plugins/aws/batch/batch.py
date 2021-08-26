@@ -187,62 +187,56 @@ class Batch(object):
             attrs.get("metaflow.task_id"),
             attrs.get("metaflow.retry_count"),
         )
-        job = self._client.job()
-        job.job_name(job_name).job_queue(queue).command(
-            self._command(
-                self.environment,
-                code_package_url,
-                step_name,
-                [step_cli],
-                task_spec,
+        job = (
+            self._client.job()
+            .job_name(job_name)
+            .job_queue(queue)
+            .command(
+                self._command(
+                    self.environment,
+                    code_package_url,
+                    step_name,
+                    [step_cli],
+                    task_spec,
+                )
             )
-        ).image(image).iam_role(iam_role).execution_role(
-            execution_role
-        ).job_def(
-            image,
-            iam_role,
-            queue,
-            execution_role,
-            shared_memory,
-            max_swap,
-            swappiness,
-        ).cpu(
-            cpu
-        ).gpu(
-            gpu
-        ).memory(
-            memory
-        ).shared_memory(
-            shared_memory
-        ).max_swap(
-            max_swap
-        ).swappiness(
-            swappiness
-        ).timeout_in_secs(
-            run_time_limit
-        ).environment_variable(
-            "AWS_DEFAULT_REGION", self._client.region()
-        ).environment_variable(
-            "METAFLOW_CODE_SHA", code_package_sha
-        ).environment_variable(
-            "METAFLOW_CODE_URL", code_package_url
-        ).environment_variable(
-            "METAFLOW_CODE_DS", code_package_ds
-        ).environment_variable(
-            "METAFLOW_USER", attrs["metaflow.user"]
-        ).environment_variable(
-            "METAFLOW_SERVICE_URL", BATCH_METADATA_SERVICE_URL
-        ).environment_variable(
-            "METAFLOW_SERVICE_HEADERS",
-            json.dumps(BATCH_METADATA_SERVICE_HEADERS),
-        ).environment_variable(
-            "METAFLOW_DATASTORE_SYSROOT_S3", DATASTORE_SYSROOT_S3
-        ).environment_variable(
-            "METAFLOW_DATATOOLS_S3ROOT", DATATOOLS_S3ROOT
-        ).environment_variable(
-            "METAFLOW_DEFAULT_DATASTORE", "s3"
-        ).environment_variable(
-            "METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA
+            .image(image)
+            .iam_role(iam_role)
+            .execution_role(execution_role)
+            .job_def(
+                image,
+                iam_role,
+                queue,
+                execution_role,
+                shared_memory,
+                max_swap,
+                swappiness,
+            )
+            .cpu(cpu)
+            .gpu(gpu)
+            .memory(memory)
+            .shared_memory(shared_memory)
+            .max_swap(max_swap)
+            .swappiness(swappiness)
+            .timeout_in_secs(run_time_limit)
+            .environment_variable("AWS_DEFAULT_REGION", self._client.region())
+            .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
+            .environment_variable("METAFLOW_CODE_URL", code_package_url)
+            .environment_variable("METAFLOW_CODE_DS", code_package_ds)
+            .environment_variable("METAFLOW_USER", attrs["metaflow.user"])
+            .environment_variable(
+                "METAFLOW_SERVICE_URL", BATCH_METADATA_SERVICE_URL
+            )
+            .environment_variable(
+                "METAFLOW_SERVICE_HEADERS",
+                json.dumps(BATCH_METADATA_SERVICE_HEADERS),
+            )
+            .environment_variable(
+                "METAFLOW_DATASTORE_SYSROOT_S3", DATASTORE_SYSROOT_S3
+            )
+            .environment_variable("METAFLOW_DATATOOLS_S3ROOT", DATATOOLS_S3ROOT)
+            .environment_variable("METAFLOW_DEFAULT_DATASTORE", "s3")
+            .environment_variable("METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA)
         )
         # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync between the local user
         # instance and the remote AWS Batch instance assumes metadata is stored in DATASTORE_LOCAL_DIR
