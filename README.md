@@ -23,6 +23,7 @@ and access tutorials by typing:
 metaflow tutorials pull
 ```
 
+
 ### R
 
 Install Metaflow from [github](https://github.com/Netflix/metaflow/tree/master/R):
@@ -31,6 +32,7 @@ Install Metaflow from [github](https://github.com/Netflix/metaflow/tree/master/R
 devtools::install_github("Netflix/metaflow", subdir="R")
 metaflow::install()
 ```
+
 
 and access tutorials by typing:
 
