@@ -25,6 +25,7 @@ from ..aws_utils import get_docker_registry, sync_metadata_to_S3
 
 class KubernetesDecorator(StepDecorator):
     """
+    TODO (savin): Update this docstring.
     Step decorator to specify that this step should execute on Kubernetes.
 
     This decorator indicates that your step should execute on Kubernetes. Note
@@ -64,6 +65,7 @@ class KubernetesDecorator(StepDecorator):
     defaults = {
         "cpu": "1",
         "memory": "4096",
+        "disk": "10240",
         "image": None,
         "service_account": None,
         "secrets": None,  # e.g., mysecret

@@ -11,7 +11,7 @@ from metaflow.exception import MetaflowException
 
 class KubernetesClient(object):
     def __init__(self):
-        # TODO (savin): Look into removing the usage of Kubernetes Python SDK
+        # TODO: Look into removing the usage of Kubernetes Python SDK
         # at some point in the future. Given that Kubernetes Python SDK
         # aggressively drops support for older kubernetes clusters, continued
         # dependency on it may bite our users.
@@ -77,7 +77,19 @@ class KubernetesJob(object):
                     self._kwargs["memory"]
                 )
             )
-        # TODO(s)
+
+        # Disk value should be greater than 0
+        if not (
+            isinstance(self._kwargs["disk"], (int, unicode, basestring))
+            and int(self._kwargs["disk"]) > 0
+        ):
+            raise KubernetesJobException(
+                "Invalid disk value ({}); it should be greater than 0".format(
+                    self._kwargs["disk"]
+                )
+            )
+
+        # TODO(s) (savin)
         # 1. Find a way to ensure that a pod is cleanly terminated automatically
         #    if the container fails to start properly (invalid docker image
         #    etc.)
@@ -125,6 +137,12 @@ class KubernetesJob(object):
                         active_deadline_seconds=self._kwargs[
                             "timeout_in_seconds"
                         ],
+                        # TODO (savin): Enable affinities for GPU scheduling.
+                        #               This requires some thought around the
+                        #               UX since specifying affinities can get
+                        #               complicated quickly. We may well decide
+                        #               to move it out of scope for the initial
+                        #               roll out.
                         # affinity=?,
                         containers=[
                             self._client.V1Container(
@@ -171,6 +189,8 @@ class KubernetesJob(object):
                                         "cpu": str(self._kwargs["cpu"]),
                                         "memory": "%sM"
                                         % str(self._kwargs["memory"]),
+                                        "ephemeral-storage": "%sM"
+                                        % str(self._kwargs["disk"]),
                                     }
                                 ),
                             )
@@ -196,7 +216,14 @@ class KubernetesJob(object):
                         # and let Metaflow handle the retries.
                         restart_policy="Never",
                         service_account_name=self._kwargs["service_account"],
+                        # TODO (savin): Enable tolerations for GPU scheduling.
+                        #               This requires some thought around the
+                        #               UX since specifying tolerations can get
+                        #               complicated quickly.
                         # tolerations=?,
+                        #
+                        # TODO (savin): At some point in the very near future,
+                        #               support custom volumes (PVCs/EVCs).
                         # volumes=?,
                     ),
                 ),

@@ -136,6 +136,7 @@ class Kubernetes(object):
         namespace=None,
         cpu=None,
         gpu=None,
+        disk=None,
         memory=None,
         run_time_limit=None,
         env={},
@@ -179,6 +180,7 @@ class Kubernetes(object):
                 image=docker_image,
                 cpu=cpu,
                 memory=memory,
+                disk=disk,
                 timeout_in_seconds=run_time_limit,
                 # Retries are handled by Metaflow runtime
                 retries=0,

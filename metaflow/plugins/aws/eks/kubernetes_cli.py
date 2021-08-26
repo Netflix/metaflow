@@ -68,6 +68,7 @@ def kubernetes():
 )
 @click.option("--cpu", help="CPU requirement for Kubernetes job on Amazon EKS.")
 @click.option("--gpu", help="GPU requirement for Kubernetes job on Amazon EKS.")
+@click.option("--disk", help="Disk requirement for Kubernetes job on Amazon EKS.")
 @click.option(
     "--memory", help="Memory requirement for Kubernetes job on Amazon EKS."
 )
@@ -108,6 +109,7 @@ def step(
     name_space=None,
     cpu=None,
     gpu=None,
+    disk=None,
     memory=None,
     run_time_limit=None,
     **kwargs
@@ -202,6 +204,7 @@ def step(
                 namespace=name_space,
                 cpu=cpu,
                 gpu=gpu,
+                disk=disk,
                 memory=memory,
                 run_time_limit=run_time_limit,
                 env=env,
