@@ -20,6 +20,7 @@ class CardDecoratorBasicTest(MetaflowTest):
         if run:
             from hashlib import sha1
             import os
+            import errno
             card_stored = False
             CARD_DIRECTORY_NAME='mf.cards'
             for step in run:
@@ -36,14 +37,17 @@ class CardDecoratorBasicTest(MetaflowTest):
                     %s
                     </body>
                     </html>
-                    """ % (content_str)
-                    file_name = 'basic-%s.html'%(sha1(bytes(html_str,'utf-8')).hexdigest())
+                    """ % (content_str)                    
+                    file_name = 'basic-%s.html'%(sha1(bytes(str(html_str).encode("utf-8"))).hexdigest())
                     stored_path = os.path.join(CARD_DIRECTORY_NAME,run.id,'runs',step.id,'tasks',task.id,'cards',file_name)
                     card_stored=True
                     try:
                         os.stat(stored_path)
-                    except FileNotFoundError:
-                        pass
+                    except OSError as e:
+                        if e.errno == errno.ENOENT:
+                            pass
+                        else:
+                            raise
             assert_equals(True, card_stored)
 
     
