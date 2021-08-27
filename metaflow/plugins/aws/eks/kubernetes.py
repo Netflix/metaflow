@@ -45,7 +45,6 @@ class KubernetesKilledException(MetaflowException):
 
 
 class Kubernetes(object):
-
     def __init__(
         self,
         datastore,
@@ -330,9 +329,11 @@ class Kubernetes(object):
         # It is possible that we exit the loop above before all logs have been
         # shown.
         #
-        # TODO if we notice Kubernetes failing to upload logs to S3, we can add
-        # a HEAD request here to ensure that the file exists prior to calling
-        # S3Tail and note the user about truncated logs if it doesn't
+        # TODO (savin): If we notice Kubernetes failing to upload logs to S3,
+        #               we can add a HEAD request here to ensure that the file
+        #               exists prior to calling S3Tail and note the user about
+        #               truncated logs if it doesn't.
+        # TODO (savin): For hard crashes, we can fetch logs from the pod.
         _print_available(stdout_tail, "stdout")
         _print_available(stderr_tail, "stderr")
 

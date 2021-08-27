@@ -9,6 +9,10 @@ except NameError:
 from metaflow.exception import MetaflowException
 
 
+class KubernetesJobException(MetaflowException):
+    headline = "Kubernetes job error"
+
+
 class KubernetesClient(object):
     def __init__(self):
         # TODO: Look into removing the usage of Kubernetes Python SDK
@@ -39,10 +43,6 @@ class KubernetesClient(object):
 
     def job(self, **kwargs):
         return KubernetesJob(self._client, **kwargs)
-
-
-class KubernetesJobException(MetaflowException):
-    headline = "Kubernetes job error"
 
 
 class KubernetesJob(object):
@@ -124,7 +124,13 @@ class KubernetesJob(object):
                 # when AWS Step Functions / Argo are responsible for the
                 # execution.
                 backoff_limit=self._kwargs.get("retries", 0),
-                ttl_seconds_after_finished=60*60*24,  # Remove job after a day.
+                completions=1,  # A single non-indexed pod job
+                # TODO (savin): Implement a job clean-up option in the
+                # kubernetes CLI.
+                ttl_seconds_after_finished=7
+                * 60
+                * 60  # Remove job after a week. TODO (savin): Make this
+                * 24,  # configurable
                 template=self._client.V1PodTemplateSpec(
                     metadata=self._client.V1ObjectMeta(
                         annotations=self._kwargs.get("annotations", {}),
@@ -216,6 +222,8 @@ class KubernetesJob(object):
                         # and let Metaflow handle the retries.
                         restart_policy="Never",
                         service_account_name=self._kwargs["service_account"],
+                        # Terminate the container immediately on SIGTERM
+                        termination_grace_period_seconds=0,
                         # TODO (savin): Enable tolerations for GPU scheduling.
                         #               This requires some thought around the
                         #               UX since specifying tolerations can get
@@ -235,6 +243,10 @@ class KubernetesJob(object):
 
     def execute(self):
         try:
+            # TODO (savin): Make job submission back-pressure aware. Currently
+            #               there doesn't seem to be a kubernetes-native way to
+            #               achieve the guarantees that we are seeking.
+            #               Hopefully, we will be able to get creative soon.
             response = (
                 self._client.BatchV1Api()
                 .create_namespaced_job(
@@ -348,6 +360,7 @@ class RunningJob(object):
         self._id = self._pod["metadata"]["labels"]["controller-uid"]
 
         import atexit
+
         atexit.register(self.kill)
 
     def __repr__(self):
@@ -355,37 +368,114 @@ class RunningJob(object):
             self.__class__.__name__, self._namespace, self._name
         )
 
-    def _fetch(self):
+    def _fetch_pod(self):
         try:
-            # TODO (savin): pods may not appear immediately.
+            # TODO (savin): pods may not appear immediately or they may
+            #               disappear
             return (
                 self._client.CoreV1Api()
                 .list_namespaced_pod(
                     namespace=self._namespace,
                     label_selector="job-name={}".format(self._name),
                 )
-                .to_dict()["items"][0]
+                .to_dict()["items"]
+                or [None]
+            )[0]
+        except self._client.rest.ApiException as e:
+            # TODO: Handle failures
+            raise e
+
+    def _fetch_job(self):
+        try:
+            return self._client.BatchV1Api().read_namespaced_job(
+                name=self._name, namespace=self._namespace
             )
         except self._client.rest.ApiException as e:
             # TODO: Handle failures
             raise e
 
     def update(self):
-        self._pod = self._fetch()
+        self._pod = self._fetch_pod()
+        # print(self._pod)
         # print(
         #     self._pod["status"].get("container_statuses", [{}])[0].get("state")
         # )
         return self
 
     def kill(self):
+        # Terminating a Kubernetes job is a bit tricky. Issuing a
+        # `BatchV1Api.delete_namespaced_job` will also remove all traces of the # job object from the Kubernetes API server which may not be desirable.
+        # This forces us to be a bit creative in terms of how we handle kill:
+        #
+        # 1. If the container is alive and kicking inside the pod, we simply
+        #    attach ourselves to the container and issue a kill signal. The
+        #    way we have initialized the Job ensures that the job will cleanly
+        #    terminate.
+        # 2. In scenarios where either the pod (unschedulable etc.) or the
+        #    container (ImagePullError etc.) hasn't come up yet, we become a
+        #    bit creative by patching the job parallelism to 0. This ensures
+        #    that the underlying node's resources are made available to
+        #    kube-scheduler again. The downside is that the Job wouldn't mark
+        #    itself as done and the pod metadata disappears from the API
+        #    server. There is an open issue in the Kubernetes GH to provide
+        #    better support for job terminations -
+        #    https://github.com/kubernetes/enhancements/issues/2232 but
+        #    meanwhile as a quick follow-up, we should investigate ways to
+        #    terminate the pod without deleting the object.
+        # 3. If the pod object hasn't shown up yet, we set the parallelism to 0
+        #    to preempt it.
         if not self.is_done:
-            # TODO (savin): Currently, we are deleting the job. Ideally, we
-            #               should terminate the job without deleting the
-            #               object.
-            self._client.BatchV1Api().delete_namespaced_job(
-                name=self._name, namespace=self._namespace, propagation_policy="Background"
-            )
-        return self.update()
+            # TODO (savin): Swap the check with if container is running.
+            if self.is_running:
+                # Case 1.
+                from kubernetes.stream import stream
+
+                api_instance = self._client.CoreV1Api
+                try:
+                    # TODO (savin): stream opens a web-socket connection. It may
+                    #               not be desirable to open multiple web-socket
+                    #               connections frivolously (think killing a
+                    #               workflow during a for-each step). Given that
+                    #               we are only interested in a fire-and-forget
+                    #               request, we should look into how to avoid
+                    #               the ws.
+                    stream(
+                        api_instance().connect_get_namespaced_pod_exec,
+                        name=self._pod["metadata"]["name"],
+                        namespace=self._namespace,
+                        command=[
+                            "/bin/sh",
+                            "-c",
+                            "/sbin/killall5",
+                        ],
+                        stderr=True,
+                        stdin=False,
+                        stdout=True,
+                        tty=False,
+                    )
+                except:
+                    # Best effort. It's likely that this API call could also be
+                    # blocked for the user.
+                    # TODO (savin): Forward the error to the user.
+                    # pass
+                    raise
+            else:
+                # Case 2.
+                try:
+                    # TODO (savin): Also patch job annotation to reflect this
+                    #               action.
+                    self._client.BatchV1Api().patch_namespaced_job(
+                        name=self._name,
+                        namespace=self._namespace,
+                        field_manager="metaflow",
+                        body={"spec": {"parallelism": 0}},
+                    )
+                except:
+                    # Best effort.
+                    # TODO (savin): Forward the error to the user.
+                    # pass
+                    raise
+        return self
 
     @property
     def id(self):
