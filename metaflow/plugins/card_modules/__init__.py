@@ -30,7 +30,6 @@ except ImportError as e:
                 "if you want to ignore, uninstall metaflow_cards package")
             raise
 else:
-    lazy_load_card_modules = {}
     for finder, name, ispkg in iter_namespace(_card_modules):
         card_module = importlib.import_module(name)
         try:
@@ -39,7 +38,6 @@ else:
                 # from .some_card_module import SomeCard 
                 # CARDS = [SomeCard]
             assert card_module.CARDS is not None
-            lazy_load_card_modules[name] = card_module.CARDS
             assert isinstance(card_module.CARDS,list)
             # todo: Check if types need to be validated; 
             # todo : check if the registrations are happening in a clean way

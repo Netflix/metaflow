@@ -48,7 +48,6 @@ def create(ctx, run_path_spec=None,card_type=None,metadata_path=None):
                                 runid,\
                                 step_name,\
                                 task_id,\
-                                mode='w',\
                                 path_spec=run_path_spec)
     
     filtered_card = filtered_cards[0]
