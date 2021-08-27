@@ -1,4 +1,5 @@
 import json
+from metaflow.metaflow_config import DEFAULT_AWS_CLIENT_PROVIDER
 import os
 import sys
 import tarfile
@@ -23,8 +24,12 @@ class CondaEnvironment(MetaflowEnvironment):
         # any calls we don't handle specifically to that one.
         from ...plugins import ENVIRONMENTS
         from metaflow.metaflow_config import DEFAULT_ENVIRONMENT
-        self.base_env = [e for e in ENVIRONMENTS + [MetaflowEnvironment]
-            if e.TYPE == DEFAULT_ENVIRONMENT][0](self.flow)
+
+        if DEFAULT_ENVIRONMENT == self.TYPE:
+            self.base_env = MetaflowEnvironment(self.flow)
+        else:
+            self.base_env = [e for e in ENVIRONMENTS + [MetaflowEnvironment]
+                if e.TYPE == DEFAULT_ENVIRONMENT][0](self.flow)
 
     def init_environment(self, echo):
         # Print a message for now
