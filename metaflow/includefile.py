@@ -203,7 +203,6 @@ class LocalFile():
         if path:
             if isinstance(path, IncludedFile):
                 path = path.descriptor
-
             decoded_value = Uploader.decode_value(to_unicode(path))
             if decoded_value['type'] == 'self':
                 return True, LocalFile(
@@ -252,6 +251,9 @@ class FilePathClass(click.ParamType):
     #    + This will therefore persist a simple string
     #  - When the parameter is loaded again, the load_parameter in the IncludeFile class will get called
     #    which will download and return the bytes of the persisted file.
+    # It returns a callable which will be invoked at the right time to complete
+    # conversion (in particular to delay the inclusion of the file until *after*
+    # PyLint has run for example)
     def __init__(self, is_text, encoding):
         self._is_text = is_text
         self._encoding = encoding
@@ -266,14 +268,16 @@ class FilePathClass(click.ParamType):
         if not ok:
             self.fail(err)
         if file_type is None:
-            # Here, we need to store the file
+            # Here, we need to store the file; we return a lambda that will do
+            # this.
             return lambda is_text=self._is_text, encoding=self._encoding,\
                 value=value, ctx=parameters.context_proto: LocalFile(
                     is_text, encoding, value)(ctx)
         elif isinstance(file_type, LocalFile):
-            # This is a default file that we evaluate now (to delay upload
-            # until *after* the flow is checked)
+            # This is a default file
             return lambda f=file_type, ctx=parameters.context_proto: f(ctx)
+        elif isinstance(file_type, Uploader):
+            return lambda value=Uploader.decode_value(to_unicode(value)): value
         else:
             # We will just store the URL in the datastore along with text/encoding info
             return lambda is_text=self._is_text, encoding=self._encoding,\
@@ -308,7 +312,7 @@ class IncludeFile(Parameter):
                     str,
                     'default',
                     lambda ctx, full_evaluation, o=o: \
-                    LocalFile(o['is_text'], o['encoding'], o['url'])(ctx) \
+                    LocalFile(o['is_text'], o['encoding'], o['url'])(ctx).descriptor \
                         if full_evaluation else json.dumps(o),
                     print_representation=v)
             else:
@@ -318,7 +322,7 @@ class IncludeFile(Parameter):
                     'default',
                     lambda _, __, is_text=is_text, encoding=encoding, v=v: \
                         Uploader.encode_url('external-default', v,
-                                            is_text=is_text, encoding=encoding),
+                                            is_text=is_text, encoding=encoding).descriptor,
                     print_representation=v)
 
         super(IncludeFile, self).__init__(
@@ -328,6 +332,8 @@ class IncludeFile(Parameter):
     def load_parameter(self, v):
         if v is None:
             return v
+        if not isinstance(v, IncludedFile):
+            v = IncludedFile(v)
         return v.decode(self.name, var_type='Parameter')
 
 
@@ -349,9 +355,15 @@ class Uploader():
 
     @staticmethod
     def decode_value(value):
-        if value is None or len(value) == 0 or value[0] != '{':
+        if value is None:
+            return {'type': 'base', 'url': None}
+        try:
+            return json.loads(value)
+        except ValueError:
+            # Happens when JSON decoding fails which happens when the value passed
+            # is just a path to a file to include in which case we return
+            # that path in a way that looks like a JSON blob
             return {'type': 'base', 'url': value}
-        return json.loads(value)
 
     def store(self, flow_name, path, is_text, encoding, echo):
         sz = os.path.getsize(path)
