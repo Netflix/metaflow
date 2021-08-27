@@ -68,7 +68,9 @@ def kubernetes():
 )
 @click.option("--cpu", help="CPU requirement for Kubernetes job on Amazon EKS.")
 @click.option("--gpu", help="GPU requirement for Kubernetes job on Amazon EKS.")
-@click.option("--disk", help="Disk requirement for Kubernetes job on Amazon EKS.")
+@click.option(
+    "--disk", help="Disk requirement for Kubernetes job on Amazon EKS."
+)
 @click.option(
     "--memory", help="Memory requirement for Kubernetes job on Amazon EKS."
 )

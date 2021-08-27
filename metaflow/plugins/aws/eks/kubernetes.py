@@ -2,7 +2,6 @@ import os
 import time
 import json
 import select
-import atexit
 import shlex
 import time
 import re
@@ -46,6 +45,7 @@ class KubernetesKilledException(MetaflowException):
 
 
 class Kubernetes(object):
+
     def __init__(
         self,
         datastore,
@@ -66,10 +66,6 @@ class Kubernetes(object):
         self._step_name = step_name
         self._task_id = task_id
         self._attempt = str(attempt)
-
-        # TODO: Issue a kill request for all pending Kubernetes jobs at exit.
-        # atexit.register(
-        #     lambda: self.job.kill() if hasattr(self, 'job') else None)
 
     def _command(
         self,
@@ -334,16 +330,11 @@ class Kubernetes(object):
         # It is possible that we exit the loop above before all logs have been
         # shown.
         #
-        # TODO if we notice AWS Batch failing to upload logs to S3, we can add a
-        # HEAD request here to ensure that the file exists prior to calling
+        # TODO if we notice Kubernetes failing to upload logs to S3, we can add
+        # a HEAD request here to ensure that the file exists prior to calling
         # S3Tail and note the user about truncated logs if it doesn't
         _print_available(stdout_tail, "stdout")
         _print_available(stderr_tail, "stderr")
-        # In case of hard crashes (OOM), the final save_logs won't happen.
-        # We fetch the remaining logs from AWS CloudWatch and persist them to
-        # Amazon S3.
-        #
-        # TODO: AWS CloudWatch fetch logs
 
         if self._job.has_failed:
             msg = next(

@@ -124,7 +124,7 @@ class KubernetesJob(object):
                 # when AWS Step Functions / Argo are responsible for the
                 # execution.
                 backoff_limit=self._kwargs.get("retries", 0),
-                ttl_seconds_after_finished=0,  # Delete the job immediately
+                ttl_seconds_after_finished=60*60*24,  # Remove job after a day.
                 template=self._client.V1PodTemplateSpec(
                     metadata=self._client.V1ObjectMeta(
                         annotations=self._kwargs.get("annotations", {}),
@@ -273,7 +273,7 @@ class KubernetesJob(object):
         return self
 
     def memory(self, mem):
-        self._kwargs["memory"] = memory
+        self._kwargs["memory"] = mem
         return self
 
     def environment_variable(self, name, value):
@@ -344,7 +344,11 @@ class RunningJob(object):
 
         self.update()
         # Get the V1Job id (controller for the pod)
+        # TODO (savin): Should the id be job id, job name, pod id or pod name?
         self._id = self._pod["metadata"]["labels"]["controller-uid"]
+
+        import atexit
+        atexit.register(self.kill)
 
     def __repr__(self):
         return "{}('{}/{}')".format(
@@ -353,6 +357,7 @@ class RunningJob(object):
 
     def _fetch(self):
         try:
+            # TODO (savin): pods may not appear immediately.
             return (
                 self._client.CoreV1Api()
                 .list_namespaced_pod(
@@ -371,6 +376,16 @@ class RunningJob(object):
         #     self._pod["status"].get("container_statuses", [{}])[0].get("state")
         # )
         return self
+
+    def kill(self):
+        if not self.is_done:
+            # TODO (savin): Currently, we are deleting the job. Ideally, we
+            #               should terminate the job without deleting the
+            #               object.
+            self._client.BatchV1Api().delete_namespaced_job(
+                name=self._name, namespace=self._namespace, propagation_policy="Background"
+            )
+        return self.update()
 
     @property
     def id(self):
