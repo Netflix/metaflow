@@ -207,23 +207,9 @@ def get_version(pkg):
     return pkg_resources.get_distribution(pkg).version
 
 
-# PINNED_CONDA_LIBS are the libraries that metaflow depends on for execution
+# libraries that metaflow depends on for execution
 # and are needed within a conda environment
-def get_pinned_conda_libs(python_version):
-    if python_version.startswith("3.5"):
-        return {
-            'click': '7.1.2',
-            'requests': '2.24.0',
-            'boto3': '1.9.88',
-            'coverage': '4.5.1'
-        }
-    else:
-        return {
-            'click': '7.1.2',
-            'requests': '2.24.0',
-            'boto3': '1.14.47',
-            'coverage': '4.5.4'
-        }
+DEFAULT_CONDA_LIBS = {"click", "requests", "boto3", "coverage"}
         
 
 # Check if there is a an extension to Metaflow to load and override everything

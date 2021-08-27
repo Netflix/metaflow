@@ -16,7 +16,7 @@ from metaflow.datastore.local import LocalDataStore
 from metaflow.decorators import StepDecorator
 from metaflow.metaflow_environment import InvalidEnvironmentException
 from metaflow.metadata import MetaDatum
-from metaflow.metaflow_config import get_pinned_conda_libs, CONDA_PACKAGE_S3ROOT
+from metaflow.metaflow_config import DEFAULT_CONDA_LIBS, CONDA_PACKAGE_S3ROOT
 from metaflow.util import get_metaflow_root
 from metaflow.datatools import S3
 from metaflow.unbounded_foreach import UBF_CONTROL
@@ -84,7 +84,7 @@ class CondaStepDecorator(StepDecorator):
                         False] if x is not None)
 
     def _lib_deps(self):
-        deps = get_pinned_conda_libs(self._python_version())
+        deps = {}
 
         base_deps = self.base_attributes['libraries']
         deps.update(base_deps)
@@ -99,8 +99,12 @@ class CondaStepDecorator(StepDecorator):
 
     def _step_deps(self):
         deps = [b'python==%s' % self._python_version().encode()]
+        lib_deps = self._lib_deps()
         deps.extend(b'%s==%s' % (name.encode('ascii'), ver.encode('ascii'))
-                    for name, ver in self._lib_deps().items())
+                    for name, ver in lib_deps.items())
+        deps.extend(b'%s' % name.encode('ascii')
+                    for name in DEFAULT_CONDA_LIBS
+                    if name not in lib_deps)
         return deps
 
     def _env_id(self):
