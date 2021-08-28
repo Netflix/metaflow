@@ -6,6 +6,7 @@ import traceback
 
 from metaflow import util
 from metaflow.exception import CommandException, METAFLOW_EXIT_DISALLOW_RETRY
+from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 
 from .kubernetes import Kubernetes, KubernetesKilledException
 from ..aws_utils import sync_metadata_from_S3
@@ -13,7 +14,7 @@ from ..aws_utils import sync_metadata_from_S3
 
 # TODO(s):
 #    1. Compatibility for Metaflow-R (not a blocker for release).
-#    2.
+#    2. Add more CLI commands to manage Kubernetes objects.
 
 
 @click.group()
@@ -180,6 +181,12 @@ def step(
         step_args=" ".join(util.dict_to_cli_options(kwargs)),
     )
 
+    def _sync_metadata():
+        if ctx.obj.metadata.TYPE == 'local':
+            sync_metadata_from_S3(DATASTORE_LOCAL_DIR,
+                                  datastore_root,
+                                  retry_count)
+
     try:
         kubernetes = Kubernetes(
             datastore=ctx.obj.datastore,
@@ -215,7 +222,7 @@ def step(
         # TODO: Make sure all errors pretty print nicely.
         traceback.print_exc()
         # print(str(e))
-        sync_metadata_from_S3(ctx.obj.metadata, datastore_root, retry_count)
+        _sync_metadata()
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
     try:
         # Wait for the Kubernetes job to finish.
@@ -223,6 +230,6 @@ def step(
     except KubernetesKilledException:
         # Don't retry killed jobs.
         traceback.print_exc()
-        sync_metadata_from_S3(ctx.obj.metadata, datastore_root, retry_count)
+        _sync_metadata()
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
-    sync_metadata_from_S3(ctx.obj.metadata, datastore_root, retry_count)
+    _sync_metadata()
