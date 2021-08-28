@@ -8,7 +8,7 @@ class CardDecoratorBasicTest(MetaflowTest):
 
     @tag('card(type="basic")')
     @steps(0, ['start', 'linear','foreach-inner','nested-foreach','nested-branches',],)
-    def step_sleep(self):
+    def step_start(self):
         self.data = 'abc'    
     
     @steps(1, ['all'])
