@@ -7,10 +7,10 @@ class CardDecoratorBasicTest(MetaflowTest):
     PRIORITY = 2 
 
     @tag('card(type="basic")')
-    @steps(0, ['singleton-start', 'foreach-inner'], required=True)
+    @steps(0, ['start', 'linear','foreach-inner','nested-foreach','nested-branches',],)
     def step_sleep(self):
-        self.data = 'abc'
-        
+        self.data = 'abc'    
+    
     @steps(1, ['all'])
     def step_all(self):
         pass
