@@ -7,9 +7,9 @@ class CardDecoratorBasicTest(MetaflowTest):
     PRIORITY = 2 
 
     @tag('card(type="basic")')
-    @steps(0, ['start', 'linear','foreach-inner','nested-foreach','nested-branches',],)
+    @steps(0, ['start'],)
     def step_start(self):
-        self.data = 'abc'    
+        self.data = 'abc'
     
     @steps(1, ['all'])
     def step_all(self):
@@ -25,29 +25,16 @@ class CardDecoratorBasicTest(MetaflowTest):
             CARD_DIRECTORY_NAME='mf.cards'
             for step in run:
                 for task in step:
-                    content_str = '\n'.join([
-                        "<p>%s : %s</p>" % (key,value.data)
-                        for key,value in task.data._artifacts.items()
-                    ])
-                    html_str="""
-                    <html>
-                    <head>
-                    </head>
-                    <body>
-                    %s
-                    </body>
-                    </html>
-                    """ % (content_str)                    
-                    file_name = 'basic-%s.html'%(sha1(bytes(str(html_str).encode("utf-8"))).hexdigest())
-                    stored_path = os.path.join(CARD_DIRECTORY_NAME,run.id,'runs',step.id,'tasks',task.id,'cards',file_name)
-                    card_stored=True
-                    try:
-                        os.stat(stored_path)
-                    except OSError as e:
-                        if e.errno == errno.ENOENT:
-                            pass
-                        else:
-                            raise
+                    if step.id == 'start':
+                        stored_path = os.path.join('.metaflow',CARD_DIRECTORY_NAME,flow.name,'runs',run.id,'tasks',task.id,'cards')
+                        try:
+                            os.stat(stored_path)
+                            card_stored=True
+                        except OSError as e:
+                            if e.errno == errno.ENOENT:
+                                pass
+                            else:
+                                raise
             assert_equals(True, card_stored)
 
     
