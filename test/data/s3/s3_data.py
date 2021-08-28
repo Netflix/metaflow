@@ -415,16 +415,16 @@ def ensure_test_data():
                     # For metadata, we don't actually touch RandomFile
                     # (since it is the same) but we modify the path to post-pend
                     # the name
-                    print('Case %s: %s started' % (prefix, f.url))
+                    print('Test data case %s: upload to %s started' % (prefix, f.url))
                     s3client.upload_fileobj(f.fileobj(),
                                             url.netloc,
                                             url.path.lstrip('/'))
-                    print('Case %s: %s added' % (prefix, f.url))
+                    print('Test data case %s: uploaded to %s' % (prefix, f.url))
                     if meta is not None:
                         for metaname, metainfo in meta.items():
                             new_url = "%s_%s" % (f.url, metaname)
                             url = urlparse(new_url)
-                            print('Case %s: %s started' % (prefix, new_url))
+                            print('Test data case %s: upload to %s started' % (prefix, new_url))
                             extra = {}
                             content_type, user_meta = metainfo
                             if content_type:
@@ -437,7 +437,7 @@ def ensure_test_data():
                                                     url.netloc,
                                                     url.path.lstrip('/'),
                                                     ExtraArgs=extra)
-                            print('Case %s: %s added' % (prefix, new_url))
+                            print('Test data case %s: uploaded to %s' % (prefix, new_url))
 
         for prefix, filespecs in BIG_DATA + FAKE_RUN_DATA:
             _do_upload(prefix, filespecs)
