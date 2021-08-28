@@ -262,23 +262,24 @@ class Kubernetes(object):
         def wait_for_launch(job):
             status = job.status
             echo(
-                "Task is starting (status %s)..." % status,
+                "Task is starting (Status %s)..." % status,
                 "stderr",
                 job_id=job.id,
             )
             t = time.time()
             while True:
-                if status != job.status or (time.time() - t) > 30:
-                    status = job.status
+                new_status = job.status
+                if status != new_status or (time.time() - t) > 30:
+                    status = new_status
                     echo(
-                        "Task is starting (status %s)..." % status,
+                        "Task is starting (Status %s)..." % status,
                         "stderr",
                         job_id=job.id,
                     )
                     t = time.time()
                 if job.is_running or job.is_done:
                     break
-                select.poll().poll(200)
+                time.sleep(1)
 
         def _print_available(tail, stream, should_persist=False):
             # print the latest batch of lines from S3Tail
@@ -321,8 +322,7 @@ class Kubernetes(object):
             # This sleep should never delay log updates. On the other hand,
             # we should exit this loop when the task has finished without
             # a long delay, regardless of the log tailing schedule
-            d = min(log_update_delay, 5.0)
-            select.poll().poll(d * 1000)
+            time.sleep(min(log_update_delay, 5.0))
 
         # 3) Fetch remaining logs
         #
@@ -338,25 +338,32 @@ class Kubernetes(object):
         _print_available(stderr_tail, "stderr")
 
         if self._job.has_failed:
+            exit_code, reason = self._job.reason
             msg = next(
                 msg
                 for msg in [
-                    self._job.reason,
+                    reason,
                     "Task crashed",
                 ]
                 if msg is not None
             )
+            if exit_code:
+                if int(exit_code) == 139:
+                    raise KubernetesException(
+                        "Task failed with a segmentation fault."
+                    )
+                else:
+                    msg = "%s (exit code %s)" % (msg, exit_code)
             raise KubernetesException(
-                "%s. "
-                "This could be a transient error. "
+                "%s. This could be a transient error. "
                 "Use @retry to retry." % msg
             )
-        else:
-            if self._job.is_running:
-                # Kill the job if it is still running by throwing an exception.
-                raise KubernetesKilledException("Task failed!")
-            echo(
-                "Task finished with exit code %s." % self._job.status_code,
-                "stderr",
-                job_id=self._job.id,
-            )
+        elif not self._job.is_done:
+            # Kill the job if it is still running by throwing an exception.
+            raise KubernetesKilledException("Task failed!")
+        exit_code, _ = self._job.reason
+        echo(
+            "Task finished with exit code %s." % exit_code,
+            "stderr",
+            job_id=self._job.id,
+        )

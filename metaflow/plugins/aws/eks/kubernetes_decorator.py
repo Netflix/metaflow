@@ -71,7 +71,7 @@ class KubernetesDecorator(StepDecorator):
         "secrets": None,  # e.g., mysecret
         "node_selector": None,  # e.g., kubernetes.io/os=linux
         "gpu": "0",
-        "shared_memory": None,
+        # "shared_memory": None,
         "name_space": None,
     }
     package_url = None

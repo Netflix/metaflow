@@ -90,14 +90,11 @@ class KubernetesJob(object):
             )
 
         # TODO(s) (savin)
-        # 1. Find a way to ensure that a pod is cleanly terminated automatically
-        #    if the container fails to start properly (invalid docker image
-        #    etc.)
-        # 2. Add support for GPUs.
+        # 1. Add support for GPUs.
 
         # A discerning eye would notice and question the choice of using the
-        # V1Job construct over the V1Pod construct given that we don't rely on
-        # any of the V1Job semantics. The only reasons at the moment are -
+        # V1Job construct over the V1Pod construct given that we don't rely much
+        # on any of the V1Job semantics. The major reasons at the moment are -
         #     1. It makes the Kubernetes UIs (Octant, Lens) a bit more easy on
         #        the eyes, although even that can be questioned.
         #     2. AWS Step Functions, at the moment (Aug' 21) only supports
@@ -105,7 +102,7 @@ class KubernetesJob(object):
         #        API. When we ship the AWS Step Functions integration with EKS,
         #        it will hopefully lessen our workload.
         #
-        # The current implementation assumes that there is only one unique Pod
+        # Note: This implementation ensures that there is only one unique Pod
         # (unique UID) per Metaflow task attempt.
         self._job = self._client.V1Job(
             api_version="batch/v1",
@@ -257,6 +254,7 @@ class KubernetesJob(object):
             return RunningJob(
                 client=self._client,
                 name=response["metadata"]["name"],
+                uid=response["metadata"]["uid"],
                 namespace=response["metadata"]["namespace"],
             )
         except self._client.rest.ApiException as e:
@@ -347,17 +345,17 @@ class RunningJob(object):
     #
     # WIP...
 
-    def __init__(self, client, name, namespace):
+    JOB_ACTIVE = "job:active"
+    JOB_FAILED = ""
+
+    def __init__(self, client, name, uid, namespace):
         self._client = client
         self._name = name
+        self._id = uid
         self._namespace = namespace
 
-        self._pod = None
-
-        self.update()
-        # Get the V1Job id (controller for the pod)
-        # TODO (savin): Should the id be job id, job name, pod id or pod name?
-        self._id = self._pod["metadata"]["labels"]["controller-uid"]
+        self._job = self._fetch_job()
+        self._pod = self._fetch_pod()
 
         import atexit
 
@@ -367,6 +365,18 @@ class RunningJob(object):
         return "{}('{}/{}')".format(
             self.__class__.__name__, self._namespace, self._name
         )
+
+    def _fetch_job(self):
+        try:
+            return (
+                self._client.BatchV1Api()
+                .read_namespaced_job(name=self._name, namespace=self._namespace)
+                .to_dict()
+            )
+        except self._client.rest.ApiException as e:
+            # TODO: Handle failures as well as the fact that a different
+            #       process can delete the job.
+            raise e
 
     def _fetch_pod(self):
         try:
@@ -385,26 +395,10 @@ class RunningJob(object):
             # TODO: Handle failures
             raise e
 
-    def _fetch_job(self):
-        try:
-            return self._client.BatchV1Api().read_namespaced_job(
-                name=self._name, namespace=self._namespace
-            )
-        except self._client.rest.ApiException as e:
-            # TODO: Handle failures
-            raise e
-
-    def update(self):
-        self._pod = self._fetch_pod()
-        # print(self._pod)
-        # print(
-        #     self._pod["status"].get("container_statuses", [{}])[0].get("state")
-        # )
-        return self
-
     def kill(self):
         # Terminating a Kubernetes job is a bit tricky. Issuing a
-        # `BatchV1Api.delete_namespaced_job` will also remove all traces of the # job object from the Kubernetes API server which may not be desirable.
+        # `BatchV1Api.delete_namespaced_job` will also remove all traces of the
+        # job object from the Kubernetes API server which may not be desirable.
         # This forces us to be a bit creative in terms of how we handle kill:
         #
         # 1. If the container is alive and kicking inside the pod, we simply
@@ -425,7 +419,6 @@ class RunningJob(object):
         # 3. If the pod object hasn't shown up yet, we set the parallelism to 0
         #    to preempt it.
         if not self.is_done:
-            # TODO (savin): Swap the check with if container is running.
             if self.is_running:
                 # Case 1.
                 from kubernetes.stream import stream
@@ -435,10 +428,7 @@ class RunningJob(object):
                     # TODO (savin): stream opens a web-socket connection. It may
                     #               not be desirable to open multiple web-socket
                     #               connections frivolously (think killing a
-                    #               workflow during a for-each step). Given that
-                    #               we are only interested in a fire-and-forget
-                    #               request, we should look into how to avoid
-                    #               the ws.
+                    #               workflow during a for-each step).
                     stream(
                         api_instance().connect_get_namespaced_pod_exec,
                         name=self._pod["metadata"]["name"],
@@ -454,7 +444,7 @@ class RunningJob(object):
                         tty=False,
                     )
                 except:
-                    # Best effort. It's likely that this API call could also be
+                    # Best effort. It's likely that this API call could be
                     # blocked for the user.
                     # TODO (savin): Forward the error to the user.
                     # pass
@@ -479,52 +469,129 @@ class RunningJob(object):
 
     @property
     def id(self):
+        # TODO (savin): Should we use pod id instead?
         return self._id
 
     @property
     def is_done(self):
         def _done():
-            return self._pod["status"]["phase"] in ("Succeeded", "Failed")
+            # Either the job succeeds or fails naturally or we may have
+            # forced the pod termination causing the job to still be in an
+            # active state but for all intents and purposes dead to us.
+            #
+            # This method relies exclusively on the state of V1Job object,
+            # since it's guaranteed to exist during the lifetime of the job.
+
+            # TODO (savin): check for self._job
+            return (
+                bool(self._job["status"].get("succeeded"))
+                or bool(self._job["status"].get("failed"))
+                or (self._job["spec"]["parallelism"] == 0)
+            )
 
         if not _done():
-            # if not done, check for newer status
-            self.update()
+            # If not done, check for newer status
+            self._job = self._fetch_job()
         return _done()
 
     @property
     def status(self):
         if not self.is_done:
-            # if not done, check for newer status (see the implementation of
-            # self.is_done)
-            pass
-        return self._pod["status"]["phase"]
+            # If not done, check for newer status
+            self._pod = self._fetch_pod()
+        # Success!
+        if bool(self._job["status"].get("succeeded")):
+            return "Job:Succeeded"
+        # Failure!
+        if bool(self._job["status"].get("failed")) or (
+            self._job["spec"]["parallelism"] == 0
+        ):
+            return "Job:Failed"
+        if bool(self._job["status"].get("active")):
+            msg = "Job:Active"
+            if self._pod:
+                msg += " Pod:%s" % self._pod["status"]["phase"].title()
+                # TODO (savin): parse Pod conditions
+                container_status = (
+                    self._pod["status"].get("container_statuses") or [None]
+                )[0]
+                if container_status:
+                    # We have a single container inside the pod
+                    status = {"status": "waiting"}
+                    for k, v in container_status["state"].items():
+                        if v is not None:
+                            status["status"] = k
+                            status.update(v)
+                    msg += " Container:%s" % status["status"].title()
+                    reason = ""
+                    if status.get("reason"):
+                        reason = status["reason"]
+                    if status.get("message"):
+                        reason += ":%s" % status["message"]
+                    if reason:
+                        msg += " [%s]" % reason
+            # TODO (savin): This message should be shortened before release.
+            return msg
+        return "Job:Unknown"
 
     @property
     def has_succeeded(self):
-        return self.status == "Succeeded"
+        # Job is in a terminal state and the status is marked as succeeded
+        return self.is_done and bool(self._job["status"].get("succeeded"))
 
     @property
     def has_failed(self):
-        return self.status == "Failed"
-
-    @property
-    def is_running(self):
-        return self.status == "Running"
-
-    @property
-    def is_pending(self):
-        return self.status == "Pending"
-
-    @property
-    def container_status(self):
-        return (
-            self._pod["status"].get("container_statuses", [{}])[0].get("state")
+        # Job is in a terminal state and either the status is marked as failed
+        # or the Job is not allowed to launch any more pods
+        return self.is_done and (
+            bool(self._job["status"].get("failed"))
+            or (self._job["spec"]["parallelism"] == 0)
         )
 
     @property
-    def reason(self):
-        return "foo"
+    def is_running(self):
+        # The container is running. This happens when the Pod's phase is running
+        if not self.is_done:
+            # If not done, check if pod has been assigned and is in Running
+            # phase
+            self._pod = self._fetch_pod()
+            return self._pod.get("status", {}).get("phase") == "Running"
+        return False
 
     @property
-    def status_code(self):
-        return 1
+    def is_waiting(self):
+        return not self.is_done and not self.is_running
+
+    @property
+    def reason(self):
+        if self.is_done:
+            if self.has_succeeded:
+                return 0, None
+            # Best effort since Pod object can disappear on us at anytime
+            else:
+
+                def _done():
+                    return self._pod.get("status", {}).get("phase") in (
+                        "Succeeded",
+                        "Failed",
+                    )
+
+                if not _done():
+                    # If pod status is dirty, check for newer status
+                    self._pod = self._fetch_pod()
+                if self._pod:
+                    for k, v in (
+                        self._pod["status"]
+                        .get("container_statuses", [{}])[0]
+                        .get("state", {})
+                        .items()
+                    ):
+                        if v is not None:
+                            return v.get("exit_code"), ": ".join(
+                                filter(
+                                    None,
+                                    [v.get("reason"), v.get("message")],
+                                )
+                            )
+
+        return None, None
