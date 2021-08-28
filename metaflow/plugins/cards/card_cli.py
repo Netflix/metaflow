@@ -1,8 +1,7 @@
-import metaflow
 from metaflow.client import Task
+from metaflow import Flow, JSONType,Step
 from .card_datastore import CardDatastore
-from .exception import CardNotFoundException
-from metaflow import Flow,Step
+from .exception import CardNotFoundException,IncorrectCardArgsException,UnrenderableCardException
 import click
 from metaflow.exception import MetaflowNotFound
 
@@ -21,6 +20,11 @@ def card():
                 show_default=True,
                 type=str,
                 help="Type of card being created")
+@click.option('--card-args',
+                default={},
+                show_default=True,
+                type=JSONType,
+                help="Type of card being created")
 @click.option('--run-path-spec',
                 default=None,
                 show_default=True,
@@ -32,9 +36,11 @@ def card():
                 type=str,
                 help="Metadata of the run instance.")
 @click.pass_context
-def create(ctx, run_path_spec=None,card_type=None,metadata_path=None):
+def create(ctx,card_args=None, run_path_spec=None,card_type=None,metadata_path=None):
+    ctx.obj.echo("Creating new card of type %s" % card_type, fg='green')
     from metaflow import get_metadata,metadata
-    metadata(metadata_path)
+    if metadata_path is not None:
+        metadata(metadata_path)
     assert run_path_spec is not None
     flow_name,runid,step_name,task_id = run_path_spec.split('/')
     task = Task(run_path_spec)
@@ -52,8 +58,17 @@ def create(ctx, run_path_spec=None,card_type=None,metadata_path=None):
     
     filtered_card = filtered_cards[0]
     # save card to datastore
-    rendered_info = filtered_card().render(task)
-    card_datastore.save_card(card_type,rendered_info)
+    try:
+        mf_card = filtered_card(**card_args)
+    except TypeError as e:
+        raise IncorrectCardArgsException(card_type,card_args)
+    
+    try:
+        rendered_info = mf_card.render(task)
+    except:
+        raise UnrenderableCardException(card_type,card_args)
+    else:
+        card_datastore.save_card(card_type,rendered_info)
 
 @card.command(help='View the HTML card')
 @click.argument('step-name',

@@ -1,6 +1,7 @@
 import subprocess
 import os
 import sys
+import json
 from metaflow.decorators import StepDecorator,flow_decorators
 from metaflow.current import current
 from metaflow.metaflow_environment import MetaflowEnvironment
@@ -11,8 +12,9 @@ from metaflow.util import to_unicode, compress_list, unicode_type
 class CardDecorator(StepDecorator):
     name='card'
     defaults = {
-        'type':'basic',
-        'level': 'task' # flow,task,run
+        "type":'basic',
+        "level": 'task', # flow,task,run
+        "args": {}
     }
     
     def __init__(self, *args, **kwargs):
@@ -76,18 +78,19 @@ class CardDecorator(StepDecorator):
             current.task_id
         ])
         self._run_cards_subprocess(runspec)
-    
+
+    @staticmethod
+    def _options(mapping):
+        for k, v in mapping.items():
+            if v:
+                k = k.replace('_', '-')
+                v = v if isinstance(v, (list, tuple, set)) else [v]
+                for value in v:
+                    yield '--%s' % k
+                    if not isinstance(value, bool):
+                        yield to_unicode(value)
          
     def _create_top_level_args(self):
-        def _options(mapping):
-            for k, v in mapping.items():
-                if v:
-                    k = k.replace('_', '-')
-                    v = v if isinstance(v, (list, tuple, set)) else [v]
-                    for value in v:
-                        yield '--%s' % k
-                        if not isinstance(value, bool):
-                            yield to_unicode(value)
 
         top_level_options = {
             'quiet': True,
@@ -104,7 +107,7 @@ class CardDecorator(StepDecorator):
         # the get_top_level_options() hook.
         for deco in flow_decorators():
             top_level_options.update(deco.get_top_level_options())
-        return list(_options(top_level_options))
+        return list(self._options(top_level_options))
     
     def _run_cards_subprocess(self,runspec):
         from metaflow import get_metadata
@@ -121,12 +124,16 @@ class CardDecorator(StepDecorator):
             runspec,
             # todo : test correctness of get_metadata() in future 
             "--metadata-path",
-            get_metadata()
-        ]
+            get_metadata(),
+        # Add the options relating to card arguments. 
+        # Todo check if self.attributes is the correct implementation of this
+        ]+ ['--card-args',json.dumps(self.attributes['args'])]
+        
         response,fail = self._run_command(cmd,os.environ)
         if fail:
             # todo : Handle failure scenarios better. 
             print("Process Failed",response.decode('utf-8'))
+        print(response)
     
     def _run_command(self,cmd,env):
         fail = False
