@@ -2,7 +2,7 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
 
 class CardImportTest(MetaflowTest):
     """
-    Test that checks if the card decorator stores the information as intended
+    Test that checks if the card decorator imports custom modules as intended
     """
     PRIORITY = 2 
 
@@ -28,6 +28,7 @@ class CardImportTest(MetaflowTest):
                     if step.id == 'start':
                         stored_path = os.path.join('.metaflow',CARD_DIRECTORY_NAME,flow.name,'runs',run.id,'tasks',task.id,'cards')
                         try:
+                            # If the path was created then card was stored
                             os.stat(stored_path)
                             card_stored=True
                         except OSError as e:
@@ -36,5 +37,3 @@ class CardImportTest(MetaflowTest):
                             else:
                                 raise
             assert_equals(True, card_stored)
-
-    
