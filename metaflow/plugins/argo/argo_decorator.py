@@ -34,6 +34,8 @@ class ArgoFlowDecorator(FlowDecorator):
         Follows the k8s spec.
     imagePullSecrets: list
         Credentials for pulling docker images.
+    volumes: list
+        Definition of K8s volumes.
     """
     name = 'argo_base'
     defaults = {
@@ -42,7 +44,8 @@ class ArgoFlowDecorator(FlowDecorator):
         'annotations': {},
         'env': [],
         'envFrom': [],
-        'imagePullSecrets': []
+        'imagePullSecrets': [],
+        'volumes': []
     }
 
 
@@ -81,6 +84,8 @@ class ArgoStepDecorator(StepDecorator):
         Argo input artifacts list.
     output_artifacts: list
         Argo outputs artifacts list.
+    volumeMounts: list
+        Define volume mounts.
    """
     name = 'argo'
     defaults = {
@@ -92,6 +97,7 @@ class ArgoStepDecorator(StepDecorator):
         'nodeSelector': {},
         'input_artifacts': [],
         'output_artifacts': [],
+        'volumeMounts': [],
     }
 
 

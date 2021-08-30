@@ -57,7 +57,7 @@ def argo(obj,
 @click.option("--env-from",
               type=JSONParam,
               default=[],
-              help="Environment variables to be set for the workflow.")
+              help="Referenced environment variables to be set for the workflow.")
 @click.option("--labels",
               type=JSONParam,
               default={},
@@ -66,6 +66,10 @@ def argo(obj,
               type=JSONParam,
               default={},
               help="Annotations to attach to the workflow.")
+@click.option("--volumes",
+              type=JSONParam,
+              default={},
+              help="Volumes definition for the workflow.")
 @click.option("--token",
               default=None,
               help="Authentication token to call Argo Server.")
@@ -99,6 +103,7 @@ def create(obj,
            k8s_namespace,
            embedded,
            max_workers,
+           volumes,
            only_json=False):
     obj.echo("Deploying *%s* to Argo Workflow Templates..." % obj.workflow_template_name,
              bold=True)
@@ -138,7 +143,8 @@ def create(obj,
                             env_from,
                             labels,
                             annotations,
-                            max_workers)
+                            max_workers,
+                            volumes)
 
     if only_json:
         obj.echo_always(workflow.to_json(), err=False, no_bold=True, nl=False)

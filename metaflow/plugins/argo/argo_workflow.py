@@ -47,7 +47,8 @@ class ArgoWorkflow:
                  env_from,
                  labels,
                  annotations,
-                 max_workers):
+                 max_workers,
+                 volumes):
         self.name = name
         self.flow = flow
         self.graph = graph
@@ -64,6 +65,7 @@ class ArgoWorkflow:
         self.env_from = env_from
         self.labels = labels
         self.annotations = annotations
+        self.volumes = volumes
         self.attributes = {
             'labels': {
                 'metaflow.workflow_template': name,
@@ -200,6 +202,8 @@ class ArgoWorkflow:
                 },
                 'imagePullSecrets': self.image_pull_secrets if self.image_pull_secrets \
                                     else self._flow_attributes.get('imagePullSecrets'),
+                'volumes': self.volumes if self.volumes \
+                                    else self._flow_attributes.get('volumes'),
                 'parallelism': self.max_workers,
                 'templates': self._generate_templates(),
             }
@@ -438,6 +442,7 @@ class ArgoWorkflow:
             'nodeSelector': attr.get('nodeSelector'),
             'container': {
                 'image': image,
+                'volumeMounts': attr.get('volumeMounts'), 
                 'command': [cmd[0]],
                 'args': cmd[1:],
                 'env': env,
