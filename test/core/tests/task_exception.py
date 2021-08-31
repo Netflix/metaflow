@@ -4,8 +4,7 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps
 
 class TaskExceptionTest(MetaflowTest):
     """
-    Test that an artifact defined in the first step
-    is available in all steps downstream.
+    A test to validate if exceptions are stored and retrieved correctly
     """
     PRIORITY = 1
     SHOULD_FAIL = True
