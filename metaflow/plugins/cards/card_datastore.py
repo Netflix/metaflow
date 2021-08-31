@@ -1,3 +1,20 @@
+""" 
+Some Questions in the card_cli.view and card_cli.get methods
+1. if we slap many @cards on the @step then there can be many cards that are stored. 
+    - The path to these cards are based on the type and content; ideally it is given by `type-contenthash`
+    - The content can be based on the args given to the card decorator. 
+    - With mutliple decorators we can have may @cards with same type but different arguements
+        - Retrieving these cards with `card_cli.get` or `card_cli.view` would require an addition arguement relating to the card args
+    Q) What should be the arguements for `get` and `view` methods;
+        - We can change the  
+        - We can change this to `type-contenthash-arghash`
+        - Should we pass the content hash  
+        - Should the 
+    Q) Which of these methods should on the fly compile the card ; 
+        - I think view may be such a method where it compiles on the fly; 
+    Q) 
+"""
+
 from hashlib import sha1
 from io import BytesIO
 import os
@@ -112,6 +129,27 @@ class CardDatastore(object):
             [(card_path,BytesIO(bytes(card_html,'utf-8')))],
             overwrite=overwrite
         )
+    
+    def get_card(self,card_type):
+        card_path = self._get_card_path()
+        card_paths = self._backend.list_content([card_path])
+        if len(card_paths) == 0 :
+            # If there are no files found on the Path then raise an error of 
+            raise CardNotPresentException(self._flow_name,self._run_id,self._step_name,card_type)
+        for task_card_path in card_paths:
+            # Check if the card is present.
+            if card_type is not None:
+                if card_type not in task_card_path.path.split('/')[-1]:
+                    continue
+            if task_card_path.is_file:
+                with self._backend.load_bytes([task_card_path.path]) as get_results:
+                    for key, path, meta in get_results:
+                        if path is not None:
+                            with open(path,'r') as f:
+                                print(f.read())
+
+
+
 
     def view_card(self,card_type):
         card_path = self._get_card_path()
@@ -121,6 +159,10 @@ class CardDatastore(object):
             raise CardNotPresentException(self._flow_name,self._run_id,self._step_name,card_type)
         
         for task_card_path in card_paths:
+            # Check if the card is present.
+            if card_type is not None:
+                if card_type not in task_card_path.path.split('/')[-1]:
+                    continue
             if task_card_path.is_file:
                 # We have found the card file.
                 with self._backend.load_bytes([task_card_path.path]) as get_results:

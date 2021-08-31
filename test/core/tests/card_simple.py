@@ -3,6 +3,9 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
 class CardDecoratorBasicTest(MetaflowTest):
     """
     Test that checks if the card decorator stores the information as intended for a built in card
+    # todo: Add code to cli_checker to create a get_card methods
+    # todo: Add uuid key in an artifact and store it in card; 
+    # todo: Check in the checker this UUID 
     """
     PRIORITY = 3
 

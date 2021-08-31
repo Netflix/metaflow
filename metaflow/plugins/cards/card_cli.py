@@ -113,3 +113,31 @@ def view(ctx, step_name, run_id=None,card_type=None):
                                 path_spec=None)
     
     card_datastore.view_card(card_type)
+
+@card.command(help='Print the stored HTML card')
+@click.argument('task-path-spec',
+                type=str)
+@click.option('--card-type',
+                default=None,
+                show_default=True,
+                type=str,
+                help="Type of card being created")
+@click.pass_context
+def get(ctx, task_path_spec,card_type=None):
+    assert task_path_spec is not None
+    try : 
+        mf_task = Task(task_path_spec)
+        # Todo : What is the best way to get a particular task;
+    except MetaflowNotFound as e:
+        ctx.obj.echo("Cannot find Task '%s'"%task_path_spec,fg='red',bold=True)
+        return
+    
+    # ! Currently showing task for One taskid;
+    flowname,runid,step_name,task_id= mf_task.pathspec.split('/')
+    card_datastore = CardDatastore(ctx.obj.flow_datastore,\
+                                runid,\
+                                step_name,\
+                                task_id,\
+                                path_spec=mf_task.pathspec)
+    
+    card_datastore.get_card(card_type)

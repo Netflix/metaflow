@@ -3,6 +3,8 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
 class CardTimeoutTest(MetaflowTest):
     """
     Test that checks if the card decorator works as intended with the timeout decorator. 
+    # todo: Set timeout in the card arguement 
+    # todo: timeout decorator doesn't timeout for cards. We use the arguement in the card_decorator. 
     """
     PRIORITY = 2 
 
