@@ -36,8 +36,8 @@ class CondaEnvironment(MetaflowEnvironment):
         return self.base_env.validate_environment(echo)
 
     def decospecs(self):
-        # Apply conda decorator to all steps
-        return ('conda', )
+        # Apply conda decorator and base environment's decorators to all steps
+        return ('conda',) + self.base_env.decospecs()
 
     def _get_conda_decorator(self, step_name):
         step = next(step for step in self.flow if step.name == step_name)
