@@ -140,4 +140,4 @@ def get(ctx, task_path_spec,card_type=None):
                                 task_id,\
                                 path_spec=mf_task.pathspec)
     
-    card_datastore.get_card(card_type)
+    print(card_datastore.get_card(card_type))

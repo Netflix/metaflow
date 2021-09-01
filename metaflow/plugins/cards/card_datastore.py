@@ -139,7 +139,7 @@ class CardDatastore(object):
             overwrite=overwrite
         )
     
-    def get_card(self,card_type):
+    def _extract_and_save_locally(self,card_type):
         card_path = self._get_card_path()
         card_paths = self._backend.list_content([card_path])
         if len(card_paths) == 0 :
@@ -151,29 +151,6 @@ class CardDatastore(object):
                 if card_type not in task_card_path.path.split('/')[-1]:
                     continue
             if task_card_path.is_file:
-                with self._backend.load_bytes([task_card_path.path]) as get_results:
-                    for key, path, meta in get_results:
-                        if path is not None:
-                            with open(path,'r') as f:
-                                print(f.read())
-
-
-
-
-    def view_card(self,card_type):
-        card_path = self._get_card_path()
-        card_paths = self._backend.list_content([card_path])
-        if len(card_paths) == 0 :
-            # If there are no files found on the Path then raise an error of 
-            raise CardNotPresentException(self._flow_name,self._run_id,self._step_name,card_type)
-        
-        for task_card_path in card_paths:
-            # Check if the card is present.
-            if card_type is not None:
-                if card_type not in task_card_path.path.split('/')[-1]:
-                    continue
-            if task_card_path.is_file:
-                # We have found the card file.
                 with self._backend.load_bytes([task_card_path.path]) as get_results:
                     for key, path, meta in get_results:
                         if path is not None:
@@ -182,6 +159,15 @@ class CardDatastore(object):
                             file_name = key.split('/')[-1]
                             main_path = os.path.join(self._temp_card_save_path,file_name)
                             shutil.copy(path,main_path)
-                            url = 'file://' + os.path.abspath(main_path)
-                            webbrowser.open(url)
-                            break
+                            return main_path
+
+    def get_card(self,card_type):
+        main_path = self._extract_and_save_locally(card_type)
+        with open(main_path,'r') as f:
+            return f.read()
+        
+    def view_card(self,card_type):
+        main_path = self._extract_and_save_locally(card_type)
+        url = 'file://' + os.path.abspath(main_path)
+        webbrowser.open(url)
+        
