@@ -53,7 +53,7 @@ def _python():
 
 non_standard_test_flows = [
     "accelerator_flow.py",
-    "check_error_handling_flow"
+    "check_error_handling_flow.py",
     "raise_error_flow.py",
     "s3_sensor_flow.py",
     "upload_to_s3_flow.py",
@@ -115,6 +115,7 @@ def test_error_and_opsgenie_alert(pytestconfig) -> None:
         )
 
     error_flow_id = exponential_backoff_from_platform_errors(test_cmd, 1)
+
     opsgenie_auth_headers = {
         "Content-Type": "application/json",
         "Authorization": f"GenieKey {pytestconfig.getoption('opsgenie_api_token')}",
@@ -152,12 +153,13 @@ def test_error_and_opsgenie_alert(pytestconfig) -> None:
         or close_alert_response.status_code == 202
     )
 
+    # Test logging of raise_error_flow
     test_cmd = (
         f"{_python()} flows/check_error_handling_flow.py "
         f"--datastore=s3 --with retry kfp run "
         f"--wait-for-completion --workflow-timeout 1800 "
-        f"--experiment metaflow_test --tag test_t1  "
-        f"--error-flow-id={error_flow_id}"
+        f"--experiment metaflow_test --tag test_t1 "
+        f"--error_flow_id={error_flow_id} "
     )
     if pytestconfig.getoption("image"):
         test_cmd += (

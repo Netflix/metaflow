@@ -84,6 +84,14 @@ class KfpInternalDecorator(StepDecorator):
         self.datastore = datastore
         self.logger = logger
 
+        # Add env vars from the optional @environment decorator.
+        # FIXME: may be cleaner implementation to decouple @environment from kfp
+        # ref: step function is also handling environment decorator ad-hoc
+        # See plugins/aws/step_functions/step_functions.StepFunctions._batch
+        env_deco = [deco for deco in graph[step].decorators if deco.name == "environment"]
+        if env_deco:
+            os.environ.update(env_deco[0].attributes["vars"].items())
+
     def task_pre_step(
         self,
         step_name,
