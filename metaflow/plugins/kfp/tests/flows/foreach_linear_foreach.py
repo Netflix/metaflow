@@ -61,9 +61,7 @@ class ForeachLinearForeach(FlowSpec):
                 print(f"=== Start: stdout from step index {task.index}===")
                 print(actual_log)
                 print(f"=== End: stdout from step index {task.index}===")
-                expected_log = self.log_testing_msg.format(
-                    data=loop_arg[task.index]
-                )
+                expected_log = self.log_testing_msg.format(data=loop_arg[task.index])
                 assert expected_log in actual_log, f'Expected log: "{expected_log}"'
                 logs.append(actual_log)
             assert (

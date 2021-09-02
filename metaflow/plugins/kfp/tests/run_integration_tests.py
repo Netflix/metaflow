@@ -293,10 +293,7 @@ def exponential_backoff_from_platform_errors(
             "KFAM issues not resolved after successive backoff attempts."
         )
 
-    kfp_run_id = re.search(
-        "Metaflow run_id=(.*)\n",
-        run_and_wait_process.stderr
-    ).group(
+    kfp_run_id = re.search("Metaflow run_id=(.*)\n", run_and_wait_process.stderr).group(
         1
     )
 

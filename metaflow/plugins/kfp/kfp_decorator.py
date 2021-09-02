@@ -13,7 +13,7 @@ from metaflow.metadata import MetaDatum
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.plugins.kfp.kfp_constants import (
     preceding_component_inputs_PATH,
-    PASSED_IN_SPLIT_INDEXES_ENV_NAME
+    PASSED_IN_SPLIT_INDEXES_ENV_NAME,
 )
 from metaflow.plugins.kfp.kfp_foreach_splits import KfpForEachSplits
 from metaflow.sidecar import SidecarSubProcess
@@ -88,7 +88,9 @@ class KfpInternalDecorator(StepDecorator):
         # FIXME: may be cleaner implementation to decouple @environment from kfp
         # ref: step function is also handling environment decorator ad-hoc
         # See plugins/aws/step_functions/step_functions.StepFunctions._batch
-        env_deco = [deco for deco in graph[step].decorators if deco.name == "environment"]
+        env_deco = [
+            deco for deco in graph[step].decorators if deco.name == "environment"
+        ]
         if env_deco:
             os.environ.update(env_deco[0].attributes["vars"].items())
 
@@ -116,7 +118,7 @@ class KfpInternalDecorator(StepDecorator):
         ]
 
         metadata.register_metadata(run_id, step_name, task_id, entries)
-        self._save_logs_sidecar = SidecarSubProcess('save_logs_periodically')
+        self._save_logs_sidecar = SidecarSubProcess("save_logs_periodically")
 
         if metadata.TYPE == "local":
             self.ds_root = datastore.root
