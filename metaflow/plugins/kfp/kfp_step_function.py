@@ -5,7 +5,7 @@ def kfp_step_function(
     cmd_template: str,
     metaflow_run_id: str,
     metaflow_configs: Dict[str, str],
-    passed_in_split_indexes: str = '""',  # only if is_inside_foreach
+    passed_in_split_indexes: str = "",  # only if is_inside_foreach
     preceding_component_inputs: List[
         str
     ] = None,  # fields to return from Flow state to KFP
@@ -16,7 +16,7 @@ def kfp_step_function(
     **kwargs,
 ) -> object:
     """
-    Renders and runs the cmd_template containing Metaflow step/init commands to
+    Renders and runs the cmd_template containing Metaflow step-init commands to
     run within the container.
 
     Returns: namedtuple(["foreach_splits"] + preceding_component_inputs)

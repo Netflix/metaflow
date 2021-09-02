@@ -4,7 +4,6 @@ This function is called within the s3_sensor_op running container.
 (2) It splits the formatted path into an S3 bucket and key 
 (3) It polls for an object with the specified bucket and key until timeout
 """
-import boto3
 
 
 def wait_for_s3_path(
@@ -21,7 +20,6 @@ def wait_for_s3_path(
     import json
     import marshal
     import time
-    from typing import Tuple
     from urllib.parse import urlparse
     import os
 

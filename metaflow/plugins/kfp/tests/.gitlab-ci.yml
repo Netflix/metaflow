@@ -131,7 +131,7 @@ test:internal:
           export KFP_SDK_NAMESPACE=metaflow-integration-testing-internal && 
           export USER=${GITLAB_USER_EMAIL} &&
           cd /home/zservice/metaflow/metaflow/plugins/kfp/tests &&
-          python -m pytest -s -n 6 run_integration_tests.py --image ${BUILT_IMAGE_FULL_PATH} --cov-config=setup.cfg
+          python -m pytest -s -n 3 run_integration_tests.py --image ${BUILT_IMAGE_FULL_PATH} --opsgenie-api-token ${OPSGENIE_API_TOKEN} --cov-config=setup.cfg
         "
   artifacts:
     when: always
@@ -166,7 +166,7 @@ test:nonprod:
           export KFP_SDK_NAMESPACE=metaflow-integration-testing-stage &&
           export USER=${GITLAB_USER_EMAIL} &&
           cd /home/zservice/metaflow/metaflow/plugins/kfp/tests &&
-          python -m pytest -s -n 6 run_integration_tests.py --image ${BUILT_IMAGE_FULL_PATH} --cov-config=setup.cfg
+          python -m pytest -s -n 3 run_integration_tests.py --image ${BUILT_IMAGE_FULL_PATH} --opsgenie-api-token ${OPSGENIE_API_TOKEN} --cov-config=setup.cfg
         "
   artifacts:
     when: always
@@ -201,7 +201,7 @@ test:prod:
           export KFP_SDK_NAMESPACE=metaflow-integration-testing-prod && 
           export USER=${GITLAB_USER_EMAIL} &&
           cd /home/zservice/metaflow/metaflow/plugins/kfp/tests &&
-          python -m pytest -s -n 6 run_integration_tests.py --image ${BUILT_IMAGE_FULL_PATH} --cov-config=setup.cfg
+          python -m pytest -s -n 3 run_integration_tests.py --image ${BUILT_IMAGE_FULL_PATH} --opsgenie-api-token ${OPSGENIE_API_TOKEN} --cov-config=setup.cfg
         "
   artifacts:
     when: always

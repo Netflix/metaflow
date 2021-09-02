@@ -4,3 +4,4 @@ def pytest_addoption(parser):
     committed Metaflow version.
     """
     parser.addoption("--image", action="store", default=None)
+    parser.addoption("--opsgenie-api-token", dest="opsgenie_api_token", action="store", default=None)

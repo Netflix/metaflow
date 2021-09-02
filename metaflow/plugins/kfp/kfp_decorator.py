@@ -11,9 +11,12 @@ from metaflow.decorators import StepDecorator
 from metaflow.exception import MetaflowException
 from metaflow.metadata import MetaDatum
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
-from metaflow.mflog import TASK_LOG_SOURCE
-from metaflow.plugins.kfp.kfp_constants import preceding_component_inputs_PATH
+from metaflow.plugins.kfp.kfp_constants import (
+    preceding_component_inputs_PATH,
+    PASSED_IN_SPLIT_INDEXES_ENV_NAME
+)
 from metaflow.plugins.kfp.kfp_foreach_splits import KfpForEachSplits
+from metaflow.sidecar import SidecarSubProcess
 
 
 class KfpException(MetaflowException):
@@ -81,6 +84,14 @@ class KfpInternalDecorator(StepDecorator):
         self.datastore = datastore
         self.logger = logger
 
+        # Add env vars from the optional @environment decorator.
+        # FIXME: may be cleaner implementation to decouple @environment from kfp
+        # ref: step function is also handling environment decorator ad-hoc
+        # See plugins/aws/step_functions/step_functions.StepFunctions._batch
+        env_deco = [deco for deco in graph[step].decorators if deco.name == "environment"]
+        if env_deco:
+            os.environ.update(env_deco[0].attributes["vars"].items())
+
     def task_pre_step(
         self,
         step_name,
@@ -103,28 +114,9 @@ class KfpInternalDecorator(StepDecorator):
         entries = [
             MetaDatum(field=k, value=v, type=k, tags=[]) for k, v in meta.items()
         ]
-        # Register book-keeping metadata for debugging.
-        metadata.register_metadata(run_id, step_name, task_id, entries)
 
-        for logtype in ["stdout", "stderr"]:
-            datum = [
-                MetaDatum(
-                    field="log_location_%s" % logtype,
-                    value=json.dumps(
-                        {
-                            "ds_type": "s3",
-                            "location": datastore.get_log_location(
-                                TASK_LOG_SOURCE, logtype
-                            ),
-                            "attempt": retry_count,
-                        }
-                    ),
-                    type="log_path",
-                    tags=[],
-                )
-            ]
-            # Register log related metadata for debugging.
-            metadata.register_metadata(run_id, step_name, task_id, datum)
+        metadata.register_metadata(run_id, step_name, task_id, entries)
+        self._save_logs_sidecar = SidecarSubProcess('save_logs_periodically')
 
         if metadata.TYPE == "local":
             self.ds_root = datastore.root
@@ -157,7 +149,7 @@ class KfpInternalDecorator(StepDecorator):
         if not is_task_ok:
             # The task finished with an exception - execution won't
             # continue so no need to do anything here.
-            return
+            pass
         else:
             preceding_component_inputs: List[str] = json.loads(
                 os.environ["PRECEDING_COMPONENT_INPUTS"]
@@ -220,3 +212,8 @@ class KfpInternalDecorator(StepDecorator):
                     # last step, and we assume the same inputs should produce
                     # the same outputs.
                     split_contexts.upload_foreach_splits_to_flow_root(foreach_splits)
+
+        try:
+            self._save_logs_sidecar.kill()
+        except:
+            pass
