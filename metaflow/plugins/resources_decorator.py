@@ -27,8 +27,13 @@ class ResourcesDecorator(StepDecorator):
 
     For KFP plug-in, more units are available when specifying requirements.
     Units for memory or disk spaces, differing by 1000 each in descending order:
-        "E", "P", "T", "G", "M", "K", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei"
-        The unit defaults to MB following Metaflow standard if not specified.
+        "E", "P", "T", "G", "M", "K"
+    Alternatively power of 2 estimates of these units can be used:
+        "Ei", "Pi", "Ti", "Gi", "Mi", "Ki"
+    For example:
+        K = 10**3  # Kilo
+        Ki = 1 << 10  # Kilo: power-of-two approximate
+    The unit defaults to MB following Metaflow standard if not specified.
 
     Parameters
     ----------
