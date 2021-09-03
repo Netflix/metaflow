@@ -89,11 +89,8 @@ class ResourcesDecorator(StepDecorator):
         "memory": None,
 
         # Only KFP supported attributes
-        "cpu_limit": None,
         "gpu_vendor": None,
-        "memory_limit": None,
         "local_storage": None,
-        "local_storage_limit": None,
         "volume": None,
         "volume_mode": "ReadWriteOnce",
         "volume_dir": "/opt/metaflow_volume"

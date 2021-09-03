@@ -93,12 +93,9 @@ for label, env_name in labels.items():
 
 class ResourcesFlow(FlowSpec):
     @resources(
-        local_storage="100",
-        local_storage_limit="242",
-        cpu="0.1",
-        cpu_limit="0.6",
-        memory="500",
-        memory_limit="1G",
+        local_storage="242",
+        cpu="0.6",
+        memory="1G",
     )
     @environment(  # pylint: disable=E1102
         vars={"MY_ENV": "value"}, kubernetes_vars=kubernetes_vars
@@ -113,11 +110,11 @@ class ResourcesFlow(FlowSpec):
 
         # test kubernetes_vars
         assert "resourcesflow" in os.environ.get("MY_POD_NAME")
-        assert os.environ.get("CPU") == "100"
+        assert os.environ.get("CPU") == "600"
         assert os.environ.get("CPU_LIMIT") == "600"
-        assert os.environ.get("LOCAL_STORAGE") == "100000000"
+        assert os.environ.get("LOCAL_STORAGE") == "242000000"
         assert os.environ.get("LOCAL_STORAGE_LIMIT") == "242000000"
-        assert os.environ.get("MEMORY") == "500000000"
+        assert os.environ.get("MEMORY") == "1000000000"
         assert os.environ.get("MEMORY_LIMIT") == "1000000000"
 
         assert os.environ.get("MF_NAME") == current.flow_name
