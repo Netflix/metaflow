@@ -73,7 +73,10 @@ class ResourcesDecorator(StepDecorator):
         Not for AWS batch.
         [ReadWriteOnce, ReadWriteMany]
         ReadWriteOnce: can be used by this step only
-        ReadWriteMany: can be used by this step onwards.
+        ReadWriteMany:
+            A volume to be shared across foreach split nodes, but not downstream steps.
+            An example use case is PyTorch distributed training where gradients are communicated
+            via the shared volume.
     volume_dir: str
         Default "/opt/metaflow_volume"
     """

@@ -1,6 +1,7 @@
 import os
 import pprint
 import subprocess
+import time
 from typing import Dict, List
 
 from kubernetes.client import (
@@ -133,13 +134,31 @@ class ResourcesFlow(FlowSpec):
         self.items = [1, 2]
         self.next(self.split_step, foreach="items")
 
-    @resources(volume="11G")
+    @resources(volume="11G", volume_mode="ReadWriteMany")
     @step
     def split_step(self):
         output = subprocess.check_output(
             "df -h | grep /opt/metaflow_volume", shell=True
         )
         assert "11G" in str(output)
+
+        file_path = "/opt/metaflow_volume/test.txt"
+        message = "hello world!"
+
+        # validate the volume is shared across the foreach splits
+        if self.input == 1:
+            with open(file_path, "w") as f:
+                f.write(message)
+        else:
+            while not os.path.exists(file_path):
+                time.sleep(1)
+                print(".")
+
+            with open(file_path, "r") as f:
+                read_lines = f.readlines()
+                print("read_lines", read_lines)
+                assert message == read_lines[0]
+
         self.next(self.join_step)
 
     @resources(volume="12G")
@@ -149,7 +168,6 @@ class ResourcesFlow(FlowSpec):
             "df -h | grep /opt/metaflow_volume", shell=True
         )
         assert "12G" in str(output)
-
         self.next(self.end)
 
     @step

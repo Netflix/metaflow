@@ -1,20 +1,20 @@
+import base64
 import inspect
 import json
+import marshal
 import os
 import sys
 from collections import namedtuple
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple, Union
-
-import marshal
-import base64
+from typing import Callable, Dict, List, Optional, Tuple, Union, Any
 
 import kfp
 import yaml
 from kfp import dsl
 from kfp.components import func_to_container_op
-from kfp.dsl import ContainerOp, PipelineConf, VOLUME_MODE_RWM
+from kfp.dsl import ContainerOp, PipelineConf
 from kfp.dsl import PipelineVolume, ResourceOp
+from kfp.dsl._pipeline_param import sanitize_k8s_name
 from kubernetes.client import (
     V1EnvVar,
     V1EnvVarSource,
@@ -32,6 +32,7 @@ from kubernetes.client import (
     V1Toleration,
 )
 
+from metaflow.decorators import FlowDecorator
 from metaflow.metaflow_config import (
     DATASTORE_SYSROOT_S3,
     KFP_TTL_SECONDS_AFTER_FINISHED,
@@ -39,10 +40,10 @@ from metaflow.metaflow_config import (
     KFP_USER_DOMAIN,
     from_conf,
 )
-from metaflow.decorators import FlowDecorator
 from metaflow.plugins import KfpInternalDecorator, EnvironmentDecorator
 from metaflow.plugins.kfp.kfp_decorator import KfpException
 from metaflow.plugins.kfp.kfp_step_function import kfp_step_function
+from .accelerator_decorator import AcceleratorDecorator
 from .kfp_constants import (
     INPUT_PATHS_ENV_NAME,
     STEP_ENVIRONMENT_VARIABLES,
@@ -54,7 +55,6 @@ from .kfp_exit_handler import exit_handler
 from .kfp_foreach_splits import graph_to_task_ids
 from .kfp_get_workflow_uid import get_workflow_uid
 from .kfp_s3_sensor import wait_for_s3_path
-from .accelerator_decorator import AcceleratorDecorator
 from ..aws.batch.batch_decorator import BatchDecorator
 from ..aws.step_functions.schedule_decorator import ScheduleDecorator
 from ... import R
@@ -551,7 +551,10 @@ class KubeflowPipelines(object):
 
     @staticmethod
     def _set_container_resources(
-        container_op: ContainerOp, kfp_component: KfpComponent, workflow_uid: str
+        container_op: ContainerOp,
+        kfp_component: KfpComponent,
+        workflow_uid: str,
+        shared_volumes: Dict[str, Dict[str, PipelineVolume]],
     ):
         resource_requirements: Dict[str, Any] = kfp_component.resource_requirements
         if "memory" in resource_requirements:
@@ -578,13 +581,17 @@ class KubeflowPipelines(object):
             mode = resource_requirements["volume_mode"]
             volume_dir = resource_requirements["volume_dir"]
 
-            volume = KubeflowPipelines._create_volume(
-                step_name=kfp_component.name,
-                size=resource_requirements["volume"],
-                workflow_uid=workflow_uid,
-                mode=mode,
-            )
-            container_op.add_pvolumes({volume_dir: volume})
+            if mode == "ReadWriteMany":
+                # ReadWriteMany shared volumes are created way before
+                container_op.add_pvolumes(shared_volumes[kfp_component.name])
+            else:
+                volume = KubeflowPipelines._create_volume(
+                    step_name=kfp_component.name,
+                    size=resource_requirements["volume"],
+                    workflow_uid=workflow_uid,
+                    mode=dsl.VOLUME_MODE_RWO,
+                )
+                container_op.add_pvolumes({volume_dir: volume})
 
         if kfp_component.accelerator_decorator:
             accelerator_type: str = kfp_component.accelerator_decorator.attributes[
@@ -637,10 +644,11 @@ class KubeflowPipelines(object):
         workflow_uid: str,
         mode: str,
     ) -> PipelineVolume:
+        volume_name = sanitize_k8s_name(step_name)
         attribute_outputs = {"size": "{.status.capacity.storage}"}
         requested_resources = V1ResourceRequirements(requests={"storage": size})
         pvc_spec = V1PersistentVolumeClaimSpec(
-            access_modes=[mode], resources=requested_resources
+            access_modes=mode, resources=requested_resources
         )
         owner_reference = V1OwnerReference(
             api_version="argoproj.io/v1alpha1",
@@ -651,7 +659,7 @@ class KubeflowPipelines(object):
         )
         owner_references = [owner_reference]
         pvc_metadata = V1ObjectMeta(
-            name="{{workflow.name}}-%s" % "{{pod.name}}-pvc",
+            name=f"{{{{workflow.name}}}}-{volume_name}-pvc",
             owner_references=owner_references,
         )
         k8s_resource = V1PersistentVolumeClaim(
@@ -663,11 +671,12 @@ class KubeflowPipelines(object):
         resource = ResourceOp(
             name=f"create-{step_name}-volume",
             k8s_resource=k8s_resource,
-            action="create",
             attribute_outputs=attribute_outputs,
         )
 
-        return PipelineVolume(name="{{pod.name}}-volume", pvc=resource.outputs["name"])
+        return PipelineVolume(
+            name=f"{volume_name}-volume", pvc=resource.outputs["name"]
+        )
 
     def _set_container_labels(
         self, container_op: ContainerOp, node: DAGNode, metaflow_run_id: str
@@ -876,12 +885,16 @@ class KubeflowPipelines(object):
                 preceding_kfp_component_op: ContainerOp = None,
                 preceding_component_outputs_dict: Dict[str, dsl.PipelineParam] = None,
                 workflow_uid: str = None,
+                shared_volumes: Dict[str, Dict[str, PipelineVolume]] = None,
             ):
                 if node.name in visited:
                     return
 
                 if preceding_component_outputs_dict is None:
                     preceding_component_outputs_dict = {}
+
+                if shared_volumes is None:
+                    shared_volumes = {}
 
                 # If any of this node's children has a preceding_kfp_func then
                 # create (kfp_decorator_component, preceding_component_inputs)
@@ -967,7 +980,7 @@ class KubeflowPipelines(object):
                     }
 
                 KubeflowPipelines._set_container_resources(
-                    container_op, kfp_component, workflow_uid
+                    container_op, kfp_component, workflow_uid, shared_volumes
                 )
                 self._set_container_labels(container_op, node, metaflow_run_id)
 
@@ -987,6 +1000,7 @@ class KubeflowPipelines(object):
                             preceding_kfp_component_op=next_kfp_component_op,
                             preceding_component_outputs_dict=next_preceding_component_outputs_dict,
                             workflow_uid=workflow_uid,
+                            shared_volumes=shared_volumes,
                         )
 
                     # Handle the ParallelFor join step, and pass in
@@ -997,6 +1011,7 @@ class KubeflowPipelines(object):
                         preceding_kfp_component_op=next_kfp_component_op,
                         preceding_component_outputs_dict=next_preceding_component_outputs_dict,
                         workflow_uid=workflow_uid,
+                        shared_volumes=shared_volumes,
                     )
                 else:
                     for step in node.out_funcs:
@@ -1017,6 +1032,7 @@ class KubeflowPipelines(object):
                                 preceding_kfp_component_op=next_kfp_component_op,
                                 preceding_component_outputs_dict=next_preceding_component_outputs_dict,
                                 workflow_uid=workflow_uid,
+                                shared_volumes=shared_volumes,
                             )
 
             workflow_uid_op: ContainerOp = None
@@ -1044,6 +1060,9 @@ class KubeflowPipelines(object):
                 build_kfp_dag(
                     self.graph["start"],
                     workflow_uid=workflow_uid_op.output if workflow_uid_op else None,
+                    shared_volumes=KubeflowPipelines.create_shared_volumes(
+                        step_to_kfp_component_map, workflow_uid_op
+                    ),
                 )
 
             if self.notify:
@@ -1083,6 +1102,36 @@ class KubeflowPipelines(object):
 
         kfp_pipeline_from_flow.__name__ = self.name
         return kfp_pipeline_from_flow, pipeline_conf
+
+    @staticmethod
+    def create_shared_volumes(
+        step_to_kfp_component_map: Dict[str, KfpComponent],
+        workflow_uid_op: ContainerOp,
+    ) -> Dict[str, Dict[str, PipelineVolume]]:
+        """
+        A volume to be shared across foreach split nodes, but not downstream steps.
+        An example use case is PyTorch distributed training where gradients are communicated
+        via the shared volume.
+        Returns: Dict[step_name, Dict[volume_dir, PipelineVolume]]
+        """
+        shared_volumes: Dict[str, Dict[str, PipelineVolume]] = {}
+
+        for kfp_component in step_to_kfp_component_map.values():
+            resources = kfp_component.resource_requirements
+            if (
+                "volume_mode" in resources
+                and resources["volume_mode"] == "ReadWriteMany"
+            ):
+                volume_dir = resources["volume_dir"]
+                shared_volumes[kfp_component.name] = {
+                    volume_dir: KubeflowPipelines._create_volume(
+                        step_name=f"{kfp_component.name}-shared",
+                        size=resources["volume"],
+                        workflow_uid=workflow_uid_op.output,
+                        mode=dsl.VOLUME_MODE_RWO,
+                    )
+                }
+        return shared_volumes
 
     def _create_exit_handler_op(self) -> ContainerOp:
         notify_variables: dict = {
