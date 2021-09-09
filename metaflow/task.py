@@ -519,6 +519,10 @@ class MetaflowTask(object):
             output.save_metadata('task_end', {})
             output.persist(self.flow)
 
+            # terminate side cars
+            logger.terminate()
+            self.metadata.stop_heartbeat()
+
             # this writes a success marker indicating that the
             # "transaction" is done
             output.done()
@@ -532,7 +536,3 @@ class MetaflowTask(object):
                                    self.flow._task_ok,
                                    retry_count,
                                    max_user_code_retries)
-            
-            # terminate side cars
-            logger.terminate()
-            self.metadata.stop_heartbeat()
