@@ -3,7 +3,7 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps
 
 class FlowOptionsTest(MetaflowTest):
     """
-    Test that the metaflow_custom module is properly loaded
+    Test that the metaflow_extensions module is properly loaded
     """
     PRIORITY = 0
     HEADER = """

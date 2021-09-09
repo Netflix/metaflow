@@ -219,9 +219,9 @@ class CondaStepDecorator(StepDecorator):
         self.metaflow_home = tempfile.mkdtemp(dir='/tmp')
         self.addl_paths = None
         os.symlink(path_to_metaflow, os.path.join(self.metaflow_home, 'metaflow'))
-        # Do the same for metaflow_custom
+        # Do the same for metaflow_extensions
         try:
-            import metaflow_custom as m
+            import metaflow_extensions as m
         except ImportError:
             # No additional check needed because if we are here, we already checked
             # for other issues when loading at the toplevel
@@ -230,7 +230,7 @@ class CondaStepDecorator(StepDecorator):
             custom_paths = list(m.__path__)
             if len(custom_paths) == 1:
                 # Regular package
-                os.symlink(custom_paths[0], os.path.join(self.metaflow_home, 'metaflow_custom'))
+                os.symlink(custom_paths[0], os.path.join(self.metaflow_home, 'metaflow_extensions'))
             else:
                 # Namespace package; we don't symlink but add the additional paths
                 # for the conda interpreter
