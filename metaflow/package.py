@@ -27,7 +27,7 @@ class MetaflowPackage(object):
             self.metaflow_extensions_root = os.path.dirname(metaflow_extensions.__file__)
             self.metaflow_extensions_addl_suffixes = getattr(
                 metaflow_extensions,
-                'METAFLOW_CUSTOM_PACKAGE_SUFFIXES',
+                'METAFLOW_EXTENSIONS_PACKAGE_SUFFIXES',
                 None)
 
         self.flow_name = flow.name

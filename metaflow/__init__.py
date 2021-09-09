@@ -93,7 +93,7 @@ class _LazyLoader(object):
             # We return a nicer error message
             raise ImportError(
                 "Attempting to load '%s' -- loading shadowed modules in Metaflow "
-                "Custom is only supported in Python 3.4+" % fullname)
+                "Extensions are only supported in Python 3.4+" % fullname)
         to_import = self._handled.get(fullname, None)
 
         # If to_import is None, two cases:
@@ -138,7 +138,7 @@ class _LazyLoader(object):
             # would be OK. Being extra sure in case _LazyLoader is misused and
             # a None value is passed in.
             raise ImportError(
-                "Metaflow Custom shadowed module '%s' does not exist" % fullname)
+                "Metaflow Extensions shadowed module '%s' does not exist" % fullname)
         else:
             raise ImportError
         return sys.modules[fullname]
@@ -174,7 +174,7 @@ else:
                 o.__package__.startswith('metaflow_extensions'):
             lazy_load_custom_modules['metaflow.%s' % n] = o
     if lazy_load_custom_modules:
-        # Prepend to make sure custom package overrides things
+        # Prepend to make sure extensions package overrides things
         sys.meta_path = [_LazyLoader(lazy_load_custom_modules)] + sys.meta_path
 
 from .event_logger import EventLogger

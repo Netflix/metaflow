@@ -22,7 +22,7 @@ def read_in_chunks(dst, src, src_sz, max_chunk_size):
 
 from .s3 import MetaflowS3Exception, S3
 
-# Import any additional datatools defined by a Metaflow custom package
+# Import any additional datatools defined by a Metaflow extensions package
 try:
     import metaflow_extensions.datatools as extension_module
 except ImportError as e:
