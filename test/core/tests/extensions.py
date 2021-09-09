@@ -1,6 +1,6 @@
 from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
 
-class CustomizationTest(MetaflowTest):
+class ExtensionsTest(MetaflowTest):
     """
     Test that the metaflow_extensions module is properly loaded
     """
