@@ -52,7 +52,7 @@ class MetaflowTask(object):
         else:
             step_function(input_obj)
 
-    def _init_parameters(self, parameter_ds):
+    def _init_parameters(self, parameter_ds, passdown=True):
         # overwrite Parameters in the flow object
         vars = []
         for var, param in self.flow._get_parameters():
@@ -66,8 +66,10 @@ class MetaflowTask(object):
 
             setattr(self.flow.__class__, var,
                     property(fget=property_setter))
-            vars.append(var)
-        self.flow._datastore.passdown_partial(parameter_ds, vars)
+            if passdown:
+                vars.append(var)
+        if passdown:
+            self.flow._datastore.passdown_partial(parameter_ds, vars)
         return vars
 
     def _init_data(self, run_id, join_type, input_paths):
@@ -397,7 +399,7 @@ class MetaflowTask(object):
                 # initialize parameters (if they exist)
                 # We take Parameter values from the first input,
                 # which is always safe since parameters are read-only
-                current._update_env({'parameter_names': self._init_parameters(inputs[0])})
+                current._update_env({'parameter_names': self._init_parameters(inputs[0], passdown=True)})
             else:
                 # Linear step:
                 # We are running with a single input context.
@@ -413,7 +415,7 @@ class MetaflowTask(object):
                     # initialize parameters (if they exist)
                     # We take Parameter values from the first input,
                     # which is always safe since parameters are read-only
-                    current._update_env({'parameter_names': self._init_parameters(inputs[0])})
+                    current._update_env({'parameter_names': self._init_parameters(inputs[0], passdown=False)})
 
             decorators = step_func.decorators
             for deco in decorators:
