@@ -22,7 +22,7 @@ except ImportError as e:
         # so don't error ONLY IF the error is importing this module (but do
         # error if there is a transitive import error)
         if not (isinstance(e, ModuleNotFoundError) and \
-                e.name in ['metaflow_extensions', 'metaflow_custom.plugins']):
+                e.name in ['metaflow_extensions', 'metaflow_extensions.plugins']):
             print(
                 "Cannot load metaflow_extensions plugins -- "
                 "if you want to ignore, uninstall metaflow_extensions package")

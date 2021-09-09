@@ -74,7 +74,7 @@ def generate_trampolines(python_path):
             # so don't error ONLY IF the error is importing this module (but do
             # error if there is a transitive import error)
             if not (isinstance(e, ModuleNotFoundError) and e.name in [
-                    'metaflow_extensions', 'metaflow_custom.plugins',
+                    'metaflow_extensions', 'metaflow_extensions.plugins',
                     'metaflow_extensions.plugins.env_escape']):
                 print(
                     "Cannot load metaflow_extensions env escape configurations -- "

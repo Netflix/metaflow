@@ -24,10 +24,10 @@ class MetaflowPackage(object):
         except ImportError:
             self.metaflow_extensions_root = None
         else:
-            self.metaflow_extensions_root = os.path.dirname(metaflow_custom.__file__)
+            self.metaflow_extensions_root = os.path.dirname(metaflow_extensions.__file__)
             self.metaflow_extensions_addl_suffixes = getattr(
                 metaflow_extensions,
-                'METAFLOW_CUSTOM_PACKAGE_SUFFIXES',
+                'METAFLOW_EXTENSIONS_PACKAGE_SUFFIXES',
                 None)
 
         environment.init_environment(echo)

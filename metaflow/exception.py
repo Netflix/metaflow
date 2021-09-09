@@ -123,7 +123,7 @@ class MissingInMergeArtifactsException(MetaflowException):
         super(MissingInMergeArtifactsException, self).__init__(msg)
         self.artifact_names = unhandled
 
-# Import any exceptions defined by a Metaflow custom package
+# Import any exceptions defined by a Metaflow extensions package
 try:
     import metaflow_extensions.exceptions as extension_module
 except ImportError as e:
@@ -133,7 +133,7 @@ except ImportError as e:
         # so don't error ONLY IF the error is importing this module (but do
         # error if there is a transitive import error)
         if not (isinstance(e, ModuleNotFoundError) and \
-                e.name in ['metaflow_extensions', 'metaflow_custom.exceptions']):
+                e.name in ['metaflow_extensions', 'metaflow_extensions.exceptions']):
             print(
                 "Cannot load metaflow_extensions exceptions -- "
                 "if you want to ignore, uninstall metaflow_extensions package")

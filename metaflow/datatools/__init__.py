@@ -3,7 +3,7 @@ import types
 
 from .s3 import MetaflowS3Exception, S3
 
-# Import any additional datatools defined by a Metaflow custom package
+# Import any additional datatools defined by a Metaflow extensions package
 try:
     import metaflow_extensions.datatools as extension_module
 except ImportError as e:
@@ -13,7 +13,7 @@ except ImportError as e:
         # so don't error ONLY IF the error is importing this module (but do
         # error if there is a transitive import error)
         if not (isinstance(e, ModuleNotFoundError) and \
-                e.name in ['metaflow_extensions', 'metaflow_custom.datatools']):
+                e.name in ['metaflow_extensions', 'metaflow_extensions.datatools']):
             print(
                 "Cannot load metaflow_extensions exceptions -- "
                 "if you want to ignore, uninstall metaflow_extensions package")

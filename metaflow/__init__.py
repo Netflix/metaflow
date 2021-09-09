@@ -93,7 +93,7 @@ class _LazyLoader(object):
             # We return a nicer error message
             raise ImportError(
                 "Attempting to load '%s' -- loading shadowed modules in Metaflow "
-                "Custom is only supported in Python 3.4+" % fullname)
+                "Extensions are only supported in Python 3.4+" % fullname)
         to_import = self._handled.get(fullname, None)
 
         # If to_import is None, two cases:
@@ -138,7 +138,7 @@ class _LazyLoader(object):
             # would be OK. Being extra sure in case _LazyLoader is misused and
             # a None value is passed in.
             raise ImportError(
-                "Metaflow Custom shadowed module '%s' does not exist" % fullname)
+                "Metaflow Extensions shadowed module '%s' does not exist" % fullname)
         else:
             raise ImportError
         return sys.modules[fullname]
@@ -160,7 +160,7 @@ except ImportError as e:
         # so don't error ONLY IF the error is importing this module (but do
         # error if there is a transitive import error)
         if not (isinstance(e, ModuleNotFoundError) and \
-                e.name in ['metaflow_extensions', 'metaflow_custom.toplevel',
+                e.name in ['metaflow_extensions', 'metaflow_extensions.toplevel',
                            'metaflow_extensions.toplevel.module_overrides']):
             print(
                 "Cannot load metaflow_extensions top-level configuration -- "
@@ -174,7 +174,7 @@ else:
                 o.__package__.startswith('metaflow_extensions'):
             lazy_load_custom_modules['metaflow.%s' % n] = o
     if lazy_load_custom_modules:
-        # Prepend to make sure custom package overrides things
+        # Prepend to make sure extensions package overrides things
         sys.meta_path = [_LazyLoader(lazy_load_custom_modules)] + sys.meta_path
 
 from .event_logger import EventLogger
@@ -227,7 +227,7 @@ except ImportError as e:
         # so don't error ONLY IF the error is importing this module (but do
         # error if there is a transitive import error)
         if not (isinstance(e, ModuleNotFoundError) and \
-                e.name in ['metaflow_extensions', 'metaflow_custom.toplevel',
+                e.name in ['metaflow_extensions', 'metaflow_extensions.toplevel',
                            'metaflow_extensions.toplevel.toplevel']):
             print(
                 "Cannot load metaflow_extensions top-level configuration -- "
@@ -255,7 +255,7 @@ else:
         # Prepend to make sure custom package overrides things
         sys.meta_path = [_LazyLoader(lazy_load_custom_modules)] + sys.meta_path
 
-    __version_addl__ = getattr(extension_module, '__mf_customization__', '<unk>')
+    __version_addl__ = getattr(extension_module, '__mf_extensions__', '<unk>')
     if extension_module.__version__:
         __version_addl__ = '%s(%s)' % (__version_addl__, extension_module.__version__)
 
