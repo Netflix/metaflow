@@ -375,6 +375,46 @@ class MetaflowTask(object):
             # should either be set prior to running the user code or listed in
             # FlowSpec._EPHEMERAL to allow for proper merging/importing of
             # user artifacts in the user's step code.
+
+            if join_type:
+                # Join step:
+
+                # Ensure that we have the right number of inputs. The
+                # foreach case is checked above.
+                if join_type != 'foreach' and\
+                   len(inputs) != len(node.in_funcs):
+                    raise MetaflowDataMissing("Join *%s* expected %d "
+                                              "inputs but only %d inputs "
+                                              "were found"
+                                              % (step_name,
+                                                 len(node.in_funcs),
+                                                 len(inputs)))
+
+                # Multiple input contexts are passed in as an argument
+                # to the step function.
+                input_obj = Inputs(self._clone_flow(inp) for inp in inputs)
+                self.flow._set_datastore(output)
+                # initialize parameters (if they exist)
+                # We take Parameter values from the first input,
+                # which is always safe since parameters are read-only
+                current._update_env({'parameter_names': self._init_parameters(inputs[0])})
+            else:
+                # Linear step:
+                # We are running with a single input context.
+                # The context is embedded in the flow.
+                if len(inputs) > 1:
+                    # This should be captured by static checking but
+                    # let's assert this again
+                    raise MetaflowInternalError("Step *%s* is not a join "
+                                                "step but it gets multiple "
+                                                "inputs." % step_name)
+                self.flow._set_datastore(inputs[0])
+                if input_paths:
+                    # initialize parameters (if they exist)
+                    # We take Parameter values from the first input,
+                    # which is always safe since parameters are read-only
+                    current._update_env({'parameter_names': self._init_parameters(inputs[0])})
+
             decorators = step_func.decorators
             for deco in decorators:
 
@@ -403,44 +443,8 @@ class MetaflowTask(object):
                                                self.ubf_context)
 
             if join_type:
-                # Join step:
-
-                # Ensure that we have the right number of inputs. The
-                # foreach case is checked above.
-                if join_type != 'foreach' and\
-                   len(inputs) != len(node.in_funcs):
-                    raise MetaflowDataMissing("Join *%s* expected %d "
-                                              "inputs but only %d inputs "
-                                              "were found"
-                                              % (step_name,
-                                                 len(node.in_funcs),
-                                                 len(inputs)))
-
-                # Multiple input contexts are passed in as an argument
-                # to the step function.
-                input_obj = Inputs(self._clone_flow(inp) for inp in inputs)
-                self.flow._set_datastore(output)
-                # initialize parameters (if they exist)
-                # We take Parameter values from the first input,
-                # which is always safe since parameters are read-only
-                current._update_env({'parameter_names': self._init_parameters(inputs[0])})
                 self._exec_step_function(step_func, input_obj)
             else:
-                # Linear step:
-                # We are running with a single input context.
-                # The context is embedded in the flow.
-                if len(inputs) > 1:
-                    # This should be captured by static checking but
-                    # let's assert this again
-                    raise MetaflowInternalError("Step *%s* is not a join "
-                                                "step but it gets multiple "
-                                                "inputs." % step_name)
-                self.flow._set_datastore(inputs[0])
-                if input_paths:
-                    # initialize parameters (if they exist)
-                    # We take Parameter values from the first input,
-                    # which is always safe since parameters are read-only
-                    current._update_env({'parameter_names': self._init_parameters(inputs[0])})
                 self._exec_step_function(step_func)
 
             for deco in decorators:
