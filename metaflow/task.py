@@ -321,7 +321,7 @@ class MetaflowTask(object):
                          is_running=True)
 
         # 5. run task
-        output.save_metadata({'task_begin.json':
+        output.save_metadata({'task_begin':
             {
                 'code_package_sha': os.environ.get('METAFLOW_CODE_SHA'),
                 'code_package_ds': os.environ.get('METAFLOW_CODE_DS'),
@@ -497,7 +497,7 @@ class MetaflowTask(object):
                                                              ])
                                              ])
 
-            output.save_metadata({'task_end.json': {}})
+            output.save_metadata({'task_end': {}})
             output.persist(self.flow)
 
             # this writes a success marker indicating that the
