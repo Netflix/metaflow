@@ -194,7 +194,7 @@ class BatchJob(object):
             job_definition['containerProperties']['volumes'] = []
             job_definition['containerProperties']['mountPoints'] = []
             for host_path in host_volumes:
-                name = host_path.replace('/', '_')
+                name = host_path.replace('/', '_').replace('.', '_')
                 job_definition['containerProperties']['volumes'].append(
                     {'name': name, 'host': {'sourcePath': host_path}}
                 )

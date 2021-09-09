@@ -23,8 +23,14 @@ class CondaEnvironment(MetaflowEnvironment):
         # any calls we don't handle specifically to that one.
         from ...plugins import ENVIRONMENTS
         from metaflow.metaflow_config import DEFAULT_ENVIRONMENT
-        self.base_env = [e for e in ENVIRONMENTS + [MetaflowEnvironment]
-            if e.TYPE == DEFAULT_ENVIRONMENT][0](self.flow)
+
+        if DEFAULT_ENVIRONMENT == self.TYPE:
+            # If the default environment is Conda itself then fallback on
+            # the default 'default environment'
+            self.base_env = MetaflowEnvironment(self.flow)
+        else:
+            self.base_env = [e for e in ENVIRONMENTS + [MetaflowEnvironment]
+                if e.TYPE == DEFAULT_ENVIRONMENT][0](self.flow)
 
     def init_environment(self, echo):
         # Print a message for now
@@ -36,8 +42,8 @@ class CondaEnvironment(MetaflowEnvironment):
         return self.base_env.validate_environment(echo)
 
     def decospecs(self):
-        # Apply conda decorator to all steps
-        return ('conda', )
+        # Apply conda decorator and base environment's decorators to all steps
+        return ('conda',) + self.base_env.decospecs()
 
     def _get_conda_decorator(self, step_name):
         step = next(step for step in self.flow if step.name == step_name)

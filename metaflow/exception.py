@@ -30,6 +30,9 @@ class MetaflowExceptionWrapper(Exception):
 
     def __setstate__(self, state):
         self.__dict__ = state
+    
+    def __repr__(self):
+        return str(self)
 
     def __str__(self):
         if self.stacktrace:

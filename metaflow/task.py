@@ -396,10 +396,7 @@ class MetaflowTask(object):
                     current._update_env(
                         {'parameter_names': self._init_parameters(
                             inputs[0], do_passdown=False)})
-
-            # We execute `task_pre_step` *after* the datastore has been set
-            # in case any of the task_pre_step needs to get stuff out of the
-            # datastore for its internal purposes.
+ 
             decorators = step_func.decorators
             for deco in decorators:
 
