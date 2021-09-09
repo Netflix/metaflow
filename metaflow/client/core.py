@@ -343,8 +343,7 @@ class MetaflowObject(object):
         else:
             raise MetaflowInternalError(msg="Unknown type: %s" % self._NAME)
 
-        self._created_at = time.strftime(
-            '%Y-%m-%dT%H:%M:%SZ', time.gmtime(self._object['ts_epoch']//1000))
+        self._created_at = datetime.fromtimestamp(self._object['ts_epoch']/1000.0)
 
         self._tags = frozenset(chain(self._object.get('system_tags') or [],
                                      self._object.get('tags') or []))
