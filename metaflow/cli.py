@@ -854,16 +854,6 @@ def start(ctx,
                                      ctx.obj.graph,
                                      ctx.obj.environment,
                                      ctx.obj.flow_datastore,
-                                     ctx.obj.logger,
-                                     echo,
-                                     deco_options)
-
-    # It is important to initialize flow decorators early as some of the
-    # things they provide may be used by some of the objects initialize after.
-    decorators._init_flow_decorators(ctx.obj.flow,
-                                     ctx.obj.graph,
-                                     ctx.obj.environment,
-                                     ctx.obj.datastore,
                                      ctx.obj.metadata,
                                      ctx.obj.logger,
                                      echo,
