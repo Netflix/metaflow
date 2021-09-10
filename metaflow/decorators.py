@@ -135,7 +135,15 @@ class FlowDecorator(Decorator):
         self._flow_decorators.append(self)
         super(FlowDecorator, self).__init__(*args, **kwargs)
 
-    def flow_init(self, flow, graph,  environment, datastore, logger, echo, options):
+    def flow_init(self,
+                  flow,
+                  graph,
+                  environment,
+                  datastore,
+                  metadata,
+                  logger,
+                  echo,
+                  options):
         """
         Called when all decorators have been created for this flow.
         """
@@ -431,10 +439,18 @@ def _attach_decorators_to_step(step, decospecs):
             deco = decos[deconame]._parse_decorator_spec(decospec)
             step.decorators.append(deco)
 
-def _init_flow_decorators(flow, graph, environment, datastore, logger, echo, deco_options):
+def _init_flow_decorators(flow,
+                          graph,
+                          environment,
+                          datastore,
+                          metadata,
+                          logger,
+                          echo,
+                          deco_options):
     for deco in flow._flow_decorators.values():
         opts = {option: deco_options[option] for option in deco.options}
-        deco.flow_init(flow, graph, environment, datastore, logger, echo, opts)
+        deco.flow_init(flow, graph, environment, 
+                       datastore, metadata, logger, echo, opts)
 
 
 def _init_step_decorators(flow, graph, environment, datastore, logger):
