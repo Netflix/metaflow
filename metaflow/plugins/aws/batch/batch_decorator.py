@@ -7,7 +7,7 @@ import requests
 
 from metaflow.datastore import MetaflowDataStore
 from metaflow.datastore.datastore import TransformableObject
-from metaflow.datastore.util.s3util import get_s3_client
+from metaflow.datatools.s3util import get_s3_client
 from metaflow.decorators import StepDecorator
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.plugins import ResourcesDecorator
