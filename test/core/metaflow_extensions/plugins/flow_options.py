@@ -13,5 +13,5 @@ class FlowDecoratorWithOptions(FlowDecorator):
         )
     }
 
-    def flow_init(self, flow, graph, environment, flow_datastore, logger, echo, options):
+    def flow_init(self, flow, graph, environment, flow_datastore, metadata, logger, echo, options):
         current._update_env({'foobar_value': options['foobar']})
