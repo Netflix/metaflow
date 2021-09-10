@@ -1,8 +1,6 @@
 import sys
 import types
 
-from .s3 import MetaflowS3Exception, S3
-
 # Read an AWS source in a chunked manner.
 # We read in chunks (at most 2GB -- here this is passed via max_chunk_size)
 # because of https://bugs.python.org/issue42853 (Py3 bug); this also helps
@@ -18,6 +16,8 @@ def read_in_chunks(dst, src, src_sz, max_chunk_size):
         # separately
         dst.write(buf)
         remaining -= len(buf)
+
+from .s3 import MetaflowS3Exception, S3
 
 # Import any additional datatools defined by a Metaflow extensions package
 try:
