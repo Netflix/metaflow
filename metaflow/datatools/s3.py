@@ -9,6 +9,7 @@ from io import RawIOBase, BytesIO, BufferedIOBase
 from itertools import chain, starmap
 from tempfile import mkdtemp, NamedTemporaryFile
 
+from . import read_in_chunks
 from .. import FlowSpec
 from ..current import current
 from ..metaflow_config import DATATOOLS_S3ROOT
