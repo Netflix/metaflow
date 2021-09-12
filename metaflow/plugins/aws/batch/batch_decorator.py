@@ -17,7 +17,7 @@ from metaflow.metadata import MetaDatum
 from metaflow import util
 from metaflow import R
 
-from .batch import Batch, BatchException
+from .batch import Batch, BatchException, BatchInvalidUserException
 from metaflow.metaflow_config import ECS_S3_ACCESS_IAM_ROLE, BATCH_JOB_QUEUE, \
                     BATCH_CONTAINER_IMAGE, BATCH_CONTAINER_REGISTRY, \
                     ECS_FARGATE_EXECUTION_ROLE
@@ -124,6 +124,9 @@ class BatchDecorator(StepDecorator):
                     self.attributes['image'])
 
     def step_init(self, flow, graph, step, decos, environment, datastore, logger):
+        username = util.get_username()
+        if not re.match('^[a-zA-Z0-9][a-zA-Z0-9_-]*$', username):
+            raise BatchInvalidUserException()
         if datastore.TYPE != 's3':
             raise BatchException('The *@batch* decorator requires --datastore=s3.')
 

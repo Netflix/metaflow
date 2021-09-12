@@ -37,6 +37,12 @@ class BatchException(MetaflowException):
 class BatchKilledException(MetaflowException):
     headline = 'AWS Batch task killed'
 
+class BatchInvalidUserException(MetaflowException):
+    headline = 'Invalid user name for launching jobs on AWS Batch.'
+
+    def __init__(self):
+        msg = "The user name (overridden via METAFLOW_USER environment variable) can only contain lowercase letters, numbers, underscores and dashes (and must start with a letter or number)."
+        super(BatchInvalidUserException, self).__init__(msg)
 
 class Batch(object):
     def __init__(self, metadata, environment):
@@ -102,7 +108,7 @@ class Batch(object):
                 yield job
 
     def _job_name(self, user, flow_name, run_id, step_name, task_id, retry_count):
-        return '{user}-{flow_name}-{run_id}-{step_name}-{task_id}-{retry_count}'.format(
+        job_name = '{user}-{flow_name}-{run_id}-{step_name}-{task_id}-{retry_count}'.format(
             user=user,
             flow_name=flow_name,
             run_id=str(run_id) if run_id is not None else '',
@@ -110,6 +116,13 @@ class Batch(object):
             task_id=str(task_id) if task_id is not None else '',
             retry_count=str(retry_count) if retry_count is not None else ''
         )
+
+        if len(job_name) > 128:
+            exceeded_characters = 128 - len(job_name)
+            raise BatchException('Unable to launch AWS Batch job - job name exceeds 128 characters. '
+                'Shorten your flow and/or step name by %s characters. ' % (len(job_name) - 128))
+
+        return job_name
 
     def list_jobs(self, flow_name, run_id, user, echo):
         jobs = self._search_jobs(flow_name, run_id, user)
