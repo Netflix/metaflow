@@ -1,4 +1,4 @@
-name: pr-datastore-tests
+name: Tests - Metaflow Fast Data
 
 on:
   pull_request_target:
@@ -10,11 +10,11 @@ on:
 jobs:
   test_data:
     if: (github.event.action == 'labeled' && (github.event.label.name == 'approved' || github.event.label.name == 'ok-to-test')) || (github.event.action != 'labeled' && (contains(github.event.pull_request.labels.*.name, 'ok-to-test') || contains(github.event.pull_request.labels.*.name, 'approved')))
-    name: S3 data tests on ${{ matrix.os }}
+    name: Tests for Metaflow Fast Data on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-latest]
+        os: [macos-latest, ubuntu-latest]
 
     steps:
     - uses: actions/checkout@v2
@@ -29,7 +29,7 @@ jobs:
       run: |
         python3 -m pip install --upgrade pip
         python3 -m pip install tox numpy pytest click boto3 requests pylint pytest-benchmark
-    - name: Execute Data tests
+    - name: Execute Metaflow Fast Data Tests
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
