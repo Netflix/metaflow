@@ -472,7 +472,7 @@ class S3(object):
 
         info_results = None
         try:
-            _, info_results = self._one_boto_op(_info, url, need_tmp_file=False)
+            _, info_results = self._one_boto_op(_info, url, create_tmp_file=False)
         except MetaflowS3NotFound:
             if return_missing:
                 info_results = None
@@ -733,7 +733,7 @@ class S3(object):
                 blob, src.netloc, src.path.lstrip('/'), ExtraArgs=extra_args)
 
         if overwrite:
-            self._one_boto_op(_upload, url, need_tmp_file=False)
+            self._one_boto_op(_upload, url, create_tmp_file=False)
             real_close()
             return url
         else:
@@ -741,9 +741,9 @@ class S3(object):
                 s3.head_object(Bucket=src.netloc, Key=src.path.lstrip('/'))
 
             try:
-                self._one_boto_op(_head, url, need_tmp_file=False)
+                self._one_boto_op(_head, url, create_tmp_file=False)
             except MetaflowS3NotFound:
-                self._one_boto_op(_upload, url, need_tmp_file=False)
+                self._one_boto_op(_upload, url, create_tmp_file=False)
             finally:
                 real_close()
             return url
@@ -835,11 +835,11 @@ class S3(object):
 
         return self._put_many_files(_check(), overwrite)
 
-    def _one_boto_op(self, op, url, need_tmp_file=True):
+    def _one_boto_op(self, op, url, create_tmp_file=True):
         error = ''
         for i in range(NUM_S3OP_RETRIES + 1):
             tmp = None
-            if need_tmp_file:
+            if create_tmp_file:
                 tmp = NamedTemporaryFile(dir=self._tmpdir,
                                         prefix='metaflow.s3.one_file.',
                                         delete=False)
@@ -860,7 +860,7 @@ class S3(object):
             except Exception as ex:
                 # TODO specific error message for out of disk space
                 error = str(ex)
-            if need_tmp_file:
+            if tmp:
                 os.unlink(tmp.name)
             self._s3_client.reset_client()
             # add some jitter to make sure retries are not synchronized
