@@ -1,3 +1,4 @@
+import re
 from os import listdir
 from os.path import isfile, join
 from subprocess_tee import run
@@ -9,10 +10,6 @@ from typing import List, Dict
 from .... import R
 
 from metaflow.exception import MetaflowException
-
-import kfp
-
-import boto3
 
 import pytest
 
@@ -55,8 +52,9 @@ def _python():
 
 
 non_standard_test_flows = [
-    "raise_error_flow.py",
     "accelerator_flow.py",
+    "check_error_handling_flow.py",
+    "raise_error_flow.py",
     "s3_sensor_flow.py",
     "upload_to_s3_flow.py",
 ]
@@ -116,14 +114,14 @@ def test_error_and_opsgenie_alert(pytestconfig) -> None:
             f"--no-s3-code-package --base-image {pytestconfig.getoption('image')}"
         )
 
-    kfp_run_id = exponential_backoff_from_platform_errors(test_cmd, 1)
+    error_flow_id = exponential_backoff_from_platform_errors(test_cmd, 1)
     opsgenie_auth_headers = {
         "Content-Type": "application/json",
         "Authorization": f"GenieKey {pytestconfig.getoption('opsgenie_api_token')}",
     }
 
     # Look for the alert with the correct kfp_run_id in the description.
-    list_alerts_endpoint = f"https://api.opsgenie.com/v2/alerts?query=description:{kfp_run_id}&limit=1&sort=createdAt&order=des"
+    list_alerts_endpoint = f"https://api.opsgenie.com/v2/alerts?query=description:{error_flow_id}&limit=1&sort=createdAt&order=des"
     list_alerts_response = requests.get(
         list_alerts_endpoint, headers=opsgenie_auth_headers
     )
@@ -153,6 +151,20 @@ def test_error_and_opsgenie_alert(pytestconfig) -> None:
         close_alert_response.status_code == 200
         or close_alert_response.status_code == 202
     )
+
+    # Test logging of raise_error_flow
+    test_cmd = (
+        f"{_python()} flows/check_error_handling_flow.py "
+        f"--datastore=s3 --with retry kfp run "
+        f"--wait-for-completion --workflow-timeout 1800 "
+        f"--experiment metaflow_test --tag test_t1 "
+        f"--error_flow_id={error_flow_id} "
+    )
+    if pytestconfig.getoption("image"):
+        test_cmd += (
+            f"--no-s3-code-package --base-image {pytestconfig.getoption('image')}"
+        )
+    exponential_backoff_from_platform_errors(test_cmd, 0)
 
     return
 
@@ -280,7 +292,9 @@ def exponential_backoff_from_platform_errors(
         raise MetaflowException(
             "KFAM issues not resolved after successive backoff attempts."
         )
+
     kfp_run_id = re.search("Metaflow run_id=(.*)\n", run_and_wait_process.stderr).group(
         1
     )
+
     return kfp_run_id

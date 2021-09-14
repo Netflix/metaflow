@@ -17,3 +17,5 @@ SIDECARS = {}
 LOGGING_SIDECARS = {}
 
 MONITOR_SIDECARS = {}
+
+__mf_promote_submodules__ = ['nondecoplugin']

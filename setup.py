@@ -2,7 +2,7 @@ import os
 
 from setuptools import setup, find_packages
 
-version = '2.2.5+zg1.1'
+version = '2.3.2+zg1.1'
 
 # TODO: once this branch is merged or in pip use, remove this
 os.system(
@@ -26,8 +26,8 @@ setup(name='metaflow',
         'click>=7.0',
         'requests',
         'boto3',
-        'pylint<2.5.0',
-        'kfp'
+        'kfp',
+        'pylint',
       ],
       tests_require = [
         'coverage'

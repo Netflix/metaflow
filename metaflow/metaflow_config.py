@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import sys
+import types
 
 import pkg_resources
 
@@ -112,6 +113,8 @@ if METADATA_SERVICE_AUTH_KEY is not None:
 # IAM role for AWS Batch container with Amazon S3 access
 # (and AWS DynamoDb access for AWS StepFunctions, if enabled)
 ECS_S3_ACCESS_IAM_ROLE = from_conf('METAFLOW_ECS_S3_ACCESS_IAM_ROLE')
+# IAM role for AWS Batch container for AWS Fargate
+ECS_FARGATE_EXECUTION_ROLE = from_conf('METAFLOW_ECS_FARGATE_EXECUTION_ROLE')
 # Job queue for AWS Batch
 BATCH_JOB_QUEUE = from_conf('METAFLOW_BATCH_JOB_QUEUE')
 # Default container image for AWS Batch
@@ -136,6 +139,10 @@ EVENTS_SFN_ACCESS_IAM_ROLE = from_conf("METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE")
 # Prefix for AWS Step Functions state machines. Set to stack name for Metaflow
 # sandbox.
 SFN_STATE_MACHINE_PREFIX = from_conf("METAFLOW_SFN_STATE_MACHINE_PREFIX")
+# Optional AWS CloudWatch Log Group ARN for emitting AWS Step Functions state
+# machine execution logs. This needs to be available when using the 
+# `step-functions create --log-execution-history` command.
+SFN_EXECUTION_LOG_GROUP_ARN = from_conf("METAFLOW_SFN_EXECUTION_LOG_GROUP_ARN")
 
 ###
 # Conda configuration
@@ -183,6 +190,9 @@ if AWS_SANDBOX_ENABLED:
 # increasing this limit has real performance implications for all tasks.
 # Decreasing this limit is very unsafe, as it can lead to wrong results
 # being read from old tasks.
+#
+# Note also that DataStoreSet resolves the latest attempt_id using
+# lexicographic ordering of attempts. This won't work if MAX_ATTEMPTS > 99.
 MAX_ATTEMPTS = 6
 
 # the naughty, naughty driver.py imported by lib2to3 produces
@@ -226,10 +236,34 @@ def get_pinned_conda_libs(python_version):
 # Check if there is a an extension to Metaflow to load and override everything
 try:
     import metaflow_custom.config.metaflow_config as extension_module
-except ImportError:
-    pass
+except ImportError as e:
+    ver = sys.version_info[0] * 10 + sys.version_info[1]
+    if ver >= 36:
+        # e.name is set to the name of the package that fails to load
+        # so don't error ONLY IF the error is importing this module (but do
+        # error if there is a transitive import error)
+        if not (isinstance(e, ModuleNotFoundError) and \
+                e.name in ['metaflow_custom', 'metaflow_custom.config']):
+            print(
+                "Cannot load metaflow_custom configuration -- "
+                "if you want to ignore, uninstall metaflow_custom package")
+            raise
 else:
     # We load into globals whatever we have in extension_module
+    # We specifically exclude any modules that may be included (like sys, os, etc)
     for n, o in extension_module.__dict__.items():
-        if not n.startswith('__'):
+        if n == 'DEBUG_OPTIONS':
+            DEBUG_OPTIONS.extend(o)
+            for typ in o:
+                vars()['METAFLOW_DEBUG_%s' % typ.upper()] = \
+                    from_conf('METAFLOW_DEBUG_%s' % typ.upper())
+        elif not n.startswith('__') and not isinstance(o, types.ModuleType):
             globals()[n] = o
+finally:
+    # Erase all temporary names to avoid leaking things
+    for _n in ['ver', 'n', 'o', 'e', 'extension_module']:
+        try:
+            del globals()[_n]
+        except KeyError:
+            pass
+    del globals()['_n']

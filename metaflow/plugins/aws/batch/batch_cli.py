@@ -8,7 +8,7 @@ import click
 
 from distutils.dir_util import copy_tree
 
-from .batch import Batch, BatchKilledException
+from .batch import Batch, BatchKilledException, STDOUT_PATH, STDERR_PATH
 
 from metaflow.datastore import MetaflowDataStore
 from metaflow.datastore.local import LocalDataStore
@@ -20,6 +20,8 @@ from metaflow.exception import (
     CommandException,
     METAFLOW_EXIT_DISALLOW_RETRY,
 )
+from metaflow.mflog import TASK_LOG_SOURCE
+
 
 try:
     # python2
@@ -134,7 +136,10 @@ def kill(ctx, run_id, user, my_runs):
     "--image", help="Docker image requirement for AWS Batch. In name:version format."
 )
 @click.option(
-    "--iam_role", help="IAM role requirement for AWS Batch"
+    "--iam-role", help="IAM role requirement for AWS Batch."
+)
+@click.option(
+    "--execution-role", help="Execution role requirement for AWS Batch on Fargate."
 )
 @click.option("--cpu", help="CPU requirement for AWS Batch.")
 @click.option("--gpu", help="GPU requirement for AWS Batch.")
@@ -157,8 +162,13 @@ def kill(ctx, run_id, user, my_runs):
 @click.option(
     "--run-time-limit",
     default=5 * 24 * 60 * 60,
-    help="Run time limit in seconds for the AWS Batch job. " "Default is 5 days.",
+    help="Run time limit in seconds for the AWS Batch job. " "Default is 5 days."
 )
+@click.option("--shared-memory", help="Shared Memory requirement for AWS Batch.")
+@click.option("--max-swap", help="Max Swap requirement for AWS Batch.")
+@click.option("--swappiness", help="Swappiness requirement for AWS Batch.")
+#TODO: Maybe remove it altogether since it's not used here
+@click.option('--ubf-context', default=None, type=click.Choice([None]))
 @click.pass_context
 def step(
     ctx,
@@ -168,15 +178,22 @@ def step(
     executable=None,
     image=None,
     iam_role=None,
+    execution_role=None,
     cpu=None,
     gpu=None,
     memory=None,
     queue=None,
     run_time_limit=None,
+    shared_memory=None,
+    max_swap=None,
+    swappiness=None,
     **kwargs
 ):
-    def echo(batch_id, msg, stream=sys.stdout):
-        ctx.obj.echo_always("[%s] %s" % (batch_id, msg))
+    def echo(msg, stream='stderr', batch_id=None):
+        msg = util.to_unicode(msg)
+        if batch_id:
+            msg = '[%s] %s' % (batch_id, msg)
+        ctx.obj.echo_always(msg, err=(stream == sys.stderr))
 
     if ctx.obj.datastore.datastore_root is None:
         ctx.obj.datastore.datastore_root = ctx.obj.datastore.get_datastore_root_from_config(echo)
@@ -217,17 +234,18 @@ def step(
         )
 
     # Set batch attributes
-    attrs = {
-        "metaflow.user": util.get_username(),
-        "metaflow.flow_name": ctx.obj.flow.name,
-        "metaflow.step_name": step_name,
-        "metaflow.run_id": kwargs["run_id"],
-        "metaflow.task_id": kwargs["task_id"],
-        "metaflow.retry_count": str(retry_count),
-        "metaflow.version": ctx.obj.environment.get_environment_info()[
-            "metaflow_version"
-        ],
+    task_spec = {
+        'flow_name': ctx.obj.flow.name,
+        'step_name': step_name,
+        'run_id': kwargs['run_id'],
+        'task_id': kwargs['task_id'],
+        'retry_count': str(retry_count)
     }
+    attrs = {'metaflow.%s' % k: v for k, v in task_spec.items()}
+    attrs['metaflow.user'] = util.get_username()
+    attrs['metaflow.version'] = ctx.obj.environment.get_environment_info()[
+            "metaflow_version"
+        ]
 
     env_deco = [deco for deco in node.decorators if deco.name == "environment"]
     if env_deco:
@@ -246,22 +264,35 @@ def step(
             "Sleeping %d minutes before the next AWS Batch retry" % minutes_between_retries
         )
         time.sleep(minutes_between_retries * 60)
+
+    # this information is needed for log tailing
+    spec = task_spec.copy()
+    spec['attempt'] = int(spec.pop('retry_count'))
+    ds = ctx.obj.datastore(mode='w', **spec)
+    stdout_location = ds.get_log_location(TASK_LOG_SOURCE, 'stdout')
+    stderr_location = ds.get_log_location(TASK_LOG_SOURCE, 'stderr')
+
     batch = Batch(ctx.obj.metadata, ctx.obj.environment)
     try:
         with ctx.obj.monitor.measure("metaflow.batch.launch"):
             batch.launch_job(
                 step_name,
                 step_cli,
+                task_spec,
                 code_package_sha,
                 code_package_url,
                 ctx.obj.datastore.TYPE,
                 image=image,
                 queue=queue,
                 iam_role=iam_role,
+                execution_role=execution_role,
                 cpu=cpu,
                 gpu=gpu,
                 memory=memory,
                 run_time_limit=run_time_limit,
+                shared_memory=shared_memory,
+                max_swap=max_swap,
+                swappiness=swappiness,
                 env=env,
                 attrs=attrs
             )
@@ -270,7 +301,7 @@ def step(
         _sync_metadata(echo, ctx.obj.metadata, datastore_root, retry_count)
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
     try:
-        batch.wait(echo=echo)
+        batch.wait(stdout_location, stderr_location, echo=echo)
     except BatchKilledException:
         # don't retry killed tasks
         traceback.print_exc()

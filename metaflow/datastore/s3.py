@@ -4,7 +4,6 @@ S3 storage
 Store data in S3
 """
 import os
-import sys
 import json
 import gzip
 from io import BytesIO
@@ -17,9 +16,10 @@ except:
     from urllib.parse import urlparse
 
 from .. import metaflow_config
-from .datastore import MetaflowDataStore, DataException, only_if_not_done
+from .datastore import MetaflowDataStore, only_if_not_done
 from ..metadata import MetaDatum
 from .util.s3util import aws_retry, get_s3_client
+from metaflow.util import Path
 
 # We need UncloseableBytesIO for put_s3_object which may need
 # to consume a BytesIO buffer multiple times. Blocking close()
@@ -36,6 +36,8 @@ class S3DataStore(MetaflowDataStore):
     ClientError = None
 
     def __init__(self, *args, **kwargs):
+        from .. import S3
+        self.S3 = S3
         self.reset_client()
         super(S3DataStore, self).__init__(*args, **kwargs)
 
@@ -54,7 +56,7 @@ class S3DataStore(MetaflowDataStore):
             with self.monitor.measure("metaflow.s3.get_object"):
                 self.s3.download_fileobj(url.netloc, url.path.lstrip('/'), buf)
         else:
-           self.s3.download_fileobj(url.netloc, url.path.lstrip('/'), buf) 
+            self.s3.download_fileobj(url.netloc, url.path.lstrip('/'), buf)
         if return_buf:
             buf.seek(0)
             return buf
@@ -227,13 +229,44 @@ class S3DataStore(MetaflowDataStore):
         return self.decode_gzip_data(None, buf) # filename=None
 
     @only_if_not_done
-    def save_log(self, logtype, bytebuffer):
+    def save_logs(self, logsource, stream_data):
         """
-        Save a log file represented as a bytes object.
+        Save log files for multiple streams, represented as
+        as a list of (stream, bytes) or (stream, Path) tuples.
         """
-        path = self.get_log_location(logtype)
-        self._put_s3_object(path, bytebuffer)
-        return path
+        locs = [self.get_log_location(logsource, stream)
+                for stream, _ in stream_data]
+
+        if stream_data and isinstance(stream_data[0][1], Path):
+            keys = list(zip(locs, (str(path) for _, path in stream_data)))
+            with self.S3() as s3:
+                s3.put_files(keys)
+        else:
+            with self.S3() as s3:
+                for url, data in zip(locs, (data for _, data in stream_data)):
+                    s3.put(url, data)
+
+    def load_log_legacy(self, stream, attempt_override=None):
+        """
+        Load old-style, pre-mflog, log file represented as a bytes object.
+        """
+        f = self.filename_with_attempt_prefix('%s.log' % stream,
+                attempt_override if attempt_override is not None 
+                    else self.attempt)
+        path = os.path.join(self.root, f)
+        if self._head_s3_object(path):
+            return self._get_s3_object(path)
+        else:
+            return b''
+
+    def load_logs(self, logsources, stream, attempt_override=None):
+        urls = [self.get_log_location(source, stream, attempt_override) 
+                    for source in logsources]
+        with self.S3() as s3:
+            results = s3.get_many(urls, return_missing=True)
+            blobs = [log.blob if log.exists else b'' for log in results]
+            return list(zip(logsources, blobs))
+
 
     def load_log(self, logtype, attempt_override=None):
         """

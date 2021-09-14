@@ -4,6 +4,7 @@ import time
 from collections import namedtuple
 from datetime import datetime
 
+from metaflow.current import current
 from metaflow.exception import MetaflowInternalError
 from metaflow.util import get_username, resolve_identity
 
@@ -239,6 +240,15 @@ class MetadataProvider(object):
         '''
         raise NotImplementedError()
 
+    def start_task_heartbeat(self, flow_id, run_id, step_name, task_id):
+        pass
+
+    def start_run_heartbeat(self, flow_id, run_id):
+        pass
+
+    def stop_heartbeat(self):
+        pass
+
     @classmethod
     def _get_object_internal(cls, obj_type, obj_order, sub_type, sub_order, filters=None, *args):
         '''
@@ -365,8 +375,13 @@ class MetadataProvider(object):
             'system_tags': sys_tags,
             'ts_epoch': int(round(time.time() * 1000))}
 
-    def _flow_to_json(self, tags=[], sys_tags=[]):
-        return self._all_obj_elements(tags, sys_tags)
+    def _flow_to_json(self):
+        # No need to store tags, sys_tags or username at the flow level
+        # since runs are the top level logical concept, which is where we
+        # store tags, sys_tags and username
+        return {
+            'flow_id': self._flow_name,
+            'ts_epoch': int(round(time.time() * 1000))}
 
     def _run_to_json(self, run_id=None, tags=[], sys_tags=[]):
         if run_id is not None:
@@ -400,7 +415,7 @@ class MetadataProvider(object):
             return self._step_to_json(run_id, step_name, tags, sys_tags)
         if obj_type == 'run':
             return self._run_to_json(run_id, tags, sys_tags)
-        return self._flow_to_json(tags, sys_tags)
+        return self._flow_to_json()
 
     def _artifacts_to_json(self, run_id, step_name, task_id, attempt_id, artifacts):
         result = []
@@ -447,6 +462,9 @@ class MetadataProvider(object):
             tags.append('metaflow_r_version:' + env['metaflow_r_version'])
         if 'r_version_code' in env:
             tags.append('r_version:' + env['r_version_code'])
+        if 'project_name' in current:
+            tags.append('project:' + current.project_name)
+            tags.append('project_branch:' + current.branch_name)
         return tags
 
     def _register_code_package_metadata(self, run_id, step_name, task_id):
@@ -495,5 +513,5 @@ class MetadataProvider(object):
         self._monitor = monitor
         self._environment = environment
         self._runtime = os.environ.get(
-            'METAFLOW_MLI_RUNTIME_NAME', 'dev')
+            'METAFLOW_RUNTIME_NAME', 'dev')
         self.add_sticky_tags(sys_tags=self._tags())

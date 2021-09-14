@@ -1,6 +1,7 @@
 import os
 from collections import defaultdict
 import sys
+import hashlib
 import json
 import time
 import string
@@ -10,9 +11,10 @@ import uuid
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.plugins import ResourcesDecorator, BatchDecorator, RetryDecorator
 from metaflow.parameters import deploy_time_eval
+from metaflow.decorators import flow_decorators
 from metaflow.util import compress_list, dict_to_cli_options, to_pascalcase
 from metaflow.metaflow_config import SFN_IAM_ROLE, \
-    EVENTS_SFN_ACCESS_IAM_ROLE, SFN_DYNAMO_DB_TABLE
+    EVENTS_SFN_ACCESS_IAM_ROLE, SFN_DYNAMO_DB_TABLE, SFN_EXECUTION_LOG_GROUP_ARN
 from metaflow import R
 
 from .step_functions_client import StepFunctionsClient
@@ -44,7 +46,8 @@ class StepFunctions(object):
                  namespace=None,
                  username=None,
                  max_workers=None,
-                 workflow_timeout=None):
+                 workflow_timeout=None,
+                 is_project=False):
         self.name = name
         self.graph = graph
         self.flow = flow
@@ -77,12 +80,12 @@ class StepFunctions(object):
             # format and push to the user for a better UX, someday.
             return 'This workflow triggers automatically '\
                 'via a cron schedule *%s* defined in AWS EventBridge.' \
-                % self.name
+                % self.event_bridge_rule
         else:
             return 'No triggers defined. '\
                 'You need to launch this workflow manually.'
 
-    def deploy(self):
+    def deploy(self, log_execution_history):
         if SFN_IAM_ROLE is None:
             raise StepFunctionsException("No IAM role found for AWS Step "
                                          "Functions. You can create one "
@@ -93,11 +96,21 @@ class StepFunctions(object):
                                          "re-configure Metaflow using "
                                          "*metaflow configure aws* on your "
                                          "terminal.")
+        if log_execution_history:
+            if SFN_EXECUTION_LOG_GROUP_ARN is None:
+                raise StepFunctionsException("No AWS CloudWatch Logs log "
+                                             "group ARN found for emitting "
+                                             "state machine execution logs for "
+                                             "your workflow. You can set it in "
+                                             "your environment by using the "
+                                             "METAFLOW_SFN_EXECUTION_LOG_GROUP_ARN "
+                                             "environment variable.")
         try:
             self._state_machine_arn = self._client.push(
                     name = self.name, 
                     definition = self.to_json(), 
-                    roleArn = SFN_IAM_ROLE
+                    role_arn = SFN_IAM_ROLE,
+                    log_execution_history = log_execution_history
                 )
         except Exception as e:
             raise StepFunctionsException(repr(e))
@@ -117,11 +130,11 @@ class StepFunctions(object):
                                                    "using *metaflow configure "
                                                    "aws* on your terminal.")
         try:
-            EventBridgeClient(self.name) \
-                .cron(self._cron) \
-                .role_arn(EVENTS_SFN_ACCESS_IAM_ROLE) \
-                .state_machine_arn(self._state_machine_arn) \
-                .schedule()
+            self.event_bridge_rule = EventBridgeClient(self.name) \
+                                        .cron(self._cron) \
+                                        .role_arn(EVENTS_SFN_ACCESS_IAM_ROLE) \
+                                        .state_machine_arn(self._state_machine_arn) \
+                                        .schedule()
         except Exception as e:
             raise StepFunctionsSchedulingException(repr(e))
 
@@ -217,7 +230,9 @@ class StepFunctions(object):
             # Create a `Parallel` state and assign sub workflows if the node
             # branches out.
             elif node.type == 'split-and':
-                branch_name = '&'.join(node.out_funcs)
+                branch_name = hashlib.sha224('&'.join(node.out_funcs) \
+                                     .encode('utf-8')) \
+                                     .hexdigest()
                 workflow.add_state(state.next(branch_name))
                 branch = Parallel(branch_name) \
                             .next(node.matching_join)
@@ -285,7 +300,16 @@ class StepFunctions(object):
     def _process_parameters(self):
         parameters = []
         has_schedule = self._cron() is not None
+        seen = set()
         for var, param in self.flow._get_parameters():
+            # Throw an exception if the parameter is specified twice.
+            norm = param.name.lower()
+            if norm in seen:
+                raise MetaflowException("Parameter *%s* is specified twice. "
+                                        "Note that parameter names are "
+                                        "case-insensitive." % param.name)
+            seen.add(norm)
+
             valuetype = param.kwargs.get('type', str)
             value = deploy_time_eval(param.kwargs.get('default'))
             required = param.kwargs.get('required', False)
@@ -296,6 +320,7 @@ class StepFunctions(object):
                                         "ambiguous. It does not have a "
                                         "default and it is not required."
                                         % param.name)
+
             # Throw an exception if a schedule is set for a flow with required
             # parameters with no defaults. We currently don't have any notion
             # of data triggers in AWS Event Bridge.
@@ -514,7 +539,7 @@ class StepFunctions(object):
         env['METAFLOW_RUN_ID'] = attrs['metaflow.run_id.$']
         env['METAFLOW_PRODUCTION_TOKEN'] = self.production_token
         env['SFN_STATE_MACHINE'] = self.name
-        #env['METAFLOW_USER'] = attrs['metaflow.owner']
+        env['METAFLOW_OWNER'] = attrs['metaflow.owner']
         # Can't set `METAFLOW_TASK_ID` due to lack of run-scoped identifiers.
         # We will instead rely on `AWS_BATCH_JOB_ID` as the task identifier.
         # Can't set `METAFLOW_RETRY_COUNT` either due to integer casting issue.
@@ -562,6 +587,18 @@ class StepFunctions(object):
         # Resolve retry strategy.
         user_code_retries, total_retries= self._get_retries(node)
 
+        task_spec = {
+            'flow_name': attrs['metaflow.flow_name'],
+            'step_name': attrs['metaflow.step_name'],
+            'run_id': 'sfn-$METAFLOW_RUN_ID',
+            # Use AWS Batch job identifier as the globally unique 
+            # task identifier.
+            'task_id': '$AWS_BATCH_JOB_ID',
+            # Since retries are handled by AWS Batch, we can rely on
+            # AWS_BATCH_JOB_ATTEMPT as the job counter.
+            'retry_count': '$((AWS_BATCH_JOB_ATTEMPT-1))'
+        }
+
         return Batch(self.metadata, self.environment) \
                 .create_job(
                         step_name=node.name,
@@ -569,16 +606,21 @@ class StepFunctions(object):
                                                 input_paths,
                                                 self.code_package_url,
                                                 user_code_retries),
+                        task_spec=task_spec,
                         code_package_sha=self.code_package.sha,
                         code_package_url=self.code_package_url,
                         code_package_ds=self.datastore.TYPE,
                         image=resources['image'],
                         queue=resources['queue'],
                         iam_role=resources['iam_role'],
+                        execution_role=resources['execution_role'],
                         cpu=resources['cpu'],
                         gpu=resources['gpu'],
                         memory=resources['memory'],
                         run_time_limit=batch_deco.run_time_limit,
+                        shared_memory=resources['shared_memory'],
+                        max_swap=resources['max_swap'],
+                        swappiness=resources['swappiness'],
                         env=env,
                         attrs=attrs
                 ) \
@@ -616,6 +658,14 @@ class StepFunctions(object):
         # Use AWS Batch job identifier as the globally unique task identifier.
         task_id = '${AWS_BATCH_JOB_ID}'
 
+        # FlowDecorators can define their own top-level options. They are
+        # responsible for adding their own top-level options and values through
+        # the get_top_level_options() hook. See similar logic in runtime.py.
+        top_opts_dict = {}
+        for deco in flow_decorators():
+            top_opts_dict.update(deco.get_top_level_options())
+        top_opts = list(dict_to_cli_options(top_opts_dict))
+
         if node.name == 'start':
             # We need a separate unique ID for the special _parameters task
             task_id_params = '%s-params' % task_id
@@ -626,7 +676,7 @@ class StepFunctions(object):
                 'python -m ' \
                 'metaflow.plugins.aws.step_functions.set_batch_environment ' \
                 'parameters %s && . `pwd`/%s' % (param_file, param_file)
-            params = entrypoint +\
+            params = entrypoint + top_opts +\
                 ['--quiet',
                  '--metadata=%s' % self.metadata.TYPE,
                  '--environment=%s' % self.environment.TYPE,
@@ -637,6 +687,9 @@ class StepFunctions(object):
                  'init',
                  '--run-id sfn-$METAFLOW_RUN_ID',
                  '--task-id %s' % task_id_params]
+            # Assign tags to run objects.
+            if self.tags:
+                params.extend('--tag %s' % tag for tag in self.tags)
 
             # If the start step gets retried, we must be careful not to 
             # regenerate multiple parameters tasks. Hence we check first if 
@@ -661,7 +714,7 @@ class StepFunctions(object):
                     % (parent_tasks_file, parent_tasks_file)
             cmds.append(export_parent_tasks)
 
-        top_level = [
+        top_level = top_opts + [
             '--quiet',
             '--metadata=%s' % self.metadata.TYPE,
             '--environment=%s' % self.environment.TYPE,
@@ -693,8 +746,8 @@ class StepFunctions(object):
             step.append('--split-index $METAFLOW_SPLIT_INDEX')
         if self.tags:
             step.extend('--tag %s' % tag for tag in self.tags)
-        if self.namespace:
-            step.append('--namespace %s' % self.namespace)
+        if self.namespace is not None:
+            step.append('--namespace=%s' % self.namespace)
         cmds.append(' '.join(entrypoint + top_level + step))
         return ' && '.join(cmds)
 

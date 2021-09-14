@@ -1,11 +1,10 @@
 import json
 
-
 # Define message enums
+# Unfortunately we can't use enums because they are not supported
+# officially in Python2
 class MessageTypes(object):
-    SHUTDOWN = 1
-    LOG_EVENT = 2
-
+    SHUTDOWN, LOG_EVENT = range(1, 3)
 
 class Message(object):
 
@@ -20,9 +19,5 @@ class Message(object):
         }
         return json.dumps(msg)+"\n"
 
-
 def deserialize(json_msg):
-    parsed_json_msg = json.loads(json_msg)
-    return Message(MessageTypes(parsed_json_msg['msg_type']),
-                   parsed_json_msg['payload'])
-
+    return Message(**json.loads(json_msg))

@@ -36,6 +36,9 @@ class JSONTypeClass(click.ParamType):
     name = 'JSON'
 
     def convert(self, value, param, ctx):
+        if not isinstance(value, strtype):
+            # Already a correct type
+            return value
         try:
             return json.loads(value)
         except:
@@ -73,10 +76,16 @@ class DeployTimeField(object):
         if self.print_representation is None:
             self.print_representation = str(self.fun)
 
-    def __call__(self):
+    def __call__(self, full_evaluation=False):
+        # full_evaluation is True if there will be no further "convert" called
+        # by click and the parameter should be fully evaluated.
         ctx = context_proto._replace(parameter_name=self.parameter_name)
         try:
-            val = self.fun(ctx)
+            try:
+                # Not all functions take two arguments
+                val = self.fun(ctx, full_evaluation)
+            except TypeError:
+                val = self.fun(ctx)
         except:
             raise ParameterFieldFailed(self.parameter_name, self.field)
         else:
@@ -127,17 +136,17 @@ class DeployTimeField(object):
 
 def deploy_time_eval(value):
     if isinstance(value, DeployTimeField):
-        return value()
+        return value(full_evaluation=True)
     else:
         return value
 
 # this is called by cli.main
-def set_parameter_context(flow_name, logger, datastore):
+def set_parameter_context(flow_name, echo, datastore):
     global context_proto
     context_proto = ParameterContext(flow_name=flow_name,
                                      user_name=get_username(),
                                      parameter_name=None,
-                                     logger=logger,
+                                     logger=echo,
                                      ds_type=datastore.TYPE)
 
 class Parameter(object):
@@ -221,7 +230,9 @@ def add_custom_parameters(deploy_mode=False):
     # deploy_mode determines whether deploy-time functions should or should
     # not be evaluated for this command
     def wrapper(cmd):
-        for arg in parameters:
+        # Iterate over parameters in reverse order so cmd.params lists options
+        # in the order they are defined in the FlowSpec subclass
+        for arg in parameters[::-1]:
             kwargs = arg.option_kwargs(deploy_mode)
             cmd.params.insert(0, click.Option(('--' + arg.name,), **kwargs))
         return cmd
@@ -238,16 +249,11 @@ def set_parameters(flow, kwargs):
         seen.add(norm)
 
     flow._success = True
-    # Impose length constraints on parameter names as some backend systems
-    # impose limits on environment variables (which are used to implement
-    # parameters)
-    parameter_list_length = 0
-    num_parameters = 0
     for var, param in flow._get_parameters():
         val = kwargs[param.name.replace('-', '_').lower()]
-        # Account for the parameter values to unicode strings or integer
-        # values. And the name to be a unicode string.
-        parameter_list_length += len((param.name + str(val)).encode("utf-8"))
-        num_parameters += 1
+        # Support for delayed evaluation of parameters. This is used for
+        # includefile in particular
+        if callable(val):
+            val = val()
         val = val.split(param.separator) if val and param.separator else val
         setattr(flow, var, val)

@@ -6,6 +6,7 @@ from .metaflow_config import from_conf
 from .util import get_username, to_unicode
 from . import metaflow_version
 from metaflow.exception import MetaflowException
+from metaflow.mflog import BASH_MFLOG, BASH_MFLOG_KFP, BASH_SAVE_LOGS
 from . import R
 
 version_cache = None
@@ -21,13 +22,13 @@ class MetaflowEnvironment(object):
     def __init__(self, flow):
         pass
 
-    def init_environment(self, logger):
+    def init_environment(self, echo):
         """
         Run before any step decorators are initialized.
         """
         pass
 
-    def validate_environment(self, logger):
+    def validate_environment(self, echo):
         """
         Run before any command to validate that we are operating in
         a desired environment.
@@ -94,30 +95,37 @@ class MetaflowEnvironment(object):
 
         return (
             "%s -c \"import boto3; " % self._python()
-            + "exec('try:\\n from urlparse import urlparse\\nexcept:\\n from urllib.parse import urlparse');"
+            + "exec('try:\\n from urlparse import urlparse\\nexcept:\\n from urllib.parse import "
+              "urlparse'); "
             + "parsed = urlparse('%s'); " % s3_path
             + "%s\"" % copy_command
         )
 
-    def get_package_commands(self, code_package_url, pip_install=True):
-        cmds = ["set -ex" if bool(from_conf("METAFLOW_DEBUG_SUBCOMMAND", False)) else "set -e",
-                "echo \'Setting up task environment.\'",
-                "%s -m pip install click requests boto3 -qqq"
-                    % self._python() if pip_install else "true",  # true is Python pass for bash
+    def get_package_commands(
+            self,
+            code_package_url,
+            is_kfp_plugin=False,
+    ):
+        mflog_bash_cmd = BASH_MFLOG if not is_kfp_plugin else BASH_MFLOG_KFP
+        cmds = [mflog_bash_cmd,
+                "mflog \'Setting up task environment.\'",
+                "%s -m pip install click requests boto3 -qqq" % self._python(),
                 "mkdir metaflow",
                 "cd metaflow",
                 "mkdir .metaflow", # mute local datastore creation log
                 "i=0; while [ $i -le 5 ]; do "
-                    "echo \'Downloading code package.\'; "
+                    "mflog \'Downloading code package...\'; "
                     "%s && \
-                        echo \'Code package downloaded.\' && break; "
+                        mflog \'Code package downloaded.\' && break; "
                     "sleep 10; i=$((i+1)); "
                 "done" % self.get_boto3_copy_command(code_package_url, "job.tar"),
                 "if [ $i -gt 5 ]; then "
-                    "echo \'Failed to download code package from %s "
+                    "mflog \'Failed to download code package from %s "
                     "after 6 tries. Exiting...\' && exit 1; "
                 "fi" % code_package_url,
-                "tar xf job.tar"
+                "tar xf job.tar",
+                # KFP: "Task is starting." is made after bootstrapping instead
+                "mflog \'Task is starting.\'" if not is_kfp_plugin else "true",
                 ]
         return cmds
 

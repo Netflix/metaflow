@@ -2,15 +2,18 @@ import os
 import signal
 import time
 
-from metaflow import FlowSpec, step, retry, catch, timeout, current
+from metaflow import FlowSpec, step, retry, catch, timeout, current, Step
 from metaflow.exception import MetaflowExceptionWrapper
 
 
 class FailureFlow(FlowSpec):
+    retry_log = "Retry count = {retry_count}"
+
     @retry
     @step
     def start(self):
         self.retry_count = current.retry_count
+        print(self.retry_log.format(retry_count=current.retry_count))
         if current.retry_count < 1:
             raise Exception("Let's force one retries!")
         else:
@@ -20,6 +23,15 @@ class FailureFlow(FlowSpec):
     @retry(times=0)
     @step
     def no_retry(self):
+        print("Testing logging for retries")
+        start_step: Step = Step(f"{current.flow_name}/{current.run_id}/start")
+        expected_logs = self.retry_log.format(retry_count=1)
+        logs = start_step.task.stdout
+        print("\n=== logs for task {task} ===")
+        print(logs)
+        print("\n=== logs ended ===")
+        assert expected_logs in logs
+
         argo_node_name = os.environ.get("MF_ARGO_NODE_NAME")
         assert not argo_node_name.endswith(")")
         assert self.retry_count == 1

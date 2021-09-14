@@ -1,6 +1,18 @@
 library(reticulate)
 context("test-step.R")
 
+test_that("can't define step with an invalid name", {
+  skip_if_no_metaflow()
+  expect_error(
+    metaflow("TestFlow") %>%
+      step(
+        step = "meta flow", # invalid Python identifier because of the space
+        next_step = "end"
+      ),
+    "meta flow is not a valid step name"
+  )
+})
+
 test_that("test join step", {
   skip_if_no_metaflow()
   metaflow("TestFlow") %>%
@@ -91,7 +103,7 @@ test_that("we can define a step with an anonymous function", {
   flow <- metaflow("TestFlow") %>%
     step(
       step = "anonymous",
-      r_function = function(step) step$x <- 3 
+      r_function = function(step) step$x <- 3
     )
   expected_function_name <- "anonymous_function_616fb45ef54cbfa9"
   functions <- flow$get_functions()

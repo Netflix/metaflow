@@ -21,7 +21,7 @@ a simple dashboard to monitor all of your Metaflow flows.**
 
 #### To play this episode:
 1. ```cd metaflow-tutorials```
-2. ```python 02-statistics/stats.py step-functions create --max-workers 4```
+2. ```python 02-statistics/stats.py --environment=conda --with conda:python=3.7,libraries="{pandas:0.24.2}" step-functions create --max-workers 4```
 3. ```python 02-statistics/stats.py step-functions trigger```
 4. ```jupyter-notebook 08-autopilot/autopilot.ipynb```
 5. Open 'autopilot.ipynb' in your remote Sagemaker notebook
