@@ -18,7 +18,7 @@ class KfpFlow(FlowSpec):
     Test adding a KFP Component and decorators
     """
 
-    @resources(cpu=0.25, cpu_limit=5, memory=150, memory_limit="1G")
+    @resources(cpu=5, memory="1G")
     @step
     def start(self):
         """

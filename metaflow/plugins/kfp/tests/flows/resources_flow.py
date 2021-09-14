@@ -1,6 +1,7 @@
 import os
 import pprint
 import subprocess
+import time
 from typing import Dict, List
 
 from kubernetes.client import (
@@ -93,12 +94,9 @@ for label, env_name in labels.items():
 
 class ResourcesFlow(FlowSpec):
     @resources(
-        local_storage="100",
-        local_storage_limit="242",
-        cpu="0.1",
-        cpu_limit="0.6",
-        memory="500",
-        memory_limit="1G",
+        local_storage="242",
+        cpu="0.6",
+        memory="1G",
     )
     @environment(  # pylint: disable=E1102
         vars={"MY_ENV": "value"}, kubernetes_vars=kubernetes_vars
@@ -113,11 +111,11 @@ class ResourcesFlow(FlowSpec):
 
         # test kubernetes_vars
         assert "resourcesflow" in os.environ.get("MY_POD_NAME")
-        assert os.environ.get("CPU") == "100"
+        assert os.environ.get("CPU") == "600"
         assert os.environ.get("CPU_LIMIT") == "600"
-        assert os.environ.get("LOCAL_STORAGE") == "100000000"
+        assert os.environ.get("LOCAL_STORAGE") == "242000000"
         assert os.environ.get("LOCAL_STORAGE_LIMIT") == "242000000"
-        assert os.environ.get("MEMORY") == "500000000"
+        assert os.environ.get("MEMORY") == "1000000000"
         assert os.environ.get("MEMORY_LIMIT") == "1000000000"
 
         assert os.environ.get("MF_NAME") == current.flow_name
@@ -136,13 +134,31 @@ class ResourcesFlow(FlowSpec):
         self.items = [1, 2]
         self.next(self.split_step, foreach="items")
 
-    @resources(volume="11G")
+    @resources(volume="11G", volume_mode="ReadWriteMany")
     @step
     def split_step(self):
         output = subprocess.check_output(
             "df -h | grep /opt/metaflow_volume", shell=True
         )
         assert "11G" in str(output)
+
+        file_path = "/opt/metaflow_volume/test.txt"
+        message = "hello world!"
+
+        # validate the volume is shared across the foreach splits
+        if self.input == 1:
+            with open(file_path, "w") as f:
+                f.write(message)
+        else:
+            while not os.path.exists(file_path):
+                time.sleep(1)
+                print(".")
+
+            with open(file_path, "r") as f:
+                read_lines = f.readlines()
+                print("read_lines", read_lines)
+                assert message == read_lines[0]
+
         self.next(self.join_step)
 
     @resources(volume="12G")
@@ -152,7 +168,6 @@ class ResourcesFlow(FlowSpec):
             "df -h | grep /opt/metaflow_volume", shell=True
         )
         assert "12G" in str(output)
-
         self.next(self.end)
 
     @step
