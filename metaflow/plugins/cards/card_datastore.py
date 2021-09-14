@@ -1,26 +1,4 @@
 """ 
-Exposing methods like view and get will also require rendering cards with args example : `python myflow.py card view mystep --card-type somecard --card-args "{footer:false}" `
-    - To execute such a function, we run into the problem of finding the cards in the datastore; as there can be potentially many cards which we cannot locate because they are all stored `type-contenthash`; 
-    - adding an arghash to the file path can help resolve this; 
-    
-Example scenario where it is useful :
-
-if we slap many @cards on the @step then there can be many cards that are stored. 
-    - The path to these cards are based on the type and content; ideally it is given by `type-contenthash`
-    - The content can be based on the args given to the card decorator. 
-    - With mutliple decorators we can have may @cards with same type but different arguments
-        - Retrieving these cards with `card_cli.get` or `card_cli.view` would require an addition arguments relating to the card args
-        - 
-    Q) What should be the arguements for `get` and `view` methods;
-        - We can change the file storing pattern of the datastore from `type-contenthash-arghash`
-        - We can change this to `type-contenthash-arghash`
-        - Should we pass the content hash  
-        - Should the 
-    Q) Which of these methods should on the fly compile the card ; 
-        - I think view may be such a method where it compiles on the fly; 
-    Q) 
-
-
 
 """
 
