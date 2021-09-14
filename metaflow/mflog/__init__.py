@@ -38,8 +38,8 @@ BASH_MFLOG =\
      ' }' % TASK_LOG_SOURCE
 
 # In KFP, the same bash function goes through
-#   - python formatting: thus double quoted
-#   - concat with other string that have other quotation marks
+#   - python formatting: double bracket to prevent unwanted formatting
+#   - quotation marks escape adjustment for proper concatanation
 BASH_MFLOG_KFP =\
     'mflog(){{ '\
         'T=$(date -u -Ins|tr , .); '\
