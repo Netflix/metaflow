@@ -613,7 +613,8 @@ class StepFunctions(object):
                         max_swap=resources['max_swap'],
                         swappiness=resources['swappiness'],
                         env=env,
-                        attrs=attrs
+                        attrs=attrs,
+                        host_volumes=resources['host_volumes'],
                 ) \
                 .attempts(total_retries + 1)
 

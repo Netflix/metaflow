@@ -99,7 +99,8 @@ class BatchDecorator(StepDecorator):
         'execution_role': ECS_FARGATE_EXECUTION_ROLE,
         'shared_memory': None,
         'max_swap': None,
-        'swappiness': None
+        'swappiness': None,
+        'host_volumes': None,
     }
     package_url = None
     package_sha = None
