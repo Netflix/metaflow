@@ -16,7 +16,7 @@ from metaflow import util
 
 from .batch_client import BatchClient
 
-from metaflow.datastore.util.s3tail import S3Tail
+from metaflow.datatools.s3tail import S3Tail
 from metaflow.mflog.mflog import refine, set_should_persist
 from metaflow.mflog import export_mflog_env_vars,\
                            bash_capture_logs,\

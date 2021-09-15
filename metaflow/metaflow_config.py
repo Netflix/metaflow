@@ -228,7 +228,7 @@ def get_pinned_conda_libs(python_version):
 
 # Check if there is a an extension to Metaflow to load and override everything
 try:
-    import metaflow_custom.config.metaflow_config as extension_module
+    import metaflow_extensions.config.metaflow_config as extension_module
 except ImportError as e:
     ver = sys.version_info[0] * 10 + sys.version_info[1]
     if ver >= 36:
@@ -236,10 +236,10 @@ except ImportError as e:
         # so don't error ONLY IF the error is importing this module (but do
         # error if there is a transitive import error)
         if not (isinstance(e, ModuleNotFoundError) and \
-                e.name in ['metaflow_custom', 'metaflow_custom.config']):
+            e.name in ['metaflow_extensions', 'metaflow_extensions.config']):
             print(
-                "Cannot load metaflow_custom configuration -- "
-                "if you want to ignore, uninstall metaflow_custom package")
+                "Cannot load metaflow_extensions configuration -- "
+                "if you want to ignore, uninstall metaflow_extensions package")
             raise
 else:
     # We load into globals whatever we have in extension_module

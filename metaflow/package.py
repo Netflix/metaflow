@@ -20,14 +20,14 @@ class MetaflowPackage(object):
         self.environment = environment
         self.metaflow_root = os.path.dirname(__file__)
         try:
-            import metaflow_custom
+            import metaflow_extensions
         except ImportError:
-            self.metaflow_custom_root = None
+            self.metaflow_extensions_root = None
         else:
-            self.metaflow_custom_root = os.path.dirname(metaflow_custom.__file__)
-            self.metaflow_custom_addl_suffixes = getattr(
-                metaflow_custom,
-                'METAFLOW_CUSTOM_PACKAGE_SUFFIXES',
+            self.metaflow_extensions_root = os.path.dirname(metaflow_extensions.__file__)
+            self.metaflow_extensions_addl_suffixes = getattr(
+                metaflow_extensions,
+                'METAFLOW_EXTENSIONS_PACKAGE_SUFFIXES',
                 None)
 
         environment.init_environment(echo)
@@ -66,11 +66,11 @@ class MetaflowPackage(object):
         for path_tuple in self._walk(self.metaflow_root, exclude_hidden=False):
             yield path_tuple
         # Metaflow customization if any
-        if self.metaflow_custom_root:
+        if self.metaflow_extensions_root:
             for path_tuple in self._walk(
-                    self.metaflow_custom_root,
+                    self.metaflow_extensions_root,
                     exclude_hidden=False,
-                    addl_suffixes=self.metaflow_custom_addl_suffixes):
+                    addl_suffixes=self.metaflow_extensions_addl_suffixes):
                 yield path_tuple
         # the package folders for environment
         for path_tuple in self.environment.add_to_package():

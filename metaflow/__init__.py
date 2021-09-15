@@ -93,7 +93,7 @@ class _LazyLoader(object):
             # We return a nicer error message
             raise ImportError(
                 "Attempting to load '%s' -- loading shadowed modules in Metaflow "
-                "Custom is only supported in Python 3.4+" % fullname)
+                "Extensions are only supported in Python 3.4+" % fullname)
         to_import = self._handled.get(fullname, None)
 
         # If to_import is None, two cases:
@@ -138,7 +138,7 @@ class _LazyLoader(object):
             # would be OK. Being extra sure in case _LazyLoader is misused and
             # a None value is passed in.
             raise ImportError(
-                "Metaflow Custom shadowed module '%s' does not exist" % fullname)
+                "Metaflow Extensions shadowed module '%s' does not exist" % fullname)
         else:
             raise ImportError
         return sys.modules[fullname]
@@ -152,7 +152,7 @@ class _LazyLoader(object):
 # modules should be careful not to include anything in Metaflow at their top-level
 # as it is likely to not work.
 try:
-    import metaflow_custom.toplevel.module_overrides as extension_module
+    import metaflow_extensions.toplevel.module_overrides as extension_module
 except ImportError as e:
     ver = sys.version_info[0] * 10 + sys.version_info[1]
     if ver >= 36:
@@ -160,21 +160,21 @@ except ImportError as e:
         # so don't error ONLY IF the error is importing this module (but do
         # error if there is a transitive import error)
         if not (isinstance(e, ModuleNotFoundError) and \
-                e.name in ['metaflow_custom', 'metaflow_custom.toplevel',
-                           'metaflow_custom.toplevel.module_overrides']):
+                e.name in ['metaflow_extensions', 'metaflow_extensions.toplevel',
+                           'metaflow_extensions.toplevel.module_overrides']):
             print(
-                "Cannot load metaflow_custom top-level configuration -- "
-                "if you want to ignore, uninstall metaflow_custom package")
+                "Cannot load metaflow_extensions top-level configuration -- "
+                "if you want to ignore, uninstall metaflow_extensions package")
             raise
 else:
     # We load only modules
     lazy_load_custom_modules = {}
     for n, o in extension_module.__dict__.items():
         if isinstance(o, types.ModuleType) and o.__package__ and \
-                o.__package__.startswith('metaflow_custom'):
+                o.__package__.startswith('metaflow_extensions'):
             lazy_load_custom_modules['metaflow.%s' % n] = o
     if lazy_load_custom_modules:
-        # Prepend to make sure custom package overrides things
+        # Prepend to make sure extensions package overrides things
         sys.meta_path = [_LazyLoader(lazy_load_custom_modules)] + sys.meta_path
 
 from .event_logger import EventLogger
@@ -219,7 +219,7 @@ from .metaflow_profile import profile
 # Now override everything other than modules
 __version_addl__ = None
 try:
-    import metaflow_custom.toplevel.toplevel as extension_module
+    import metaflow_extensions.toplevel.toplevel as extension_module
 except ImportError as e:
     ver = sys.version_info[0] * 10 + sys.version_info[1]
     if ver >= 36:
@@ -227,35 +227,35 @@ except ImportError as e:
         # so don't error ONLY IF the error is importing this module (but do
         # error if there is a transitive import error)
         if not (isinstance(e, ModuleNotFoundError) and \
-                e.name in ['metaflow_custom', 'metaflow_custom.toplevel',
-                           'metaflow_custom.toplevel.toplevel']):
+                e.name in ['metaflow_extensions', 'metaflow_extensions.toplevel',
+                           'metaflow_extensions.toplevel.toplevel']):
             print(
-                "Cannot load metaflow_custom top-level configuration -- "
-                "if you want to ignore, uninstall metaflow_custom package")
+                "Cannot load metaflow_extensions top-level configuration -- "
+                "if you want to ignore, uninstall metaflow_extensions package")
             raise
 else:
     # We load into globals whatever we have in extension_module
     # We specifically exclude any modules that may be included (like sys, os, etc)
-    # *except* for ones that are part of metaflow_custom (basically providing
+    # *except* for ones that are part of metaflow_extensions (basically providing
     # an aliasing mechanism)
     lazy_load_custom_modules = {}
     addl_modules = extension_module.__dict__.get('__mf_promote_submodules__')
     if addl_modules:
-        # We make an alias for these modules which the metaflow_custom author
+        # We make an alias for these modules which the metaflow_extensions author
         # wants to expose but that may not be loaded yet
         lazy_load_custom_modules = {
-            'metaflow.%s' % k: 'metaflow_custom.%s' % k for k in addl_modules}
+            'metaflow.%s' % k: 'metaflow_extensions.%s' % k for k in addl_modules}
     for n, o in extension_module.__dict__.items():
         if not n.startswith('__') and not isinstance(o, types.ModuleType):
             globals()[n] = o
         elif isinstance(o, types.ModuleType) and o.__package__ and \
-                o.__package__.startswith('metaflow_custom'):
+                o.__package__.startswith('metaflow_extensions'):
             lazy_load_custom_modules['metaflow.%s' % n] = o
     if lazy_load_custom_modules:
         # Prepend to make sure custom package overrides things
         sys.meta_path = [_LazyLoader(lazy_load_custom_modules)] + sys.meta_path
 
-    __version_addl__ = getattr(extension_module, '__mf_customization__', '<unk>')
+    __version_addl__ = getattr(extension_module, '__mf_extensions__', '<unk>')
     if extension_module.__version__:
         __version_addl__ = '%s(%s)' % (__version_addl__, extension_module.__version__)
 

@@ -12,7 +12,7 @@ from .batch import Batch, BatchKilledException, STDOUT_PATH, STDERR_PATH
 
 from metaflow.datastore import MetaflowDataStore
 from metaflow.datastore.local import LocalDataStore
-from metaflow.datastore.util.s3util import get_s3_client
+from metaflow.datatools.s3util import get_s3_client
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow import util
 from metaflow import R

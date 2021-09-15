@@ -18,7 +18,7 @@ except:
 from .. import metaflow_config
 from .datastore import MetaflowDataStore, only_if_not_done
 from ..metadata import MetaDatum
-from .util.s3util import aws_retry, get_s3_client
+from ..datatools.s3util import aws_retry, get_s3_client
 from metaflow.util import Path
 
 # We need UncloseableBytesIO for put_s3_object which may need
