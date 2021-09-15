@@ -1,3 +1,4 @@
+import json
 import os
 import platform
 import sys
@@ -105,6 +106,11 @@ class MetaflowEnvironment(object):
         global version_cache
         if version_cache is None:
             version_cache = metaflow_version.get_version()
+            # In some cases, we may not resolve the version properly so
+            # we check if we have a METAFLOW_VERSION env var that contains it
+            if not version_cache:
+                v = os.environ.get('METAFLOW_VERSION')
+                version_cache = json.loads(v).get('metaflow_version', '<unknown>')
 
         # note that this dict goes into the code package
         # so variables here should be relatively stable (no
