@@ -110,7 +110,11 @@ class CardDatastore(object):
             pathspec=self._path_spec,
         )
 
-    def save_card(self,card_name,card_html, overwrite=True):
+    def save_card(self,card_type,card_id,card_html, overwrite=True):
+        if card_id is not None:
+            card_name = "%s-%s" %(card_id,card_type)
+        else:
+            card_name = card_type
         card_path = self.get_card_location(self._get_card_path(),card_name,card_html)
         self._backend.save_bytes(
             [(card_path,BytesIO(bytes(card_html,'utf-8')))],
@@ -118,6 +122,7 @@ class CardDatastore(object):
         )
     
     def _extract_and_save_locally(self,card_type):
+        # todo : change this method to accomodate the card_id arguement. 
         card_path = self._get_card_path()
         card_paths = self._backend.list_content([card_path])
         if len(card_paths) == 0 :
@@ -140,11 +145,13 @@ class CardDatastore(object):
                             return main_path
 
     def get_card(self,card_type):
+        # todo : change this method to accomodate the card_id arguement. 
         main_path = self._extract_and_save_locally(card_type)
         with open(main_path,'r') as f:
             return f.read()
         
     def view_card(self,card_type):
+        # todo : change this method to accomodate the card_id arguement. 
         main_path = self._extract_and_save_locally(card_type)
         url = 'file://' + os.path.abspath(main_path)
         webbrowser.open(url)

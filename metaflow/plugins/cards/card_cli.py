@@ -24,19 +24,24 @@ def card():
                 default={},
                 show_default=True,
                 type=JSONType,
-                help="Type of card being created")
+                help="arguments of the card being created.")
 @click.option('--run-path-spec',
                 default=None,
                 show_default=True,
                 type=str,
                 help="Path spec of the run.")
+@click.option('--card-id',
+                default=None,
+                show_default=True,
+                type=str,
+                help="Unique ID of the card")
 @click.option('--metadata-path',
                 default=None,
                 show_default=True,
                 type=str,
                 help="Metadata of the run instance.")
 @click.pass_context
-def create(ctx,card_args=None, run_path_spec=None,card_type=None,metadata_path=None):
+def create(ctx,card_args=None, run_path_spec=None,card_type=None,card_id=None,metadata_path=None):
     ctx.obj.echo("Creating new card of type %s" % card_type, fg='green')
     from metaflow import get_metadata,metadata
     if metadata_path is not None:
@@ -65,10 +70,10 @@ def create(ctx,card_args=None, run_path_spec=None,card_type=None,metadata_path=N
     
     try:
         rendered_info = mf_card.render(task)
-    except:
+    except: # TODO : Catch exec trace over here. 
         raise UnrenderableCardException(card_type,card_args)
     else:
-        card_datastore.save_card(card_type,rendered_info)
+        card_datastore.save_card(card_type,card_id,rendered_info)
 
 @card.command(help='View the HTML card')
 @click.argument('step-name',

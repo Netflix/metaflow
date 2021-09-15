@@ -13,8 +13,9 @@ class CardDecorator(StepDecorator):
     name='card'
     defaults = {
         "type":'basic',
-        "level": 'task', # flow,task,run
-        "args": {}
+        "options": {},
+        "id" : None,
+        "card_level": 'task'
     }
     
     def __init__(self, *args, **kwargs):
@@ -127,7 +128,12 @@ class CardDecorator(StepDecorator):
             get_metadata(),
         # Add the options relating to card arguments. 
         # Todo check if self.attributes is the correct implementation of this
-        ]+ ['--card-args',json.dumps(self.attributes['args'])]
+        # todo : add card_level as a CLI arg for the create method. 
+        ]+ ['--card-args',json.dumps(self.attributes['options'])]
+        # accomodating the card-id according to the 
+        if self.attributes['id'] is not None:
+            id_args = ["--card-id",self.attributes['id']]
+            cmd+=id_args
         
         response,fail = self._run_command(cmd,os.environ)
         if fail:
