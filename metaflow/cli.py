@@ -1,4 +1,5 @@
 import inspect
+import os
 import sys
 import traceback
 from datetime import datetime
@@ -845,10 +846,11 @@ def start(ctx,
 
     if coverage:
         from coverage import Coverage
+        no_covrc = "COVERAGE_RCFILE" not in os.environ
         cov = Coverage(data_suffix=True,
                        auto_data=True,
-                       source=['metaflow'],
-                       branch=True)
+                       source=['metaflow'] if no_covrc else None,
+                       branch=True if no_covrc else None)
         cov.start()
 
     cli_args._set_top_kwargs(ctx.params)
@@ -868,19 +870,6 @@ def start(ctx,
                            if e.TYPE == environment][0](ctx.obj.flow)
     ctx.obj.environment.validate_environment(echo)
 
-    ctx.obj.datastore = DATASTORES[datastore]
-    ctx.obj.datastore_root = datastore_root
-
-    # It is important to initialize flow decorators early as some of the
-    # things they provide may be used by some of the objects initialize after.
-    decorators._init_flow_decorators(ctx.obj.flow,
-                                     ctx.obj.graph,
-                                     ctx.obj.environment,
-                                     ctx.obj.datastore,
-                                     ctx.obj.logger,
-                                     echo,
-                                     deco_options)
-
     ctx.obj.monitor = Monitor(monitor, ctx.obj.environment, ctx.obj.flow.name)
     ctx.obj.monitor.start()
 
@@ -895,6 +884,17 @@ def start(ctx,
         datastore_root = \
           ctx.obj.datastore.get_datastore_root_from_config(ctx.obj.echo)
     ctx.obj.datastore_root = ctx.obj.datastore.datastore_root = datastore_root
+
+    # It is important to initialize flow decorators early as some of the
+    # things they provide may be used by some of the objects initialize after.
+    decorators._init_flow_decorators(ctx.obj.flow,
+                                     ctx.obj.graph,
+                                     ctx.obj.environment,
+                                     ctx.obj.datastore,
+                                     ctx.obj.metadata,
+                                     ctx.obj.logger,
+                                     echo,
+                                     deco_options)
 
     if decospecs:
         decorators._attach_decorators(ctx.obj.flow, decospecs)

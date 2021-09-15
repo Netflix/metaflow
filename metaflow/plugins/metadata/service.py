@@ -351,14 +351,14 @@ class ServiceMetadataProvider(MetadataProvider):
                 elif resp.status_code != 503:
                     raise ServiceException('Metadata request (%s) failed'
                                            ' (code %s): %s' %
-                                           (path, resp.status_code, resp.text),
+                                           (url, resp.status_code, resp.text),
                                            resp.status_code,
                                            resp.text)
             time.sleep(2**i)
         if resp:
             raise ServiceException('Metadata request (%s) failed (code %s): %s'
-                                   % (path, resp.status_code, resp.text),
+                                   % (url, resp.status_code, resp.text),
                                    resp.status_code,
                                    resp.text)
         else:
-            raise ServiceException('Metadata request (%s) failed' % path)
+            raise ServiceException('Metadata request (%s) failed' % url)

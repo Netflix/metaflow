@@ -12,7 +12,7 @@ from .batch import Batch, BatchKilledException, STDOUT_PATH, STDERR_PATH
 
 from metaflow.datastore import MetaflowDataStore
 from metaflow.datastore.local import LocalDataStore
-from metaflow.datastore.util.s3util import get_s3_client
+from metaflow.datatools.s3util import get_s3_client
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow import util
 from metaflow import R
@@ -169,6 +169,7 @@ def kill(ctx, run_id, user, my_runs):
 @click.option("--swappiness", help="Swappiness requirement for AWS Batch.")
 #TODO: Maybe remove it altogether since it's not used here
 @click.option('--ubf-context', default=None, type=click.Choice([None]))
+@click.option('--host-volumes', multiple=True)
 @click.pass_context
 def step(
     ctx,
@@ -187,6 +188,7 @@ def step(
     shared_memory=None,
     max_swap=None,
     swappiness=None,
+    host_volumes=None,
     **kwargs
 ):
     def echo(msg, stream='stderr', batch_id=None):
@@ -294,7 +296,8 @@ def step(
                 max_swap=max_swap,
                 swappiness=swappiness,
                 env=env,
-                attrs=attrs
+                attrs=attrs,
+                host_volumes=host_volumes,
             )
     except Exception as e:
         print(e)

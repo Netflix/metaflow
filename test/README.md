@@ -1,5 +1,47 @@
 # Metaflow Test Suite
 
+Metaflow test suite consists of two parts:
+
+ 1. A data test suite for the data layer components (`S3`) based on
+    [Pytest](http://pytest.org). These tests can be found
+    under the `test/data` directory.
+ 2. An integration test harness for the core Metaflow at `test/core`.
+    The harness generates and executes synthetic Metaflow flows,
+    exercising all aspects of Metaflow.
+
+You can run the tests by hand using `pytest` or `run_tests.py` as described
+below.
+
+## Data Test Suite
+
+The data tests are standard `pytest` suites. In the `s3` folder, you will
+find two files: `s3_data.py` which generates synthetic
+data and `test_s3.py` which contains the actual tests.
+
+The test data is cached in S3. If you change anything in the `s3_data.py`
+module (or you have another reason for wanting to regenerate test
+data), you can regenerate the data easily by changing the S3 test prefix
+at `test/data/__init__.py`. The `s3_data.py` detects that data
+is missing in S3 and they will upload the data in the new location
+automatically.
+
+### Running data tests by hand
+
+You can run the data tests using `pytest` as follows:
+
+```
+cd test/data/
+PYTHONPATH=`pwd`/../../ python3 -m pytest -x -s -v --benchmark-skip
+```
+
+You can obviously also not skip the benchmarks but be aware that the
+benchmarks run for a long time.
+
+Both Python2 and Python3 are supported. See `python -m pytest --help`
+for more information about how to execute `pytest` tests.
+
+## The Integration Test Harness for Metaflow
+
 The integration test harness for the core Metaflow at `test/core`
 generates and executes synthetic Metaflow flows, exercising all 
 aspects of Metaflow. The test suite is executed using 

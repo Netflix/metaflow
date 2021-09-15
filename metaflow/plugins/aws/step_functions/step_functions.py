@@ -310,26 +310,17 @@ class StepFunctions(object):
                                         "case-insensitive." % param.name)
             seen.add(norm)
 
-            valuetype = param.kwargs.get('type', str)
-            value = deploy_time_eval(param.kwargs.get('default'))
-            required = param.kwargs.get('required', False)
-            # Throw an exception if the flow has optional parameters
-            # with no default value.
-            if value is None and required is False:
-                raise MetaflowException("The value of parameter *%s* is "
-                                        "ambiguous. It does not have a "
-                                        "default and it is not required."
-                                        % param.name)
-
+            is_required = param.kwargs.get('required', False)
             # Throw an exception if a schedule is set for a flow with required
             # parameters with no defaults. We currently don't have any notion
             # of data triggers in AWS Event Bridge.
-            if value is None and required and has_schedule:
+            if 'default' not in param.kwargs and is_required and has_schedule:
                 raise MetaflowException("The parameter *%s* does not have a "
                                         "default and is required. Scheduling "
                                         "such parameters via AWS Event Bridge "
                                         "is not currently supported."
                                         % param.name)
+            value = deploy_time_eval(param.kwargs.get('default'))
             parameters.append(dict(name=param.name,
                                    value=value))
         return parameters
@@ -622,7 +613,8 @@ class StepFunctions(object):
                         max_swap=resources['max_swap'],
                         swappiness=resources['swappiness'],
                         env=env,
-                        attrs=attrs
+                        attrs=attrs,
+                        host_volumes=resources['host_volumes'],
                 ) \
                 .attempts(total_retries + 1)
 
@@ -823,6 +815,9 @@ class State(object):
                 to_pascalcase(job.payload['retryStrategy'])) \
             .parameter('Timeout', 
                 to_pascalcase(job.payload['timeout']))
+        # tags may not be present in all scenarios
+        if 'tags' in job.payload:
+            self.parameter('Tags', job.payload['tags'])
         return self
 
     def dynamo_db(self, table_name, primary_key, values):

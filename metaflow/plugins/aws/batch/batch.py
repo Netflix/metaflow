@@ -11,12 +11,12 @@ from requests.exceptions import HTTPError
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.metaflow_config import BATCH_METADATA_SERVICE_URL, DATATOOLS_S3ROOT, \
     DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_S3, DEFAULT_METADATA, \
-    BATCH_METADATA_SERVICE_HEADERS
+    BATCH_METADATA_SERVICE_HEADERS, BATCH_EMIT_TAGS
 from metaflow import util
 
 from .batch_client import BatchClient
 
-from metaflow.datastore.util.s3tail import S3Tail
+from metaflow.datatools.s3tail import S3Tail
 from metaflow.mflog.mflog import refine, set_should_persist
 from metaflow.mflog import export_mflog_env_vars,\
                            bash_capture_logs,\
@@ -164,7 +164,8 @@ class Batch(object):
         max_swap=None,
         swappiness=None,
         env={},
-        attrs={}
+        attrs={},
+        host_volumes=None,
     ):
         job_name = self._job_name(
             attrs.get('metaflow.user'),
@@ -186,7 +187,7 @@ class Batch(object):
             .execution_role(execution_role) \
             .job_def(image, iam_role,
                 queue, execution_role, shared_memory,
-                max_swap, swappiness) \
+                max_swap, swappiness, host_volumes=host_volumes) \
             .cpu(cpu) \
             .gpu(gpu) \
             .memory(memory) \
@@ -214,6 +215,14 @@ class Batch(object):
         if attrs:
             for key, value in attrs.items():
                 job.parameter(key, value)
+        # Tags for AWS Batch job (for say cost attribution)
+        if BATCH_EMIT_TAGS:
+            for key in ['metaflow.flow_name', 'metaflow.run_id',
+                            'metaflow.step_name', 'metaflow.version', 
+                            'metaflow.run_id.$', 'metaflow.user',
+                            'metaflow.owner', 'metaflow.production_token']:
+                if key in attrs:
+                    job.tag(key, attrs.get(key))
         return job
 
     def launch_job(
@@ -236,6 +245,7 @@ class Batch(object):
         shared_memory=None,
         max_swap=None,
         swappiness=None,
+        host_volumes=None,
         env={},
         attrs={},
         ):
@@ -264,8 +274,9 @@ class Batch(object):
                         shared_memory,
                         max_swap,
                         swappiness,
-                        env,
-                        attrs
+                        env=env,
+                        attrs=attrs,
+                        host_volumes=host_volumes
         )
         self.job = job.execute()
 

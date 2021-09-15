@@ -79,7 +79,7 @@ class FlowFormatter(object):
             tags.extend(tag.split('(')[0] for tag in step.tags)
 
         yield 0, '# -*- coding: utf-8 -*-'
-        yield 0, 'from metaflow import FlowSpec, step, Parameter, project, IncludeFile, JSONType'
+        yield 0, 'from metaflow import FlowSpec, step, Parameter, project, IncludeFile, JSONType, current'
         yield 0, 'from metaflow_test import assert_equals, '\
                                            'assert_exception, '\
                                            'ExpectationFailed, '\
@@ -142,7 +142,7 @@ class FlowFormatter(object):
                                       '"test_flow.py", '\
                                       '"*/click/*", '\
                                       '"*/site-packages/*", '\
-                                      '"*/core/metaflow_custom/*", '\
+                                      '"*/core/metaflow_extensions/*", '\
                                       '"*/core/metaflow_test/*"])'
         yield 0, 'cov.start()'
         yield 0, 'import sys'

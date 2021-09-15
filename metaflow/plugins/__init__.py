@@ -1,8 +1,20 @@
 import sys
 import types
 
+_expected_extensions = {
+    'FLOW_DECORATORS': [],
+    'STEP_DECORATORS': [],
+    'ENVIRONMENTS': [],
+    'METADATA_PROVIDERS': [],
+    'SIDECARS': {},
+    'LOGGING_SIDECARS': {},
+    'MONITOR_SIDECARS': {},
+    'AWS_CLIENT_PROVIDERS': [],
+    'get_plugin_cli': lambda : []
+}
+
 try:
-    import metaflow_custom.plugins as _ext_plugins
+    import metaflow_extensions.plugins as _ext_plugins
 except ImportError as e:
     ver = sys.version_info[0] * 10 + sys.version_info[1]
     if ver >= 36:
@@ -10,57 +22,61 @@ except ImportError as e:
         # so don't error ONLY IF the error is importing this module (but do
         # error if there is a transitive import error)
         if not (isinstance(e, ModuleNotFoundError) and \
-                e.name in ['metaflow_custom', 'metaflow_custom.plugins']):
+                e.name in ['metaflow_extensions', 'metaflow_extensions.plugins']):
             print(
-                "Cannot load metaflow_custom plugins -- "
-                "if you want to ignore, uninstall metaflow_custom package")
+                "Cannot load metaflow_extensions plugins -- "
+                "if you want to ignore, uninstall metaflow_extensions package")
             raise
     class _fake(object):
-        def __init__(self, **kwargs):
-            self.__dict__.update(kwargs)
+        def __getattr__(self, name):
+            if name in _expected_extensions:
+                return _expected_extensions[name]
+            raise AttributeError
 
-        def get_plugin_cli(self):
-            return []
-
-    _ext_plugins = _fake(
-        FLOW_DECORATORS=[],
-        STEP_DECORATORS=[],
-        ENVIRONMENTS=[],
-        METADATA_PROVIDERS=[],
-        SIDECARS={},
-        LOGGING_SIDECARS={},
-        MONITOR_SIDECARS={})
+    _ext_plugins = _fake()
 else:
     # We load into globals whatever we have in extension_module
     # We specifically exclude any modules that may be included (like sys, os, etc)
-    # *except* for ones that are part of metaflow_custom (basically providing
+    # *except* for ones that are part of metaflow_extensions (basically providing
     # an aliasing mechanism)
     lazy_load_custom_modules = {}
     addl_modules = _ext_plugins.__dict__.get('__mf_promote_submodules__')
     if addl_modules:
-        # We make an alias for these modules which the metaflow_custom author
+        # We make an alias for these modules which the metaflow_extensions author
         # wants to expose but that may not be loaded yet
         lazy_load_custom_modules = {
-            'metaflow.plugins.%s' % k: 'metaflow_custom.plugins.%s' % k
+            'metaflow.plugins.%s' % k: 'metaflow_extensions.plugins.%s' % k
             for k in addl_modules}
     for n, o in _ext_plugins.__dict__.items():
         if not n.startswith('__') and not isinstance(o, types.ModuleType):
             globals()[n] = o
         elif isinstance(o, types.ModuleType) and o.__package__ and \
-                o.__package__.startswith('metaflow_custom'):
+                o.__package__.startswith('metaflow_extensions'):
             lazy_load_custom_modules['metaflow.plugins.%s' % n] = o
     if lazy_load_custom_modules:
-        # NOTE: We load things first to have metaflow_custom override things here.
+        # NOTE: We load things first to have metaflow_extensions override things here.
         # This does mean that for modules that have the same name (for example,
-        # if metaflow_custom.plugins also provides a conda module), it needs
+        # if metaflow_extensions.plugins also provides a conda module), it needs
         # to provide whatever is expected below (so for example a `conda_step_decorator`
         # file with a `CondaStepDecorator` class).
-        # We do this because we want metaflow_custom to fully override things
+        # We do this because we want metaflow_extensions to fully override things
         # and if we did not change sys.meta_path here, the lines below would
-        # load the non metaflow_custom modules providing for possible confusion.
+        # load the non metaflow_extensions modules providing for possible confusion.
         # This keeps it cleaner.
         from metaflow import _LazyLoader
         sys.meta_path = [_LazyLoader(lazy_load_custom_modules)] + sys.meta_path
+    
+    class _wrap(object):
+        def __init__(self, obj):
+            self.__dict__ = obj.__dict__
+
+        def __getattr__(self, name):
+            if name in _expected_extensions:
+                return _expected_extensions[name]
+            raise AttributeError
+
+    _ext_plugins = _wrap(_ext_plugins)
+
 
 
 def get_plugin_cli():
@@ -95,7 +111,8 @@ from .catch_decorator import CatchDecorator
 from .timeout_decorator import TimeoutDecorator
 from .environment_decorator import EnvironmentDecorator
 from .retry_decorator import RetryDecorator
-from .aws.batch.batch_decorator import BatchDecorator, ResourcesDecorator
+from .resources_decorator import ResourcesDecorator
+from .aws.batch.batch_decorator import BatchDecorator
 from .aws.step_functions.step_functions_decorator \
                 import StepFunctionsInternalDecorator
 from .test_unbounded_foreach_decorator\
@@ -159,11 +176,15 @@ MONITOR_SIDECARS.update(_ext_plugins.MONITOR_SIDECARS)
 SIDECARS.update(LOGGING_SIDECARS)
 SIDECARS.update(MONITOR_SIDECARS)
 
+from .aws.aws_client import Boto3ClientProvider
+AWS_CLIENT_PROVIDERS = _merge_lists(
+    [Boto3ClientProvider], _ext_plugins.AWS_CLIENT_PROVIDERS, 'name')
+
 # Erase all temporary names to avoid leaking things
-# We leave '_ext_plugins' because it is used in a function (so it needs
-# to stick around)
-for _n in ['ver', 'n', 'o', 'e', 'lazy_load_custom_modules',
-           '_LazyLoader', '_merge_lists', '_fake', 'addl_modules']:
+# We leave '_ext_plugins' and '_expected_extensions' because they are used in
+# a function (so they need to stick around)
+for _n in ['ver', 'n', 'o', 'e', 'lazy_load_custom_modules', '_LazyLoader',
+           '_merge_lists', '_fake', '_wrap', 'addl_modules']:
     try:
         del globals()[_n]
     except KeyError:

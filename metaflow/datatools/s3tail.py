@@ -74,5 +74,5 @@ class S3Tail(object):
         elif code[0] == '5':
             return None
         else:
-            raise Exception('Retrieving %s/%s failed: %s' % (self.bucket, self.key, code))
+            raise Exception('Retrieving %s/%s failed: %s' % (self._bucket, self._key, code))
 

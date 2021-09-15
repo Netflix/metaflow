@@ -52,7 +52,7 @@ class MetaflowTask(object):
         else:
             step_function(input_obj)
 
-    def _init_parameters(self, parameter_ds):
+    def _init_parameters(self, parameter_ds, passdown=True):
         # overwrite Parameters in the flow object
         vars = []
         for var, param in self.flow._get_parameters():
@@ -66,8 +66,10 @@ class MetaflowTask(object):
 
             setattr(self.flow.__class__, var,
                     property(fget=property_setter))
-            vars.append(var)
-        self.flow._datastore.passdown_partial(parameter_ds, vars)
+            if passdown:
+                vars.append(var)
+        if passdown:
+            self.flow._datastore.passdown_partial(parameter_ds, vars)
         return vars
 
     def _init_data(self, run_id, join_type, input_paths):
@@ -375,31 +377,6 @@ class MetaflowTask(object):
             # should either be set prior to running the user code or listed in
             # FlowSpec._EPHEMERAL to allow for proper merging/importing of
             # user artifacts in the user's step code.
-            decorators = step_func.decorators
-            for deco in decorators:
-
-                deco.task_pre_step(step_name,
-                                   output,
-                                   self.metadata,
-                                   run_id,
-                                   task_id,
-                                   self.flow,
-                                   self.flow._graph,
-                                   retry_count,
-                                   max_user_code_retries,
-                                   self.ubf_context)
-
-                # decorators can actually decorate the step function,
-                # or they can replace it altogether. This functionality
-                # is used e.g. by catch_decorator which switches to a
-                # fallback code if the user code has failed too many
-                # times.
-                step_func = deco.task_decorate(step_func,
-                                               self.flow,
-                                               self.flow._graph,
-                                               retry_count,
-                                               max_user_code_retries,
-                                               self.ubf_context)
 
             if join_type:
                 # Join step:
@@ -422,8 +399,7 @@ class MetaflowTask(object):
                 # initialize parameters (if they exist)
                 # We take Parameter values from the first input,
                 # which is always safe since parameters are read-only
-                current._update_env({'parameter_names': self._init_parameters(inputs[0])})
-                self._exec_step_function(step_func, input_obj)
+                current._update_env({'parameter_names': self._init_parameters(inputs[0], passdown=True)})
             else:
                 # Linear step:
                 # We are running with a single input context.
@@ -439,7 +415,38 @@ class MetaflowTask(object):
                     # initialize parameters (if they exist)
                     # We take Parameter values from the first input,
                     # which is always safe since parameters are read-only
-                    current._update_env({'parameter_names': self._init_parameters(inputs[0])})
+                    current._update_env({'parameter_names': self._init_parameters(inputs[0], passdown=False)})
+
+            decorators = step_func.decorators
+            for deco in decorators:
+
+                deco.task_pre_step(step_name,
+                                   output,
+                                   self.metadata,
+                                   run_id,
+                                   task_id,
+                                   self.flow,
+                                   self.flow._graph,
+                                   retry_count,
+                                   max_user_code_retries,
+                                   self.ubf_context,
+                                   inputs)
+
+                # decorators can actually decorate the step function,
+                # or they can replace it altogether. This functionality
+                # is used e.g. by catch_decorator which switches to a
+                # fallback code if the user code has failed too many
+                # times.
+                step_func = deco.task_decorate(step_func,
+                                               self.flow,
+                                               self.flow._graph,
+                                               retry_count,
+                                               max_user_code_retries,
+                                               self.ubf_context)
+
+            if join_type:
+                self._exec_step_function(step_func, input_obj)
+            else:
                 self._exec_step_function(step_func)
 
             for deco in decorators:
@@ -514,10 +521,6 @@ class MetaflowTask(object):
             output.save_metadata('task_end', {})
             output.persist(self.flow)
 
-            # terminate side cars
-            logger.terminate()
-            self.metadata.stop_heartbeat()
-
             # this writes a success marker indicating that the
             # "transaction" is done
             output.done()
@@ -531,3 +534,7 @@ class MetaflowTask(object):
                                    self.flow._task_ok,
                                    retry_count,
                                    max_user_code_retries)
+
+            # terminate side cars
+            logger.terminate()
+            self.metadata.stop_heartbeat()
