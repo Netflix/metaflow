@@ -1,3 +1,5 @@
+from metaflow import FlowSpec
+
 
 class Current(object):
 
@@ -13,6 +15,7 @@ class Current(object):
         self._is_running = False
 
     def _set_env(self,
+                 flow=None,
                  flow_name=None,
                  run_id=None,
                  step_name=None,
@@ -23,6 +26,7 @@ class Current(object):
                  username=None,
                  is_running=True):
 
+        self._flow = flow
         self._flow_name = flow_name
         self._run_id = run_id
         self._step_name = step_name
@@ -46,6 +50,10 @@ class Current(object):
     @property
     def is_running_flow(self):
         return self._is_running
+
+    @property
+    def flow(self) -> FlowSpec:
+        return self._flow
 
     @property
     def flow_name(self):

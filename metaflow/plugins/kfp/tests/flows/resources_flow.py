@@ -94,9 +94,7 @@ for label, env_name in labels.items():
 
 class ResourcesFlow(FlowSpec):
     @resources(
-        local_storage="242",
-        cpu="0.6",
-        memory="1G",
+        local_storage="242", cpu="0.6", memory="1G",
     )
     @environment(  # pylint: disable=E1102
         vars={"MY_ENV": "value"}, kubernetes_vars=kubernetes_vars
@@ -132,15 +130,43 @@ class ResourcesFlow(FlowSpec):
         assert os.environ.get("AI_EXPERIMENT_NAME") == "metaflow_test"
 
         self.items = [1, 2]
-        self.next(self.split_step, foreach="items")
+        self.next(self.foreach_step, foreach="items")
 
-    @resources(volume="11G", volume_mode="ReadWriteMany")
+    @environment(vars={"MY_ENV": "value"})  # pylint: disable=E1102
+    @resources(volume="11G")
     @step
-    def split_step(self):
+    def foreach_step(self):
+        # test simple environment var
+        assert os.environ.get("MY_ENV") == "value"
+
         output = subprocess.check_output(
             "df -h | grep /opt/metaflow_volume", shell=True
         )
         assert "11G" in str(output)
+
+        self.next(self.join_step)
+
+    @resources(volume="12G")
+    @step
+    def join_step(self, inputs):
+        output = subprocess.check_output(
+            "df -h | grep /opt/metaflow_volume", shell=True
+        )
+        assert "12G" in str(output)
+        self.next(self.split_step)
+
+    @step
+    def split_step(self):
+        self.items = [1, 2]
+        self.next(self.shared_volume_foreach_step, foreach="items")
+
+    @resources(volume="13G", volume_mode="ReadWriteMany")
+    @step
+    def shared_volume_foreach_step(self):
+        output = subprocess.check_output(
+            "df -h | grep /opt/metaflow_volume", shell=True
+        )
+        assert "13G" in str(output)
 
         file_path = "/opt/metaflow_volume/test.txt"
         message = "hello world!"
@@ -159,15 +185,10 @@ class ResourcesFlow(FlowSpec):
                 print("read_lines", read_lines)
                 assert message == read_lines[0]
 
-        self.next(self.join_step)
+        self.next(self.shared_volume_join_step)
 
-    @resources(volume="12G")
     @step
-    def join_step(self, inputs):
-        output = subprocess.check_output(
-            "df -h | grep /opt/metaflow_volume", shell=True
-        )
-        assert "12G" in str(output)
+    def shared_volume_join_step(self, inputs):
         self.next(self.end)
 
     @step

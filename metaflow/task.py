@@ -332,7 +332,8 @@ class MetaflowTask(object):
             self._init_foreach(step_name, join_type, inputs, split_index)
 
         # 4. initialize the current singleton
-        current._set_env(flow_name=self.flow.name,
+        current._set_env(flow=self.flow,
+                         flow_name=self.flow.name,
                          run_id=run_id,
                          step_name=step_name,
                          task_id=task_id,
