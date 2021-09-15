@@ -475,6 +475,8 @@ class MetadataProvider(object):
                 value=json.dumps({'ds_type': code_ds, 'sha': code_sha, 'location': code_url}),
                 type='code-package',
                 tags=[]))
+        # We don't tag with attempt_id here because not readily available; this
+        # is ok though as this doesn't change from attempt to attempt.
         if metadata:
             self.register_metadata(run_id, step_name, task_id, metadata)
 
