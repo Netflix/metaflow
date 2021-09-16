@@ -52,7 +52,7 @@ class PlayListFlow(FlowSpec):
         # Create a simple data frame as a dictionary of lists.
         self.dataframe = dict((column, list()) \
                               for column in columns)
-        self.best_actor = "S"
+        self.best_actor = "Simo Salminen"
 
         # Parse the CSV header.
         lines = self.movie_data.split('\n')
