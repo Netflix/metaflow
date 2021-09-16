@@ -52,6 +52,7 @@ class PlayListFlow(FlowSpec):
         # Create a simple data frame as a dictionary of lists.
         self.dataframe = dict((column, list()) \
                               for column in columns)
+        self.best_actor = "S"
 
         # Parse the CSV header.
         lines = self.movie_data.split('\n')
@@ -128,6 +129,7 @@ class PlayListFlow(FlowSpec):
         Print out the playlist and bonus movie.
 
         """
+        print("Best actor: %s", self.best_actor)
         print("Playlist for movies in genre '%s'" % self.genre)
         for pick, movie in enumerate(self.playlist, start=1):
             print("Pick %d: '%s'" % (pick, movie))
