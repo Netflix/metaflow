@@ -5,6 +5,7 @@ import select
 import shlex
 import time
 import re
+import hashlib
 
 from metaflow import util
 from metaflow.datastore.util.s3tail import S3Tail
@@ -42,6 +43,28 @@ class KubernetesException(MetaflowException):
 
 class KubernetesKilledException(MetaflowException):
     headline = "Kubernetes Batch job killed"
+
+
+def gen_job_name(flow_name,
+    run_id,
+    step_name,
+    task_id,
+    attempt
+):
+    """ Generate RFC 1123 compatible job name """
+    long_name = "-".join(
+            [
+                flow_name,
+                run_id,
+                step_name.replace('_', '-'),
+                task_id,
+                attempt,
+            ]
+        ).lower()
+    hash = hashlib.sha256(long_name.encode('utf-8')).hexdigest()
+
+    # has to be under 63 chars total
+    return long_name[:57] + '-' + hash[:5]
 
 
 class Kubernetes(object):
@@ -150,15 +173,13 @@ class Kubernetes(object):
         # attempt_id while submitting the job to the Kubernetes cluster. If
         # that is indeed the case, we can rely on Kubernetes to generate a name
         # for us.
-        job_name = "-".join(
-            [
-                self._flow_name,
-                self._run_id,
-                self._step_name,
-                self._task_id,
-                self._attempt,
-            ]
-        ).lower()
+        job_name = gen_job_name(
+            self._flow_name,
+            self._run_id,
+            self._step_name,
+            self._task_id,
+            self._attempt,
+        )
 
         job = (
             KubernetesClient()
