@@ -640,20 +640,36 @@ class RunningJob(object):
                 if not _done():
                     # If pod status is dirty, check for newer status
                     self._pod = self._fetch_pod()
-                if self._pod:
-                    for k, v in (
-                        self._pod["status"]
-                        .get("container_statuses", [{}])[0]
-                        .get("state", {})
-                        .items()
-                    ):
-                        if v is not None:
-                            return v.get("exit_code"), ": ".join(
-                                filter(
-                                    None,
-                                    [v.get("reason"), v.get("message")],
+                try:
+                    if self._pod:
+                        pod_status = self._pod["status"]
+                        if pod_status.get("container_statuses") is None:
+                            # We're done, but no container_statuses is set
+                            # This can happen when the pod is evicted
+                            return None, ": ".join(
+                                    filter(
+                                        None,
+                                        [pod_status.get("reason"), pod_status.get("message")],
+                                    )
                                 )
-                            )
+
+                        for k, v in (
+                            pod_status
+                            .get("container_statuses", [{}])[0]
+                            .get("state", {})
+                            .items()
+                        ):
+                            if v is not None:
+                                return v.get("exit_code"), ": ".join(
+                                    filter(
+                                        None,
+                                        [v.get("reason"), v.get("message")],
+                                    )
+                                )
+                except TypeError:
+                    import sys
+                    print("self._pod", self._pod, file=sys.stderr)
+                    raise
 
         return None, None
 
