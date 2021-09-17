@@ -44,7 +44,7 @@ class PlayListFlow(FlowSpec):
                                 "the playlist.",
                                 default=5)
 
-    @conda(libraries={'pandas' : '0.24.2'})
+    @conda(libraries={'pandas' : '1.3.3'})
     @step
     def start(self):
         """
@@ -52,7 +52,7 @@ class PlayListFlow(FlowSpec):
         MovieStatsFlow and assign them as data artifacts in this flow.
 
         This step uses 'conda' to isolate the environment. This step will
-        always use pandas==0.24.2 regardless of what is installed on the
+        always use pandas==1.3.3 regardless of what is installed on the
         system.
 
         """
@@ -76,7 +76,7 @@ class PlayListFlow(FlowSpec):
         # Compute our two recommendation types in parallel.
         self.next(self.bonus_movie, self.genre_movies)
 
-    @conda(libraries={'editdistance': '0.5.3', 'pandas' : '0.24.2'})
+    @conda(libraries={'editdistance': '0.5.3', 'pandas' : '1.3.3'})
     @step
     def bonus_movie(self):
         """
@@ -105,14 +105,14 @@ class PlayListFlow(FlowSpec):
 
         self.next(self.join)
 
-    @conda(libraries={'pandas' : '0.24.2'})
+    @conda(libraries={'pandas' : '1.3.3'})
     @step
     def genre_movies(self):
         """
         Select the top performing movies from the use specified genre.
 
         This step uses 'conda' to isolate the environment. This step will
-        always use pandas==0.24.2 regardless of what is installed on the
+        always use pandas==1.3.3 regardless of what is installed on the
         system.
 
         """
