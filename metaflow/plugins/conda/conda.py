@@ -182,7 +182,6 @@ class Conda(object):
                 raise CondaException(err)
             except (TypeError, ValueError) as ve:
                 pass
-            print("***", e.output)
             raise CondaException(
                 'command \'{cmd}\' returned error ({code}): {output}, stderr={stderr}'
                     .format(cmd=e.cmd, code=e.returncode, output=e.output, stderr=e.stderr))
