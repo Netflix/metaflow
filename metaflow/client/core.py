@@ -1418,6 +1418,16 @@ class Run(MetaflowObject):
 
         return end_step.task
 
+    @property
+    def exceptions(self):
+        """
+        Returns all the exceptions - if any - that occured during the execution.
+        """
+        exceptions = []
+        for step in self.steps():
+            exceptions.extend(task.exception for task in step.tasks() if task.exception)
+        return exceptions
+
 
 class Flow(MetaflowObject):
     """
