@@ -5,6 +5,7 @@ import select
 import shlex
 import time
 import re
+import hashlib
 
 from metaflow import util
 from metaflow.datastore.util.s3tail import S3Tail
@@ -42,6 +43,40 @@ class KubernetesException(MetaflowException):
 
 class KubernetesKilledException(MetaflowException):
     headline = "Kubernetes Batch job killed"
+
+
+def generate_rfc1123_name(flow_name,
+    run_id,
+    step_name,
+    task_id,
+    attempt
+):
+    """
+    Generate RFC 1123 compatible name. Specifically, the format is:
+        <let-or-digit>[*[<let-or-digit-or-hyphen>]<let-or-digit>]
+    
+    The generated name consists from a human-readable prefix, derived from 
+    flow/step/task/attempt, and a hash suffux.
+    """
+    long_name = "-".join(
+            [
+                flow_name,
+                run_id,
+                step_name,
+                task_id,
+                attempt,
+            ]
+        )
+    hash = hashlib.sha256(long_name.encode('utf-8')).hexdigest()
+
+    if long_name.startswith('_'):
+        # RFC 1123 names can't start with hyphen so slap an extra prefix on it
+        sanitized_long_name = 'u' + long_name.replace('_', '-').lower()
+    else:
+        sanitized_long_name = long_name.replace('_', '-').lower()
+
+    # the name has to be under 63 chars total
+    return sanitized_long_name[:57] + '-' + hash[:5]
 
 
 class Kubernetes(object):
@@ -150,15 +185,13 @@ class Kubernetes(object):
         # attempt_id while submitting the job to the Kubernetes cluster. If
         # that is indeed the case, we can rely on Kubernetes to generate a name
         # for us.
-        job_name = "-".join(
-            [
-                self._flow_name,
-                self._run_id,
-                self._step_name,
-                self._task_id,
-                self._attempt,
-            ]
-        ).lower()
+        job_name = generate_rfc1123_name(
+            self._flow_name,
+            self._run_id,
+            self._step_name,
+            self._task_id,
+            self._attempt,
+        )
 
         job = (
             KubernetesClient()
