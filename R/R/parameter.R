@@ -8,7 +8,7 @@
 #' @param flow metaflow object
 #' @param parameter name of the parameter
 #' @param required logical (defaults to FALSE) denoting if
-#' paramter is required as an argument to \code{run} the flow
+#' parameter is required as an argument to \code{run} the flow
 #' @param help optional help text
 #' @param default optional default value of the parameter
 #' @param type optional type of the parameter
