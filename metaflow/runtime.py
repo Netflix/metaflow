@@ -1036,8 +1036,8 @@ class Worker(object):
         # perform any log collection.
         if not self.task.is_cloned:
             self.task.save_metadata('runtime', {'return_code': returncode,
-                                                'killed': self.killed,
-                                                'success': returncode == 0})
+                                                     'killed': self.killed,
+                                                     'success': returncode == 0})
             if returncode:
                 if not self.killed:
                     if returncode == -11:

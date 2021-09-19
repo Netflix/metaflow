@@ -2,10 +2,10 @@ name: Test
 on:
   push:
     branches:
-    - convergence
+    - master
   pull_request:
     branches:
-    - convergence
+    - master
 jobs:
   test:
     name: ${{ matrix.lang }} tests on ${{ matrix.os }}

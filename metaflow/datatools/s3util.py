@@ -9,6 +9,7 @@ from metaflow.metaflow_config import S3_ENDPOINT_URL, S3_VERIFY_CERTIFICATE
 
 S3_NUM_RETRIES = 7
 
+
 TEST_S3_RETRY = 'TEST_S3_RETRY' in os.environ
 
 def get_s3_client():

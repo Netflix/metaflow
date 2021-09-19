@@ -1,4 +1,5 @@
 import inspect
+import os
 import sys
 import traceback
 from datetime import datetime
@@ -794,10 +795,11 @@ def start(ctx,
 
     if coverage:
         from coverage import Coverage
+        no_covrc = "COVERAGE_RCFILE" not in os.environ
         cov = Coverage(data_suffix=True,
                        auto_data=True,
-                       source=['metaflow'],
-                       branch=True)
+                       source=['metaflow'] if no_covrc else None,
+                       branch=True if no_covrc else None)
         cov.start()
 
     cli_args._set_top_kwargs(ctx.params)
@@ -852,6 +854,7 @@ def start(ctx,
                                      ctx.obj.graph,
                                      ctx.obj.environment,
                                      ctx.obj.flow_datastore,
+                                     ctx.obj.metadata,
                                      ctx.obj.logger,
                                      echo,
                                      deco_options)

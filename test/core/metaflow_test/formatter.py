@@ -142,7 +142,7 @@ class FlowFormatter(object):
                                       '"test_flow.py", '\
                                       '"*/click/*", '\
                                       '"*/site-packages/*", '\
-                                      '"*/core/metaflow_custom/*", '\
+                                      '"*/core/metaflow_extensions/*", '\
                                       '"*/core/metaflow_test/*"])'
         yield 0, 'cov.start()'
         yield 0, 'import sys'

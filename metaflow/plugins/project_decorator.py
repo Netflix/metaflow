@@ -35,6 +35,7 @@ class ProjectDecorator(FlowDecorator):
                   graph,
                   environment,
                   flow_datastore,
+                  metadata,
                   logger,
                   echo,
                   options):
@@ -54,7 +55,7 @@ class ProjectDecorator(FlowDecorator):
                              'is_user_branch': is_user_branch,
                              'is_production': options['production'],
                              'project_flow_name': project_flow_name})
-        flow_datastore.metadata.add_sticky_tags(sys_tags=[
+        metadata.add_sticky_tags(sys_tags=[
             'project:%s' % project_name,
             'project_branch:%s' % branch_name])
 

@@ -63,20 +63,6 @@ else:
         T.__new__.__defaults__ = tuple(prototype)
         return T
 
-
-if sys.version_info.major >= 3 and sys.version_info.minor >= 7:
-    from collections import namedtuple
-    namedtuple_with_defaults = namedtuple
-else:
-    from collections import namedtuple
-    def namedtuple_with_defaults(typename, field_names, defaults=()):
-        T = namedtuple(typename, field_names)
-        T.__new__.__defaults__ = (None,) * len(T._fields)
-        prototype = T(*defaults)
-        T.__new__.__defaults__ = tuple(prototype)
-        return T
-
-
 class TempDir(object):
     # Provide a temporary directory since Python 2.7 does not have it inbuilt
     def __enter__(self):
@@ -216,7 +202,7 @@ def write_latest_run_id(obj, run_id):
         os.makedirs(path)
     except OSError as x:
         if x.errno != 17:
-            # Directories exists in other casewhich is fine
+            # Directories exists in other case which is fine
             raise
     with open(os.path.join(path, 'latest_run'), 'w') as f:
         f.write(str(run_id))

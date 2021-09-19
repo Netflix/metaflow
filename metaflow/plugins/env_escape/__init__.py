@@ -66,7 +66,7 @@ def generate_trampolines(python_path):
 
     paths = [os.path.dirname(os.path.abspath(__file__)) + "/configurations"]
     try:
-        import metaflow_custom.plugins.env_escape as custom_escape
+        import metaflow_extensions.plugins.env_escape as custom_escape
     except ImportError as e:
         ver = sys.version_info[0] * 10 + sys.version_info[1]
         if ver >= 36:
@@ -74,11 +74,11 @@ def generate_trampolines(python_path):
             # so don't error ONLY IF the error is importing this module (but do
             # error if there is a transitive import error)
             if not (isinstance(e, ModuleNotFoundError) and e.name in [
-                    'metaflow_custom', 'metaflow_custom.plugins',
-                    'metaflow_custom.plugins.env_escape']):
+                    'metaflow_extensions', 'metaflow_extensions.plugins',
+                    'metaflow_extensions.plugins.env_escape']):
                 print(
-                    "Cannot load metaflow_custom env escape configurations -- "
-                    "if you want to ignore, uninstall metaflow_custom package")
+                    "Cannot load metaflow_extensions env escape configurations -- "
+                    "if you want to ignore, uninstall metaflow_extensions package")
                 raise
     else:
         paths.append(os.path.dirname(os.path.abspath(custom_escape.__file__)) +
