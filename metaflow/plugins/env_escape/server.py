@@ -119,7 +119,7 @@ class Server(object):
                     for name in obj_funcs:
                         if name in override_dict:
                             raise ValueError(
-                                "%s was already overriden for %s" % (name, obj_name)
+                                "%s was already overridden for %s" % (name, obj_name)
                             )
                         override_dict[name] = override.func
             elif isinstance(override, RemoteExceptionSerializer):

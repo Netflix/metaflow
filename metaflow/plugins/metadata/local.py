@@ -49,7 +49,7 @@ class LocalMetadataProvider(MetadataProvider):
         try:
             # This metadata provider only generates integer IDs so if this is
             # an integer, we don't register it again (since it was "registered"
-            # on creation). However, some IDs are created outside the metdata
+            # on creation). However, some IDs are created outside the metadata
             # provider and need to be properly registered
             int(run_id)
             return

@@ -84,7 +84,7 @@ def assert_results(s3objs, expected, info_should_be_empty=False, info_only=False
             else:
                 # Content_type is OK
                 if content_type is None:
-                    # Default content-type when nothing is suplied
+                    # Default content-type when nothing is supplied
                     assert s3obj.content_type == 'binary/octet-stream'
                 else:
                     assert s3obj.content_type == content_type

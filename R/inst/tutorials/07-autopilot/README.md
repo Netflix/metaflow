@@ -35,5 +35,5 @@ run(package_suffixes=".R,.csv", step_functions="trigger")
 for SFN trigger. You can then directly run `source("stats.R`)` in RStudio. 
 
 ##### Inspect the results:
-Open the R Markdown file```07-autopilot/stats.Rmd``` in your RStudio and re-run the cells. You can acccess
+Open the R Markdown file```07-autopilot/stats.Rmd``` in your RStudio and re-run the cells. You can access
 the artifacts stored in AWS S3 from your local RStudio session. 

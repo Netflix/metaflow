@@ -144,7 +144,7 @@ class MetaflowDataStore(object):
     def is_done(self):
         """
         A flag indicating whether this datastore directory was closed
-        succesfully with done().
+        successfully with done().
         """
         raise NotImplementedError()
 

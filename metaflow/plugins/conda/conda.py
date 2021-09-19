@@ -216,7 +216,7 @@ class CondaLock(object):
                         'Could not acquire lock {}'.format(self.lock))
                 if (time.time() - start) >= self.timeout:
                     raise CondaException(
-                        'Timeout occured while acquiring lock {}'.format(self.lock))
+                        'Timeout occurred while acquiring lock {}'.format(self.lock))
                 time.sleep(self.delay)
 
     def _release(self):
