@@ -235,9 +235,12 @@ class Batch(object):
                     ' specified and no valid & enabled queue found.'
                 )
         job = self.create_job(
+                        flow_name,
                         step_name,
+                        run_id,
+                        task_id,
                         step_cli,
-                        task_spec,
+                        attempt,
                         code_package_sha,
                         code_package_url,
                         code_package_ds,
