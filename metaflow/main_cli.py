@@ -231,7 +231,7 @@ def pull(episode):
                 continue
         echo('Pulling episode ', nl=False)
         echo('\"{0}\"'.format(episode), fg='cyan', nl=False)
-        # TODO: Is the following redudant?
+        # TODO: Is the following redundant?
         echo(' into your current working directory.')
         # Copy from (local) metaflow package dir to current.
         src_dir = os.path.join(tutorials_dir, episode)

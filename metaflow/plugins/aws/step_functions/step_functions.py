@@ -190,7 +190,7 @@ class StepFunctions(object):
                 return parameters.get('metaflow.owner'), \
                     parameters.get('metaflow.production_token')
             except KeyError as e:
-                raise StepFunctionsException("An exisiting non-metaflow "
+                raise StepFunctionsException("An existing non-metaflow "
                                              "workflow with the same name as "
                                              "*%s* already exists in AWS Step "
                                              "Functions. Please modify the "

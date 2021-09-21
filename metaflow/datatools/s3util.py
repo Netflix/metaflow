@@ -50,3 +50,19 @@ def aws_retry(f):
                     time.sleep(2**i + random.randint(0, 5))
         raise last_exc
     return retry_wrapper
+
+# Read an AWS source in a chunked manner.
+# We read in chunks (at most 2GB -- here this is passed via max_chunk_size)
+# because of https://bugs.python.org/issue42853 (Py3 bug); this also helps
+# keep memory consumption lower
+# NOTE: For some weird reason, if you pass a large value to
+# read, it delays the call so we always pass it either what
+# remains or 2GB, whichever is smallest.
+def read_in_chunks(dst, src, src_sz, max_chunk_size):
+    remaining = src_sz
+    while remaining > 0:
+        buf = src.read(min(remaining, max_chunk_size))
+        # Py2 doesn't return the number of bytes written so calculate size
+        # separately
+        dst.write(buf)
+        remaining -= len(buf)

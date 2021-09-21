@@ -33,8 +33,7 @@ sys.path.insert(0,\
 # multiprocessing.Pool because https://bugs.python.org/issue31886
 from metaflow.util import TempDir, url_quote, url_unquote
 from metaflow.multicore_utils import parallel_map
-from metaflow.datatools import read_in_chunks
-from metaflow.datatools.s3util import aws_retry
+from metaflow.datatools.s3util import aws_retry, read_in_chunks
 
 NUM_WORKERS_DEFAULT = 64
 
