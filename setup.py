@@ -1,15 +1,9 @@
 import os
-
 from setuptools import setup, find_packages
 
-version = '2.3.2+zg1.1'
+version = '2.2.5'
 
-# TODO: once this branch is merged or in pip use, remove this
-os.system(
-    "pip3 install 'git+https://github.com/zillow/pipelines@feature/zg#egg=kfp&subdirectory=sdk/python'"
-)
-
-setup(name='metaflow',
+setup(name='zillow-metaflow',
       version=version,
       description='Metaflow: More Data Science, Less Engineering',
       author='Machine Learning Infrastructure Team at Netflix',
@@ -23,12 +17,14 @@ setup(name='metaflow',
         metaflow=metaflow.main_cli:main
       ''',
       install_requires = [
-        'click>=7.0',
+        'click>=7.0,<8',
         'requests',
         'boto3',
-        'kfp',
-        'pylint',
+        'pylint<2.5.0'
       ],
       tests_require = [
         'coverage'
-      ])
+      ],
+      extras_require = {
+        'kfp': 'zillow-kfp'
+      })
