@@ -7,11 +7,20 @@ from io import BytesIO
 import os
 import shutil
 from metaflow.datastore.local_backend import LocalBackend
-import webbrowser
+
+from .card_decorator import CardDecorator
 from .exception import CardNotPresentException
 
 CARD_DIRECTORY_NAME = 'mf.cards'
 TEMP_DIR_NAME = 'metaflow_card_cache'
+
+def stepname_from_card_id(card_id,flow):
+    for step in flow._steps:
+        for deco in step.decorators:
+            if isinstance(deco,CardDecorator):
+                if deco.attributes['id'] == card_id:
+                    return step.name
+    return None
 class CardPathBuilder(object):
 
     @classmethod
@@ -109,50 +118,78 @@ class CardDatastore(object):
             task_id=self._task_id,
             pathspec=self._path_spec,
         )
+    
 
-    def save_card(self,card_type,card_id,card_index,card_html, overwrite=True):
+    @staticmethod
+    def _make_card_file_name(card_type,card_index,card_id=None):
         if card_id is not None:
             card_name = "%s-%s-%s" %(card_id,card_type,card_index)
         else:
             card_name = "%s-%s" %(card_type,card_index)
-        card_path = self.get_card_location(self._get_card_path(),card_name,card_html)
+        return card_name
+
+    def save_card(self,card_type,card_id,card_index,card_html, overwrite=True):
+        card_path = self.get_card_location(self._get_card_path(),self._make_card_file_name(
+            card_type,card_index,card_id=card_id
+        ),card_html)
         self._backend.save_bytes(
             [(card_path,BytesIO(bytes(card_html,'utf-8')))],
             overwrite=overwrite
         )
     
-    def _extract_and_save_locally(self,card_type):
-        # todo : change this method to accomodate the card_id arguement. 
+    def cache_locally(self,path):
+        with self._backend.load_bytes([path]) as get_results:
+            for key, path, meta in get_results:
+                if path is not None:
+                    main_path = path
+                    # if self.TYPE != 'local':
+                    file_name = key.split('/')[-1]
+                    main_path = os.path.join(self._temp_card_save_path,file_name)
+                    shutil.copy(path,main_path)
+                    return main_path
+    
+    def extract_cards(self,card_type=None,card_id=None,card_index=None,):
         card_path = self._get_card_path()
         card_paths = self._backend.list_content([card_path])
         if len(card_paths) == 0 :
             # If there are no files found on the Path then raise an error of 
-            raise CardNotPresentException(self._flow_name,self._run_id,self._step_name,card_type)
+            raise CardNotPresentException(self._flow_name,\
+                                        self._run_id,\
+                                        self._step_name,\
+                                        card_index=card_index,\
+                                        card_id=card_id,
+                                        card_type=card_type)
+        cards_found = []
         for task_card_path in card_paths:
             # Check if the card is present.
-            if card_type is not None:
-                if card_type not in task_card_path.path.split('/')[-1]:
+            card_file_name = task_card_path.path.split('/')[-1]
+            is_index_present = lambda x : True
+            if card_index is not None:
+                # if the index is not none then the lambda checks it
+                is_index_present = lambda x : x in card_file_name
+            
+            if card_id is not None:
+                # If the id or index don't match then continue
+                if card_id not in card_file_name or not is_index_present(str(card_index)):
+                    
                     continue
+            elif card_type is not None:
+                # If the type or index don't match then continue
+                if card_type not in card_file_name or not is_index_present(str(card_index)):
+                    continue
+            
             if task_card_path.is_file:
-                with self._backend.load_bytes([task_card_path.path]) as get_results:
-                    for key, path, meta in get_results:
-                        if path is not None:
-                            main_path = path
-                            # if self.TYPE != 'local':
-                            file_name = key.split('/')[-1]
-                            main_path = os.path.join(self._temp_card_save_path,file_name)
-                            shutil.copy(path,main_path)
-                            return main_path
-
-    def get_card(self,card_type):
-        # todo : change this method to accomodate the card_id argument. 
-        main_path = self._extract_and_save_locally(card_type)
-        with open(main_path,'r') as f:
-            return f.read()
+                cards_found.append(task_card_path.path)
+                # self._save_locally(task_card_path.path)
         
-    def view_card(self,card_type):
-        # todo : change this method to accomodate the card_id argument. 
-        main_path = self._extract_and_save_locally(card_type)
-        url = 'file://' + os.path.abspath(main_path)
-        webbrowser.open(url)
+        if len(cards_found) == 0 :
+            # If there are no files found on the Path then raise an error of 
+            raise CardNotPresentException(self._flow_name,\
+                                        self._run_id,\
+                                        self._step_name,\
+                                        card_index=card_index,\
+                                        card_id=card_id,
+                                        card_type=card_type)
+        return cards_found
+                
         
