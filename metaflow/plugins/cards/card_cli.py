@@ -14,67 +14,66 @@ def cli():
 def card():
     pass
 
+
+
+# Finished According to the Memo
 @card.command(help='create the HTML card')
-@click.option('--card-type',
+@click.argument('pathspec',type=str)
+@click.option('--type', 
                 default=None,
                 show_default=True,
                 type=str,
                 help="Type of card being created")
-@click.option('--card-args',
+@click.option('--options', 
                 default={},
                 show_default=True,
                 type=JSONType,
                 help="arguments of the card being created.")
-@click.option('--run-path-spec',
-                default=None,
-                show_default=True,
-                type=str,
-                help="Path spec of the run.")
-@click.option('--card-id',
+@click.option('--id', 
                 default=None,
                 show_default=True,
                 type=str,
                 help="Unique ID of the card")
-@click.option('--metadata-path',
+@click.option('--index', 
                 default=None,
                 show_default=True,
                 type=str,
-                help="Metadata of the run instance.")
+                help="Index of the card decorator")
 @click.pass_context
-def create(ctx,card_args=None, run_path_spec=None,card_type=None,card_id=None,metadata_path=None):
-    ctx.obj.echo("Creating new card of type %s" % card_type, fg='green')
-    from metaflow import get_metadata,metadata
-    if metadata_path is not None:
-        metadata(metadata_path)
-    assert run_path_spec is not None
-    flow_name,runid,step_name,task_id = run_path_spec.split('/')
-    task = Task(run_path_spec)
+def create(ctx,pathspec,type=None,id=None,index=None,options=None):
+    ctx.obj.echo("Creating new card of type %s" % type, fg='green')
+    assert len(pathspec.split('/'))  == 3, "Expecting pathspec of form <runid>/<stepname>/<taskid>"
+    runid,step_name,task_id = pathspec.split('/')
+    flowname = ctx.obj.flow.name
+    full_pathspec = '/'.join([flowname,runid,step_name,task_id])
+    task = Task(full_pathspec)
     from metaflow.plugins import CARDS
 
-    filtered_cards = [CardClass for CardClass in CARDS if CardClass.name == card_type]
+    filtered_cards = [CardClass for CardClass in CARDS if CardClass.type == type]
     if len(filtered_cards) == 0:
-        raise CardNotFoundException(card_type)
+        raise CardNotFoundException(type)
     
     card_datastore = CardDatastore(ctx.obj.flow_datastore,\
                                 runid,\
                                 step_name,\
                                 task_id,\
-                                path_spec=run_path_spec)
+                                path_spec=full_pathspec)
     
     filtered_card = filtered_cards[0]
     # save card to datastore
     try:
-        mf_card = filtered_card(**card_args)
+        mf_card = filtered_card(**options)
     except TypeError as e:
-        raise IncorrectCardArgsException(card_type,card_args)
+        raise IncorrectCardArgsException(type,options)
     
     try:
         rendered_info = mf_card.render(task)
     except: # TODO : Catch exec trace over here. 
-        raise UnrenderableCardException(card_type,card_args)
+        raise UnrenderableCardException(type,options)
     else:
-        card_datastore.save_card(card_type,card_id,rendered_info)
+        card_datastore.save_card(type,id,index,rendered_info)
 
+# TODO :redo get and view methods. 
 @card.command(help='View the HTML card')
 @click.argument('step-name',
                 type=str,)
@@ -119,6 +118,10 @@ def view(ctx, step_name, run_id=None,card_type=None):
     
     card_datastore.view_card(card_type)
 
+# TODO :redo get and view methods. 
+# todo : write a better help statment. 
+
+# TODO :redo get and view methods. 
 @card.command(help='Print the stored HTML card')
 @click.argument('task-path-spec',
                 type=str)

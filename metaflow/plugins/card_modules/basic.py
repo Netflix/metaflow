@@ -2,7 +2,7 @@ from .card import MetaflowCard
 
 class BasicCard(MetaflowCard):
 
-    name='basic'
+    type='basic'
 
     def render(self, task):
         mustache = self._get_mustache()

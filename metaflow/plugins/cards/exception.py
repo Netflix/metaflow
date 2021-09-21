@@ -11,6 +11,16 @@ class CardNotFoundException(MetaflowException):
         super(CardNotFoundException, self).__init__(msg)
 
 
+class BadCardNameException(MetaflowException):
+    headline = 'Unsupportable card id'
+    
+    def __init__(self, card_name):
+        exc = traceback.format_exc()
+        msg = "Card with id %s is not supported. "\
+                "Card ids should follow the pattern : [a-zA-Z0-9_]" % (card_name)
+        super(CardNotFoundException, self).__init__(msg)
+
+
 
 class CardNotPresentException(MetaflowException):
     

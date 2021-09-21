@@ -1,7 +1,7 @@
 class MetaflowCard(object):
-    name = None
+    type = None
 
-    card_level = 'task' # can be task | run 
+    scope = 'task' # can be task | run 
     
     def _get_mustache(self):
         try:

@@ -160,7 +160,7 @@ FLOW_DECORATORS = _merge_lists([CondaFlowDecorator,
 # Cards
 from .card_modules import MF_CARDS_EXTERNAL_MODULES
 from .card_modules.basic import BasicCard
-CARDS = _merge_lists([BasicCard],MF_CARDS_EXTERNAL_MODULES,'name')
+CARDS = _merge_lists([BasicCard],MF_CARDS_EXTERNAL_MODULES,'type')
 
 # Sidecars
 from ..mflog.save_logs_periodically import SaveLogsPeriodicallySidecar

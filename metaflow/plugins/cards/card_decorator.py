@@ -7,7 +7,10 @@ from metaflow.current import current
 from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.metadata.metadata import MetadataProvider
 from metaflow.util import to_unicode, compress_list, unicode_type
+from .exception import BadCardNameException
 # from metaflow import get_metadata
+import re
+CARD_ID_PATTERN = re.compile('^[a-zA-Z0-9_]+$',)
 
 class CardDecorator(StepDecorator):
     name='card'
@@ -15,14 +18,23 @@ class CardDecorator(StepDecorator):
         "type":'basic',
         "options": {},
         "id" : None,
-        "card_level": 'task'
+        "scope": 'task'
     }
-    
+    def runtime_init(self, flow, graph, package, run_id):
+        # todo : set the index property over here once we start supporting multiple-decorators  
+        regex_match = re.match(CARD_ID_PATTERN,self.attributes['id'])
+        if regex_match is None:
+            raise BadCardNameException(self.attributes['id'])
+        
     def __init__(self, *args, **kwargs):
         super(CardDecorator,self).__init__(*args, **kwargs)
         self._task_datastore = None
         self._environment = None
         self._metadata= None
+        
+        # todo : first allow multiple decorators with 
+        # a step then allow many then find a way to populate self._index property. e
+        self._index = None
     
     def add_to_package(self):
         return list(self._load_card_package())
@@ -73,7 +85,6 @@ class CardDecorator(StepDecorator):
             # Todo : What do we do when underlying `@card` fails in some way?
             return 
         runspec = '/'.join([
-            current.flow_name,
             current.run_id,
             current.step_name,
             current.task_id
@@ -111,7 +122,6 @@ class CardDecorator(StepDecorator):
         return list(self._options(top_level_options))
     
     def _run_cards_subprocess(self,runspec):
-        from metaflow import get_metadata
         executable = sys.executable
         cmd = [
             executable,
@@ -119,22 +129,23 @@ class CardDecorator(StepDecorator):
         cmd+= self._create_top_level_args() +[
             "card",
             "create",
-            "--card-type",
-            self.attributes['type'],
-            "--run-path-spec",
             runspec,
-            # todo : test correctness of get_metadata() in future 
-            "--metadata-path",
-            get_metadata(),
+            "--type",
+            self.attributes['type'],
         # Add the options relating to card arguments. 
-        # Todo check if self.attributes is the correct implementation of this
-        # todo : add card_level as a CLI arg for the create method. 
-        ]+ ['--card-args',json.dumps(self.attributes['options'])]
-        # accomodating the card-id according to the 
+        # todo : add scope as a CLI arg for the create method. 
+        ]+ ['--options',json.dumps(self.attributes['options'])]
+        # set the id argument. 
         if self.attributes['id'] is not None:
-            id_args = ["--card-id",self.attributes['id']]
+            id_args = ["--id",self.attributes['id']]
             cmd+=id_args
         
+        if self._index is not None:
+            idx_args = ["--index",self._index]
+        else:
+            idx_args = ["--index",'0'] # setting zero as default
+        cmd+=idx_args
+
         response,fail = self._run_command(cmd,os.environ)
         if fail:
             # todo : Handle failure scenarios better. 
