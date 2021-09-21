@@ -202,8 +202,7 @@ class ArgoWorkflow:
                 },
                 'imagePullSecrets': self.image_pull_secrets if self.image_pull_secrets \
                                     else self._flow_attributes.get('imagePullSecrets'),
-                'volumes': self.volumes if self.volumes \
-                                    else self._flow_attributes.get('volumes'),
+                'volumes': self._get_volumes(),
                 'parallelism': self.max_workers,
                 'templates': self._generate_templates(),
             }
@@ -243,6 +242,27 @@ class ArgoWorkflow:
         if image:
             return image
         return 'python:%s.%s' % platform.python_version_tuple()[:2]
+
+    def _get_volumes(self):
+        v = self.volumes if self.volumes else self._flow_attributes.get('volumes', [])
+        shm = self._get_resources_shm(self.graph.nodes.values())
+        if shm:
+            v.append(shm)
+        return v
+
+    def _get_resources_shm(self, nodes):
+        for node in nodes:
+            for deco in node.decorators:
+                if isinstance(deco, ResourcesDecorator):
+                    if deco.attributes.get('shared_memory'):
+                        # rely on default linux kernel behaviour to allocate half of available RAM
+                        return {
+                            'name': 'dev-shm',
+                            'emptyDir': {
+                                'medium': 'Memory'
+                            }
+                        }
+        return None
 
     def _generate_templates(self):
         tasks, nested_dags = self._visit(self.graph['start'])
@@ -409,6 +429,8 @@ class ArgoWorkflow:
             image = attr['image']
         env, env_from = self._prepare_environment(attr, env_decorator)
         res = self._resources(res_decorator)
+        volume_mounts = attr.get('volumeMounts', [])
+        volume_mounts.append(self._shared_memory(res_decorator))
         cmd = self._commands(node)
 
         metadata = {
@@ -442,7 +464,7 @@ class ArgoWorkflow:
             'nodeSelector': attr.get('nodeSelector'),
             'container': {
                 'image': image,
-                'volumeMounts': attr.get('volumeMounts'), 
+                'volumeMounts': volume_mounts,
                 'command': [cmd[0]],
                 'args': cmd[1:],
                 'env': env,
@@ -480,6 +502,15 @@ class ArgoWorkflow:
         if gpu:
             res['nvidia.com/gpu'] = int(gpu)
         return res
+
+    def _shared_memory(self, attr):
+        shm = attr.get('shared_memory')
+        if shm:
+            return {
+                'mountPath': '/dev/shm',
+                'name': 'dev-shm'
+            }
+        return {}
 
     def _prepare_environment(self, attr, env_decorator):
         default = {
