@@ -294,7 +294,7 @@ class S3DataStore(MetaflowDataStore):
     def is_done(self):
         """
         A flag indicating whether this datastore directory was closed
-        succesfully with done().
+        successfully with done().
         """
         filename = self.get_done_filename_for_attempt(self.attempt)
         path = os.path.join(self.root, filename)
