@@ -21,10 +21,18 @@ class CardDecorator(StepDecorator):
         "scope": 'task'
     }
     def runtime_init(self, flow, graph, package, run_id):
-        # todo : set the index property over here once we start supporting multiple-decorators  
+        # Check if the card-id matches the regex pattern . 
         regex_match = re.match(CARD_ID_PATTERN,self.attributes['id'])
         if regex_match is None:
             raise BadCardNameException(self.attributes['id'])
+        # set the index property over here so that we can supporting multiple-decorators  
+        for step in flow._steps:
+            deco_idx = 0
+            for deco in step.decorators:
+                if isinstance(deco,self.__class__):
+                    deco._index = deco_idx
+                    deco_idx+=1
+    
         
     def __init__(self, *args, **kwargs):
         super(CardDecorator,self).__init__(*args, **kwargs)

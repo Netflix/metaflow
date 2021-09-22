@@ -90,12 +90,8 @@ class CardDatastore(object):
         self._task_id = task_id
         self._path_spec = path_spec
         self._temp_card_save_path = self._get_card_path(base_pth=TEMP_DIR_NAME)
-        # if self.TYPE != 'local':
         LocalBackend._makedirs(self._temp_card_save_path)
         
-
-        # As cards are rendered best effort attempt may not be 
-        # super useful
         # TODO : 
             # Figure if the path should follow the same pattern 
             # for local and s3 datastore backend
@@ -142,7 +138,6 @@ class CardDatastore(object):
             for key, path, meta in get_results:
                 if path is not None:
                     main_path = path
-                    # if self.TYPE != 'local':
                     file_name = key.split('/')[-1]
                     main_path = os.path.join(self._temp_card_save_path,file_name)
                     shutil.copy(path,main_path)
