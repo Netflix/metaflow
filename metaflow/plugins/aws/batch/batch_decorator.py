@@ -5,9 +5,6 @@ import re
 import tarfile
 import requests
 
-from metaflow.datastore import MetaflowDataStore
-from metaflow.datastore.datastore import TransformableObject
-from metaflow.datatools.s3util import get_s3_client
 from metaflow.decorators import StepDecorator
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.plugins import ResourcesDecorator
@@ -18,18 +15,11 @@ from metaflow.metadata.util import sync_local_metadata_to_datastore
 from metaflow import util
 from metaflow import R
 
-from .batch import Batch, BatchException
+from .batch import BatchException
 from metaflow.metaflow_config import ECS_S3_ACCESS_IAM_ROLE, BATCH_JOB_QUEUE, \
                     BATCH_CONTAINER_IMAGE, BATCH_CONTAINER_REGISTRY, \
                     ECS_FARGATE_EXECUTION_ROLE
 from metaflow.sidecar import SidecarSubProcess
-
-try:
-    # python2
-    from urlparse import urlparse
-except:  # noqa E722
-    # python3
-    from urllib.parse import urlparse
 
 
 class BatchDecorator(StepDecorator):
