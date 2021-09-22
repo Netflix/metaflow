@@ -283,7 +283,7 @@ class MetaflowTask(object):
             raise MetaflowInternalError("Too many task attempts (%d)! "
                                         "MAX_ATTEMPTS exceeded." % retry_count)
 
-        metadata_tags = ["attempt_id:{0}".format(str(retry_count))]
+        metadata_tags = ["attempt_id:{0}".format(retry_count)]
         self.metadata.register_metadata(run_id,
                                         step_name,
                                         task_id,
@@ -515,8 +515,7 @@ class MetaflowTask(object):
                                                        value=attempt_ok,
                                                        type='internal_attempt_status',
                                                        tags=["attempt_id:{0}".
-                                                       format(str(retry_count))
-                                                             ])
+                                                       format(retry_count)])
                                              ])
 
             output.save_metadata('task_end', {})

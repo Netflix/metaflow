@@ -215,7 +215,7 @@ class BatchDecorator(StepDecorator):
             pass
 
         entries = [MetaDatum(
-            field=k, value=v, type=k, tags=["attempt_id:{0}".format(str(retry_count))])
+            field=k, value=v, type=k, tags=["attempt_id:{0}".format(retry_count)])
             for k, v in meta.items()]
         # Register book-keeping metadata for debugging.
         metadata.register_metadata(run_id, step_name, task_id, entries)

@@ -291,7 +291,7 @@ class CondaStepDecorator(StepDecorator):
                                                   type='conda_env_id',
                                                   tags=[
                                                       "attempt_id:{0}".
-                                                      format(str(retry_count))])])
+                                                      format(retry_count)])])
 
     def runtime_step_cli(self,
                          cli_args,
