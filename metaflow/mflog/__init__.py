@@ -6,6 +6,7 @@ import math
 # monotonically increasing. Clocks are not synchronized between
 # log sources, so if a file contains multiple log sources, the
 # lines may not be in the ascending timestamp order.
+
 # Note that a logfile prefixed with a log source, e.g. runtime,
 # may contain lines from multiple sources below it (e.g. task).
 #
@@ -16,6 +17,7 @@ import math
 # clients.
 RUNTIME_LOG_SOURCE = 'runtime'
 TASK_LOG_SOURCE = 'task'
+
 # Loglines from all sources need to be merged together to
 # produce a complete view of logs. Hence keep this list short
 # since every items takes a DataStore access.
@@ -23,6 +25,7 @@ LOG_SOURCES = [
     RUNTIME_LOG_SOURCE,
     TASK_LOG_SOURCE
 ]
+
 # BASH_MFLOG defines a bash function that outputs valid mflog
 # structured loglines. We use this to output properly timestamped
 # loglined prior to Metaflow package has been downloaded.
@@ -33,24 +36,25 @@ BASH_MFLOG =\
         'echo \\"[MFLOG|0|${T:0:26}Z|%s|$T]$1\\"'\
             ' >> $MFLOG_STDOUT; echo $1; '\
      ' }' % TASK_LOG_SOURCE
+
 BASH_SAVE_LOGS_ARGS = ['python', '-m', 'metaflow.mflog.save_logs']
 BASH_SAVE_LOGS = ' '.join(BASH_SAVE_LOGS_ARGS)
 
 # this function returns a bash expression that redirects stdout
 # and stderr of the given bash expression to mflog.tee
-def bash_capture_logs(bash_expr, var_transform=None):
-    if var_transform is None:
-        var_transform = lambda s: '$%s' % s
+def bash_capture_logs(bash_expr):
     cmd = 'python -m metaflow.mflog.tee %s %s'
     parts = (bash_expr,
-             cmd % (TASK_LOG_SOURCE, var_transform('MFLOG_STDOUT')),
-             cmd % (TASK_LOG_SOURCE, var_transform('MFLOG_STDERR')))
+             cmd % (TASK_LOG_SOURCE, '$MFLOG_STDOUT'),
+             cmd % (TASK_LOG_SOURCE, '$MFLOG_STDERR'))
     return '(%s) 1>> >(%s) 2>> >(%s >&2)' % parts
 
 # update_delay determines how often logs should be uploaded to S3
 # as a function of the task execution time
+
 MIN_UPDATE_DELAY = 1.  # the most frequent update interval
 MAX_UPDATE_DELAY = 30. # the least frequent update interval
+
 def update_delay(secs_since_start):
     # this sigmoid function reaches
     # - 0.1 after 11 minutes
@@ -86,4 +90,5 @@ def export_mflog_env_vars(flow_name=None,
     }
     if datastore_root is not None:
         env_vars['MF_DATASTORE_ROOT'] = datastore_root
+
     return 'export ' + ' '.join('%s=%s' % kv for kv in env_vars.items())
