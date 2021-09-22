@@ -16,8 +16,7 @@ class FileCacheException(MetaflowException):
     headline = 'File cache error'
 
 class FileCache(object):
-    def __init__(self, metadata=None, event_logger=None, monitor=None,
-                 cache_dir=None, max_size=None):
+    def __init__(self, cache_dir=None, max_size=None):
         self._cache_dir = cache_dir
         self._max_size = max_size
         if self._cache_dir is None:
@@ -26,22 +25,15 @@ class FileCache(object):
             self._max_size = int(CLIENT_CACHE_MAX_SIZE)
         self._total = 0
 
-        self._metadata = metadata
-        self._event_logger = event_logger
-        self._monitor = monitor
-
         self._objects = None
-        # We will have a separate blob_cache per flow and datastore type
-        # This is to respect the fact that the keys across datastore types
-        # and/or flows may not be unique (across flows is less likely but we are
-        # keeping in line with the fact that datsatores are flow based)
+        # We have a separate blob_cache per flow and datastore type.
         self._blob_caches = {}
 
-        # We also keep a cache for FlowDataStore objects that we created because
-        # some of them may have persistent connections in their backends;
-        # this is purely a performance optimization. We do *not* keep track of
-        # task datastores to refresh them as needed. Caching FlowDataStore has
-        # no adverse affect in terms of having to refresh the cache.
+        # We also keep a cache for FlowDataStore objects because some of them
+        # may have long-lived persistent connections; this is purely a 
+        # performance optimization. We do *not* keep track of task datastores 
+        # to refresh them as needed. Caching FlowDataStore has no adverse 
+        # affect in terms of having to refresh the cache.
         self._store_caches = {}
 
     @property
@@ -64,7 +56,7 @@ class FileCache(object):
             self, ds_type, location, logtype, attempt, flow_name, run_id,
             step_name, task_id):
 
-        ds_cls = self._get_backend_datastore_cls(ds_type)
+        ds_cls = self._get_datastore_storage_impl(ds_type)
         ds_root = ds_cls.path_join(*ds_cls.path_split(location)[:-5])
         cache_id = self._flow_ds_type(ds_type, ds_root, flow_name)
 
@@ -89,7 +81,7 @@ class FileCache(object):
         return log
 
     def get_data(self, ds_type, flow_name, location, key):
-        ds_cls = self._get_backend_datastore_cls(ds_type)
+        ds_cls = self._get_datastore_storage_impl(ds_type)
         ds_root = ds_cls.get_datastore_root_from_location(location, flow_name)
         ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
 
@@ -98,7 +90,7 @@ class FileCache(object):
     def get_artifact_by_location(
             self, ds_type, location, data_metadata, flow_name, run_id,
             step_name, task_id, name):
-        ds_cls = self._get_backend_datastore_cls(ds_type)
+        ds_cls = self._get_datastore_storage_impl(ds_type)
         ds_root = ds_cls.get_datastore_root_from_location(location, flow_name)
         return self.get_artifact(
             ds_type, ds_root, data_metadata, flow_name, run_id, step_name,
@@ -225,7 +217,7 @@ class FileCache(object):
                 raise
 
     @staticmethod
-    def _get_backend_datastore_cls(ds_type):
+    def _get_datastore_storage_impl(ds_type):
         storage_impl = DATASTORES.get(ds_type, None)
         if storage_impl is None:
             raise FileCacheException('Datastore %s was not found' % ds_type)
@@ -238,14 +230,11 @@ class FileCache(object):
         if cached_flow_datastore:
             return cached_flow_datastore
         else:
-            storage_impl = self._get_backend_datastore_cls(ds_type)
+            storage_impl = self._get_datastore_storage_impl(ds_type)
             cached_flow_datastore = FlowDataStore(
-                flow_name,
-                None, # TODO: Add environment here
-                self._metadata,
-                self._event_logger,
-                self._monitor,
-                backend_class=storage_impl,
+                flow_name=flow_name,
+                environment=None, # TODO: Add environment here
+                storage_impl=storage_impl,
                 ds_root=ds_root)
             blob_cache = self._blob_caches.setdefault(
                 cache_id, FileBlobCache(self, cache_id))

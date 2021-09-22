@@ -15,21 +15,21 @@ class LocalMetadataProvider(MetadataProvider):
 
     @classmethod
     def compute_info(cls, val):
-        from metaflow.datastore.local_backend import LocalBackend
+        from metaflow.datastore.local_storage import LocalStorage
         v = os.path.realpath(os.path.join(val, DATASTORE_LOCAL_DIR))
         if os.path.isdir(v):
-            LocalBackend.datastore_root = v
+            LocalStorage.datastore_root = v
             return val
         raise ValueError(
             'Could not find directory %s in directory %s' % (DATASTORE_LOCAL_DIR, val))
 
     @classmethod
     def default_info(cls):
-        from metaflow.datastore.local_backend import LocalBackend
+        from metaflow.datastore.local_storage import LocalStorage
 
         def print_clean(line, **kwargs):
             print(line)
-        v = LocalBackend.get_datastore_root_from_config(print_clean, create_on_absent=False)
+        v = LocalStorage.get_datastore_root_from_config(print_clean, create_on_absent=False)
         if v is None:
             return '<No %s directory found in current working tree>' % DATASTORE_LOCAL_DIR
         return os.path.dirname(v)
@@ -96,7 +96,7 @@ class LocalMetadataProvider(MetadataProvider):
 
     @classmethod
     def _get_object_internal(cls, obj_type, obj_order, sub_type, sub_order, filters, *args):
-        from metaflow.datastore.local_backend import LocalBackend
+        from metaflow.datastore.local_storage import LocalStorage
         if obj_type == 'artifact':
             # Artifacts are actually part of the tasks in the filesystem
             obj_type = 'task'
@@ -152,7 +152,7 @@ class LocalMetadataProvider(MetadataProvider):
         if obj_path is None:
             return result
         skip_dirs = '*/'*(sub_order - obj_order)
-        all_meta = os.path.join(obj_path, skip_dirs, LocalBackend.METADATA_DIR)
+        all_meta = os.path.join(obj_path, skip_dirs, LocalStorage.METADATA_DIR)
         for meta_path in glob.iglob(all_meta):
             self_file = os.path.join(meta_path, '_self.json')
             if os.path.isfile(self_file):
@@ -203,17 +203,17 @@ class LocalMetadataProvider(MetadataProvider):
             flow_name=None, run_id=None, step_name=None, task_id=None,
             create_on_absent=True):
 
-        from metaflow.datastore.local_backend import LocalBackend
-        if LocalBackend.datastore_root is None:
+        from metaflow.datastore.local_storage import LocalStorage
+        if LocalStorage.datastore_root is None:
             def print_clean(line, **kwargs):
                 print(line)
-            LocalBackend.datastore_root = LocalBackend.get_datastore_root_from_config(
+            LocalStorage.datastore_root = LocalStorage.get_datastore_root_from_config(
                 print_clean, create_on_absent=create_on_absent)
-        if LocalBackend.datastore_root is None:
+        if LocalStorage.datastore_root is None:
             return None
 
         if flow_name is None:
-            return LocalBackend.datastore_root
+            return LocalStorage.datastore_root
         components = []
         if flow_name:
             components.append(flow_name)
@@ -223,26 +223,26 @@ class LocalMetadataProvider(MetadataProvider):
                     components.append(step_name)
                     if task_id:
                         components.append(task_id)
-        return LocalBackend().full_uri(
-            LocalBackend.path_join(*components))
+        return LocalStorage().full_uri(
+            LocalStorage.path_join(*components))
 
     @staticmethod
     def _create_and_get_metadir(
             flow_name=None, run_id=None, step_name=None, task_id=None):
-        from metaflow.datastore.local_backend import LocalBackend
+        from metaflow.datastore.local_storage import LocalStorage
         root_path = LocalMetadataProvider._make_path(flow_name, run_id, step_name, task_id)
-        subpath = os.path.join(root_path, LocalBackend.METADATA_DIR)
+        subpath = os.path.join(root_path, LocalStorage.METADATA_DIR)
         LocalMetadataProvider._makedirs(subpath)
         return subpath
 
     @staticmethod
     def _get_metadir(flow_name=None, run_id=None, step_name=None, task_id=None):
-        from metaflow.datastore.local_backend import LocalBackend
+        from metaflow.datastore.local_storage import LocalStorage
         root_path = LocalMetadataProvider._make_path(
             flow_name, run_id, step_name, task_id, create_on_absent=False)
         if root_path is None:
             return None
-        subpath = os.path.join(root_path, LocalBackend.METADATA_DIR)
+        subpath = os.path.join(root_path, LocalStorage.METADATA_DIR)
         if os.path.isdir(subpath):
             return subpath
         return None

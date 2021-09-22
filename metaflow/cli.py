@@ -840,7 +840,7 @@ def start(ctx,
 
     ctx.obj.datastore_impl.datastore_root = datastore_root
 
-    FlowDataStore.default_backend_class = ctx.obj.datastore_impl
+    FlowDataStore.default_storage_impl = ctx.obj.datastore_impl
     ctx.obj.flow_datastore = FlowDataStore(
         ctx.obj.flow.name,
         ctx.obj.environment,

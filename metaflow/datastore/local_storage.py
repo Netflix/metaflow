@@ -2,10 +2,10 @@ import json
 import os
 
 from ..metaflow_config import DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_LOCAL
-from .datastore_backend import CloseAfterUse, DataStoreBackend
+from .datastore_storage import CloseAfterUse, DataStoreStorage
 from .exceptions import DataException
 
-class LocalBackend(DataStoreBackend):
+class LocalStorage(DataStoreStorage):
     TYPE = 'local'
     METADATA_DIR = '_meta'
 
@@ -94,7 +94,7 @@ class LocalBackend(DataStoreBackend):
             full_path = self.full_uri(path)
             if not overwrite and os.path.exists(full_path):
                 continue
-            LocalBackend._makedirs(os.path.dirname(full_path))
+            LocalDataStoreStorage._makedirs(os.path.dirname(full_path))
             with open(full_path, mode='wb') as f:
                 f.write(byte_obj.read())
             if metadata:

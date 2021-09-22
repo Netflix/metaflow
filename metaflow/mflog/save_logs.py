@@ -30,7 +30,7 @@ def save_logs():
         ds_root = storage_impl.get_datastore_root_from_config(print_clean)
     flow_datastore = FlowDataStore(flow_name,
                                    None,
-                                   backend_class=storage_impl,
+                                   storage_impl=storage_impl,
                                    ds_root=ds_root)
     task_datastore = flow_datastore.get_task_datastore(run_id,
                                                        step_name,

@@ -5,7 +5,7 @@ import shutil
 
 from os.path import expanduser
 
-from metaflow.datastore.local_backend import LocalBackend
+from metaflow.datastore.local_storage import LocalStorage
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.util import to_unicode
 
@@ -106,7 +106,7 @@ def status():
     from metaflow.client import namespace, metadata, Metaflow
 
     # Get the local data store path
-    path = LocalBackend.get_datastore_root_from_config(
+    path = LocalStorage.get_datastore_root_from_config(
         echo, create_on_absent=False)
     # Throw an exception
     if path is None:

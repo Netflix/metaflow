@@ -5,7 +5,7 @@ from itertools import starmap
 
 from ..datatools.s3 import S3, S3Client, S3PutObject
 from ..metaflow_config import DATASTORE_SYSROOT_S3
-from .datastore_backend import CloseAfterUse, DataStoreBackend
+from .datastore_storage import CloseAfterUse, DataStoreStorage
 
 
 try:
@@ -16,11 +16,11 @@ except:
     from urllib.parse import urlparse
 
 
-class S3Backend(DataStoreBackend):
+class S3Storage(DataStoreStorage):
     TYPE = 's3'
 
     def __init__(self, root=None):
-        super(S3Backend, self).__init__(root)
+        super(S3Storage, self).__init__(root)
         self.s3_client = S3Client()
 
     @classmethod

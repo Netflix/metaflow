@@ -7,9 +7,8 @@ from .content_addressed_store import BlobCache
 
 """
 TaskDataStoreSet allows you to prefetch multiple (read) datastores into a
-cache and lets you access them.
-As a performance optimization it also lets you prefetch select data artifacts
-leveraging a shared cache.
+cache and lets you access them. As a performance optimization it also lets you 
+prefetch select data artifacts leveraging a shared cache.
 """
 class TaskDataStoreSet(object):
     def __init__(self,
