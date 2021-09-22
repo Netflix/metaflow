@@ -14,7 +14,6 @@ from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.mflog import TASK_LOG_SOURCE
 
 from .batch import Batch, BatchKilledException
-from ..aws.utils import sync_local_metadata_from_datastore
 
 @click.group()
 def cli():
@@ -244,7 +243,7 @@ def step(
                 task_spec,
                 code_package_sha,
                 code_package_url,
-                ctx.obj.datastore.TYPE,
+                ctx.obj.flow_datastore.TYPE,
                 image=image,
                 queue=queue,
                 iam_role=iam_role,
