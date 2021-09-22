@@ -5,9 +5,7 @@ import sys
 import os
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import S3_ENDPOINT_URL, S3_VERIFY_CERTIFICATE
-
-S3_NUM_RETRIES = 7
+from metaflow.metaflow_config import S3_ENDPOINT_URL, S3_VERIFY_CERTIFICATE, S3_RETRY_COUNT
 
 
 TEST_S3_RETRY = 'TEST_S3_RETRY' in os.environ
@@ -23,7 +21,7 @@ def get_s3_client():
 def aws_retry(f):
     def retry_wrapper(self, *args, **kwargs):
         last_exc = None
-        for i in range(S3_NUM_RETRIES):
+        for i in range(S3_RETRY_COUNT):
             try:
                 ret = f(self, *args, **kwargs)
                 if TEST_S3_RETRY and i == 0:
@@ -42,7 +40,7 @@ def aws_retry(f):
                     function_name = f.__name__
                 sys.stderr.write("S3 datastore operation %s failed (%s). "
                                  "Retrying %d more times..\n"
-                                 % (function_name, ex, S3_NUM_RETRIES - i))
+                                 % (function_name, ex, S3_RETRY_COUNT - i))
                 self.reset_client(hard_reset=True)
                 last_exc = ex
                 # exponential backoff for real failures

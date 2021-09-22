@@ -11,7 +11,7 @@ from tempfile import mkdtemp, NamedTemporaryFile
 
 from .. import FlowSpec
 from ..current import current
-from ..metaflow_config import DATATOOLS_S3ROOT
+from ..metaflow_config import DATATOOLS_S3ROOT, S3_RETRY_COUNT
 from ..util import namedtuple_with_defaults,\
                    is_stringish,\
                    to_bytes,\
@@ -53,8 +53,6 @@ S3PutObject = namedtuple_with_defaults(
 RangeInfo = namedtuple_with_defaults(
     'RangeInfo', 'total_size request_offset request_length',
     defaults=(0, -1))
-
-NUM_S3OP_RETRIES = 7
 
 class MetaflowS3InvalidObject(MetaflowException):
     headline = 'Not a string-like object'
@@ -837,7 +835,7 @@ class S3(object):
 
     def _one_boto_op(self, op, url, create_tmp_file=True):
         error = ''
-        for i in range(NUM_S3OP_RETRIES + 1):
+        for i in range(S3_RETRY_COUNT + 1):
             tmp = None
             if create_tmp_file:
                 tmp = NamedTemporaryFile(dir=self._tmpdir,
@@ -939,7 +937,7 @@ class S3(object):
             else:
                 cmdline.extend(('--%s' % key, value))
 
-        for i in range(NUM_S3OP_RETRIES + 1):
+        for i in range(S3_RETRY_COUNT + 1):
             with NamedTemporaryFile(dir=self._tmpdir,
                                     mode='wb+',
                                     delete=not debug.s3client,
