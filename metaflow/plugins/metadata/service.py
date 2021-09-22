@@ -157,7 +157,7 @@ class ServiceMetadataProvider(MetadataProvider):
         self._request(self._monitor, url, data)
 
     @classmethod
-    def _get_object_internal(cls, obj_type, obj_order, sub_type, sub_order, filters, *args):
+    def _get_object_internal(cls, obj_type, obj_order, sub_type, sub_order, filters=None, *args):
         # Special handling of self, artifact, and metadata
         if sub_type == 'self':
             url = ServiceMetadataProvider._obj_path(*args[:obj_order])
