@@ -39,9 +39,9 @@ class CardDecorator(StepDecorator):
         self._task_datastore = None
         self._environment = None
         self._metadata= None
+        # todo : first allow multiple decorators with a step
         
-        # todo : first allow multiple decorators with 
-        # a step then allow many then find a way to populate self._index property. e
+        # self._index is useful when many decorators are stacked on top of one another.  
         self._index = None
     
     def add_to_package(self):
@@ -149,7 +149,7 @@ class CardDecorator(StepDecorator):
             cmd+=id_args
         
         if self._index is not None:
-            idx_args = ["--index",self._index]
+            idx_args = ["--index",str(self._index)]
         else:
             idx_args = ["--index",'0'] # setting zero as default
         cmd+=idx_args

@@ -84,14 +84,12 @@ class CardDatastore(object):
                  path_spec = None):
         self._backend = flow_datastore._backend
         self._flow_name = flow_datastore.flow_name
-        self.TYPE = self._backend.TYPE
         self._run_id = run_id
         self._step_name = step_name
         self._task_id = task_id
         self._path_spec = path_spec
         self._temp_card_save_path = self._get_card_path(base_pth=TEMP_DIR_NAME)
         LocalBackend._makedirs(self._temp_card_save_path)
-        
         # TODO : 
             # Figure if the path should follow the same pattern 
             # for local and s3 datastore backend
