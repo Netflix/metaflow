@@ -186,7 +186,7 @@ class BatchDecorator(StepDecorator):
                       ubf_context,
                       inputs):
         if metadata.TYPE == 'local':
-            self.task_datastore = ds.task_datastore
+            self.task_datastore = task_datastore
         else:
             self.task_datastore = None
         meta = {}
