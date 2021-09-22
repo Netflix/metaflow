@@ -218,10 +218,34 @@ class BatchDecorator(StepDecorator):
         metadata.register_metadata(run_id, step_name, task_id, entries)
         self._save_logs_sidecar = SidecarSubProcess('save_logs_periodically')
 
-    def task_finished(self, step_name, flow, graph, is_task_ok, retry_count, max_retries):
+    def task_post_step(self,
+                       step_name,
+                       flow,
+                       graph,
+                       retry_count,
+                       max_user_code_retries):
         if self.task_datastore:
             sync_local_metadata_to_datastore(DATASTORE_LOCAL_DIR, 
                 self.task_datastore)
+
+    def task_exception(self,
+                       exception,
+                       step_name,
+                       flow,
+                       graph,
+                       retry_count,
+                       max_user_code_retries):
+        if self.task_datastore:
+            sync_local_metadata_to_datastore(DATASTORE_LOCAL_DIR, 
+                self.task_datastore)
+
+    def task_finished(self,
+                      step_name,
+                      flow,
+                      graph,
+                      is_task_ok,
+                      retry_count,
+                      max_retries):
         try:
             self._save_logs_sidecar.kill()
         except:

@@ -11,10 +11,11 @@ from metaflow.datastore.local_storage import LocalStorage
 def sync_local_metadata_to_datastore(metadata_local_dir, task_ds):
     with util.TempDir() as td:
         tar_file_path = os.path.join(td, 'metadata.tgz')
-        with tarfile.open(tar_file_path, 'w:gz') as tar:
+        buf = BytesIO()
+        with tarfile.open(name=tar_file_path, mode='w:gz', fileobj=buf) as tar:
             tar.add(metadata_local_dir)
-        with open(tar_file_path, 'rb') as f:
-            _, key = task_ds.parent_datastore.save_data([f], len_hint=1)[0]
+        blob = buf.getvalue()
+        _, key = task_ds.parent_datastore.save_data([blob], len_hint=1)[0]
         task_ds.save_metadata({'local_metadata': key})
 
 
