@@ -75,6 +75,12 @@ DATATOOLS_LOCALROOT = from_conf(
 S3_ENDPOINT_URL = from_conf('METAFLOW_S3_ENDPOINT_URL', None)
 S3_VERIFY_CERTIFICATE = from_conf('METAFLOW_S3_VERIFY_CERTIFICATE', None)
 
+# S3 retry configuration
+# This is useful if you want to "fail fast" on S3 operations; use with caution
+# though as this may increase failures. Note that this is the number of *retries*
+# so setting it to 0 means each operation will be tried once.
+S3_RETRY_COUNT = from_conf('METAFLOW_S3_RETRY_COUNT', 7)
+
 ###
 # Datastore local cache
 ###
