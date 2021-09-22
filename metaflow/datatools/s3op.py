@@ -1,4 +1,5 @@
 from __future__ import print_function
+from collections import deque
 
 import json
 import time
@@ -21,6 +22,8 @@ except:
     # python3
     from urllib.parse import urlparse
     from queue import Full as QueueFull
+
+from collections import deque
 
 import click
 
@@ -229,10 +232,33 @@ def worker(result_file_name, queue, mode):
 
 
 def start_workers(mode, urls, num_workers):
+    if not os.environ.get("AWS_EXECUTION_ENV", "").startswith("AWS_Lambda_"):
+        return _start_workers(mode, urls, num_workers, Queue)
+    else:
+        """
+        A single threaded version of start_workers, a fallback for cases when we can't
+        use multithreading.Queue (like AWS Lambda) and use a mock non-synchronized
+        queue instead.
+        """
+
+        class FallbackQueue:
+            def __init__(self, size):
+                self._items = deque()
+
+            def put(self, item):
+                self._items.append(item)
+
+            def get(self):
+                return self._items.popleft()
+
+        return _start_workers(mode, urls, 1, FallbackQueue)
+
+
+def _start_workers(mode, urls, num_workers, queue_cls):
     # We start the minimum of len(urls) or num_workers to avoid starting
     # workers that will definitely do nothing
     num_workers = min(num_workers, len(urls))
-    queue = Queue(len(urls) + num_workers)
+    queue = queue_cls(len(urls) + num_workers)
     procs = {}
 
     # 1. push sources and destinations to the queue

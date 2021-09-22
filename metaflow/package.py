@@ -48,7 +48,7 @@ class MetaflowPackage(object):
         environment.init_environment(echo)
         for step in flow:
             for deco in step.decorators:
-                deco.package_init(flow, step.__name__, environment)
+                deco.package_init(flow, step.__name__, environment, echo)
         self.blob = self._make()
 
     def _walk(self, root, exclude_hidden=True, addl_suffixes=None):

@@ -193,6 +193,22 @@ KUBERNETES_CONTAINER_REGISTRY = (
     from_conf("METAFLOW_KUBERNETES_CONTAINER_REGISTRY") or DEFAULT_CONTAINER_REGISTRY
 )
 #
+# AWS Lambda configuration
+###
+LAMBDA_ROLE_ARN = from_conf("METAFLOW_LAMBDA_ROLE_ARN")
+
+LAMBDA_CONTAINER_IMAGE = (
+    from_conf("METAFLOW_LAMBDA_CONTAINER_IMAGE") or DEFAULT_CONTAINER_IMAGE
+)
+
+LAMBDA_CONTAINER_REGISTRY = (
+    from_conf("METAFLOW_LAMBDA_CONTAINER_REGISTRY") or DEFAULT_CONTAINER_REGISTRY
+)
+
+# This limit is used to retry lambda execution when we're throttled by AWS due to
+# being close to the parallel execution limit. This does *not* affect how much we
+# retry if the step itself has failed.
+LAMBDA_THROTTLE_RETRIES = int(from_conf("METAFLOW_LAMBDA_THROTTLE_RETRIES", 20))
 
 ###
 # Conda configuration

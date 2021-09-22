@@ -98,6 +98,7 @@ def get_plugin_cli():
     from .aws.batch import batch_cli
     from .aws.eks import kubernetes_cli
     from .aws.step_functions import step_functions_cli
+    from .aws.awslambda import lambda_cli
     from .cards import card_cli
 
     return _ext_plugins.get_plugin_cli() + [
@@ -106,6 +107,7 @@ def get_plugin_cli():
         card_cli.cli,
         kubernetes_cli.cli,
         step_functions_cli.cli,
+        lambda_cli.cli,
     ]
 
 
@@ -134,9 +136,10 @@ from .test_unbounded_foreach_decorator import (
     InternalTestUnboundedForeachDecorator,
     InternalTestUnboundedForeachInput,
 )
+from .aws.awslambda.lambda_decorator import LambdaDecorator
+
 from .conda.conda_step_decorator import CondaStepDecorator
 from .cards.card_decorator import CardDecorator
-
 
 STEP_DECORATORS = _merge_lists(
     [
@@ -152,6 +155,7 @@ STEP_DECORATORS = _merge_lists(
         CondaStepDecorator,
         ParallelDecorator,
         InternalTestUnboundedForeachDecorator,
+        LambdaDecorator,
     ],
     _ext_plugins.STEP_DECORATORS,
     "name",
