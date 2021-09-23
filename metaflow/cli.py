@@ -353,13 +353,9 @@ def logs(obj,
                         raise CommandException("We can't show --timestamps for "
                                                 "old runs. Sorry!")
                     echo_unicode(log, nl=False)
-    elif len(parts) == 2:
-        # TODO if datastore provided a way to find unsuccessful task IDs, we
-        # could make handle this case automatically
-        raise CommandException("Successful tasks were not found at the given "
-                               "path. You can see logs for unsuccessful tasks "
-                               "by giving an exact task ID using the "
-                               "run_id/step_name/task_id format.")
+    else:
+        raise CommandException("No Tasks found at the given path -- "
+                               "either none exist or none have started yet")
 
 # TODO - move step and init under a separate 'internal' subcommand
 
