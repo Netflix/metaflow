@@ -274,4 +274,5 @@ def step(
         traceback.print_exc()
         _sync_metadata()
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
-    _sync_metadata()
+    finally:
+        _sync_metadata()
