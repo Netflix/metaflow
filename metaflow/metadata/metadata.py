@@ -155,7 +155,8 @@ class MetadataProvider(object):
         '''
         raise NotImplementedError()
 
-    def register_task_id(self, run_id, step_name, task_id, tags=[], sys_tags=[]):
+    def register_task_id(
+            self, run_id, step_name, task_id, attempt=0, tags=[], sys_tags=[]):
         '''
         No-op operation in this implementation.
 

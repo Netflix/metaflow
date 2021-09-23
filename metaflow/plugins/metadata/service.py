@@ -73,7 +73,7 @@ class ServiceMetadataProvider(MetadataProvider):
                          run_id,
                          step_name,
                          task_id,
-                         attempt,
+                         attempt=0,
                          tags=[],
                          sys_tags=[]):
         try:
