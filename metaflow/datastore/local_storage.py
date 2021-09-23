@@ -94,7 +94,7 @@ class LocalStorage(DataStoreStorage):
             full_path = self.full_uri(path)
             if not overwrite and os.path.exists(full_path):
                 continue
-            LocalDataStoreStorage._makedirs(os.path.dirname(full_path))
+            LocalStorage._makedirs(os.path.dirname(full_path))
             with open(full_path, mode='wb') as f:
                 f.write(byte_obj.read())
             if metadata:
