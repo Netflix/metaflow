@@ -316,43 +316,50 @@ def logs(obj,
     else:
         ds_list = list(datastore_set) # get all tasks
 
-    def echo_unicode(line, **kwargs):
-        click.secho(line.decode('UTF-8', errors='replace'), **kwargs)
+    if ds_list:
+        def echo_unicode(line, **kwargs):
+            click.secho(line.decode('UTF-8', errors='replace'), **kwargs)
 
-    # old style logs are non mflog-style logs
-    maybe_old_style = True
-    for ds in ds_list:
-        echo('Dumping logs of run_id=*{run_id}* '
-             'step=*{step}* task_id=*{task_id}*'.format(run_id=ds.run_id,
-                                                        step=ds.step_name,
-                                                        task_id=ds.task_id),
-             fg='magenta')
+        # old style logs are non mflog-style logs
+        maybe_old_style = True
+        for ds in ds_list:
+            echo('Dumping logs of run_id=*{run_id}* '
+                 'step=*{step}* task_id=*{task_id}*'.format(run_id=ds.run_id,
+                                                            step=ds.step_name,
+                                                            task_id=ds.task_id),
+                 fg='magenta')
 
-        for stream in streams:
-            echo(stream, bold=True)
-            logs = ds.load_logs(LOG_SOURCES, stream)
-            if any(data for _, data in logs):
-                # attempt to read new, mflog-style logs
-                for line in mflog.merge_logs([blob for _, blob in logs]):
-                    if timestamps:
-                        ts = mflog.utc_to_local(line.utc_tstamp)
-                        tstamp = ts.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-                        click.secho(tstamp + ' ',
-                                    fg=LOGGER_TIMESTAMP,
-                                    nl=False)
-                    echo_unicode(line.msg)
-                maybe_old_style = False
-            elif maybe_old_style:
-                # if they are not available, we may be looking at
-                # a legacy run (unless we have seen new-style data already
-                # for another stream). This return an empty string if
-                # nothing is found
-                log = ds.load_log_legacy(stream)
-                if log and timestamps:
-                    raise CommandException("We can't show --timestamps for "
-                                            "old runs. Sorry!")
-                echo_unicode(log, nl=False)
-
+            for stream in streams:
+                echo(stream, bold=True)
+                logs = ds.load_logs(LOG_SOURCES, stream)
+                if any(data for _, data in logs):
+                    # attempt to read new, mflog-style logs
+                    for line in mflog.merge_logs([blob for _, blob in logs]):
+                        if timestamps:
+                            ts = mflog.utc_to_local(line.utc_tstamp)
+                            tstamp = ts.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+                            click.secho(tstamp + ' ',
+                                        fg=LOGGER_TIMESTAMP,
+                                        nl=False)
+                        echo_unicode(line.msg)
+                    maybe_old_style = False
+                elif maybe_old_style:
+                    # if they are not available, we may be looking at
+                    # a legacy run (unless we have seen new-style data already
+                    # for another stream). This return an empty string if
+                    # nothing is found
+                    log = ds.load_log_legacy(stream)
+                    if log and timestamps:
+                        raise CommandException("We can't show --timestamps for "
+                                                "old runs. Sorry!")
+                    echo_unicode(log, nl=False)
+    elif len(parts) == 2:
+        # TODO if datastore provided a way to find unsuccessful task IDs, we
+        # could make handle this case automatically
+        raise CommandException("Successful tasks were not found at the given "
+                               "path. You can see logs for unsuccessful tasks "
+                               "by giving an exact task ID using the "
+                               "run_id/step_name/task_id format.")
 
 # TODO - move step and init under a separate 'internal' subcommand
 
