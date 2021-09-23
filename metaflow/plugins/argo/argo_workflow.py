@@ -94,7 +94,7 @@ class ArgoWorkflow:
         try:
             ArgoClient(auth, k8s_namespace).create_template(self.name, self._workflow)
         except Exception as e:
-            raise ArgoException(str(e))
+            raise ArgoException(e)
 
     def schedule(self, auth, k8s_namespace):
         try:
@@ -119,7 +119,7 @@ class ArgoWorkflow:
                 }
                 client.create_cron_wf(self.name, cron_wf)
         except Exception as e:
-            raise ArgoException(str(e))
+            raise ArgoException(e)
 
     @classmethod
     def trigger(cls, auth, k8s_namespace, name, parameters):
@@ -144,14 +144,14 @@ class ArgoWorkflow:
             client = ArgoClient(auth, k8s_namespace)
             template = client.get_template(name)
         except Exception as e:
-            raise ArgoException(str(e))
+            raise ArgoException(e)
         if template is None:
             raise ArgoException("The WorkflowTemplate *%s* doesn't exist on "
                                 "Argo Workflows. Please deploy your flow first." % name)
         try:
             return client.submit(workflow)
         except Exception as e:
-            raise ArgoException(str(e))
+            raise ArgoException(e)
 
     @classmethod
     def list(cls, auth, k8s_namespace, name, phases):
@@ -159,7 +159,7 @@ class ArgoWorkflow:
             client = ArgoClient(auth, k8s_namespace)
             tmpl = client.get_template(name)
         except Exception as e:
-            raise ArgoException(str(e))
+            raise ArgoException(e)
         if tmpl is None:
             raise ArgoException("The WorkflowTemplate *%s* doesn't exist "
                                 "on Argo Workflows." % name)
@@ -167,7 +167,7 @@ class ArgoWorkflow:
             return client.list_workflows(name, phases)
 
         except Exception as e:
-            raise ArgoException(str(e))
+            raise ArgoException(e)
 
     def _parse_flow_decorator(self):
         if 'argo_base' in self.flow._flow_decorators:
