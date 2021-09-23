@@ -12,6 +12,7 @@ from shutil import move
 import click
 
 from . import parameters
+from .current import current
 from .datastore.datastore import TransformableObject
 from .exception import MetaflowException
 from .metaflow_config import DATATOOLS_LOCALROOT, DATATOOLS_SUFFIX
