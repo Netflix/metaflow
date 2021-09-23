@@ -571,10 +571,10 @@ class Task(object):
         else:
             # task_id is preset only by persist_parameters() or control tasks.
             if ubf_context == UBF_CONTROL:
-                metadata.register_task_id(run_id, step, task_id,
+                metadata.register_task_id(run_id, step, task_id, 0,
                     sys_tags=[CONTROL_TASK_TAG])
             else:
-                metadata.register_task_id(run_id, step, task_id)
+                metadata.register_task_id(run_id, step, task_id, 0)
 
         self.step = step
         self.flow_name = flow.name
