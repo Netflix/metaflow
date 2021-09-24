@@ -32,7 +32,7 @@ try:
     # this is used e.g. by datastore.save_logs to identify paths
     class Path(object):
 
-        def __init__(path):
+        def __init__(self, path):
             self.path = path
 
         def __str__(self):
