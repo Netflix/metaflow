@@ -61,7 +61,7 @@ class MetaflowEnvironment(object):
         return []
 
     @classmethod
-    def get_client_info(cls, flow_name, metadata):
+    def get_info(cls, flow_name, metadata):
         """
         Environment may customize the information returned to the client about the environment
 
@@ -74,9 +74,9 @@ class MetaflowEnvironment(object):
 
         Returns
         -------
-        str : Information printed and returned to the user
+        dict : Information for the environment
         """
-        return "Local environment"
+        return {'type': MetaflowEnvironment.TYPE}
 
     def get_package_commands(self, code_package_url):
         cmds = [BASH_MFLOG,

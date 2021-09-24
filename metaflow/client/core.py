@@ -1055,7 +1055,7 @@ class Task(MetaflowObject):
         if not env_type:
             return None
         env = [m for m in ENVIRONMENTS + [MetaflowEnvironment] if m.TYPE == env_type][0]
-        return env.get_client_info(self.path_components[0], self.metadata_dict)
+        return env.get_info(self.path_components[0], self.metadata_dict)
 
     def _load_log(self, stream):
         log_location = self.metadata_dict.get('log_location_%s' % stream)
