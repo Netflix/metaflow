@@ -3,6 +3,7 @@ import pickle
 import sys
 import time
 
+from functools import wraps
 from io import BufferedIOBase, FileIO, RawIOBase
 from types import MethodType, FunctionType
 
@@ -15,16 +16,18 @@ from ..util import Path, is_stringish, to_fileobj
 from .exceptions import DataException
 
 def only_if_not_done(f):
+    @wraps(f)
     def method(self, *args, **kwargs):
         if self._is_done_set:
             raise MetaflowInternalError("Tried to write to datastore "\
                                         "(method %s) after it was marked "\
-                                        ".done()" % f.func_name)
+                                        ".done()" % f.__name__)
         return f(self, *args, **kwargs)
     return method
 
 def require_mode(mode):
     def wrapper(f):
+        @wraps(f)
         def method(self, *args, **kwargs):
             if mode is not None and self._mode != mode:
                 raise MetaflowInternalError(
