@@ -109,9 +109,9 @@ class CondaEnvironment(MetaflowEnvironment):
         if info is None or env_id is None:
             return {'type': 'conda'}
         info = json.loads(info)
-        with cls._filecache.get_data(info['ds_type'], flow_name, info['sha']) as f:
-            tar = tarfile.TarFile(fileobj=f)
-            conda_file = tar.extractfile(CONDA_MAGIC_FILE)
+        with cls._filecache.get_data(info['ds_type'], flow_name, info['location'], info['sha']) as f:
+            with tarfile.open(fileobj=f, mode='r:gz') as tar:
+                conda_file = tar.extractfile(CONDA_MAGIC_FILE)
             if conda_file is None:
                 return {'type': 'conda'}
             info = json.loads(conda_file.read().decode('utf-8'))

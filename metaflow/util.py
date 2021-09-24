@@ -29,7 +29,7 @@ try:
     def unquote_bytes(x):
         return to_unicode(unquote(to_bytes(x)))
 
-    # this is used e.g. by datastore.save_logs to identify paths
+    # this is used e.g. by mflog/save_logs.py to identify paths
     class Path(object):
 
         def __init__(self, path):
@@ -62,7 +62,6 @@ else:
         prototype = T(*defaults)
         T.__new__.__defaults__ = tuple(prototype)
         return T
-
 
 class TempDir(object):
     # Provide a temporary directory since Python 2.7 does not have it inbuilt
@@ -182,11 +181,10 @@ def resolve_identity():
 
 
 def get_latest_run_id(echo, flow_name):
-    from metaflow.datastore.local import LocalDataStore
-    local_root = LocalDataStore.datastore_root
+    from metaflow.datastore.local_storage import LocalStorage
+    local_root = LocalStorage.datastore_root
     if local_root is None:
-        v = LocalDataStore.get_datastore_root_from_config(echo, create_on_absent=False)
-        LocalDataStore.datastore_root = local_root = v
+        local_root = LocalStorage.get_datastore_root_from_config(echo, create_on_absent=False)
     if local_root:
         path = os.path.join(local_root, flow_name, 'latest_run')
         if os.path.exists(path):
@@ -196,15 +194,15 @@ def get_latest_run_id(echo, flow_name):
 
 
 def write_latest_run_id(obj, run_id):
-    from metaflow.datastore.local import LocalDataStore
-    if LocalDataStore.datastore_root is None:
-        LocalDataStore.datastore_root = LocalDataStore.get_datastore_root_from_config(obj.echo)
-    path = os.path.join(LocalDataStore.datastore_root, obj.flow.name)
+    from metaflow.datastore.local_storage import LocalStorage
+    if LocalStorage.datastore_root is None:
+        LocalStorage.datastore_root = LocalStorage.get_datastore_root_from_config(obj.echo)
+    path = LocalStorage.path_join(LocalStorage.datastore_root, obj.flow.name)
     try:
         os.makedirs(path)
     except OSError as x:
         if x.errno != 17:
-            # Directories exists in other casewhich is fine
+            # Directories exists in other case which is fine
             raise
     with open(os.path.join(path, 'latest_run'), 'w') as f:
         f.write(str(run_id))
@@ -314,7 +312,7 @@ def dict_to_cli_options(params):
 
                     # Of the value starts with $, assume the caller wants shell variable
                     # expansion to happen, so we pass it as is.
-                    # NOTE: We strip '\' to allow for various backends to use escaped
+                    # NOTE: We strip '\' to allow for various storages to use escaped
                     # shell variables as well.
                     if value.lstrip("\\").startswith("$"):
                         yield value

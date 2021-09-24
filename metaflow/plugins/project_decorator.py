@@ -34,7 +34,7 @@ class ProjectDecorator(FlowDecorator):
                   flow,
                   graph,
                   environment,
-                  datastore,
+                  flow_datastore,
                   metadata,
                   logger,
                   echo,

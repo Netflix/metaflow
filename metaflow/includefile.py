@@ -13,7 +13,6 @@ import click
 
 from . import parameters
 from .current import current
-from .datastore.datastore import TransformableObject
 from .exception import MetaflowException
 from .metaflow_config import DATATOOLS_LOCALROOT, DATATOOLS_SUFFIX
 from .parameters import DeployTimeField, Parameter
@@ -104,8 +103,8 @@ class Local(object):
     def get_root_from_config(cls, echo, create_on_absent=True):
         result = DATATOOLS_LOCALROOT
         if result is None:
-            from .datastore.local import LocalDataStore
-            result = LocalDataStore.get_datastore_root_from_config(echo, create_on_absent)
+            from .datastore.local_storage import LocalStorage
+            result = LocalStorage.get_datastore_root_from_config(echo, create_on_absent)
             result = os.path.join(result, DATATOOLS_SUFFIX)
             if create_on_absent and not os.path.exists(result):
                 os.mkdir(result)
@@ -343,21 +342,20 @@ class Uploader():
         echo(
             'Including file %s of size %d%s %s' % (path, sz, unit[pos], extra))
         try:
-            cur_obj = TransformableObject(io.open(path, mode='rb').read())
+            input_file = io.open(path, mode='rb').read()
         except IOError:
             # If we get an error here, since we know that the file exists already,
             # it means that read failed which happens with Python 2.7 for large files
             raise MetaflowException('Cannot read file at %s -- this is likely because it is too '
                                     'large to be properly handled by Python 2.7' % path)
-        sha = sha1(cur_obj.current()).hexdigest()
+        sha = sha1(input_file).hexdigest()
         path = os.path.join(self._client_class.get_root_from_config(echo, True),
                             flow_name,
                             sha)
         buf = io.BytesIO()
         with gzip.GzipFile(
                 fileobj=buf, mode='wb', compresslevel=3) as f:
-            f.write(cur_obj.current())
-        cur_obj.transform(lambda _: buf)
+            f.write(input_file)
         buf.seek(0)
         with self._client_class() as client:
             url = client.put(path, buf.getvalue(), overwrite=False)

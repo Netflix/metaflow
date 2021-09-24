@@ -34,11 +34,11 @@ class StepFunctions(object):
                  name,
                  graph,
                  flow,
-                 code_package,
+                 code_package_sha,
                  code_package_url,
                  production_token,
                  metadata,
-                 datastore,
+                 flow_datastore,
                  environment,
                  event_logger,
                  monitor,
@@ -51,11 +51,11 @@ class StepFunctions(object):
         self.name = name
         self.graph = graph
         self.flow = flow
-        self.code_package = code_package
+        self.code_package_sha = code_package_sha
         self.code_package_url = code_package_url
         self.production_token = production_token
         self.metadata = metadata
-        self.datastore = datastore
+        self.flow_datastore = flow_datastore
         self.environment = environment
         self.event_logger = event_logger
         self.monitor = monitor
@@ -598,9 +598,9 @@ class StepFunctions(object):
                                                 self.code_package_url,
                                                 user_code_retries),
                         task_spec=task_spec,
-                        code_package_sha=self.code_package.sha,
+                        code_package_sha=self.code_package_sha,
                         code_package_url=self.code_package_url,
-                        code_package_ds=self.datastore.TYPE,
+                        code_package_ds=self.flow_datastore.TYPE,
                         image=resources['image'],
                         queue=resources['queue'],
                         iam_role=resources['iam_role'],
@@ -710,8 +710,8 @@ class StepFunctions(object):
             '--quiet',
             '--metadata=%s' % self.metadata.TYPE,
             '--environment=%s' % self.environment.TYPE,
-            '--datastore=%s' % self.datastore.TYPE,
-            '--datastore-root=%s' % self.datastore.datastore_root,
+            '--datastore=%s' % self.flow_datastore.TYPE,
+            '--datastore-root=%s' % self.flow_datastore.datastore_root,
             '--event-logger=%s' % self.event_logger.logger_type,
             '--monitor=%s' % self.monitor.monitor_type,
             '--no-pylint',

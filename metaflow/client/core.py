@@ -3,6 +3,7 @@ from datetime import datetime
 import os
 import tarfile
 import json
+from io import BytesIO
 from collections import namedtuple
 from itertools import chain
 
@@ -34,7 +35,7 @@ Metadata = namedtuple('Metadata', ['name',
                                    'type',
                                    'task'])
 
-filecache = FileCache()
+filecache = None
 current_namespace = False
 
 current_metadata = False
@@ -246,7 +247,7 @@ class Metaflow(object):
         # filtering on namespace on flows means finding at least one
         # run in this namespace. This is_in_namespace() function
         # does this properly in this case
-        all_flows = self.metadata.get_object('root', 'flow')
+        all_flows = self.metadata.get_object('root', 'flow', None)
         all_flows = all_flows if all_flows else []
         for flow in all_flows:
             try:
@@ -614,17 +615,24 @@ class MetaflowCode(object):
     """
 
     def __init__(self, flow_name, code_package):
+        global filecache
+
         self._flow_name = flow_name
         info = json.loads(code_package)
         self._path = info['location']
         self._ds_type = info['ds_type']
         self._sha = info['sha']
-        with filecache.get_data(self._ds_type, self._flow_name, self._sha) as f:
-            self._tar = tarfile.TarFile(fileobj=f)
-            # The JSON module in Python3 deals with Unicode. Tar gives bytes.
-            info_str = self._tar.extractfile('INFO').read().decode('utf-8')
-            self._info = json.loads(info_str)
-            self._flowspec = self._tar.extractfile(self._info['script']).read()
+
+        if filecache is None:
+            filecache = FileCache()
+        code_obj = BytesIO(
+            filecache.get_data(
+                self._ds_type, self._flow_name, self._path, self._sha))
+        self._tar = tarfile.open(fileobj=code_obj, mode='r:gz')
+        # The JSON module in Python3 deals with Unicode. Tar gives bytes.
+        info_str = self._tar.extractfile('INFO').read().decode('utf-8')
+        self._info = json.loads(info_str)
+        self._flowspec = self._tar.extractfile(self._info['script']).read()
 
     @property
     def path(self):
@@ -687,7 +695,7 @@ class DataArtifact(MetaflowObject):
     data : object
         The unpickled representation of the data contained in this artifact
     sha : string
-        SHA encoding representing the unique identity of this artifact
+        Encoding representing the unique identity of this artifact
     finished_at : datetime
         Alias for created_at
     """
@@ -706,11 +714,30 @@ class DataArtifact(MetaflowObject):
         object
             Object contained in this artifact
         """
+        global filecache
+
         ds_type = self._object['ds_type']
-        sha = self._object['sha']
-        with filecache.get_data(ds_type, self.path_components[0], sha) as f:
-            obj = pickle.load(f)
-            return obj
+        location = self._object['location']
+        components = self.path_components
+        if filecache is None:
+            # TODO: Pass proper environment to properly extract artifacts
+            filecache = FileCache()
+        # "create" the metadata information that the datastore needs
+        # to access this object.
+        # TODO: We can store more information in the metadata, particularly
+        #       to determine if we need an environment to unpickle the artifact.
+        meta = {
+            'objects': {self._object['name']: self._object['sha']},
+            'info': {self._object['name']: {
+                'size': 0, 'type': None, 'encoding': self._object['content_type']}}
+        }
+        if location.startswith(':root:'):
+            return filecache.get_artifact(
+                ds_type, location[6:], meta, *components)
+        else:
+            # Older artifacts have a location information which we can use.
+            return filecache.get_artifact_by_location(
+                ds_type, location, meta, *components)
 
     # TODO add
     # @property
@@ -725,7 +752,7 @@ class DataArtifact(MetaflowObject):
         """
         Unique identifier for this artifact.
 
-        This is the SHA1 hash of the artifact.
+        This is a unique hash of the artifact (historically SHA1 hash)
 
         Returns
         -------
@@ -1072,17 +1099,15 @@ class Task(MetaflowObject):
         it is returned as a (unicode) string.
         """
         from metaflow.mflog.mflog import merge_logs
-        from metaflow.mflog import LOG_SOURCES
-        from metaflow.datastore import DATASTORES
+        global filecache
 
         ds_type = self.metadata_dict.get('ds-type')
         ds_root = self.metadata_dict.get('ds-root')
-
-        ds_cls = DATASTORES.get(ds_type, None)
-        if ds_cls is None:
-            raise MetaflowInternalError('Datastore %s was not found' % ds_type)
-        ds_cls.datastore_root = ds_root
-
+        if ds_type is None or ds_root is None:
+            yield None, ''
+            return
+        if filecache is None:
+            filecache = FileCache()
         # It is possible that a task fails before any metadata has been
         # recorded. In this case, we assume that we are executing the
         # first attempt.
@@ -1091,28 +1116,25 @@ class Task(MetaflowObject):
         # here. It is possible that logs exists for a newer attempt that
         # just failed to record metadata. We could make this logic more robust
         # and guarantee that we always return the latest available log.
-
-        ds = ds_cls(self._object['flow_id'],
-                    run_id=str(self._object['run_number']),
-                    step_name=self._object['step_name'],
-                    task_id=str(self._object['task_id']),
-                    mode='r',
-                    attempt=int(self.metadata_dict.get('attempt', 0)),
-                    allow_unsuccessful=True)
-        logs = ds.load_logs(LOG_SOURCES, stream)
+        attempt = int(self.metadata_dict.get('attempt', 0))
+        logs = filecache.get_logs_stream(
+            ds_type, ds_root, stream, attempt, *self.path_components)
         for line in merge_logs([blob for _, blob in logs]):
             msg = to_unicode(line.msg) if as_unicode else line.msg
             yield line.utc_tstamp, msg
 
     def _load_log_legacy(self, log_location, logtype, as_unicode=True):
         # this function is used to load pre-mflog style logfiles
-        ret_val = None
+        global filecache
+
         log_info = json.loads(log_location)
+        location = log_info['location']
         ds_type = log_info['ds_type']
         attempt = log_info['attempt']
-        components = self.path_components
-        with filecache.get_log_legacy(ds_type, logtype, int(attempt), *components) as f:
-            ret_val = f.read()
+        if filecache is None:
+            filecache = FileCache()
+        ret_val = filecache.get_log_legacy(
+            ds_type, location, logtype, int(attempt), *self.path_components)
         if as_unicode and (ret_val is not None):
             return ret_val.decode(encoding='utf8')
         else:

@@ -4,7 +4,8 @@ import time
 from tempfile import NamedTemporaryFile
 from hashlib import sha1
 
-from metaflow.datastore import DATASTORES
+from metaflow.datastore import DATASTORES, FlowDataStore
+from metaflow.datastore.content_addressed_store import BlobCache
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import CLIENT_CACHE_PATH, CLIENT_CACHE_MAX_SIZE
 
@@ -14,9 +15,7 @@ NEW_FILE_QUARANTINE = 10
 class FileCacheException(MetaflowException):
     headline = 'File cache error'
 
-
 class FileCache(object):
-
     def __init__(self, cache_dir=None, max_size=None):
         self._cache_dir = cache_dir
         self._max_size = max_size
@@ -25,16 +24,161 @@ class FileCache(object):
         if self._max_size is None:
             self._max_size = int(CLIENT_CACHE_MAX_SIZE)
         self._total = 0
+
         self._objects = None
+        # We have a separate blob_cache per flow and datastore type.
+        self._blob_caches = {}
+
+        # We also keep a cache for FlowDataStore objects because some of them
+        # may have long-lived persistent connections; this is purely a 
+        # performance optimization. We do *not* keep track of task datastores 
+        # to refresh them as needed. Caching FlowDataStore has no adverse 
+        # affect in terms of having to refresh the cache.
+        self._store_caches = {}
+
+    @property
+    def cache_dir(self):
+        return self._cache_dir
+
+    def get_logs_stream(
+            self, ds_type, ds_root, stream, attempt, flow_name, run_id,
+            step_name, task_id):
+        from metaflow.mflog import LOG_SOURCES
+
+        ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
+
+        task_ds = ds.get_task_datastore(
+            run_id, step_name, task_id,
+            data_metadata={'objects': {}, 'info': {}})
+        return task_ds.load_logs(LOG_SOURCES, stream, attempt_override=attempt)
+
+    def get_log_legacy(
+            self, ds_type, location, logtype, attempt, flow_name, run_id,
+            step_name, task_id):
+
+        ds_cls = self._get_datastore_storage_impl(ds_type)
+        ds_root = ds_cls.path_join(*ds_cls.path_split(location)[:-5])
+        cache_id = self._flow_ds_type(ds_type, ds_root, flow_name)
+
+        token = '%s.cached' % sha1(os.path.join(
+            run_id, step_name, task_id, '%s_log' % logtype).\
+            encode('utf-8')).hexdigest()
+        path = os.path.join(self._cache_dir, cache_id, token[:2], token)
+
+        cached_log = self.read_file(path)
+        if cached_log is not None:
+            return cached_log
+
+        ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
+
+        task_ds = ds.get_task_datastore(
+            run_id, step_name, task_id,
+            data_metadata={'objects': {}, 'info': {}})
+
+        log = task_ds.load_log_legacy(logtype, attempt_override=attempt)
+        # Store this in the file cache as well
+        self.create_file(path, log)
+        return log
+
+    def get_data(self, ds_type, flow_name, location, key):
+        ds_cls = self._get_datastore_storage_impl(ds_type)
+        ds_root = ds_cls.get_datastore_root_from_location(location, flow_name)
+        ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
+
+        return ds.load_data([key], force_raw=True)[0]
+
+    def get_artifact_by_location(
+            self, ds_type, location, data_metadata, flow_name, run_id,
+            step_name, task_id, name):
+        ds_cls = self._get_datastore_storage_impl(ds_type)
+        ds_root = ds_cls.get_datastore_root_from_location(location, flow_name)
+        return self.get_artifact(
+            ds_type, ds_root, data_metadata, flow_name, run_id, step_name,
+            task_id, name)
+
+    def get_artifact(
+            self, ds_type, ds_root, data_metadata, flow_name, run_id, step_name,
+            task_id, name):
+        _, obj = next(self.get_artifacts(
+            ds_type, ds_root, data_metadata, flow_name, run_id, step_name,
+            task_id, [name]))
+        return obj
+
+    def get_all_artifacts(
+            self, ds_type, ds_root, data_metadata, flow_name, run_id, step_name,
+            task_id):
+        ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
+
+        # We get the task datastore for this task
+        task_ds = ds.get_task_datastore(
+            run_id, step_name, task_id, data_metadata=data_metadata)
+        # This will reuse the blob cache if needed. We do not have an
+        # artifact cache so the unpickling happens every time here.
+        return task_ds.load_artifacts([n for n, _ in task_ds.items()])
+
+    def get_artifacts(
+            self, ds_type, ds_root, data_metadata, flow_name, run_id, step_name,
+            task_id, names):
+        ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
+
+        # We get the task datastore for this task
+        task_ds = ds.get_task_datastore(
+            run_id, step_name, task_id, data_metadata=data_metadata)
+        # note that load_artifacts uses flow_datastore.castore which goes
+        # through one of the self._blob_cache
+        return task_ds.load_artifacts(names)
+
+    def create_file(self, path, value):
+        if self._objects is None:
+            # Index objects lazily (when we first need to write to it).
+            # This can be an expensive operation
+            self._index_objects()
+        dirname = os.path.dirname(path)
+        try:
+            FileCache._makedirs(dirname)
+        except:  # noqa E722
+            raise FileCacheException(
+                'Could not create directory: %s' % dirname)
+        tmpfile = NamedTemporaryFile(
+            dir=dirname, prefix='dlobj', delete=False)
+        # Now write out the file
+        try:
+            tmpfile.write(value)
+            tmpfile.flush()
+            os.rename(tmpfile.name, path)
+        except:  # noqa E722
+            os.unlink(tmpfile.name)
+            raise
+        size = os.path.getsize(path)
+        self._total += size
+        self._objects.append((int(time.time()), size, path))
+        self._garbage_collect()
+
+    def read_file(self, path):
+        if os.path.exists(path):
+            try:
+                with open(path, 'rb') as f:
+                    return f.read()
+            except IOError:
+                # It may have been concurrently garbage collected by another
+                # process
+                pass
+        return None
 
     def _index_objects(self):
         objects = []
         if os.path.exists(self._cache_dir):
-            for subdir in os.listdir(self._cache_dir):
-                root = os.path.join(self._cache_dir, subdir)
-                if os.path.isdir(root):
+            for flow_ds_type in os.listdir(self._cache_dir):
+                root = os.path.join(self._cache_dir, flow_ds_type)
+                if not os.path.isdir(root):
+                    continue
+                for subdir in os.listdir(root):
+                    root = os.path.join(self._cache_dir, flow_ds_type, subdir)
+                    if not os.path.isdir(root):
+                        continue
                     for obj in os.listdir(root):
-                        if obj.endswith('.cached'):
+                        sha, ext = os.path.splitext(obj)
+                        if ext in ['cached', 'blob']:
                             path = os.path.join(root, obj)
                             objects.insert(0, (os.path.getctime(path),
                                                os.path.getsize(path),
@@ -43,10 +187,9 @@ class FileCache(object):
         self._total = sum(size for _, size, _ in objects)
         self._objects = sorted(objects, reverse=False)
 
-    def _object_path(self, flow_name, run_id, step_name, task_id, name):
-        token = os.path.join(flow_name, run_id, step_name, task_id, name).encode('utf-8')
-        sha = sha1(token).hexdigest()
-        return os.path.join(self._cache_dir, sha[:2], sha + '.cached')
+    @staticmethod
+    def _flow_ds_type(ds_type, ds_root, flow_name):
+        return '.'.join([ds_type, ds_root, flow_name])
 
     def _garbage_collect(self):
         now = time.time()
@@ -61,7 +204,8 @@ class FileCache(object):
                 # maybe another client had already GC'ed the file away
                 pass
 
-    def _makedirs(self, path):
+    @staticmethod
+    def _makedirs(path):
         # this is for python2 compatibility.
         # Python3 has os.makedirs(exist_ok=True).
         try:
@@ -72,70 +216,47 @@ class FileCache(object):
             else:
                 raise
 
-    def get_log_legacy(self, ds_type, logtype, attempt, flow_name, run_id, step_name, task_id):
-        path = self._object_path(flow_name, run_id, step_name, task_id, '_log%s' % logtype)
-
-        def load_func(ds):
-            return ds.load_log_legacy(logtype, attempt_override=attempt)
-
-        return self._internal_get_data(
-            ds_type, flow_name, run_id, step_name, task_id, path, load_func)
-
-    def get_data(self, ds_type, flow_name, sha):
-        path = self._object_path(flow_name, '_', '_', '_', sha)
-
-        def load_func(ds):
-            return ds.load_data(sha)
-
-        return self._internal_get_data(
-            ds_type, flow_name, None, None, None, path, load_func)
-
-    def _internal_get_data(self, ds_type, flow_name, run_id, step_name, task_id, path, load_func):
-        ds_cls = DATASTORES.get(ds_type, None)
-        if ds_cls is None:
+    @staticmethod
+    def _get_datastore_storage_impl(ds_type):
+        storage_impl = DATASTORES.get(ds_type, None)
+        if storage_impl is None:
             raise FileCacheException('Datastore %s was not found' % ds_type)
+        return storage_impl
 
-        if ds_cls.datastore_root is None:
-            def print_clean(line, **kwargs):
-                print(line)
-            ds_cls.datastore_root = ds_cls.get_datastore_root_from_config(
-                print_clean, create_on_absent=False)
+    def _get_flow_datastore(self, ds_type, ds_root, flow_name):
+        cache_id = self._flow_ds_type(ds_type, ds_root, flow_name)
+        cached_flow_datastore = self._store_caches.get(cache_id)
 
-        if ds_cls.datastore_root is None:
-            raise FileCacheException('Cannot locate datastore root')
+        if cached_flow_datastore:
+            return cached_flow_datastore
+        else:
+            storage_impl = self._get_datastore_storage_impl(ds_type)
+            cached_flow_datastore = FlowDataStore(
+                flow_name=flow_name,
+                environment=None, # TODO: Add environment here
+                storage_impl=storage_impl,
+                ds_root=ds_root)
+            blob_cache = self._blob_caches.setdefault(
+                cache_id, FileBlobCache(self, cache_id))
+            cached_flow_datastore.ca_store.set_blob_cache(blob_cache)
+            self._store_caches[cache_id] = cached_flow_datastore
+            return cached_flow_datastore
 
-        fileobj = None
-        if os.path.exists(path):
-            try:
-                fileobj = open(path, 'rb')
-            except IOError:
-                # maybe another client had already GC'ed the file away
-                fileobj = None
+class FileBlobCache(BlobCache):
 
-        if fileobj is None:
-            if self._objects is None:
-                # index objects lazily at the first request. This can be
-                # an expensive operation
-                self._index_objects()
-            ds = ds_cls(flow_name, run_id, step_name, task_id, mode='d')
-            dirname = os.path.dirname(path)
-            try:
-                self._makedirs(dirname)
-            except:  # noqa E722
-                raise FileCacheException('Could not create directory: %s' % dirname)
+    def __init__(self, filecache, cache_id):
+        self._filecache = filecache
+        self._cache_id = cache_id
 
-            tmpfile = NamedTemporaryFile(dir=dirname, prefix='s3obj', delete=False)
+    def _path(self, key):
+        key_dir = key[:2]
+        return os.path.join(
+            self._filecache.cache_dir, self._cache_id, key_dir, '%s.blob' % key)
 
-            try:
-                tmpfile.write(load_func(ds))
-                tmpfile.flush()
-                os.rename(tmpfile.name, path)
-            except:  # noqa E722
-                os.unlink(tmpfile.name)
-                raise
-            size = os.path.getsize(path)
-            self._total += size
-            self._objects.append((int(time.time()), size, path))
-            self._garbage_collect()
-            fileobj = open(path, 'rb')
-        return fileobj
+    def load_key(self, key):
+        return self._filecache.read_file(self._path(key))
+
+    def store_key(self, key, blob):
+        self._filecache.create_file(self._path(key), blob)
+
+

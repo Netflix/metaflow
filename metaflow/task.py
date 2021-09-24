@@ -5,7 +5,7 @@ import time
 
 from .metaflow_config import MAX_ATTEMPTS
 from .metadata import MetaDatum
-from .datastore import Inputs, MetaflowDatastoreSet
+from .datastore import Inputs, TaskDataStoreSet
 from .exception import MetaflowInternalError,\
     MetaflowDataMissing,\
     MetaflowExceptionWrapper
@@ -29,7 +29,7 @@ class MetaflowTask(object):
 
     def __init__(self,
                  flow,
-                 datastore,
+                 flow_datastore,
                  metadata,
                  environment,
                  console_logger,
@@ -37,7 +37,7 @@ class MetaflowTask(object):
                  monitor,
                  ubf_context):
         self.flow = flow
-        self.datastore = datastore
+        self.flow_datastore = flow_datastore
         self.metadata = metadata
         self.environment = environment
         self.console_logger = console_logger
@@ -59,7 +59,8 @@ class MetaflowTask(object):
             # make the parameter a read-only property
             # note x=x binds the current value of x to the closure
             def property_setter(
-                    _, cls=self.flow.__class__, param=param, var=var, parameter_ds=parameter_ds):
+                    _, cls=self.flow.__class__, param=param, var=var,
+                    parameter_ds=parameter_ds):
                 v = param.load_parameter(parameter_ds[var])
                 setattr(cls, var, property(fget=lambda _, val=v: val))
                 return v
@@ -74,7 +75,7 @@ class MetaflowTask(object):
 
     def _init_data(self, run_id, join_type, input_paths):
         # We prefer to use the parallelized version to initialize datastores
-        # (via MetaflowDatastoreSet) only with more than 4 datastores, because
+        # (via TaskDataStoreSet) only with more than 4 datastores, because
         # the baseline overhead of using the set is ~1.5s and each datastore
         # init takes ~200-300ms when run sequentially.
         if len(input_paths) > 4:
@@ -87,13 +88,9 @@ class MetaflowTask(object):
             # Note: Specify `pathspecs` while creating the datastore set to
             # guarantee strong consistency and guard against missing input.
             datastore_set = \
-                MetaflowDatastoreSet(self.datastore,
-                                     self.flow.name,
+                TaskDataStoreSet(self.flow_datastore,
                                      run_id,
                                      pathspecs=input_paths,
-                                     metadata=self.metadata,
-                                     event_logger=self.event_logger,
-                                     monitor=self.monitor,
                                      prefetch_data_artifacts=prefetch_data_artifacts)
             ds_list = [ds for ds in datastore_set]
             if len(ds_list) != len(input_paths):
@@ -106,13 +103,7 @@ class MetaflowTask(object):
             for input_path in input_paths:
                 run_id, step_name, task_id = input_path.split('/')
                 ds_list.append(
-                    self.datastore(self.flow.name,
-                                   run_id=run_id,
-                                   step_name=step_name,
-                                   task_id=task_id,
-                                   metadata=self.metadata,
-                                   event_logger=self.event_logger,
-                                   monitor=self.monitor))
+                    self.flow_datastore.get_task_datastore(run_id, step_name, task_id))
         if not ds_list:
             # this guards against errors in input paths
             raise MetaflowDataMissing("Input paths *%s* resolved to zero "
@@ -212,26 +203,17 @@ class MetaflowTask(object):
             raise MetaflowInternalError("task.clone_only needs a valid "
                                         "clone_origin_task value.")
         # 1. initialize output datastore
-        output = self.datastore(self.flow.name,
-                                run_id=run_id,
-                                step_name=step_name,
-                                task_id=task_id,
-                                mode='w',
-                                metadata=self.metadata,
-                                attempt=0,
-                                event_logger=self.event_logger,
-                                monitor=self.monitor)
+        output = self.flow_datastore.get_task_datastore(
+            run_id, step_name, task_id, attempt=0, mode='w')
+
         output.init_task()
+
         origin_run_id, origin_step_name, origin_task_id =\
             clone_origin_task.split('/')
         # 2. initialize origin datastore
-        origin = self.datastore(self.flow.name,
-                                run_id=origin_run_id,
-                                step_name=origin_step_name,
-                                task_id=origin_task_id,
-                                metadata=self.metadata,
-                                event_logger=self.event_logger,
-                                monitor=self.monitor)
+        origin = self.flow_datastore.get_task_datastore(
+            origin_run_id, origin_step_name, origin_task_id)
+
         output.clone(origin)
         output.done()
 
@@ -296,11 +278,11 @@ class MetaflowTask(object):
                                                    type='origin-run-id',
                                                    tags=metadata_tags),
                                          MetaDatum(field='ds-type',
-                                                   value=self.datastore.TYPE,
+                                                   value=self.flow_datastore.TYPE,
                                                    type='ds-type',
                                                    tags=metadata_tags),
                                          MetaDatum(field='ds-root',
-                                                   value=self.datastore.datastore_root,
+                                                   value=self.flow_datastore.datastore_root,
                                                    type='ds-root',
                                                    tags=metadata_tags)])
 
@@ -311,15 +293,9 @@ class MetaflowTask(object):
             join_type = self.flow._graph[node.split_parents[-1]].type
 
         # 1. initialize output datastore
-        output = self.datastore(self.flow.name,
-                                run_id=run_id,
-                                step_name=step_name,
-                                task_id=task_id,
-                                mode='w',
-                                metadata=self.metadata,
-                                attempt=retry_count,
-                                event_logger=self.event_logger,
-                                monitor=self.monitor)
+        output = self.flow_datastore.get_task_datastore(
+            run_id, step_name, task_id, attempt=retry_count, mode='w')
+
         output.init_task()
 
         if input_paths:
@@ -346,12 +322,13 @@ class MetaflowTask(object):
                          is_running=True)
 
         # 5. run task
-        output.save_metadata('task_begin', {
-            'code_package_sha': os.environ.get('METAFLOW_CODE_SHA'),
-            'code_package_ds': os.environ.get('METAFLOW_CODE_DS'),
-            'code_package_url': os.environ.get('METAFLOW_CODE_URL'),
-            'retry_count': retry_count
-        })
+        output.save_metadata({'task_begin':
+            {
+                'code_package_sha': os.environ.get('METAFLOW_CODE_SHA'),
+                'code_package_ds': os.environ.get('METAFLOW_CODE_DS'),
+                'code_package_url': os.environ.get('METAFLOW_CODE_URL'),
+                'retry_count': retry_count
+            }})
         logger = self.event_logger
         start = time.time()
         self.metadata.start_task_heartbeat(self.flow.name, run_id, step_name,
@@ -461,7 +438,6 @@ class MetaflowTask(object):
             self.flow._success = True
 
         except Exception as ex:
-
             tsk_msg = {
                 "task_id": task_id,
                 "exception_msg": str(ex),
@@ -518,7 +494,7 @@ class MetaflowTask(object):
                                                        format(retry_count)])
                                              ])
 
-            output.save_metadata('task_end', {})
+            output.save_metadata({'task_end': {}})
             output.persist(self.flow)
 
             # this writes a success marker indicating that the

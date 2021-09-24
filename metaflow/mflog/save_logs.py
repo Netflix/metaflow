@@ -3,7 +3,7 @@ import os
 # This script is used to upload logs during task bootstrapping, so
 # it shouldn't have external dependencies besides Metaflow itself
 # (e.g. no click for parsing CLI args).
-from metaflow.datastore import DATASTORES
+from metaflow.datastore import DATASTORES, FlowDataStore
 from metaflow.util import Path
 from . import TASK_LOG_SOURCE
 
@@ -23,19 +23,20 @@ def save_logs():
              os.environ['MFLOG_STDERR'])
 
     flow_name, run_id, step_name, task_id = pathspec.split('/')
-    Datastore = DATASTORES[ds_type]
+    storage_impl = DATASTORES[ds_type]
     if ds_root is None:
         def print_clean(line, **kwargs):
             pass
-        ds_root = Datastore.get_datastore_root_from_config(print_clean)
-    Datastore.datastore_root = ds_root
-
-    ds = Datastore(flow_name,
-                   run_id=run_id,
-                   step_name=step_name,
-                   task_id=task_id,
-                   attempt=int(attempt),
-                   mode='w')
+        ds_root = storage_impl.get_datastore_root_from_config(print_clean)
+    flow_datastore = FlowDataStore(flow_name,
+                                   None,
+                                   storage_impl=storage_impl,
+                                   ds_root=ds_root)
+    task_datastore = flow_datastore.get_task_datastore(run_id,
+                                                       step_name,
+                                                       task_id,
+                                                       int(attempt),
+                                                       mode='w')
 
     try:
         streams = ('stdout', 'stderr')
@@ -48,8 +49,8 @@ def save_logs():
         else:
             op = Path
 
-        data = [(stream, op(path)) for stream, path, _ in sizes]
-        ds.save_logs(TASK_LOG_SOURCE, data)
+        data = {stream: op(path) for stream, path, _ in sizes}
+        task_datastore.save_logs(TASK_LOG_SOURCE, data)
     except:
         # Upload failing is not considered a fatal error.
         # This script shouldn't return non-zero exit codes
