@@ -271,7 +271,7 @@ class MetaflowTask(object):
 
         if run_id and task_id:
             self.metadata.register_run_id(run_id)
-            self.metadata.register_task_id(run_id, step_name, task_id)
+            self.metadata.register_task_id(run_id, step_name, task_id, retry_count)
         else:
             raise MetaflowInternalError("task.run_step needs a valid run_id "
                                         "and task_id")
@@ -283,25 +283,26 @@ class MetaflowTask(object):
             raise MetaflowInternalError("Too many task attempts (%d)! "
                                         "MAX_ATTEMPTS exceeded." % retry_count)
 
+        metadata_tags = ["attempt_id:{0}".format(retry_count)]
         self.metadata.register_metadata(run_id,
                                         step_name,
                                         task_id,
                                         [MetaDatum(field='attempt',
                                                    value=str(retry_count),
                                                    type='attempt',
-                                                   tags=[]),
+                                                   tags=metadata_tags),
                                          MetaDatum(field='origin-run-id',
                                                    value=str(origin_run_id),
                                                    type='origin-run-id',
-                                                   tags=[]),
+                                                   tags=metadata_tags),
                                          MetaDatum(field='ds-type',
                                                    value=self.datastore.TYPE,
                                                    type='ds-type',
-                                                   tags=[]),
+                                                   tags=metadata_tags),
                                          MetaDatum(field='ds-root',
                                                    value=self.datastore.datastore_root,
                                                    type='ds-root',
-                                                   tags=[])])
+                                                   tags=metadata_tags)])
 
         step_func = getattr(self.flow, step_name)
         node = self.flow._graph[step_name]
@@ -514,8 +515,7 @@ class MetaflowTask(object):
                                                        value=attempt_ok,
                                                        type='internal_attempt_status',
                                                        tags=["attempt_id:{0}".
-                                                       format(str(retry_count))
-                                                             ])
+                                                       format(retry_count)])
                                              ])
 
             output.save_metadata('task_end', {})

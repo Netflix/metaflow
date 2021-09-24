@@ -287,7 +287,8 @@ class S3DataStore(MetaflowDataStore):
 
         self.metadata.register_metadata(
             self.run_id, self.step_name, self.task_id,
-            [MetaDatum(field='attempt-done', value=str(self.attempt), type='attempt-done', tags=[])])
+            [MetaDatum(field='attempt-done', value=str(self.attempt), type='attempt-done',
+            tags=["attempt_id:{0}".format(self.attempt)])])
 
         self._is_done_set = True
 

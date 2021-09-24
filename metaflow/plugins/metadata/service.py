@@ -73,6 +73,7 @@ class ServiceMetadataProvider(MetadataProvider):
                          run_id,
                          step_name,
                          task_id,
+                         attempt=0,
                          tags=[],
                          sys_tags=[]):
         try:
@@ -83,10 +84,11 @@ class ServiceMetadataProvider(MetadataProvider):
             self._new_task(run_id,
                            step_name,
                            task_id,
+                           attempt,
                            tags=tags,
                            sys_tags=sys_tags)
-        finally:
-            self._register_code_package_metadata(run_id, step_name, task_id)
+        else:
+            self._register_code_package_metadata(run_id, step_name, task_id, attempt)
 
     def _start_heartbeat(self, heartbeat_type, flow_id, run_id, step_name=None, task_id=None):
         if self._already_started():
@@ -194,12 +196,13 @@ class ServiceMetadataProvider(MetadataProvider):
                   run_id,
                   step_name,
                   task_id=None,
+                  attempt=0,
                   tags=[],
                   sys_tags=[]):
         # first ensure that the step exists
         self._get_or_create('step', run_id, step_name)
         task = self._get_or_create('task', run_id, step_name, task_id, tags=tags, sys_tags=sys_tags)
-        self._register_code_package_metadata(run_id, step_name, task['task_id'])
+        self._register_code_package_metadata(run_id, step_name, task['task_id'], attempt)
         return task['task_id']
 
     @staticmethod

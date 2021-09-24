@@ -26,7 +26,9 @@ class StepFunctionsInternalDecorator(StepDecorator):
         meta['aws-step-functions-execution'] = os.environ['METAFLOW_RUN_ID']
         meta['aws-step-functions-state-machine'] =\
                                         os.environ['SFN_STATE_MACHINE']
-        entries = [MetaDatum(field=k, value=v, type=k, tags=[]) for k, v in meta.items()]
+        entries = [MetaDatum(
+            field=k, value=v, type=k, tags=["attempt_id:{0}".format(retry_count)])
+            for k, v in meta.items()]
         # Register book-keeping metadata for debugging.
         metadata.register_metadata(run_id, step_name, task_id, entries)
 
