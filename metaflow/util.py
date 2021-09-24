@@ -39,7 +39,7 @@ try:
             return self.path
 
     from pipes import quote as _quote
-except:
+except NameError:
     # python3
     unicode_type = str
     bytes_type = bytes

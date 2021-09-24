@@ -11,7 +11,7 @@ from .exception import ParameterFieldFailed,\
 try:
     # Python2
     strtype = basestring
-except:
+except NameError:
     # Python3
     strtype = str
 
