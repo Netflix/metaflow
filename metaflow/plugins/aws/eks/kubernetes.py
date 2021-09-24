@@ -79,6 +79,28 @@ def generate_rfc1123_name(flow_name,
     return sanitized_long_name[:57] + '-' + hash[:5]
 
 
+LABEL_VALUE_REGEX = re.compile(r'^[a-zA-Z0-9]([a-zA-Z0-9\-\_\.]{0,61}[a-zA-Z0-9])?$')
+
+
+def sanitize_label_value(val):
+    # Label sanitization: if the value can be used as is, return it as is.
+    # If it can't, sanitize and add a suffix based on hash of the original
+    # value, replace invalid chars and truncate.
+    #
+    # The idea here is that even if there are non-allowed chars in the same
+    # position, this function will likely return distinct values, so you can
+    # still filter on those. For example, "alice$" and "alice&" will be
+    # sanitized into different values "alice_b3f201" and "alice_2a6f13".
+    if val == '' or LABEL_VALUE_REGEX.match(val):
+        return val
+    hash = hashlib.sha256(val.encode('utf-8')).hexdigest()
+
+    # Replace invalid chars with dots, and if the first char is
+    # non-alphahanumeric, replace it with 'u' to make it valid
+    sanitized_val = re.sub('^[^A-Z0-9a-z]', 'u', re.sub(r"[^A-Za-z0-9.\-_]", "_", val))
+    return sanitized_val[:57] + '-' + hash[:5]
+
+
 class Kubernetes(object):
     def __init__(
         self,
@@ -238,11 +260,11 @@ class Kubernetes(object):
             .environment_variable("METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA)
             .environment_variable("METAFLOW_KUBERNETES_WORKLOAD", 1)
             .label("app", "metaflow")
-            .label("metaflow/flow_name", self._flow_name)
-            .label("metaflow/run_id", self._run_id)
-            .label("metaflow/step_name", self._step_name)
-            .label("metaflow/task_id", self._task_id)
-            .label("metaflow/attempt", self._attempt)
+            .label("metaflow/flow_name", sanitize_label_value(self._flow_name))
+            .label("metaflow/run_id", sanitize_label_value(self._run_id))
+            .label("metaflow/step_name", sanitize_label_value(self._step_name))
+            .label("metaflow/task_id", sanitize_label_value(self._task_id))
+            .label("metaflow/attempt", sanitize_label_value(self._attempt))
         )
 
         # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync
@@ -262,19 +284,12 @@ class Kubernetes(object):
         #          introducing them here.
         job.label("app.kubernetes.io/name", "metaflow-task").label(
             "app.kubernetes.io/part-of", "metaflow"
-        ).label("app.kubernetes.io/created-by", user)
+        ).label("app.kubernetes.io/created-by", sanitize_label_value(user))
         # Add Metaflow system tags as labels as well!
-        #
-        # TODO  1. Label values must be an empty string or consist of
-        #          alphanumeric characters, '-', '_' or '.', and must start and
-        #          end with an alphanumeric character. Fix the simple regex
-        #          match below.
         for sys_tag in self._metadata.sticky_sys_tags:
             job.label(
                 "metaflow/%s" % sys_tag[: sys_tag.index(":")],
-                re.sub(
-                    "[^A-Za-z0-9.-_]", ".", sys_tag[sys_tag.index(":") + 1 :]
-                ),
+                sanitize_label_value(sys_tag[sys_tag.index(":") + 1 :])
             )
         # TODO: Add annotations based on https://kubernetes.io/blog/2021/04/20/annotating-k8s-for-humans/
 
