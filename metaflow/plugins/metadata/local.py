@@ -66,15 +66,17 @@ class LocalMetadataProvider(MetadataProvider):
                          run_id,
                          step_name,
                          task_id,
+                         attempt=0,
                          tags=[],
                          sys_tags=[]):
         try:
             # Same logic as register_run_id
             int(task_id)
         except ValueError:
-            self._new_task(run_id, step_name, task_id, tags, sys_tags)
-        finally:
-            self._register_code_package_metadata(run_id, step_name, task_id)
+            self._new_task(run_id, step_name, task_id, attempt, tags, sys_tags)
+        else:
+            self._register_code_package_metadata(
+                run_id, step_name, task_id, attempt)
 
     def register_data_artifacts(self,
                                 run_id,
@@ -193,10 +195,10 @@ class LocalMetadataProvider(MetadataProvider):
         self._ensure_meta('flow', None, None, None)
         self._ensure_meta('run', run_id, None, None, tags, sys_tags)
 
-    def _new_task(self, run_id, step_name, task_id, tags=[], sys_tags=[]):
+    def _new_task(self, run_id, step_name, task_id, attempt=0, tags=[], sys_tags=[]):
         self._ensure_meta('step', run_id, step_name, None)
         self._ensure_meta('task', run_id, step_name, task_id, tags, sys_tags)
-        self._register_code_package_metadata(run_id, step_name, task_id)
+        self._register_code_package_metadata(run_id, step_name, task_id, attempt)
 
     @staticmethod
     def _make_path(

@@ -40,7 +40,7 @@ class Conda(object):
             raise InvalidEnvironmentException('Conda channel \'conda-forge\' '
                                               'is required. Specify it with CONDA_CHANNELS '
                                               'environment variable.')
-    
+
     def create(self,
                step_name,
                env_id,
@@ -129,14 +129,14 @@ class Conda(object):
 
     def _install_order(self, env_id):
         cmd = ['list', '--name', env_id, '--explicit']
-        response = self._call_conda(cmd).decode('utf-8') 
+        response = self._call_conda(cmd).decode('utf-8')
         emit = False
         result = []
         for line in response.splitlines():
             if emit:
                 result.append(line.split('/')[-1])
             if not emit and line == '@EXPLICIT':
-                emit = True  
+                emit = True
         return result
 
     def _deps(self, env_id):
@@ -170,8 +170,8 @@ class Conda(object):
             if disable_safety_checks:
                 env['CONDA_SAFETY_CHECKS'] = 'disabled'
             return subprocess.check_output(
-                [self._bin] + args, 
-                stderr = open(os.devnull, 'wb'),
+                [self._bin] + args,
+                stderr = subprocess.PIPE,
                 env = dict(os.environ, **env)).strip()
         except subprocess.CalledProcessError as e:
             try:
@@ -183,8 +183,8 @@ class Conda(object):
             except (TypeError, ValueError) as ve:
                 pass
             raise CondaException(
-                'command \'{cmd}\' returned error ({code}): {output}'
-                    .format(cmd=e.cmd, code=e.returncode, output=e.output))
+                'command \'{cmd}\' returned error ({code}): {output}, stderr={stderr}'
+                    .format(cmd=e.cmd, code=e.returncode, output=e.output, stderr=e.stderr))
 
 
 class CondaLock(object):

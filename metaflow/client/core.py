@@ -1,7 +1,6 @@
 from __future__ import print_function
 from datetime import datetime
 import os
-import time
 import tarfile
 import json
 from io import BytesIO

@@ -154,7 +154,8 @@ class MetadataProvider(object):
         '''
         raise NotImplementedError()
 
-    def register_task_id(self, run_id, step_name, task_id, tags=[], sys_tags=[]):
+    def register_task_id(
+            self, run_id, step_name, task_id, attempt=0, tags=[], sys_tags=[]):
         '''
         No-op operation in this implementation.
 
@@ -463,7 +464,7 @@ class MetadataProvider(object):
             tags.append('r_version:' + env['r_version_code'])
         return tags
 
-    def _register_code_package_metadata(self, run_id, step_name, task_id):
+    def _register_code_package_metadata(self, run_id, step_name, task_id, attempt):
         metadata = []
         code_sha = os.environ.get('METAFLOW_CODE_SHA')
         code_url = os.environ.get('METAFLOW_CODE_URL')
@@ -473,7 +474,9 @@ class MetadataProvider(object):
                 field='code-package',
                 value=json.dumps({'ds_type': code_ds, 'sha': code_sha, 'location': code_url}),
                 type='code-package',
-                tags=[]))
+                tags=["attempt_id:{0}".format(attempt)]))
+        # We don't tag with attempt_id here because not readily available; this
+        # is ok though as this doesn't change from attempt to attempt.
         if metadata:
             self.register_metadata(run_id, step_name, task_id, metadata)
 
