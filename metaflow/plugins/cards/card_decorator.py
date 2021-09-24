@@ -22,6 +22,7 @@ class CardDecorator(StepDecorator):
     }
     def runtime_init(self, flow, graph, package, run_id):
         # Check if the card-id matches the regex pattern . 
+        # same pattern is asserted in the import to ensure no "-" in card ids/Otherwise naming goes for a toss. 
         regex_match = re.match(CARD_ID_PATTERN,self.attributes['id'])
         if regex_match is None:
             raise BadCardNameException(self.attributes['id'])
@@ -158,7 +159,6 @@ class CardDecorator(StepDecorator):
         if fail:
             # todo : Handle failure scenarios better. 
             print("Process Failed",response.decode('utf-8'))
-        print(response)
     
     def _run_command(self,cmd,env):
         fail = False

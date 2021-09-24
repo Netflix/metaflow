@@ -47,18 +47,24 @@ class CardNotPresentException(MetaflowException):
     
     headline = 'Card not found in datastore'
 
-    def __init__(self,flow_name, run_id,step_name,card_type=None,card_id=None,card_index=None):
+    def __init__(self,flow_name, run_id,step_name,card_type=None,card_id=None,card_index=None,card_hash=None):
         idx_msg = ''
+        hash_msg=''
         msg =''
-        if card_index is None:
-            idx_msg = ' and index %s ' % card_index
-            
+        if card_index is not None:
+            idx_msg = ' and index %s' % card_index
+        
+        if card_hash is not None:
+            hash_msg = ' and hash %s' % card_hash
         if card_type is not None:
-            msg = 'Card of type %s %snot present for path-spec'\
-                ' %s/%s/%s'%(card_type,idx_msg,flow_name,run_id,step_name)
+            msg = 'Card of type %s %s %s not present for path-spec'\
+                ' %s/%s/%s'%(card_type,idx_msg,hash_msg,flow_name,run_id,step_name)
         elif card_id is not None:
-            msg = 'Card of id %s %s not present for path-spec'\
-                ' %s/%s/%s'%(card_id,idx_msg,flow_name,run_id,step_name)
+            msg = 'Card of id %s %s %s not present for path-spec'\
+                ' %s/%s/%s'%(card_id,idx_msg,hash_msg,flow_name,run_id,step_name)
+        else:
+            msg = 'Card not present for path-spec'\
+                ' %s/%s/%s %s %s'%(flow_name,run_id,step_name,idx_msg,hash_msg)
         
         super(CardNotPresentException, self).__init__(msg)
 

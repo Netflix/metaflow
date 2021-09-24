@@ -13,6 +13,7 @@ from .exception import CardNotPresentException
 
 CARD_DIRECTORY_NAME = 'mf.cards'
 TEMP_DIR_NAME = 'metaflow_card_cache'
+NUM_SHORT_HASH_CHARS = 5
 
 def stepname_from_card_id(card_id,flow):
     for step in flow._steps:
@@ -121,15 +122,95 @@ class CardDatastore(object):
         else:
             card_name = "%s-%s" %(card_type,card_index)
         return card_name
+    
+    @staticmethod
+    def _card_info_from_path(path):
+        """
+        Args:
+            path (str): The path to the card
 
+        Raises:
+            Exception: When the card_path is invalid
+
+        Returns:
+            (card_id,card_type,card_index,card_hash)
+        """
+        card_file_name = path.split('/')[-1]
+        file_split = card_file_name.split('-')
+        has_id = False
+        if len(file_split) == 4:
+            has_id = True
+        elif len(file_split) < 3 or len(file_split) > 4:
+            raise Exception(
+                "Invalid card file name %s. Card file names should be of form ID-TYPE-INDEX-HASH.html or TYPE-INDEX-HASH.html" % card_file_name   
+            )
+        card_id,card_type,card_index,card_hash = None,None, None,None
+        if has_id:
+            card_id,card_type,card_index,card_hash = file_split
+        else:
+            card_type,card_index,card_hash = file_split
+        card_hash = card_hash.split('.html')[0]
+        return card_id,card_type,card_index,card_hash
+ 
     def save_card(self,card_type,card_id,card_index,card_html, overwrite=True):
-        card_path = self.get_card_location(self._get_card_path(),self._make_card_file_name(
-            card_type,card_index,card_id=card_id
-        ),card_html)
+        card_file_name = self._make_card_file_name(
+            card_type,\
+            card_index,\
+            card_id=card_id
+        ),
+        card_path = self.get_card_location(\
+            self._get_card_path(),\
+            card_file_name,
+            card_html
+        )
         self._backend.save_bytes(
             [(card_path,BytesIO(bytes(card_html,'utf-8')))],
             overwrite=overwrite
         )
+    
+    def _list_card_paths(self,card_type=None,card_id=None,card_index=None,card_hash=None):
+        card_path = self._get_card_path()
+        card_paths = self._backend.list_content([card_path])
+        if len(card_paths) == 0 :
+            # If there are no files found on the Path then raise an error of 
+            raise CardNotPresentException(self._flow_name,\
+                                        self._run_id,\
+                                        self._step_name,\
+                                        card_index=card_index,\
+                                        card_id=card_id,
+                                        card_hash=card_hash,
+                                        card_type=card_type)
+        cards_found = []
+        for task_card_path in card_paths:
+            card_path = task_card_path.path
+            cid,ctype,cidx,chash = self._card_info_from_path(card_path)
+            is_index_present = lambda x : True
+            if card_index is not None:
+                # if the index is not none then the lambda checks it
+                is_index_present = lambda x : str(x) == str(cidx)
+            
+            if not is_index_present(str(card_index)):
+                continue
+            
+            # if id,type or hash don't match then continue.
+            if card_id is not None and card_id != cid:    
+                continue
+            elif card_type is not None and ctype!= card_type:
+                continue
+            elif card_hash is not None:
+                if chash!= card_hash and card_hash !=chash[:NUM_SHORT_HASH_CHARS]:
+                    continue
+            
+            if task_card_path.is_file:
+                cards_found.append(card_path)
+
+        return cards_found
+    
+    def get_card_names(self,card_paths):
+        name_tuples = []
+        for path in card_paths:
+            name_tuples.append(self._card_info_from_path(path))
+        return name_tuples
     
     def cache_locally(self,path):
         with self._backend.load_bytes([path]) as get_results:
@@ -141,48 +222,11 @@ class CardDatastore(object):
                     shutil.copy(path,main_path)
                     return main_path
     
-    def extract_cards(self,card_type=None,card_id=None,card_index=None,):
-        card_path = self._get_card_path()
-        card_paths = self._backend.list_content([card_path])
-        if len(card_paths) == 0 :
-            # If there are no files found on the Path then raise an error of 
-            raise CardNotPresentException(self._flow_name,\
-                                        self._run_id,\
-                                        self._step_name,\
-                                        card_index=card_index,\
-                                        card_id=card_id,
-                                        card_type=card_type)
-        cards_found = []
-        for task_card_path in card_paths:
-            # Check if the card is present.
-            card_file_name = task_card_path.path.split('/')[-1]
-            is_index_present = lambda x : True
-            if card_index is not None:
-                # if the index is not none then the lambda checks it
-                is_index_present = lambda x : x in card_file_name
-            
-            if card_id is not None:
-                # If the id or index don't match then continue
-                if card_id not in card_file_name or not is_index_present(str(card_index)):
-                    
-                    continue
-            elif card_type is not None:
-                # If the type or index don't match then continue
-                if card_type not in card_file_name or not is_index_present(str(card_index)):
-                    continue
-            
-            if task_card_path.is_file:
-                cards_found.append(task_card_path.path)
-                # self._save_locally(task_card_path.path)
-        
-        if len(cards_found) == 0 :
-            # If there are no files found on the Path then raise an error of 
-            raise CardNotPresentException(self._flow_name,\
-                                        self._run_id,\
-                                        self._step_name,\
-                                        card_index=card_index,\
-                                        card_id=card_id,
-                                        card_type=card_type)
-        return cards_found
+    
+    def extract_card_paths(self,card_type=None,card_id=None,card_index=None,card_hash=None):
+        return self._list_card_paths(card_type=card_type,\
+                                    card_id=card_id,\
+                                    card_index=card_index,\
+                                    card_hash=card_hash)
                 
         

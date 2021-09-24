@@ -1,6 +1,12 @@
 import sys
 import pkgutil
 import importlib
+import re
+
+# todo : create common import for this later. 
+TYPE_CHECK_REGEX = '^[a-zA-Z0-9_]+$'
+CARD_ID_PATTERN = re.compile(TYPE_CHECK_REGEX)
+
 
 
 # Code from https://packaging.python.org/guides/creating-and-discovering-plugins/#using-namespace-packages
@@ -33,7 +39,7 @@ else:
     for finder, name, ispkg in iter_namespace(_card_modules):
         card_module = importlib.import_module(name)
         try:
-            # Register the rules here
+            # Register the cards here
             # Inside metaflow_cards.custom_package.__init__ add 
                 # from .some_card_module import SomeCard 
                 # CARDS = [SomeCard]
@@ -41,7 +47,24 @@ else:
             assert isinstance(card_module.CARDS,list)
             # todo: Check if types need to be validated; 
             # todo : check if the registrations are happening in a clean way
-            MF_CARDS_EXTERNAL_MODULES.extend(card_module.CARDS)
+            for card in card_module.CARDS:
+                try:
+                    assert card.type is not None
+                except AttributeError as e:
+                    print(
+                        "Ignoring import of module %s since "\
+                        "it lacks an associated `type` property." % (card.__class__)
+                    )
+                    continue
+                regex_match = re.match(CARD_ID_PATTERN,card.type)
+                if regex_match is None:
+                    print(
+                        "Ignoring import of MetaflowCard %s since "\
+                        "the `type` doesn't follow regex patterns. MetaflowCard.type "\
+                        "should follow this regex pattern" % (TYPE_CHECK_REGEX)
+                    )
+                    continue
+                MF_CARDS_EXTERNAL_MODULES.append(card)
             # 
         except AttributeError as e:
             print(
