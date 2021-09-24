@@ -7,7 +7,7 @@ from .content_addressed_store import ContentAddressedStore
 from .task_datastore import TaskDataStore
 
 class FlowDataStore(object):
-    default_backend_class = None
+    default_storage_impl = None
 
     def __init__(self,
                  flow_name,
@@ -15,7 +15,7 @@ class FlowDataStore(object):
                  metadata=None,
                  event_logger=None,
                  monitor=None,
-                 backend_class=None,
+                 storage_impl=None,
                  ds_root=None):
         """
         Initialize a Flow level datastore.
@@ -36,19 +36,19 @@ class FlowDataStore(object):
             EventLogger to use to report events, by default None
         monitor : Monitor, optional
             Monitor to use to measure/monitor events, by default None
-        backend_class : type
-            Class for the backing DataStoreBackend to use; if not provided use
-            default_backend_class, optional
+        storage_impl : type
+            Class for the backing DataStoreStorage to use; if not provided use
+            default_storage_impl, optional
         ds_root : str
             The optional root for this datastore; if not provided, use the
-            default for the DataStoreBackend, optional
+            default for the DataStoreStorage, optional
         """
-        backend_class = backend_class if backend_class else \
-            self.default_backend_class
-        if backend_class is None:
-            raise RuntimeError("No backend datastore specified")
-        self._backend = backend_class(ds_root)
-        self.TYPE = self._backend.TYPE
+        storage_impl = storage_impl if storage_impl else \
+            self.default_storage_impl
+        if storage_impl is None:
+            raise RuntimeError("No datastore storage implementation specified")
+        self._storage_impl = storage_impl(ds_root)
+        self.TYPE = self._storage_impl.TYPE
 
         # Public attributes
         self.flow_name = flow_name
@@ -58,18 +58,17 @@ class FlowDataStore(object):
         self.monitor = monitor
 
         self.ca_store = ContentAddressedStore(
-            self._backend.path_join(self.flow_name, 'data'),
-            self._backend)
+            self._storage_impl.path_join(self.flow_name, 'data'),
+            self._storage_impl)
 
     @property
     def datastore_root(self):
-        return self._backend.datastore_root
+        return self._storage_impl.datastore_root
 
     def get_latest_task_datastores(
             self, run_id=None, steps=None, pathspecs=None, allow_not_done=False):
-        """Return a list of TaskDataStore for a subset of
-        the tasks (consider eventual consistency for some backends like S3)
-        for which the latest attempt is done.
+        """
+        Return a list of TaskDataStore for a subset of the tasks.
 
         We filter the list based on `steps` if non-None.
         Alternatively, `pathspecs` can contain the exact list of pathspec(s)
@@ -102,17 +101,17 @@ class FlowDataStore(object):
         # eventually consistent `list_content` operation, and directly construct
         # the task_urls list.
         if pathspecs:
-            task_urls = [self._backend.path_join(self.flow_name, pathspec)
+            task_urls = [self._storage_impl.path_join(self.flow_name, pathspec)
                          for pathspec in pathspecs]
         else:
-            run_prefix = self._backend.path_join(self.flow_name, run_id)
+            run_prefix = self._storage_impl.path_join(self.flow_name, run_id)
             if steps:
-                step_urls = [self._backend.path_join(run_prefix, step)
+                step_urls = [self._storage_impl.path_join(run_prefix, step)
                              for step in steps]
             else:
-                step_urls = [step.path for step in self._backend.list_content(
+                step_urls = [step.path for step in self._storage_impl.list_content(
                     [run_prefix]) if step.is_file is False]
-            task_urls = [task.path for task in self._backend.list_content(
+            task_urls = [task.path for task in self._storage_impl.list_content(
                 step_urls) if task.is_file is False]
         urls = []
         for task_url in task_urls:
@@ -120,7 +119,7 @@ class FlowDataStore(object):
                 for suffix in [TaskDataStore.METADATA_DATA_SUFFIX,
                                TaskDataStore.METADATA_ATTEMPT_SUFFIX,
                                TaskDataStore.METADATA_DONE_SUFFIX]:
-                    urls.append(self._backend.path_join(
+                    urls.append(self._storage_impl.path_join(
                         task_url,
                         TaskDataStore.metadata_name_for_attempt(suffix, attempt)
                     ))
@@ -128,10 +127,10 @@ class FlowDataStore(object):
         latest_started_attempts = {}
         done_attempts = set()
         data_objs = {}
-        with self._backend.load_bytes(urls) as get_results:
+        with self._storage_impl.load_bytes(urls) as get_results:
             for key, path, meta in get_results:
                 if path is not None:
-                    _, run, step, task, fname = self._backend.path_split(key)
+                    _, run, step, task, fname = self._storage_impl.path_split(key)
                     attempt, fname = TaskDataStore.parse_attempt_metadata(fname)
                     attempt = int(attempt)
                     if fname == TaskDataStore.METADATA_DONE_SUFFIX:

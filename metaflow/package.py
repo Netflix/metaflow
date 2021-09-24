@@ -113,7 +113,8 @@ class MetaflowPackage(object):
                 tar.add(path, arcname=arcname,
                         recursive=False, filter=no_mtime)
 
-        blob = buf.getvalue()
+        blob = bytearray(buf.getvalue())
+        blob[4:8] = [0] * 4 # Reset 4 bytes from offset 4 to account for ts
         return blob
 
     def __str__(self):

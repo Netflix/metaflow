@@ -102,8 +102,8 @@ class Local(object):
     def get_root_from_config(cls, echo, create_on_absent=True):
         result = DATATOOLS_LOCALROOT
         if result is None:
-            from .datastore.local_backend import LocalBackend
-            result = LocalBackend.get_datastore_root_from_config(echo, create_on_absent)
+            from .datastore.local_storage import LocalStorage
+            result = LocalStorage.get_datastore_root_from_config(echo, create_on_absent)
             result = os.path.join(result, DATATOOLS_SUFFIX)
             if create_on_absent and not os.path.exists(result):
                 os.mkdir(result)

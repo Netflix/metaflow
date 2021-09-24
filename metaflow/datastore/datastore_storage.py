@@ -8,7 +8,7 @@ class CloseAfterUse(object):
     """
     Class that can be used to wrap data and a closer (cleanup code).
     This class should be used in a with statement and, when the with
-    scope exists, `close` will be called on the closer object
+    scope exits, `close` will be called on the closer object
     """
     def __init__(self, data, closer=None):
         self.data = data
@@ -22,10 +22,10 @@ class CloseAfterUse(object):
             self._closer.close()
 
 
-class DataStoreBackend(object):
+class DataStoreStorage(object):
     """
-    A DataStoreBackend defines the interface by which the higher-level
-    datastores communicate with the actual storage system
+    A DataStoreStorage defines the interface of communication between the 
+    higher-level datastores and the actual storage system.
 
     Both the ContentAddressedStore and the TaskDataStore use these methods to
     read/write/list from the actual storage system. These methods are meant to
@@ -74,7 +74,7 @@ class DataStoreBackend(object):
         -------
         str
             The datastore_root value that can be used to initialize an instance
-            of this datastore backend.
+            of this datastore storage.
 
         Raises
         ------
@@ -91,8 +91,8 @@ class DataStoreBackend(object):
         m = cls.path_rexp.match(path)
         if not m or m.group('flow_name') != flow_name:
             raise DataException(
-                "Location %s does not correspond to a valid location for flow %s"
-                % (path, flow_name))
+                "Location %s does not correspond to a valid location for "
+                "flow %s." % (path, flow_name))
         return m.group('root')
 
     @classmethod

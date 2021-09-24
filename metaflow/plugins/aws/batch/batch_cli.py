@@ -232,7 +232,11 @@ def step(
 
     def _sync_metadata():
         if ctx.obj.metadata.TYPE == 'local':
-            sync_local_metadata_from_datastore(DATASTORE_LOCAL_DIR, ds)
+            sync_local_metadata_from_datastore(
+                DATASTORE_LOCAL_DIR, 
+                ctx.obj.flow_datastore.get_task_datastore(kwargs['run_id'],
+                                                          step_name,
+                                                          kwargs['task_id']))
 
     batch = Batch(ctx.obj.metadata, ctx.obj.environment)
     try:
@@ -268,6 +272,6 @@ def step(
     except BatchKilledException:
         # don't retry killed tasks
         traceback.print_exc()
-        _sync_metadata()
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
-    _sync_metadata()
+    finally:
+        _sync_metadata()

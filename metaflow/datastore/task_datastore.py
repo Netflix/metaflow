@@ -12,7 +12,7 @@ from ..metadata import DataArtifact, MetaDatum
 from ..parameters import Parameter
 from ..util import Path, is_stringish, to_fileobj
 
-from .exceptions import ArtifactTooLarge, DataException
+from .exceptions import DataException
 
 def only_if_not_done(f):
     def method(self, *args, **kwargs):
@@ -33,6 +33,10 @@ def require_mode(mode):
             return f(self, *args, **kwargs)
         return method
     return wrapper
+
+class ArtifactTooLarge(object):
+    def __str__(self):
+        return '< artifact too large >'
 
 class TaskDataStore(object):
     """
@@ -78,14 +82,14 @@ class TaskDataStore(object):
                  mode='r',
                  allow_not_done=False):
 
-        self._backend = flow_datastore._backend
-        self.TYPE = self._backend.TYPE
+        self._storage_impl = flow_datastore._storage_impl
+        self.TYPE = self._storage_impl.TYPE
         self._ca_store = flow_datastore.ca_store
         self._environment = flow_datastore.environment
         self._run_id = run_id
         self._step_name = step_name
         self._task_id = task_id
-        self._path = self._backend.path_join(
+        self._path = self._storage_impl.path_join(
             flow_datastore.flow_name, run_id, step_name, task_id)
         self._mode = mode
         self._attempt = attempt
@@ -169,9 +173,9 @@ class TaskDataStore(object):
     @require_mode(None)
     def get_log_location(self, logprefix, stream):
         log_name = self._get_log_location(logprefix, stream)
-        path = self._backend.path_join(
+        path = self._storage_impl.path_join(
             self._path, self._metadata_name_for_attempt(log_name))
-        return self._backend.full_uri(path)
+        return self._storage_impl.full_uri(path)
 
     @require_mode('r')
     def keys_for_artifacts(self, names):
@@ -377,11 +381,11 @@ class TaskDataStore(object):
             True if the metadata exists or False otherwise
         """
         if add_attempt:
-            path = self._backend.path_join(
+            path = self._storage_impl.path_join(
                 self._path, self._metadata_name_for_attempt(name))
         else:
-            path = self._backend.path_join(self._path, name)
-        return self._backend.is_file([path])[0]
+            path = self._storage_impl.path_join(self._path, name)
+        return self._storage_impl.is_file([path])[0]
 
     @require_mode(None)
     def get(self, name, default=None):
@@ -459,7 +463,7 @@ class TaskDataStore(object):
             artifacts = [DataArtifact(
                 name=var,
                 ds_type=self.TYPE,
-                ds_root=self._backend.datastore_root,
+                ds_root=self._storage_impl.datastore_root,
                 url=None,
                 sha=sha,
                 type=self._info[var]['encoding'])
@@ -678,10 +682,10 @@ class TaskDataStore(object):
         def blob_iter():
             for name, value in contents.items():
                 if add_attempt:
-                    path = self._backend.path_join(
+                    path = self._storage_impl.path_join(
                         self._path, self._metadata_name_for_attempt(name))
                 else:
-                    path = self._backend.path_join(self._path, name)
+                    path = self._storage_impl.path_join(self._path, name)
                 if isinstance(value, (RawIOBase, BufferedIOBase)) and \
                         value.readable():
                     yield path, value
@@ -690,7 +694,7 @@ class TaskDataStore(object):
                 else:
                     raise DataException("Metadata '%s' has an invalid type: %s" %
                                         (name, type(value)))
-        self._backend.save_bytes(blob_iter(), overwrite=allow_overwrite)
+        self._storage_impl.save_bytes(blob_iter(), overwrite=allow_overwrite)
 
     def _load_file(self, names, add_attempt=True):
         """
@@ -713,19 +717,19 @@ class TaskDataStore(object):
         to_load = []
         for name in names:
             if add_attempt:
-                path = self._backend.path_join(
+                path = self._storage_impl.path_join(
                     self._path, self._metadata_name_for_attempt(name))
             else:
-                path = self._backend.path_join(self._path, name)
+                path = self._storage_impl.path_join(self._path, name)
             to_load.append(path)
         results = {}
-        with self._backend.load_bytes(to_load) as load_results:
+        with self._storage_impl.load_bytes(to_load) as load_results:
             for key, path, meta in load_results:
                 if add_attempt:
                     _, name = self.parse_attempt_metadata(
-                        self._backend.basename(key))
+                        self._storage_impl.basename(key))
                 else:
-                    name = self._backend.basename(key)
+                    name = self._storage_impl.basename(key)
                 if path is None:
                     results[name] = None
                 else:

@@ -27,37 +27,6 @@ except:  # noqa E722
     # python3
     import pickle
 
-# IMPORTANT NOTE ON THE CLIENT
-#
-# The client may not be fully consistent particularly when you use the client to
-# query current runs. The previous version of the client accessed data directly
-# through whatever datastore existed (S3, etc) but could be partially
-# inconsistent because, it could, for example, return data from a previous
-# attempt while a new attempt was currently running (ie: depending on when you
-# use the client, you could get different values for the same data artifact).
-# This could happen because the client used the Metadata Service to retrieve the
-# artifacts to be read from the datastore and this information is only updated
-# at the *end* of an attempt.
-#
-# This current client goes through the datastore to access data artifacts
-# (well, it goes through the FileCache which uses the datastore). With the previous,
-# consistency guarantee of "read-after-create", it was possible that some
-# things would be made eventually consistent (ie: the act of looking for them
-# when they didn't exist would potentially mean that when they were created,
-# they would still appear as non existent). The new, stronger consistency model
-# from AWS (https://aws.amazon.com/s3/consistency/) may alleviate this problem
-# but other implementations of the datastore may not have this consistency
-# model. For example, in the previous consistency model, things like the
-# attempt file and the DONE file (since it may try to read them before they
-# are written) could be made eventually consistent. This has *no* impact on
-# Metaflow's execution since Metaflow
-# *never* reads those files (ie: the consistency model is irrelevant). It only
-# creates them and, at worse, this causes files that have been created to be
-# seen as not there (yet). In other words, this new client is potentially differently
-# non-consistent but does not impact the consistency behavior of Metaflow.
-# Users should not rely, for this client and the previous version of it, on a
-# consistent view of runs particularly if they are accessing running tasks.
-
 # populated at the bottom of this file
 _CLASSES = {}
 
@@ -648,12 +617,13 @@ class MetaflowCode(object):
 
     def __init__(self, flow_name, code_package):
         global filecache
+
         self._flow_name = flow_name
         info = json.loads(code_package)
         self._path = info['location']
         self._ds_type = info['ds_type']
         self._sha = info['sha']
-        # We check if we have a filecache.
+
         if filecache is None:
             filecache = FileCache()
         code_obj = BytesIO(
@@ -746,28 +716,23 @@ class DataArtifact(MetaflowObject):
             Object contained in this artifact
         """
         global filecache
+
         ds_type = self._object['ds_type']
         location = self._object['location']
         components = self.path_components
         if filecache is None:
-            # TODO: We will pass the proper environment to properly
-            # extract artifacts
+            # TODO: Pass proper environment to properly extract artifacts
             filecache = FileCache()
-        # We "create" the metadata information that the datastore needs
+        # "create" the metadata information that the datastore needs
         # to access this object.
-        # TODO: This needs to be cleaned up. Ideally, we need a function
-        # converting the data stored in the datastore to metadata and vice
-        # versa to be together.
-        # TODO: We should store more information in the metadata as well.
-        # This will be important in particular when determining if we need an
-        # environment to unpickle the artifact
+        # TODO: We can store more information in the metadata, particularly
+        #       to determine if we need an environment to unpickle the artifact.
         meta = {
             'objects': {self._object['name']: self._object['sha']},
             'info': {self._object['name']: {
                 'size': 0, 'type': None, 'encoding': self._object['content_type']}}
         }
         if location.startswith(':root:'):
-            # New artifacts have the ds_root encoded in the metadata
             return filecache.get_artifact(
                 ds_type, location[6:], meta, *components)
         else:
@@ -1123,8 +1088,9 @@ class Task(MetaflowObject):
     def _load_log(self, stream):
         log_location = self.metadata_dict.get('log_location_%s' % stream)
         if log_location:
-            return self._load_log_legacy(stream, log_location)
-        return ''.join(line + '\n' for _, line in self.loglines(stream))
+            return self._load_log_legacy(log_location, stream)
+        else:
+            return ''.join(line + '\n' for _, line in self.loglines(stream))
 
     def loglines(self, stream, as_unicode=True):
         """
@@ -1135,6 +1101,7 @@ class Task(MetaflowObject):
         """
         from metaflow.mflog.mflog import merge_logs
         global filecache
+
         ds_type = self.metadata_dict.get('ds-type')
         ds_root = self.metadata_dict.get('ds-root')
         if ds_type is None or ds_root is None:
@@ -1151,26 +1118,24 @@ class Task(MetaflowObject):
         # just failed to record metadata. We could make this logic more robust
         # and guarantee that we always return the latest available log.
         attempt = int(self.metadata_dict.get('attempt', 0))
-        components = self.path_components
         logs = filecache.get_logs_stream(
-            ds_type, ds_root, stream, attempt, *components)
+            ds_type, ds_root, stream, attempt, *self.path_components)
         for line in merge_logs([blob for _, blob in logs]):
             msg = to_unicode(line.msg) if as_unicode else line.msg
             yield line.utc_tstamp, msg
 
-    def _load_log_legacy(self, logtype, log_location, as_unicode=True):
+    def _load_log_legacy(self, log_location, logtype, as_unicode=True):
         # this function is used to load pre-mflog style logfiles
         global filecache
+
         log_info = json.loads(log_location)
         location = log_info['location']
         ds_type = log_info['ds_type']
         attempt = log_info['attempt']
-        components = self.path_components
-        # Check if we have a filecache.
         if filecache is None:
             filecache = FileCache()
         ret_val = filecache.get_log_legacy(
-            ds_type, location, logtype, int(attempt), *components)
+            ds_type, location, logtype, int(attempt), *self.path_components)
         if as_unicode and (ret_val is not None):
             return ret_val.decode(encoding='utf8')
         else:

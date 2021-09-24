@@ -316,43 +316,46 @@ def logs(obj,
     else:
         ds_list = list(datastore_set) # get all tasks
 
-    def echo_unicode(line, **kwargs):
-        click.secho(line.decode('UTF-8', errors='replace'), **kwargs)
+    if ds_list:
+        def echo_unicode(line, **kwargs):
+            click.secho(line.decode('UTF-8', errors='replace'), **kwargs)
 
-    # old style logs are non mflog-style logs
-    maybe_old_style = True
-    for ds in ds_list:
-        echo('Dumping logs of run_id=*{run_id}* '
-             'step=*{step}* task_id=*{task_id}*'.format(run_id=ds.run_id,
-                                                        step=ds.step_name,
-                                                        task_id=ds.task_id),
-             fg='magenta')
+        # old style logs are non mflog-style logs
+        maybe_old_style = True
+        for ds in ds_list:
+            echo('Dumping logs of run_id=*{run_id}* '
+                 'step=*{step}* task_id=*{task_id}*'.format(run_id=ds.run_id,
+                                                            step=ds.step_name,
+                                                            task_id=ds.task_id),
+                 fg='magenta')
 
-        for stream in streams:
-            echo(stream, bold=True)
-            logs = ds.load_logs(LOG_SOURCES, stream)
-            if any(data for _, data in logs):
-                # attempt to read new, mflog-style logs
-                for line in mflog.merge_logs([blob for _, blob in logs]):
-                    if timestamps:
-                        ts = mflog.utc_to_local(line.utc_tstamp)
-                        tstamp = ts.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-                        click.secho(tstamp + ' ',
-                                    fg=LOGGER_TIMESTAMP,
-                                    nl=False)
-                    echo_unicode(line.msg)
-                maybe_old_style = False
-            elif maybe_old_style:
-                # if they are not available, we may be looking at
-                # a legacy run (unless we have seen new-style data already
-                # for another stream). This return an empty string if
-                # nothing is found
-                log = ds.load_log_legacy(stream)
-                if log and timestamps:
-                    raise CommandException("We can't show --timestamps for "
-                                            "old runs. Sorry!")
-                echo_unicode(log, nl=False)
-
+            for stream in streams:
+                echo(stream, bold=True)
+                logs = ds.load_logs(LOG_SOURCES, stream)
+                if any(data for _, data in logs):
+                    # attempt to read new, mflog-style logs
+                    for line in mflog.merge_logs([blob for _, blob in logs]):
+                        if timestamps:
+                            ts = mflog.utc_to_local(line.utc_tstamp)
+                            tstamp = ts.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+                            click.secho(tstamp + ' ',
+                                        fg=LOGGER_TIMESTAMP,
+                                        nl=False)
+                        echo_unicode(line.msg)
+                    maybe_old_style = False
+                elif maybe_old_style:
+                    # if they are not available, we may be looking at
+                    # a legacy run (unless we have seen new-style data already
+                    # for another stream). This return an empty string if
+                    # nothing is found
+                    log = ds.load_log_legacy(stream)
+                    if log and timestamps:
+                        raise CommandException("We can't show --timestamps for "
+                                                "old runs. Sorry!")
+                    echo_unicode(log, nl=False)
+    else:
+        raise CommandException("No Tasks found at the given path -- "
+                               "either none exist or none have started yet")
 
 # TODO - move step and init under a separate 'internal' subcommand
 
@@ -840,7 +843,7 @@ def start(ctx,
 
     ctx.obj.datastore_impl.datastore_root = datastore_root
 
-    FlowDataStore.default_backend_class = ctx.obj.datastore_impl
+    FlowDataStore.default_storage_impl = ctx.obj.datastore_impl
     ctx.obj.flow_datastore = FlowDataStore(
         ctx.obj.flow.name,
         ctx.obj.environment,
