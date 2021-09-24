@@ -272,7 +272,6 @@ def step(
     except BatchKilledException:
         # don't retry killed tasks
         traceback.print_exc()
-        _sync_metadata()
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
     finally:
         _sync_metadata()
