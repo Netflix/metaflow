@@ -51,23 +51,21 @@ of those directories, Metaflow will create one directory per run as well as
 a `data` directory which will contain all the artifacts ever produced by that
 flow.
 
-The following graph illustrates the overall design of the datastore.
-
-It has several components (starting at the lowest-level):
-- a `DataStoreBackend` which abstracts away a storage system (like S3 or
+The datastore has several components (starting at the lowest-level):
+- a `DataStoreStorage` which abstracts away a storage system (like S3 or
   the local filesystem). This provides very simple methods to read and write
   bytes, obtain metadata about a file, list a directory as well as minor path
   manipulation routines. Metaflow provides sample S3 and local filesystem
   implementations. When implementing a new backend, you should only need to
-  implement the methods defined in `DataStoreBackend` to integrate with the
+  implement the methods defined in `DataStoreStorage` to integrate with the
   rest of the Metaflow datastore implementation.
 - a `ContentAddressedStore` which implements a thin layer on top of a
-  `DataStoreBackend` to allow the storing of byte blobs in a content-addressable
+  `DataStoreStorage` to allow the storing of byte blobs in a content-addressable
   manner. In other words, for each `ContentAddressedStore`, identical objects are
   stored once and only once, thereby providing some measure of de-duplication.
   This class includes the determination of what content is the same or not as well
   as any additional encoding/compressing prior to storing the blob in the
-  `DataStoreBackend`. You can extend this class by providing alternate methods of
+  `DataStoreStorage`. You can extend this class by providing alternate methods of
   packing and unpacking the blob into bytes to be saved.
 - a `TaskDataStore` is the main interface through which the rest of Metaflow
   interfaces with the datastore. It includes functions around artifacts (
@@ -87,7 +85,7 @@ per flow so artifacts are de-duplicated *per flow* but not across all flows.
 In this section, we will describe each individual class mentioned above in more
 detail
 
-### `DataStoreBackend` class
+### `DataStoreStorage` class
 
 This class implements low-level operations directly interacting with the
 file-system (or other storage system such as S3). It exposes a file and
@@ -96,7 +94,7 @@ directory like abstraction (with functions such as `path_join`, `path_split`,
 
 Files manipulated at this level are byte objects; the two main functions `save_bytes`
 and `load_bytes` operate at the byte level. Additional metadata to save alongside
-the file can also be provided as a dictionary. The backend does not parse of
+the file can also be provided as a dictionary. The backend does not parse or
 interpret this metadata in any way and simply stores and retrieves it.
 
 The `load_bytes` has a particularity in the sense that it returns an object
@@ -122,7 +120,7 @@ logic).
 Content stored by the content addressed store is addressable using a `key` which is
 returned when `save_blobs` is called. `raw` objects can also directly be accessed
 using a `uri` (also returned by `save_blobs`); the `uri` will point to the location
-of the `raw` bytes in the underlying `DataStoreBackend` (so for exmaple a local
+of the `raw` bytes in the underlying `DataStoreStorage` (so for exmaple a local
 filesystem path or a S3 path). Objects that are not `raw` do not return a `uri`
 as they should only be accessed through the content addressed store.
 
@@ -162,16 +160,8 @@ At a high level, the `TaskDataStore` is responsible for:
    also store information about the task.
 
 Artifacts are stored using the `ContentAddressedStore` that is common to all
-tasks in a flow; all other data and metadata is stored using the `DataStoreBackend`
+tasks in a flow; all other data and metadata is stored using the `DataStoreStorage`
 directly at a location indicated by the `pathspec` of the task.
-
-responsible for de-dupping data (as opposed tot he `DataStoreBackend` which does
-not perform any specific de-dupping operation). The content addressed store
-also performs more data transformation (compression as of now).
-
-The two main functions in this class are
-`save_bytes` and `load_bytes`. As the names imply, this class only operates
-using bytes.
 
 #### Saving artifacts
 
@@ -182,14 +172,14 @@ to the `ContentAddressedStore`. In other words, in terms of data transformation:
  - `TaskDataStore` pickles it and transforms it to `bytes`
  - Those `bytes` are then de-duped by the `ContentAddressedStore`
  - The `ContentAddressedStore` will also gzip the `bytes` and store them
-   in the backend.
+   in the storage backend.
 
 Crucially, the `TaskDataStore` takes (and returns when loading artifacts)
 Python objects whereas the `ContentAddressedStore` only operates with bytes.
 
 #### Saving metadata and logs
 
-Metadata and logs are stored directly as files using the `DataStoreBackend` to create
+Metadata and logs are stored directly as files using the `DataStoreStorage` to create
 and write to a file. The name of the file is something that `TaskDataStore`
 determines internally.
 
@@ -204,27 +194,23 @@ however, still be de-duped.
 
 ### Caching
 
-The datastore allows the inclusion of caching at two levels:
- - for artifacts (basically the objects returned by `load_artifacts` in the
-   `TaskDataStore`). Objects in this cache have gone through the following
-   operations (that are therefore saved if they are accessed again): reading
-   from the backend storage system (S3 or filesystem), data transformations
-   in `ContentAddressedStore` (so decompression) and unpickling.
+The datastore allows the inclusion of caching at the `ContentAddressedStore` level:
  - for blobs (basically the objects returned by `load_blobs` in the
    `ContentAddressedStore`). Objects in this cache have gone through: reading
    from the backend storage system and the data transformations in
    `ContentAddressedStore`.
 
 The datastore does not determine how and where to cache the data and simply
-calls the functions `load` and `register` on a cache passed in by the user.
-`load` is expected to return the object in the cache (if present) or None otherwise.
-`register` takes a key (the one passed to `load`) and the object to store. The
+calls the functions `load_key` and `store_key` on a cache configured by the user
+using `set_blob_cache`.
+`load_key` is expected to return the object in the cache (if present) or None otherwise.
+`store_key` takes a key (the one passed to `load`) and the object to store. The
 outside cache is free to implement its own policies and/or own behavior for the
-`load` and `register` functions.
+`load_key` and `store_key` functions.
 
 As an example, the `FileCache` uses the `blob_cache` construct to write to
-a file anything passed to `register` and returns it by reading from the file
-when `load` is called. The persistence of the file is controlled by the
-`FileCache` so an artifact `register`ed may vanish from the cache and would
+a file anything passed to `store_key` and returns it by reading from the file
+when `load_key` is called. The persistence of the file is controlled by the
+`FileCache` so an artifact `store_key`ed may vanish from the cache and would
 be re-downloaded by the datastore when needed (and then added to the cache
 again).
