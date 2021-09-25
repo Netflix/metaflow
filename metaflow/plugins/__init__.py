@@ -10,7 +10,8 @@ _expected_extensions = {
     'LOGGING_SIDECARS': {},
     'MONITOR_SIDECARS': {},
     'AWS_CLIENT_PROVIDERS': [],
-    'get_plugin_cli': lambda : []
+    'get_plugin_cli': lambda : [],
+    'CARDS': []
 }
 
 try:
@@ -78,7 +79,6 @@ else:
     _ext_plugins = _wrap(_ext_plugins)
 
 
-
 def get_plugin_cli():
     # it is important that CLIs are not imported when
     # __init__ is imported. CLIs may use e.g.
@@ -89,10 +89,12 @@ def get_plugin_cli():
     from . import package_cli
     from .aws.batch import batch_cli
     from .aws.step_functions import step_functions_cli
-
+    from .cards import card_cli
+    
     return _ext_plugins.get_plugin_cli() + [
         package_cli.cli,
         batch_cli.cli,
+        card_cli.cli,
         step_functions_cli.cli]
 
 
@@ -118,6 +120,8 @@ from .aws.step_functions.step_functions_decorator \
 from .test_unbounded_foreach_decorator\
     import InternalTestUnboundedForeachDecorator, InternalTestUnboundedForeachInput
 from .conda.conda_step_decorator import CondaStepDecorator
+from .cards.card_decorator import CardDecorator
+
 
 STEP_DECORATORS = _merge_lists([CatchDecorator,
                                 TimeoutDecorator,
@@ -125,6 +129,7 @@ STEP_DECORATORS = _merge_lists([CatchDecorator,
                                 ResourcesDecorator,
                                 RetryDecorator,
                                 BatchDecorator,
+                                CardDecorator,
                                 StepFunctionsInternalDecorator,
                                 CondaStepDecorator,
                                 InternalTestUnboundedForeachDecorator],
@@ -152,6 +157,10 @@ FLOW_DECORATORS = _merge_lists([CondaFlowDecorator,
                                 ProjectDecorator],
                             _ext_plugins.FLOW_DECORATORS, 'name')
 
+# Cards
+from .card_modules import MF_CARDS_EXTERNAL_MODULES
+from .card_modules.basic import BasicCard
+CARDS = _merge_lists([BasicCard],MF_CARDS_EXTERNAL_MODULES,'type')
 
 # Sidecars
 from ..mflog.save_logs_periodically import SaveLogsPeriodicallySidecar

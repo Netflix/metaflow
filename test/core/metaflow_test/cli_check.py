@@ -86,7 +86,11 @@ class CliCheck(MetaflowCheck):
                  repr(value),
                  repr(log)))
         return True
-       
+    
+    def get_card(self,task,card_type):
+        
+        pass
+
     def get_log(self, step, logtype):
         cmd = ['--quiet',
                'logs',
