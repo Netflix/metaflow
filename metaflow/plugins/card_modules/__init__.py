@@ -61,7 +61,7 @@ else:
                     print(
                         "Ignoring import of MetaflowCard %s since "\
                         "the `type` doesn't follow regex patterns. MetaflowCard.type "\
-                        "should follow this regex pattern" % (TYPE_CHECK_REGEX)
+                        "should follow this regex pattern %s" % (card.type,TYPE_CHECK_REGEX)
                     )
                     continue
                 MF_CARDS_EXTERNAL_MODULES.append(card)
