@@ -172,7 +172,7 @@ def card_read_options_and_arguments(func):
                     default=None,
                     show_default=True,
                     type=str,
-                    help="hash of the ")
+                    help="Hash of the stored HTML")
     @click.option('--type', 
                     default=None,
                     show_default=True,
