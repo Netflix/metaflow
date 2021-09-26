@@ -26,6 +26,15 @@ step <- function(flow, ..., step, r_function = NULL, foreach = NULL, join = FALS
 identifiers; they can contain letters, numbers, and underscores, although they
 cannot begin with a number.")
   }
+
+  # To identify trailing commas, we look for empty symbols in the function
+  # call. We can generate an empty symbol with `substitute()`.
+  if (any(as.list(match.call()) == substitute())) {
+    stop(
+      "No decorators have been provided.
+  Is there a trailing comma in your step definition?"
+    )
+  }
   decorators <- add_decorators(list(...))
   if (!is.null(decorators)) {
     decorators <- paste0(space(4), decorators)

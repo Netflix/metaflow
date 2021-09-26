@@ -13,6 +13,18 @@ test_that("can't define step with an invalid name", {
   )
 })
 
+test_that("trailing comma in step definition gives a good error message", {
+  expect_error(
+    step(
+      metaflow("TrailingCommaFlow"),
+      step = "start",
+      r_function = NULL,
+      next_step = "end",
+    ),
+    "trailing comma"
+  )
+})
+
 test_that("test join step", {
   skip_if_no_metaflow()
   metaflow("TestFlow") %>%
