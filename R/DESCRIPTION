@@ -1,7 +1,7 @@
 Package: metaflow
 Type: Package
 Title: Metaflow for R-Lang
-Version: 2.3.0
+Version: 2.3.1
 Author: Jason Ge [aut] <jge@netflix.com>, 
   Savin Goyal [aut, cre] <savin@netflix.com>,
   David Neuzerling [ctb] <david@neuzerling.com>
