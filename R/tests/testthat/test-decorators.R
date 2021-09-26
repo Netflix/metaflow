@@ -7,19 +7,19 @@ test_that("error on duplicate arguments", {
 
 test_that("decorator arguments parsed correctly", {
   skip_if_no_metaflow()
-  
+
   actual <- decorator_arguments(list(cpu = 10))
   expected <- "cpu=10"
   expect_equal(actual, expected)
-  
+
   actual <- decorator_arguments(list(memory = 60000, cpu = 10))
   expected <- "memory=60000, cpu=10"
   expect_equal(actual, expected)
-  
+
   actual <- decorator_arguments(list(memory = 60000, image = NULL))
   expected <- "memory=60000, image=None"
   expect_equal(actual, expected)
-  
+
   actual <- decorator_arguments(list(abc = "red panda"), .convert_args = FALSE)
   expected <- "abc=red panda" # invalid Python because we're not converting
   expect_equal(actual, expected)
@@ -56,5 +56,17 @@ test_that("decorator with unnamed arguments errors", {
   expect_error(
     decorator("batch", memoy = 60000, 8),
     "All arguments to a decorator must be named"
+  )
+})
+
+test_that("trailing comma in step definition gives a good error message", {
+  expect_error(
+    step(
+      metaflow("TrailingCommaFlow"),
+      step = "start",
+      r_function = NULL,
+      next_step = "end",
+    ),
+    "trailing comma"
   )
 })
