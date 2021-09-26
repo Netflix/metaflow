@@ -10,14 +10,14 @@ test$inner <- decorated_function(
     z <- stack[[3]]
 
     # assert that lengths are correct
-    stopifnot(length(self$x) == length(x[[2]]))
-    stopifnot(length(self$y) == length(y[[2]]))
-    stopifnot(length(self$z) == length(z[[2]]))
+    stopifnot(length(self$x) == x[[2]])
+    stopifnot(length(self$y) == y[[2]])
+    stopifnot(length(self$z) == z[[2]])
 
     # assert that variables are correct given their indices
-    stopifnot(x[[3]] == substr(self$x, x[[1]] + 1, x[[1]] + 1))
-    stopifnot(y[[3]] == substr(self$y, y[[1]] + 1, y[[1]] + 1))
-    stopifnot(z[[3]] == substr(self$z, z[[1]] + 1, z[[1]] + 1))
+    stopifnot(mf_deserialize(x[[3]]) == self$x[[x[[1]] + 1]])
+    stopifnot(mf_deserialize(y[[3]]) == self$y[[y[[1]] + 1]])
+    stopifnot(mf_deserialize(z[[3]]) == self$z[[z[[1]] + 1]])
   },
   type = "step", prio = 0, qual = c("foreach-nested-inner"), required = TRUE
 )
