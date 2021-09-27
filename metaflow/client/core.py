@@ -12,7 +12,7 @@ from metaflow.exception import MetaflowNotFound,\
                                MetaflowNamespaceMismatch,\
                                MetaflowInternalError
 
-from metaflow.metaflow_config import DEFAULT_METADATA
+from metaflow.metaflow_config import DEFAULT_METADATA, MAX_ATTEMPTS
 from metaflow.plugins import ENVIRONMENTS, METADATA_PROVIDERS
 from metaflow.unbounded_foreach import CONTROL_TASK_TAG
 from metaflow.util import cached_property, resolve_identity, to_unicode
@@ -33,7 +33,9 @@ Metadata = namedtuple('Metadata', ['name',
                                    'value',
                                    'created_at',
                                    'type',
-                                   'task'])
+                                   'task',
+                                   'tags',
+                                   'system_tags'])
 
 filecache = None
 current_namespace = False
@@ -247,7 +249,7 @@ class Metaflow(object):
         # filtering on namespace on flows means finding at least one
         # run in this namespace. This is_in_namespace() function
         # does this properly in this case
-        all_flows = self.metadata.get_object('root', 'flow', None)
+        all_flows = self.metadata.get_object('root', 'flow', None, None)
         all_flows = all_flows if all_flows else []
         for flow in all_flows:
             try:
@@ -323,8 +325,32 @@ class MetaflowObject(object):
         self._metaflow = Metaflow()
         self._parent = _parent
         self._path_components = None
+        self._attempt = None
         if pathspec:
             ids = pathspec.split('/')
+
+            # Special case for Task or DataArtifact with an attempt in the pathspec
+            if self._NAME == 'task' and len(ids) == 5:
+                self._attempt = ids[-1]
+                ids = ids[:-1]
+            elif self._NAME == 'artifact' and len(ids) == 6:
+                self._attempt = ids[-1]
+                ids = ids[:-1]
+
+            if self._attempt is not None:
+                try:
+                    self._attempt = int(self._attempt)
+                except ValueError:
+                    raise MetaflowNotFound("Attempt can only be an integer")
+                else:
+                    if self._attempt < 0:
+                        raise MetaflowNotFound("Attempt can only be positive")
+                    elif self._attempt >= MAX_ATTEMPTS:
+                        raise MetaflowNotFound(
+                            "Attempt can only be smaller than %d" % MAX_ATTEMPTS)
+                    # NOTE: It is possible that no attempt exists but we can't
+                    # distinguish between "attempt will happen" and "no such
+                    # attempt exists".
 
             self.id = ids[-1]
             self._pathspec = pathspec
@@ -332,6 +358,9 @@ class MetaflowObject(object):
         else:
             self._object = _object
             self._pathspec = pathspec
+
+        if self._parent and self._parent._attempt is not None:
+            self._attempt = self._parent._attempt
 
         if self._NAME in ('flow', 'task'):
             self.id = str(self._object[self._NAME + '_id'])
@@ -353,7 +382,8 @@ class MetaflowObject(object):
             raise MetaflowNamespaceMismatch(current_namespace)
 
     def _get_object(self, *path_components):
-        result = self._metaflow.metadata.get_object(self._NAME, 'self', None, *path_components)
+        result = self._metaflow.metadata.get_object(
+            self._NAME, 'self', None, self._attempt, *path_components)
         if not result:
             raise MetaflowNotFound("%s does not exist" % self)
         return result
@@ -374,7 +404,8 @@ class MetaflowObject(object):
             query_filter = {'any_tags': current_namespace}
 
         unfiltered_children = self._metaflow.metadata.get_object(
-            self._NAME, _CLASSES[self._CHILD_CLASS]._NAME, query_filter, *self.path_components)
+            self._NAME, _CLASSES[self._CHILD_CLASS]._NAME, query_filter,
+            self._attempt, *self.path_components)
         unfiltered_children = unfiltered_children if unfiltered_children else []
         children = filter(
             lambda x: self._iter_filter(x),
@@ -433,7 +464,7 @@ class MetaflowObject(object):
             result.append(p)
         result.append(id)
         return self._metaflow.metadata.get_object(
-            _CLASSES[self._CHILD_CLASS]._NAME, 'self', None, *result)
+            _CLASSES[self._CHILD_CLASS]._NAME, 'self', None, self._attempt, *result)
 
     def __getitem__(self, id):
         """
@@ -520,8 +551,12 @@ class MetaflowObject(object):
             return None
         # Compute parent from pathspec and cache it.
         if self._parent is None:
-            pathspec = self.pathspec
-            parent_pathspec = pathspec[:pathspec.rfind('/')]
+            path_components = self.path_components
+            path_components = path_components[:-1]
+            if self._attempt is not None and self._NAME == 'artifact':
+                path_components.append(str(self._attempt))
+
+            parent_pathspec = os.path.join(*path_components)
             # We can skip the namespace check because if self._NAME = 'run',
             # the parent object is guaranteed to be in namespace.
             # Otherwise the check is moot for Flow since parent is singular.
@@ -534,7 +569,8 @@ class MetaflowObject(object):
         Returns a string representation uniquely identifying this object.
 
         The string is the same as the one you would pass into the constructor
-        to build this object.
+        to build this object. The pathspec contains the attempt_id if applicable
+        (for tasks and artifacts).
 
         Returns
         -------
@@ -545,36 +581,30 @@ class MetaflowObject(object):
             if self.parent is None:
                 self._pathspec = self.id
             else:
-                parent_pathspec = self.parent.pathspec
-                self._pathspec = os.path.join(parent_pathspec, self.id)
+                path_components = self.parent.path_components
+                path_components.append(self.id)
+                if self.parent._attempt is not None:
+                    path_components.append(str(self.parent._attempt))
+                self._pathspec = os.path.join(*path_components)
         return self._pathspec
 
     @property
     def path_components(self):
         """
-        List of individual components of the pathspec.
+        List of individual components of the pathspec. The path_components
+        never contain the attempt_id (for tasks and artifacts)
 
         Returns
         -------
         List[string]
             Individual components of the pathspec
         """
-        # Compute url_path from pathspec.
-        ids = self.pathspec.split('/')
-
-        def traverse(cls, ids_r, lst):
-            lst.insert(0, ids_r[-1])
-            if cls._PARENT_CLASS is None:
-                return lst
-            if len(ids_r) > 1:
-                cls = _CLASSES[cls._PARENT_CLASS]
-                return traverse(cls, ids_r[:-1], lst)
-            else:
-                return lst
-
         if self._path_components is None:
-            self._path_components = traverse(_CLASSES[self._NAME], ids, [])
-        return self._path_components
+            ids = self.pathspec.split('/')
+            if self._attempt is not None:
+                ids = ids[:-1]
+            self._path_components = ids
+        return list(self._path_components)
 
 
 class MetaflowData(object):
@@ -719,6 +749,7 @@ class DataArtifact(MetaflowObject):
         ds_type = self._object['ds_type']
         location = self._object['location']
         components = self.path_components
+
         if filecache is None:
             # TODO: Pass proper environment to properly extract artifacts
             filecache = FileCache()
@@ -780,8 +811,16 @@ class Task(MetaflowObject):
     """
     A Task represents an execution of a step.
 
-    As such, it contains all data artifacts associated with that execution as well as all metadata
-    associated with the execution.
+    As such, it contains all data artifacts associated with that execution as
+    well as all metadata associated with the execution.
+
+    Note that you can also get information about a specific *attempt* of a
+    task. By default, the latest finished attempt is returned but you can
+    explicitly get information about a specific attempt by using the
+    following pathspec when creating a task:
+    `Task('flow/run/step/task/attempt)`. Note that you will not be able to
+    access a specific attempt of a task through the `.tasks` method of a step
+    for example (that will always return the latest attempt).
 
     Attributes
     ----------
@@ -828,7 +867,9 @@ class Task(MetaflowObject):
     @property
     def metadata(self):
         """
-        Metadata events produced by this task.
+        Metadata events produced by this task across all attempts of the task
+        *except* if you selected a specific task attempt *and* the Metaflow
+        version this task was run with is at least 2.4.0.
 
         Note that Metadata is different from tags.
 
@@ -838,13 +879,16 @@ class Task(MetaflowObject):
             Metadata produced by this task
         """
         all_metadata = self._metaflow.metadata.get_object(
-            self._NAME, 'metadata', None, *self.path_components)
+            self._NAME, 'metadata', None, self._attempt, *self.path_components)
         all_metadata = all_metadata if all_metadata else []
         return [Metadata(name=obj.get('field_name'),
                          value=obj.get('value'),
                          created_at=obj.get('ts_epoch'),
                          type=obj.get('type'),
-                         task=self) for obj in all_metadata]
+                         task=self,
+                         tags=obj.get('tags', []),
+                         system_tags=obj.get('system_tags', [])) for obj in all_metadata]
+
 
     @property
     def metadata_dict(self):
@@ -1108,15 +1152,18 @@ class Task(MetaflowObject):
             return
         if filecache is None:
             filecache = FileCache()
-        # It is possible that a task fails before any metadata has been
-        # recorded. In this case, we assume that we are executing the
-        # first attempt.
-        #
-        # FIXME: Technically we are looking at the latest *recorded* attempt
-        # here. It is possible that logs exists for a newer attempt that
-        # just failed to record metadata. We could make this logic more robust
-        # and guarantee that we always return the latest available log.
-        attempt = int(self.metadata_dict.get('attempt', 0))
+        if self._attempt is not None:
+            attempt = self._attempt
+        else:
+            # It is possible that a task fails before any metadata has been
+            # recorded. In this case, we assume that we are executing the
+            # first attempt.
+            #
+            # FIXME: Technically we are looking at the latest *recorded* attempt
+            # here. It is possible that logs exists for a newer attempt that
+            # just failed to record metadata. We could make this logic more robust
+            # and guarantee that we always return the latest available log.
+            attempt = int(self.metadata_dict.get('attempt', 0))
         logs = filecache.get_logs_stream(
             ds_type, ds_root, stream, attempt, *self.path_components)
         for line in merge_logs([blob for _, blob in logs]):
