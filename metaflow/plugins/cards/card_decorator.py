@@ -23,9 +23,10 @@ class CardDecorator(StepDecorator):
     def runtime_init(self, flow, graph, package, run_id):
         # Check if the card-id matches the regex pattern . 
         # same pattern is asserted in the import to ensure no "-" in card ids/Otherwise naming goes for a toss. 
-        regex_match = re.match(CARD_ID_PATTERN,self.attributes['id'])
-        if regex_match is None:
-            raise BadCardNameException(self.attributes['id'])
+        if self.attributes['id'] is not None:
+            regex_match = re.match(CARD_ID_PATTERN,self.attributes['id'])
+            if regex_match is None:
+                raise BadCardNameException(self.attributes['id'])
         # set the index property over here so that we can supporting multiple-decorators  
         for step in flow._steps:
             deco_idx = 0

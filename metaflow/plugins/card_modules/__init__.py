@@ -2,6 +2,7 @@ import sys
 import pkgutil
 import importlib
 import re
+import traceback
 
 # todo : create common import for this later. 
 TYPE_CHECK_REGEX = '^[a-zA-Z0-9_]+$'
@@ -37,7 +38,18 @@ except ImportError as e:
             raise
 else:
     for finder, name, ispkg in iter_namespace(_card_modules):
-        card_module = importlib.import_module(name)
+        # todo : find a better way to handle errors over here 
+        # In the case of an import failure of a certain module, 
+        # we ignore the import and just loudly print the errors. 
+        # TODO : 
+            # Should this have an associated variable like METAFLOW_DEBUG_CARDS 
+            # to print the exit message?
+        try:
+            card_module = importlib.import_module(name)
+        except: 
+            stack_trace = traceback.format_exc()
+            print("Ignoring module %s due to error in importing."%(name))
+            continue
         try:
             # Register the cards here
             # Inside metaflow_cards.custom_package.__init__ add 

@@ -215,7 +215,6 @@ def card_read_options_and_arguments(func):
                 help="Index of the card decorator")
 @click.pass_context
 def create(ctx,pathspec,type=None,id=None,index=None,options=None):
-    ctx.obj.echo("Creating new card of type %s" % type, fg='green')
     assert len(pathspec.split('/'))  == 3, "Expecting pathspec of form <runid>/<stepname>/<taskid>"
     runid,step_name,task_id = pathspec.split('/')
     flowname = ctx.obj.flow.name
@@ -234,6 +233,7 @@ def create(ctx,pathspec,type=None,id=None,index=None,options=None):
                                 path_spec=full_pathspec)
     
     filtered_card = filtered_cards[0]
+    ctx.obj.echo("Creating new card of type %s" % filtered_card.type, fg='green')
     # save card to datastore
     try:
         mf_card = filtered_card(**options)

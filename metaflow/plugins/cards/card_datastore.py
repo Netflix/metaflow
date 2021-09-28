@@ -157,7 +157,7 @@ class CardDatastore(object):
             card_type,\
             card_index,\
             card_id=card_id
-        ),
+        )
         card_path = self.get_card_location(\
             self._get_card_path(),\
             card_file_name,
