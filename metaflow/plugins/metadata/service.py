@@ -159,10 +159,14 @@ class ServiceMetadataProvider(MetadataProvider):
         self._request(self._monitor, url, data)
 
     @classmethod
-    def _get_object_internal(cls, obj_type, obj_order, sub_type, sub_order, filters=None, *args):
-        # Special handling of self, artifact, and metadata
+    def _get_object_internal(
+            cls, obj_type, obj_order, sub_type, sub_order, filters, attempt, *args):
         if sub_type == 'self':
-            url = ServiceMetadataProvider._obj_path(*args[:obj_order])
+            if obj_type == 'artifact':
+                # Special case with the artifacts; we add the attempt
+                url = ServiceMetadataProvider._obj_path(*args[:obj_order], attempt)
+            else:
+                url = ServiceMetadataProvider._obj_path(*args[:obj_order])
             try:
                 return MetadataProvider._apply_filter([cls._request(None, url)], filters)[0]
             except ServiceException as ex:
@@ -175,10 +179,12 @@ class ServiceMetadataProvider(MetadataProvider):
             url = ServiceMetadataProvider._obj_path(*args[:obj_order])
         else:
             url = ''
-        if sub_type != 'metadata':
-            url += '/%ss' % sub_type
-        else:
+        if sub_type == 'metadata':
             url += '/metadata'
+        elif sub_type == 'artifact' and obj_type == 'task' and attempt is not None:
+            url += '/attempt/%s/artifacts' % attempt
+        else:
+            url += '/%ss' % sub_type
         try:
             return MetadataProvider._apply_filter(cls._request(None, url), filters)
         except ServiceException as ex:
@@ -207,16 +213,19 @@ class ServiceMetadataProvider(MetadataProvider):
 
     @staticmethod
     def _obj_path(
-            flow_name, run_id=None, step_name=None, task_id=None, artifact_name=None):
+            flow_name, run_id=None, step_name=None, task_id=None,
+            artifact_name=None, attempt=None):
         object_path = '/flows/%s' % flow_name
-        if run_id:
+        if run_id is not None:
             object_path += '/runs/%s' % run_id
-        if step_name:
+        if step_name is not None:
             object_path += '/steps/%s' % step_name
-        if task_id:
+        if task_id is not None:
             object_path += '/tasks/%s' % task_id
-        if artifact_name:
+        if artifact_name is not None:
             object_path += '/artifacts/%s' % artifact_name
+        if attempt is not None:
+            object_path += '/attempt/%s' % attempt
         return object_path
 
     @staticmethod
