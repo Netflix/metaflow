@@ -79,7 +79,7 @@ S3_VERIFY_CERTIFICATE = from_conf('METAFLOW_S3_VERIFY_CERTIFICATE', None)
 # This is useful if you want to "fail fast" on S3 operations; use with caution
 # though as this may increase failures. Note that this is the number of *retries*
 # so setting it to 0 means each operation will be tried once.
-S3_RETRY_COUNT = from_conf('METAFLOW_S3_RETRY_COUNT', 7)
+S3_RETRY_COUNT = int(from_conf('METAFLOW_S3_RETRY_COUNT', 7))
 
 ###
 # Datastore local cache
