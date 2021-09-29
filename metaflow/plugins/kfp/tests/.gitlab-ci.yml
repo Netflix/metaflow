@@ -12,6 +12,7 @@ variables:
   MINOR_VERSION: "0"
   METAFLOW_VERSION_PATH: "setup.py"
   IMAGE_REPOSITORY_TAG_PATH: 'image_tag_file.txt'
+  IMAGE_REPOSITORY_TAG_PATH_KFP_STEP: 'image_tag_file_kfp_step.txt'
   # Run on the Internal cluster only on commit.
   # We run the tests via the integration test framework for Non-Prod/Prod.
   DEPLOY_INTERNAL: "true"
@@ -48,6 +49,7 @@ stages:
   script:
     - *path-to-host-file-directory  
     - export BUILT_IMAGE_FULL_PATH=$( cat ${IMAGE_REPOSITORY_TAG_PATH} )
+    - export BUILT_IMAGE_FULL_PATH_KFP_STEP=$( cat ${IMAGE_REPOSITORY_TAG_PATH_KFP_STEP} )
     - cp -r /root/.kube .
     - docker run
         --rm
@@ -60,6 +62,7 @@ stages:
         -e KFP_RUN_URL_PREFIX=$KFP_RUN_URL_PREFIX 
         -e KFP_SDK_NAMESPACE=$KFP_SDK_NAMESPACE 
         -e USER=$GITLAB_USER_EMAIL
+        -e KFP_STEP_IMAGE=${BUILT_IMAGE_FULL_PATH_KFP_STEP}
         ${BUILT_IMAGE_FULL_PATH}
         bash -c "
           cd /home/zservice/metaflow/metaflow/plugins/kfp/tests &&
@@ -76,7 +79,7 @@ build:docker:
   script:
     - *version
     - export IMAGE_REPOSITORY_TAG=${DOCKER_REPO_URL}/${CI_PROJECT_NAMESPACE}/${PY_LIBRARY_NAME}:${IMAGE_TAG}
-    - 'docker build --no-cache -f metaflow/plugins/kfp/tests/Dockerfile -t ${IMAGE_REPOSITORY_TAG} .'
+    - 'docker build --no-cache -f metaflow/plugins/kfp/tests/Dockerfile --build-arg IMAGE_TAG=${IMAGE_REPOSITORY_TAG} -t ${IMAGE_REPOSITORY_TAG} .'
     - 'echo ${DOCKER_API_KEY} | docker login -u ${DOCKER_USERNAME} --password-stdin ${DOCKER_REPO_URL}'
     - STDERR=$(docker push ${IMAGE_REPOSITORY_TAG} 2>&1 >/dev/null) || true
     - echo $STDERR
@@ -88,9 +91,25 @@ build:docker:
         exit 1
       fi
     - echo ${IMAGE_REPOSITORY_TAG} > ${IMAGE_REPOSITORY_TAG_PATH}
+
+    # duplicate the above for another image to specifically test kfp_step_flow.py
+    - export IMAGE_REPOSITORY_TAG_KFP_STEP=${DOCKER_REPO_URL}/${CI_PROJECT_NAMESPACE}/${PY_LIBRARY_NAME}:${IMAGE_TAG}_kfp_step
+    - 'docker build --no-cache -f metaflow/plugins/kfp/tests/Dockerfile --build-arg IMAGE_TAG=${IMAGE_REPOSITORY_TAG_KFP_STEP} -t ${IMAGE_REPOSITORY_TAG_KFP_STEP} .'
+    - 'echo ${DOCKER_API_KEY} | docker login -u ${DOCKER_USERNAME} --password-stdin ${DOCKER_REPO_URL}'
+    - STDERR=$(docker push ${IMAGE_REPOSITORY_TAG_KFP_STEP} 2>&1 >/dev/null) || true
+    - echo $STDERR
+    - |
+      if [ -z "$STDERR" ] || [[ $STDERR == *"manifest invalid"* ]]; then
+        echo "Successful!"
+      else
+        echo "Error in pushing image to Artifactory." >&2
+        exit 1
+      fi
+    - echo ${IMAGE_REPOSITORY_TAG_KFP_STEP} > ${IMAGE_REPOSITORY_TAG_PATH_KFP_STEP}
   artifacts:
     paths:
       - ${IMAGE_REPOSITORY_TAG_PATH}
+      - ${IMAGE_REPOSITORY_TAG_PATH_KFP_STEP}
 
 build:publish:
   extends: .aip_python_debian_image

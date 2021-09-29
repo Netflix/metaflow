@@ -47,12 +47,20 @@ class KfpInternalDecorator(StepDecorator):
       environment set as environment variables and loaded to Metaflow self
       state within task_pre_step.
 
+    image: str
+      Defaults to None, which means default to either the container image
+      specified with --base-image by the user running a flow with
+      python sample_flow.py kfp run --base-image tensorflow/tensorflow:latest-devel
+      OR the container image specified as BASE_IMAGE in
+      metaflow/plugins/kfp/kfp_constants.py.
+
 
     @step
     @kfp(
         preceding_component=my_step_op_func,
         preceding_component_inputs=["var1", "var2"],
-        preceding_component_outputs=["var3"]
+        preceding_component_outputs=["var3"],
+        image="tensorflow/tensorflow:latest-devel",
     )
     def myStep(self):
         pass
@@ -63,6 +71,7 @@ class KfpInternalDecorator(StepDecorator):
         "preceding_component": None,
         "preceding_component_inputs": [],
         "preceding_component_outputs": [],
+        "image": None,
     }
 
     def __init__(self, attributes=None, statically_defined=False):

@@ -721,6 +721,7 @@ class KubeflowPipelines(object):
     def step_op(
         self,
         step_name: str,
+        kfp_component: KfpComponent,
         preceding_component_inputs: List[str] = None,
         preceding_component_outputs: List[str] = None,
     ) -> Callable[..., ContainerOp]:
@@ -735,7 +736,12 @@ class KubeflowPipelines(object):
                     preceding_component_inputs=preceding_component_inputs,
                     preceding_component_outputs=preceding_component_outputs,
                 ),
-                base_image=self.base_image,
+                base_image=kfp_component.kfp_decorator.attributes["image"]
+                if (
+                    kfp_component.kfp_decorator
+                    and kfp_component.kfp_decorator.attributes["image"]
+                )
+                else self.base_image,
             ),
             yaml.SafeLoader,
         )
@@ -950,6 +956,7 @@ class KubeflowPipelines(object):
                 )
                 container_op: ContainerOp = self.step_op(
                     node.name,
+                    kfp_component,
                     preceding_component_inputs=preceding_component_inputs,
                     preceding_component_outputs=kfp_component.preceding_component_outputs,
                 )(**{**step_op_args, **preceding_component_outputs_dict})
