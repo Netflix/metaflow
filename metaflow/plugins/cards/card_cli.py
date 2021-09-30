@@ -73,7 +73,7 @@ def resolve_card(ctx,identifier,id=None,hash=None,type=None,index=0):
         pathspec = task.pathspec
         task_id = task.id
     
-    ctx.obj.echo_always("Resolving card : %s" % pathspec,fg='green')
+    ctx.obj.echo("Resolving card : %s" % pathspec,fg='green')
     # to resolve card_id we first check if the identifier is a pathspec and if it is then we check if the `id` is set or not to resolve card_id
     card_id = None
     if is_path_spec:
@@ -106,7 +106,7 @@ def list_availble_cards(ctx,path_spec,card_paths,card_datastore,command='view'):
     # todo : create nice response messages on the CLI for cards which were found.
     scriptname = ctx.obj.flow.script_name
     path_tuples = card_datastore.get_card_names(card_paths)
-    ctx.obj.echo_always(
+    ctx.obj.echo(
         "\nFound %s card matching for your query..."%str(len(path_tuples)),fg='green'
     )
     task_pathspec = '/'.join(path_spec.split('/')[1:])
@@ -121,10 +121,10 @@ def list_availble_cards(ctx,path_spec,card_paths,card_datastore,command='view'):
 
     random_idx = 0 if len(path_tuples) ==1 else random.randint(0,len(path_tuples)-1)
     randid, _, _ ,randhash  = path_tuples[random_idx]
-    ctx.obj.echo_always(
+    ctx.obj.echo(
         '\n\t'.join(['']+card_list),fg='blue'
     )
-    ctx.obj.echo_always(
+    ctx.obj.echo(
         "\n\tExample access from CLI via: \n\t %s\n" % make_command(
             scriptname,task_pathspec,command=command,hash=randhash[:NUM_SHORT_HASH_CHARS],id=randid
         ),
