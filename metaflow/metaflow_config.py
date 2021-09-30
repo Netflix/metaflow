@@ -63,7 +63,7 @@ DATASTORE_SYSROOT_S3 = from_conf('METAFLOW_DATASTORE_SYSROOT_S3')
 DATATOOLS_SUFFIX = from_conf('METAFLOW_DATATOOLS_SUFFIX', 'data')
 DATATOOLS_S3ROOT = from_conf(
     'METAFLOW_DATATOOLS_S3ROOT', 
-        '%s/%s' % (from_conf('METAFLOW_DATASTORE_SYSROOT_S3'), DATATOOLS_SUFFIX)
+        '%s%s' % (from_conf('METAFLOW_DATASTORE_SYSROOT_S3'), DATATOOLS_SUFFIX)
             if from_conf('METAFLOW_DATASTORE_SYSROOT_S3') else None)
 # Local datatools root location
 DATATOOLS_LOCALROOT = from_conf(
