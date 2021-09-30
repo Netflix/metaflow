@@ -164,7 +164,8 @@ class ServiceMetadataProvider(MetadataProvider):
         if sub_type == 'self':
             if obj_type == 'artifact':
                 # Special case with the artifacts; we add the attempt
-                url = ServiceMetadataProvider._obj_path(*args[:obj_order], attempt)
+                url = ServiceMetadataProvider._obj_path(
+                    *args[:obj_order], attempt=attempt)
             else:
                 url = ServiceMetadataProvider._obj_path(*args[:obj_order])
             try:
