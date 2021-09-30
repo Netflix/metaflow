@@ -49,7 +49,7 @@ class BatchClient(object):
     def describe_job_queue(self, job_queue):
         paginator = self._client.get_paginator('describe_job_queues').paginate(
             jobQueues=[job_queue], maxResults=1)
-        return paginator.paginate()['jobQueues'][0] 
+        return paginator.paginate()['jobQueues'][0]
 
     def job(self):
         return BatchJob(self._client)
@@ -89,7 +89,17 @@ class BatchJob(object):
                                               self._execution_role,
                                               self._shared_memory,
                                               self._max_swap,
-                                              self._swappiness)
+                                              self._swappiness)  # << AAPO NOTE: this is missing host_volumes
+
+        if getattr(self, '_nodes', 0) > 1:
+            num_nodes = self._nodes
+            self.payload['nodeOverrides'] = {
+                'nodePropertyOverrides': [
+                    {'targetNodes': '0:{}'.format(num_nodes - 1), 'containerOverrides': self.payload['containerOverrides']}
+                ],
+            }
+            del self.payload['containerOverrides']
+
         response = self._client.submit_job(**self.payload)
         job = RunningJob(response['jobId'], self._client)
         return job.update()
@@ -102,7 +112,8 @@ class BatchJob(object):
                                  shared_memory,
                                  max_swap,
                                  swappiness,
-                                 host_volumes):
+                                 host_volumes,
+                                 nodes):
         # identify platform from any compute environment associated with the
         # queue
         if AWS_SANDBOX_ENABLED:
@@ -147,6 +158,8 @@ class BatchJob(object):
         }
 
         if platform == 'FARGATE' or platform == 'FARGATE_SPOT':
+            if nodes > 1:
+                raise BatchJobException("Fargate does not support multi-node jobs (nodes > 1).")
             if execution_role is None:
                 raise BatchJobException(
                     'No AWS Fargate task execution IAM role found. Please see '
@@ -158,12 +171,13 @@ class BatchJob(object):
             job_definition['platformCapabilities'] = ['FARGATE']
             job_definition['containerProperties']['networkConfiguration'] = \
                 {'assignPublicIp': 'ENABLED'}
-        
+            self._nodes = nodes
+
         if platform == 'EC2' or platform == 'SPOT':
             if 'linuxParameters' not in job_definition['containerProperties']:
                 job_definition['containerProperties']['linuxParameters'] = {}
             if shared_memory is not None:
-                if not (isinstance(shared_memory, (int, unicode, basestring)) and 
+                if not (isinstance(shared_memory, (int, unicode, basestring)) and
                     int(shared_memory) > 0):
                     raise BatchJobException(
                         'Invalid shared memory size value ({}); '
@@ -171,8 +185,8 @@ class BatchJob(object):
                 else:
                     job_definition['containerProperties'] \
                         ['linuxParameters']['sharedMemorySize'] = int(shared_memory)
-            if swappiness is not None: 
-                if not (isinstance(swappiness, (int, unicode, basestring)) and 
+            if swappiness is not None:
+                if not (isinstance(swappiness, (int, unicode, basestring)) and
                     int(swappiness) >= 0 and int(swappiness) < 100):
                     raise BatchJobException(
                         'Invalid swappiness value ({}); '
@@ -180,8 +194,8 @@ class BatchJob(object):
                 else:
                     job_definition['containerProperties'] \
                         ['linuxParameters']['swappiness'] = int(swappiness)
-            if max_swap is not None: 
-                if not (isinstance(max_swap, (int, unicode, basestring)) and 
+            if max_swap is not None:
+                if not (isinstance(max_swap, (int, unicode, basestring)) and
                     int(max_swap) >= 0):
                     raise BatchJobException(
                         'Invalid swappiness value ({}); '
@@ -189,6 +203,7 @@ class BatchJob(object):
                 else:
                     job_definition['containerProperties'] \
                         ['linuxParameters']['maxSwap'] = int(max_swap)
+
 
         if host_volumes:
             job_definition['containerProperties']['volumes'] = []
@@ -201,6 +216,22 @@ class BatchJob(object):
                 job_definition['containerProperties']['mountPoints'].append(
                     {"sourceVolume": name, "containerPath": host_path}
                 )
+        nodes = int(nodes)
+        if nodes > 1:
+            job_definition['type'] = 'multinode'
+            job_definition['nodeProperties'] = {
+                'numNodes': nodes,
+                'mainNode': 0
+            }
+            job_definition['nodeProperties']['nodeRangeProperties'] = [
+                {
+                    'targetNodes': '0:{}'.format(nodes - 1),
+                    'container': job_definition['containerProperties']
+                }
+            ]
+            del job_definition['containerProperties'] # = {}  # not used for multi-node
+            print(job_definition)
+            self._nodes = nodes
 
         # check if job definition already exists
         def_name = 'metaflow_%s' % \
@@ -233,7 +264,8 @@ class BatchJob(object):
                 shared_memory,
                 max_swap,
                 swappiness,
-                host_volumes):
+                host_volumes,
+                nodes):
         self.payload['jobDefinition'] = \
             self._register_job_definition(image,
                                           iam_role,
@@ -242,7 +274,8 @@ class BatchJob(object):
                                           shared_memory,
                                           max_swap,
                                           swappiness,
-                                          host_volumes)
+                                          host_volumes,
+                                          nodes)
         return self
 
     def job_name(self, job_name):
@@ -315,6 +348,13 @@ class BatchJob(object):
             self.payload['containerOverrides']['resourceRequirements'].append(
                 {'type': 'GPU', 'value': str(gpu)}
             )
+        return self
+
+    def nodes(self, nodes):
+        if not (isinstance(gpu, (int, unicode, basestring))) or float(gpu) < 1:
+            raise BatchJobException(
+                'invalid nodes value: ({}) (should be 1 or greater)'.format(gpu))
+        self._nodes = nodes
         return self
 
     def environment_variable(self, name, value):
@@ -411,6 +451,8 @@ class RunningJob(object):
         # will ensure that we poll `batch.describe_jobs` until we get a
         # satisfactory response at least once through out the lifecycle of
         # the job.
+        #print("** update")
+        #print(data)
         if len(data['jobs']) == 1:
             self._apply(data['jobs'][0])
 
@@ -477,13 +519,22 @@ class RunningJob(object):
 
     @property
     def reason(self):
-        return self.info['container'].get('reason')
+        print(self.info)
+        if 'container' in self.info:
+            # single-node job
+            return self.info['container'].get('reason')
+        else:
+            return self.info['statusReason']
 
     @property
     def status_code(self):
         if not self.is_done:
             self.update()
-        return self.info['container'].get('exitCode')
+        if 'container' in self.info:
+            return self.info['container'].get('exitCode')
+        else:
+            # TODO: validate that the last attempt in the list is the actually last
+            return self.info['attempts'][-1]['container'].get('exitCode')
 
     def wait_for_running(self):
         if not self.is_running and not self.is_done:
@@ -491,7 +542,11 @@ class RunningJob(object):
 
     @property
     def log_stream_name(self):
-        return self.info['container'].get('logStreamName')
+        if 'container' in self.info:
+            # single-node
+            return self.info['container'].get('logStreamName')
+        else:
+            return self.info['attempts'][-1]['container'].get('logStreamName')
 
     def logs(self):
         def get_log_stream(job):
@@ -510,7 +565,7 @@ class RunningJob(object):
                 self.wait_for_running()
 
         if log_stream is None:
-            return 
+            return
         exception = None
         for i in range(self.NUM_RETRIES + 1):
             try:

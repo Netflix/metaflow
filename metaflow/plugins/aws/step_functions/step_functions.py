@@ -64,7 +64,7 @@ class StepFunctions(object):
         self.username = username
         self.max_workers = max_workers
         self.workflow_timeout = workflow_timeout
-        
+
         self._client = StepFunctionsClient()
         self._workflow = self._compile()
         self._cron = self._cron()
@@ -76,7 +76,7 @@ class StepFunctions(object):
     def trigger_explanation(self):
         if self._cron:
             # Sometime in the future, we should vendor (or write) a utility
-            # that can translate cron specifications into a human readable 
+            # that can translate cron specifications into a human readable
             # format and push to the user for a better UX, someday.
             return 'This workflow triggers automatically '\
                 'via a cron schedule *%s* defined in AWS EventBridge.' \
@@ -107,8 +107,8 @@ class StepFunctions(object):
                                              "environment variable.")
         try:
             self._state_machine_arn = self._client.push(
-                    name = self.name, 
-                    definition = self.to_json(), 
+                    name = self.name,
+                    definition = self.to_json(),
                     role_arn = SFN_IAM_ROLE,
                     log_execution_history = log_execution_history
                 )
@@ -204,13 +204,13 @@ class StepFunctions(object):
         # Visit every node of the flow and recursively build the state machine.
         def _visit(node, workflow, exit_node=None):
             # Assign an AWS Batch job to the AWS Step Functions state
-            # and pass the intermediate state by exposing `JobId` and 
-            # `Parameters` to the child job(s) as outputs. `Index` and 
+            # and pass the intermediate state by exposing `JobId` and
+            # `Parameters` to the child job(s) as outputs. `Index` and
             # `SplitParentTaskId` are populated optionally, when available.
 
             # We can't modify the names of keys in AWS Step Functions aside
             # from a blessed few which are set as `Parameters` for the Map
-            # state. That's why even though `JobId` refers to the parent task 
+            # state. That's why even though `JobId` refers to the parent task
             # id, we can't call it as such. Similar situation for `Parameters`.
             state = State(node.name) \
                         .batch(self._batch(node)) \
@@ -222,7 +222,7 @@ class StepFunctions(object):
             # the parent step of matching_join of the sub workflow.
             if node.type == 'end' or exit_node in node.out_funcs:
                 workflow.add_state(state.end())
-            # Continue linear assignment within the (sub)workflow if the node 
+            # Continue linear assignment within the (sub)workflow if the node
             # doesn't branch or fork.
             elif node.type in ('linear', 'join'):
                 workflow.add_state(state.next(node.out_funcs[0]))
@@ -240,8 +240,8 @@ class StepFunctions(object):
                 for n in node.out_funcs:
                     branch.branch(
                         _visit(
-                            self.graph[n], 
-                            Workflow(n).start_at(n), 
+                            self.graph[n],
+                            Workflow(n).start_at(n),
                             node.matching_join))
                 workflow.add_state(branch)
                 # Continue the traversal from the matching_join.
@@ -253,8 +253,8 @@ class StepFunctions(object):
                 cardinality_state_name = '#%s' % node.out_funcs[0]
                 workflow.add_state(state.next(cardinality_state_name))
                 cardinality_state = State(cardinality_state_name) \
-                                        .dynamo_db(SFN_DYNAMO_DB_TABLE, 
-                                            '$.JobId', 
+                                        .dynamo_db(SFN_DYNAMO_DB_TABLE,
+                                            '$.JobId',
                                             'for_each_cardinality') \
                                         .result_path('$.Result')
                 iterator_name = '*%s' % node.out_funcs[0]
@@ -269,9 +269,9 @@ class StepFunctions(object):
                         .next(node.matching_join) \
                         .iterator(
                             _visit(
-                                self.graph[node.out_funcs[0]], 
+                                self.graph[node.out_funcs[0]],
                                 Workflow(node.out_funcs[0]) \
-                                    .start_at(node.out_funcs[0]), 
+                                    .start_at(node.out_funcs[0]),
                                 node.matching_join)) \
                         .max_concurrency(self.max_workers) \
                         .output_path('$.[0]'))
@@ -281,7 +281,7 @@ class StepFunctions(object):
             else:
                 raise StepFunctionsException("Node type *%s* for  step *%s* "
                                              "is not currently supported by "
-                                             "AWS Step Functions." 
+                                             "AWS Step Functions."
                                              % (node.type, node.name))
             return workflow
 
@@ -330,40 +330,40 @@ class StepFunctions(object):
             # metaflow.user is only used for setting the AWS Job Name.
             # Since job executions are no longer tied to a specific user
             # identity, we will just set their user to `SFN`. We still do need
-            # access to the owner of the workflow for production tokens, which 
+            # access to the owner of the workflow for production tokens, which
             # we can stash in metaflow.owner.
             'metaflow.user': 'SFN',
             'metaflow.owner': self.username,
             'metaflow.flow_name': self.flow.name,
             'metaflow.step_name': node.name,
             'metaflow.run_id.$': '$$.Execution.Name',
-            # Unfortunately we can't set the task id here since AWS Step 
-            # Functions lacks any notion of run-scoped task identifiers. We 
+            # Unfortunately we can't set the task id here since AWS Step
+            # Functions lacks any notion of run-scoped task identifiers. We
             # instead co-opt the AWS Batch job id as the task id. This also
             # means that the AWS Batch job name will have missing fields since
             # the job id is determined at job execution, but since the job id is
             # part of the job description payload, we don't lose much except for
             # a few ugly looking black fields in the AWS Batch UI.
-            
-            # Also, unfortunately we can't set the retry count since 
-            # `$$.State.RetryCount` resolves to an int dynamically and 
-            # AWS Batch job specification only accepts strings. We handle 
+
+            # Also, unfortunately we can't set the retry count since
+            # `$$.State.RetryCount` resolves to an int dynamically and
+            # AWS Batch job specification only accepts strings. We handle
             # retries/catch within AWS Batch to get around this limitation.
             'metaflow.version': self.environment.get_environment_info()[
                 'metaflow_version'
             ],
             # We rely on step names and task ids of parent steps to construct
-            # input paths for a task. Since the only information we can pass 
-            # between states (via `InputPath` and `ResultPath`) in AWS Step 
-            # Functions is the job description, we run the risk of exceeding 
-            # 32K state size limit rather quickly if we don't filter the job 
+            # input paths for a task. Since the only information we can pass
+            # between states (via `InputPath` and `ResultPath`) in AWS Step
+            # Functions is the job description, we run the risk of exceeding
+            # 32K state size limit rather quickly if we don't filter the job
             # description to a minimal set of fields. Unfortunately, the partial
-            # `JsonPath` implementation within AWS Step Functions makes this 
+            # `JsonPath` implementation within AWS Step Functions makes this
             # work a little non-trivial; it doesn't like dots in keys, so we
-            # have to add the field again. 
-            # This pattern is repeated in a lot of other places, where we use 
-            # AWS Batch parameters to store AWS Step Functions state 
-            # information, since this field is the only field in the AWS Batch 
+            # have to add the field again.
+            # This pattern is repeated in a lot of other places, where we use
+            # AWS Batch parameters to store AWS Step Functions state
+            # information, since this field is the only field in the AWS Batch
             # specification that allows us to set key-values.
             'step_name': node.name
         }
@@ -375,7 +375,7 @@ class StepFunctions(object):
             attrs['metaflow.production_token'] = self.production_token
 
         # Add env vars from the optional @environment decorator.
-        env_deco = [deco for deco in node.decorators 
+        env_deco = [deco for deco in node.decorators
                         if deco.name == 'environment']
         env = {}
         if env_deco:
@@ -387,13 +387,13 @@ class StepFunctions(object):
             if parameters:
                 # Get user-defined parameters from State Machine Input.
                 # Since AWS Step Functions doesn't allow for optional inputs
-                # currently, we have to unfortunately place an artificial 
+                # currently, we have to unfortunately place an artificial
                 # constraint that every parameterized workflow needs to include
-                # `Parameters` as a key in the input to the workflow. 
-                # `step-functions trigger` already takes care of this 
+                # `Parameters` as a key in the input to the workflow.
+                # `step-functions trigger` already takes care of this
                 # requirement, but within the UI, the users will be required to
                 # specify an input with key as `Parameters` and value as a
-                # stringified json of the actual parameters - 
+                # stringified json of the actual parameters -
                 # {"Parameters": "{\"alpha\": \"beta\"}"}
                 env['METAFLOW_PARAMETERS'] = '$.Parameters'
                 default_parameters = {}
@@ -410,9 +410,9 @@ class StepFunctions(object):
         else:
             # We need to rely on the `InputPath` of the AWS Step Functions
             # specification to grab task ids and the step names of the parent
-            # to properly construct input_paths at runtime. Thanks to the 
-            # JsonPath-foo embedded in the parent states, we have this 
-            # information easily available. 
+            # to properly construct input_paths at runtime. Thanks to the
+            # JsonPath-foo embedded in the parent states, we have this
+            # information easily available.
 
             # Handle foreach join.
             if node.type == 'join' and \
@@ -422,14 +422,14 @@ class StepFunctions(object):
                         '${METAFLOW_PARENT_TASK_IDS}' % node.in_funcs[0]
                 # Unfortunately, AWS Batch only allows strings as value types
                 # in it's specification and we don't have any way to concatenate
-                # the task ids array from the parent steps within AWS Step 
-                # Functions and pass it down to AWS Batch. We instead have to 
+                # the task ids array from the parent steps within AWS Step
+                # Functions and pass it down to AWS Batch. We instead have to
                 # rely on publishing the state to DynamoDb and fetching it back
                 # in within the AWS Batch entry point to set
                 # `METAFLOW_PARENT_TASK_IDS`. The state is scoped to the parent
                 # foreach task `METAFLOW_SPLIT_PARENT_TASK_ID`. We decided on
-                # AWS DynamoDb and not AWS Lambdas, because deploying and 
-                # debugging Lambdas would be a nightmare as far as OSS support 
+                # AWS DynamoDb and not AWS Lambdas, because deploying and
+                # debugging Lambdas would be a nightmare as far as OSS support
                 # is concerned.
                 env['METAFLOW_SPLIT_PARENT_TASK_ID'] = \
                     '$.Parameters.split_parent_task_id_%s' % \
@@ -443,11 +443,11 @@ class StepFunctions(object):
                     env['METAFLOW_PARENT_TASK_ID'] = '$.JobId'
                 else:
                     # Generate the input paths in a quasi-compressed format.
-                    # See util.decompress_list for why this is written the way 
+                    # See util.decompress_list for why this is written the way
                     # it is.
                     input_paths = 'sfn-${METAFLOW_RUN_ID}:' + ','.join(
                         '/${METAFLOW_PARENT_%s_STEP}/'
-                            '${METAFLOW_PARENT_%s_TASK_ID}' % (idx, idx) 
+                            '${METAFLOW_PARENT_%s_TASK_ID}' % (idx, idx)
                             for idx, _ in enumerate(node.in_funcs))
                     for idx, _ in enumerate(node.in_funcs):
                         env['METAFLOW_PARENT_%s_TASK_ID' % idx] = \
@@ -457,9 +457,9 @@ class StepFunctions(object):
             env['METAFLOW_INPUT_PATHS'] = input_paths
 
             if node.is_inside_foreach:
-                # Set the task id of the parent job of the foreach split in 
-                # our favorite dumping ground, the AWS Batch attrs. For 
-                # subsequent descendent tasks, this attrs blob becomes the 
+                # Set the task id of the parent job of the foreach split in
+                # our favorite dumping ground, the AWS Batch attrs. For
+                # subsequent descendent tasks, this attrs blob becomes the
                 # input to those descendent tasks. We set and propagate the
                 # task ids pointing to split_parents through every state.
                 if any(self.graph[n].type == 'foreach' for n in node.in_funcs):
@@ -502,8 +502,8 @@ class StepFunctions(object):
                             attrs['split_parent_task_id_%s.$' % parent] = \
                                 '$.Parameters.split_parent_task_id_%s' % parent
 
-                # Set `METAFLOW_SPLIT_PARENT_TASK_ID_FOR_FOREACH_JOIN` if the 
-                # next transition is to a foreach join, so that the 
+                # Set `METAFLOW_SPLIT_PARENT_TASK_ID_FOR_FOREACH_JOIN` if the
+                # next transition is to a foreach join, so that the
                 # stepfunctions decorator can write the mapping for input path
                 # to DynamoDb.
                 if any(self.graph[n].type == 'join' and \
@@ -582,7 +582,7 @@ class StepFunctions(object):
             'flow_name': attrs['metaflow.flow_name'],
             'step_name': attrs['metaflow.step_name'],
             'run_id': 'sfn-$METAFLOW_RUN_ID',
-            # Use AWS Batch job identifier as the globally unique 
+            # Use AWS Batch job identifier as the globally unique
             # task identifier.
             'task_id': '$AWS_BATCH_JOB_ID',
             # Since retries are handled by AWS Batch, we can rely on
@@ -615,6 +615,7 @@ class StepFunctions(object):
                         env=env,
                         attrs=attrs,
                         host_volumes=resources['host_volumes'],
+                        nodes=batch_deco.nodes,
                 ) \
                 .attempts(total_retries + 1)
 
@@ -632,10 +633,10 @@ class StepFunctions(object):
         return max_user_code_retries,\
             max_user_code_retries + max_error_retries
 
-    def _step_cli(self, 
+    def _step_cli(self,
                   node,
-                  paths, 
-                  code_package_url, 
+                  paths,
+                  code_package_url,
                   user_code_retries):
         cmds = []
 
@@ -662,7 +663,7 @@ class StepFunctions(object):
             # We need a separate unique ID for the special _parameters task
             task_id_params = '%s-params' % task_id
             # Export user-defined parameters into runtime environment
-            param_file = ''.join(random.choice(string.ascii_lowercase) 
+            param_file = ''.join(random.choice(string.ascii_lowercase)
                 for _ in range(10))
             export_params = \
                 'python -m ' \
@@ -683,8 +684,8 @@ class StepFunctions(object):
             if self.tags:
                 params.extend('--tag %s' % tag for tag in self.tags)
 
-            # If the start step gets retried, we must be careful not to 
-            # regenerate multiple parameters tasks. Hence we check first if 
+            # If the start step gets retried, we must be careful not to
+            # regenerate multiple parameters tasks. Hence we check first if
             # _parameters exists already.
             exists = entrypoint +\
                 ['dump',
@@ -694,10 +695,10 @@ class StepFunctions(object):
                   % (' '.join(exists), export_params, ' '.join(params))
             cmds.append(cmd)
             paths = 'sfn-${METAFLOW_RUN_ID}/_parameters/%s' % (task_id_params)
-        
+
         if node.type == 'join' and\
             self.graph[node.split_parents[-1]].type == 'foreach':
-            parent_tasks_file = ''.join(random.choice(string.ascii_lowercase) 
+            parent_tasks_file = ''.join(random.choice(string.ascii_lowercase)
                 for _ in range(10))
             export_parent_tasks = \
                 'python -m ' \
@@ -781,7 +782,7 @@ class State(object):
     def next(self, state):
         self.payload['Next'] = state
         return self
-        
+
     def end(self):
         self.payload['End'] = True
         return self
@@ -803,17 +804,17 @@ class State(object):
         return SFN_IAM_ROLE.split(':')[1]
 
     def batch(self, job):
-        self.resource('arn:%s:states:::batch:submitJob.sync' 
+        self.resource('arn:%s:states:::batch:submitJob.sync'
                 % self._partition()) \
             .parameter('JobDefinition', job.payload['jobDefinition']) \
             .parameter('JobName', job.payload['jobName']) \
             .parameter('JobQueue', job.payload['jobQueue']) \
             .parameter('Parameters', job.payload['parameters']) \
-            .parameter('ContainerOverrides', 
+            .parameter('ContainerOverrides',
                 to_pascalcase(job.payload['containerOverrides'])) \
-            .parameter('RetryStrategy', 
+            .parameter('RetryStrategy',
                 to_pascalcase(job.payload['retryStrategy'])) \
-            .parameter('Timeout', 
+            .parameter('Timeout',
                 to_pascalcase(job.payload['timeout']))
         # tags may not be present in all scenarios
         if 'tags' in job.payload:
@@ -830,7 +831,7 @@ class State(object):
             }) \
             .parameter('ConsistentRead', True) \
             .parameter('ProjectionExpression', values)
-        return self  
+        return self
 
 
 class Parallel(object):
@@ -857,7 +858,7 @@ class Parallel(object):
 
     def result_path(self, result_path):
         self.payload['ResultPath'] = result_path
-        return self   
+        return self
 
 
 class Map(object):

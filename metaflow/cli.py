@@ -915,6 +915,8 @@ def start(ctx,
         #TODO (savin): Enable lazy instantiation of package
         ctx.obj.package = None
     if ctx.invoked_subcommand is None:
+        print("ctx invoke", ctx)
+        print(dir(ctx))
         ctx.invoke(check)
 
 

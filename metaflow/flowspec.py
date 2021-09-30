@@ -404,7 +404,6 @@ class FlowSpec(object):
         InvalidNextException
             Raised if the format of the arguments does not match one of the ones given above.
         """
-
         step = self._current_step
 
         foreach = kwargs.pop('foreach', None)

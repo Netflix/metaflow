@@ -51,6 +51,7 @@ class Batch(object):
                  step_name,
                  step_cmds,
                  task_spec):
+        print(">> _command", step_name, step_cmds)
         mflog_expr = export_mflog_env_vars(datastore_type='s3',
                                            stdout_path=STDOUT_PATH,
                                            stderr_path=STDERR_PATH,
@@ -75,7 +76,7 @@ class Batch(object):
         # with the exit code (c) of the task.
         #
         # Note that if step_expr OOMs, this tail expression is never executed.
-        # We lose the last logs in this scenario (although they are visible 
+        # We lose the last logs in this scenario (although they are visible
         # still through AWS CloudWatch console).
         cmd_str += 'c=$?; %s; exit $c' % BASH_SAVE_LOGS
         return shlex.split('bash -c \"%s\"' % cmd_str)
@@ -166,6 +167,7 @@ class Batch(object):
         env={},
         attrs={},
         host_volumes=None,
+        nodes=1,
     ):
         job_name = self._job_name(
             attrs.get('metaflow.user'),
@@ -187,7 +189,7 @@ class Batch(object):
             .execution_role(execution_role) \
             .job_def(image, iam_role,
                 queue, execution_role, shared_memory,
-                max_swap, swappiness, host_volumes=host_volumes) \
+                max_swap, swappiness, host_volumes=host_volumes, nodes=nodes) \
             .cpu(cpu) \
             .gpu(gpu) \
             .memory(memory) \
@@ -206,9 +208,9 @@ class Batch(object):
             .environment_variable('METAFLOW_DATATOOLS_S3ROOT', DATATOOLS_S3ROOT) \
             .environment_variable('METAFLOW_DEFAULT_DATASTORE', 's3') \
             .environment_variable('METAFLOW_DEFAULT_METADATA', DEFAULT_METADATA)
-            # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync between the local user 
-            # instance and the remote AWS Batch instance assumes metadata is stored in DATASTORE_LOCAL_DIR 
-            # on the remote AWS Batch instance; this happens when METAFLOW_DATASTORE_SYSROOT_LOCAL 
+            # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync between the local user
+            # instance and the remote AWS Batch instance assumes metadata is stored in DATASTORE_LOCAL_DIR
+            # on the remote AWS Batch instance; this happens when METAFLOW_DATASTORE_SYSROOT_LOCAL
             # is NOT set (see get_datastore_root_from_config in datastore/local.py).
         for name, value in env.items():
             job.environment_variable(name, value)
@@ -218,7 +220,7 @@ class Batch(object):
         # Tags for AWS Batch job (for say cost attribution)
         if BATCH_EMIT_TAGS:
             for key in ['metaflow.flow_name', 'metaflow.run_id',
-                            'metaflow.step_name', 'metaflow.version', 
+                            'metaflow.step_name', 'metaflow.version',
                             'metaflow.run_id.$', 'metaflow.user',
                             'metaflow.owner', 'metaflow.production_token']:
                 if key in attrs:
@@ -246,6 +248,7 @@ class Batch(object):
         max_swap=None,
         swappiness=None,
         host_volumes=None,
+        nodes=1,
         env={},
         attrs={},
         ):
@@ -276,12 +279,13 @@ class Batch(object):
                         swappiness,
                         env=env,
                         attrs=attrs,
-                        host_volumes=host_volumes
+                        host_volumes=host_volumes,
+                        nodes=nodes,
         )
         self.job = job.execute()
 
     def wait(self, stdout_location, stderr_location, echo=None):
-        
+
         def wait_for_launch(job):
             status = job.status
             echo('Task is starting (status %s)...' % status,
@@ -302,7 +306,7 @@ class Batch(object):
                 select.poll().poll(200)
 
         prefix = b'[%s] ' % util.to_bytes(self.job.id)
-        
+
         def _print_available(tail, stream, should_persist=False):
             # print the latest batch of lines from S3Tail
             try:
@@ -342,7 +346,7 @@ class Batch(object):
             # a long delay, regardless of the log tailing schedule
             d = min(log_update_delay, 5.0)
             select.poll().poll(d * 1000)
-        
+
         # 3) Fetch remaining logs
         #
         # It is possible that we exit the loop above before all logs have been
@@ -354,13 +358,13 @@ class Batch(object):
         _print_available(stdout_tail, 'stdout')
         _print_available(stderr_tail, 'stderr')
         # In case of hard crashes (OOM), the final save_logs won't happen.
-        # We fetch the remaining logs from AWS CloudWatch and persist them to 
+        # We fetch the remaining logs from AWS CloudWatch and persist them to
         # Amazon S3.
         #
         # TODO: AWS CloudWatch fetch logs
 
         if self.job.is_crashed:
-            msg = next(msg for msg in 
+            msg = next(msg for msg in
                 [self.job.reason, self.job.status_reason, 'Task crashed.']
                  if msg is not None)
             raise BatchException(

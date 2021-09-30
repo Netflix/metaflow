@@ -170,6 +170,8 @@ def kill(ctx, run_id, user, my_runs):
 #TODO: Maybe remove it altogether since it's not used here
 @click.option('--ubf-context', default=None, type=click.Choice([None]))
 @click.option('--host-volumes', multiple=True)
+@click.option('--nodes', type=int)
+
 @click.pass_context
 def step(
     ctx,
@@ -189,6 +191,7 @@ def step(
     max_swap=None,
     swappiness=None,
     host_volumes=None,
+    nodes=1,
     **kwargs
 ):
     def echo(msg, stream='stderr', batch_id=None):
@@ -298,6 +301,7 @@ def step(
                 env=env,
                 attrs=attrs,
                 host_volumes=host_volumes,
+                nodes=nodes,
             )
     except Exception as e:
         print(e)

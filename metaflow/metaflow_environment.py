@@ -81,7 +81,7 @@ class MetaflowEnvironment(object):
     def get_package_commands(self, code_package_url):
         cmds = [BASH_MFLOG,
                 "mflog \'Setting up task environment.\'",
-                "%s -m pip install awscli click requests boto3 -qqq" 
+                "%s -m pip install awscli click requests boto3 "
                     % self._python(),
                 "mkdir metaflow",
                 "cd metaflow",
