@@ -3,6 +3,8 @@ import os
 import sys
 import tarfile
 
+from io import BytesIO
+
 from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.exception import MetaflowException
 from metaflow.mflog import BASH_SAVE_LOGS
@@ -110,7 +112,7 @@ class CondaEnvironment(MetaflowEnvironment):
             return {'type': 'conda'}
         info = json.loads(info)
         _, blobdata = cls._filecache.get_data(info['ds_type'], flow_name, info['location'], info['sha'])
-        with tarfile.open(fileobj=blobdata, mode='r:gz') as tar:
+        with tarfile.open(fileobj=BytesIO(blobdata), mode='r:gz') as tar:
             conda_file = tar.extractfile(CONDA_MAGIC_FILE)
         if conda_file is None:
             return {'type': 'conda'}
