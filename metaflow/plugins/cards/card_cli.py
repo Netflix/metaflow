@@ -61,16 +61,13 @@ def resolve_card(ctx,identifier,id=None,hash=None,type=None,index=0):
             raise IdNotFoundException(
                 identifier
             )
-        # todo : Should this only resolve cards of the latest runs. 
         run_id = Flow(flow_name).latest_run.id
         step = Step('/'.join([flow_name,run_id,step_name]))
         tasks = list(step)
-        # todo : how to resolve cards in a foreach with card-id
         if len(tasks) == 0:
             raise Exception(
                 "No Tasks found for Step '%s' and Run '%s'" % (step_name,run_id)
             )
-        # todo : What to do when we have multiple tasks to resolve? 
         task = tasks[0]
         
         pathspec = task.pathspec
@@ -236,7 +233,7 @@ def create(ctx,pathspec,type=None,id=None,index=None,options=None):
     ctx.obj.echo("Creating new card of type %s" % filtered_card.type, fg='green')
     # save card to datastore
     try:
-        mf_card = filtered_card(**options)
+        mf_card = filtered_card(options=options)
     except TypeError as e:
         raise IncorrectCardArgsException(type,options)
     
