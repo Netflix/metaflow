@@ -1,7 +1,6 @@
-import os
 from setuptools import setup, find_packages
 
-version = '2.2.5'
+version = '2.3.2'
 
 setup(name='zillow-metaflow',
       version=version,
@@ -20,7 +19,7 @@ setup(name='zillow-metaflow',
         'click>=7.0,<8',
         'requests',
         'boto3',
-        'pylint<2.5.0'
+        'pylint'
       ],
       tests_require = [
         'coverage'
