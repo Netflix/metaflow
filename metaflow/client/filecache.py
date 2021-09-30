@@ -85,7 +85,7 @@ class FileCache(object):
         ds_root = ds_cls.get_datastore_root_from_location(location, flow_name)
         ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
 
-        return ds.load_data([key], force_raw=True)[0]
+        return next(ds.load_data([key], force_raw=True))
 
     def get_artifact_by_location(
             self, ds_type, location, data_metadata, flow_name, run_id,

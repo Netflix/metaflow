@@ -625,9 +625,9 @@ class MetaflowCode(object):
 
         if filecache is None:
             filecache = FileCache()
-        code_obj = BytesIO(
-            filecache.get_data(
-                self._ds_type, self._flow_name, self._path, self._sha))
+        _, blobdata = filecache.get_data(
+            self._ds_type, self._flow_name, self._path, self._sha)
+        code_obj = BytesIO(blobdata)
         self._tar = tarfile.open(fileobj=code_obj, mode='r:gz')
         # The JSON module in Python3 deals with Unicode. Tar gives bytes.
         info_str = self._tar.extractfile('INFO').read().decode('utf-8')
