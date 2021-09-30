@@ -76,7 +76,7 @@ def resolve_card(ctx,identifier,id=None,hash=None,type=None,index=0):
         pathspec = task.pathspec
         task_id = task.id
     
-    ctx.obj.echo_always("Resolving pathspec : %s" % pathspec,fg='green')
+    ctx.obj.echo_always("Resolving card : %s" % pathspec,fg='green')
     # to resolve card_id we first check if the identifier is a pathspec and if it is then we check if the `id` is set or not to resolve card_id
     card_id = None
     if is_path_spec:

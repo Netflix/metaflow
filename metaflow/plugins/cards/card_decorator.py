@@ -1,3 +1,4 @@
+from json.decoder import JSONDecodeError
 import subprocess
 import os
 import sys
@@ -81,13 +82,19 @@ class CardDecorator(StepDecorator):
                 yield p, p[prefixlen:]
 
     def step_init(self, flow, graph, step_name, decorators, environment, flow_datastore, logger):
+        if type(self.attributes['options']) is str:
+            try:
+                self.attributes['options'] = json.loads(self.attributes['options'])
+            except JSONDecodeError:
+                # Setting Options from defaults
+                self.attributes['options'] = self.defaults['options']
+                
         self._flow_datastore = flow_datastore
         self._environment = environment
     
     def task_pre_step(self, step_name, task_datastore, metadata, run_id, task_id, flow, graph, retry_count, max_user_code_retries, ubf_context, inputs):
         self._task_datastore = task_datastore
         self._metadata = metadata
-        
 
     def task_finished(self, step_name, flow, graph, is_task_ok, retry_count, max_user_code_retries):
         if not is_task_ok:
@@ -144,12 +151,13 @@ class CardDecorator(StepDecorator):
             self.attributes['type'],
         # Add the options relating to card arguments. 
         # todo : add scope as a CLI arg for the create method. 
-        ]+ ['--options',json.dumps(self.attributes['options'])]
+        ]
+        if self.attributes['options'] is not None and len(self.attributes['options']) > 0:
+            cmd+= ['--options',json.dumps(self.attributes['options'])]
         # set the id argument. 
-        if self.attributes['id'] is not None:
+        if self.attributes['id'] is not None and self.attributes['id'] != "":
             id_args = ["--id",self.attributes['id']]
             cmd+=id_args
-        
         if self._index is not None:
             idx_args = ["--index",str(self._index)]
         else:
