@@ -143,6 +143,18 @@ SFN_STATE_MACHINE_PREFIX = from_conf("METAFLOW_SFN_STATE_MACHINE_PREFIX")
 SFN_EXECUTION_LOG_GROUP_ARN = from_conf("METAFLOW_SFN_EXECUTION_LOG_GROUP_ARN")
 
 ###
+# Kubernetes configuration
+###
+# Kubernetes namespace to use for all objects created by Metaflow
+KUBERNETES_NAMESPACE = from_conf("METAFLOW_KUBERNETES_NAMESPACE")
+# Service account to use by K8S jobs created by Metaflow
+KUBERNETES_SERVICE_ACCOUNT = from_conf("METAFLOW_KUBERNETES_SERVICE_ACCOUNT")
+#
+KUBERNETES_CONTAINER_REGISTRY = from_conf("METAFLOW_KUBERNETES_CONTAINER_REGISTRY")
+#
+KUBERNETES_CONTAINER_IMAGE = from_conf("METAFLOW_KUBERNETES_CONTAINER_IMAGE")
+
+###
 # Conda configuration
 ###
 # Conda package root location on S3
