@@ -392,7 +392,7 @@ class MetaflowTask(object):
                     # initialize parameters (if they exist)
                     # We take Parameter values from the first input,
                     # which is always safe since parameters are read-only
-                    current._update_env({'parameter_names': self._init_parameters(inputs[0], passdown=True)})
+                    current._update_env({'parameter_names': self._init_parameters(inputs[0], passdown=False)})
 
             decorators = step_func.decorators
             for deco in decorators:
