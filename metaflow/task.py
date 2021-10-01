@@ -67,8 +67,7 @@ class MetaflowTask(object):
 
             setattr(self.flow.__class__, var,
                     property(fget=property_setter))
-            if passdown:
-                vars.append(var)
+            vars.append(var)
         if passdown:
             self.flow._datastore.passdown_partial(parameter_ds, vars)
         return vars
@@ -393,7 +392,7 @@ class MetaflowTask(object):
                     # initialize parameters (if they exist)
                     # We take Parameter values from the first input,
                     # which is always safe since parameters are read-only
-                    current._update_env({'parameter_names': self._init_parameters(inputs[0], passdown=False)})
+                    current._update_env({'parameter_names': self._init_parameters(inputs[0], passdown=True)})
 
             decorators = step_func.decorators
             for deco in decorators:
