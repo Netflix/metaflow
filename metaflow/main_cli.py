@@ -415,44 +415,78 @@ def sandbox(profile):
     # Persist to a file.
     persist_env(env_dict, profile)
 
-@configure.command(help='Configure metaflow to access self-managed AWS resources.')
-@click.option('--profile', '-p', default='',
-                help='Configure a named profile. Activate the profile by setting ' 
-                    '`METAFLOW_PROFILE` environment variable.')
-@click.pass_context
-def aws(ctx, profile):
-    def cyan(string):
-        return click.style(string, fg='cyan')
 
-    def yellow(string):
-        return click.style(string, fg='yellow')
+def cyan(string):
+    return click.style(string, fg='cyan')
 
-    # Greet the user!
-    echo('Welcome to Metaflow! Follow the prompts to configure your '
-         'installation.\n',
-         bold=True)
+def yellow(string):
+    return click.style(string, fg='yellow')
 
-    # Check for existing configuration.
-    if not overwrite_config(profile):
-        ctx.abort()
+def red(string):
+    return click.style(string, fg='red')
 
-    # Verify that the user has configured AWS credentials on their computer.
-    if not click.confirm('\nMetaflow relies on ' +  
-                         yellow('AWS access credentials') + 
-                         ' present on your computer to access resources on AWS.'
-                         '\nBefore proceeding further, please confirm that you '
-                         'have already configured these access credentials on '
-                         'this computer.',
-                         default=True):
-        echo('There are many ways to setup your AWS access credentials. You '
-             'can get started by following this guide: ',
-             nl=False,
-             fg='yellow')
-        echo('https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html',
-             fg='cyan')
-        ctx.abort()
+def configure_s3_datastore(existing_env):
+    env = {}
+    # Set Amazon S3 as default datastore.
+    env['METAFLOW_DEFAULT_DATASTORE'] = 's3'
+    # Set Amazon S3 folder for datastore.
+    env['METAFLOW_DATASTORE_SYSROOT_S3'] =\
+        click.prompt(cyan('[METAFLOW_DATASTORE_SYSROOT_S3]') + 
+                        ' Amazon S3 folder for Metaflow artifact storage ' +
+                        '(s3://<bucket>/<prefix>).',
+                        default=\
+                        existing_env.get('METAFLOW_DATASTORE_SYSROOT_S3'),
+                        show_default=True)
+    # Set Amazon S3 folder for datatools.
+    env['METAFLOW_DATATOOLS_SYSROOT_S3'] =\
+            click.prompt(cyan('[METAFLOW_DATATOOLS_SYSROOT_S3]') + 
+                            yellow(' (optional)') + 
+                            ' Amazon S3 folder for Metaflow datatools ' +
+                            '(s3://<bucket>/<prefix>).',
+                            default=\
+                            existing_env.get('METAFLOW_DATATOOLS_SYSROOT_S3',
+                                os.path.join(
+                                    env['METAFLOW_DATASTORE_SYSROOT_S3'],
+                                        'data')),
+                            show_default=True)
+    return env
 
-    existing_env = get_env(profile)
+def configure_metadata_service(existing_env):
+    empty_profile = False
+    if not existing_env:
+        empty_profile = True
+    env = {}
+
+    # Set Metadata Service as default.
+    env['METAFLOW_DEFAULT_METADATA'] = 'service'
+    # Set URL for the Metadata Service.
+    env['METAFLOW_SERVICE_URL'] =\
+            click.prompt(cyan('[METAFLOW_SERVICE_URL]') +
+                            ' URL for Metaflow Service.',
+                            default=existing_env.get('METAFLOW_SERVICE_URL'),
+                            show_default=True)
+    # Set internal URL for the Metadata Service.
+    env['METAFLOW_SERVICE_INTERNAL_URL'] =\
+            click.prompt(cyan('[METAFLOW_SERVICE_INTERNAL_URL]') +
+                            yellow(' (optional)') +
+                            ' URL for Metaflow Service ' +
+                            '(Accessible only within VPC).',
+                            default=\
+                            existing_env.get('METAFLOW_SERVICE_INTERNAL_URL',
+                                env['METAFLOW_SERVICE_URL']),
+                            show_default=True)
+    # Set Auth Key for the Metadata Service.
+    env['METAFLOW_SERVICE_AUTH_KEY'] =\
+            click.prompt(cyan('[METAFLOW_SERVICE_AUTH_KEY]') + 
+                            yellow(' (optional)') +
+                            ' Auth Key for Metaflow Service.',
+                            default=\
+                            existing_env.get('METAFLOW_SERVICE_AUTH_KEY', ''),
+                            show_default=True)
+    return env
+
+
+def configure_datastore_and_metadata(existing_env):
     empty_profile = False
     if not existing_env:
         empty_profile = True
@@ -472,28 +506,7 @@ def aws(ctx, profile):
                                 'METAFLOW_DEFAULT_DATASTORE', '') == 's3',
                             abort=False)
     if use_s3_as_datastore:
-        # Set Amazon S3 as default datastore.
-        env['METAFLOW_DEFAULT_DATASTORE'] = 's3'
-        # Set Amazon S3 folder for datastore.
-        env['METAFLOW_DATASTORE_SYSROOT_S3'] =\
-            click.prompt(cyan('[METAFLOW_DATASTORE_SYSROOT_S3]') + 
-                         ' Amazon S3 folder for Metaflow artifact storage ' +
-                         '(s3://<bucket>/<prefix>).',
-                         default=\
-                            existing_env.get('METAFLOW_DATASTORE_SYSROOT_S3'),
-                         show_default=True)
-        # Set Amazon S3 folder for datatools.
-        env['METAFLOW_DATATOOLS_SYSROOT_S3'] =\
-                click.prompt(cyan('[METAFLOW_DATATOOLS_SYSROOT_S3]') + 
-                             yellow(' (optional)') + 
-                             ' Amazon S3 folder for Metaflow datatools ' +
-                             '(s3://<bucket>/<prefix>).',
-                             default=\
-                                existing_env.get('METAFLOW_DATATOOLS_SYSROOT_S3',
-                                    os.path.join(
-                                        env['METAFLOW_DATASTORE_SYSROOT_S3'],
-                                            'data')),
-                             show_default=True)
+        env.update(configure_s3_datastore(existing_env))
 
     # Configure Metadata service for tracking.
     if click.confirm('\nMetaflow can use a ' +
@@ -507,116 +520,288 @@ def aws(ctx, profile):
                             'service' or\
                         'METAFLOW_SFN_IAM_ROLE' in env,
                      abort=False):
-        # Set Metadata Service as default.
-        env['METAFLOW_DEFAULT_METADATA'] = 'service'
-        # Set URL for the Metadata Service.
-        env['METAFLOW_SERVICE_URL'] =\
-                click.prompt(cyan('[METAFLOW_SERVICE_URL]') +
-                             ' URL for Metaflow Service.',
-                             default=existing_env.get('METAFLOW_SERVICE_URL'),
-                             show_default=True)
-        # Set internal URL for the Metadata Service.
-        env['METAFLOW_SERVICE_INTERNAL_URL'] =\
-                click.prompt(cyan('[METAFLOW_SERVICE_INTERNAL_URL]') +
-                             yellow(' (optional)') +
-                             ' URL for Metaflow Service ' +
-                             '(Accessible only within VPC).',
-                             default=\
-                                existing_env.get('METAFLOW_SERVICE_INTERNAL_URL',
-                                    env['METAFLOW_SERVICE_URL']),
-                             show_default=True)
-        # Set Auth Key for the Metadata Service.
-        env['METAFLOW_SERVICE_AUTH_KEY'] =\
-                click.prompt(cyan('[METAFLOW_SERVICE_AUTH_KEY]') + 
-                             yellow(' (optional)') +
-                             ' Auth Key for Metaflow Service.',
-                             default=\
-                                existing_env.get('METAFLOW_SERVICE_AUTH_KEY', ''),
-                             show_default=True)
+        env.update(configure_metadata_service(existing_env))
+    return env
 
-    # Configure AWS Batch for compute.
-    if use_s3_as_datastore:
+
+def configure_aws_batch(existing_env):
+    empty_profile = False
+    if not existing_env:
+        empty_profile = True
+    env = {}
+
+
+    # Set AWS Batch Job Queue.
+    env['METAFLOW_BATCH_JOB_QUEUE'] =\
+            click.prompt(cyan('[METAFLOW_BATCH_JOB_QUEUE]') +
+                            ' AWS Batch Job Queue.',
+                            default=\
+                            existing_env.get('METAFLOW_BATCH_JOB_QUEUE'),
+                            show_default=True)
+    # Set IAM role for AWS Batch jobs to assume.
+    env['METAFLOW_ECS_S3_ACCESS_IAM_ROLE'] =\
+            click.prompt(cyan('[METAFLOW_ECS_S3_ACCESS_IAM_ROLE]') + 
+                            ' IAM role for AWS Batch jobs to access AWS ' +
+                            'resources (Amazon S3 etc.).',
+                            default=\
+                            existing_env.get('METAFLOW_ECS_S3_ACCESS_IAM_ROLE'),
+                            show_default=True)
+    # Set default Docker repository for AWS Batch jobs.
+    env['METAFLOW_BATCH_CONTAINER_REGISTRY'] =\
+            click.prompt(cyan('[METAFLOW_BATCH_CONTAINER_REGISTRY]') + 
+                            yellow(' (optional)') +
+                            ' Default Docker image repository for AWS ' +
+                            'Batch jobs. If nothing is specified, ' +
+                            'dockerhub (hub.docker.com/) is ' +
+                            'used as default.',
+                            default=\
+                            existing_env.get('METAFLOW_BATCH_CONTAINER_REGISTRY', ''),
+                            show_default=True)
+    # Set default Docker image for AWS Batch jobs.
+    env['METAFLOW_BATCH_CONTAINER_IMAGE'] =\
+            click.prompt(cyan('[METAFLOW_BATCH_CONTAINER_IMAGE]') + 
+                            yellow(' (optional)') +
+                            ' Default Docker image for AWS Batch jobs. ' +
+                            'If nothing is specified, an appropriate ' +
+                            'python image is used as default.',
+                            default=\
+                            existing_env.get('METAFLOW_BATCH_CONTAINER_IMAGE', ''),
+                            show_default=True)
+
+    # Configure AWS Step Functions for scheduling.
+    if click.confirm('\nMetaflow can ' +
+                        yellow('schedule your flows on AWS Step '
+                            'Functions') + 
+                        ' and trigger them at a specific cadence using '
+                        'Amazon EventBridge.\nTo support flows involving '
+                        'foreach steps, you would need access to AWS '
+                        'DynamoDB.\nWould you like to configure AWS Step '
+                        'Functions for scheduling?',
+                        default=empty_profile or
+                        'METAFLOW_SFN_IAM_ROLE' in existing_env,
+                        abort=False):
+        # Configure IAM role for AWS Step Functions.
+        env['METAFLOW_SFN_IAM_ROLE'] =\
+                click.prompt(cyan('[METAFLOW_SFN_IAM_ROLE]') + 
+                                ' IAM role for AWS Step Functions to ' +
+                                'access AWS resources (AWS Batch, ' +
+                                'AWS DynamoDB).',
+                                default=\
+                                existing_env.get('METAFLOW_SFN_IAM_ROLE'),
+                                show_default=True)
+        # Configure IAM role for AWS Events Bridge.
+        env['METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE'] =\
+                click.prompt(cyan('[METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE]') + 
+                                ' IAM role for Amazon EventBridge to ' +
+                                'access AWS Step Functions.',
+                                default=\
+                                existing_env.get('METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE'),
+                                show_default=True)
+        # Configure AWS DynamoDB Table for AWS Step Functions.
+        env['METAFLOW_SFN_DYNAMO_DB_TABLE'] =\
+                click.prompt(cyan('[METAFLOW_SFN_DYNAMO_DB_TABLE]') + 
+                            ' AWS DynamoDB table name for tracking '+
+                            'AWS Step Functions execution metadata.',
+                                default=\
+                                existing_env.get('METAFLOW_SFN_DYNAMO_DB_TABLE'),
+                                show_default=True)
+    return env
+
+
+def check_kubernetes_client(ctx):
+    try:
+        import kubernetes
+    except ImportError:
+        echo("Please install python kubernetes client first " + \
+                "(run " + yellow('pip install kubernetes')  + \
+                " or equivalent in your favorite python package manager)"
+        )
+        ctx.abort()
+
+
+def check_kubernetes_config(ctx):
+    from kubernetes import config
+    try:
+        all_contexts, current_context = config.list_kube_config_contexts()
+        click.confirm("You have a valid kubernetes configuration. The current context is set to " + \
+            yellow(current_context["name"]) + " " + \
+            "Proceed?",
+            default=True,
+            abort=True
+        )
+    except config.config_exception.ConfigException as e:
+        click.confirm("\nYou don't seem to have a valid kubernetes configuration file. " + \
+                        "The error from kubernetes client library: " + \
+                        red(str(e)) + "." + \
+                        "To create a kubernetes configuration for EKS, you typically need to run " + yellow("aws eks update-kubeconfig --name <CLUSTER NAME>") + \
+                        ". For further details, refer to AWS Documentation at https://docs.aws.amazon.com/eks/latest/userguide/create-kubeconfig.html\n"
+                        'Do you want to proceed with configuring Metaflow for EKS anyway?',
+                        default=False,
+                        abort=True)
+
+def configure_eks(existing_env):
+    empty_profile = False
+    if not existing_env:
+        empty_profile = True
+    env = {}
+
+    # Set K8S Namespace
+    env['METAFLOW_KUBERNETES_NAMESPACE'] =\
+            click.prompt(cyan('[METAFLOW_KUBERNETES_NAMESPACE]') +
+                            yellow(' (optional)') +
+                            ' Kubernetes Namespace ',
+                            default="default",
+                            show_default=True)
+
+    # Set K8S SA
+    env['METAFLOW_KUBERNETES_SERVICE_ACCOUNT'] =\
+            click.prompt(cyan('[METAFLOW_KUBERNETES_SERVICE_ACCOUNT]') +
+                            yellow(' (optional)') +
+                            ' Kubernetes Service Account ',
+                            default="default",
+                            show_default=True)
+
+    # Set default Docker repository for K8S jobs.
+    env['METAFLOW_KUBERNETES_CONTAINER_REGISTRY'] =\
+            click.prompt(cyan('[METAFLOW_KUBERNETES_CONTAINER_REGISTRY]') + 
+                            yellow(' (optional)') +
+                            ' Default Docker image repository for K8S ' +
+                            'jobs. If nothing is specified, ' +
+                            'dockerhub (hub.docker.com/) is ' +
+                            'used as default.',
+                            default=\
+                            existing_env.get('METAFLOW_KUBERNETES_CONTAINER_REGISTRY', ''),
+                            show_default=True)
+    # Set default Docker image for K8S jobs.
+    env['METAFLOW_KUBERNETES_CONTAINER_IMAGE'] =\
+            click.prompt(cyan('[METAFLOW_KUBERNETES_CONTAINER_IMAGE]') + 
+                            yellow(' (optional)') +
+                            ' Default Docker image for K8S jobs. ' +
+                            'If nothing is specified, an appropriate ' +
+                            'python image is used as default.',
+                            default=\
+                            existing_env.get('METAFLOW_KUBERNETES_CONTAINER_IMAGE', ''),
+                            show_default=True)
+
+    return env
+
+
+def verify_aws_credentials(ctx):
+    # Verify that the user has configured AWS credentials on their computer.
+    if not click.confirm('\nMetaflow relies on ' +  
+                         yellow('AWS access credentials') + 
+                         ' present on your computer to access resources on AWS.'
+                         '\nBefore proceeding further, please confirm that you '
+                         'have already configured these access credentials on '
+                         'this computer.',
+                         default=True):
+        echo('There are many ways to setup your AWS access credentials. You '
+             'can get started by following this guide: ',
+             nl=False,
+             fg='yellow')
+        echo('https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html',
+             fg='cyan')
+        ctx.abort()
+
+
+@configure.command(help='Configure metaflow to access self-managed AWS resources.')
+@click.option('--profile', '-p', default='',
+                help='Configure a named profile. Activate the profile by setting ' 
+                    '`METAFLOW_PROFILE` environment variable.')
+@click.pass_context
+def aws(ctx, profile):
+
+    # Greet the user!
+    echo('Welcome to Metaflow! Follow the prompts to configure your '
+         'installation.\n',
+         bold=True)
+
+    # Check for existing configuration.
+    if not overwrite_config(profile):
+        ctx.abort()
+
+    verify_aws_credentials(ctx)
+
+    existing_env = get_env(profile)
+    empty_profile = False
+    if not existing_env:
+        empty_profile = True
+
+    env = {}
+    env.update(configure_datastore_and_metadata(existing_env))
+
+    # Configure AWS Batch for compute if using S3
+    if env.get('METAFLOW_DEFAULT_DATASTORE') == 's3':
         if click.confirm('\nMetaflow can scale your flows by ' +
-                         yellow('executing your steps on AWS Batch') + 
-                         '.\nAWS Batch is a strict requirement if you intend '
-                         'to schedule your flows on AWS Step Functions.\nWould '
-                         'you like to configure AWS Batch as your compute '
-                         'backend?',
-                         default=empty_profile or 
+                            yellow('executing your steps on AWS Batch') + 
+                            '.\nAWS Batch is a strict requirement if you intend '
+                            'to schedule your flows on AWS Step Functions.\nWould '
+                            'you like to configure AWS Batch as your compute '
+                            'backend?',
+                            default=empty_profile or 
                             'METAFLOW_BATCH_JOB_QUEUE' in existing_env,
-                         abort=False):
-            # Set AWS Batch Job Queue.
-            env['METAFLOW_BATCH_JOB_QUEUE'] =\
-                    click.prompt(cyan('[METAFLOW_BATCH_JOB_QUEUE]') +
-                                 ' AWS Batch Job Queue.',
-                                 default=\
-                                    existing_env.get('METAFLOW_BATCH_JOB_QUEUE'),
-                                 show_default=True)
-            # Set IAM role for AWS Batch jobs to assume.
-            env['METAFLOW_ECS_S3_ACCESS_IAM_ROLE'] =\
-                    click.prompt(cyan('[METAFLOW_ECS_S3_ACCESS_IAM_ROLE]') + 
-                                 ' IAM role for AWS Batch jobs to access AWS ' +
-                                 'resources (Amazon S3 etc.).',
-                                 default=\
-                                    existing_env.get('METAFLOW_ECS_S3_ACCESS_IAM_ROLE'),
-                                 show_default=True)
-            # Set default Docker repository for AWS Batch jobs.
-            env['METAFLOW_BATCH_CONTAINER_REGISTRY'] =\
-                    click.prompt(cyan('[METAFLOW_BATCH_CONTAINER_REGISTRY]') + 
-                                 yellow(' (optional)') +
-                                 ' Default Docker image repository for AWS ' +
-                                 'Batch jobs. If nothing is specified, ' +
-                                 'dockerhub (hub.docker.com/) is ' +
-                                 'used as default.',
-                                 default=\
-                                    existing_env.get('METAFLOW_BATCH_CONTAINER_REGISTRY', ''),
-                                 show_default=True)
-            # Set default Docker image for AWS Batch jobs.
-            env['METAFLOW_BATCH_CONTAINER_IMAGE'] =\
-                    click.prompt(cyan('[METAFLOW_BATCH_CONTAINER_IMAGE]') + 
-                                 yellow(' (optional)') +
-                                 ' Default Docker image for AWS Batch jobs. ' +
-                                 'If nothing is specified, an appropriate ' +
-                                 'python image is used as default.',
-                                 default=\
-                                    existing_env.get('METAFLOW_BATCH_CONTAINER_IMAGE', ''),
-                                 show_default=True)
+                            abort=False):
+            env.update(configure_aws_batch(existing_env))
 
-            # Configure AWS Step Functions for scheduling.
-            if click.confirm('\nMetaflow can ' +
-                             yellow('schedule your flows on AWS Step '
-                                    'Functions') + 
-                             ' and trigger them at a specific cadence using '
-                             'Amazon EventBridge.\nTo support flows involving '
-                             'foreach steps, you would need access to AWS '
-                             'DynamoDB.\nWould you like to configure AWS Step '
-                             'Functions for scheduling?',
-                             default=empty_profile or
-                                'METAFLOW_SFN_IAM_ROLE' in existing_env,
-                             abort=False):
-                # Configure IAM role for AWS Step Functions.
-                env['METAFLOW_SFN_IAM_ROLE'] =\
-                        click.prompt(cyan('[METAFLOW_SFN_IAM_ROLE]') + 
-                                     ' IAM role for AWS Step Functions to ' +
-                                     'access AWS resources (AWS Batch, ' +
-                                     'AWS DynamoDB).',
-                                     default=\
-                                        existing_env.get('METAFLOW_SFN_IAM_ROLE'),
-                                     show_default=True)
-                # Configure IAM role for AWS Events Bridge.
-                env['METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE'] =\
-                        click.prompt(cyan('[METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE]') + 
-                                     ' IAM role for Amazon EventBridge to ' +
-                                     'access AWS Step Functions.',
-                                     default=\
-                                        existing_env.get('METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE'),
-                                     show_default=True)
-                # Configure AWS DynamoDB Table for AWS Step Functions.
-                env['METAFLOW_SFN_DYNAMO_DB_TABLE'] =\
-                        click.prompt(cyan('[METAFLOW_SFN_DYNAMO_DB_TABLE]') + 
-                                    ' AWS DynamoDB table name for tracking '+
-                                    'AWS Step Functions execution metadata.',
-                                     default=\
-                                        existing_env.get('METAFLOW_SFN_DYNAMO_DB_TABLE'),
-                                     show_default=True)
     persist_env({k: v for k, v in env.items() if v}, profile)
+
+
+@configure.command(help='Configure metaflow to use AWS EKS.')
+@click.option('--profile', '-p', default='',
+                help='Configure a named profile. Activate the profile by setting ' 
+                    '`METAFLOW_PROFILE` environment variable.')
+@click.pass_context
+def eks(ctx, profile):
+
+    check_kubernetes_client(ctx)
+
+    # Greet the user!
+    echo('Welcome to Metaflow! Follow the prompts to configure your '
+         'installation.\n',
+         bold=True)
+
+    check_kubernetes_config(ctx)
+
+    # Check for existing configuration.
+    if not overwrite_config(profile):
+        ctx.abort()
+
+    verify_aws_credentials(ctx)
+
+    existing_env = get_env(profile)
+
+    env = existing_env.copy()
+
+    if existing_env.get('METAFLOW_DEFAULT_DATASTORE') == 's3':
+        # Skip S3 configuration if it is already configured
+        pass
+    elif not existing_env.get('METAFLOW_DEFAULT_DATASTORE'):
+        env.update(configure_s3_datastore(existing_env))
+    else:
+        # If configured to use something else, offer to switch to S3
+        click.confirm('\nMetaflow on EKS needs to use S3 as a datastore, ' +
+                            "but your existing configuration is not using S3. " +
+                            'Would you like to reconfigure it to use S3?',
+                            default=True,
+                            abort=True)
+        env.update(configure_s3_datastore(existing_env))
+
+    # Configure remote metadata.
+    if existing_env.get('METAFLOW_DEFAULT_METADATA') == 'service':
+        # Skip metadata service configuration if it is already configured
+        pass
+    else:
+        if click.confirm('\nMetaflow can use a ' +
+                        yellow('remote Metadata Service to track') + 
+                        ' and persist flow execution metadata. \nWould you like to '
+                        'configure the Metadata Service?',
+                        default=True,
+                        abort=False):
+            env.update(configure_metadata_service(existing_env))
+
+    # Configure AWS EKS for compute.
+    env.update(configure_eks(existing_env))
+
+    persist_env({k: v for k, v in env.items() if v}, profile)
+
+main()
