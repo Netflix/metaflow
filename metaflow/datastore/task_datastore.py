@@ -462,7 +462,8 @@ class TaskDataStore(object):
             self._metadata.register_metadata(
                 self._run_id, self._step_name, self._task_id,
                 [MetaDatum(field='attempt-done', value=str(self._attempt),
-                           type='attempt-done', tags=[])])
+                           type='attempt-done',
+                           tags=['attempt_id:{0}'.format(self._attempt)])])
             artifacts = [DataArtifact(
                 name=var,
                 ds_type=self.TYPE,
