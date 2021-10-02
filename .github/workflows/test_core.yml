@@ -1,4 +1,4 @@
-name: Test
+name: Tests - Core
 on:
   push:
     branches:
@@ -59,12 +59,12 @@ jobs:
         R CMD INSTALL R
         Rscript -e 'install.packages(c("data.table", "caret", "glmnet", "Matrix", "rjson"), repos="https://cloud.r-project.org", Ncpus=8)'   
 
-    - name: Execute R tests
+    - name: Execute R tests for Metaflow Core
       if: matrix.lang == 'R'
       run: |
         cd R/tests
         Rscript run_tests.R
 
-    - name: Execute Python tests
+    - name: Execute Python tests for Metaflow Core
       if: matrix.lang == 'python'
       run: tox
