@@ -45,15 +45,6 @@ jobs:
       uses: r-lib/actions/setup-r@v1
       with:
         r-version: '3.6.3'
-      uses: r-lib/actions/setup-r-dependencies@v1
-      with:
-        extra-packages: |
-          devtools
-          data.table
-          caret
-          glmnet
-          Matrix
-          rjson
     
     - name: Install R 3.6 system dependencies
       if: matrix.lang == 'R' && matrix.os == 'ubuntu-latest'
