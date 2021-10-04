@@ -185,16 +185,6 @@ class BatchDecorator(StepDecorator):
                       max_retries,
                       ubf_context,
                       inputs):
-        # Add the Python interpreter's parent to the path explicitly if conda 
-        # is being used. This is to ensure that any non-pythonic dependencies 
-        # introduced by the conda environment are visible to the user code.
-        for deco in graph[step_name].decorators:
-            if deco.name == 'conda':
-                env_path = os.path.dirname(sys.executable)
-                if os.environ.get('PATH') is not None:
-                    env_path = os.pathsep.join([env_path, os.environ['PATH']])
-                os.environ['PATH'] = env_path
-
         if metadata.TYPE == 'local':
             self.task_datastore = task_datastore
         else:

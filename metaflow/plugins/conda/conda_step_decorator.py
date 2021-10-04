@@ -285,6 +285,14 @@ class CondaStepDecorator(StepDecorator):
                       ubf_context,
                       inputs):
         if self.is_enabled(ubf_context):
+            # Add the Python interpreter's parent to the path. This is to 
+            # ensure that any non-pythonic dependencies introduced by the conda
+            # environment are visible to the user code.
+            env_path = os.path.dirname(sys.executable)
+            if os.environ.get('PATH') is not None:
+                env_path = os.pathsep.join([env_path, os.environ['PATH']])
+            os.environ['PATH'] = env_path
+
             meta.register_metadata(run_id, step_name, task_id,
                                        [MetaDatum(field='conda_env_id',
                                                   value=self._env_id(),
@@ -305,11 +313,7 @@ class CondaStepDecorator(StepDecorator):
             if self.addl_paths is not None:
                 addl_paths = os.pathsep.join(self.addl_paths)
                 python_path = os.pathsep.join([addl_paths, python_path])
-            env_path = os.path.dirname(self.conda.python(self.env_id))
-            if os.environ.get('PATH') is not None:
-                env_path = os.pathsep.join([env_path, os.environ['PATH']])
-            
-            cli_args.env['PATH'] = env_path
+
             cli_args.env['PYTHONPATH'] = python_path
             cli_args.env['_METAFLOW_CONDA_ENV'] = self.env_id
             cli_args.entrypoint[0] = self.conda.python(self.env_id)
