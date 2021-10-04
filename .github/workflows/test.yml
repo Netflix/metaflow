@@ -45,6 +45,7 @@ jobs:
       uses: r-lib/actions/setup-r@v1
       with:
         r-version: '3.6.3'
+      run: Rscript -e 'install.packages(c("data.table", "caret", "glmnet", "Matrix", "rjson"), repos="https://cloud.r-project.org", Ncpus=8)'
     
     - name: Install R 3.6 system dependencies
       if: matrix.lang == 'R' && matrix.os == 'ubuntu-latest'
