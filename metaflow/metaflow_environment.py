@@ -50,7 +50,7 @@ class MetaflowEnvironment(object):
     def add_to_package(self):
         """
         A list of tuples (file, arcname) to add to the job package.
-        `arcname` is an alterative name for the file in the job package.
+        `arcname` is an alternative name for the file in the job package.
         """
         return []
 

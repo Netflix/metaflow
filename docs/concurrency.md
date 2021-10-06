@@ -7,7 +7,7 @@ while parallelism is the simultaneous execution of (possibly related)
 computations* from
 [a talk by Rob Pike, Concurrency is not Parallelism](https://blog.golang.org/concurrency-is-not-parallelism):
 
-**Parallelism** is a relatively straighforward and quantifiable
+**Parallelism** is a relatively straightforward and quantifiable
 concept. However, it is not always easy to decide what constructs of
 **concurrency**, which can lead to parallelism, are most appropriate
 in each context. The choice is not easy since besides parallelism

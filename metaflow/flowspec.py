@@ -344,7 +344,7 @@ class FlowSpec(object):
             # We have unresolved conflicts so we do not set anything and error out
             msg = "Step *{step}* cannot merge the following artifacts due to them "\
                   "having conflicting values:\n[{artifacts}].\nTo remedy this issue, "\
-                  "be sure to explictly set those artifacts (using "\
+                  "be sure to explicitly set those artifacts (using "\
                   "self.<artifact_name> = ...) prior to calling merge_artifacts."\
                   .format(step=self._current_step, artifacts=', '.join(unresolved))
             raise UnhandledInMergeArtifactsException(msg, unresolved)
