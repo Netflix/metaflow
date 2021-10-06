@@ -51,7 +51,6 @@ class Batch(object):
                  step_name,
                  step_cmds,
                  task_spec):
-        print(">> _command", step_name, step_cmds)
         mflog_expr = export_mflog_env_vars(datastore_type='s3',
                                            stdout_path=STDOUT_PATH,
                                            stderr_path=STDERR_PATH,
