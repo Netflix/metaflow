@@ -681,6 +681,12 @@ class StepFunctions(object):
                  '--task-id %s' % task_id_params]
             # Assign tags to run objects.
             if self.tags:
+                import shlex
+                invalid_tags = [tag for tag in self.tags if shlex.quote(tag) != tag]
+                if invalid_tags:
+                    raise MetaflowException("Step functions doesn't support "\
+                                            "tags with special characters "\
+                                            "currently: %s" % invalid_tags[0])
                 params.extend('--tag %s' % tag for tag in self.tags)
 
             # If the start step gets retried, we must be careful not to 
