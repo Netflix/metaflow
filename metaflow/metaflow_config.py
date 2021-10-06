@@ -60,7 +60,7 @@ DATASTORE_SYSROOT_LOCAL = from_conf('METAFLOW_DATASTORE_SYSROOT_LOCAL')
 # S3 bucket and prefix to store artifacts for 's3' datastore.
 DATASTORE_SYSROOT_S3 = from_conf('METAFLOW_DATASTORE_SYSROOT_S3')
 # S3 datatools root location
-DATATOOLS_SUFFIX = from_conf('METAFLOW_DATATOOLS_SUFFIX', 'data')
+DATATOOLS_SUFFIX = from_conf('METAFLOW_DATATOOLS_SUFFIX', 'data').rstrip('/')
 DATATOOLS_S3ROOT = from_conf(
     'METAFLOW_DATATOOLS_S3ROOT', 
         '%s/%s' % (from_conf('METAFLOW_DATASTORE_SYSROOT_S3').rstrip('/'), DATATOOLS_SUFFIX)
