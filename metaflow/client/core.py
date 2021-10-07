@@ -329,6 +329,9 @@ class MetaflowObject(object):
         self._attempt = attempt
 
         if self._attempt is not None:
+            if self._NAME not in ['task', 'artifact']:
+                raise MetaflowNotFound(
+                    "Attempts can only be specified for Task or DataArtifact")
             try:
                 self._attempt = int(self._attempt)
             except ValueError:
