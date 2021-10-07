@@ -943,7 +943,7 @@ class CLIArgs(object):
                     yield "--%s" % k
                     if isinstance(value, dict):
                         yield json.dumps(value)
-                    if not isinstance(value, bool):
+                    elif not isinstance(value, bool):
                         yield to_unicode(value)
 
         args = list(self.entrypoint)

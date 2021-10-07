@@ -16,6 +16,7 @@
 from .util import to_unicode
 import json
 
+
 class CLIArgs(object):
     def __init__(self):
         self._top_kwargs = {}
@@ -71,7 +72,7 @@ class CLIArgs(object):
                 yield "--%s" % k
                 if isinstance(value, dict):
                     yield json.dumps(value)
-                if not isinstance(value, bool):
+                elif not isinstance(value, bool):
                     yield to_unicode(value)
 
 

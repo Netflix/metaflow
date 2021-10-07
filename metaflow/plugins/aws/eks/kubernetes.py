@@ -190,6 +190,7 @@ class Kubernetes(object):
         memory=None,
         run_time_limit=None,
         env={},
+        tolerations=None,
     ):
         # TODO: Test for DNS-1123 compliance. Python names can have underscores
         #       which are not valid Kubernetes names. We can potentially make
@@ -255,6 +256,7 @@ class Kubernetes(object):
             .label("metaflow/step_name", sanitize_label_value(self._step_name))
             .label("metaflow/task_id", sanitize_label_value(self._task_id))
             .label("metaflow/attempt", sanitize_label_value(self._attempt))
+            .tolerations(tolerations)
         )
 
         # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync
