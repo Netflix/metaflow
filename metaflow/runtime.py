@@ -931,7 +931,6 @@ class CLIArgs(object):
         # TODO: Make one with dict_to_cli_options; see cli_args.py for more detail
         def _options(mapping):
             for k, v in mapping.items():
-
                 # None or False arguments are ignored
                 # v needs to be explicitly False, not falsy, eg. 0 is an acceptable value
                 if v is None or v is False:
@@ -945,7 +944,9 @@ class CLIArgs(object):
                 v = v if isinstance(v, (list, tuple, set)) else [v]
                 for value in v:
                     yield "--%s" % k
-                    if not isinstance(value, bool):
+                    if isinstance(value, dict):
+                        yield json.dumps(value)
+                    elif not isinstance(value, bool):
                         yield to_unicode(value)
 
         args = list(self.entrypoint)
