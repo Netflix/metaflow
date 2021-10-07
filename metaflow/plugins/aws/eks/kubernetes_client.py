@@ -275,7 +275,7 @@ class KubernetesJob(object):
                         #               This requires some thought around the
                         #               UX since specifying tolerations can get
                         #               complicated quickly.
-                        # tolerations=?,
+                        tolerations=self._kwargs["tolerations"],
                         #
                         # TODO (savin): At some point in the very near future,
                         #               support custom volumes (PVCs/EVCs).
@@ -351,6 +351,10 @@ class KubernetesJob(object):
         self._kwargs["annotations"] = dict(
             self._kwargs.get("annotations", {}), **{name: value}
         )
+        return self
+
+    def tolerations(self, tolerations):
+        self._kwargs["tolerations"] = tolerations
         return self
 
 

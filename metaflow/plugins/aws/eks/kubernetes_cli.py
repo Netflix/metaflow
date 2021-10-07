@@ -7,6 +7,7 @@ import traceback
 from metaflow import util
 from metaflow.exception import CommandException, METAFLOW_EXIT_DISALLOW_RETRY
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
+from metaflow.parameters import JSONTypeClass
 
 from .kubernetes import Kubernetes, KubernetesKilledException
 from ..aws_utils import sync_metadata_from_S3
@@ -98,6 +99,12 @@ def kubernetes():
     default=5 * 24 * 60 * 60,  # Default is set to 5 days
     help="Run time limit in seconds for Kubernetes job.",
 )
+@click.option(
+    "--tolerations",
+    default=None,
+    type=JSONTypeClass(),
+    multiple=True,
+)
 @click.pass_context
 def step(
     ctx,
@@ -115,6 +122,7 @@ def step(
     disk=None,
     memory=None,
     run_time_limit=None,
+    tolerations=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", job_id=None):
@@ -217,6 +225,7 @@ def step(
                 memory=memory,
                 run_time_limit=run_time_limit,
                 env=env,
+                tolerations=tolerations,
             )
     except Exception as e:
         # TODO: Make sure all errors pretty print nicely.
