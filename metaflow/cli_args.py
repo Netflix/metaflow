@@ -16,7 +16,6 @@
 from .util import to_unicode
 import json
 
-
 class CLIArgs(object):
     def __init__(self):
         self._top_kwargs = {}
