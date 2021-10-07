@@ -1,5 +1,6 @@
 import inspect
 import sys
+import json
 import traceback
 from datetime import datetime
 from functools import wraps
@@ -928,7 +929,9 @@ def _reconstruct_cli(params):
                 v = [v]
             for value in v:
                 yield '--%s' % k
-                if not isinstance(value, bool):
+                if isinstance(value, dict):
+                    yield json.dumps(value)
+                elif not isinstance(value, bool):
                     yield str(value)
 
 
