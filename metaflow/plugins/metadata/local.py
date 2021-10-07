@@ -1,6 +1,5 @@
 import glob
 import json
-from metaflow.exception import MetaflowInternalError
 import os
 import time
 

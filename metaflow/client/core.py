@@ -741,7 +741,6 @@ class DataArtifact(MetaflowObject):
         ds_type = self._object['ds_type']
         location = self._object['location']
         components = self.path_components
-
         if filecache is None:
             # TODO: Pass proper environment to properly extract artifacts
             filecache = FileCache()
