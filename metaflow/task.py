@@ -67,8 +67,7 @@ class MetaflowTask(object):
 
             setattr(self.flow.__class__, var,
                     property(fget=property_setter))
-            if passdown:
-                vars.append(var)
+            vars.append(var)
         if passdown:
             self.flow._datastore.passdown_partial(parameter_ds, vars)
         return vars
