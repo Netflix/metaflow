@@ -71,6 +71,7 @@ class KubernetesDecorator(StepDecorator):
         "gpu": "0",
         # "shared_memory": None,
         "namespace": None,
+        "tolerations": None,  # e.g. [{"key": "key1", "operator": "Equal", "value": "value1", "effect": "NoSchedule"}]
     }
     package_url = None
     package_sha = None
