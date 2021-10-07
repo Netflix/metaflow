@@ -14,7 +14,7 @@
 # done in one place.
 
 from .util import to_unicode
-
+import json
 
 class CLIArgs(object):
     def __init__(self):
@@ -69,6 +69,8 @@ class CLIArgs(object):
             v = v if isinstance(v, (list, tuple, set)) else [v]
             for value in v:
                 yield "--%s" % k
+                if isinstance(value, dict):
+                    yield json.dumps(value)
                 if not isinstance(value, bool):
                     yield to_unicode(value)
 
