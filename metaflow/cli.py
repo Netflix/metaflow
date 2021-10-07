@@ -429,7 +429,9 @@ def step(ctx,
          clone_only=None,
          clone_run_id=None,
          decospecs=None,
-         ubf_context=None):
+         ubf_context='none'):
+    if ubf_context == 'none':
+        ubf_context = None
     if opt_namespace is not None:
         namespace(opt_namespace or None)
 
