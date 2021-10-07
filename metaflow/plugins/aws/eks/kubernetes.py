@@ -358,9 +358,7 @@ class Kubernetes(object):
                 "%s. This could be a transient error. "
                 "Use @retry to retry." % msg
             )
-        elif not self._job.is_done:
-            # Kill the job if it is still running by throwing an exception.
-            raise KubernetesKilledException("Task failed!")
+
         exit_code, _ = self._job.reason
         echo(
             "Task finished with exit code %s." % exit_code,
