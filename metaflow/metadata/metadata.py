@@ -398,37 +398,8 @@ class MetadataProvider(object):
         if attempt_int is None or sub_order != 6:
             # If no attempt or not for metadata, just return as is
             return pre_filter
-        # Otherwise, we filter out the metadata. If we have attempt_id information
-        # (post MF 2.4.0), it's easy; if not, we do our best to reconstruct
-        # the order.
-        have_all_attempt_id = True
-        attempts_start = {}
-        post_filter = []
-        for v in pre_filter:
-            if v['field_name'] == 'attempt':
-                attempts_start[int(v['value'])] = v['ts_epoch']
-            all_tags = v.get('tags', [])
-            for t in all_tags:
-                match_result = attempt_id_re.match(t)
-                if match_result:
-                    if int(match_result.group(1)) == attempt_int:
-                        post_filter.append(v)
-                    break
-            else:
-                # We didn't encounter a match for attempt_id
-                have_all_attempt_id = False
-
-        if not have_all_attempt_id:
-            # We reconstruct base on the attempts_start
-            start_ts = attempts_start.get(attempt_int, -1)
-            if start_ts < 0:
-                return [] # No metadata since the attempt hasn't started
-            # Doubt we will be using Python in year 3000
-            end_ts = attempts_start.get(attempt_int + 1, 32503680000000)
-            post_filter = [v for v in pre_filter
-                if v['ts_epoch'] >= start_ts and v['ts_epoch'] < end_ts]
-
-        return post_filter
+        return MetadataProvider._reconstruct_metadata_for_attempt(
+            pre_filter, attempt_int)
 
     def _all_obj_elements(self, tags=[], sys_tags=[]):
         user = get_username()
@@ -566,6 +537,37 @@ class MetadataProvider(object):
             starting_point = result
             result = []
         return starting_point
+
+    @staticmethod
+    def _reconstruct_metadata_for_attempt(all_metadata, attempt_id):
+        have_all_attempt_id = True
+        attempts_start = {}
+        post_filter = []
+        for v in all_metadata:
+            if v['field_name'] == 'attempt':
+                attempts_start[int(v['value'])] = v['ts_epoch']
+            all_tags = v.get('tags', [])
+            for t in all_tags:
+                match_result = attempt_id_re.match(t)
+                if match_result:
+                    if int(match_result.group(1)) == attempt_id:
+                        post_filter.append(v)
+                    break
+            else:
+                # We didn't encounter a match for attempt_id
+                have_all_attempt_id = False
+
+        if not have_all_attempt_id:
+            # We reconstruct base on the attempts_start
+            start_ts = attempts_start.get(attempt_id, -1)
+            if start_ts < 0:
+                return [] # No metadata since the attempt hasn't started
+            # Doubt we will be using Python in year 3000
+            end_ts = attempts_start.get(attempt_id + 1, 32503680000000)
+            post_filter = [v for v in all_metadata
+                if v['ts_epoch'] >= start_ts and v['ts_epoch'] < end_ts]
+
+        return post_filter
 
     def __init__(self, environment, flow, event_logger, monitor):
         self._task_id_seq = -1

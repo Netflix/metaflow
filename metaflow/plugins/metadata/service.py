@@ -29,6 +29,8 @@ class ServiceException(MetaflowException):
 class ServiceMetadataProvider(MetadataProvider):
     TYPE = 'service'
 
+    _supports_attempt_gets = None
+
     def __init__(self, environment, flow, event_logger, monitor):
         super(ServiceMetadataProvider, self).__init__(environment, flow, event_logger, monitor)
         self.url_task_template = os.path.join(METADATA_SERVICE_URL,
@@ -161,6 +163,17 @@ class ServiceMetadataProvider(MetadataProvider):
     @classmethod
     def _get_object_internal(
             cls, obj_type, obj_order, sub_type, sub_order, filters, attempt, *args):
+        if attempt is not None:
+            if cls._supports_attempt_gets is None:
+                version = cls._version(None)
+                cls._supports_attempt_gets = version is not None and \
+                    LooseVersion(version) >= LooseVersion('2.0.6')
+            if not cls._supports_attempt_gets:
+                raise ServiceException(
+                    "Getting specific attempts of Tasks or Artifacts requires "
+                    "the metaflow service to be at least version 2.0.6. Please "
+                    "upgrade your service")
+
         if sub_type == 'self':
             if obj_type == 'artifact':
                 # Special case with the artifacts; we add the attempt

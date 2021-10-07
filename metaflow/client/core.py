@@ -319,38 +319,32 @@ class MetaflowObject(object):
 
     def __init__(self,
                  pathspec=None,
+                 attempt=None,
                  _object=None,
                  _parent=None,
                  _namespace_check=True):
         self._metaflow = Metaflow()
         self._parent = _parent
         self._path_components = None
-        self._attempt = None
+        self._attempt = attempt
+
+        if self._attempt is not None:
+            try:
+                self._attempt = int(self._attempt)
+            except ValueError:
+                raise MetaflowNotFound("Attempt can only be an integer")
+            else:
+                if self._attempt < 0:
+                    raise MetaflowNotFound("Attempt can only be positive")
+                elif self._attempt >= MAX_ATTEMPTS:
+                    raise MetaflowNotFound(
+                        "Attempt can only be smaller than %d" % MAX_ATTEMPTS)
+                # NOTE: It is possible that no attempt exists but we can't
+                # distinguish between "attempt will happen" and "no such
+                # attempt exists".
+
         if pathspec:
             ids = pathspec.split('/')
-
-            # Special case for Task or DataArtifact with an attempt in the pathspec
-            if self._NAME == 'task' and len(ids) == 5:
-                self._attempt = ids[-1]
-                ids = ids[:-1]
-            elif self._NAME == 'artifact' and len(ids) == 6:
-                self._attempt = ids[-1]
-                ids = ids[:-1]
-
-            if self._attempt is not None:
-                try:
-                    self._attempt = int(self._attempt)
-                except ValueError:
-                    raise MetaflowNotFound("Attempt can only be an integer")
-                else:
-                    if self._attempt < 0:
-                        raise MetaflowNotFound("Attempt can only be positive")
-                    elif self._attempt >= MAX_ATTEMPTS:
-                        raise MetaflowNotFound(
-                            "Attempt can only be smaller than %d" % MAX_ATTEMPTS)
-                    # NOTE: It is possible that no attempt exists but we can't
-                    # distinguish between "attempt will happen" and "no such
-                    # attempt exists".
 
             self.id = ids[-1]
             self._pathspec = pathspec
@@ -453,6 +447,9 @@ class MetaflowObject(object):
                    current_namespace in self._tags
 
     def __str__(self):
+        if self._attempt is not None:
+            return "%s('%s', attempt=%d)" % (
+                self.__class__.__name__, self.pathspec, self._attempt)
         return "%s('%s')" % (self.__class__.__name__, self.pathspec)
 
     def __repr__(self):
@@ -551,16 +548,16 @@ class MetaflowObject(object):
             return None
         # Compute parent from pathspec and cache it.
         if self._parent is None:
-            path_components = self.path_components
-            path_components = path_components[:-1]
-            if self._attempt is not None and self._NAME == 'artifact':
-                path_components.append(str(self._attempt))
-
-            parent_pathspec = os.path.join(*path_components)
+            pathspec = self.pathspec
+            parent_pathspec = pathspec[:pathspec.rfind('/')]
+            # Only artifacts and tasks have attempts right now so we get the
+            # right parent if we are an artifact.
+            attempt_to_pass = self._attempt if self._NAME == 'artifact' else None
             # We can skip the namespace check because if self._NAME = 'run',
             # the parent object is guaranteed to be in namespace.
             # Otherwise the check is moot for Flow since parent is singular.
-            self._parent = _CLASSES[self._PARENT_CLASS](parent_pathspec, _namespace_check=False)
+            self._parent = _CLASSES[self._PARENT_CLASS](
+                parent_pathspec, attempt=attempt_to_pass, _namespace_check=False)
         return self._parent
 
     @property
@@ -569,8 +566,9 @@ class MetaflowObject(object):
         Returns a string representation uniquely identifying this object.
 
         The string is the same as the one you would pass into the constructor
-        to build this object. The pathspec contains the attempt_id if applicable
-        (for tasks and artifacts).
+        to build this object except if you are looking for a specific attempt of
+        a task or a data artifact (in which case you need to add `attempt=<attempt>`
+        in the constructor).
 
         Returns
         -------
@@ -581,18 +579,14 @@ class MetaflowObject(object):
             if self.parent is None:
                 self._pathspec = self.id
             else:
-                path_components = self.parent.path_components
-                path_components.append(self.id)
-                if self.parent._attempt is not None:
-                    path_components.append(str(self.parent._attempt))
-                self._pathspec = os.path.join(*path_components)
+                parent_pathspec = self.parent.pathspec
+                self._pathspec = os.path.join(parent_pathspec, self.id)
         return self._pathspec
 
     @property
     def path_components(self):
         """
-        List of individual components of the pathspec. The path_components
-        never contain the attempt_id (for tasks and artifacts)
+        List of individual components of the pathspec.
 
         Returns
         -------
@@ -601,8 +595,6 @@ class MetaflowObject(object):
         """
         if self._path_components is None:
             ids = self.pathspec.split('/')
-            if self._attempt is not None:
-                ids = ids[:-1]
             self._path_components = ids
         return list(self._path_components)
 
@@ -817,8 +809,8 @@ class Task(MetaflowObject):
     Note that you can also get information about a specific *attempt* of a
     task. By default, the latest finished attempt is returned but you can
     explicitly get information about a specific attempt by using the
-    following pathspec when creating a task:
-    `Task('flow/run/step/task/attempt)`. Note that you will not be able to
+    following syntax when creating a task:
+    `Task('flow/run/step/task', attempt=<attempt>)`. Note that you will not be able to
     access a specific attempt of a task through the `.tasks` method of a step
     for example (that will always return the latest attempt).
 
@@ -868,8 +860,7 @@ class Task(MetaflowObject):
     def metadata(self):
         """
         Metadata events produced by this task across all attempts of the task
-        *except* if you selected a specific task attempt *and* the Metaflow
-        version this task was run with is at least 2.4.0.
+        *except* if you selected a specific task attempt.
 
         Note that Metadata is different from tags.
 
