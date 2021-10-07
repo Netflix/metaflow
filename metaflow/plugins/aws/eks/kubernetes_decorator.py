@@ -74,12 +74,6 @@ class KubernetesDecorator(StepDecorator):
         "namespace": None,
         "tolerations": None,  # e.g. [{"key": "key1", "operator": "Equal", "value": "value1", "effect": "NoSchedule"}]
     }
-    resource_defaults = {
-        "cpu": "1",
-        "memory": "4096",
-        "disk": "10240",
-        "gpu": "0",
-    }
     package_url = None
     package_sha = None
     run_time_limit = None
