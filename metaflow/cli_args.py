@@ -16,7 +16,6 @@
 from .util import to_unicode
 import json
 
-
 class CLIArgs(object):
     def __init__(self):
         self._top_kwargs = {}
@@ -56,24 +55,19 @@ class CLIArgs(object):
     @staticmethod
     def _options(mapping):
         for k, v in mapping.items():
-
-            # None or False arguments are ignored
-            # v needs to be explicitly False, not falsy, eg. 0 is an acceptable value
-            if v is None or v is False:
-                continue
-
-            # we need special handling for 'with' since it is a reserved
-            # keyword in Python, so we call it 'decospecs' in click args
-            if k == "decospecs":
-                k = "with"
-            k = k.replace("_", "-")
-            v = v if isinstance(v, (list, tuple, set)) else [v]
-            for value in v:
-                yield "--%s" % k
-                if isinstance(value, dict):
-                    yield json.dumps(value)
-                elif not isinstance(value, bool):
-                    yield to_unicode(value)
+            if v:
+                # we need special handling for 'with' since it is a reserved
+                # keyword in Python, so we call it 'decospecs' in click args
+                if k == "decospecs":
+                    k = "with"
+                k = k.replace("_", "-")
+                v = v if isinstance(v, (list, tuple, set)) else [v]
+                for value in v:
+                    yield "--%s" % k
+                    if isinstance(value, dict):
+                        yield json.dumps(value)
+                    elif not isinstance(value, bool):
+                        yield to_unicode(value)
 
 
 cli_args = CLIArgs()
