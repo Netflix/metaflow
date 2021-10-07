@@ -410,6 +410,7 @@ def logs(obj,
               help="Add a decorator to this task. You can specify this "
               "option multiple times to attach multiple decorators "
               "to this task.")
+@click.option('--shadow-task', is_flag=True, help="A secondary task in a multi-node task, which does not produce output.")
 @click.option('--ubf-context',
               default='none',
               type=click.Choice(['none', UBF_CONTROL, UBF_TASK]),
@@ -429,6 +430,7 @@ def step(ctx,
          clone_only=None,
          clone_run_id=None,
          decospecs=None,
+         shadow_task=None,
          ubf_context=None):
     if opt_namespace is not None:
         namespace(opt_namespace or None)
@@ -465,7 +467,8 @@ def step(ctx,
                         ctx.obj.echo,
                         ctx.obj.event_logger,
                         ctx.obj.monitor,
-                        ubf_context)
+                        ubf_context,
+                        shadow_task)
     if clone_only:
         task.clone_only(step_name,
                         run_id,

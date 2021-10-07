@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from collections import defaultdict, deque
+import copy
 import random
 import select
 import sys
@@ -93,9 +94,14 @@ class BatchJob(object):
 
         if getattr(self, '_nodes', 0) > 1:
             num_nodes = self._nodes
+            shadow_task_container_override = copy.deepcopy(self.payload['containerOverrides'])
+            # TERRIBLE HACK JUST TO TRY THIS WORKS
+            print(self.payload['containerOverrides']['command'])
+            shadow_task_container_override['command'][-1] = self.payload['containerOverrides']['command'][-1].replace("--retry-count", "--shadow-task --retry-count")
             self.payload['nodeOverrides'] = {
                 'nodePropertyOverrides': [
-                    {'targetNodes': '0:{}'.format(num_nodes - 1), 'containerOverrides': self.payload['containerOverrides']}
+                    {'targetNodes': '0:0', 'containerOverrides': self.payload['containerOverrides']},
+                    {'targetNodes': '1:{}'.format(num_nodes - 1), 'containerOverrides': shadow_task_container_override}
                 ],
             }
             del self.payload['containerOverrides']
@@ -225,7 +231,13 @@ class BatchJob(object):
             }
             job_definition['nodeProperties']['nodeRangeProperties'] = [
                 {
-                    'targetNodes': '0:{}'.format(nodes - 1),
+                    'targetNodes': '0:0',   # The properties are same for main node and others,
+                                            # but as we use nodeOverrides later for main and others
+                                            # differently, also the job definition must match those patterns
+                    'container': job_definition['containerProperties']
+                },
+                {
+                    'targetNodes': '1:{}'.format(nodes - 1),
                     'container': job_definition['containerProperties']
                 }
             ]

@@ -35,7 +35,8 @@ class MetaflowTask(object):
                  console_logger,
                  event_logger,
                  monitor,
-                 ubf_context):
+                 ubf_context,
+                 shadow_task=False):
         self.flow = flow
         self.flow_datastore = flow_datastore
         self.metadata = metadata
@@ -44,6 +45,7 @@ class MetaflowTask(object):
         self.event_logger = event_logger
         self.monitor = monitor
         self.ubf_context = ubf_context
+        self.shadow_task = shadow_task
 
     def _exec_step_function(self, step_function, input_obj=None):
         self.environment.validate_environment(echo=self.console_logger)
@@ -250,9 +252,12 @@ class MetaflowTask(object):
                  retry_count,
                  max_user_code_retries):
 
+        print("Shadow task", self.shadow_task)
+
         if run_id and task_id:
-            self.metadata.register_run_id(run_id)
-            self.metadata.register_task_id(run_id, step_name, task_id, retry_count)
+            if not self.shadow_task:
+                self.metadata.register_run_id(run_id)
+                self.metadata.register_task_id(run_id, step_name, task_id, retry_count)
         else:
             raise MetaflowInternalError("task.run_step needs a valid run_id "
                                         "and task_id")
@@ -265,7 +270,8 @@ class MetaflowTask(object):
                                         "MAX_ATTEMPTS exceeded." % retry_count)
 
         metadata_tags = ["attempt_id:{0}".format(retry_count)]
-        self.metadata.register_metadata(run_id,
+        if not self.shadow_task:
+            self.metadata.register_metadata(run_id,
                                         step_name,
                                         task_id,
                                         [MetaDatum(field='attempt',
@@ -292,10 +298,13 @@ class MetaflowTask(object):
             join_type = self.flow._graph[node.split_parents[-1]].type
 
         # 1. initialize output datastore
-        output = self.flow_datastore.get_task_datastore(
-            run_id, step_name, task_id, attempt=retry_count, mode='w')
+        if not self.shadow_task:
+            output = self.flow_datastore.get_task_datastore(
+                run_id, step_name, task_id, attempt=retry_count, mode='w')
 
-        output.init_task()
+            output.init_task()
+        else:
+            output = None
 
         if input_paths:
             control_paths = [path for path in input_paths
@@ -321,16 +330,19 @@ class MetaflowTask(object):
                          is_running=True)
 
         # 5. run task
-        output.save_metadata({'task_begin':
-            {
-                'code_package_sha': os.environ.get('METAFLOW_CODE_SHA'),
-                'code_package_ds': os.environ.get('METAFLOW_CODE_DS'),
-                'code_package_url': os.environ.get('METAFLOW_CODE_URL'),
-                'retry_count': retry_count
-            }})
+        if output:
+            output.save_metadata({'task_begin':
+                {
+                    'code_package_sha': os.environ.get('METAFLOW_CODE_SHA'),
+                    'code_package_ds': os.environ.get('METAFLOW_CODE_DS'),
+                    'code_package_url': os.environ.get('METAFLOW_CODE_URL'),
+                    'retry_count': retry_count
+                }})
         logger = self.event_logger
         start = time.time()
-        self.metadata.start_task_heartbeat(self.flow.name, run_id, step_name,
+
+        if output:
+            self.metadata.start_task_heartbeat(self.flow.name, run_id, step_name,
                                            task_id)
         try:
             # init side cars
@@ -466,6 +478,10 @@ class MetaflowTask(object):
                 raise
 
         finally:
+            if self.shadow_task:
+                print("--- shadow task finishing")
+                return
+
             if self.ubf_context == UBF_CONTROL:
                 self._finalize_control_task()
 
