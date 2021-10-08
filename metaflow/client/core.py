@@ -764,9 +764,33 @@ class DataArtifact(MetaflowObject):
             return filecache.get_artifact_by_location(
                 ds_type, location, meta, *components)
 
-    # TODO add
-    # @property
-    # def size(self)
+    @property
+    def size(self):
+        """
+        Return non-cached size of the DataArtifact file.
+        """
+        # NOTE: We are not actually using the cache features for this, so could we access the datastore class directly instead?
+        global filecache
+
+        ds_type = self._object['ds_type']
+        location = self._object['location']
+        components = self.path_components
+
+        meta = {
+            'objects': {self._object['name']: self._object['sha']},
+            'info': {self._object['name']: {
+                'size': 0, 'type': None, 'encoding': self._object['content_type']}}
+        }
+        if filecache is None:
+            # TODO: Pass proper environment to properly extract artifacts
+            filecache = FileCache()
+        if location.startswith(':root:'):
+            return filecache.get_size(ds_type, location[6:], meta, *components)
+        else:
+            return filecache.get_size_by_location(ds_type, location, meta, *components)
+
+
+
 
     # TODO add
     # @property
@@ -1066,6 +1090,19 @@ class Task(MetaflowObject):
         return self._load_log(logtype)
 
     @property
+    def stdout_size(self):
+        """
+        Returns the size of the standard out of this task.
+
+        Returns
+        -------
+        string
+            Standard output of this task
+        """
+        logtype = 'stdout'
+        return self._get_logsize(logtype)
+
+    @property
     def stderr(self):
         """
         Returns the full standard error of this task.
@@ -1080,6 +1117,19 @@ class Task(MetaflowObject):
         """
         logtype = 'stderr'
         return self._load_log(logtype)
+
+    @property
+    def stderr_size(self):
+        """
+        Returns the size of the standard out of this task.
+
+        Returns
+        -------
+        string
+            Standard output of this task
+        """
+        logtype = 'stderr'
+        return self._get_logsize(logtype)
 
     @cached_property
     def code(self):
@@ -1127,6 +1177,10 @@ class Task(MetaflowObject):
             return self._load_log_legacy(log_location, stream)
         else:
             return ''.join(line + '\n' for _, line in self.loglines(stream))
+
+    def _get_logsize(self, stream):
+        # TODO: implement.
+        return 0
 
     def loglines(self, stream, as_unicode=True):
         """

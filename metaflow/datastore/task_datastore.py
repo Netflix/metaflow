@@ -314,6 +314,15 @@ class TaskDataStore(object):
         for sha, blob in self._ca_store.load_blobs(to_load):
             yield sha_to_names[sha], pickle.loads(blob)
 
+    @require_mode(None)
+    def get_artifact_size(self, name):
+        # SHA for the artifact, this is used as part of the location.
+        key = self._objects[name]
+        path = self._storage_impl.path_join(
+            self._ca_store._prefix, key[:2], key)
+
+        return self._storage_impl.info_file(path)
+
     @only_if_not_done
     @require_mode('w')
     def save_metadata(self, contents, allow_overwrite=True, add_attempt=True):
