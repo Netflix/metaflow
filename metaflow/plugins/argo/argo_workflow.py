@@ -8,7 +8,7 @@ from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import DATASTORE_SYSROOT_S3
 from metaflow.metaflow_config import DEFAULT_METADATA, METADATA_SERVICE_URL, METADATA_SERVICE_HEADERS
 from metaflow.parameters import deploy_time_eval
-from metaflow.plugins.aws.batch.batch_decorator import ResourcesDecorator
+from metaflow.plugins import ResourcesDecorator, RetryDecorator
 from metaflow.plugins.environment_decorator import EnvironmentDecorator
 from metaflow.util import get_username, compress_list
 from metaflow.mflog import export_mflog_env_vars, bash_capture_logs, BASH_SAVE_LOGS
@@ -327,7 +327,7 @@ class ArgoWorkflow:
 
         return tasks, nested_dags
 
-    def _commands(self, node):
+    def _commands(self, node, retry_count, user_code_retries):
         mflog_expr = export_mflog_env_vars(datastore_type='s3',
                                            stdout_path='/tmp/mflog_stdout',
                                            stderr_path='/tmp/mflog_stderr',
@@ -335,18 +335,18 @@ class ArgoWorkflow:
                                            run_id='{{workflow.name}}',
                                            step_name=node.name,
                                            task_id='{{pod.name}}',
-                                           retry_count=0)
+                                           retry_count=retry_count)
         init_cmds = []
         if self.code_package_url:
             init_cmds.extend(self.environment.get_package_commands(self.code_package_url))
         init_cmds.extend(self.environment.bootstrap_commands(node.name))
         init_expr = ' && '.join(init_cmds)
-        step_expr = bash_capture_logs(' && '.join(self._step_commands(node)))
+        step_expr = bash_capture_logs(' && '.join(self._step_commands(node, retry_count, user_code_retries)))
         cmd = ['true', mflog_expr, init_expr, step_expr]
         cmd_str =  '%s; c=$?; %s; exit $c' % (' && '.join(c for c in cmd if c), BASH_SAVE_LOGS)
         return shlex.split('bash -c \"%s\"' % cmd_str)
 
-    def _step_commands(self, node):
+    def _step_commands(self, node, retry_count, user_code_retries):
         cmds = []
         script_name = os.path.basename(sys.argv[0])
         executable = self.environment.executable(node.name)
@@ -404,6 +404,8 @@ class ArgoWorkflow:
             node.name,
             '--run-id %s' % run_id,
             '--task-id %s' % task_id,
+            '--retry-count %s' % retry_count,
+            '--max-user-code-retries %s' % str(user_code_retries),
             '--input-paths %s' % paths,
         ]
 
@@ -423,6 +425,7 @@ class ArgoWorkflow:
         attr = parse_step_decorator(node, ArgoStepDecorator)
         env_decorator = parse_step_decorator(node, EnvironmentDecorator)
         res_decorator = parse_step_decorator(node, ResourcesDecorator)
+        retry_decorator = parse_step_decorator(node, RetryDecorator)
 
         image = self._default_image()
         if attr.get('image'):
@@ -431,7 +434,10 @@ class ArgoWorkflow:
         res = self._resources(res_decorator)
         volume_mounts = attr.get('volumeMounts', [])
         volume_mounts.append(self._shared_memory(res_decorator))
-        cmd = self._commands(node)
+
+        user_code_retries = retry_decorator.get('times', 0)
+        retry_count = '{{retries}}' if user_code_retries else '0'
+        cmd = self._commands(node, retry_count, user_code_retries)
 
         metadata = {
             'labels': {
@@ -475,6 +481,15 @@ class ArgoWorkflow:
                 }
             },
         }
+
+        if user_code_retries:
+            template['retryStrategy'] = {
+                'retryPolicy': 'Always',
+                'limit': str(user_code_retries),
+                'backoff': {
+                    'duration': '%sm' % str(retry_decorator['minutes_between_retries']),
+                }
+            }
 
         if self._is_foreach_first_child(node):
             template['inputs']['parameters'].append({
