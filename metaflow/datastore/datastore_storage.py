@@ -157,7 +157,7 @@ class DataStoreStorage(object):
 
     def file_size(self, path):
         """
-        Returns file size at the indicated 'path'
+        Returns file size at the indicated 'path', or None if file can not be found.
 
         Parameters
         ----------
@@ -166,7 +166,8 @@ class DataStoreStorage(object):
 
         Returns
         -------
-        int
+        Optional
+            int
         """
         raise NotImplementedError
 
