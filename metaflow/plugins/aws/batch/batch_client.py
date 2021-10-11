@@ -14,6 +14,8 @@ except NameError:
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import AWS_SANDBOX_ENABLED
+from metaflow.metaflow_config import BATCH_DESCRIBE_JOBS_THROTTLE_DELTA as DELTA
+from metaflow.metaflow_config import BATCH_DESCRIBE_JOBS_THROTTLE_TRIES as TRIES
 
 class BatchClient(object):
     def __init__(self):
@@ -350,9 +352,9 @@ class BatchJob(object):
         return self
 
 class Throttle(object):
-    def __init__(self, delta_in_secs=1, num_tries=20):
-        self.delta_in_secs = delta_in_secs
-        self.num_tries = num_tries
+    def __init__(self, delta_in_secs=DELTA, num_tries=TRIES):
+        self.delta_in_secs = int(delta_in_secs)  # Cast if from env variable
+        self.num_tries = int(num_tries)  # Cast if from env variable
         self._now = None
         self._reset()
 
