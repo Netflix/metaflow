@@ -81,11 +81,19 @@ class CardDecorator(StepDecorator):
                 yield p, p[prefixlen:]
 
     def step_init(self, flow, graph, step_name, decorators, environment, flow_datastore, logger):
-        from json.decoder import JSONDecodeError
+        # We do this because of Py3 support JSONDecodeError and 
+        # Py2 raises ValueError
+        # https://stackoverflow.com/questions/53355389/python-2-3-compatibility-issue-with-exception
+        try:
+            import json 
+            RaisingError = json.decoder.JSONDecodeError
+        except AttributeError:  # Python 2
+            RaisingError = ValueError
+            
         if type(self.attributes['options']) is str:
             try:
                 self.attributes['options'] = json.loads(self.attributes['options'])
-            except JSONDecodeError:
+            except RaisingError:
                 # Setting Options from defaults
                 self.attributes['options'] = self.defaults['options']
                 

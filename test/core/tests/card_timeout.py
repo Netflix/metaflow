@@ -9,7 +9,7 @@ class CardTimeoutTest(MetaflowTest):
     PRIORITY = 2 
 
     @tag('timeout(seconds=10)')
-    @tag('card(type="timeout_card",args={"timeout":30})')
+    @tag('card(type="timeout_card",options={"timeout":30})')
     @steps(0, ['start',],)
     def step_start(self):
         self.data = 'abc'
