@@ -25,7 +25,7 @@ class ArgoClient(object):
         self.sess.hooks = {'response': lambda r, *args, **kwargs: r.raise_for_status()}
 
         # Sometimes POST fails because DELETE doesn't remove a resource immediately
-        retry = Retry(total=3, status_forcelist=[409], allowed_methods=['POST'], backoff_factor=1)
+        retry = Retry(total=3, status_forcelist=[409], method_whitelist=['POST'], backoff_factor=1)
         self.sess.mount(self.api, requests.adapters.HTTPAdapter(max_retries=retry))
 
     def create_template(self, name, definition):
