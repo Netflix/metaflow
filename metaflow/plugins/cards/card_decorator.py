@@ -1,4 +1,3 @@
-from json.decoder import JSONDecodeError
 import subprocess
 import os
 import sys
@@ -82,6 +81,7 @@ class CardDecorator(StepDecorator):
                 yield p, p[prefixlen:]
 
     def step_init(self, flow, graph, step_name, decorators, environment, flow_datastore, logger):
+        from json.decoder import JSONDecodeError
         if type(self.attributes['options']) is str:
             try:
                 self.attributes['options'] = json.loads(self.attributes['options'])
