@@ -308,8 +308,6 @@ class CondaStepDecorator(StepDecorator):
                          ubf_context):
         if self.is_enabled(ubf_context) and 'batch' not in cli_args.commands:
             python_path = self.metaflow_home
-            if os.environ.get('PYTHONPATH') is not None:
-                python_path = os.pathsep.join([os.environ['PYTHONPATH'], python_path])
             if self.addl_paths is not None:
                 addl_paths = os.pathsep.join(self.addl_paths)
                 python_path = os.pathsep.join([addl_paths, python_path])
