@@ -80,6 +80,27 @@ class FileCache(object):
         self.create_file(path, log)
         return log
 
+    def get_legacy_log_size(self, ds_type, location, logtype, attempt, flow_name, run_id, step_name, task_id):
+        ds_cls = self._get_datastore_storage_impl(ds_type)
+        ds_root = ds_cls.path_join(*ds_cls.path_split(location)[:-5])
+        ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
+
+        task_ds = ds.get_task_datastore(
+            run_id, step_name, task_id, data_metadata={'objects': {}, 'info': {}})
+
+        return task_ds.get_legacy_log_size(logtype, attempt)
+
+    def get_log_size(self, ds_type, ds_root, logtype, attempt, flow_name, run_id, step_name, task_id):
+        from metaflow.mflog import LOG_SOURCES
+        ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
+
+        task_ds = ds.get_task_datastore(
+            run_id, step_name, task_id, data_metadata={'objects': {}, 'info': {}})
+
+        return task_ds.get_log_size(
+            LOG_SOURCES, logtype, attempt_override=attempt)
+
+
     def get_data(self, ds_type, flow_name, location, key):
         ds_cls = self._get_datastore_storage_impl(ds_type)
         ds_root = ds_cls.get_datastore_root_from_location(location, flow_name)

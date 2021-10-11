@@ -789,9 +789,6 @@ class DataArtifact(MetaflowObject):
         else:
             return filecache.get_size_by_location(ds_type, location, meta, *components)
 
-
-
-
     # TODO add
     # @property
     # def type(self)
@@ -905,7 +902,6 @@ class Task(MetaflowObject):
                          task=self,
                          tags=obj.get('tags', []),
                          system_tags=obj.get('system_tags', [])) for obj in all_metadata]
-
 
     @property
     def metadata_dict(self):
@@ -1179,8 +1175,11 @@ class Task(MetaflowObject):
             return ''.join(line + '\n' for _, line in self.loglines(stream))
 
     def _get_logsize(self, stream):
-        # TODO: implement.
-        return 0
+        log_location = self.metadata_dict.get('log_location_%s' % stream)
+        if log_location:
+            return self._legacy_log_size(log_location, stream)
+        else:
+            return self._log_size(stream)
 
     def loglines(self, stream, as_unicode=True):
         """
@@ -1233,6 +1232,45 @@ class Task(MetaflowObject):
             return ret_val.decode(encoding='utf8')
         else:
             return ret_val
+
+    def _legacy_log_size(self, log_location, logtype):
+        global filecache
+
+        log_info = json.loads(log_location)
+        location = log_info['location']
+        ds_type = log_info['ds_type']
+        attempt = log_info['attempt']
+        if filecache is None:
+            filecache = FileCache()
+
+        return filecache.get_legacy_log_size(
+            ds_type, location, logtype, int(attempt), *self.path_components)
+
+    def _log_size(self, stream):
+        global filecache
+
+        ds_type = self.metadata_dict.get('ds-type')
+        ds_root = self.metadata_dict.get('ds-root')
+        if ds_type is None or ds_root is None:
+            return 0
+        if filecache is None:
+            filecache = FileCache()
+
+        if self._attempt is not None:
+            attempt = self._attempt
+        else:
+            # It is possible that a task fails before any metadata has been
+            # recorded. In this case, we assume that we are executing the
+            # first attempt.
+            #
+            # FIXME: Technically we are looking at the latest *recorded* attempt
+            # here. It is possible that logs exists for a newer attempt that
+            # just failed to record metadata. We could make this logic more robust
+            # and guarantee that we always return the latest available log.
+            attempt = int(self.metadata_dict.get('attempt', 0))
+        return filecache.get_log_size(
+            ds_type, ds_root, stream, attempt, *self.path_components)
+
 
 
 class Step(MetaflowObject):

@@ -323,6 +323,30 @@ class TaskDataStore(object):
 
         return self._storage_impl.file_size(path)
 
+    @require_mode(None)
+    def get_legacy_log_size(self, stream, attempt_override=False):
+        name = self._metadata_name_for_attempt(
+            '%s.log' % stream, attempt_override)
+        path = self._storage_impl.path_join(self._path, name)
+
+        return self._storage_impl.file_size(path)
+
+    @require_mode(None)
+    def get_log_size(self, logsources, stream, attempt_override=False):
+        def _path(s):
+            # construct path for fetching of a single log source
+            _p = self._metadata_name_for_attempt(
+                self._get_log_location(s, stream),
+                attempt_override=attempt_override
+            )
+            return self._storage_impl.path_join(self._path, _p)
+
+        paths = list(map(_path, logsources))
+        # Remember to deal with None sizes for missing content.
+        sizes = [self._storage_impl.file_size(p) for p in paths]
+
+        return sum(size for size in sizes if size is not None)
+
     @only_if_not_done
     @require_mode('w')
     def save_metadata(self, contents, allow_overwrite=True, add_attempt=True):
