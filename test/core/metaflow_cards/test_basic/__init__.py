@@ -2,13 +2,13 @@
 from metaflow.plugins.card_modules.card import MetaflowCard
 
 class MockCard(MetaflowCard):
-    name='mock_card'
+    type='mock_card'
 
     def render(self, task):
         return "This is a mock card for Pathspec %s" % task.pathspec
 
 class ErrorCard(MetaflowCard):
-    name='error_card'
+    type='error_card'
     
     # the render function will raise Exception
     def render(self, task):
@@ -16,7 +16,7 @@ class ErrorCard(MetaflowCard):
 
 
 class TimeoutCard(MetaflowCard):
-    name='timeout_card'
+    type='timeout_card'
     
     def __init__(self,timeout=10):
         super().__init__()
