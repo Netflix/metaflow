@@ -321,7 +321,7 @@ class TaskDataStore(object):
         path = self._storage_impl.path_join(
             self._ca_store._prefix, key[:2], key)
 
-        return self._storage_impl.info_file(path)
+        return self._storage_impl.file_size(path)
 
     @only_if_not_done
     @require_mode('w')
