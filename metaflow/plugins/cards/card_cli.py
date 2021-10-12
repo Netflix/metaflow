@@ -3,8 +3,10 @@ from metaflow import Flow, JSONType,Step
 import webbrowser
 import click
 import os
+import signal
 import sys
 import random
+from contextlib import contextmanager
 from functools import wraps
 from metaflow.exception import MetaflowNotFound
 from .card_datastore import CardDatastore,stepname_from_card_id,NUM_SHORT_HASH_CHARS
@@ -101,6 +103,27 @@ def resolve_card(ctx,identifier,id=None,hash=None,type=None,index=0):
     return card_paths_found,card_datastore,pathspec
 
 
+@contextmanager
+def timeout(time):
+    # Register a function to raise a TimeoutError on the signal.
+    signal.signal(signal.SIGALRM, raise_timeout)
+    # Schedule the signal to be sent after ``time``.
+    signal.alarm(time)
+
+    try:
+        yield
+    except TimeoutError:
+        pass
+    finally:
+        # Unregister the signal so it won't be triggered
+        # if the timeout is not reached.
+        signal.signal(signal.SIGALRM, signal.SIG_IGN)
+
+
+def raise_timeout(signum, frame):
+    raise TimeoutError
+
+
 
 def list_availble_cards(ctx,path_spec,card_paths,card_datastore,command='view'):
     # todo : create nice response messages on the CLI for cards which were found.
@@ -187,6 +210,15 @@ def card_read_options_and_arguments(func):
     return wrapper
 
 
+def render_card(mf_card, task, timeout_value =None):
+    rendered_info = None
+    if timeout_value is None:
+        rendered_info =  mf_card.render(task)
+    else:
+        with timeout(timeout_value): 
+            rendered_info = mf_card.render(task)
+    return rendered_info
+
 # Finished According to the Memo
 @card.command(help='create the HTML card')
 @click.argument('pathspec',type=str)
@@ -210,8 +242,13 @@ def card_read_options_and_arguments(func):
                 show_default=True,
                 type=int,
                 help="Index of the card decorator")
+@click.option('--timeout',
+                default=None,
+                show_default=True,
+                type=int,
+                help='Maximum amount of time allowed to create card.')
 @click.pass_context
-def create(ctx,pathspec,type=None,id=None,index=None,options=None):
+def create(ctx,pathspec,type=None,id=None,index=None,options=None,timeout=None):
     assert len(pathspec.split('/'))  == 3, "Expecting pathspec of form <runid>/<stepname>/<taskid>"
     runid,step_name,task_id = pathspec.split('/')
     flowname = ctx.obj.flow.name
@@ -230,7 +267,7 @@ def create(ctx,pathspec,type=None,id=None,index=None,options=None):
                                 path_spec=full_pathspec)
     
     filtered_card = filtered_cards[0]
-    ctx.obj.echo("Creating new card of type %s" % filtered_card.type, fg='green')
+    ctx.obj.echo("Creating new card of type %s With timeout %s" % (filtered_card.type,timeout), fg='green')
     # save card to datastore
     try:
         mf_card = filtered_card(options=options)
@@ -238,10 +275,12 @@ def create(ctx,pathspec,type=None,id=None,index=None,options=None):
         raise IncorrectCardArgsException(type,options)
     
     try:
-        rendered_info = mf_card.render(task)
+        rendered_info = render_card(mf_card,task,timeout_value=timeout)
     except: # TODO : Catch exec trace over here. 
         raise UnrenderableCardException(type,options)
     else:
+        if rendered_info is None:
+            return 
         card_datastore.save_card(type,id,index,rendered_info)
 
 @card.command()

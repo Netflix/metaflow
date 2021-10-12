@@ -18,7 +18,8 @@ class CardDecorator(StepDecorator):
         "type":'basic',
         "options": {},
         "id" : None,
-        "scope": 'task'
+        "scope": 'task',
+        "timeout": None
     }
     def runtime_init(self, flow, graph, package, run_id):
         # Check if the card-id matches the regex pattern . 
@@ -171,6 +172,9 @@ class CardDecorator(StepDecorator):
         else:
             idx_args = ["--index",'0'] # setting zero as default
         cmd+=idx_args
+        
+        if self.attributes['timeout'] is not None:
+            cmd+= ["--timeout",str(self.attributes['timeout'])]
 
         response,fail = self._run_command(cmd,os.environ)
         if fail:

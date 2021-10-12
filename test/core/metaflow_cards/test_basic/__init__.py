@@ -18,9 +18,9 @@ class ErrorCard(MetaflowCard):
 class TimeoutCard(MetaflowCard):
     type='timeout_card'
     
-    def __init__(self,timeout=10):
+    def __init__(self,options={"timeout":10}):
         super().__init__()
-        self._timeout =timeout 
+        self._timeout =options['timeout'] 
 
     # the render function will raise Exception
     def render(self, task):
