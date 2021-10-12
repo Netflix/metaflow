@@ -92,7 +92,7 @@ class Client(object):
                     for name in obj_funcs:
                         if name in override_dict:
                             raise ValueError(
-                                "%s was already overriden for %s" % (name, obj_name)
+                                "%s was already overridden for %s" % (name, obj_name)
                             )
                         override_dict[name] = override.func
         self._proxied_objects = {}
@@ -250,7 +250,7 @@ class Client(object):
         local_class = self._proxied_classes[name]
         if local_class is None:
             # We need to build up this class. To do so, we take everything that the
-            # remote class has and remove UNSUPPORTED things and overriden things
+            # remote class has and remove UNSUPPORTED things and overridden things
             remote_methods = self.stub_request(None, OP_GETMETHODS, name)
             local_class = create_class(
                 self, name, self._overrides.get(name, {}),

@@ -8,7 +8,6 @@ from distutils.version import LooseVersion
 from metaflow import current, decorators, parameters, JSONType
 from metaflow.metaflow_config import SFN_STATE_MACHINE_PREFIX
 from metaflow.exception import MetaflowException, MetaflowInternalError
-from metaflow.datastore.datastore import TransformableObject
 from metaflow.package import MetaflowPackage
 from metaflow.plugins import BatchDecorator
 from metaflow.util import get_username, to_bytes, to_unicode
@@ -221,32 +220,30 @@ def make_flow(obj,
               max_workers,
               workflow_timeout,
               is_project):
-    datastore = obj.datastore(obj.flow.name,
-                              mode='w',
-                              metadata=obj.metadata,
-                              event_logger=obj.event_logger,
-                              monitor=obj.monitor)
-    if datastore.TYPE != 's3':
+    if obj.flow_datastore.TYPE != 's3':
         raise MetaflowException("AWS Step Functions requires --datastore=s3.")
 
     # Attach AWS Batch decorator to the flow
     decorators._attach_decorators(obj.flow, [BatchDecorator.name])
-    decorators._init_step_decorators(
-            obj.flow, obj.graph, obj.environment, obj.datastore, obj.logger)
+    decorators._init_step_decorators(obj.flow,
+                                     obj.graph,
+                                     obj.environment,
+                                     obj.flow_datastore,
+                                     obj.logger)
 
     obj.package = MetaflowPackage(
         obj.flow, obj.environment, obj.echo, obj.package_suffixes)
-    package_url = datastore.save_data(
-        obj.package.sha, TransformableObject(obj.package.blob))
+    package_url, package_sha = obj.flow_datastore.save_data(
+        [obj.package.blob], len_hint=1)[0]
 
     return StepFunctions(name,
                          obj.graph,
                          obj.flow,
-                         obj.package,
+                         package_sha,
                          package_url,
                          token,
                          obj.metadata,
-                         obj.datastore,
+                         obj.flow_datastore,
                          obj.environment,
                          obj.event_logger,
                          obj.monitor,

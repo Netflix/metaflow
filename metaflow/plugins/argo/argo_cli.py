@@ -3,7 +3,6 @@ import json
 import re
 
 from metaflow import current, decorators, parameters, JSONType
-from metaflow.datastore.datastore import TransformableObject
 from metaflow.metaflow_config import from_conf
 from metaflow.package import MetaflowPackage
 from metaflow.plugins import BatchDecorator
@@ -108,24 +107,22 @@ def create(obj,
     obj.echo("Deploying *%s* to Argo Workflow Templates..." % obj.workflow_template_name,
              bold=True)
 
-    datastore = obj.datastore(obj.flow.name,
-                              mode='w',
-                              metadata=obj.metadata,
-                              event_logger=obj.event_logger,
-                              monitor=obj.monitor)
-    if datastore.TYPE != 's3':
+    if obj.flow_datastore.TYPE != 's3':
         raise ArgoException("Argo Workflows require --datastore=s3.")
 
     # When using conda attach AWS Batch decorator to the flow.
     # This results in 'linux-64' libraries to be packaged.
     decorators._attach_decorators(obj.flow, [BatchDecorator.name])
-    decorators._init_step_decorators(
-        obj.flow, obj.graph, obj.environment, obj.datastore, obj.logger)
+    decorators._init_step_decorators(obj.flow,
+                                     obj.graph,
+                                     obj.environment,
+                                     obj.flow_datastore,
+                                     obj.logger)
 
     obj.package = MetaflowPackage(
         obj.flow, obj.environment, obj.echo, obj.package_suffixes)
-    package_url = datastore.save_data(
-        obj.package.sha, TransformableObject(obj.package.blob))
+    package_url, package_sha = obj.flow_datastore.save_data(
+        [obj.package.blob], len_hint=1)[0]
 
     workflow = ArgoWorkflow(obj.workflow_template_name,
                             obj.flow,
@@ -133,7 +130,7 @@ def create(obj,
                             obj.package,
                             package_url if not embedded else None,
                             obj.metadata,
-                            obj.datastore,
+                            obj.flow_datastore,
                             obj.environment,
                             obj.event_logger,
                             obj.monitor,
