@@ -6,7 +6,7 @@ from tempfile import NamedTemporaryFile
 
 from metaflow.util import is_stringish
 
-from . import MetaflowCheck, AssertArtifactFailed, AssertLogFailed, truncate
+from . import MetaflowCheck, AssertArtifactFailed, AssertLogFailed, truncate, AssertCardFailed
 
 try:
     # Python 2
@@ -87,9 +87,28 @@ class CliCheck(MetaflowCheck):
                  repr(log)))
         return True
     
-    def get_card(self,task,card_type):
+    def assert_card(self, step, task, card_type, value, exact_match=True):
+        card_data = self.get_card(step,task, card_type)
+        if (exact_match and card_data != value) or\
+           (not exact_match and value not in card_data):
+            raise AssertCardFailed(
+                "Task '%s/%s' expected %s card with content '%s' but got '%s'" %\
+                (self.run_id,
+                 step,
+                 card_type,
+                 repr(value),
+                 repr(card_data)))
+        return True
+    
+    def get_card(self, step, task, card_type):
+        cmd = ['--quiet',
+               'card',
+               'get',
+               '%s/%s/%s'%(self.run_id,step,task),
+               '--type' % card_type
+            ]
+        return self.run_cli(cmd, capture_output=True).decode('utf-8')
         
-        pass
 
     def get_log(self, step, logtype):
         cmd = ['--quiet',
