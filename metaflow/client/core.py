@@ -768,8 +768,14 @@ class DataArtifact(MetaflowObject):
     def size(self):
         """
         Return non-cached size of the DataArtifact file.
+
+        Returns
+        -------
+        int
+            size of the data artifact (in bytes)
         """
-        # NOTE: We are not actually using the cache features for this, so could we access the datastore class directly instead?
+        # NOTE: We are not actually using the cache features for this,
+        # so could we access the datastore class directly instead?
         global filecache
 
         ds_type = self._object['ds_type']
@@ -785,9 +791,9 @@ class DataArtifact(MetaflowObject):
             # TODO: Pass proper environment to properly extract artifacts
             filecache = FileCache()
         if location.startswith(':root:'):
-            return filecache.get_size(ds_type, location[6:], meta, *components)
+            return filecache.get_artifact_size(ds_type, location[6:], meta, *components)
         else:
-            return filecache.get_size_by_location(ds_type, location, meta, *components)
+            return filecache.get_artifact_size_by_location(ds_type, location, meta, *components)
 
     # TODO add
     # @property

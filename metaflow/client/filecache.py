@@ -108,18 +108,18 @@ class FileCache(object):
 
         return next(ds.load_data([key], force_raw=True))
 
-    def get_size_by_location(self, ds_type, location, data_metadata, flow_name, run_id,
+    def get_artifact_size_by_location(self, ds_type, location, data_metadata, flow_name, run_id,
                              step_name, task_id, name):
-        """Gets the size of the content (in bytes) at the location"""
+        """Gets the size of the artifact content (in bytes) for the name at the location"""
         ds_cls = self._get_datastore_storage_impl(ds_type)
         ds_root = ds_cls.get_datastore_root_from_location(location, flow_name)
 
-        return self.get_size(ds_type, ds_root, data_metadata,
+        return self.get_artifact_size(ds_type, ds_root, data_metadata,
                              flow_name, run_id, step_name, task_id, name)
 
-    def get_size(self, ds_type, ds_root, data_metadata, flow_name, run_id,
+    def get_artifact_size(self, ds_type, ds_root, data_metadata, flow_name, run_id,
                  step_name, task_id, name):
-        """Gets the size of the content (in bytes) at the location"""
+        """Gets the size of the artifact content (in bytes) for the name"""
         ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
 
         task_ds = ds.get_task_datastore(
