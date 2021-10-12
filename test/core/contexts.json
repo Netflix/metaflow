@@ -100,7 +100,7 @@
                 "--event-logger=nullSidecarLogger",
                 "--no-pylint",
                 "--quiet",
-                "--with=kubernetes",
+                "--with=kubernetes:memory=256,disk=1024",
                 "--datastore=s3"
             ],
             "env": {
