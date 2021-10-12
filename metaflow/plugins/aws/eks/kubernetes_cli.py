@@ -61,9 +61,9 @@ def kubernetes():
 )
 @click.option(
     # Note that ideally we would have liked to use `namespace` rather than
-    # `name-space` but unfortunately, `namespace` is already reserved for
+    # `k8s-namespace` but unfortunately, `namespace` is already reserved for
     # Metaflow namespaces.
-    "--name-space",
+    "--k8s-namespace",
     default=None,
     help="Namespace for Kubernetes job on Amazon EKS.",
 )
@@ -109,7 +109,7 @@ def step(
     service_account=None,
     secrets=None,
     node_selector=None,
-    name_space=None,
+    k8s_namespace=None,
     cpu=None,
     gpu=None,
     disk=None,
@@ -210,7 +210,7 @@ def step(
                 service_account=service_account,
                 secrets=secrets,
                 node_selector=node_selector,
-                namespace=name_space,
+                namespace=k8s_namespace,
                 cpu=cpu,
                 gpu=gpu,
                 disk=disk,

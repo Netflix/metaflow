@@ -72,7 +72,7 @@ class KubernetesDecorator(StepDecorator):
         "node_selector": None,  # e.g., kubernetes.io/os=linux
         "gpu": "0",
         # "shared_memory": None,
-        "name_space": None,
+        "namespace": None,
     }
     package_url = None
     package_sha = None
@@ -180,7 +180,14 @@ class KubernetesDecorator(StepDecorator):
             cli_args.commands = ["kubernetes", "step"]
             cli_args.command_args.append(self.package_sha)
             cli_args.command_args.append(self.package_url)
-            cli_args.command_options.update(self.attributes)
+            
+            # --namespace is used to specify Metaflow namespace (different
+            # concept from k8s namespace).
+            for k,v in self.attributes.items():
+                if k == 'namespace':
+                    cli_args.command_options['k8s_namespace'] = v
+                else:
+                    cli_args.command_options['namespace'] = v
             cli_args.command_options["run-time-limit"] = self.run_time_limit
             cli_args.entrypoint[0] = sys.executable
 
