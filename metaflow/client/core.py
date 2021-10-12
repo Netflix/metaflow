@@ -1133,6 +1133,31 @@ class Task(MetaflowObject):
         logtype = 'stderr'
         return self._get_logsize(logtype)
 
+    @property
+    def current_attempt(self):
+        """
+        Get the relevant attempt for this Task. Return the specific attempt used when
+        initializing the instance, or the latest possible attempt for the Task.
+
+        Returns
+        -------
+        int
+            current attempt id
+        """
+        if self._attempt is not None:
+            attempt = self._attempt
+        else:
+            # It is possible that a task fails before any metadata has been
+            # recorded. In this case, we assume that we are executing the
+            # first attempt.
+            #
+            # FIXME: Technically we are looking at the latest *recorded* attempt
+            # here. It is possible that logs exists for a newer attempt that
+            # just failed to record metadata. We could make this logic more robust
+            # and guarantee that we always return the latest available log.
+            attempt = int(self.metadata_dict.get('attempt', 0))
+        return attempt
+
     @cached_property
     def code(self):
         """
@@ -1170,7 +1195,8 @@ class Task(MetaflowObject):
         env_type = my_code.info['environment_type']
         if not env_type:
             return None
-        env = [m for m in ENVIRONMENTS + [MetaflowEnvironment] if m.TYPE == env_type][0]
+        env = [m for m in ENVIRONMENTS +
+               [MetaflowEnvironment] if m.TYPE == env_type][0]
         return env.get_client_info(self.path_components[0], self.metadata_dict)
 
     def _load_log(self, stream):
@@ -1204,18 +1230,8 @@ class Task(MetaflowObject):
             return
         if filecache is None:
             filecache = FileCache()
-        if self._attempt is not None:
-            attempt = self._attempt
-        else:
-            # It is possible that a task fails before any metadata has been
-            # recorded. In this case, we assume that we are executing the
-            # first attempt.
-            #
-            # FIXME: Technically we are looking at the latest *recorded* attempt
-            # here. It is possible that logs exists for a newer attempt that
-            # just failed to record metadata. We could make this logic more robust
-            # and guarantee that we always return the latest available log.
-            attempt = int(self.metadata_dict.get('attempt', 0))
+
+        attempt = self.current_attempt
         logs = filecache.get_logs_stream(
             ds_type, ds_root, stream, attempt, *self.path_components)
         for line in merge_logs([blob for _, blob in logs]):
@@ -1261,19 +1277,8 @@ class Task(MetaflowObject):
             return 0
         if filecache is None:
             filecache = FileCache()
+        attempt = self.current_attempt
 
-        if self._attempt is not None:
-            attempt = self._attempt
-        else:
-            # It is possible that a task fails before any metadata has been
-            # recorded. In this case, we assume that we are executing the
-            # first attempt.
-            #
-            # FIXME: Technically we are looking at the latest *recorded* attempt
-            # here. It is possible that logs exists for a newer attempt that
-            # just failed to record metadata. We could make this logic more robust
-            # and guarantee that we always return the latest available log.
-            attempt = int(self.metadata_dict.get('attempt', 0))
         return filecache.get_log_size(
             ds_type, ds_root, stream, attempt, *self.path_components)
 
