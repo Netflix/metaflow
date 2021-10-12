@@ -1088,12 +1088,12 @@ class Task(MetaflowObject):
     @property
     def stdout_size(self):
         """
-        Returns the size of the standard out of this task.
+        Returns the size of the stdout log of this task.
 
         Returns
         -------
-        string
-            Standard output of this task
+        int
+            Size of the stdout log content (in bytes)
         """
         logtype = 'stdout'
         return self._get_logsize(logtype)
@@ -1117,12 +1117,12 @@ class Task(MetaflowObject):
     @property
     def stderr_size(self):
         """
-        Returns the size of the standard out of this task.
+        Returns the size of the stderr log of this task.
 
         Returns
         -------
-        string
-            Standard output of this task
+        int
+            Size of the stderr log content (in bytes)
         """
         logtype = 'stderr'
         return self._get_logsize(logtype)
