@@ -782,18 +782,13 @@ class DataArtifact(MetaflowObject):
         location = self._object['location']
         components = self.path_components
 
-        meta = {
-            'objects': {self._object['name']: self._object['sha']},
-            'info': {self._object['name']: {
-                'size': 0, 'type': None, 'encoding': self._object['content_type']}}
-        }
         if filecache is None:
             # TODO: Pass proper environment to properly extract artifacts
             filecache = FileCache()
         if location.startswith(':root:'):
-            return filecache.get_artifact_size(ds_type, location[6:], meta, *components)
+            return filecache.get_artifact_size(ds_type, location[6:], self._attempt, *components)
         else:
-            return filecache.get_artifact_size_by_location(ds_type, location, meta, *components)
+            return filecache.get_artifact_size_by_location(ds_type, location, self._attempt, *components)
 
     # TODO add
     # @property

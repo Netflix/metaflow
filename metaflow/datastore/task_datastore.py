@@ -126,12 +126,12 @@ class TaskDataStore(object):
                 # datastore, the data may change). We make an exception to that
                 # rule when allow_not_done is True which allows access to things
                 # like logs even for tasks that did not write a done marker
-                self._attempt = None
-                for i in range(metaflow_config.MAX_ATTEMPTS):
-                    check_meta = self._metadata_name_for_attempt(
-                        self.METADATA_ATTEMPT_SUFFIX, i)
-                    if self.has_metadata(check_meta, add_attempt=False):
-                        self._attempt = i
+                if self._attempt is None:
+                    for i in range(metaflow_config.MAX_ATTEMPTS):
+                        check_meta = self._metadata_name_for_attempt(
+                            self.METADATA_ATTEMPT_SUFFIX, i)
+                        if self.has_metadata(check_meta, add_attempt=False):
+                            self._attempt = i
                 # Check if the latest attempt was completed successfully except
                 # if we have allow_not_done
                 data_obj = None
@@ -316,12 +316,8 @@ class TaskDataStore(object):
 
     @require_mode('r')
     def get_artifact_size(self, name):
-        # SHA for the artifact, this is used as part of the location.
-        key = self._objects[name]
-        path = self._storage_impl.path_join(
-            self._ca_store._prefix, key[:2], key)
-
-        return self._storage_impl.size_file(path)
+        info = self._info.get(name)
+        return info.get('size', 0)
 
     @require_mode('r')
     def get_legacy_log_size(self, stream, attempt_override=False):
