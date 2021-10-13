@@ -152,6 +152,9 @@ class Client(object):
         self._aliases = response[FIELD_CONTENT]["aliases"]
 
     def __del__(self):
+        self.cleanup()
+
+    def cleanup(self):
         # Clean up the server; we drain all messages if any
         if self._poller is not None:
             # If we have self._poller, we have self._server_process
@@ -166,6 +169,7 @@ class Client(object):
                     sys.stderr.write(self._server_process.stderr.readline())
             sys.stdout.flush()
             sys.stderr.flush()
+            self._poller = None
         if self._server_process is not None:
             # Attempt to send it a terminate signal and then wait and kill
             try:
@@ -177,8 +181,10 @@ class Client(object):
             except:  # noqa E722
                 pass  # If there is any issue sending this message, just ignore it
             self._server_process.kill()
+            self._server_process = None
         if self._socket_path is not None and os.path.exists(self._socket_path):
             os.unlink(self._socket_path)
+            self._socket_path = None
 
     @property
     def name(self):
