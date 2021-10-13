@@ -193,13 +193,13 @@ class CondaStepDecorator(StepDecorator):
         # a macOS. This is needed because of gotchas around inconsistently 
         # case-(in)sensitive filesystems for macOS and linux.
         for deco in decos:
-            if deco.name == 'batch' and platform.system() == 'Darwin':
+            if deco.name in ('batch', 'kubernetes') and platform.system() == 'Darwin':
                 return True
         return False
 
     def _architecture(self, decos):
         for deco in decos:
-            if deco.name == 'batch':
+            if deco.name in ('batch', 'kubernetes'):
                 # force conda resolution for linux-64 architectures
                 return 'linux-64'
         bit = '32'
@@ -306,7 +306,9 @@ class CondaStepDecorator(StepDecorator):
                          retry_count,
                          max_user_code_retries,
                          ubf_context):
-        if self.is_enabled(ubf_context) and 'batch' not in cli_args.commands:
+        no_batch = 'batch' not in cli_args.commands
+        no_kubernetes = 'kubernetes' not in cli_args.commands
+        if self.is_enabled(ubf_context) and no_batch and no_kubernetes:
             python_path = self.metaflow_home
             if self.addl_paths is not None:
                 addl_paths = os.pathsep.join(self.addl_paths)
