@@ -155,7 +155,7 @@ class DataStoreStorage(object):
         """
         raise NotImplementedError
 
-    def file_size(self, path):
+    def size_file(self, path):
         """
         Returns file size at the indicated 'path', or None if file can not be found.
 

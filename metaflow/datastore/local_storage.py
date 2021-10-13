@@ -72,7 +72,7 @@ class LocalStorage(DataStoreStorage):
                 return True, None
         return False, None
 
-    def file_size(self, path):
+    def size_file(self, path):
         file_exists = self.is_file([path])[0]
         if file_exists:
             path = self.full_uri(path)

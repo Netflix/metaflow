@@ -45,7 +45,7 @@ class S3Storage(DataStoreStorage):
             s3obj = s3.info(path, return_missing=True)
             return s3obj.exists, s3obj.metadata
 
-    def file_size(self, path):
+    def size_file(self, path):
         with S3(s3root=self.datastore_root,
                 tmproot=os.getcwd(), external_client=self.s3_client) as s3:
             s3obj = s3.info(path, return_missing=True)

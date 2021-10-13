@@ -321,7 +321,7 @@ class TaskDataStore(object):
         path = self._storage_impl.path_join(
             self._ca_store._prefix, key[:2], key)
 
-        return self._storage_impl.file_size(path)
+        return self._storage_impl.size_file(path)
 
     @require_mode(None)
     def get_legacy_log_size(self, stream, attempt_override=False):
@@ -329,7 +329,7 @@ class TaskDataStore(object):
             '%s.log' % stream, attempt_override)
         path = self._storage_impl.path_join(self._path, name)
 
-        return self._storage_impl.file_size(path)
+        return self._storage_impl.size_file(path)
 
     @require_mode(None)
     def get_log_size(self, logsources, stream, attempt_override=False):
@@ -342,8 +342,7 @@ class TaskDataStore(object):
             return self._storage_impl.path_join(self._path, _p)
 
         paths = list(map(_path, logsources))
-        # Remember to deal with None sizes for missing content.
-        sizes = [self._storage_impl.file_size(p) for p in paths]
+        sizes = [self._storage_impl.size_file(p) for p in paths]
 
         return sum(size for size in sizes if size is not None)
 
