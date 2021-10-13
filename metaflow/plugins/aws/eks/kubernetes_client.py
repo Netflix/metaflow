@@ -1,5 +1,8 @@
 import os
 import time
+import math
+import random
+
 
 try:
     unicode
@@ -14,6 +17,39 @@ CLIENT_REFRESH_INTERVAL_SECONDS = 300
 
 class KubernetesJobException(MetaflowException):
     headline = "Kubernetes job error"
+
+
+# Implements truncated exponential backoff from https://cloud.google.com/storage/docs/retry-strategy#exponential-backoff
+def k8s_retry(deadline_seconds=60, max_backoff=32):
+    def decorator(function):
+        from functools import wraps
+
+        @wraps(function)
+        def wrapper(*args, **kwargs):
+            from kubernetes import client
+
+            deadline = time.time() + deadline_seconds
+            retry_number = 0
+            
+            while True:
+                try:
+                    result = function(*args, **kwargs)
+                    return result
+                except client.rest.ApiException as e:
+                    if e.status == 500:
+                        current_t = time.time()
+                        backoff_delay = min(math.pow(2, retry_number) + random.random(), max_backoff)
+                        if current_t + backoff_delay < deadline:
+                            time.sleep(backoff_delay)
+                            retry_number += 1
+                            continue # retry again
+                        else:
+                            raise
+                    else:
+                        raise
+
+        return wrapper
+    return decorator
 
 
 class KubernetesClient(object):
@@ -395,6 +431,7 @@ class RunningJob(object):
             self.__class__.__name__, self._namespace, self._name
         )
 
+    @k8s_retry()
     def _fetch_job(self):
         client = self._client_wrapper.get()
         try:
@@ -408,6 +445,7 @@ class RunningJob(object):
             #       process can delete the job.
             raise e
 
+    @k8s_retry()
     def _fetch_pod(self):
         """Fetch pod metadata. May return None if pod does not exist."""
         client = self._client_wrapper.get()
