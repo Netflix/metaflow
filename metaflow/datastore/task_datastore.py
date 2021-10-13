@@ -315,9 +315,26 @@ class TaskDataStore(object):
             yield sha_to_names[sha], pickle.loads(blob)
 
     @require_mode('r')
-    def get_artifact_size(self, name):
-        info = self._info.get(name)
-        return info.get('size', 0)
+    def get_artifact_sizes(self, names):
+        """
+        Retrieves file sizes of artifacts defined in 'names' from their respective
+        stored file metadata.
+        
+        Usage restricted to only 'r' mode due to depending on the metadata being written
+
+        Parameters
+        ----------
+        names : List[string]
+            List of artifacts to retrieve
+
+        Returns
+        -------
+        Iterator[(string, int)] :
+            An iterator over sizes retrieved.
+        """
+        for name in names:
+            info = self._info.get(name)
+            yield name, info.get('size', 0)
 
     @require_mode('r')
     def get_legacy_log_size(self, stream, attempt_override=False):

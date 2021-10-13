@@ -125,7 +125,8 @@ class FileCache(object):
         task_ds = ds.get_task_datastore(
             run_id, step_name, task_id, attempt)
 
-        return task_ds.get_artifact_size(name)
+        _, size = next(task_ds.get_artifact_sizes([name]))
+        return size
 
     def get_artifact_by_location(
             self, ds_type, location, flow_name, run_id,
