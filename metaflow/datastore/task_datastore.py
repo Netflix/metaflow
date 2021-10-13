@@ -314,7 +314,7 @@ class TaskDataStore(object):
         for sha, blob in self._ca_store.load_blobs(to_load):
             yield sha_to_names[sha], pickle.loads(blob)
 
-    @require_mode(None)
+    @require_mode('r')
     def get_artifact_size(self, name):
         # SHA for the artifact, this is used as part of the location.
         key = self._objects[name]
@@ -323,7 +323,7 @@ class TaskDataStore(object):
 
         return self._storage_impl.size_file(path)
 
-    @require_mode(None)
+    @require_mode('r')
     def get_legacy_log_size(self, stream, attempt_override=False):
         name = self._metadata_name_for_attempt(
             '%s.log' % stream, attempt_override)
@@ -331,7 +331,7 @@ class TaskDataStore(object):
 
         return self._storage_impl.size_file(path)
 
-    @require_mode(None)
+    @require_mode('r')
     def get_log_size(self, logsources, stream, attempt_override=False):
         def _path(s):
             # construct path for fetching of a single log source
