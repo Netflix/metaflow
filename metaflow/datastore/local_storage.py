@@ -82,11 +82,11 @@ class LocalStorage(DataStoreStorage):
                 for f in os.listdir(full_path):
                     if f == self.METADATA_DIR:
                         continue
-                    results.extend(
-                        [self.list_content_result(
+                    results.append(
+                        self.list_content_result(
                             path=self.path_join(path, f),
                             is_file=self.is_file(
-                                [self.path_join(path, f)])[0])]
+                                [self.path_join(path, f)])[0])
                         )        
             except FileNotFoundError as e:
                 pass
