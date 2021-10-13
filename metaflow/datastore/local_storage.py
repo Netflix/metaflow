@@ -78,11 +78,18 @@ class LocalStorage(DataStoreStorage):
             if path == self.METADATA_DIR:
                 continue
             full_path = self.full_uri(path)
-            results.extend([self.list_content_result(
-                path=self.path_join(path, f),
-                is_file=self.is_file(
-                    [self.path_join(path, f)])[0]) for f in os.listdir(full_path)
-                    if f != self.METADATA_DIR])
+            try:
+                for f in os.listdir(full_path):
+                    if f == self.METADATA_DIR:
+                        continue
+                    results.append(
+                        self.list_content_result(
+                            path=self.path_join(path, f),
+                            is_file=self.is_file(
+                                [self.path_join(path, f)])[0])
+                        )        
+            except FileNotFoundError as e:
+                pass
         return results
 
     def save_bytes(self, path_and_bytes_iter, overwrite=False, len_hint=0):
