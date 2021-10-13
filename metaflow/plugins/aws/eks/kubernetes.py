@@ -8,7 +8,7 @@ import re
 import hashlib
 
 from metaflow import util
-from metaflow.datastore.util.s3tail import S3Tail
+from metaflow.datatools.s3tail import S3Tail
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.metaflow_config import (
     BATCH_METADATA_SERVICE_URL,
@@ -22,8 +22,7 @@ from metaflow.mflog import (
     export_mflog_env_vars,
     bash_capture_logs,
     update_delay,
-    BASH_SAVE_LOGS,
-    TASK_LOG_SOURCE,
+    BASH_SAVE_LOGS
 )
 from metaflow.mflog.mflog import refine, set_should_persist
 
@@ -238,6 +237,7 @@ class Kubernetes(object):
             .environment_variable(
                 # This is needed since `boto3` is not smart enough to figure out
                 # AWS region by itself.
+                # TODO: Fix this.
                 "AWS_DEFAULT_REGION",
                 "us-west-2",
             )
@@ -295,17 +295,7 @@ class Kubernetes(object):
 
         return job.create()
 
-    def wait(self, echo=None):
-        ds = self._datastore(
-            mode="w",
-            flow_name=self._flow_name,
-            run_id=self._run_id,
-            step_name=self._step_name,
-            task_id=self._task_id,
-            attempt=int(self._attempt),
-        )
-        stdout_location = ds.get_log_location(TASK_LOG_SOURCE, "stdout")
-        stderr_location = ds.get_log_location(TASK_LOG_SOURCE, "stderr")
+    def wait(self, stdout_location, stderr_location, echo=None):
 
         def wait_for_launch(job):
             status = job.status

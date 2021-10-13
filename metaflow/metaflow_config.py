@@ -48,6 +48,7 @@ DEFAULT_EVENT_LOGGER = from_conf('METAFLOW_DEFAULT_EVENT_LOGGER', 'nullSidecarLo
 DEFAULT_METADATA = from_conf('METAFLOW_DEFAULT_METADATA', 'local')
 DEFAULT_MONITOR = from_conf('METAFLOW_DEFAULT_MONITOR', 'nullSidecarMonitor')
 DEFAULT_PACKAGE_SUFFIXES = from_conf('METAFLOW_DEFAULT_PACKAGE_SUFFIXES', '.py,.R,.RDS')
+DEFAULT_AWS_CLIENT_PROVIDER = from_conf('METAFLOW_DEFAULT_AWS_CLIENT_PROVIDER', 'boto3')
 
 
 ###
@@ -73,6 +74,12 @@ DATATOOLS_LOCALROOT = from_conf(
 # S3 endpoint url 
 S3_ENDPOINT_URL = from_conf('METAFLOW_S3_ENDPOINT_URL', None)
 S3_VERIFY_CERTIFICATE = from_conf('METAFLOW_S3_VERIFY_CERTIFICATE', None)
+
+# S3 retry configuration
+# This is useful if you want to "fail fast" on S3 operations; use with caution
+# though as this may increase failures. Note that this is the number of *retries*
+# so setting it to 0 means each operation will be tried once.
+S3_RETRY_COUNT = int(from_conf('METAFLOW_S3_RETRY_COUNT', 7))
 
 ###
 # Datastore local cache
@@ -109,6 +116,12 @@ BATCH_CONTAINER_REGISTRY = from_conf("METAFLOW_BATCH_CONTAINER_REGISTRY")
 # Metadata service URL for AWS Batch
 BATCH_METADATA_SERVICE_URL = from_conf('METAFLOW_SERVICE_INTERNAL_URL', METADATA_SERVICE_URL)
 BATCH_METADATA_SERVICE_HEADERS = METADATA_SERVICE_HEADERS
+
+# Assign resource tags to AWS Batch jobs. Set to False by default since
+# it requires `Batch:TagResource` permissions which may not be available
+# in all Metaflow deployments. Hopefully, some day we can flip the
+# default to True.
+BATCH_EMIT_TAGS = from_conf("METAFLOW_BATCH_EMIT_TAGS", False)
 
 ###
 # AWS Step Functions configuration
@@ -221,7 +234,7 @@ def get_pinned_conda_libs(python_version):
 
 # Check if there is a an extension to Metaflow to load and override everything
 try:
-    import metaflow_custom.config.metaflow_config as extension_module
+    import metaflow_extensions.config.metaflow_config as extension_module
 except ImportError as e:
     ver = sys.version_info[0] * 10 + sys.version_info[1]
     if ver >= 36:
@@ -229,10 +242,10 @@ except ImportError as e:
         # so don't error ONLY IF the error is importing this module (but do
         # error if there is a transitive import error)
         if not (isinstance(e, ModuleNotFoundError) and \
-                e.name in ['metaflow_custom', 'metaflow_custom.config']):
+            e.name in ['metaflow_extensions', 'metaflow_extensions.config']):
             print(
-                "Cannot load metaflow_custom configuration -- "
-                "if you want to ignore, uninstall metaflow_custom package")
+                "Cannot load metaflow_extensions configuration -- "
+                "if you want to ignore, uninstall metaflow_extensions package")
             raise
 else:
     # We load into globals whatever we have in extension_module

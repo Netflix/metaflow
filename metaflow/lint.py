@@ -189,7 +189,7 @@ def check_split_join_balance(graph):
     msg1 = "Step *{0.name}* seems like a join step (it takes an extra input "\
            "argument) but an incorrect number of steps (*{paths}*) lead to "\
            "it. This join was expecting {num_roots} incoming paths, starting "\
-           "from splitted step(s) *{roots}*."
+           "from split step(s) *{roots}*."
     msg2 = "Step *{0.name}* seems like a join step (it takes an extra input "\
            "argument) but it is not preceded by a split. Ensure that there is "\
            "a matching split for every join."
@@ -240,7 +240,7 @@ def check_split_join_balance(graph):
 @linter.check
 def check_empty_foreaches(graph):
     msg = "Step *{0.name}* is a foreach split that has no children: "\
-          "it is followed immeditately by a join step, *{join}*. Add "\
+          "it is followed immediately by a join step, *{join}*. Add "\
           "at least one step between the split and the join."
     for node in graph:
         if node.type == 'foreach':

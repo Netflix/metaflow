@@ -6,11 +6,11 @@ import traceback
 
 from metaflow import util
 from metaflow.exception import CommandException, METAFLOW_EXIT_DISALLOW_RETRY
+from metaflow.metadata.util import sync_local_metadata_from_datastore
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
+from metaflow.mflog import TASK_LOG_SOURCE
 
 from .kubernetes import Kubernetes, KubernetesKilledException
-from ..aws_utils import sync_metadata_from_S3
-
 
 # TODO(s):
 #    1. Compatibility for Metaflow-R (not a blocker for release).
@@ -124,11 +124,6 @@ def step(
         ctx.obj.echo_always(msg, err=(stream == sys.stderr))
 
     node = ctx.obj.graph[step_name]
-    # TODO: Verify if this check is needed anymore?
-    # if ctx.obj.datastore.datastore_root is None:
-    #     ctx.obj.datastore.datastore_root = (
-    #         ctx.obj.datastore.get_datastore_root_from_config(echo)
-    #     )
 
     # Construct entrypoint CLI
     if executable is None:
@@ -168,12 +163,6 @@ def step(
         )
         time.sleep(minutes_between_retries * 60)
 
-    datastore_root = os.path.join(
-        ctx.obj.datastore.make_path(
-            ctx.obj.flow.name, kwargs["run_id"], step_name, kwargs["task_id"]
-        )
-    )
-
     step_cli = u"{entrypoint} {top_args} step {step} {step_args}".format(
         entrypoint="%s -u %s" % (executable, os.path.basename(sys.argv[0])),
         top_args=" ".join(util.dict_to_cli_options(ctx.parent.parent.params)),
@@ -181,15 +170,28 @@ def step(
         step_args=" ".join(util.dict_to_cli_options(kwargs)),
     )
 
+    # this information is needed for log tailing
+    ds = ctx.obj.flow_datastore.get_task_datastore(
+        mode='w',
+        run_id=kwargs['run_id'],
+        step_name=step_name,
+        task_id=kwargs['task_id'],
+        attempt=int(retry_count)
+    )
+    stdout_location = ds.get_log_location(TASK_LOG_SOURCE, 'stdout')
+    stderr_location = ds.get_log_location(TASK_LOG_SOURCE, 'stderr')
+
     def _sync_metadata():
         if ctx.obj.metadata.TYPE == 'local':
-            sync_metadata_from_S3(DATASTORE_LOCAL_DIR,
-                                  datastore_root,
-                                  retry_count)
+            sync_local_metadata_from_datastore(
+                DATASTORE_LOCAL_DIR, 
+                ctx.obj.flow_datastore.get_task_datastore(kwargs['run_id'],
+                                                          step_name,
+                                                          kwargs['task_id']))
 
     try:
         kubernetes = Kubernetes(
-            datastore=ctx.obj.datastore,
+            datastore=ctx.obj.flow_datastore,
             metadata=ctx.obj.metadata,
             environment=ctx.obj.environment,
             flow_name=ctx.obj.flow.name,
@@ -204,7 +206,7 @@ def step(
                 user=util.get_username(),
                 code_package_sha=code_package_sha,
                 code_package_url=code_package_url,
-                code_package_ds=ctx.obj.datastore.TYPE,
+                code_package_ds=ctx.obj.flow_datastore.TYPE,
                 step_cli=step_cli,
                 docker_image=image,
                 service_account=service_account,
@@ -219,17 +221,14 @@ def step(
                 env=env,
             )
     except Exception as e:
-        # TODO: Make sure all errors pretty print nicely.
         traceback.print_exc()
-        # print(str(e))
         _sync_metadata()
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
     try:
-        # Wait for the Kubernetes job to finish.
-        kubernetes.wait(echo=echo)
+        kubernetes.wait(stdout_location, stderr_location, echo=echo)
     except KubernetesKilledException:
-        # Don't retry killed jobs.
+        # don't retry killed tasks
         traceback.print_exc()
-        _sync_metadata()
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
-    _sync_metadata()
+    finally:
+        _sync_metadata()

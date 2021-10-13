@@ -4,16 +4,16 @@ import sys
 import time
 import traceback
 
+from distutils.dir_util import copy_tree
+
 from metaflow import util
 from metaflow import R
 from metaflow.exception import CommandException, METAFLOW_EXIT_DISALLOW_RETRY
+from metaflow.metadata.util import sync_local_metadata_from_datastore
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.mflog import TASK_LOG_SOURCE
 
-from .batch import Batch, BatchKilledException, STDOUT_PATH, STDERR_PATH
-
-from ..aws_utils import sync_metadata_from_S3
-
+from .batch import Batch, BatchKilledException
 
 @click.group()
 def cli():
@@ -149,8 +149,9 @@ def kill(ctx, run_id, user, my_runs):
 )
 @click.option("--max-swap", help="Max Swap requirement for AWS Batch.")
 @click.option("--swappiness", help="Swappiness requirement for AWS Batch.")
-# TODO: Maybe remove it altogether since it's not used here
-@click.option("--ubf-context", default=None, type=click.Choice([None]))
+#TODO: Maybe remove it altogether since it's not used here
+@click.option('--ubf-context', default=None, type=click.Choice([None]))
+@click.option('--host-volumes', multiple=True)
 @click.pass_context
 def step(
     ctx,
@@ -169,6 +170,7 @@ def step(
     shared_memory=None,
     max_swap=None,
     swappiness=None,
+    host_volumes=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", batch_id=None):
@@ -176,11 +178,6 @@ def step(
         if batch_id:
             msg = "[%s] %s" % (batch_id, msg)
         ctx.obj.echo_always(msg, err=(stream == sys.stderr))
-
-    if ctx.obj.datastore.datastore_root is None:
-        ctx.obj.datastore.datastore_root = (
-            ctx.obj.datastore.get_datastore_root_from_config(echo)
-        )
 
     if R.use_r():
         entrypoint = R.entrypoint()
@@ -240,11 +237,6 @@ def step(
     else:
         env = {}
 
-    datastore_root = os.path.join(
-        ctx.obj.datastore.make_path(
-            ctx.obj.flow.name, kwargs["run_id"], step_name, kwargs["task_id"]
-        )
-    )
     # Add the environment variables related to the input-paths argument
     if split_vars:
         env.update(split_vars)
@@ -257,17 +249,23 @@ def step(
         time.sleep(minutes_between_retries * 60)
 
     # this information is needed for log tailing
-    spec = task_spec.copy()
-    spec["attempt"] = int(spec.pop("retry_count"))
-    ds = ctx.obj.datastore(mode="w", **spec)
-    stdout_location = ds.get_log_location(TASK_LOG_SOURCE, "stdout")
-    stderr_location = ds.get_log_location(TASK_LOG_SOURCE, "stderr")
+    ds = ctx.obj.flow_datastore.get_task_datastore(
+        mode='w',
+        run_id=kwargs['run_id'],
+        step_name=step_name,
+        task_id=kwargs['task_id'],
+        attempt=int(retry_count)
+    )
+    stdout_location = ds.get_log_location(TASK_LOG_SOURCE, 'stdout')
+    stderr_location = ds.get_log_location(TASK_LOG_SOURCE, 'stderr')
 
     def _sync_metadata():
-        if ctx.obj.metadata.TYPE == "local":
-            sync_metadata_from_S3(
-                DATASTORE_LOCAL_DIR, datastore_root, retry_count
-            )
+        if ctx.obj.metadata.TYPE == 'local':
+            sync_local_metadata_from_datastore(
+                DATASTORE_LOCAL_DIR, 
+                ctx.obj.flow_datastore.get_task_datastore(kwargs['run_id'],
+                                                          step_name,
+                                                          kwargs['task_id']))
 
     batch = Batch(ctx.obj.metadata, ctx.obj.environment)
     try:
@@ -278,7 +276,7 @@ def step(
                 task_spec,
                 code_package_sha,
                 code_package_url,
-                ctx.obj.datastore.TYPE,
+                ctx.obj.flow_datastore.TYPE,
                 image=image,
                 queue=queue,
                 iam_role=iam_role,
@@ -292,6 +290,7 @@ def step(
                 swappiness=swappiness,
                 env=env,
                 attrs=attrs,
+                host_volumes=host_volumes,
             )
     except Exception as e:
         traceback.print_exc()
@@ -302,6 +301,6 @@ def step(
     except BatchKilledException:
         # don't retry killed tasks
         traceback.print_exc()
-        _sync_metadata()
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
-    _sync_metadata()
+    finally:
+        _sync_metadata()

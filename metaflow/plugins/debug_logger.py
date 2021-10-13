@@ -1,5 +1,7 @@
 import sys
 
+from metaflow.sidecar_messages import Message
+
 
 class DebugEventLogger(object):
     TYPE = 'debugLogger'
