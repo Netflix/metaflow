@@ -3,23 +3,21 @@ import sys
 import platform
 import requests
 
-from metaflow import R
 from metaflow import util
+from metaflow import R
+
 from metaflow.decorators import StepDecorator
-from metaflow.datastore.datastore import TransformableObject
-from metaflow.metadata import MetaDatum
-from metaflow.metaflow_config import ECS_S3_ACCESS_IAM_ROLE, \
-                                        BATCH_JOB_QUEUE, \
-                                        BATCH_CONTAINER_IMAGE, \
-                                        BATCH_CONTAINER_REGISTRY, \
-                                        ECS_FARGATE_EXECUTION_ROLE, \
-                                        DATASTORE_LOCAL_DIR
 from metaflow.plugins import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
+from metaflow.metadata import MetaDatum
+from metaflow.metadata.util import sync_local_metadata_to_datastore
+from metaflow.metaflow_config import ECS_S3_ACCESS_IAM_ROLE, BATCH_JOB_QUEUE, \
+                    BATCH_CONTAINER_IMAGE, BATCH_CONTAINER_REGISTRY, \
+                    ECS_FARGATE_EXECUTION_ROLE, DATASTORE_LOCAL_DIR
 from metaflow.sidecar import SidecarSubProcess
 
 from .batch import BatchException
-from ..aws_utils import get_docker_registry, sync_metadata_to_S3
+from ..aws_utils import get_docker_registry
 
 class BatchDecorator(StepDecorator):
     """
@@ -89,7 +87,8 @@ class BatchDecorator(StepDecorator):
         'execution_role': ECS_FARGATE_EXECUTION_ROLE,
         'shared_memory': None,
         'max_swap': None,
-        'swappiness': None
+        'swappiness': None,
+        'host_volumes': None,
     }
     package_url = None
     package_sha = None
@@ -131,17 +130,16 @@ class BatchDecorator(StepDecorator):
                   step,
                   decos,
                   environment,
-                  datastore,
+                  flow_datastore,
                   logger):
-        # Executing AWS Batch jobs requires a non-local datastore.
-        if datastore.TYPE != 's3':
-            raise BatchException(
-                'The *@batch* decorator requires --datastore=s3.')
+        if flow_datastore.TYPE != 's3':
+            raise BatchException('The *@batch* decorator requires --datastore=s3.')
 
         # Set internal state.
         self.logger = logger
         self.environment = environment
         self.step = step
+        self.flow_datastore = flow_datastore
         for deco in decos:
             if isinstance(deco, ResourcesDecorator):
                 for k, v in deco.attributes.items():
@@ -170,20 +168,14 @@ class BatchDecorator(StepDecorator):
         self.run_id = run_id
 
     def runtime_task_created(self,
-                             datastore,
+                             task_datastore,
                              task_id,
                              split_index,
                              input_paths,
                              is_cloned,
                              ubf_context):
-        # To execute the AWS Batch job, the job container needs to have
-        # access to the code package. We store the package in the datastore
-        # which the pod is able to download as part of it's entrypoint. 
-        if not is_cloned and self.package_url is None:
-            self.package_url = datastore.save_data(
-                                    self.package.sha,
-                                    TransformableObject(self.package.blob))
-            self.package_sha = self.package.sha
+        if not is_cloned:
+            self._save_package_once(self.flow_datastore, self.package)
 
     def runtime_step_cli(self,
                          cli_args,
@@ -204,7 +196,7 @@ class BatchDecorator(StepDecorator):
 
     def task_pre_step(self,
                       step_name,
-                      datastore,
+                      task_datastore,
                       metadata,
                       run_id,
                       task_id,
@@ -212,9 +204,10 @@ class BatchDecorator(StepDecorator):
                       graph,
                       retry_count,
                       max_retries,
-                      ubf_context):
+                      ubf_context,
+                      inputs):
         self.metadata = metadata
-        self.datastore = datastore
+        self.task_datastore = task_datastore
 
         # task_pre_step may run locally if fallback is activated for @catch 
         # decorator. In that scenario, we skip collecting AWS Batch execution
@@ -228,6 +221,7 @@ class BatchDecorator(StepDecorator):
             meta['aws-batch-ce-name'] = os.environ['AWS_BATCH_CE_NAME']
             meta['aws-batch-jq-name'] = os.environ['AWS_BATCH_JQ_NAME']
             meta['aws-batch-execution-env'] = os.environ['AWS_EXECUTION_ENV']
+
 
             # Capture AWS Logs metadata. This is best effort only since
             # only V4 of the metadata uri for the ECS container hosts this
@@ -246,13 +240,12 @@ class BatchDecorator(StepDecorator):
             except:
                 pass
 
-            entries = \
-                [MetaDatum(field=k, value=v, type=k, tags=[]) 
-                    for k, v in meta.items()]
+            entries = [MetaDatum(
+                field=k, value=v, type=k, tags=["attempt_id:{0}".format(retry_count)])
+                for k, v in meta.items()]
             # Register book-keeping metadata for debugging.
             metadata.register_metadata(run_id, step_name, task_id, entries)
         
-            # Start MFLog sidecar to collect task logs.
             self._save_logs_sidecar = SidecarSubProcess('save_logs_periodically')
 
     def task_finished(self,
@@ -272,12 +265,16 @@ class BatchDecorator(StepDecorator):
             if self.metadata.TYPE == 'local':
                 # Note that the datastore is *always* Amazon S3 (see 
                 # runtime_task_created function).
-                sync_metadata_to_S3(DATASTORE_LOCAL_DIR,
-                                    self.datastore.root,
-                                    retry_count)
-
+                sync_local_metadata_to_datastore(DATASTORE_LOCAL_DIR, 
+                    self.task_datastore)
             try:
                 self._save_logs_sidecar.kill()
             except:
                 # Best effort kill
                 pass
+
+    @classmethod
+    def _save_package_once(cls, flow_datastore, package):
+        if cls.package_url is None:
+            cls.package_url, cls.package_sha = flow_datastore.save_data(
+                [package.blob], len_hint=1)[0]

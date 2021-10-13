@@ -29,12 +29,12 @@ class PipeUnavailableError(Exception):
 
 
 class NullSidecarError(Exception):
-    """raised when tyring to poll or interact with the fake subprocess in the null sidecar"""
+    """raised when trying to poll or interact with the fake subprocess in the null sidecar"""
     pass
 
 
 class MsgTimeoutError(Exception):
-    """raised when tyring unable to send message to sidecar in allocated time"""
+    """raised when trying unable to send message to sidecar in allocated time"""
     pass
 
 

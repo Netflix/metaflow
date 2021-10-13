@@ -7,7 +7,7 @@ while parallelism is the simultaneous execution of (possibly related)
 computations* from
 [a talk by Rob Pike, Concurrency is not Parallelism](https://blog.golang.org/concurrency-is-not-parallelism):
 
-**Parallelism** is a relatively straighforward and quantifiable
+**Parallelism** is a relatively straightforward and quantifiable
 concept. However, it is not always easy to decide what constructs of
 **concurrency**, which can lead to parallelism, are most appropriate
 in each context. The choice is not easy since besides parallelism
@@ -76,7 +76,7 @@ subcommand is also used to clone many datastores concurrently during
 
 #### How to Observe
 
-Set the environment variable `METAFLOW_DEBUG_SUBPROCESS=1` to see the
+Set the environment variable `METAFLOW_DEBUG_SUBCOMMAND=1` to see the
 exact command line that is used to launch a subcommand task. You can
 re-execute the task simply by re-executing the command line manually.
 However, be careful when re-executing commands from real runs, as you

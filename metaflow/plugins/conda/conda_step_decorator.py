@@ -12,12 +12,12 @@ except:
     from urllib.parse import urlparse
 
 
-from metaflow.datastore.local import LocalDataStore
 from metaflow.decorators import StepDecorator
 from metaflow.metaflow_environment import InvalidEnvironmentException
 from metaflow.metadata import MetaDatum
 from metaflow.metaflow_config import get_pinned_conda_libs, CONDA_PACKAGE_S3ROOT
 from metaflow.util import get_metaflow_root
+from metaflow.datastore import LocalStorage
 from metaflow.datatools import S3
 from metaflow.unbounded_foreach import UBF_CONTROL
 
@@ -133,7 +133,7 @@ class CondaStepDecorator(StepDecorator):
                 }
             else:
                 payload = cached_deps[env_id]
-            if self.datastore.TYPE == 's3' and 'cache_urls' not in payload:
+            if self.flow_datastore.TYPE == 's3' and 'cache_urls' not in payload:
                 payload['cache_urls'] = self._cache_env()
             write_to_conda_manifest(ds_root, self.flow.name, env_id, payload)
             CondaStepDecorator.environments =\
@@ -219,9 +219,9 @@ class CondaStepDecorator(StepDecorator):
         self.metaflow_home = tempfile.mkdtemp(dir='/tmp')
         self.addl_paths = None
         os.symlink(path_to_metaflow, os.path.join(self.metaflow_home, 'metaflow'))
-        # Do the same for metaflow_custom
+        # Do the same for metaflow_extensions
         try:
-            import metaflow_custom as m
+            import metaflow_extensions as m
         except ImportError:
             # No additional check needed because if we are here, we already checked
             # for other issues when loading at the toplevel
@@ -230,7 +230,7 @@ class CondaStepDecorator(StepDecorator):
             custom_paths = list(m.__path__)
             if len(custom_paths) == 1:
                 # Regular package
-                os.symlink(custom_paths[0], os.path.join(self.metaflow_home, 'metaflow_custom'))
+                os.symlink(custom_paths[0], os.path.join(self.metaflow_home, 'metaflow_extensions'))
             else:
                 # Namespace package; we don't symlink but add the additional paths
                 # for the conda interpreter
@@ -241,19 +241,19 @@ class CondaStepDecorator(StepDecorator):
         generate_trampolines(self.metaflow_home)
 
 
-    def step_init(self, flow, graph, step, decos, environment, datastore, logger):
+    def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         if environment.TYPE != 'conda':
             raise InvalidEnvironmentException('The *@conda* decorator requires '
                                               '--environment=conda')
         def _logger(line, **kwargs):
             logger(line)
-        self.local_root = LocalDataStore.get_datastore_root_from_config(_logger)
+        self.local_root = LocalStorage.get_datastore_root_from_config(_logger)
         environment.set_local_root(self.local_root)
         self.architecture = self._architecture(decos)
         self.disable_safety_checks = self._disable_safety_checks(decos)
         self.step = step
         self.flow = flow
-        self.datastore = datastore
+        self.flow_datastore = flow_datastore
         self.base_attributes = self._get_base_attributes()
         os.environ['PYTHONNOUSERSITE'] = '1'
 
@@ -262,7 +262,7 @@ class CondaStepDecorator(StepDecorator):
             self._prepare_step_environment(step, self.local_root)
 
     def runtime_task_created(self,
-                             datastore,
+                             task_datastore,
                              task_id,
                              split_index,
                              input_paths,
@@ -274,7 +274,7 @@ class CondaStepDecorator(StepDecorator):
 
     def task_pre_step(self,
                       step_name,
-                      ds,
+                      task_datastore,
                       meta,
                       run_id,
                       task_id,
@@ -282,13 +282,24 @@ class CondaStepDecorator(StepDecorator):
                       graph,
                       retry_count,
                       max_retries,
-                      ubf_context):
+                      ubf_context,
+                      inputs):
         if self.is_enabled(ubf_context):
+            # Add the Python interpreter's parent to the path. This is to 
+            # ensure that any non-pythonic dependencies introduced by the conda
+            # environment are visible to the user code.
+            env_path = os.path.dirname(sys.executable)
+            if os.environ.get('PATH') is not None:
+                env_path = os.pathsep.join([env_path, os.environ['PATH']])
+            os.environ['PATH'] = env_path
+
             meta.register_metadata(run_id, step_name, task_id,
                                        [MetaDatum(field='conda_env_id',
                                                   value=self._env_id(),
                                                   type='conda_env_id',
-                                                  tags=[])])
+                                                  tags=[
+                                                      "attempt_id:{0}".
+                                                      format(retry_count)])])
 
     def runtime_step_cli(self,
                          cli_args,
@@ -297,16 +308,10 @@ class CondaStepDecorator(StepDecorator):
                          ubf_context):
         if self.is_enabled(ubf_context) and 'batch' not in cli_args.commands:
             python_path = self.metaflow_home
-            if os.environ.get('PYTHONPATH') is not None:
-                python_path = os.pathsep.join([os.environ['PYTHONPATH'], python_path])
             if self.addl_paths is not None:
                 addl_paths = os.pathsep.join(self.addl_paths)
                 python_path = os.pathsep.join([addl_paths, python_path])
-            env_path = os.path.dirname(self.conda.python(self.env_id))
-            if os.environ.get('PATH') is not None:
-                env_path = os.pathsep.join([env_path, os.environ['PATH']])
-            
-            cli_args.env['PATH'] = env_path
+
             cli_args.env['PYTHONPATH'] = python_path
             cli_args.env['_METAFLOW_CONDA_ENV'] = self.env_id
             cli_args.entrypoint[0] = self.conda.python(self.env_id)

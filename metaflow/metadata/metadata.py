@@ -4,13 +4,12 @@ import time
 from collections import namedtuple
 from datetime import datetime
 
-from metaflow.current import current
 from metaflow.exception import MetaflowInternalError
 from metaflow.util import get_username, resolve_identity
 
 
 DataArtifact = namedtuple('DataArtifact',
-                          'name ds_type url type sha')
+                          'name ds_type ds_root url type sha')
 
 MetaDatum = namedtuple('MetaDatum',
                        'field value type tags')
@@ -155,7 +154,8 @@ class MetadataProvider(object):
         '''
         raise NotImplementedError()
 
-    def register_task_id(self, run_id, step_name, task_id, tags=[], sys_tags=[]):
+    def register_task_id(
+            self, run_id, step_name, task_id, attempt=0, tags=[], sys_tags=[]):
         '''
         No-op operation in this implementation.
 
@@ -250,7 +250,7 @@ class MetadataProvider(object):
         pass
 
     @classmethod
-    def _get_object_internal(cls, obj_type, obj_order, sub_type, sub_order, filters=None, *args):
+    def _get_object_internal(cls, obj_type, obj_order, sub_type, sub_order, filters, *args):
         '''
         Return objects for the implementation of this class
 
@@ -298,7 +298,7 @@ class MetadataProvider(object):
         self.sticky_sys_tags.extend(sys_tags)
 
     @classmethod
-    def get_object(cls, obj_type, sub_type, filters=None, *args):
+    def get_object(cls, obj_type, sub_type, filters, *args):
         '''Returns the requested object depending on obj_type and sub_type
 
         obj_type can be one of 'root', 'flow', 'run', 'step', 'task',
@@ -430,7 +430,7 @@ class MetadataProvider(object):
                 'type': 'metaflow.artifact',
                 'sha': art.sha,
                 'ds_type': art.ds_type,
-                'location': art.url}
+                'location': art.url if art.url else ':root:%s' % art.ds_root}
             d.update(self._all_obj_elements(self.sticky_tags, self.sticky_sys_tags))
             result.append(d)
         return result
@@ -462,12 +462,9 @@ class MetadataProvider(object):
             tags.append('metaflow_r_version:' + env['metaflow_r_version'])
         if 'r_version_code' in env:
             tags.append('r_version:' + env['r_version_code'])
-        if 'project_name' in current:
-            tags.append('project:' + current.project_name)
-            tags.append('project_branch:' + current.branch_name)
         return tags
 
-    def _register_code_package_metadata(self, run_id, step_name, task_id):
+    def _register_code_package_metadata(self, run_id, step_name, task_id, attempt):
         metadata = []
         code_sha = os.environ.get('METAFLOW_CODE_SHA')
         code_url = os.environ.get('METAFLOW_CODE_URL')
@@ -477,7 +474,9 @@ class MetadataProvider(object):
                 field='code-package',
                 value=json.dumps({'ds_type': code_ds, 'sha': code_sha, 'location': code_url}),
                 type='code-package',
-                tags=[]))
+                tags=["attempt_id:{0}".format(attempt)]))
+        # We don't tag with attempt_id here because not readily available; this
+        # is ok though as this doesn't change from attempt to attempt.
         if metadata:
             self.register_metadata(run_id, step_name, task_id, metadata)
 

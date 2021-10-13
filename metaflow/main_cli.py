@@ -5,8 +5,8 @@ import shutil
 
 from os.path import expanduser
 
-from metaflow.datastore.local import LocalDataStore
-from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, DEFAULT_METADATA
+from metaflow.datastore.local_storage import LocalStorage
+from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.util import to_unicode
 
 
@@ -106,8 +106,8 @@ def status():
     from metaflow.client import namespace, metadata, Metaflow
 
     # Get the local data store path
-    path = LocalDataStore.get_datastore_root_from_config(echo,
-                                                         create_on_absent=False)
+    path = LocalStorage.get_datastore_root_from_config(
+        echo, create_on_absent=False)
     # Throw an exception
     if path is None:
         raise click.ClickException("Could not find " +\
@@ -231,7 +231,7 @@ def pull(episode):
                 continue
         echo('Pulling episode ', nl=False)
         echo('\"{0}\"'.format(episode), fg='cyan', nl=False)
-        # TODO: Is the following redudant?
+        # TODO: Is the following redundant?
         echo(' into your current working directory.')
         # Copy from (local) metaflow package dir to current.
         src_dir = os.path.join(tutorials_dir, episode)

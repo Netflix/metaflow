@@ -21,7 +21,7 @@ parameter(
 \item{parameter}{name of the parameter}
 
 \item{required}{logical (defaults to FALSE) denoting if
-paramter is required as an argument to \code{run} the flow}
+parameter is required as an argument to \code{run} the flow}
 
 \item{help}{optional help text}
 

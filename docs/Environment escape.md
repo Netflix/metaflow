@@ -143,7 +143,7 @@ and produces a JSON-able object (typically a dictionary with string keys and
 jsonable objects as values). The decoding is the reverse where a dictionary is
 taken from the channel and Python objects are returned.
 
-Transfering exceptions requires a tiny bit more work and this logic can be found
+Transferring exceptions requires a tiny bit more work and this logic can be found
 in ```exception_transferer.py```; this relies on ```data_transferer.py``` to do
 the actual encoding and decoding and ```exception_transferer.py``` merely takes
 care of the specificities of extracting the information needed from the

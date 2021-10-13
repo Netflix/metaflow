@@ -1,8 +1,8 @@
 import os
 import sys
 import tarfile
+import time
 import json
-from hashlib import sha1
 from io import BytesIO
 from itertools import chain
 
@@ -20,23 +20,25 @@ class MetaflowPackage(object):
         self.environment = environment
         self.metaflow_root = os.path.dirname(__file__)
         try:
-            import metaflow_custom
+            import metaflow_extensions
         except ImportError:
-            self.metaflow_custom_root = None
+            self.metaflow_extensions_root = None
         else:
-            self.metaflow_custom_root = os.path.dirname(metaflow_custom.__file__)
-            self.metaflow_custom_addl_suffixes = getattr(
-                metaflow_custom,
-                'METAFLOW_CUSTOM_PACKAGE_SUFFIXES',
+            self.metaflow_extensions_root = os.path.dirname(metaflow_extensions.__file__)
+            self.metaflow_extensions_addl_suffixes = getattr(
+                metaflow_extensions,
+                'METAFLOW_EXTENSIONS_PACKAGE_SUFFIXES',
                 None)
 
+        self.flow_name = flow.name
+        self.create_time = time.time()
         environment.init_environment(echo)
         for step in flow:
             for deco in step.decorators:
                 deco.package_init(flow,
                                   step.__name__,
                                   environment)
-        self.blob, self.sha = self._make()
+        self.blob = self._make()
 
     def _walk(self, root, exclude_hidden=True, addl_suffixes=None):
         if addl_suffixes is None:
@@ -66,11 +68,11 @@ class MetaflowPackage(object):
         for path_tuple in self._walk(self.metaflow_root, exclude_hidden=False):
             yield path_tuple
         # Metaflow customization if any
-        if self.metaflow_custom_root:
+        if self.metaflow_extensions_root:
             for path_tuple in self._walk(
-                    self.metaflow_custom_root,
+                    self.metaflow_extensions_root,
                     exclude_hidden=False,
-                    addl_suffixes=self.metaflow_custom_addl_suffixes):
+                    addl_suffixes=self.metaflow_extensions_addl_suffixes):
                 yield path_tuple
         # the package folders for environment
         for path_tuple in self.environment.add_to_package():
@@ -105,14 +107,16 @@ class MetaflowPackage(object):
             return tarinfo
 
         buf = BytesIO()
-        with tarfile.TarFile(fileobj=buf, mode='w') as tar:
+        with tarfile.open(fileobj=buf, mode='w:gz', compresslevel=3) as tar:
             self._add_info(tar)
             for path, arcname in self.path_tuples():
                 tar.add(path, arcname=arcname,
                         recursive=False, filter=no_mtime)
 
-        blob = buf.getvalue()
-        return blob, sha1(blob).hexdigest()
+        blob = bytearray(buf.getvalue())
+        blob[4:8] = [0] * 4 # Reset 4 bytes from offset 4 to account for ts
+        return blob
 
     def __str__(self):
-        return '<code package %s>' % self.sha
+        return '<code package for flow %s (created @ %s)>' % \
+            (self.flow_name, time.strftime("%a, %d %b %Y %H:%M:%S", self.create_time))

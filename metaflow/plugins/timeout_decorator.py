@@ -56,14 +56,14 @@ class TimeoutDecorator(StepDecorator):
             int(self.attributes['minutes']) * 60 +\
             int(self.attributes['seconds'])
 
-    def step_init(self, flow, graph, step, decos, environment, datastore, logger):
+    def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         self.logger = logger
         if not self.secs:
             raise MetaflowException('Specify a duration for @timeout.')
 
     def task_pre_step(self,
                       step_name,
-                      datastore,
+                      task_datastore,
                       metadata,
                       run_id,
                       task_id,
@@ -71,7 +71,8 @@ class TimeoutDecorator(StepDecorator):
                       graph,
                       retry_count,
                       max_user_code_retries,
-                      ubf_context):
+                      ubf_context,
+                      inputs):
         if ubf_context != UBF_CONTROL and retry_count <= max_user_code_retries:
             # enable timeout only when executing user code
             self.step_name = step_name

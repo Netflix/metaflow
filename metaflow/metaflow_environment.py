@@ -50,7 +50,7 @@ class MetaflowEnvironment(object):
     def add_to_package(self):
         """
         A list of tuples (file, arcname) to add to the job package.
-        `arcname` is an alterative name for the file in the job package.
+        `arcname` is an alternative name for the file in the job package.
         """
         return []
 
@@ -96,7 +96,7 @@ class MetaflowEnvironment(object):
                     "mflog \'Failed to download code package from %s "
                     "after 6 tries. Exiting...\' && exit 1; "
                 "fi" % code_package_url,
-                "tar xf job.tar",
+                "TAR_OPTIONS='--warning=no-timestamp' tar xf job.tar",
                 "mflog \'Task is starting.\'",
                 ]
         return cmds

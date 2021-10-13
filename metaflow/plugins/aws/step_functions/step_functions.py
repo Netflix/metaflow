@@ -34,11 +34,11 @@ class StepFunctions(object):
                  name,
                  graph,
                  flow,
-                 code_package,
+                 code_package_sha,
                  code_package_url,
                  production_token,
                  metadata,
-                 datastore,
+                 flow_datastore,
                  environment,
                  event_logger,
                  monitor,
@@ -51,11 +51,11 @@ class StepFunctions(object):
         self.name = name
         self.graph = graph
         self.flow = flow
-        self.code_package = code_package
+        self.code_package_sha = code_package_sha
         self.code_package_url = code_package_url
         self.production_token = production_token
         self.metadata = metadata
-        self.datastore = datastore
+        self.flow_datastore = flow_datastore
         self.environment = environment
         self.event_logger = event_logger
         self.monitor = monitor
@@ -190,7 +190,7 @@ class StepFunctions(object):
                 return parameters.get('metaflow.owner'), \
                     parameters.get('metaflow.production_token')
             except KeyError as e:
-                raise StepFunctionsException("An exisiting non-metaflow "
+                raise StepFunctionsException("An existing non-metaflow "
                                              "workflow with the same name as "
                                              "*%s* already exists in AWS Step "
                                              "Functions. Please modify the "
@@ -310,26 +310,17 @@ class StepFunctions(object):
                                         "case-insensitive." % param.name)
             seen.add(norm)
 
-            valuetype = param.kwargs.get('type', str)
-            value = deploy_time_eval(param.kwargs.get('default'))
-            required = param.kwargs.get('required', False)
-            # Throw an exception if the flow has optional parameters
-            # with no default value.
-            if value is None and required is False:
-                raise MetaflowException("The value of parameter *%s* is "
-                                        "ambiguous. It does not have a "
-                                        "default and it is not required."
-                                        % param.name)
-
+            is_required = param.kwargs.get('required', False)
             # Throw an exception if a schedule is set for a flow with required
             # parameters with no defaults. We currently don't have any notion
             # of data triggers in AWS Event Bridge.
-            if value is None and required and has_schedule:
+            if 'default' not in param.kwargs and is_required and has_schedule:
                 raise MetaflowException("The parameter *%s* does not have a "
                                         "default and is required. Scheduling "
                                         "such parameters via AWS Event Bridge "
                                         "is not currently supported."
                                         % param.name)
+            value = deploy_time_eval(param.kwargs.get('default'))
             parameters.append(dict(name=param.name,
                                    value=value))
         return parameters
@@ -607,9 +598,9 @@ class StepFunctions(object):
                                                 self.code_package_url,
                                                 user_code_retries),
                         task_spec=task_spec,
-                        code_package_sha=self.code_package.sha,
+                        code_package_sha=self.code_package_sha,
                         code_package_url=self.code_package_url,
-                        code_package_ds=self.datastore.TYPE,
+                        code_package_ds=self.flow_datastore.TYPE,
                         image=resources['image'],
                         queue=resources['queue'],
                         iam_role=resources['iam_role'],
@@ -622,7 +613,8 @@ class StepFunctions(object):
                         max_swap=resources['max_swap'],
                         swappiness=resources['swappiness'],
                         env=env,
-                        attrs=attrs
+                        attrs=attrs,
+                        host_volumes=resources['host_volumes'],
                 ) \
                 .attempts(total_retries + 1)
 
@@ -718,8 +710,8 @@ class StepFunctions(object):
             '--quiet',
             '--metadata=%s' % self.metadata.TYPE,
             '--environment=%s' % self.environment.TYPE,
-            '--datastore=%s' % self.datastore.TYPE,
-            '--datastore-root=%s' % self.datastore.datastore_root,
+            '--datastore=%s' % self.flow_datastore.TYPE,
+            '--datastore-root=%s' % self.flow_datastore.datastore_root,
             '--event-logger=%s' % self.event_logger.logger_type,
             '--monitor=%s' % self.monitor.monitor_type,
             '--no-pylint',
@@ -823,6 +815,9 @@ class State(object):
                 to_pascalcase(job.payload['retryStrategy'])) \
             .parameter('Timeout', 
                 to_pascalcase(job.payload['timeout']))
+        # tags may not be present in all scenarios
+        if 'tags' in job.payload:
+            self.parameter('Tags', job.payload['tags'])
         return self
 
     def dynamo_db(self, table_name, primary_key, values):
