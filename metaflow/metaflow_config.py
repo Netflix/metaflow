@@ -225,10 +225,10 @@ def get_pinned_conda_libs(python_version):
         }
     else:
         return {
-            'click': '7.1.2',
-            'requests': '2.24.0',
-            'boto3': '1.14.47',
-            'coverage': '4.5.4'
+            'click': '>=7.1.2',
+            'requests': '>=2.24.0',
+            'boto3': '>=1.14.47',
+            'coverage': '>=4.5.4'
         }
         
 
