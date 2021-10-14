@@ -8,6 +8,7 @@ from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.metadata.metadata import MetadataProvider
 from metaflow.util import to_unicode, compress_list, unicode_type
 from .exception import BadCardNameException
+from .card_modules import add_to_card,serialize_components
 # from metaflow import get_metadata
 import re
 CARD_ID_PATTERN = re.compile('^[a-zA-Z0-9_]+$',)
@@ -102,8 +103,21 @@ class CardDecorator(StepDecorator):
         self._environment = environment
     
     def task_pre_step(self, step_name, task_datastore, metadata, run_id, task_id, flow, graph, retry_count, max_user_code_retries, ubf_context, inputs):
+        from functools import partial
         self._task_datastore = task_datastore
+        flow._card_props = {
+            "components": []
+        }
+        if getattr(flow,"card_props",None):
+            del flow.card_props
+        flow.add_to_card = partial(add_to_card,flow._card_props['components'])
         self._metadata = metadata
+
+    def task_post_step(self, step_name, flow, graph, retry_count, max_user_code_retries):
+        if len(flow._card_props['components']) > 0: 
+            flow.card_props = serialize_components(flow._card_props['components'])
+
+        del flow.add_to_card
 
     def task_finished(self, step_name, flow, graph, is_task_ok, retry_count, max_user_code_retries):
         if not is_task_ok:

@@ -158,8 +158,8 @@ FLOW_DECORATORS = _merge_lists([CondaFlowDecorator,
                             _ext_plugins.FLOW_DECORATORS, 'name')
 
 # Cards
-from .card_modules import MF_CARDS_EXTERNAL_MODULES
-from .card_modules.basic import BasicCard
+from .cards.card_modules import MF_CARDS_EXTERNAL_MODULES
+from .cards.card_modules.basic import BasicCard
 CARDS = _merge_lists([BasicCard],MF_CARDS_EXTERNAL_MODULES,'type')
 
 # Sidecars

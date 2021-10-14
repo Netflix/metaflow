@@ -1,5 +1,5 @@
 
-from metaflow.plugins.card_modules.card import MetaflowCard
+from metaflow.plugins.cards.card_modules import MetaflowCard
 
 class MockCard(MetaflowCard):
     type='mock_card'
