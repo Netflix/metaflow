@@ -33,9 +33,7 @@ Metadata = namedtuple('Metadata', ['name',
                                    'value',
                                    'created_at',
                                    'type',
-                                   'task',
-                                   'tags',
-                                   'system_tags'])
+                                   'task'])
 
 filecache = None
 current_namespace = False
@@ -900,9 +898,7 @@ class Task(MetaflowObject):
                          value=obj.get('value'),
                          created_at=obj.get('ts_epoch'),
                          type=obj.get('type'),
-                         task=self,
-                         tags=obj.get('tags', []),
-                         system_tags=obj.get('system_tags', [])) for obj in all_metadata]
+                         task=self) for obj in all_metadata]
 
     @property
     def metadata_dict(self):
