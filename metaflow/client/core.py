@@ -764,9 +764,31 @@ class DataArtifact(MetaflowObject):
             return filecache.get_artifact_by_location(
                 ds_type, location, meta, *components)
 
-    # TODO add
-    # @property
-    # def size(self)
+    @property
+    def size(self):
+        """
+        Return non-cached size of the DataArtifact file.
+
+        Returns
+        -------
+        int
+            size of the data artifact (in bytes)
+        """
+        # NOTE: We are not actually using the cache features for this,
+        # so could we access the datastore class directly instead?
+        global filecache
+
+        ds_type = self._object['ds_type']
+        location = self._object['location']
+        components = self.path_components
+
+        if filecache is None:
+            # TODO: Pass proper environment to properly extract artifacts
+            filecache = FileCache()
+        if location.startswith(':root:'):
+            return filecache.get_artifact_size(ds_type, location[6:], self._attempt, *components)
+        else:
+            return filecache.get_artifact_size_by_location(ds_type, location, self._attempt, *components)
 
     # TODO add
     # @property
@@ -881,7 +903,6 @@ class Task(MetaflowObject):
                          task=self,
                          tags=obj.get('tags', []),
                          system_tags=obj.get('system_tags', [])) for obj in all_metadata]
-
 
     @property
     def metadata_dict(self):
@@ -1066,6 +1087,19 @@ class Task(MetaflowObject):
         return self._load_log(logtype)
 
     @property
+    def stdout_size(self):
+        """
+        Returns the size of the stdout log of this task.
+
+        Returns
+        -------
+        int
+            Size of the stdout log content (in bytes)
+        """
+        logtype = 'stdout'
+        return self._get_logsize(logtype)
+
+    @property
     def stderr(self):
         """
         Returns the full standard error of this task.
@@ -1080,6 +1114,44 @@ class Task(MetaflowObject):
         """
         logtype = 'stderr'
         return self._load_log(logtype)
+
+    @property
+    def stderr_size(self):
+        """
+        Returns the size of the stderr log of this task.
+
+        Returns
+        -------
+        int
+            Size of the stderr log content (in bytes)
+        """
+        logtype = 'stderr'
+        return self._get_logsize(logtype)
+
+    @property
+    def current_attempt(self):
+        """
+        Get the relevant attempt for this Task. Return the specific attempt used when
+        initializing the instance, or the latest possible attempt for the Task.
+
+        Returns
+        -------
+        int
+            current attempt id
+        """
+        if self._attempt is not None:
+            attempt = self._attempt
+        else:
+            # It is possible that a task fails before any metadata has been
+            # recorded. In this case, we assume that we are executing the
+            # first attempt.
+            #
+            # FIXME: Technically we are looking at the latest *recorded* attempt
+            # here. It is possible that logs exists for a newer attempt that
+            # just failed to record metadata. We could make this logic more robust
+            # and guarantee that we always return the latest available log.
+            attempt = int(self.metadata_dict.get('attempt', 0))
+        return attempt
 
     @cached_property
     def code(self):
@@ -1118,7 +1190,8 @@ class Task(MetaflowObject):
         env_type = my_code.info['environment_type']
         if not env_type:
             return None
-        env = [m for m in ENVIRONMENTS + [MetaflowEnvironment] if m.TYPE == env_type][0]
+        env = [m for m in ENVIRONMENTS +
+               [MetaflowEnvironment] if m.TYPE == env_type][0]
         return env.get_client_info(self.path_components[0], self.metadata_dict)
 
     def _load_log(self, stream):
@@ -1127,6 +1200,13 @@ class Task(MetaflowObject):
             return self._load_log_legacy(log_location, stream)
         else:
             return ''.join(line + '\n' for _, line in self.loglines(stream))
+
+    def _get_logsize(self, stream):
+        log_location = self.metadata_dict.get('log_location_%s' % stream)
+        if log_location:
+            return self._legacy_log_size(log_location, stream)
+        else:
+            return self._log_size(stream)
 
     def loglines(self, stream, as_unicode=True):
         """
@@ -1145,18 +1225,8 @@ class Task(MetaflowObject):
             return
         if filecache is None:
             filecache = FileCache()
-        if self._attempt is not None:
-            attempt = self._attempt
-        else:
-            # It is possible that a task fails before any metadata has been
-            # recorded. In this case, we assume that we are executing the
-            # first attempt.
-            #
-            # FIXME: Technically we are looking at the latest *recorded* attempt
-            # here. It is possible that logs exists for a newer attempt that
-            # just failed to record metadata. We could make this logic more robust
-            # and guarantee that we always return the latest available log.
-            attempt = int(self.metadata_dict.get('attempt', 0))
+
+        attempt = self.current_attempt
         logs = filecache.get_logs_stream(
             ds_type, ds_root, stream, attempt, *self.path_components)
         for line in merge_logs([blob for _, blob in logs]):
@@ -1179,6 +1249,34 @@ class Task(MetaflowObject):
             return ret_val.decode(encoding='utf8')
         else:
             return ret_val
+
+    def _legacy_log_size(self, log_location, logtype):
+        global filecache
+
+        log_info = json.loads(log_location)
+        location = log_info['location']
+        ds_type = log_info['ds_type']
+        attempt = log_info['attempt']
+        if filecache is None:
+            filecache = FileCache()
+
+        return filecache.get_legacy_log_size(
+            ds_type, location, logtype, int(attempt), *self.path_components)
+
+    def _log_size(self, stream):
+        global filecache
+
+        ds_type = self.metadata_dict.get('ds-type')
+        ds_root = self.metadata_dict.get('ds-root')
+        if ds_type is None or ds_root is None:
+            return 0
+        if filecache is None:
+            filecache = FileCache()
+        attempt = self.current_attempt
+
+        return filecache.get_log_size(
+            ds_type, ds_root, stream, attempt, *self.path_components)
+
 
 
 class Step(MetaflowObject):

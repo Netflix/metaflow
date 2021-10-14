@@ -126,12 +126,12 @@ class TaskDataStore(object):
                 # datastore, the data may change). We make an exception to that
                 # rule when allow_not_done is True which allows access to things
                 # like logs even for tasks that did not write a done marker
-                self._attempt = None
-                for i in range(metaflow_config.MAX_ATTEMPTS):
-                    check_meta = self._metadata_name_for_attempt(
-                        self.METADATA_ATTEMPT_SUFFIX, i)
-                    if self.has_metadata(check_meta, add_attempt=False):
-                        self._attempt = i
+                if self._attempt is None:
+                    for i in range(metaflow_config.MAX_ATTEMPTS):
+                        check_meta = self._metadata_name_for_attempt(
+                            self.METADATA_ATTEMPT_SUFFIX, i)
+                        if self.has_metadata(check_meta, add_attempt=False):
+                            self._attempt = i
                 # Check if the latest attempt was completed successfully except
                 # if we have allow_not_done
                 data_obj = None
@@ -313,6 +313,51 @@ class TaskDataStore(object):
         # stored by the same implementation of the datastore for a given task.
         for sha, blob in self._ca_store.load_blobs(to_load):
             yield sha_to_names[sha], pickle.loads(blob)
+
+    @require_mode('r')
+    def get_artifact_sizes(self, names):
+        """
+        Retrieves file sizes of artifacts defined in 'names' from their respective
+        stored file metadata.
+        
+        Usage restricted to only 'r' mode due to depending on the metadata being written
+
+        Parameters
+        ----------
+        names : List[string]
+            List of artifacts to retrieve
+
+        Returns
+        -------
+        Iterator[(string, int)] :
+            An iterator over sizes retrieved.
+        """
+        for name in names:
+            info = self._info.get(name)
+            yield name, info.get('size', 0)
+
+    @require_mode('r')
+    def get_legacy_log_size(self, stream, attempt_override=False):
+        name = self._metadata_name_for_attempt(
+            '%s.log' % stream, attempt_override)
+        path = self._storage_impl.path_join(self._path, name)
+
+        return self._storage_impl.size_file(path)
+
+    @require_mode('r')
+    def get_log_size(self, logsources, stream, attempt_override=False):
+        def _path(s):
+            # construct path for fetching of a single log source
+            _p = self._metadata_name_for_attempt(
+                self._get_log_location(s, stream),
+                attempt_override=attempt_override
+            )
+            return self._storage_impl.path_join(self._path, _p)
+
+        paths = list(map(_path, logsources))
+        sizes = [self._storage_impl.size_file(p) for p in paths]
+
+        return sum(size for size in sizes if size is not None)
 
     @only_if_not_done
     @require_mode('w')
