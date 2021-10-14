@@ -22,9 +22,11 @@ class MetaflowCardComponent(object):
         raise NotImplementedError()
 
 def add_to_card(past_component_arr,card_components):
+    additions = []
     for comp in card_components:
-        if issubclass(comp,MetaflowCardComponent):
-            past_component_arr.append(card_components)
+        if issubclass(type(comp),MetaflowCardComponent):
+            additions.append(comp)
+    past_component_arr.extend(additions)
 
 def serialize_components(past_component_arr):
     return [component.render() for component in past_component_arr]

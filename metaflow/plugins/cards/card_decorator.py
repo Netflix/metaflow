@@ -114,7 +114,7 @@ class CardDecorator(StepDecorator):
         self._metadata = metadata
 
     def task_post_step(self, step_name, flow, graph, retry_count, max_user_code_retries):
-        if len(flow._card_props['components']) > 0: 
+        if len(flow._card_props['components']) > 0:
             flow.card_props = serialize_components(flow._card_props['components'])
 
         del flow.add_to_card
