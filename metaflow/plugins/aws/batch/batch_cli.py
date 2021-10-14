@@ -240,7 +240,7 @@ def step(
 
     batch = Batch(ctx.obj.metadata, ctx.obj.environment)
     try:
-        with ctx.obj.monitor.measure("metaflow.batch.launch"):
+        with ctx.obj.monitor.measure("metaflow.aws.batch.launch_job"):
             batch.launch_job(
                 step_name,
                 step_cli,
