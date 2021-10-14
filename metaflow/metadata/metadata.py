@@ -546,7 +546,9 @@ class MetadataProvider(object):
         for v in all_metadata:
             if v['field_name'] == 'attempt':
                 attempts_start[int(v['value'])] = v['ts_epoch']
-            all_tags = v.get('tags', [])
+            all_tags = v.get('tags')
+            if all_tags is None:
+                all_tags = []
             for t in all_tags:
                 match_result = attempt_id_re.match(t)
                 if match_result:
