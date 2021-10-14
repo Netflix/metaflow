@@ -126,12 +126,20 @@ class TaskDataStore(object):
                 # datastore, the data may change). We make an exception to that
                 # rule when allow_not_done is True which allows access to things
                 # like logs even for tasks that did not write a done marker
+                for i in range(metaflow_config.MAX_ATTEMPTS):
+                    check_meta = self._metadata_name_for_attempt(
+                        self.METADATA_ATTEMPT_SUFFIX, i)
+                    if self.has_metadata(check_meta, add_attempt=False):
+                        max_attempt = i
                 if self._attempt is None:
-                    for i in range(metaflow_config.MAX_ATTEMPTS):
-                        check_meta = self._metadata_name_for_attempt(
-                            self.METADATA_ATTEMPT_SUFFIX, i)
-                        if self.has_metadata(check_meta, add_attempt=False):
-                            self._attempt = i
+                    self._attempt = max_attempt
+                elif self._attempt > max_attempt:
+                    # In this case, the attempt does not exist so we can't load
+                    # anything
+                    self._objects = {}
+                    self._info = {}
+                    return
+
                 # Check if the latest attempt was completed successfully except
                 # if we have allow_not_done
                 data_obj = None
@@ -163,6 +171,17 @@ class TaskDataStore(object):
     @property
     def task_id(self):
         return self._task_id
+
+    @property
+    def attempt(self):
+        return self._attempt
+
+    @property
+    def ds_metadata(self):
+        return {
+            'objects': self._objects.copy(),
+            'info': self._info.copy()
+        }
 
     @property
     def pathspec_index(self):
@@ -337,21 +356,18 @@ class TaskDataStore(object):
             yield name, info.get('size', 0)
 
     @require_mode('r')
-    def get_legacy_log_size(self, stream, attempt_override=False):
-        name = self._metadata_name_for_attempt(
-            '%s.log' % stream, attempt_override)
+    def get_legacy_log_size(self, stream):
+        name = self._metadata_name_for_attempt('%s.log' % stream)
         path = self._storage_impl.path_join(self._path, name)
 
         return self._storage_impl.size_file(path)
 
     @require_mode('r')
-    def get_log_size(self, logsources, stream, attempt_override=False):
+    def get_log_size(self, logsources, stream):
         def _path(s):
             # construct path for fetching of a single log source
             _p = self._metadata_name_for_attempt(
-                self._get_log_location(s, stream),
-                attempt_override=attempt_override
-            )
+                self._get_log_location(s, stream))
             return self._storage_impl.path_join(self._path, _p)
 
         paths = list(map(_path, logsources))
