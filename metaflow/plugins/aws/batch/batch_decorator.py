@@ -143,7 +143,7 @@ class BatchDecorator(StepDecorator):
         for deco in decos:
             if isinstance(deco, ResourcesDecorator):
                 for k, v in deco.attributes.items():
-                    # We use the larger of @resources and @k8s attributes
+                    # We use the larger of @resources and @batch attributes
                     # TODO: Fix https://github.com/Netflix/metaflow/issues/467
                     my_val = self.attributes.get(k)
                     if not (my_val is None and v is None):
