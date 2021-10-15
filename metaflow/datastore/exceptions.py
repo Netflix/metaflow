@@ -5,7 +5,7 @@ class DataException(MetaflowException):
 
 
 class UnpicklizableArtifactException(MetaflowException):
-    headline = "Cannot Picklize Artifact"
+    headline = "Cannot pickle artifact"
 
     def __init__(self,artifact_name):
         msg = 'Cannot pickle dump artifact named "%s"' % artifact_name
