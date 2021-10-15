@@ -143,7 +143,11 @@ class BatchDecorator(StepDecorator):
         for deco in decos:
             if isinstance(deco, ResourcesDecorator):
                 for k, v in deco.attributes.items():
+<<<<<<< HEAD
                     # We use the larger of @resources and @k8s attributes
+=======
+                    # We use the larger of @resources and @batch attributes
+>>>>>>> master
                     # TODO: Fix https://github.com/Netflix/metaflow/issues/467
                     my_val = self.attributes.get(k)
                     if not (my_val is None and v is None):
@@ -208,6 +212,47 @@ class BatchDecorator(StepDecorator):
                       inputs):
         self.metadata = metadata
         self.task_datastore = task_datastore
+<<<<<<< HEAD
+
+        # task_pre_step may run locally if fallback is activated for @catch 
+        # decorator. In that scenario, we skip collecting AWS Batch execution
+        # metadata. A rudimentary way to detect non-local execution is to
+        # check for the existence of AWS_BATCH_JOB_ID environment variable.
+
+        if 'AWS_BATCH_JOB_ID' in os.environ:
+            meta = {}
+            meta['aws-batch-job-id'] = os.environ['AWS_BATCH_JOB_ID']
+            meta['aws-batch-job-attempt'] = os.environ['AWS_BATCH_JOB_ATTEMPT']
+            meta['aws-batch-ce-name'] = os.environ['AWS_BATCH_CE_NAME']
+            meta['aws-batch-jq-name'] = os.environ['AWS_BATCH_JQ_NAME']
+            meta['aws-batch-execution-env'] = os.environ['AWS_EXECUTION_ENV']
+
+
+            # Capture AWS Logs metadata. This is best effort only since
+            # only V4 of the metadata uri for the ECS container hosts this
+            # information and it is quite likely that not all consumers of 
+            # Metaflow would be running the container agent compatible with
+            # version V4.
+            # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-metadata-endpoint.html
+            try:
+                logs_meta = requests.get(
+                                url=os.environ['ECS_CONTAINER_METADATA_URI_V4']) \
+                                    .json() \
+                                    .get('LogOptions', {})
+                meta['aws-batch-awslogs-group'] = logs_meta.get('awslogs-group')
+                meta['aws-batch-awslogs-region'] = logs_meta.get('awslogs-region')
+                meta['aws-batch-awslogs-stream'] = logs_meta.get('awslogs-stream')
+            except:
+                pass
+
+            entries = [MetaDatum(
+                field=k, value=v, type=k, tags=["attempt_id:{0}".format(retry_count)])
+                for k, v in meta.items()]
+            # Register book-keeping metadata for debugging.
+            metadata.register_metadata(run_id, step_name, task_id, entries)
+        
+            self._save_logs_sidecar = SidecarSubProcess('save_logs_periodically')
+=======
 
         # task_pre_step may run locally if fallback is activated for @catch 
         # decorator. In that scenario, we skip collecting AWS Batch execution
@@ -248,14 +293,13 @@ class BatchDecorator(StepDecorator):
         
             self._save_logs_sidecar = SidecarSubProcess('save_logs_periodically')
 
-    def task_finished(self,
-                      step_name,
-                      flow,
-                      graph,
-                      is_task_ok,
-                      retry_count,
-                      max_retries):
-        # task_finished may run locally if fallback is activated for @catch 
+    def task_post_step(self,
+                       step_name,
+                       flow,
+                       graph,
+                       retry_count,
+                       max_user_code_retries):
+        # task_post_step may run locally if fallback is activated for @catch 
         # decorator.
         if 'AWS_BATCH_JOB_ID' in os.environ:
             # If `local` metadata is configured, we would need to copy task
@@ -266,7 +310,35 @@ class BatchDecorator(StepDecorator):
                 # Note that the datastore is *always* Amazon S3 (see 
                 # runtime_task_created function).
                 sync_local_metadata_to_datastore(DATASTORE_LOCAL_DIR, 
-                    self.task_datastore)
+                    self.task_datastore) 
+
+    def task_exception(self,
+                       exception,
+                       step_name,
+                       flow,
+                       graph,
+                       retry_count,
+                       max_user_code_retries):
+        # task_exception may run locally if fallback is activated for @catch 
+        # decorator.
+        if 'AWS_BATCH_JOB_ID' in os.environ:
+            # If `local` metadata is configured, we would need to copy task
+            # execution metadata from the AWS Batch container to user's
+            # local file system after the user code has finished execution.
+            # This happens via datastore as a communication bridge.
+            if self.metadata.TYPE == 'local':
+                # Note that the datastore is *always* Amazon S3 (see 
+                # runtime_task_created function).
+                sync_local_metadata_to_datastore(DATASTORE_LOCAL_DIR, 
+                    self.task_datastore)        
+
+    def task_finished(self,
+                      step_name,
+                      flow,
+                      graph,
+                      is_task_ok,
+                      retry_count,
+                      max_retries):
             try:
                 self._save_logs_sidecar.kill()
             except:
