@@ -95,7 +95,7 @@ class MetadataProvider(object):
         '''
         return ''
 
-    def new_run_id(self, tags=[], sys_tags=[]):
+    def new_run_id(self, tags=None, sys_tags=None):
         '''
         Creates an ID and registers this new run.
 
@@ -104,9 +104,9 @@ class MetadataProvider(object):
         Parameters
         ----------
         tags : list, optional
-            Tags to apply to this particular run, by default []
+            Tags to apply to this particular run, by default None
         sys_tags : list, optional
-            System tags to apply to this particular run, by default []
+            System tags to apply to this particular run, by default None
 
         Returns
         -------
@@ -115,7 +115,7 @@ class MetadataProvider(object):
         '''
         raise NotImplementedError()
 
-    def register_run_id(self, run_id, tags=[], sys_tags=[]):
+    def register_run_id(self, run_id, tags=None, sys_tags=None):
         '''
         No-op operation in this implementation.
 
@@ -124,13 +124,13 @@ class MetadataProvider(object):
         run_id : int
             Run ID for this run
         tags : list, optional
-            Tags to apply to this particular run, by default []
+            Tags to apply to this particular run, by default None
         sys_tags : list, optional
-            System tags to apply to this particular run, by default []
+            System tags to apply to this particular run, by default None
         '''
         raise NotImplementedError()
 
-    def new_task_id(self, run_id, step_name, tags=[], sys_tags=[]):
+    def new_task_id(self, run_id, step_name, tags=None, sys_tags=None):
         '''
         Creates an ID and registers this new task.
 
@@ -143,9 +143,9 @@ class MetadataProvider(object):
         step_name : string
             Name of the step
         tags : list, optional
-            Tags to apply to this particular task, by default []
+            Tags to apply to this particular task, by default None
         sys_tags : list, optional
-            System tags to apply to this particular task, by default []
+            System tags to apply to this particular task, by default None
 
         Returns
         -------
@@ -155,7 +155,7 @@ class MetadataProvider(object):
         raise NotImplementedError()
 
     def register_task_id(
-            self, run_id, step_name, task_id, attempt=0, tags=[], sys_tags=[]):
+            self, run_id, step_name, task_id, attempt=0, tags=None, sys_tags=None):
         '''
         No-op operation in this implementation.
 
@@ -278,7 +278,7 @@ class MetadataProvider(object):
         '''
         raise NotImplementedError()
 
-    def add_sticky_tags(self, tags=[], sys_tags=[]):
+    def add_sticky_tags(self, tags=None, sys_tags=None):
         '''
         Adds tags to be added to every run and task
 
@@ -290,12 +290,14 @@ class MetadataProvider(object):
         Parameters
         ----------
         tags : list, optional
-            Tags to add to every run/task, by default []
+            Tags to add to every run/task, by default None
         sys_tags : list, optional
-            System tags to add to every run/task, by default []
+            System tags to add to every run/task, by default None
         '''
-        self.sticky_tags.extend(tags)
-        self.sticky_sys_tags.extend(sys_tags)
+        if tags:
+            self.sticky_tags.update(tags)
+        if sys_tags:
+            self.sticky_sys_tags.update(sys_tags)
 
     @classmethod
     def get_object(cls, obj_type, sub_type, filters, *args):
@@ -366,13 +368,13 @@ class MetadataProvider(object):
 
         return cls._get_object_internal(obj_type, type_order, sub_type, sub_order, filters, *args)
 
-    def _all_obj_elements(self, tags=[], sys_tags=[]):
+    def _all_obj_elements(self, tags=None, sys_tags=None):
         user = get_username()
         return {
             'flow_id': self._flow_name,
             'user_name': user,
-            'tags': tags,
-            'system_tags': sys_tags,
+            'tags': list(tags) if tags else [],
+            'system_tags': list(sys_tags) if sys_tags else [],
             'ts_epoch': int(round(time.time() * 1000))}
 
     def _flow_to_json(self):
@@ -383,7 +385,7 @@ class MetadataProvider(object):
             'flow_id': self._flow_name,
             'ts_epoch': int(round(time.time() * 1000))}
 
-    def _run_to_json(self, run_id=None, tags=[], sys_tags=[]):
+    def _run_to_json(self, run_id=None, tags=None, sys_tags=None):
         if run_id is not None:
             d = {'run_number': run_id}
         else:
@@ -391,14 +393,14 @@ class MetadataProvider(object):
         d.update(self._all_obj_elements(tags, sys_tags))
         return d
 
-    def _step_to_json(self, run_id, step_name, tags=[], sys_tags=[]):
+    def _step_to_json(self, run_id, step_name, tags=None, sys_tags=None):
         d = {
             'run_number': run_id,
             'step_name': step_name}
         d.update(self._all_obj_elements(tags, sys_tags))
         return d
 
-    def _task_to_json(self, run_id, step_name, task_id=None, tags=[], sys_tags=[]):
+    def _task_to_json(self, run_id, step_name, task_id=None, tags=None, sys_tags=None):
         d = {
             'run_number': run_id,
             'step_name': step_name}
@@ -408,7 +410,7 @@ class MetadataProvider(object):
         return d
 
     def _object_to_json(
-            self, obj_type, run_id=None, step_name=None, task_id=None, tags=[], sys_tags=[]):
+            self, obj_type, run_id=None, step_name=None, task_id=None, tags=None, sys_tags=None):
         if obj_type == 'task':
             return self._task_to_json(run_id, step_name, task_id, tags, sys_tags)
         if obj_type == 'step':
@@ -445,7 +447,7 @@ class MetadataProvider(object):
             'field_name': datum.field,
             'type': datum.type,
             'value': datum.value,
-            'tags': datum.tags,
+            'tags': list(set(datum.tags)) if datum.tags else [],
             'user_name': user,
             'ts_epoch': int(round(time.time() * 1000))} for datum in metadata]
 
@@ -505,8 +507,8 @@ class MetadataProvider(object):
 
     def __init__(self, environment, flow, event_logger, monitor):
         self._task_id_seq = -1
-        self.sticky_tags = []
-        self.sticky_sys_tags = []
+        self.sticky_tags = set()
+        self.sticky_sys_tags = set()
         self._flow_name = flow.name
         self._event_logger = event_logger
         self._monitor = monitor
