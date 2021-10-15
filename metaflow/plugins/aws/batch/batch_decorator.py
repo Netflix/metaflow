@@ -208,47 +208,6 @@ class BatchDecorator(StepDecorator):
                       inputs):
         self.metadata = metadata
         self.task_datastore = task_datastore
-<<<<<<< HEAD
-
-        # task_pre_step may run locally if fallback is activated for @catch 
-        # decorator. In that scenario, we skip collecting AWS Batch execution
-        # metadata. A rudimentary way to detect non-local execution is to
-        # check for the existence of AWS_BATCH_JOB_ID environment variable.
-
-        if 'AWS_BATCH_JOB_ID' in os.environ:
-            meta = {}
-            meta['aws-batch-job-id'] = os.environ['AWS_BATCH_JOB_ID']
-            meta['aws-batch-job-attempt'] = os.environ['AWS_BATCH_JOB_ATTEMPT']
-            meta['aws-batch-ce-name'] = os.environ['AWS_BATCH_CE_NAME']
-            meta['aws-batch-jq-name'] = os.environ['AWS_BATCH_JQ_NAME']
-            meta['aws-batch-execution-env'] = os.environ['AWS_EXECUTION_ENV']
-
-
-            # Capture AWS Logs metadata. This is best effort only since
-            # only V4 of the metadata uri for the ECS container hosts this
-            # information and it is quite likely that not all consumers of 
-            # Metaflow would be running the container agent compatible with
-            # version V4.
-            # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-metadata-endpoint.html
-            try:
-                logs_meta = requests.get(
-                                url=os.environ['ECS_CONTAINER_METADATA_URI_V4']) \
-                                    .json() \
-                                    .get('LogOptions', {})
-                meta['aws-batch-awslogs-group'] = logs_meta.get('awslogs-group')
-                meta['aws-batch-awslogs-region'] = logs_meta.get('awslogs-region')
-                meta['aws-batch-awslogs-stream'] = logs_meta.get('awslogs-stream')
-            except:
-                pass
-
-            entries = [MetaDatum(
-                field=k, value=v, type=k, tags=["attempt_id:{0}".format(retry_count)])
-                for k, v in meta.items()]
-            # Register book-keeping metadata for debugging.
-            metadata.register_metadata(run_id, step_name, task_id, entries)
-        
-            self._save_logs_sidecar = SidecarSubProcess('save_logs_periodically')
-=======
 
         # task_pre_step may run locally if fallback is activated for @catch 
         # decorator. In that scenario, we skip collecting AWS Batch execution
