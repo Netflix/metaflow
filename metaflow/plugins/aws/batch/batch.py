@@ -7,7 +7,6 @@ import shlex
 import time
 import warnings
 
-from requests.exceptions import HTTPError
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.metaflow_config import BATCH_METADATA_SERVICE_URL, DATATOOLS_S3ROOT, \
     DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_S3, DEFAULT_METADATA, \
@@ -240,7 +239,6 @@ class Batch(object):
         cpu=None,
         gpu=None,
         memory=None,
-        platform=None,
         run_time_limit=None,
         shared_memory=None,
         max_swap=None,

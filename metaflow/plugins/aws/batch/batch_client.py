@@ -489,53 +489,6 @@ class RunningJob(object):
         if not self.is_running and not self.is_done:
             BatchWaiter(self._client).wait_for_running(self.id)
 
-    @property
-    def log_stream_name(self):
-        return self.info['container'].get('logStreamName')
-
-    def logs(self):
-        def get_log_stream(job):
-            log_stream_name = job.log_stream_name
-            if log_stream_name:
-                return BatchLogs('/aws/batch/job', log_stream_name, sleep_on_no_data=1)
-            else:
-                return None
-
-        log_stream = None
-        while True:
-            if self.is_running or self.is_done or self.is_crashed:
-                log_stream = get_log_stream(self)
-                break
-            elif not self.is_done:
-                self.wait_for_running()
-
-        if log_stream is None:
-            return 
-        exception = None
-        for i in range(self.NUM_RETRIES + 1):
-            try:
-                check_after_done = 0
-                for line in log_stream:
-                    if not line:
-                        if self.is_done:
-                            if check_after_done > 1:
-                                return
-                            check_after_done += 1
-                        else:
-                            pass
-                    else:
-                        i = 0
-                        yield line
-                return
-            except Exception as ex:
-                exception = ex
-                if self.is_crashed:
-                    break
-                #sys.stderr.write(repr(ex) + '\n')
-                if i < self.NUM_RETRIES:
-                    time.sleep(2 ** i + random.randint(0, 5))
-        raise BatchJobException(repr(exception))
-
     def kill(self):
         if not self.is_done:
             self._client.terminate_job(
@@ -593,55 +546,3 @@ class BatchWaiter(object):
         self._waiter.create_waiter_with_client('JobRunning', model, self._client).wait(
             jobs=[job_id]
         )
-
-class BatchLogs(object):
-    def __init__(self, group, stream, pos=0, sleep_on_no_data=0):
-        from ..aws_client import get_aws_client
-        self._client = get_aws_client('logs')
-        self._group = group
-        self._stream = stream
-        self._pos = pos
-        self._sleep_on_no_data = sleep_on_no_data
-        self._buf = deque()
-        self._token = None
-
-    def _get_events(self):
-        try:
-            if self._token:
-                response = self._client.get_log_events(
-                    logGroupName=self._group,
-                    logStreamName=self._stream,
-                    startTime=self._pos,
-                    nextToken=self._token,
-                    startFromHead=True,
-                )
-            else:
-                response = self._client.get_log_events(
-                    logGroupName=self._group,
-                    logStreamName=self._stream,
-                    startTime=self._pos,
-                    startFromHead=True,
-                )
-            self._token = response['nextForwardToken']
-            return response['events']
-        except self._client.exceptions.ResourceNotFoundException as e:
-            # The logs might be delayed by a bit, so we can simply try
-            # again next time.
-            return []
-
-    def __iter__(self):
-        while True:
-            self._fill_buf()
-            if len(self._buf) == 0:
-                yield ''
-                if self._sleep_on_no_data > 0:
-                    select.poll().poll(self._sleep_on_no_data * 1000)
-            else:
-                while self._buf:
-                    yield self._buf.popleft()
-
-    def _fill_buf(self):
-        events = self._get_events()
-        for event in events:
-            self._buf.append(event['message'])
-            self._pos = event['timestamp']
