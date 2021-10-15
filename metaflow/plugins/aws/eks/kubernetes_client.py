@@ -73,7 +73,7 @@ class KubernetesClient(object):
         from kubernetes import client, config
 
         if os.getenv("KUBERNETES_SERVICE_HOST"):
-            # We’re inside a pod, authenticate via ServiceAccount assigned to us
+            # We are inside a pod, authenticate via ServiceAccount assigned to us
             config.load_incluster_config()
         else:
             # Use kubeconfig, likely $HOME/.kube/config
