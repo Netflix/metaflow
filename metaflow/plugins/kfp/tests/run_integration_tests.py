@@ -1,24 +1,20 @@
-import re
+import tempfile
 from os import listdir
 from os.path import isfile, join
+
+import yaml
 from subprocess_tee import run
 import json
 import re
 import requests
 from typing import List, Dict
 
-from .... import R
-
-from metaflow.exception import MetaflowException
-
 import pytest
-
-import yaml
-import tempfile
-
 import time
-
 import uuid
+
+from metaflow import R
+from metaflow.exception import MetaflowException
 
 """
 To run these tests from your terminal, go to the tests directory and run: 
@@ -43,22 +39,21 @@ KFP runs will be scheduled.
 
 """
 
+non_standard_test_flows = [
+    "check_error_handling_flow.py",
+    "raise_error_flow.py",
+    "s3_sensor_flow.py",
+    "s3_sensor_with_formatter_flow.py",
+    "toleration_and_affinity_flow.py",
+    "upload_to_s3_flow.py",
+]
+
 
 def _python():
     if R.use_r():
         return "python3"
     else:
         return "python"
-
-
-non_standard_test_flows = [
-    "accelerator_flow.py",
-    "check_error_handling_flow.py",
-    "raise_error_flow.py",
-    "s3_sensor_flow.py",
-    "s3_sensor_with_formatter_flow.py",
-    "upload_to_s3_flow.py",
-]
 
 
 def obtain_flow_file_paths(flow_dir_path: str) -> List[str]:
@@ -182,72 +177,6 @@ def test_error_and_opsgenie_alert(pytestconfig) -> None:
     return
 
 
-def exists_nvidia_accelerator(node_selector_term: Dict) -> bool:
-    for affinity_match_expression in node_selector_term["matchExpressions"]:
-        if (
-            affinity_match_expression["key"] == "k8s.amazonaws.com/accelerator"
-            and affinity_match_expression["operator"] == "In"
-            and "nvidia-tesla-v100" in affinity_match_expression["values"]
-        ):
-            return True
-    return False
-
-
-def is_nvidia_accelerator_noschedule(toleration: Dict) -> bool:
-    if (
-        toleration["effect"] == "NoSchedule"
-        and toleration["key"] == "k8s.amazonaws.com/accelerator"
-        and toleration["operator"] == "Equal"
-        and toleration["value"] == "nvidia-tesla-v100"
-    ):
-        return True
-    return False
-
-
-def test_compile_only_accelerator_test() -> None:
-    with tempfile.TemporaryDirectory() as yaml_tmp_dir:
-        yaml_file_path = join(yaml_tmp_dir, "accelerator_flow.yaml")
-
-        compile_to_yaml_cmd = (
-            f"{_python()} flows/accelerator_flow.py --datastore=s3 --with retry kfp run "
-            f" --no-s3-code-package --yaml-only --pipeline-path {yaml_file_path}"
-        )
-
-        compile_to_yaml_process = run(
-            compile_to_yaml_cmd,
-            universal_newlines=True,
-            shell=True,
-        )
-        assert compile_to_yaml_process.returncode == 0
-
-        with open(f"{yaml_file_path}", "r") as stream:
-            try:
-                flow_yaml = yaml.safe_load(stream)
-            except yaml.YAMLError as exc:
-                print(exc)
-
-        for step in flow_yaml["spec"]["templates"]:
-            if step["name"] == "start":
-                start_step = step
-                break
-
-    affinity_found = False
-    for node_selector_term in start_step["affinity"]["nodeAffinity"][
-        "requiredDuringSchedulingIgnoredDuringExecution"
-    ]["nodeSelectorTerms"]:
-        if exists_nvidia_accelerator(node_selector_term):
-            affinity_found = True
-            break
-    assert affinity_found
-
-    toleration_found = False
-    for toleration in start_step["tolerations"]:
-        if is_nvidia_accelerator_noschedule(toleration):
-            toleration_found = True
-            break
-    assert toleration_found
-
-
 @pytest.mark.parametrize("flow_file_path", obtain_flow_file_paths("flows"))
 def test_flows(pytestconfig, flow_file_path: str) -> None:
     full_path = join("flows", flow_file_path)
@@ -311,3 +240,99 @@ def exponential_backoff_from_platform_errors(
     )
 
     return kfp_run_id
+
+
+def exists_nvidia_accelerator(node_selector_term: Dict) -> bool:
+    for affinity_match_expression in node_selector_term["matchExpressions"]:
+        if (
+            affinity_match_expression["key"] == "k8s.amazonaws.com/accelerator"
+            and affinity_match_expression["operator"] == "In"
+            and "nvidia-tesla-v100" in affinity_match_expression["values"]
+        ):
+            return True
+    return False
+
+
+def has_node_toleration(
+    step_template, key, value, operator="Equal", effect="NoSchedule"
+):
+    return any(
+        toleration.get("key") == key
+        and toleration.get("value") == value
+        and toleration.get("operator") == operator
+        and toleration.get("effect") == effect
+        for toleration in step_template.get("tolerations", [])
+    )
+
+
+def test_toleration_and_affinity_compile_only() -> None:
+    step_templates = {}
+    with tempfile.TemporaryDirectory() as yaml_tmp_dir:
+        yaml_file_path = join(yaml_tmp_dir, "toleration_and_affinity_flow.yaml")
+
+        compile_to_yaml_cmd = (
+            f"{_python()} flows/toleration_and_affinity_flow.py --datastore=s3 --with retry kfp run"
+            f" --no-s3-code-package --yaml-only --pipeline-path {yaml_file_path}"
+        )
+
+        compile_to_yaml_process = run(
+            compile_to_yaml_cmd,
+            universal_newlines=True,
+            shell=True,
+        )
+        assert compile_to_yaml_process.returncode == 0
+
+        with open(f"{yaml_file_path}", "r") as stream:
+            try:
+                flow_yaml = yaml.safe_load(stream)
+            except yaml.YAMLError as exc:
+                print(exc)
+
+        for step in flow_yaml["spec"]["templates"]:
+            # step name in yaml use "-" in place of "_"
+            step_templates[step["name"].replace("-", "_")] = step
+
+    # Test accelerator deco: Both affinity and toleration need to be added
+    assert any(
+        exists_nvidia_accelerator(node_selector_term)
+        for node_selector_term in step_templates["start"]["affinity"]["nodeAffinity"][
+            "requiredDuringSchedulingIgnoredDuringExecution"
+        ]["nodeSelectorTerms"]
+    )
+    assert has_node_toleration(
+        step_template=step_templates["start"],
+        key="k8s.amazonaws.com/accelerator",
+        value="nvidia-tesla-v100",
+    )
+
+    # Test toleration generated from resource spec for CPU pods
+    assert not has_node_toleration(
+        step_template=step_templates["small_default_pod"],
+        key="node.kubernetes.io/instance-type",
+        value="r5.12xlarge",
+    )
+    assert not has_node_toleration(
+        step_template=step_templates["small_cpu_pod"],
+        key="node.kubernetes.io/instance-type",
+        value="r5.12xlarge",
+    )
+    assert not has_node_toleration(
+        step_template=step_templates["small_memory_pod"],
+        key="node.kubernetes.io/instance-type",
+        value="r5.12xlarge",
+    )
+    assert has_node_toleration(
+        step_template=step_templates["large_cpu_pod"],
+        key="node.kubernetes.io/instance-type",
+        value="r5.12xlarge",
+    )
+    assert has_node_toleration(
+        step_template=step_templates["large_memory_pod"],
+        key="node.kubernetes.io/instance-type",
+        value="r5.12xlarge",
+    )
+    assert has_node_toleration(
+        step_template=step_templates["large_memory_cpu_pod"],
+        key="node.kubernetes.io/instance-type",
+        value="r5.12xlarge",
+    )

@@ -15,6 +15,7 @@ from kfp.components import func_to_container_op
 from kfp.dsl import ContainerOp, PipelineConf
 from kfp.dsl import PipelineVolume, ResourceOp
 from kfp.dsl._pipeline_param import sanitize_k8s_name
+from kfp.dsl._container_op import _get_resource_number, _get_cpu_number
 from kubernetes.client import (
     V1EnvVar,
     V1EnvVarSource,
@@ -565,6 +566,53 @@ class KubeflowPipelines(object):
         return " && ".join(cmds)
 
     @staticmethod
+    def _create_resource_based_node_type_toleration(
+        cpu: float, memory: float
+    ) -> Optional[V1Toleration]:
+        """Allow large enough pod to use higher cost nodes by adding toleration.
+
+        Together with taint added at cluster side,
+        this is a temporary solution to fix "r5.12xlarge host not scaling down" issue,
+        caused by smaller pods keep being scheduled onto large nodes.
+        TODO: Replace using AIP-5264 MutatingWebHook (or Validating) for AIP pod scheduling policies
+
+        The following node types are considered for setting the threshold:
+        c5.4xlarge: 16 vCPU, 32 GB
+        r5.12xlarge: 48 vCPU, 384 GB
+        Resource threshold are lower than machine resource boundary to take overheads into
+        account.
+
+        Toleration allows pods to utilize larger nodes without enforcement.
+        Setting a low threshold for using larger host allow more freedom for scheduler
+        and potentially higher utilization rate.
+
+        cpu: number of vCPU requested. Fractions are allowed.
+        memory: memory requested in GB (not GiB)
+        """
+        # Base on observed resource data Oct. 21, 2021, available resource per c5.4xlarge node:
+        # Memory: 20.24GB = 18.85 GiB = 27.72 GiB (allocatable) - 8.87 GiB (DaemonSet)
+        # CPU: 10.34 vCPU = 15.89 (allocatable) - 5.55 (DaemonSet)
+        # Argo additionally adds a "wait" container to pods per step, taking default resources
+
+        # Threshold should leave significant margin below estimated available resource
+        # Pods will be unschedulable if its resource requirement falls in range
+        #   [available resource, thresholdfor large node)
+
+        # Using 50% of node total resource on c5.4xlarge (16vCPU, 32GB memory)
+        memory_threshold = 16  # GB
+        cpu_threshold = 8  # vCPU
+
+        if memory >= memory_threshold or cpu >= cpu_threshold:
+            return V1Toleration(
+                effect="NoSchedule",
+                key="node.kubernetes.io/instance-type",
+                operator="Equal",
+                value="r5.12xlarge",
+            )
+        else:
+            return None
+
+    @staticmethod
     def _set_container_resources(
         container_op: ContainerOp,
         kfp_component: KfpComponent,
@@ -642,6 +690,15 @@ class KubeflowPipelines(object):
             )
             container_op.add_affinity(affinity)
             container_op.add_toleration(toleration)
+
+        elif "gpu" not in resource_requirements:
+            # Memory and cpu value already validated by set_memory_request and set_cpu_request
+            toleration = KubeflowPipelines._create_resource_based_node_type_toleration(
+                cpu=_get_cpu_number(resource_requirements.get("cpu", "0")),
+                memory=_get_resource_number(resource_requirements.get("memory", "0")),
+            )
+            if toleration:
+                container_op.add_toleration(toleration)
 
     # used by the workflow_uid_op and the s3_sensor_op to tighten resources
     # to ensure customers don't bear unnecesarily large costs
