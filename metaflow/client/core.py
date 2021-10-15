@@ -765,15 +765,14 @@ class DataArtifact(MetaflowObject):
     @property
     def size(self):
         """
-        Return non-cached size of the DataArtifact file.
+        Returns the size (in bytes) of the pickled object representing this
+        DataArtifact
 
         Returns
         -------
         int
-            size of the data artifact (in bytes)
+            size of the pickled representation of data artifact (in bytes)
         """
-        # NOTE: We are not actually using the cache features for this,
-        # so could we access the datastore class directly instead?
         global filecache
 
         ds_type = self._object['ds_type']
@@ -1071,8 +1070,12 @@ class Task(MetaflowObject):
         """
         Returns the full standard out of this task.
 
-        This information relates to the latest task that completed (in case of retries). In other
-        words, this does not return the realtime logs of execution.
+        If you specify a specific attempt for this task, it will return the
+        standard out for that attempt. If you do not specify an attempt,
+        this will return the current standard out for the latest *started*
+        attempt of the task. In both cases, multiple calls to this
+        method will return the most up-to-date log (so if an attempt is not
+        done, each call will fetch the latest log).
 
         Returns
         -------
@@ -1087,6 +1090,10 @@ class Task(MetaflowObject):
         """
         Returns the size of the stdout log of this task.
 
+        Similar to `stdout`, the size returned is the latest size of the log
+        (so for a running attempt, this value will increase as the task produces
+        more output).
+
         Returns
         -------
         int
@@ -1100,8 +1107,12 @@ class Task(MetaflowObject):
         """
         Returns the full standard error of this task.
 
-        This information relates to the latest task that completed (in case of retries). In other
-        words, this does not return the realtime logs of execution.
+        If you specify a specific attempt for this task, it will return the
+        standard error for that attempt. If you do not specify an attempt,
+        this will return the current standard error for the latest *started*
+        attempt. In both cases, multiple calls to this
+        method will return the most up-to-date log (so if an attempt is not
+        done, each call will fetch the latest log).
 
         Returns
         -------
@@ -1116,6 +1127,10 @@ class Task(MetaflowObject):
         """
         Returns the size of the stderr log of this task.
 
+        Similar to `stderr`, the size returned is the latest size of the log
+        (so for a running attempt, this value will increase as the task produces
+        more output).
+
         Returns
         -------
         int
@@ -1127,13 +1142,15 @@ class Task(MetaflowObject):
     @property
     def current_attempt(self):
         """
-        Get the relevant attempt for this Task. Return the specific attempt used when
-        initializing the instance, or the latest possible attempt for the Task.
+        Get the relevant attempt for this Task.
+
+        Returns the specific attempt used when
+        initializing the instance, or the latest *started* attempt for the Task.
 
         Returns
         -------
         int
-            current attempt id
+            attempt id for this task object
         """
         if self._attempt is not None:
             attempt = self._attempt
