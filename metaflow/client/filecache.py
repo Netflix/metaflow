@@ -251,7 +251,8 @@ class FileCache(object):
 
     @staticmethod
     def _task_ds_id(ds_type, ds_root, flow_name, run_id, step_name, task_id, attempt):
-        return '.'.join([ds_type, ds_root, flow_name, run_id, step_name, task_id, attempt])
+        return '.'.join(
+            [ds_type, ds_root, flow_name, run_id, step_name, task_id, str(attempt)])
 
     def _garbage_collect(self):
         now = time.time()
