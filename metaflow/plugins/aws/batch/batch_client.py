@@ -485,64 +485,8 @@ class RunningJob(object):
             self.update()
         return self.info['container'].get('exitCode')
 
-    def wait_for_running(self):
-        if not self.is_running and not self.is_done:
-            BatchWaiter(self._client).wait_for_running(self.id)
-
     def kill(self):
         if not self.is_done:
             self._client.terminate_job(
                 jobId=self._id, reason='Metaflow initiated job termination.')
         return self.update()
-
-
-class BatchWaiter(object):
-    def __init__(self, client):
-        try:
-            from botocore import waiter
-        except:
-            raise BatchJobException(
-                'Could not import module \'botocore\' which '
-                'is required for Batch jobs. Install botocore '
-                'first.'
-            )
-        self._client = client
-        self._waiter = waiter
-
-    def wait_for_running(self, job_id):
-        model = self._waiter.WaiterModel(
-            {
-                'version': 2,
-                'waiters': {
-                    'JobRunning': {
-                        'delay': 1,
-                        'operation': 'DescribeJobs',
-                        'description': 'Wait until job starts running',
-                        'maxAttempts': 1000000,
-                        'acceptors': [
-                            {
-                                'argument': 'jobs[].status',
-                                'expected': 'SUCCEEDED',
-                                'matcher': 'pathAll',
-                                'state': 'success',
-                            },
-                            {
-                                'argument': 'jobs[].status',
-                                'expected': 'FAILED',
-                                'matcher': 'pathAny',
-                                'state': 'success',
-                            },
-                            {
-                                'argument': 'jobs[].status',
-                                'expected': 'RUNNING',
-                                'matcher': 'pathAny',
-                                'state': 'success',
-                            },
-                        ],
-                    }
-                },
-            }
-        )
-        self._waiter.create_waiter_with_client('JobRunning', model, self._client).wait(
-            jobs=[job_id]
-        )

@@ -88,11 +88,13 @@ def get_plugin_cli():
     # Add new CLI commands in this list
     from . import package_cli
     from .aws.batch import batch_cli
+    from .aws.eks import kubernetes_cli
     from .aws.step_functions import step_functions_cli
 
     return _ext_plugins.get_plugin_cli() + [
         package_cli.cli,
         batch_cli.cli,
+        kubernetes_cli.cli,
         step_functions_cli.cli]
 
 
@@ -113,6 +115,7 @@ from .environment_decorator import EnvironmentDecorator
 from .retry_decorator import RetryDecorator
 from .resources_decorator import ResourcesDecorator
 from .aws.batch.batch_decorator import BatchDecorator
+from .aws.eks.kubernetes_decorator import KubernetesDecorator
 from .aws.step_functions.step_functions_decorator \
                 import StepFunctionsInternalDecorator
 from .test_unbounded_foreach_decorator\
@@ -125,6 +128,7 @@ STEP_DECORATORS = _merge_lists([CatchDecorator,
                                 ResourcesDecorator,
                                 RetryDecorator,
                                 BatchDecorator,
+                                KubernetesDecorator,
                                 StepFunctionsInternalDecorator,
                                 CondaStepDecorator,
                                 InternalTestUnboundedForeachDecorator],
