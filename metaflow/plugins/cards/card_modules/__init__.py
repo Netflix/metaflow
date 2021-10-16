@@ -7,7 +7,7 @@ import traceback
 # todo : create common import for this later. 
 TYPE_CHECK_REGEX = '^[a-zA-Z0-9_]+$'
 CARD_ID_PATTERN = re.compile(TYPE_CHECK_REGEX)
-from .card import MetaflowCard,MetaflowCardComponent,add_to_card,serialize_components
+from .card import MetaflowCard,MetaflowCardComponent,serialize_components
 
 
 # Code from https://packaging.python.org/guides/creating-and-discovering-plugins/#using-namespace-packages

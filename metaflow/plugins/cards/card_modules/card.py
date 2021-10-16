@@ -35,18 +35,12 @@ class ErroredComponent(MetaflowCardComponent):
         <div/>
         """ %(self.component_name,self.exception)
         
-
-def add_to_card(past_component_arr,card_components):
-    additions = []
-    for comp in card_components:
-        if issubclass(type(comp),MetaflowCardComponent):
-            additions.append(comp)
-    past_component_arr.extend(additions)
-
 def serialize_components(past_component_arr):
     import traceback
     serialized_components = []
     for component in past_component_arr:
+        if not issubclass(type(component),MetaflowCardComponent):
+            continue
         try:
             rendered_obj = component.render()
             assert type(rendered_obj) == str
