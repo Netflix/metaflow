@@ -25,8 +25,8 @@ jobs:
           title: "Format Python code with psf/black push"
           commit-message: ":art: Format Python code with psf/black"
           body: |
-            There appear to be some python formatting errors in ${{ github.sha }}. This pull request
-            uses the [psf/black](https://github.com/psf/black) formatter to fix these issues.
+            There appear to be some python formatting errors in #${{ github.event.number }} - ${{ github.sha }}.
+            This pull request uses the [psf/black](https://github.com/psf/black) formatter to fix these issues.
             `black .`
           base: ${{ github.head_ref }}
           branch: actions/black
