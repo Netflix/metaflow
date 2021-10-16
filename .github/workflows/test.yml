@@ -3,9 +3,11 @@ on:
   push:
     branches:
     - master
+    - actions/black
   pull_request:
     branches:
     - master
+    - actions/black
 jobs:
   linter:
     name: runner / black
@@ -31,7 +33,7 @@ jobs:
           base: ${{ github.head_ref }}
           branch: actions/black
   test:
-    name: ${{ matrix.lang }} tests on ${{ matrix.os }}
+    name: tests / ${{ matrix.lang }} tests on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
