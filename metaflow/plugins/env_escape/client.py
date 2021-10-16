@@ -54,14 +54,24 @@ class Client(object):
         # The client launches the server when created; we use
         # Unix sockets for now
         server_module = ".".join([__package__, "server"])
-        self._socket_path = "/tmp/%s_%d" % (os.path.basename(config_dir), os.getpid())
+        self._socket_path = "/tmp/%s_%d" % (
+            os.path.basename(config_dir),
+            os.getpid(),
+        )
         if os.path.exists(self._socket_path):
             raise RuntimeError("Existing socket: %s" % self._socket_path)
         env = os.environ.copy()
-        #env["PYTHONPATH"] = ":".join(sys.path)
+        # env["PYTHONPATH"] = ":".join(sys.path)
         self._server_process = Popen(
-            [python_path, "-u", "-m", server_module, str(max_pickle_version),
-             config_dir, self._socket_path],
+            [
+                python_path,
+                "-u",
+                "-m",
+                server_module,
+                str(max_pickle_version),
+                config_dir,
+                self._socket_path,
+            ],
             env=env,
             stdout=PIPE,
             stderr=PIPE,
@@ -84,15 +94,20 @@ class Client(object):
                     if isinstance(override, LocalOverride):
                         override_dict = self._overrides.setdefault(obj_name, {})
                     elif override.is_setattr:
-                        override_dict = self._setattr_overrides.setdefault(obj_name, {})
+                        override_dict = self._setattr_overrides.setdefault(
+                            obj_name, {}
+                        )
                     else:
-                        override_dict = self._getattr_overrides.setdefault(obj_name, {})
+                        override_dict = self._getattr_overrides.setdefault(
+                            obj_name, {}
+                        )
                     if isinstance(obj_funcs, str):
                         obj_funcs = (obj_funcs,)
                     for name in obj_funcs:
                         if name in override_dict:
                             raise ValueError(
-                                "%s was already overridden for %s" % (name, obj_name)
+                                "%s was already overridden for %s"
+                                % (name, obj_name)
                             )
                         override_dict[name] = override.func
         self._proxied_objects = {}
@@ -131,7 +146,8 @@ class Client(object):
         self._proxied_classes = {
             k: None
             for k in itertools.chain(
-                response[FIELD_CONTENT]["classes"], response[FIELD_CONTENT]["proxied"]
+                response[FIELD_CONTENT]["classes"],
+                response[FIELD_CONTENT]["proxied"],
             )
         }
 
@@ -146,7 +162,7 @@ class Client(object):
             "functions": response[FIELD_CONTENT]["functions"],
             "values": response[FIELD_CONTENT]["values"],
             "exceptions": response[FIELD_CONTENT]["exceptions"],
-            "aliases": response[FIELD_CONTENT]["aliases"]
+            "aliases": response[FIELD_CONTENT]["aliases"],
         }
 
         self._aliases = response[FIELD_CONTENT]["aliases"]
@@ -177,7 +193,7 @@ class Client(object):
                     {FIELD_MSGTYPE: MSG_CONTROL, FIELD_OPTYPE: CONTROL_SHUTDOWN}
                 )
                 self._channel.recv(timeout=10)  # If we receive, we are sure we
-                                                # are good
+                # are good
             except:  # noqa E722
                 pass  # If there is any issue sending this message, just ignore it
             self._server_process.kill()
@@ -240,15 +256,18 @@ class Client(object):
         # Gets (and creates if needed), the class mapping to the remote
         # class of name 'name'.
         name = self._get_canonical_name(name)
-        if name == 'function':
+        if name == "function":
             # Special handling of pickled functions. We create a new class that
             # simply has a __call__ method that will forward things back to
             # the server side.
             if obj_id is None:
-                raise RuntimeError("Local function unpickling without an object ID")
+                raise RuntimeError(
+                    "Local function unpickling without an object ID"
+                )
             if obj_id not in self._proxied_standalone_functions:
                 self._proxied_standalone_functions[obj_id] = create_class(
-                    self, '__function_%s' % obj_id, {}, {}, {}, {'__call__': ''})
+                    self, "__function_%s" % obj_id, {}, {}, {}, {"__call__": ""}
+                )
             return self._proxied_standalone_functions[obj_id]
 
         if name not in self._proxied_classes:
@@ -259,9 +278,12 @@ class Client(object):
             # remote class has and remove UNSUPPORTED things and overridden things
             remote_methods = self.stub_request(None, OP_GETMETHODS, name)
             local_class = create_class(
-                self, name, self._overrides.get(name, {}),
-                self._getattr_overrides.get(name, {}), self._setattr_overrides.get(name, {}),
-                remote_methods
+                self,
+                name,
+                self._overrides.get(name, {}),
+                self._getattr_overrides.get(name, {}),
+                self._setattr_overrides.get(name, {}),
+                remote_methods,
             )
             self._proxied_classes[name] = local_class
         return local_class
@@ -287,7 +309,9 @@ class Client(object):
     def unpickle_object(self, obj):
         # This function is called when the server sends a remote reference.
         # We create a local stub for it locally
-        if (not isinstance(obj, ObjReference)) or obj.value_type != VALUE_REMOTE:
+        if (
+            not isinstance(obj, ObjReference)
+        ) or obj.value_type != VALUE_REMOTE:
             raise ValueError("Invalid transferred object: %s" % str(obj))
         remote_class_name = obj.class_name
         obj_id = obj.identifier
@@ -302,7 +326,9 @@ class Client(object):
         base_name = self._aliases.get(name)
         if base_name is not None:
             return base_name
-        for idx in reversed([pos for pos, char in enumerate(name) if char == '.']):
+        for idx in reversed(
+            [pos for pos, char in enumerate(name) if char == "."]
+        ):
             base_name = self._aliases.get(name[:idx])
             if base_name is not None:
                 return ".".join([base_name, name[idx + 1 :]])

@@ -30,7 +30,7 @@ def k8s_retry(deadline_seconds=60, max_backoff=32):
 
             deadline = time.time() + deadline_seconds
             retry_number = 0
-            
+
             while True:
                 try:
                     result = function(*args, **kwargs)
@@ -38,17 +38,21 @@ def k8s_retry(deadline_seconds=60, max_backoff=32):
                 except client.rest.ApiException as e:
                     if e.status == 500:
                         current_t = time.time()
-                        backoff_delay = min(math.pow(2, retry_number) + random.random(), max_backoff)
+                        backoff_delay = min(
+                            math.pow(2, retry_number) + random.random(),
+                            max_backoff,
+                        )
                         if current_t + backoff_delay < deadline:
                             time.sleep(backoff_delay)
                             retry_number += 1
-                            continue # retry again
+                            continue  # retry again
                         else:
                             raise
                     else:
                         raise
 
         return wrapper
+
     return decorator
 
 
@@ -192,7 +196,9 @@ class KubernetesJob(object):
                     ),
                     spec=client.V1PodSpec(
                         # Timeout is set on the pod and not the job (important!)
-                        active_deadline_seconds=self._kwargs["timeout_in_seconds"],
+                        active_deadline_seconds=self._kwargs[
+                            "timeout_in_seconds"
+                        ],
                         # TODO (savin): Enable affinities for GPU scheduling.
                         #               This requires some thought around the
                         #               UX since specifying affinities can get
@@ -232,7 +238,9 @@ class KubernetesJob(object):
                                 ],
                                 env_from=[
                                     client.V1EnvFromSource(
-                                        secret_ref=client.V1SecretEnvSource(name=str(k))
+                                        secret_ref=client.V1SecretEnvSource(
+                                            name=str(k)
+                                        )
                                     )
                                     for k in self._kwargs.get("secrets", [])
                                 ],
@@ -241,7 +249,8 @@ class KubernetesJob(object):
                                 resources=client.V1ResourceRequirements(
                                     requests={
                                         "cpu": str(self._kwargs["cpu"]),
-                                        "memory": "%sM" % str(self._kwargs["memory"]),
+                                        "memory": "%sM"
+                                        % str(self._kwargs["memory"]),
                                         "ephemeral-storage": "%sM"
                                         % str(self._kwargs["disk"]),
                                     }
@@ -344,7 +353,9 @@ class KubernetesJob(object):
         return self
 
     def label(self, name, value):
-        self._kwargs["labels"] = dict(self._kwargs.get("labels", {}), **{name: value})
+        self._kwargs["labels"] = dict(
+            self._kwargs.get("labels", {}), **{name: value}
+        )
         return self
 
     def annotation(self, name, value):
@@ -569,7 +580,9 @@ class RunningJob(object):
             # It is possible for the job metadata to not be updated yet, but the
             # Pod has already succeeded or failed.
             self._pod = self._fetch_pod()
-            if self._pod and (self._pod["status"]["phase"] in ("Succeeded", "Failed")):
+            if self._pod and (
+                self._pod["status"]["phase"] in ("Succeeded", "Failed")
+            ):
                 return True
             else:
                 return False
@@ -676,7 +689,10 @@ class RunningJob(object):
                         return None, ": ".join(
                             filter(
                                 None,
-                                [pod_status.get("reason"), pod_status.get("message")],
+                                [
+                                    pod_status.get("reason"),
+                                    pod_status.get("message"),
+                                ],
                             )
                         )
 

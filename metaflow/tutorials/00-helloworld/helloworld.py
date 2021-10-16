@@ -8,6 +8,7 @@ class HelloFlow(FlowSpec):
     Run this flow to validate that Metaflow is installed correctly.
 
     """
+
     @step
     def start(self):
         """
@@ -37,5 +38,5 @@ class HelloFlow(FlowSpec):
         print("HelloFlow is all done.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     HelloFlow()

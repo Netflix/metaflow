@@ -15,6 +15,7 @@ from metaflow.mflog import TASK_LOG_SOURCE
 
 from .batch import Batch, BatchKilledException
 
+
 @click.group()
 def cli():
     pass
@@ -149,9 +150,9 @@ def kill(ctx, run_id, user, my_runs):
 )
 @click.option("--max-swap", help="Max Swap requirement for AWS Batch.")
 @click.option("--swappiness", help="Swappiness requirement for AWS Batch.")
-#TODO: Maybe remove it altogether since it's not used here
-@click.option('--ubf-context', default=None, type=click.Choice([None]))
-@click.option('--host-volumes', multiple=True)
+# TODO: Maybe remove it altogether since it's not used here
+@click.option("--ubf-context", default=None, type=click.Choice([None]))
+@click.option("--host-volumes", multiple=True)
 @click.pass_context
 def step(
     ctx,
@@ -250,22 +251,23 @@ def step(
 
     # this information is needed for log tailing
     ds = ctx.obj.flow_datastore.get_task_datastore(
-        mode='w',
-        run_id=kwargs['run_id'],
+        mode="w",
+        run_id=kwargs["run_id"],
         step_name=step_name,
-        task_id=kwargs['task_id'],
-        attempt=int(retry_count)
+        task_id=kwargs["task_id"],
+        attempt=int(retry_count),
     )
-    stdout_location = ds.get_log_location(TASK_LOG_SOURCE, 'stdout')
-    stderr_location = ds.get_log_location(TASK_LOG_SOURCE, 'stderr')
+    stdout_location = ds.get_log_location(TASK_LOG_SOURCE, "stdout")
+    stderr_location = ds.get_log_location(TASK_LOG_SOURCE, "stderr")
 
     def _sync_metadata():
-        if ctx.obj.metadata.TYPE == 'local':
+        if ctx.obj.metadata.TYPE == "local":
             sync_local_metadata_from_datastore(
-                DATASTORE_LOCAL_DIR, 
-                ctx.obj.flow_datastore.get_task_datastore(kwargs['run_id'],
-                                                          step_name,
-                                                          kwargs['task_id']))
+                DATASTORE_LOCAL_DIR,
+                ctx.obj.flow_datastore.get_task_datastore(
+                    kwargs["run_id"], step_name, kwargs["task_id"]
+                ),
+            )
 
     batch = Batch(ctx.obj.metadata, ctx.obj.environment)
     try:

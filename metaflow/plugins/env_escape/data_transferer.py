@@ -37,7 +37,7 @@ _types = [
     dict,
     defaultdict,
     OrderedDict,
-    datetime
+    datetime,
 ]
 
 _container_types = (list, tuple, set, frozenset, dict, defaultdict, OrderedDict)
@@ -56,7 +56,7 @@ else:
         bytes,
         unicode,  # noqa F821
         long,  # noqa F821
-        datetime
+        datetime,
     )
 
 _types_to_encoding = {x: idx for idx, x in enumerate(_types)}
@@ -103,7 +103,12 @@ def _load_none(obj_type, transferer, json_annotation, json_obj):
 
 @_register_dumper(_simple_types)
 def _dump_simple(obj_type, transferer, obj):
-    return (None, base64.b64encode(pickle.dumps(obj, protocol=defaultProtocol)).decode("utf-8"))
+    return (
+        None,
+        base64.b64encode(pickle.dumps(obj, protocol=defaultProtocol)).decode(
+            "utf-8"
+        ),
+    )
 
 
 @_register_loader(_simple_types)
@@ -216,8 +221,10 @@ class DataTransferer(object):
             # This is primarily used to transfer a reference to an object
             try:
                 json_obj = base64.b64encode(
-                    pickle.dumps(self._connection.pickle_object(obj),
-                                 protocol=defaultProtocol)
+                    pickle.dumps(
+                        self._connection.pickle_object(obj),
+                        protocol=defaultProtocol,
+                    )
                 ).decode("utf-8")
             except ValueError as e:
                 raise RuntimeError("Unable to dump non base type: %s" % e)
@@ -227,14 +234,17 @@ class DataTransferer(object):
         obj_type = json_obj.get(FIELD_TYPE)
         if obj_type is None:
             raise RuntimeError(
-                "Malformed message -- missing %s: %s" % (FIELD_TYPE, str(json_obj))
+                "Malformed message -- missing %s: %s"
+                % (FIELD_TYPE, str(json_obj))
             )
         if obj_type == -1:
             # This is something that the connection handles
             try:
                 return self._connection.unpickle_object(
-                    pickle.loads(base64.b64decode(json_obj[FIELD_INLINE_VALUE]),
-                                 encoding="utf-8")
+                    pickle.loads(
+                        base64.b64decode(json_obj[FIELD_INLINE_VALUE]),
+                        encoding="utf-8",
+                    )
                 )
             except ValueError as e:
                 raise RuntimeError("Unable to load non base type: %s" % e)
@@ -243,13 +253,17 @@ class DataTransferer(object):
             json_subobj = json_obj.get(FIELD_INLINE_VALUE)
             if json_subobj is not None:
                 return handler(
-                    self, json_obj.get(FIELD_ANNOTATION), json_obj[FIELD_INLINE_VALUE]
+                    self,
+                    json_obj.get(FIELD_ANNOTATION),
+                    json_obj[FIELD_INLINE_VALUE],
                 )
             raise RuntimeError("Non inline value not supported")
         raise RuntimeError("Unable to find handler for type %s" % obj_type)
 
     # _container_types = (list, tuple, set, frozenset, dict, OrderedDict)
-    def _transform_container(self, checker, processor, recursor, obj, in_place=True):
+    def _transform_container(
+        self, checker, processor, recursor, obj, in_place=True
+    ):
         def _sub_process(obj):
             obj_type = type(obj)
             if obj is None or obj_type in _simple_types or obj_type == str:
@@ -270,7 +284,7 @@ class DataTransferer(object):
         if isinstance(obj, (tuple, set, frozenset)):
             cast_to = type(obj)
             obj = list(obj)
-            in_place = True # We can do in place since we copied the object
+            in_place = True  # We can do in place since we copied the object
         if isinstance(obj, OrderedDict):
             key_change_allowed = False
         if isinstance(obj, defaultdict):
@@ -282,9 +296,9 @@ class DataTransferer(object):
                 if not in_place:
                     obj = copy(obj)
                     in_place = True
-                obj['__default_factory'] = obj.default_factory
+                obj["__default_factory"] = obj.default_factory
                 obj.default_factory = None
-            elif obj.get('__default_factory') is not None:
+            elif obj.get("__default_factory") is not None:
                 # This is in the unpickle path, we need to reset the factory properly
                 update_default_factory = True
             has_changes = True
@@ -333,8 +347,8 @@ class DataTransferer(object):
         if update_default_factory:
             # We do this here because we now unpickled the reference
             # to default_dict and can set it back up again.
-            obj.default_factory = obj['__default_factory']
-            del obj['__default_factory']
+            obj.default_factory = obj["__default_factory"]
+            del obj["__default_factory"]
         if has_changes:
             if cast_to:
                 return cast_to(obj)
@@ -369,7 +383,10 @@ class DataTransferer(object):
             return True
         if obj_type == dict or obj_type == OrderedDict:
             return all(
-                (recursive_func(k) and recursive_func(v) for k, v in obj.items())
+                (
+                    recursive_func(k) and recursive_func(v)
+                    for k, v in obj.items()
+                )
             )
         if obj_type in _container_types:
             return all((recursive_func(x) for x in obj))

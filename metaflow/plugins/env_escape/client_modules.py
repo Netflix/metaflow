@@ -13,13 +13,15 @@ from .override_decorators import LocalException
 def _clean_client(client):
     client.cleanup()
 
+
 class _WrappedModule(object):
     def __init__(self, loader, prefix, exports, exception_classes, client):
         self._loader = loader
         self._prefix = prefix
         self._client = client
         is_match = re.compile(
-            r"^%s\.([a-zA-Z_][a-zA-Z0-9_]*)$" % prefix.replace(".", r"\.")  # noqa W605
+            r"^%s\.([a-zA-Z_][a-zA-Z0-9_]*)$"
+            % prefix.replace(".", r"\.")  # noqa W605
         )
         self._exports = {}
         for k in ("classes", "functions", "values"):
@@ -49,7 +51,11 @@ class _WrappedModule(object):
             # TODO: Grab doc back from the remote side like in _make_method
             def func(*args, **kwargs):
                 return self._client.stub_request(
-                    None, OP_CALLFUNC, "%s.%s" % (self._prefix, name), *args, **kwargs
+                    None,
+                    OP_CALLFUNC,
+                    "%s.%s" % (self._prefix, name),
+                    *args,
+                    **kwargs
                 )
 
             func.__name__ = name
@@ -73,18 +79,19 @@ class _WrappedModule(object):
                     "module '%s' has no attribute '%s' -- contact the author of the "
                     "configuration if this is something "
                     "you expect to work (support may be added if it exists in the "
-                    "original library)" % (self._prefix, name))
+                    "original library)" % (self._prefix, name)
+                )
             return m
 
     def __setattr__(self, name, value):
         if name in (
-                "package",
-                "__spec__",
-                "_loader",
-                "_prefix",
-                "_client",
-                "_exports",
-                "_exception_classes",
+            "package",
+            "__spec__",
+            "_loader",
+            "_prefix",
+            "_client",
+            "_exports",
+            "_exception_classes",
         ):
             object.__setattr__(self, name, value)
             return
@@ -97,7 +104,10 @@ class _WrappedModule(object):
             self._client.stub_request(
                 None, OP_SETVAL, "%s.%s" % (self._prefix, name), value
             )
-        elif name in self._exports["classes"] or name in self._exports["functions"]:
+        elif (
+            name in self._exports["classes"]
+            or name in self._exports["functions"]
+        ):
             raise ValueError
         else:
             raise AttributeError(name)
@@ -105,7 +115,9 @@ class _WrappedModule(object):
 
 class ModuleImporter(object):
     # This ModuleImporter implements the Importer Protocol defined in PEP 302
-    def __init__(self, python_path, max_pickle_version, config_dir, module_prefixes):
+    def __init__(
+        self, python_path, max_pickle_version, config_dir, module_prefixes
+    ):
         self._module_prefixes = module_prefixes
         self._python_path = python_path
         self._config_dir = config_dir
@@ -119,7 +131,9 @@ class ModuleImporter(object):
             if fullname in self._handled_modules:
                 return self
             return None
-        if any([fullname.startswith(prefix) for prefix in self._module_prefixes]):
+        if any(
+            [fullname.startswith(prefix) for prefix in self._module_prefixes]
+        ):
             # We potentially handle this
             return self
         return None
@@ -130,15 +144,20 @@ class ModuleImporter(object):
         if self._client is None:
             if sys.version_info[0] < 3:
                 raise NotImplementedError(
-                    "Environment escape imports are not supported in Python 2")
+                    "Environment escape imports are not supported in Python 2"
+                )
             # We initialize a client and query the modules we handle
             # The max_pickle_version is the pickle version that the server (so
             # the underlying interpreter we call into) supports; we determine
             # what version the current environment support and take the minimum
             # of those two
-            max_pickle_version = min(self._max_pickle_version, pickle.HIGHEST_PROTOCOL)
+            max_pickle_version = min(
+                self._max_pickle_version, pickle.HIGHEST_PROTOCOL
+            )
 
-            self._client = Client(self._python_path, max_pickle_version, self._config_dir)
+            self._client = Client(
+                self._python_path, max_pickle_version, self._config_dir
+            )
             atexit.register(_clean_client, self._client)
 
             exports = self._client.get_exports()
@@ -153,7 +172,7 @@ class ModuleImporter(object):
             export_exceptions = exports.get("exceptions", [])
             self._aliases = exports.get("aliases", {})
             for name in itertools.chain(
-                    export_classes, export_functions, export_values
+                export_classes, export_functions, export_values
             ):
                 splits = name.rsplit(".", 1)
                 prefixes.add(splits[0])
@@ -164,7 +183,9 @@ class ModuleImporter(object):
                 if isinstance(override, LocalException):
                     cur_ex = ex_overrides.get(override.class_path, None)
                     if cur_ex is not None:
-                        raise ValueError("Exception %s redefined" % override.class_path)
+                        raise ValueError(
+                            "Exception %s redefined" % override.class_path
+                        )
                     ex_overrides[override.class_path] = override.wrapped_class
 
             # Now look at the exceptions coming from the server
@@ -215,7 +236,11 @@ class ModuleImporter(object):
             self._handled_modules = {}
             for prefix in prefixes:
                 self._handled_modules[prefix] = _WrappedModule(
-                    self, prefix, exports, formed_exception_classes, self._client
+                    self,
+                    prefix,
+                    exports,
+                    formed_exception_classes,
+                    self._client,
                 )
         fullname = self._get_canonical_name(fullname)
         module = self._handled_modules.get(fullname)
@@ -229,7 +254,9 @@ class ModuleImporter(object):
         base_name = self._aliases.get(name)
         if base_name is not None:
             return base_name
-        for idx in reversed([pos for pos, char in enumerate(name) if char == '.']):
+        for idx in reversed(
+            [pos for pos, char in enumerate(name) if char == "."]
+        ):
             base_name = self._aliases.get(name[:idx])
             if base_name is not None:
                 return ".".join([base_name, name[idx + 1 :]])
@@ -247,7 +274,8 @@ def create_modules(python_path, max_pickle_version, path, prefixes):
         else:
             # pass
             raise RuntimeError(
-                "Trying to override %s when module exists in system" % prefix)
+                "Trying to override %s when module exists in system" % prefix
+            )
 
     # The first version forces the use of the environment escape even if the module
     # exists in the system. This is useful for testing to make sure that the
@@ -255,4 +283,6 @@ def create_modules(python_path, max_pickle_version, path, prefixes):
     # will only use the environment escape if the module cannot be found
 
     # sys.meta_path.insert(0, ModuleImporter(python_path, path, prefixes))
-    sys.meta_path.append(ModuleImporter(python_path, max_pickle_version, path, prefixes))
+    sys.meta_path.append(
+        ModuleImporter(python_path, max_pickle_version, path, prefixes)
+    )

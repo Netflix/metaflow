@@ -62,19 +62,26 @@ BIND_RETRY = 1
 class Server(object):
     def __init__(self, max_pickle_version, config_dir):
 
-        self._max_pickle_version = data_transferer.defaultProtocol = max_pickle_version
+        self._max_pickle_version = (
+            data_transferer.defaultProtocol
+        ) = max_pickle_version
         sys.path.append(config_dir)
         mappings = importlib.import_module("server_mappings")
         override_module = importlib.import_module("overrides")
         sys.path = sys.path[1:]
         self._aliases = {}
         self._known_classes, a1 = self._flatten_dict(mappings.EXPORTED_CLASSES)
-        self._class_types_to_names = {v: k for k, v in self._known_classes.items()}
+        self._class_types_to_names = {
+            v: k for k, v in self._known_classes.items()
+        }
         self._known_funcs, a2 = self._flatten_dict(mappings.EXPORTED_FUNCTIONS)
         self._known_vals, a3 = self._flatten_dict(mappings.EXPORTED_VALUES)
-        self._known_exceptions, a4 = self._flatten_dict(mappings.EXPORTED_EXCEPTIONS)
+        self._known_exceptions, a4 = self._flatten_dict(
+            mappings.EXPORTED_EXCEPTIONS
+        )
         self._proxied_types = {
-            "%s.%s" % (t.__module__, t.__name__): t for t in mappings.PROXIED_CLASSES
+            "%s.%s" % (t.__module__, t.__name__): t
+            for t in mappings.PROXIED_CLASSES
         }
         self._class_types_to_names.update(
             {v: k for k, v in self._proxied_types.items()}
@@ -83,16 +90,19 @@ class Server(object):
         # We will also proxy functions from objects as needed. This is useful
         # for defaultdict for example since the `default_factory` function is a
         # lambda that needs to be transferred.
-        self._class_types_to_names[type(lambda x: x)] = 'function'
+        self._class_types_to_names[type(lambda x: x)] = "function"
 
         # Update all alias information
         for base_name, aliases in itertools.chain(
-                a1.items(), a2.items(), a3.items(), a4.items()):
+            a1.items(), a2.items(), a3.items(), a4.items()
+        ):
             for alias in aliases:
                 a = self._aliases.setdefault(alias, base_name)
                 if a != base_name:
                     raise ValueError(
-                        "%s is an alias to both %s and %s" % (alias, base_name, a))
+                        "%s is an alias to both %s and %s"
+                        % (alias, base_name, a)
+                    )
 
         # Determine if we have any overrides
         self._overrides = {}
@@ -119,15 +129,19 @@ class Server(object):
                     for name in obj_funcs:
                         if name in override_dict:
                             raise ValueError(
-                                "%s was already overridden for %s" % (name, obj_name)
+                                "%s was already overridden for %s"
+                                % (name, obj_name)
                             )
                         override_dict[name] = override.func
             elif isinstance(override, RemoteExceptionSerializer):
                 if override.class_path in self._exception_serializers:
                     raise ValueError(
-                        "%s exception serializer already defined" % override.class_path
+                        "%s exception serializer already defined"
+                        % override.class_path
                     )
-                self._exception_serializers[override.class_path] = override.serializer
+                self._exception_serializers[
+                    override.class_path
+                ] = override.serializer
 
         # Process the exceptions making sure we have all the ones we need and building a
         # topologically sorted list for the client to instantiate
@@ -186,7 +200,8 @@ class Server(object):
 
         if name_to_parent_count:
             raise ValueError(
-                "Badly rooted exceptions: %s" % ", ".join(name_to_parent_count.keys())
+                "Badly rooted exceptions: %s"
+                % ", ".join(name_to_parent_count.keys())
             )
         self._active = False
         self._channel = None
@@ -254,7 +269,9 @@ class Server(object):
         extra_content = None
         if serializer is not None:
             extra_content = serializer(ex)
-        return dump_exception(self._datatransferer, ex_type, ex, trace_back, extra_content)
+        return dump_exception(
+            self._datatransferer, ex_type, ex, trace_back, extra_content
+        )
 
     def decode(self, json_obj):
         # This decodes an object that was transferred in
@@ -302,7 +319,8 @@ class Server(object):
                 raise
             try:
                 self._reply(
-                    MSG_EXCEPTION, self.encode_exception(ex_type, ex, trace_back)
+                    MSG_EXCEPTION,
+                    self.encode_exception(ex_type, ex, trace_back),
                 )
             except (SystemExit, KeyboardInterrupt):
                 raise
@@ -424,10 +442,14 @@ class Server(object):
             raise ValueError("Unknown function %s" % name)
         return func_to_call(*args, **kwargs)
 
-    def _handle_callonclass(self, target, class_name, name, is_static, *args, **kwargs):
+    def _handle_callonclass(
+        self, target, class_name, name, is_static, *args, **kwargs
+    ):
         class_type = self._known_classes.get(class_name)
         if class_type is None:
-            raise ValueError("Unknown class for static/class method %s" % class_name)
+            raise ValueError(
+                "Unknown class for static/class method %s" % class_name
+            )
         attr = getattr(class_type, name)
         override_mapping = self._overrides.get(class_type)
         if override_mapping:

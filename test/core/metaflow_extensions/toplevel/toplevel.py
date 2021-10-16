@@ -1,4 +1,4 @@
-__mf_extensions__ = 'test'
+__mf_extensions__ = "test"
 
 tl_value = 42
 

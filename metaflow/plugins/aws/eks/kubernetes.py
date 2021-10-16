@@ -22,7 +22,7 @@ from metaflow.mflog import (
     export_mflog_env_vars,
     bash_capture_logs,
     update_delay,
-    BASH_SAVE_LOGS
+    BASH_SAVE_LOGS,
 )
 from metaflow.mflog.mflog import refine, set_should_persist
 
@@ -44,41 +44,38 @@ class KubernetesKilledException(MetaflowException):
     headline = "Kubernetes Batch job killed"
 
 
-def generate_rfc1123_name(flow_name,
-    run_id,
-    step_name,
-    task_id,
-    attempt
-):
+def generate_rfc1123_name(flow_name, run_id, step_name, task_id, attempt):
     """
     Generate RFC 1123 compatible name. Specifically, the format is:
         <let-or-digit>[*[<let-or-digit-or-hyphen>]<let-or-digit>]
-    
-    The generated name consists from a human-readable prefix, derived from 
+
+    The generated name consists from a human-readable prefix, derived from
     flow/step/task/attempt, and a hash suffux.
     """
     long_name = "-".join(
-            [
-                flow_name,
-                run_id,
-                step_name,
-                task_id,
-                attempt,
-            ]
-        )
-    hash = hashlib.sha256(long_name.encode('utf-8')).hexdigest()
+        [
+            flow_name,
+            run_id,
+            step_name,
+            task_id,
+            attempt,
+        ]
+    )
+    hash = hashlib.sha256(long_name.encode("utf-8")).hexdigest()
 
-    if long_name.startswith('_'):
+    if long_name.startswith("_"):
         # RFC 1123 names can't start with hyphen so slap an extra prefix on it
-        sanitized_long_name = 'u' + long_name.replace('_', '-').lower()
+        sanitized_long_name = "u" + long_name.replace("_", "-").lower()
     else:
-        sanitized_long_name = long_name.replace('_', '-').lower()
+        sanitized_long_name = long_name.replace("_", "-").lower()
 
     # the name has to be under 63 chars total
-    return sanitized_long_name[:57] + '-' + hash[:5]
+    return sanitized_long_name[:57] + "-" + hash[:5]
 
 
-LABEL_VALUE_REGEX = re.compile(r'^[a-zA-Z0-9]([a-zA-Z0-9\-\_\.]{0,61}[a-zA-Z0-9])?$')
+LABEL_VALUE_REGEX = re.compile(
+    r"^[a-zA-Z0-9]([a-zA-Z0-9\-\_\.]{0,61}[a-zA-Z0-9])?$"
+)
 
 
 def sanitize_label_value(val):
@@ -90,14 +87,16 @@ def sanitize_label_value(val):
     # position, this function will likely return distinct values, so you can
     # still filter on those. For example, "alice$" and "alice&" will be
     # sanitized into different values "alice_b3f201" and "alice_2a6f13".
-    if val == '' or LABEL_VALUE_REGEX.match(val):
+    if val == "" or LABEL_VALUE_REGEX.match(val):
         return val
-    hash = hashlib.sha256(val.encode('utf-8')).hexdigest()
+    hash = hashlib.sha256(val.encode("utf-8")).hexdigest()
 
     # Replace invalid chars with dots, and if the first char is
     # non-alphahanumeric, replace it with 'u' to make it valid
-    sanitized_val = re.sub('^[^A-Z0-9a-z]', 'u', re.sub(r"[^A-Za-z0-9.\-_]", "_", val))
-    return sanitized_val[:57] + '-' + hash[:5]
+    sanitized_val = re.sub(
+        "^[^A-Z0-9a-z]", "u", re.sub(r"[^A-Za-z0-9.\-_]", "_", val)
+    )
+    return sanitized_val[:57] + "-" + hash[:5]
 
 
 class Kubernetes(object):
@@ -289,14 +288,13 @@ class Kubernetes(object):
         for sys_tag in self._metadata.sticky_sys_tags:
             job.label(
                 "metaflow/%s" % sys_tag[: sys_tag.index(":")],
-                sanitize_label_value(sys_tag[sys_tag.index(":") + 1 :])
+                sanitize_label_value(sys_tag[sys_tag.index(":") + 1 :]),
             )
         # TODO: Add annotations based on https://kubernetes.io/blog/2021/04/20/annotating-k8s-for-humans/
 
         return job.create()
 
     def wait(self, stdout_location, stderr_location, echo=None):
-
         def wait_for_launch(job):
             status = job.status
             echo(

@@ -45,8 +45,12 @@ FIELD_EXC_STR = "s"
 FIELD_EXC_REPR = "r"
 
 
-def dump_exception(data_transferer, exception_type, exception_val, tb, user_data=None):
-    if exception_type is StopIteration:  # Very common exception so we encode quickly
+def dump_exception(
+    data_transferer, exception_type, exception_val, tb, user_data=None
+):
+    if (
+        exception_type is StopIteration
+    ):  # Very common exception so we encode quickly
         return data_transferer.dump({FIELD_EXC_SI: True})
     local_formatted_exception = "".join(
         traceback.format_exception(exception_type, exception_val, tb)
@@ -113,7 +117,9 @@ def load_exception(data_transferer, json_obj):
             pass
     # Try again (will succeed if the __import__ worked)
     if exception_module in sys.modules:
-        exception_class = getattr(sys.modules[exception_module], exception_name, None)
+        exception_class = getattr(
+            sys.modules[exception_module], exception_name, None
+        )
     if exception_class is None:
         # Best effort to "recreate" an exception
         name = "%s.%s" % (exception_module, exception_name)
@@ -189,7 +195,9 @@ def _wrap_exception(exception_class):
             # if getattr(self, "_missing_repr", False):
             #     text += "\n\n===== WARNING: Could not set class specific __repr__ "
             #     "-- possible missing information =====\n"
-            remote_tb = getattr(self, "_remote_tb", "No remote traceback available")
+            remote_tb = getattr(
+                self, "_remote_tb", "No remote traceback available"
+            )
             text += "\n\n===== Remote (on server) traceback =====\n"
             text += remote_tb
             text += "========================================\n"

@@ -153,13 +153,15 @@ class KubernetesDecorator(StepDecorator):
         self.package = package
         self.run_id = run_id
 
-    def runtime_task_created(self,
-                             task_datastore,
-                             task_id,
-                             split_index,
-                             input_paths,
-                             is_cloned,
-                             ubf_context):
+    def runtime_task_created(
+        self,
+        task_datastore,
+        task_id,
+        split_index,
+        input_paths,
+        is_cloned,
+        ubf_context,
+    ):
         # To execute the Kubernetes job, the job container needs to have
         # access to the code package. We store the package in the datastore
         # which the pod is able to download as part of it's entrypoint.
@@ -176,29 +178,31 @@ class KubernetesDecorator(StepDecorator):
             cli_args.commands = ["kubernetes", "step"]
             cli_args.command_args.append(self.package_sha)
             cli_args.command_args.append(self.package_url)
-            
+
             # --namespace is used to specify Metaflow namespace (different
             # concept from k8s namespace).
-            for k,v in self.attributes.items():
-                if k == 'namespace':
-                    cli_args.command_options['k8s_namespace'] = v
+            for k, v in self.attributes.items():
+                if k == "namespace":
+                    cli_args.command_options["k8s_namespace"] = v
                 else:
                     cli_args.command_options[k] = v
             cli_args.command_options["run-time-limit"] = self.run_time_limit
             cli_args.entrypoint[0] = sys.executable
 
-    def task_pre_step(self,
-                      step_name,
-                      task_datastore,
-                      metadata,
-                      run_id,
-                      task_id,
-                      flow,
-                      graph,
-                      retry_count,
-                      max_retries,
-                      ubf_context,
-                      inputs):
+    def task_pre_step(
+        self,
+        step_name,
+        task_datastore,
+        metadata,
+        run_id,
+        task_id,
+        flow,
+        graph,
+        retry_count,
+        max_retries,
+        ubf_context,
+        inputs,
+    ):
         self.metadata = metadata
         self.task_datastore = task_datastore
 
@@ -232,60 +236,58 @@ class KubernetesDecorator(StepDecorator):
                 "save_logs_periodically"
             )
 
-    def task_post_step(self,
-                       step_name,
-                       flow,
-                       graph,
-                       retry_count,
-                       max_user_code_retries):
-        # task_post_step may run locally if fallback is activated for @catch 
+    def task_post_step(
+        self, step_name, flow, graph, retry_count, max_user_code_retries
+    ):
+        # task_post_step may run locally if fallback is activated for @catch
         # decorator.
-        if 'METAFLOW_KUBERNETES_WORKLOAD' in os.environ:
+        if "METAFLOW_KUBERNETES_WORKLOAD" in os.environ:
             # If `local` metadata is configured, we would need to copy task
             # execution metadata from the AWS Batch container to user's
             # local file system after the user code has finished execution.
             # This happens via datastore as a communication bridge.
-            if self.metadata.TYPE == 'local':
-                # Note that the datastore is *always* Amazon S3 (see 
+            if self.metadata.TYPE == "local":
+                # Note that the datastore is *always* Amazon S3 (see
                 # runtime_task_created function).
-                sync_local_metadata_to_datastore(DATASTORE_LOCAL_DIR, 
-                    self.task_datastore) 
+                sync_local_metadata_to_datastore(
+                    DATASTORE_LOCAL_DIR, self.task_datastore
+                )
 
-    def task_exception(self,
-                       exception,
-                       step_name,
-                       flow,
-                       graph,
-                       retry_count,
-                       max_user_code_retries):
-        # task_exception may run locally if fallback is activated for @catch 
+    def task_exception(
+        self,
+        exception,
+        step_name,
+        flow,
+        graph,
+        retry_count,
+        max_user_code_retries,
+    ):
+        # task_exception may run locally if fallback is activated for @catch
         # decorator.
-        if 'METAFLOW_KUBERNETES_WORKLOAD' in os.environ:
+        if "METAFLOW_KUBERNETES_WORKLOAD" in os.environ:
             # If `local` metadata is configured, we would need to copy task
             # execution metadata from the AWS Batch container to user's
             # local file system after the user code has finished execution.
             # This happens via datastore as a communication bridge.
-            if self.metadata.TYPE == 'local':
-                # Note that the datastore is *always* Amazon S3 (see 
+            if self.metadata.TYPE == "local":
+                # Note that the datastore is *always* Amazon S3 (see
                 # runtime_task_created function).
-                sync_local_metadata_to_datastore(DATASTORE_LOCAL_DIR, 
-                    self.task_datastore)        
+                sync_local_metadata_to_datastore(
+                    DATASTORE_LOCAL_DIR, self.task_datastore
+                )
 
-    def task_finished(self,
-                      step_name,
-                      flow,
-                      graph,
-                      is_task_ok,
-                      retry_count,
-                      max_retries):
-            try:
-                self._save_logs_sidecar.kill()
-            except:
-                # Best effort kill
-                pass
+    def task_finished(
+        self, step_name, flow, graph, is_task_ok, retry_count, max_retries
+    ):
+        try:
+            self._save_logs_sidecar.kill()
+        except:
+            # Best effort kill
+            pass
 
     @classmethod
     def _save_package_once(cls, flow_datastore, package):
         if cls.package_url is None:
             cls.package_url, cls.package_sha = flow_datastore.save_data(
-                [package.blob], len_hint=1)[0]
+                [package.blob], len_hint=1
+            )[0]
