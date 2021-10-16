@@ -334,15 +334,15 @@ class MetaflowObject(object):
                 self._attempt = int(self._attempt)
             except ValueError:
                 raise MetaflowNotFound("Attempt can only be an integer")
-            else:
-                if self._attempt < 0:
-                    raise MetaflowNotFound("Attempt can only be positive")
-                elif self._attempt >= MAX_ATTEMPTS:
-                    raise MetaflowNotFound(
-                        "Attempt can only be smaller than %d" % MAX_ATTEMPTS)
-                # NOTE: It is possible that no attempt exists but we can't
-                # distinguish between "attempt will happen" and "no such
-                # attempt exists".
+
+            if self._attempt < 0:
+                raise MetaflowNotFound("Attempt can only be non-negative")
+            elif self._attempt >= MAX_ATTEMPTS:
+                raise MetaflowNotFound(
+                    "Attempt can only be smaller than %d" % MAX_ATTEMPTS)
+            # NOTE: It is possible that no attempt exists but we can't
+            # distinguish between "attempt will happen" and "no such
+            # attempt exists".
 
         if pathspec:
             ids = pathspec.split('/')
@@ -353,9 +353,6 @@ class MetaflowObject(object):
         else:
             self._object = _object
             self._pathspec = pathspec
-
-        if self._parent and self._parent._attempt is not None:
-            self._attempt = self._parent._attempt
 
         if self._NAME in ('flow', 'task'):
             self.id = str(self._object[self._NAME + '_id'])
@@ -404,7 +401,8 @@ class MetaflowObject(object):
         unfiltered_children = unfiltered_children if unfiltered_children else []
         children = filter(
             lambda x: self._iter_filter(x),
-            (_CLASSES[self._CHILD_CLASS](_object=obj, _parent=self, _namespace_check=False)
+            (_CLASSES[self._CHILD_CLASS](attempt=self._attempt,
+                _object=obj, _parent=self, _namespace_check=False)
                 for obj in unfiltered_children))
 
         if children:
@@ -485,7 +483,8 @@ class MetaflowObject(object):
         """
         obj = self._get_child(id)
         if obj:
-            return _CLASSES[self._CHILD_CLASS](_object=obj, _parent=self)
+            return _CLASSES[self._CHILD_CLASS](attempt=self._attempt,
+                _object=obj, _parent=self)
         else:
             raise KeyError(id)
 
@@ -1082,8 +1081,7 @@ class Task(MetaflowObject):
         string
             Standard output of this task
         """
-        logtype = 'stdout'
-        return self._load_log(logtype)
+        return self._load_log('stdout')
 
     @property
     def stdout_size(self):
@@ -1099,8 +1097,7 @@ class Task(MetaflowObject):
         int
             Size of the stdout log content (in bytes)
         """
-        logtype = 'stdout'
-        return self._get_logsize(logtype)
+        return self._get_logsize('stdout')
 
     @property
     def stderr(self):
@@ -1119,8 +1116,7 @@ class Task(MetaflowObject):
         string
             Standard error of this task
         """
-        logtype = 'stderr'
-        return self._load_log(logtype)
+        return self._load_log('stderr')
 
     @property
     def stderr_size(self):
@@ -1136,8 +1132,7 @@ class Task(MetaflowObject):
         int
             Size of the stderr log content (in bytes)
         """
-        logtype = 'stderr'
-        return self._get_logsize(logtype)
+        return self._get_logsize('stderr')
 
     @property
     def current_attempt(self):
