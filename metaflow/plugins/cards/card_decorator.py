@@ -2,6 +2,7 @@ import subprocess
 import os
 import sys
 import json
+import tempfile
 from metaflow.decorators import StepDecorator,flow_decorators
 from metaflow.current import current
 from metaflow.metaflow_environment import MetaflowEnvironment
@@ -108,18 +109,16 @@ class CardDecorator(StepDecorator):
         current._update_env({
             'card' : []
         })
-        # HACK: For the pupose of POC this use the flow api to store in Task data object
-        if getattr(flow,"card_props",None):
-            del flow.card_props
         self._metadata = metadata
 
-    def task_post_step(self, step_name, flow, graph, retry_count, max_user_code_retries):
-        # HACK: For the pupose of POC this use the flow api to store in Task data object
-        # TODO : Find a better way to pass information around from user space to the card subprocess. 
-        if len(current.card) > 0:
-            flow.card_props = serialize_components(current.card)
-
     def task_finished(self, step_name, flow, graph, is_task_ok, retry_count, max_user_code_retries):
+        component_strings = []
+        # Upon task finish we render cards which are held in current. 
+        # The `serialize_components` function safely tries to render each component
+        # These components are passed down to the next card subprocess via a temp JSON file 
+        if len(current.card) > 0:
+            component_strings = serialize_components(current.card)
+
         if not is_task_ok:
             # todo : What do we do when underlying `step` soft-fails. 
             # Todo : What do we do when underlying `@card` fails in some way?
@@ -129,7 +128,7 @@ class CardDecorator(StepDecorator):
             current.step_name,
             current.task_id
         ])
-        self._run_cards_subprocess(runspec)
+        self._run_cards_subprocess(runspec,component_strings)
 
     @staticmethod
     def _options(mapping):
@@ -161,7 +160,13 @@ class CardDecorator(StepDecorator):
             top_level_options.update(deco.get_top_level_options())
         return list(self._options(top_level_options))
     
-    def _run_cards_subprocess(self,runspec):
+    def _run_cards_subprocess(self,runspec,component_strings):
+        temp_file = None
+        if len(component_strings) > 0:
+            temp_file = tempfile.NamedTemporaryFile('w',suffix='.json')
+            json.dump(component_strings,temp_file)
+            temp_file.seek(0)
+
         executable = sys.executable
         cmd = [
             executable,
@@ -175,6 +180,8 @@ class CardDecorator(StepDecorator):
         # Add the options relating to card arguments. 
         # todo : add scope as a CLI arg for the create method. 
         ]
+        if temp_file is not None:
+            cmd+= ['--component-file',temp_file.name]
         if self.attributes['options'] is not None and len(self.attributes['options']) > 0:
             cmd+= ['--options',json.dumps(self.attributes['options'])]
         # set the id argument. 

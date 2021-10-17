@@ -1,6 +1,7 @@
 from metaflow.client import Task
 from metaflow import Flow, JSONType,Step
 import webbrowser
+import json
 import click
 import os
 import signal
@@ -247,12 +248,24 @@ def render_card(mf_card, task, timeout_value =None):
                 show_default=True,
                 type=int,
                 help='Maximum amount of time allowed to create card.')
+@click.option('--component-file',
+                default=None,
+                show_default=True,
+                type=str,
+                help='JSON File with Pre-rendered components.(internal)')
 @click.pass_context
-def create(ctx,pathspec,type=None,id=None,index=None,options=None,timeout=None):
+def create(ctx,pathspec,type=None,id=None,index=None,options=None,timeout=None,component_file=None):
     assert len(pathspec.split('/'))  == 3, "Expecting pathspec of form <runid>/<stepname>/<taskid>"
     runid,step_name,task_id = pathspec.split('/')
     flowname = ctx.obj.flow.name
     full_pathspec = '/'.join([flowname,runid,step_name,task_id])
+    
+    # Components are rendered in a MetaflowStep are added here. 
+    component_arr = []
+    if component_file is not None:
+        with open(component_file,'r') as f:
+            component_arr = json.load(f)
+    
     task = Task(full_pathspec)
     from metaflow.plugins import CARDS
 
@@ -270,7 +283,7 @@ def create(ctx,pathspec,type=None,id=None,index=None,options=None,timeout=None):
     ctx.obj.echo("Creating new card of type %s With timeout %s" % (filtered_card.type,timeout), fg='green')
     # save card to datastore
     try:
-        mf_card = filtered_card(options=options)
+        mf_card = filtered_card(options=options,components=component_arr)
     except TypeError as e:
         raise IncorrectCardArgsException(type,options)
     
