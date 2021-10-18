@@ -13,7 +13,7 @@ from ..metadata import DataArtifact, MetaDatum
 from ..parameters import Parameter
 from ..util import Path, is_stringish, to_fileobj
 
-from .exceptions import DataException, UnpicklizableArtifactException
+from .exceptions import DataException, UnpicklableArtifactException
 
 def only_if_not_done(f):
     @wraps(f)
@@ -237,7 +237,7 @@ class TaskDataStore(object):
                     try:
                         blob = pickle.dumps(obj, protocol=4)
                     except TypeError as e: 
-                        raise UnpicklizableArtifactException(name)
+                        raise UnpicklableArtifactException(name)
                 else:
                     try:
                         blob = pickle.dumps(obj, protocol=2)
@@ -252,9 +252,9 @@ class TaskDataStore(object):
                         try:
                             blob = pickle.dumps(obj, protocol=4)
                         except TypeError as e: 
-                            raise UnpicklizableArtifactException(name)
+                            raise UnpicklableArtifactException(name)
                     except TypeError as e: 
-                        raise UnpicklizableArtifactException(name)
+                        raise UnpicklableArtifactException(name)
 
                 self._info[name] = {
                     'size': len(blob),

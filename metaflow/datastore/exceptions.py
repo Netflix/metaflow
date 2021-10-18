@@ -4,7 +4,7 @@ class DataException(MetaflowException):
     headline = "Data store error"
 
 
-class UnpicklizableArtifactException(MetaflowException):
+class UnpicklableArtifactException(MetaflowException):
     headline = "Cannot pickle artifact"
 
     def __init__(self,artifact_name):
