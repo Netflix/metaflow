@@ -234,13 +234,6 @@ class Kubernetes(object):
                 # Retries are handled by Metaflow runtime
                 retries=0,
             )
-            .environment_variable(
-                # This is needed since `boto3` is not smart enough to figure out
-                # AWS region by itself.
-                # TODO: Fix this.
-                "AWS_DEFAULT_REGION",
-                "us-west-2",
-            )
             .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
             .environment_variable("METAFLOW_CODE_URL", code_package_url)
             .environment_variable("METAFLOW_CODE_DS", code_package_ds)
