@@ -97,7 +97,8 @@ class LocalMetadataProvider(MetadataProvider):
         self._save_meta(meta_dir, metadict)
 
     @classmethod
-    def _get_object_internal(cls, obj_type, obj_order, sub_type, sub_order, filters, *args):
+    def _get_object_internal(
+            cls, obj_type, obj_order, sub_type, sub_order, filters, attempt, *args):
         from metaflow.datastore.local_storage import LocalStorage
         if obj_type == 'artifact':
             # Artifacts are actually part of the tasks in the filesystem
@@ -122,11 +123,15 @@ class LocalMetadataProvider(MetadataProvider):
             result = []
             if meta_path is None:
                 return result
-            attempt_done_files = os.path.join(meta_path, 'sysmeta_attempt-done_*')
-            attempts_done = sorted(glob.iglob(attempt_done_files))
-            if attempts_done:
-                successful_attempt = int(LocalMetadataProvider._read_json_file(
-                    attempts_done[-1])['value'])
+
+            successful_attempt = attempt
+            if successful_attempt is None:
+                attempt_done_files = os.path.join(meta_path, 'sysmeta_attempt-done_*')
+                attempts_done = sorted(glob.iglob(attempt_done_files))
+                if attempts_done:
+                    successful_attempt = int(LocalMetadataProvider._read_json_file(
+                        attempts_done[-1])['value'])
+            if successful_attempt is not None:
                 which_artifact = '*'
                 if len(args) >= sub_order:
                     which_artifact = args[sub_order - 1]

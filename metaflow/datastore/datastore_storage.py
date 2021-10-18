@@ -155,6 +155,22 @@ class DataStoreStorage(object):
         """
         raise NotImplementedError
 
+    def size_file(self, path):
+        """
+        Returns file size at the indicated 'path', or None if file can not be found.
+
+        Parameters
+        ----------
+        path : string
+            Path to the object
+
+        Returns
+        -------
+        Optional
+            int
+        """
+        raise NotImplementedError
+
     def list_content(self, paths):
         """
         Lists the content of the datastore in the directory indicated by 'paths'.

@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import time
 from collections import namedtuple
 from datetime import datetime
@@ -14,6 +15,7 @@ DataArtifact = namedtuple('DataArtifact',
 MetaDatum = namedtuple('MetaDatum',
                        'field value type tags')
 
+attempt_id_re = re.compile(r"attempt_id:([0-9]+)")
 
 class MetadataProviderMeta(type):
     def __new__(metaname, classname, bases, attrs):
@@ -250,7 +252,8 @@ class MetadataProvider(object):
         pass
 
     @classmethod
-    def _get_object_internal(cls, obj_type, obj_order, sub_type, sub_order, filters, *args):
+    def _get_object_internal(
+        cls, obj_type, obj_order, sub_type, sub_order, filters, attempt, *args):
         '''
         Return objects for the implementation of this class
 
@@ -270,6 +273,13 @@ class MetadataProvider(object):
             Dictionary with keys 'any_tags', 'tags' and 'system_tags'. If specified
             will return only objects that have the specified tags present. Filters
             are ANDed together so all tags must be present for the object to be returned.
+        attempt : int or None
+            If None, returns artifacts for latest *done* attempt and all metadata. Otherwise,
+            returns artifacts for that attempt (existent, done or not) and *all* metadata
+            NOTE: Unlike its external facing `get_object`, this function should
+            return *all* metadata; the base class will properly implement the
+            filter. For artifacts, this function should filter artifacts at
+            the backend level.
 
         Return
         ------
@@ -300,7 +310,7 @@ class MetadataProvider(object):
             self.sticky_sys_tags.update(sys_tags)
 
     @classmethod
-    def get_object(cls, obj_type, sub_type, filters, *args):
+    def get_object(cls, obj_type, sub_type, filters, attempt, *args):
         '''Returns the requested object depending on obj_type and sub_type
 
         obj_type can be one of 'root', 'flow', 'run', 'step', 'task',
@@ -333,6 +343,15 @@ class MetadataProvider(object):
             Dictionary with keys 'any_tags', 'tags' and 'system_tags'. If specified
             will return only objects that have the specified tags present. Filters
             are ANDed together so all tags must be present for the object to be returned.
+        attempt : int or None
+            If None, for metadata and artifacts:
+              - returns information about the latest attempt for artifacts
+              - returns all metadata across all attempts
+            Otherwise, returns information about metadata and artifacts for that
+            attempt only.
+            NOTE: For older versions of Metaflow (pre 2.4.0), the attempt for
+            metadata is not known; in that case, all metadata is returned (as
+            if None was passed in).
 
         Return
         ------
@@ -366,7 +385,23 @@ class MetadataProvider(object):
         if sub_type == 'metadata' and obj_type != 'task':
             raise MetaflowInternalError(msg='Metadata can only be retrieved at the task level')
 
-        return cls._get_object_internal(obj_type, type_order, sub_type, sub_order, filters, *args)
+        if attempt is not None:
+            try:
+                attempt_int = int(attempt)
+                if attempt_int < 0:
+                    raise ValueError("Attempt can only be positive")
+            except ValueError:
+                raise ValueError("Attempt can only be a positive integer")
+        else:
+            attempt_int = None
+
+        pre_filter = cls._get_object_internal(
+            obj_type, type_order, sub_type, sub_order, filters, attempt_int, *args)
+        if attempt_int is None or sub_order != 6:
+            # If no attempt or not for metadata, just return as is
+            return pre_filter
+        return MetadataProvider._reconstruct_metadata_for_attempt(
+            pre_filter, attempt_int)
 
     def _all_obj_elements(self, tags=None, sys_tags=None):
         user = get_username()
@@ -504,6 +539,39 @@ class MetadataProvider(object):
             starting_point = result
             result = []
         return starting_point
+
+    @staticmethod
+    def _reconstruct_metadata_for_attempt(all_metadata, attempt_id):
+        have_all_attempt_id = True
+        attempts_start = {}
+        post_filter = []
+        for v in all_metadata:
+            if v['field_name'] == 'attempt':
+                attempts_start[int(v['value'])] = v['ts_epoch']
+            all_tags = v.get('tags')
+            if all_tags is None:
+                all_tags = []
+            for t in all_tags:
+                match_result = attempt_id_re.match(t)
+                if match_result:
+                    if int(match_result.group(1)) == attempt_id:
+                        post_filter.append(v)
+                    break
+            else:
+                # We didn't encounter a match for attempt_id
+                have_all_attempt_id = False
+
+        if not have_all_attempt_id:
+            # We reconstruct base on the attempts_start
+            start_ts = attempts_start.get(attempt_id, -1)
+            if start_ts < 0:
+                return [] # No metadata since the attempt hasn't started
+            # Doubt we will be using Python in year 3000
+            end_ts = attempts_start.get(attempt_id + 1, 32503680000000)
+            post_filter = [v for v in all_metadata
+                if v['ts_epoch'] >= start_ts and v['ts_epoch'] < end_ts]
+
+        return post_filter
 
     def __init__(self, environment, flow, event_logger, monitor):
         self._task_id_seq = -1
