@@ -13,7 +13,7 @@ from ..metadata import DataArtifact, MetaDatum
 from ..parameters import Parameter
 from ..util import Path, is_stringish, to_fileobj
 
-from .exceptions import DataException
+from .exceptions import DataException, UnpicklableArtifactException
 
 def only_if_not_done(f):
     @wraps(f)
@@ -234,7 +234,10 @@ class TaskDataStore(object):
                         raise DataException(
                             "Artifact *%s* requires a serialization encoding that "
                             "requires Python 3.4 or newer." % name)
-                    blob = pickle.dumps(obj, protocol=4)
+                    try:
+                        blob = pickle.dumps(obj, protocol=4)
+                    except TypeError as e: 
+                        raise UnpicklableArtifactException(name)
                 else:
                     try:
                         blob = pickle.dumps(obj, protocol=2)
@@ -246,7 +249,13 @@ class TaskDataStore(object):
                                 "Artifact *%s* is very large (over 2GB). "
                                 "You need to use Python 3.4 or newer if you want to "
                                 "serialize large objects." % name)
-                        blob = pickle.dumps(obj, protocol=4)
+                        try:
+                            blob = pickle.dumps(obj, protocol=4)
+                        except TypeError as e: 
+                            raise UnpicklableArtifactException(name)
+                    except TypeError as e: 
+                        raise UnpicklableArtifactException(name)
+
                 self._info[name] = {
                     'size': len(blob),
                     'type': str(type(obj)),
