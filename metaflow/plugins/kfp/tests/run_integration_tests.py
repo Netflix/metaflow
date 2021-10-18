@@ -56,6 +56,7 @@ non_standard_test_flows = [
     "check_error_handling_flow.py",
     "raise_error_flow.py",
     "s3_sensor_flow.py",
+    "s3_sensor_with_formatter_flow.py",
     "upload_to_s3_flow.py",
 ]
 
@@ -74,19 +75,28 @@ def obtain_flow_file_paths(flow_dir_path: str) -> List[str]:
 def test_s3_sensor_flow(pytestconfig) -> None:
     # ensure the s3_sensor waits for some time before the key exists
     file_name = f"s3-sensor-file-{uuid.uuid1()}.txt"
+    file_name_for_formatter_test = f"s3-sensor-file-{uuid.uuid1()}.txt"
 
     upload_to_s3_flow_cmd = (
         f"{_python()} flows/upload_to_s3_flow.py --datastore=s3 kfp run "
+        f"--file_name {file_name} --file_name_for_formatter_test {file_name_for_formatter_test} "
     )
-    s3_sensor_flow_cmd = f"{_python()} flows/s3_sensor_flow.py --datastore=s3 kfp run --wait-for-completion "
+    s3_sensor_flow_cmd = (
+        f"{_python()} flows/s3_sensor_flow.py --datastore=s3 kfp run --wait-for-completion "
+        f"--file_name {file_name} --notify "
+    )
+    s3_sensor_with_formatter_flow_cmd = (
+        f"{_python()} flows/s3_sensor_with_formatter_flow.py --datastore=s3 kfp run --wait-for-completion "
+        f"--file_name_for_formatter_test {file_name_for_formatter_test} --notify "
+    )
 
     main_config_cmds = (
-        f"--workflow-timeout 1800 "
-        f"--experiment metaflow_test --tag test_t1 "
-        f"--file_name {file_name} "
+        f"--workflow-timeout 1800 " f"--experiment metaflow_test --tag test_t1 "
     )
+
     upload_to_s3_flow_cmd += main_config_cmds
     s3_sensor_flow_cmd += main_config_cmds
+    s3_sensor_with_formatter_flow_cmd += main_config_cmds
 
     if pytestconfig.getoption("image"):
         image_cmds = (
@@ -94,9 +104,11 @@ def test_s3_sensor_flow(pytestconfig) -> None:
         )
         upload_to_s3_flow_cmd += image_cmds
         s3_sensor_flow_cmd += image_cmds
+        s3_sensor_with_formatter_flow_cmd += image_cmds
 
     exponential_backoff_from_platform_errors(upload_to_s3_flow_cmd, 0)
     exponential_backoff_from_platform_errors(s3_sensor_flow_cmd, 0)
+    exponential_backoff_from_platform_errors(s3_sensor_with_formatter_flow_cmd, 0)
 
     return
 
@@ -159,6 +171,7 @@ def test_error_and_opsgenie_alert(pytestconfig) -> None:
         f"--wait-for-completion --workflow-timeout 1800 "
         f"--experiment metaflow_test --tag test_t1 "
         f"--error_flow_id={error_flow_id} "
+        f"--notify "
     )
     if pytestconfig.getoption("image"):
         test_cmd += (
