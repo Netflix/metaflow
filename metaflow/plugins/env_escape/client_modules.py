@@ -1,3 +1,4 @@
+import atexit
 import importlib
 import itertools
 import pickle
@@ -8,6 +9,9 @@ from .consts import OP_CALLFUNC, OP_GETVAL, OP_SETVAL
 from .client import Client
 from .override_decorators import LocalException
 
+
+def _clean_client(client):
+    client.cleanup()
 
 class _WrappedModule(object):
     def __init__(self, loader, prefix, exports, exception_classes, client):
@@ -133,7 +137,10 @@ class ModuleImporter(object):
             # what version the current environment support and take the minimum
             # of those two
             max_pickle_version = min(self._max_pickle_version, pickle.HIGHEST_PROTOCOL)
+
             self._client = Client(self._python_path, max_pickle_version, self._config_dir)
+            atexit.register(_clean_client, self._client)
+
             exports = self._client.get_exports()
             sys.path.insert(0, self._config_dir)
             overrides = importlib.import_module("overrides")

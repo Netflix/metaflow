@@ -496,10 +496,6 @@ class MetaflowTask(object):
             output.save_metadata({'task_end': {}})
             output.persist(self.flow)
 
-            # this writes a success marker indicating that the
-            # "transaction" is done
-            output.done()
-
             # final decorator hook: The task results are now
             # queryable through the client API / datastore
             for deco in decorators:
@@ -509,6 +505,10 @@ class MetaflowTask(object):
                                    self.flow._task_ok,
                                    retry_count,
                                    max_user_code_retries)
+
+            # this writes a success marker indicating that the
+            # "transaction" is done
+            output.done()
 
             # terminate side cars
             logger.terminate()

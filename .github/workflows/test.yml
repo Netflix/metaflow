@@ -13,7 +13,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-        lang: [Python]
+        lang: [Python, R]
 
     steps:
     - uses: actions/checkout@v2
@@ -40,22 +40,22 @@ jobs:
         python3 -m pip install --upgrade pip
         python3 -m pip install tox numpy
     
-    - name: Set up R 3.6
+    - name: Set up R 4.1
       if: matrix.lang == 'R'
       uses: r-lib/actions/setup-r@v1
       with:
-        r-version: '3.6.3'
+        r-version: '4.1.1'
     
-    - name: Install R 3.6 system dependencies
+    - name: Install R 4.1 system dependencies
       if: matrix.lang == 'R' && matrix.os == 'ubuntu-latest'
       run: sudo apt-get update; sudo apt-get install -y libcurl4-openssl-dev qpdf libgit2-dev
 
-    - name: Install R 3.6 Rlang dependencies
+    - name: Install R 4.1 Rlang dependencies
       if: matrix.lang == 'R'
       run: |
+        python3 -m pip install . 
         Rscript -e 'install.packages("devtools", repos="https://cloud.r-project.org", Ncpus=8)'
         Rscript -e 'devtools::install_deps("R", dependencies=TRUE, repos="https://cloud.r-project.org", upgrade="default")'
-        python3 -m pip install . 
         R CMD INSTALL R
         Rscript -e 'install.packages(c("data.table", "caret", "glmnet", "Matrix", "rjson"), repos="https://cloud.r-project.org", Ncpus=8)'   
 

@@ -72,17 +72,34 @@ class LocalStorage(DataStoreStorage):
                 return True, None
         return False, None
 
+    def size_file(self, path):
+        file_exists = self.is_file([path])[0]
+        if file_exists:
+            path = self.full_uri(path)
+            try:
+                return os.path.getsize(path)
+            except OSError:
+                return None
+        return None
+
     def list_content(self, paths):
         results = []
         for path in paths:
             if path == self.METADATA_DIR:
                 continue
             full_path = self.full_uri(path)
-            results.extend([self.list_content_result(
-                path=self.path_join(path, f),
-                is_file=self.is_file(
-                    [self.path_join(path, f)])[0]) for f in os.listdir(full_path)
-                    if f != self.METADATA_DIR])
+            try:
+                for f in os.listdir(full_path):
+                    if f == self.METADATA_DIR:
+                        continue
+                    results.append(
+                        self.list_content_result(
+                            path=self.path_join(path, f),
+                            is_file=self.is_file(
+                                [self.path_join(path, f)])[0])
+                        )        
+            except FileNotFoundError as e:
+                pass
         return results
 
     def save_bytes(self, path_and_bytes_iter, overwrite=False, len_hint=0):
