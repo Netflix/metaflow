@@ -8,7 +8,7 @@ from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import DATASTORE_SYSROOT_S3
 from metaflow.metaflow_config import DEFAULT_METADATA, METADATA_SERVICE_URL, METADATA_SERVICE_HEADERS
 from metaflow.parameters import deploy_time_eval
-from metaflow.plugins import ResourcesDecorator, RetryDecorator
+from metaflow.plugins import ResourcesDecorator, RetryDecorator, CatchDecorator
 from metaflow.plugins.environment_decorator import EnvironmentDecorator
 from metaflow.util import get_username, compress_list
 from metaflow.mflog import export_mflog_env_vars, bash_capture_logs, BASH_SAVE_LOGS
@@ -426,6 +426,7 @@ class ArgoWorkflow:
         env_decorator = parse_step_decorator(node, EnvironmentDecorator)
         res_decorator = parse_step_decorator(node, ResourcesDecorator)
         retry_decorator = parse_step_decorator(node, RetryDecorator)
+        catch_decorator = parse_step_decorator(node, CatchDecorator)
 
         image = self._default_image()
         if attr.get('image'):
@@ -436,7 +437,8 @@ class ArgoWorkflow:
         volume_mounts.append(self._shared_memory(res_decorator))
 
         user_code_retries = retry_decorator.get('times', 0)
-        retry_count = '{{retries}}' if user_code_retries else '0'
+        total_retries = user_code_retries + 1 if catch_decorator else user_code_retries
+        retry_count = '{{retries}}' if total_retries else '0'
         cmd = self._commands(node, retry_count, user_code_retries)
 
         metadata = {
@@ -482,12 +484,13 @@ class ArgoWorkflow:
             },
         }
 
-        if user_code_retries:
+        if total_retries:
             template['retryStrategy'] = {
                 'retryPolicy': 'Always',
-                'limit': str(user_code_retries),
+                # fallback_step for @catch is only executed if retry_count > user_code_retries
+                'limit': str(total_retries),
                 'backoff': {
-                    'duration': '%sm' % str(retry_decorator['minutes_between_retries']),
+                    'duration': '%sm' % str(retry_decorator['minutes_between_retries'] if user_code_retries else 0),
                 }
             }
 
