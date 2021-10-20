@@ -105,7 +105,8 @@ def worker(result_file_name, queue, mode):
                 'error': None,
                 'size': head['ContentLength'],
                 'content_type': head['ContentType'],
-                'metadata': head['Metadata']}
+                'metadata': head['Metadata'],
+                'last_modified': head['LastModified'].timestamp()}
         except client_error as err:
             error_code = normalize_client_error(err)
             if error_code == 404:
@@ -174,6 +175,8 @@ def worker(result_file_name, queue, mode):
                                 args['content_type'] = resp['ContentType']
                             if resp['Metadata'] is not None:
                                 args['metadata'] = resp['Metadata']
+                            if resp['LastModified']:
+                                args['last_modified'] = resp['LastModified'].timestamp()
                             json.dump(args, f)
                         # Finally, we push out the size to the result_pipe since
                         # the size is used for verification and other purposes and
