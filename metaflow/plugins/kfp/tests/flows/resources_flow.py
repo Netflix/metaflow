@@ -94,7 +94,9 @@ for label, env_name in labels.items():
 
 class ResourcesFlow(FlowSpec):
     @resources(
-        local_storage="242", cpu="0.6", memory="1G",
+        local_storage="242",
+        cpu="0.6",
+        memory="1G",
     )
     @environment(  # pylint: disable=E1102
         vars={"MY_ENV": "value"}, kubernetes_vars=kubernetes_vars

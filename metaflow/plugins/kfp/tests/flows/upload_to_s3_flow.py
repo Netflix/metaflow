@@ -15,6 +15,7 @@ and s3_sensor_flow_with_formatter.py then wait for this file to appear in S3 thr
 of the @s3_sensor, after which the flows proceed.
 """
 
+
 def upload_file_to_s3(file_name: str) -> None:
     run(f"touch {file_name}", universal_newlines=True, stdout=PIPE, shell=True)
     # using environ with METAFLOW_DATASTORE_SYSROOT_S3 env var
@@ -23,17 +24,14 @@ def upload_file_to_s3(file_name: str) -> None:
     bucket, key = root.netloc, root.path.lstrip("/")
 
     s3 = boto3.resource("s3")
-    s3.meta.client.upload_file(
-        f"./{file_name}", bucket, join(key, file_name)
-    )
+    s3.meta.client.upload_file(f"./{file_name}", bucket, join(key, file_name))
+
 
 class UploadToS3Flow(FlowSpec):
     file_name = Parameter(
         "file_name",
     )
-    file_name_for_formatter_test = Parameter(
-        "file_name_for_formatter_test"
-    )
+    file_name_for_formatter_test = Parameter("file_name_for_formatter_test")
 
     @step
     def start(self):
