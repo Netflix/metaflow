@@ -148,7 +148,8 @@ class TaskDataStore(object):
                     data_obj = data_obj[self.METADATA_DATA_SUFFIX]
                 elif self._attempt is None or not allow_not_done:
                     raise DataException(
-                        "Data was not found or not finished at %s" % self._path)
+                        "No completed attempts of the task was found for task '%s'"
+                        % self._path)
 
                 if data_obj is not None:
                     self._objects = data_obj.get('objects', {})
@@ -316,7 +317,8 @@ class TaskDataStore(object):
         """
         if not self._info:
             raise DataException(
-                "No info object available to retrieve artifacts")
+                "Datastore for task '%s' does not have the required metadata to "
+                "load artifacts" % self._path)
         to_load = []
         sha_to_names = {}
         for name in names:
@@ -330,7 +332,7 @@ class TaskDataStore(object):
                 encode_type = 'gzip+pickle-v2'
             if encode_type not in self._encodings:
                 raise DataException(
-                    "Python 3.4 or later is required to load %s" % name)
+                    "Python 3.4 or later is required to load artifact '%s'" % name)
             else:
                 sha = self._objects[name]
                 sha_to_names[sha] = name
@@ -766,8 +768,8 @@ class TaskDataStore(object):
                 elif is_stringish(value):
                     yield path, to_fileobj(value)
                 else:
-                    raise DataException("Metadata '%s' has an invalid type: %s" %
-                                        (name, type(value)))
+                    raise DataException("Metadata '%s' for task '%s' has an invalid type: %s" %
+                                        (name, self._path, type(value)))
         self._storage_impl.save_bytes(blob_iter(), overwrite=allow_overwrite)
 
     def _load_file(self, names, add_attempt=True):
