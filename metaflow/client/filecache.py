@@ -1,5 +1,7 @@
 from __future__ import print_function
+from collections import OrderedDict
 import os
+import sys
 import time
 from tempfile import NamedTemporaryFile
 from hashlib import sha1
@@ -7,13 +9,24 @@ from hashlib import sha1
 from metaflow.datastore import DATASTORES, FlowDataStore
 from metaflow.datastore.content_addressed_store import BlobCache
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import CLIENT_CACHE_PATH, CLIENT_CACHE_MAX_SIZE
+from metaflow.metaflow_config import CLIENT_CACHE_PATH, CLIENT_CACHE_MAX_SIZE, \
+    CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT, CLIENT_CACHE_MAX_TASKDATASTORE_COUNT
 
 NEW_FILE_QUARANTINE = 10
 
+if sys.version_info[0] >= 3 and sys.version_info[1] >= 2:
+    def od_move_to_end(od, key):
+        od.move_to_end(key)
+else:
+    # Not very efficient but works and most people are on 3.2+
+    def od_move_to_end(od, key):
+        v = od.get(key)
+        del od[key]
+        od[key] = v
 
 class FileCacheException(MetaflowException):
     headline = 'File cache error'
+
 
 class FileCache(object):
     def __init__(self, cache_dir=None, max_size=None):
@@ -31,10 +44,16 @@ class FileCache(object):
 
         # We also keep a cache for FlowDataStore objects because some of them
         # may have long-lived persistent connections; this is purely a 
-        # performance optimization. We do *not* keep track of task datastores 
-        # to refresh them as needed. Caching FlowDataStore has no adverse 
-        # affect in terms of having to refresh the cache.
-        self._store_caches = {}
+        # performance optimization. Uses OrderedDict to implement a kind of LRU
+        # cache and keep only a certain number of these caches around.
+        self._store_caches = OrderedDict()
+
+        # We also keep a cache of data_metadata for TaskDatastore. This is used
+        # when querying for sizes of artifacts. Once we have queried for the size
+        # of one artifact in a TaskDatastore, caching this means that any
+        # queries on that same TaskDatastore will be quick (since we already
+        # have all the metadata)
+        self._task_metadata_caches = OrderedDict()
 
     @property
     def cache_dir(self):
@@ -80,12 +99,51 @@ class FileCache(object):
         self.create_file(path, log)
         return log
 
+    def get_legacy_log_size(self, ds_type, location, logtype, attempt, flow_name, run_id, step_name, task_id):
+        ds_cls = self._get_datastore_storage_impl(ds_type)
+        ds_root = ds_cls.path_join(*ds_cls.path_split(location)[:-5])
+        ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
+
+        task_ds = ds.get_task_datastore(
+            run_id, step_name, task_id, attempt=attempt,
+            data_metadata={'objects': {}, 'info': {}})
+
+        return task_ds.get_legacy_log_size(logtype)
+
+    def get_log_size(self, ds_type, ds_root, logtype, attempt, flow_name, run_id, step_name, task_id):
+        from metaflow.mflog import LOG_SOURCES
+        ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
+
+        task_ds = ds.get_task_datastore(
+            run_id, step_name, task_id, attempt=attempt,
+            data_metadata={'objects': {}, 'info': {}})
+
+        return task_ds.get_log_size(LOG_SOURCES, logtype)
+
     def get_data(self, ds_type, flow_name, location, key):
         ds_cls = self._get_datastore_storage_impl(ds_type)
         ds_root = ds_cls.get_datastore_root_from_location(location, flow_name)
         ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
 
         return next(ds.load_data([key], force_raw=True))
+
+    def get_artifact_size_by_location(self, ds_type, location, attempt, flow_name, run_id,
+                             step_name, task_id, name):
+        """Gets the size of the artifact content (in bytes) for the name at the location"""
+        ds_cls = self._get_datastore_storage_impl(ds_type)
+        ds_root = ds_cls.get_datastore_root_from_location(location, flow_name)
+
+        return self.get_artifact_size(
+            ds_type, ds_root, attempt, flow_name, run_id, step_name, task_id, name)
+
+    def get_artifact_size(self, ds_type, ds_root, attempt, flow_name, run_id,
+                 step_name, task_id, name):
+        """Gets the size of the artifact content (in bytes) for the name"""
+        task_ds = self._get_task_datastore(
+            ds_type, ds_root, flow_name, run_id, step_name, task_id, attempt)
+
+        _, size = next(task_ds.get_artifact_sizes([name]))
+        return size
 
     def get_artifact_by_location(
             self, ds_type, location, data_metadata, flow_name, run_id,
@@ -168,12 +226,12 @@ class FileCache(object):
     def _index_objects(self):
         objects = []
         if os.path.exists(self._cache_dir):
-            for flow_ds_type in os.listdir(self._cache_dir):
-                root = os.path.join(self._cache_dir, flow_ds_type)
+            for flow_ds_id in os.listdir(self._cache_dir):
+                root = os.path.join(self._cache_dir, flow_ds_id)
                 if not os.path.isdir(root):
                     continue
                 for subdir in os.listdir(root):
-                    root = os.path.join(self._cache_dir, flow_ds_type, subdir)
+                    root = os.path.join(self._cache_dir, flow_ds_id, subdir)
                     if not os.path.isdir(root):
                         continue
                     for obj in os.listdir(root):
@@ -188,8 +246,13 @@ class FileCache(object):
         self._objects = sorted(objects, reverse=False)
 
     @staticmethod
-    def _flow_ds_type(ds_type, ds_root, flow_name):
+    def _flow_ds_id(ds_type, ds_root, flow_name):
         return '.'.join([ds_type, ds_root, flow_name])
+
+    @staticmethod
+    def _task_ds_id(ds_type, ds_root, flow_name, run_id, step_name, task_id, attempt):
+        return '.'.join(
+            [ds_type, ds_root, flow_name, run_id, step_name, task_id, str(attempt)])
 
     def _garbage_collect(self):
         now = time.time()
@@ -224,10 +287,11 @@ class FileCache(object):
         return storage_impl
 
     def _get_flow_datastore(self, ds_type, ds_root, flow_name):
-        cache_id = self._flow_ds_type(ds_type, ds_root, flow_name)
+        cache_id = self._flow_ds_id(ds_type, ds_root, flow_name)
         cached_flow_datastore = self._store_caches.get(cache_id)
 
         if cached_flow_datastore:
+            od_move_to_end(self._store_caches, cache_id)
             return cached_flow_datastore
         else:
             storage_impl = self._get_datastore_storage_impl(ds_type)
@@ -240,7 +304,34 @@ class FileCache(object):
                 cache_id, FileBlobCache(self, cache_id))
             cached_flow_datastore.ca_store.set_blob_cache(blob_cache)
             self._store_caches[cache_id] = cached_flow_datastore
+            if len(self._store_caches) > CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT:
+                cache_id_to_remove, _ = self._store_caches.popitem(last=False)
+                del self._blob_caches[cache_id_to_remove]
             return cached_flow_datastore
+
+    def _get_task_datastore(
+            self, ds_type, ds_root, flow_name, run_id, step_name, task_id, attempt):
+        flow_ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
+        cached_metadata = None
+        if attempt is not None:
+            cache_id = self._task_ds_id(
+                ds_type, ds_root, flow_name, run_id, step_name, task_id, attempt)
+            cached_metadata = self._task_metadata_caches.get(cache_id)
+            if cached_metadata:
+                od_move_to_end(self._task_metadata_caches, cache_id)
+                return flow_ds.get_task_datastore(
+                    run_id, step_name, task_id, attempt=attempt,
+                    data_metadata=cached_metadata)
+        # If we are here, we either have attempt=None or nothing in the cache
+        task_ds = flow_ds.get_task_datastore(
+            run_id, step_name, task_id, attempt=attempt)
+        cache_id = self._task_ds_id(
+            ds_type, ds_root, flow_name, run_id, step_name, task_id, task_ds.attempt
+        )
+        self._task_metadata_caches[cache_id] = task_ds.ds_metadata
+        if len(self._task_metadata_caches) > CLIENT_CACHE_MAX_TASKDATASTORE_COUNT:
+            self._task_metadata_caches.popitem(last=False)
+        return task_ds
 
 class FileBlobCache(BlobCache):
 
