@@ -126,6 +126,7 @@ class TaskDataStore(object):
                 # datastore, the data may change). We make an exception to that
                 # rule when allow_not_done is True which allows access to things
                 # like logs even for tasks that did not write a done marker
+                max_attempt = None
                 for i in range(metaflow_config.MAX_ATTEMPTS):
                     check_meta = self._metadata_name_for_attempt(
                         self.METADATA_ATTEMPT_SUFFIX, i)
@@ -133,7 +134,7 @@ class TaskDataStore(object):
                         max_attempt = i
                 if self._attempt is None:
                     self._attempt = max_attempt
-                elif self._attempt > max_attempt:
+                elif max_attempt is None or self._attempt > max_attempt:
                     # In this case, the attempt does not exist so we can't load
                     # anything
                     self._objects = {}
