@@ -22,5 +22,5 @@ set_global_variable <- function(key, val, pos = 1) {
 #' @export
 metaflow <- function(cls, ...) {
   set_global_variable(cls, Flow$new(cls, list(...)))
-  get(cls)
+  get(cls, pos = 1)
 }

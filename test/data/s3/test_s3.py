@@ -84,7 +84,7 @@ def assert_results(s3objs, expected, info_should_be_empty=False, info_only=False
             else:
                 # Content_type is OK
                 if content_type is None:
-                    # Default content-type when nothing is suplied
+                    # Default content-type when nothing is supplied
                     assert s3obj.content_type == 'binary/octet-stream'
                 else:
                     assert s3obj.content_type == content_type
@@ -330,11 +330,6 @@ def test_init_options(s3root, pathspecs, expected):
         assert_results(s3objs, expected)
         assert_results(s3.get_all(), expected, info_should_be_empty=True)
 
-    # option 5) run object
-    namespace(None)
-    with S3(bucket=parsed.netloc, prefix=parsed.path, run=Run(pathspec)) as s3:
-        names = [url.split('/')[-1] for url in expected]
-        assert_results(s3.get_many(names), expected)
 
 @pytest.mark.parametrize(
     argnames=['s3root', 'prefixes', 'expected'],

@@ -75,13 +75,26 @@ DATATOOLS_LOCALROOT = from_conf(
 S3_ENDPOINT_URL = from_conf('METAFLOW_S3_ENDPOINT_URL', None)
 S3_VERIFY_CERTIFICATE = from_conf('METAFLOW_S3_VERIFY_CERTIFICATE', None)
 
+# S3 retry configuration
+# This is useful if you want to "fail fast" on S3 operations; use with caution
+# though as this may increase failures. Note that this is the number of *retries*
+# so setting it to 0 means each operation will be tried once.
+S3_RETRY_COUNT = int(from_conf('METAFLOW_S3_RETRY_COUNT', 7))
+
 ###
 # Datastore local cache
 ###
 # Path to the client cache
 CLIENT_CACHE_PATH = from_conf('METAFLOW_CLIENT_CACHE_PATH', '/tmp/metaflow_client')
 # Maximum size (in bytes) of the cache
-CLIENT_CACHE_MAX_SIZE = from_conf('METAFLOW_CLIENT_CACHE_MAX_SIZE', 10000)
+CLIENT_CACHE_MAX_SIZE = int(from_conf('METAFLOW_CLIENT_CACHE_MAX_SIZE', 10000))
+# Maximum number of cached Flow and TaskDatastores in the cache
+CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT = int(from_conf(
+    'METAFLOW_CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT', 50))
+CLIENT_CACHE_MAX_TASKDATASTORE_COUNT = int(from_conf(
+    'METAFLOW_CLIENT_CACHE_MAX_TASKDATASTORE_COUNT',
+    CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT * 100))
+
 
 ###
 # Metadata configuration
@@ -140,6 +153,18 @@ SFN_STATE_MACHINE_PREFIX = from_conf("METAFLOW_SFN_STATE_MACHINE_PREFIX")
 # machine execution logs. This needs to be available when using the 
 # `step-functions create --log-execution-history` command.
 SFN_EXECUTION_LOG_GROUP_ARN = from_conf("METAFLOW_SFN_EXECUTION_LOG_GROUP_ARN")
+
+###
+# Kubernetes configuration
+###
+# Kubernetes namespace to use for all objects created by Metaflow
+KUBERNETES_NAMESPACE = from_conf("METAFLOW_KUBERNETES_NAMESPACE")
+# Service account to use by K8S jobs created by Metaflow
+KUBERNETES_SERVICE_ACCOUNT = from_conf("METAFLOW_KUBERNETES_SERVICE_ACCOUNT")
+#
+KUBERNETES_CONTAINER_REGISTRY = from_conf("METAFLOW_KUBERNETES_CONTAINER_REGISTRY")
+#
+KUBERNETES_CONTAINER_IMAGE = from_conf("METAFLOW_KUBERNETES_CONTAINER_IMAGE")
 
 ###
 # Conda configuration
@@ -233,7 +258,7 @@ def get_pinned_conda_libs(python_version):
 
 # Check if there is a an extension to Metaflow to load and override everything
 try:
-    import metaflow_custom.config.metaflow_config as extension_module
+    import metaflow_extensions.config.metaflow_config as extension_module
 except ImportError as e:
     ver = sys.version_info[0] * 10 + sys.version_info[1]
     if ver >= 36:
@@ -241,10 +266,10 @@ except ImportError as e:
         # so don't error ONLY IF the error is importing this module (but do
         # error if there is a transitive import error)
         if not (isinstance(e, ModuleNotFoundError) and \
-                e.name in ['metaflow_custom', 'metaflow_custom.config']):
+            e.name in ['metaflow_extensions', 'metaflow_extensions.config']):
             print(
-                "Cannot load metaflow_custom configuration -- "
-                "if you want to ignore, uninstall metaflow_custom package")
+                "Cannot load metaflow_extensions configuration -- "
+                "if you want to ignore, uninstall metaflow_extensions package")
             raise
 else:
     # We load into globals whatever we have in extension_module

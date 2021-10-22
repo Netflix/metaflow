@@ -1,8 +1,9 @@
 from __future__ import print_function
+from datetime import datetime
 import os
-import time
 import tarfile
 import json
+from io import BytesIO
 from collections import namedtuple
 from itertools import chain
 
@@ -11,8 +12,7 @@ from metaflow.exception import MetaflowNotFound,\
                                MetaflowNamespaceMismatch,\
                                MetaflowInternalError
 
-from metaflow.includefile import IncludedFile
-from metaflow.metaflow_config import DEFAULT_METADATA
+from metaflow.metaflow_config import DEFAULT_METADATA, MAX_ATTEMPTS
 from metaflow.plugins import ENVIRONMENTS, METADATA_PROVIDERS
 from metaflow.unbounded_foreach import CONTROL_TASK_TAG
 from metaflow.util import cached_property, resolve_identity, to_unicode
@@ -35,7 +35,7 @@ Metadata = namedtuple('Metadata', ['name',
                                    'type',
                                    'task'])
 
-filecache = FileCache()
+filecache = None
 current_namespace = False
 
 current_metadata = False
@@ -247,7 +247,7 @@ class Metaflow(object):
         # filtering on namespace on flows means finding at least one
         # run in this namespace. This is_in_namespace() function
         # does this properly in this case
-        all_flows = self.metadata.get_object('root', 'flow')
+        all_flows = self.metadata.get_object('root', 'flow', None, None)
         all_flows = all_flows if all_flows else []
         for flow in all_flows:
             try:
@@ -317,12 +317,33 @@ class MetaflowObject(object):
 
     def __init__(self,
                  pathspec=None,
+                 attempt=None,
                  _object=None,
                  _parent=None,
                  _namespace_check=True):
         self._metaflow = Metaflow()
         self._parent = _parent
         self._path_components = None
+        self._attempt = attempt
+
+        if self._attempt is not None:
+            if self._NAME not in ['task', 'artifact']:
+                raise MetaflowNotFound(
+                    "Attempts can only be specified for Task or DataArtifact")
+            try:
+                self._attempt = int(self._attempt)
+            except ValueError:
+                raise MetaflowNotFound("Attempt can only be an integer")
+
+            if self._attempt < 0:
+                raise MetaflowNotFound("Attempt can only be non-negative")
+            elif self._attempt >= MAX_ATTEMPTS:
+                raise MetaflowNotFound(
+                    "Attempt can only be smaller than %d" % MAX_ATTEMPTS)
+            # NOTE: It is possible that no attempt exists but we can't
+            # distinguish between "attempt will happen" and "no such
+            # attempt exists".
+
         if pathspec:
             ids = pathspec.split('/')
 
@@ -344,8 +365,7 @@ class MetaflowObject(object):
         else:
             raise MetaflowInternalError(msg="Unknown type: %s" % self._NAME)
 
-        self._created_at = time.strftime(
-            '%Y-%m-%dT%H:%M:%SZ', time.gmtime(self._object['ts_epoch']//1000))
+        self._created_at = datetime.fromtimestamp(self._object['ts_epoch']/1000.0)
 
         self._tags = frozenset(chain(self._object.get('system_tags') or [],
                                      self._object.get('tags') or []))
@@ -354,7 +374,8 @@ class MetaflowObject(object):
             raise MetaflowNamespaceMismatch(current_namespace)
 
     def _get_object(self, *path_components):
-        result = self._metaflow.metadata.get_object(self._NAME, 'self', None, *path_components)
+        result = self._metaflow.metadata.get_object(
+            self._NAME, 'self', None, self._attempt, *path_components)
         if not result:
             raise MetaflowNotFound("%s does not exist" % self)
         return result
@@ -375,11 +396,13 @@ class MetaflowObject(object):
             query_filter = {'any_tags': current_namespace}
 
         unfiltered_children = self._metaflow.metadata.get_object(
-            self._NAME, _CLASSES[self._CHILD_CLASS]._NAME, query_filter, *self.path_components)
+            self._NAME, _CLASSES[self._CHILD_CLASS]._NAME, query_filter,
+            self._attempt, *self.path_components)
         unfiltered_children = unfiltered_children if unfiltered_children else []
         children = filter(
             lambda x: self._iter_filter(x),
-            (_CLASSES[self._CHILD_CLASS](_object=obj, _parent=self, _namespace_check=False)
+            (_CLASSES[self._CHILD_CLASS](attempt=self._attempt,
+                _object=obj, _parent=self, _namespace_check=False)
                 for obj in unfiltered_children))
 
         if children:
@@ -423,6 +446,9 @@ class MetaflowObject(object):
                    current_namespace in self._tags
 
     def __str__(self):
+        if self._attempt is not None:
+            return "%s('%s', attempt=%d)" % (
+                self.__class__.__name__, self.pathspec, self._attempt)
         return "%s('%s')" % (self.__class__.__name__, self.pathspec)
 
     def __repr__(self):
@@ -434,7 +460,7 @@ class MetaflowObject(object):
             result.append(p)
         result.append(id)
         return self._metaflow.metadata.get_object(
-            _CLASSES[self._CHILD_CLASS]._NAME, 'self', None, *result)
+            _CLASSES[self._CHILD_CLASS]._NAME, 'self', None, self._attempt, *result)
 
     def __getitem__(self, id):
         """
@@ -457,7 +483,8 @@ class MetaflowObject(object):
         """
         obj = self._get_child(id)
         if obj:
-            return _CLASSES[self._CHILD_CLASS](_object=obj, _parent=self)
+            return _CLASSES[self._CHILD_CLASS](attempt=self._attempt,
+                _object=obj, _parent=self)
         else:
             raise KeyError(id)
 
@@ -523,10 +550,14 @@ class MetaflowObject(object):
         if self._parent is None:
             pathspec = self.pathspec
             parent_pathspec = pathspec[:pathspec.rfind('/')]
+            # Only artifacts and tasks have attempts right now so we get the
+            # right parent if we are an artifact.
+            attempt_to_pass = self._attempt if self._NAME == 'artifact' else None
             # We can skip the namespace check because if self._NAME = 'run',
             # the parent object is guaranteed to be in namespace.
             # Otherwise the check is moot for Flow since parent is singular.
-            self._parent = _CLASSES[self._PARENT_CLASS](parent_pathspec, _namespace_check=False)
+            self._parent = _CLASSES[self._PARENT_CLASS](
+                parent_pathspec, attempt=attempt_to_pass, _namespace_check=False)
         return self._parent
 
     @property
@@ -535,7 +566,9 @@ class MetaflowObject(object):
         Returns a string representation uniquely identifying this object.
 
         The string is the same as the one you would pass into the constructor
-        to build this object.
+        to build this object except if you are looking for a specific attempt of
+        a task or a data artifact (in which case you need to add `attempt=<attempt>`
+        in the constructor).
 
         Returns
         -------
@@ -560,22 +593,10 @@ class MetaflowObject(object):
         List[string]
             Individual components of the pathspec
         """
-        # Compute url_path from pathspec.
-        ids = self.pathspec.split('/')
-
-        def traverse(cls, ids_r, lst):
-            lst.insert(0, ids_r[-1])
-            if cls._PARENT_CLASS is None:
-                return lst
-            if len(ids_r) > 1:
-                cls = _CLASSES[cls._PARENT_CLASS]
-                return traverse(cls, ids_r[:-1], lst)
-            else:
-                return lst
-
         if self._path_components is None:
-            self._path_components = traverse(_CLASSES[self._NAME], ids, [])
-        return self._path_components
+            ids = self.pathspec.split('/')
+            self._path_components = ids
+        return list(self._path_components)
 
 
 class MetaflowData(object):
@@ -616,17 +637,24 @@ class MetaflowCode(object):
     """
 
     def __init__(self, flow_name, code_package):
+        global filecache
+
         self._flow_name = flow_name
         info = json.loads(code_package)
         self._path = info['location']
         self._ds_type = info['ds_type']
         self._sha = info['sha']
-        with filecache.get_data(self._ds_type, self._flow_name, self._sha) as f:
-            self._tar = tarfile.TarFile(fileobj=f)
-            # The JSON module in Python3 deals with Unicode. Tar gives bytes.
-            info_str = self._tar.extractfile('INFO').read().decode('utf-8')
-            self._info = json.loads(info_str)
-            self._flowspec = self._tar.extractfile(self._info['script']).read()
+
+        if filecache is None:
+            filecache = FileCache()
+        _, blobdata = filecache.get_data(
+            self._ds_type, self._flow_name, self._path, self._sha)
+        code_obj = BytesIO(blobdata)
+        self._tar = tarfile.open(fileobj=code_obj, mode='r:gz')
+        # The JSON module in Python3 deals with Unicode. Tar gives bytes.
+        info_str = self._tar.extractfile('INFO').read().decode('utf-8')
+        self._info = json.loads(info_str)
+        self._flowspec = self._tar.extractfile(self._info['script']).read()
 
     @property
     def path(self):
@@ -689,7 +717,7 @@ class DataArtifact(MetaflowObject):
     data : object
         The unpickled representation of the data contained in this artifact
     sha : string
-        SHA encoding representing the unique identity of this artifact
+        Encoding representing the unique identity of this artifact
     finished_at : datetime
         Alias for created_at
     """
@@ -708,17 +736,55 @@ class DataArtifact(MetaflowObject):
         object
             Object contained in this artifact
         """
-        ds_type = self._object['ds_type']
-        sha = self._object['sha']
-        with filecache.get_data(ds_type, self.path_components[0], sha) as f:
-            obj = pickle.load(f)
-            if isinstance(obj, IncludedFile):
-                return obj.decode(self.id)
-            return obj
+        global filecache
 
-    # TODO add
-    # @property
-    # def size(self)
+        ds_type = self._object['ds_type']
+        location = self._object['location']
+        components = self.path_components
+        if filecache is None:
+            # TODO: Pass proper environment to properly extract artifacts
+            filecache = FileCache()
+        # "create" the metadata information that the datastore needs
+        # to access this object.
+        # TODO: We can store more information in the metadata, particularly
+        #       to determine if we need an environment to unpickle the artifact.
+        meta = {
+            'objects': {self._object['name']: self._object['sha']},
+            'info': {self._object['name']: {
+                'size': 0, 'type': None, 'encoding': self._object['content_type']}}
+        }
+        if location.startswith(':root:'):
+            return filecache.get_artifact(
+                ds_type, location[6:], meta, *components)
+        else:
+            # Older artifacts have a location information which we can use.
+            return filecache.get_artifact_by_location(
+                ds_type, location, meta, *components)
+
+    @property
+    def size(self):
+        """
+        Returns the size (in bytes) of the pickled object representing this
+        DataArtifact
+
+        Returns
+        -------
+        int
+            size of the pickled representation of data artifact (in bytes)
+        """
+        global filecache
+
+        ds_type = self._object['ds_type']
+        location = self._object['location']
+        components = self.path_components
+
+        if filecache is None:
+            # TODO: Pass proper environment to properly extract artifacts
+            filecache = FileCache()
+        if location.startswith(':root:'):
+            return filecache.get_artifact_size(ds_type, location[6:], self._attempt, *components)
+        else:
+            return filecache.get_artifact_size_by_location(ds_type, location, self._attempt, *components)
 
     # TODO add
     # @property
@@ -729,7 +795,7 @@ class DataArtifact(MetaflowObject):
         """
         Unique identifier for this artifact.
 
-        This is the SHA1 hash of the artifact.
+        This is a unique hash of the artifact (historically SHA1 hash)
 
         Returns
         -------
@@ -757,8 +823,16 @@ class Task(MetaflowObject):
     """
     A Task represents an execution of a step.
 
-    As such, it contains all data artifacts associated with that execution as well as all metadata
-    associated with the execution.
+    As such, it contains all data artifacts associated with that execution as
+    well as all metadata associated with the execution.
+
+    Note that you can also get information about a specific *attempt* of a
+    task. By default, the latest finished attempt is returned but you can
+    explicitly get information about a specific attempt by using the
+    following syntax when creating a task:
+    `Task('flow/run/step/task', attempt=<attempt>)`. Note that you will not be able to
+    access a specific attempt of a task through the `.tasks` method of a step
+    for example (that will always return the latest attempt).
 
     Attributes
     ----------
@@ -805,7 +879,8 @@ class Task(MetaflowObject):
     @property
     def metadata(self):
         """
-        Metadata events produced by this task.
+        Metadata events produced by this task across all attempts of the task
+        *except* if you selected a specific task attempt.
 
         Note that Metadata is different from tags.
 
@@ -815,7 +890,7 @@ class Task(MetaflowObject):
             Metadata produced by this task
         """
         all_metadata = self._metaflow.metadata.get_object(
-            self._NAME, 'metadata', None, *self.path_components)
+            self._NAME, 'metadata', None, self._attempt, *self.path_components)
         all_metadata = all_metadata if all_metadata else []
         return [Metadata(name=obj.get('field_name'),
                          value=obj.get('value'),
@@ -994,32 +1069,97 @@ class Task(MetaflowObject):
         """
         Returns the full standard out of this task.
 
-        This information relates to the latest task that completed (in case of retries). In other
-        words, this does not return the realtime logs of execution.
+        If you specify a specific attempt for this task, it will return the
+        standard out for that attempt. If you do not specify an attempt,
+        this will return the current standard out for the latest *started*
+        attempt of the task. In both cases, multiple calls to this
+        method will return the most up-to-date log (so if an attempt is not
+        done, each call will fetch the latest log).
 
         Returns
         -------
         string
             Standard output of this task
         """
-        logtype = 'stdout'
-        return self._load_log(logtype)
+        return self._load_log('stdout')
+
+    @property
+    def stdout_size(self):
+        """
+        Returns the size of the stdout log of this task.
+
+        Similar to `stdout`, the size returned is the latest size of the log
+        (so for a running attempt, this value will increase as the task produces
+        more output).
+
+        Returns
+        -------
+        int
+            Size of the stdout log content (in bytes)
+        """
+        return self._get_logsize('stdout')
 
     @property
     def stderr(self):
         """
         Returns the full standard error of this task.
 
-        This information relates to the latest task that completed (in case of retries). In other
-        words, this does not return the realtime logs of execution.
+        If you specify a specific attempt for this task, it will return the
+        standard error for that attempt. If you do not specify an attempt,
+        this will return the current standard error for the latest *started*
+        attempt. In both cases, multiple calls to this
+        method will return the most up-to-date log (so if an attempt is not
+        done, each call will fetch the latest log).
 
         Returns
         -------
         string
             Standard error of this task
         """
-        logtype = 'stderr'
-        return self._load_log(logtype)
+        return self._load_log('stderr')
+
+    @property
+    def stderr_size(self):
+        """
+        Returns the size of the stderr log of this task.
+
+        Similar to `stderr`, the size returned is the latest size of the log
+        (so for a running attempt, this value will increase as the task produces
+        more output).
+
+        Returns
+        -------
+        int
+            Size of the stderr log content (in bytes)
+        """
+        return self._get_logsize('stderr')
+
+    @property
+    def current_attempt(self):
+        """
+        Get the relevant attempt for this Task.
+
+        Returns the specific attempt used when
+        initializing the instance, or the latest *started* attempt for the Task.
+
+        Returns
+        -------
+        int
+            attempt id for this task object
+        """
+        if self._attempt is not None:
+            attempt = self._attempt
+        else:
+            # It is possible that a task fails before any metadata has been
+            # recorded. In this case, we assume that we are executing the
+            # first attempt.
+            #
+            # FIXME: Technically we are looking at the latest *recorded* attempt
+            # here. It is possible that logs exists for a newer attempt that
+            # just failed to record metadata. We could make this logic more robust
+            # and guarantee that we always return the latest available log.
+            attempt = int(self.metadata_dict.get('attempt', 0))
+        return attempt
 
     @cached_property
     def code(self):
@@ -1058,7 +1198,8 @@ class Task(MetaflowObject):
         env_type = my_code.info['environment_type']
         if not env_type:
             return None
-        env = [m for m in ENVIRONMENTS + [MetaflowEnvironment] if m.TYPE == env_type][0]
+        env = [m for m in ENVIRONMENTS +
+               [MetaflowEnvironment] if m.TYPE == env_type][0]
         return env.get_client_info(self.path_components[0], self.metadata_dict)
 
     def _load_log(self, stream):
@@ -1068,6 +1209,13 @@ class Task(MetaflowObject):
         else:
             return ''.join(line + '\n' for _, line in self.loglines(stream))
 
+    def _get_logsize(self, stream):
+        log_location = self.metadata_dict.get('log_location_%s' % stream)
+        if log_location:
+            return self._legacy_log_size(log_location, stream)
+        else:
+            return self._log_size(stream)
+
     def loglines(self, stream, as_unicode=True):
         """
         Return an iterator over (utc_timestamp, logline) tuples.
@@ -1076,51 +1224,67 @@ class Task(MetaflowObject):
         it is returned as a (unicode) string.
         """
         from metaflow.mflog.mflog import merge_logs
-        from metaflow.mflog import LOG_SOURCES
-        from metaflow.datastore import DATASTORES
+        global filecache
 
         ds_type = self.metadata_dict.get('ds-type')
         ds_root = self.metadata_dict.get('ds-root')
+        if ds_type is None or ds_root is None:
+            yield None, ''
+            return
+        if filecache is None:
+            filecache = FileCache()
 
-        ds_cls = DATASTORES.get(ds_type, None)
-        if ds_cls is None:
-            raise MetaflowInternalError('Datastore %s was not found' % ds_type)
-        ds_cls.datastore_root = ds_root
-
-        # It is possible that a task fails before any metadata has been
-        # recorded. In this case, we assume that we are executing the
-        # first attempt.
-        #
-        # FIXME: Technically we are looking at the latest *recorded* attempt
-        # here. It is possible that logs exists for a newer attempt that
-        # just failed to record metadata. We could make this logic more robust
-        # and guarantee that we always return the latest available log.
-
-        ds = ds_cls(self._object['flow_id'],
-                    run_id=str(self._object['run_number']),
-                    step_name=self._object['step_name'],
-                    task_id=str(self._object['task_id']),
-                    mode='r',
-                    attempt=int(self.metadata_dict.get('attempt', 0)),
-                    allow_unsuccessful=True)
-        logs = ds.load_logs(LOG_SOURCES, stream)
+        attempt = self.current_attempt
+        logs = filecache.get_logs_stream(
+            ds_type, ds_root, stream, attempt, *self.path_components)
         for line in merge_logs([blob for _, blob in logs]):
             msg = to_unicode(line.msg) if as_unicode else line.msg
             yield line.utc_tstamp, msg
 
     def _load_log_legacy(self, log_location, logtype, as_unicode=True):
         # this function is used to load pre-mflog style logfiles
-        ret_val = None
+        global filecache
+
         log_info = json.loads(log_location)
+        location = log_info['location']
         ds_type = log_info['ds_type']
         attempt = log_info['attempt']
-        components = self.path_components
-        with filecache.get_log_legacy(ds_type, logtype, int(attempt), *components) as f:
-            ret_val = f.read()
+        if filecache is None:
+            filecache = FileCache()
+        ret_val = filecache.get_log_legacy(
+            ds_type, location, logtype, int(attempt), *self.path_components)
         if as_unicode and (ret_val is not None):
             return ret_val.decode(encoding='utf8')
         else:
             return ret_val
+
+    def _legacy_log_size(self, log_location, logtype):
+        global filecache
+
+        log_info = json.loads(log_location)
+        location = log_info['location']
+        ds_type = log_info['ds_type']
+        attempt = log_info['attempt']
+        if filecache is None:
+            filecache = FileCache()
+
+        return filecache.get_legacy_log_size(
+            ds_type, location, logtype, int(attempt), *self.path_components)
+
+    def _log_size(self, stream):
+        global filecache
+
+        ds_type = self.metadata_dict.get('ds-type')
+        ds_root = self.metadata_dict.get('ds-root')
+        if ds_type is None or ds_root is None:
+            return 0
+        if filecache is None:
+            filecache = FileCache()
+        attempt = self.current_attempt
+
+        return filecache.get_log_size(
+            ds_type, ds_root, stream, attempt, *self.path_components)
+
 
 
 class Step(MetaflowObject):

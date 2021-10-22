@@ -15,21 +15,21 @@ class LocalMetadataProvider(MetadataProvider):
 
     @classmethod
     def compute_info(cls, val):
-        from metaflow.datastore.local import LocalDataStore
+        from metaflow.datastore.local_storage import LocalStorage
         v = os.path.realpath(os.path.join(val, DATASTORE_LOCAL_DIR))
         if os.path.isdir(v):
-            LocalDataStore.datastore_root = v
+            LocalStorage.datastore_root = v
             return val
         raise ValueError(
             'Could not find directory %s in directory %s' % (DATASTORE_LOCAL_DIR, val))
 
     @classmethod
     def default_info(cls):
-        from metaflow.datastore.local import LocalDataStore
+        from metaflow.datastore.local_storage import LocalStorage
 
         def print_clean(line, **kwargs):
             print(line)
-        v = LocalDataStore.get_datastore_root_from_config(print_clean, create_on_absent=False)
+        v = LocalStorage.get_datastore_root_from_config(print_clean, create_on_absent=False)
         if v is None:
             return '<No %s directory found in current working tree>' % DATASTORE_LOCAL_DIR
         return os.path.dirname(v)
@@ -37,7 +37,7 @@ class LocalMetadataProvider(MetadataProvider):
     def version(self):
         return 'local'
 
-    def new_run_id(self, tags=[], sys_tags=[]):
+    def new_run_id(self, tags=None, sys_tags=None):
         # We currently just use the timestamp to create an ID. We can be reasonably certain
         # that it is unique and this makes it possible to do without coordination or
         # reliance on POSIX locks in the filesystem.
@@ -45,18 +45,18 @@ class LocalMetadataProvider(MetadataProvider):
         self._new_run(run_id, tags, sys_tags)
         return run_id
 
-    def register_run_id(self, run_id, tags=[], sys_tags=[]):
+    def register_run_id(self, run_id, tags=None, sys_tags=None):
         try:
             # This metadata provider only generates integer IDs so if this is
             # an integer, we don't register it again (since it was "registered"
-            # on creation). However, some IDs are created outside the metdata
+            # on creation). However, some IDs are created outside the metadata
             # provider and need to be properly registered
             int(run_id)
             return
         except ValueError:
             return self._new_run(run_id, tags, sys_tags)
 
-    def new_task_id(self, run_id, step_name, tags=[], sys_tags=[]):
+    def new_task_id(self, run_id, step_name, tags=None, sys_tags=None):
         self._task_id_seq += 1
         task_id = str(self._task_id_seq)
         self._new_task(run_id, step_name, task_id, tags, sys_tags)
@@ -66,15 +66,17 @@ class LocalMetadataProvider(MetadataProvider):
                          run_id,
                          step_name,
                          task_id,
-                         tags=[],
-                         sys_tags=[]):
+                         attempt=0,
+                         tags=None,
+                         sys_tags=None):
         try:
             # Same logic as register_run_id
             int(task_id)
         except ValueError:
-            self._new_task(run_id, step_name, task_id, tags, sys_tags)
-        finally:
-            self._register_code_package_metadata(run_id, step_name, task_id)
+            self._new_task(run_id, step_name, task_id, attempt, tags, sys_tags)
+        else:
+            self._register_code_package_metadata(
+                run_id, step_name, task_id, attempt)
 
     def register_data_artifacts(self,
                                 run_id,
@@ -95,8 +97,9 @@ class LocalMetadataProvider(MetadataProvider):
         self._save_meta(meta_dir, metadict)
 
     @classmethod
-    def _get_object_internal(cls, obj_type, obj_order, sub_type, sub_order, filters=None, *args):
-        from metaflow.datastore.local import LocalDataStore
+    def _get_object_internal(
+            cls, obj_type, obj_order, sub_type, sub_order, filters, attempt, *args):
+        from metaflow.datastore.local_storage import LocalStorage
         if obj_type == 'artifact':
             # Artifacts are actually part of the tasks in the filesystem
             obj_type = 'task'
@@ -120,11 +123,15 @@ class LocalMetadataProvider(MetadataProvider):
             result = []
             if meta_path is None:
                 return result
-            attempt_done_files = os.path.join(meta_path, 'sysmeta_attempt-done_*')
-            attempts_done = sorted(glob.iglob(attempt_done_files))
-            if attempts_done:
-                successful_attempt = int(LocalMetadataProvider._read_json_file(
-                    attempts_done[-1])['value'])
+
+            successful_attempt = attempt
+            if successful_attempt is None:
+                attempt_done_files = os.path.join(meta_path, 'sysmeta_attempt-done_*')
+                attempts_done = sorted(glob.iglob(attempt_done_files))
+                if attempts_done:
+                    successful_attempt = int(LocalMetadataProvider._read_json_file(
+                        attempts_done[-1])['value'])
+            if successful_attempt is not None:
                 which_artifact = '*'
                 if len(args) >= sub_order:
                     which_artifact = args[sub_order - 1]
@@ -152,7 +159,7 @@ class LocalMetadataProvider(MetadataProvider):
         if obj_path is None:
             return result
         skip_dirs = '*/'*(sub_order - obj_order)
-        all_meta = os.path.join(obj_path, skip_dirs, LocalDataStore.METADATA_DIR)
+        all_meta = os.path.join(obj_path, skip_dirs, LocalStorage.METADATA_DIR)
         for meta_path in glob.iglob(all_meta):
             self_file = os.path.join(meta_path, '_self.json')
             if os.path.isfile(self_file):
@@ -173,7 +180,11 @@ class LocalMetadataProvider(MetadataProvider):
                 raise
 
     def _ensure_meta(
-            self, obj_type, run_id, step_name, task_id, tags=[], sys_tags=[]):
+            self, obj_type, run_id, step_name, task_id, tags=None, sys_tags=None):
+        if tags is None:
+            tags = set()
+        if sys_tags is None:
+            sys_tags = set()
         subpath = self._create_and_get_metadir(self._flow_name, run_id, step_name, task_id)
         selfname = os.path.join(subpath, '_self.json')
         self._makedirs(subpath)
@@ -187,50 +198,63 @@ class LocalMetadataProvider(MetadataProvider):
                 run_id,
                 step_name,
                 task_id,
-                tags + self.sticky_tags, sys_tags + self.sticky_sys_tags)})
+                self.sticky_tags.union(tags),
+                self.sticky_sys_tags.union(sys_tags))})
 
-    def _new_run(self, run_id, tags=[], sys_tags=[]):
+    def _new_run(self, run_id, tags=None, sys_tags=None):
         self._ensure_meta('flow', None, None, None)
         self._ensure_meta('run', run_id, None, None, tags, sys_tags)
 
-    def _new_task(self, run_id, step_name, task_id, tags=[], sys_tags=[]):
+    def _new_task(self, run_id, step_name, task_id, attempt=0, tags=None, sys_tags=None):
         self._ensure_meta('step', run_id, step_name, None)
         self._ensure_meta('task', run_id, step_name, task_id, tags, sys_tags)
-        self._register_code_package_metadata(run_id, step_name, task_id)
+        self._register_code_package_metadata(run_id, step_name, task_id, attempt)
 
     @staticmethod
     def _make_path(
-          flow_name=None, run_id=None, step_name=None, task_id=None, pathspec=None,
-          create_on_absent=True):
+            flow_name=None, run_id=None, step_name=None, task_id=None,
+            create_on_absent=True):
 
-        from metaflow.datastore.local import LocalDataStore
-        if LocalDataStore.datastore_root is None:
+        from metaflow.datastore.local_storage import LocalStorage
+        if LocalStorage.datastore_root is None:
             def print_clean(line, **kwargs):
                 print(line)
-            LocalDataStore.datastore_root = LocalDataStore.get_datastore_root_from_config(
+            LocalStorage.datastore_root = LocalStorage.get_datastore_root_from_config(
                 print_clean, create_on_absent=create_on_absent)
-        if LocalDataStore.datastore_root is None:
+        if LocalStorage.datastore_root is None:
             return None
 
-        return LocalDataStore.make_path(flow_name, run_id, step_name, task_id, pathspec)
+        if flow_name is None:
+            return LocalStorage.datastore_root
+        components = []
+        if flow_name:
+            components.append(flow_name)
+            if run_id:
+                components.append(run_id)
+                if step_name:
+                    components.append(step_name)
+                    if task_id:
+                        components.append(task_id)
+        return LocalStorage().full_uri(
+            LocalStorage.path_join(*components))
 
     @staticmethod
     def _create_and_get_metadir(
-          flow_name=None, run_id=None, step_name=None, task_id=None):
-        from metaflow.datastore.local import LocalDataStore
+            flow_name=None, run_id=None, step_name=None, task_id=None):
+        from metaflow.datastore.local_storage import LocalStorage
         root_path = LocalMetadataProvider._make_path(flow_name, run_id, step_name, task_id)
-        subpath = os.path.join(root_path, LocalDataStore.METADATA_DIR)
+        subpath = os.path.join(root_path, LocalStorage.METADATA_DIR)
         LocalMetadataProvider._makedirs(subpath)
         return subpath
 
     @staticmethod
     def _get_metadir(flow_name=None, run_id=None, step_name=None, task_id=None):
-        from metaflow.datastore.local import LocalDataStore
+        from metaflow.datastore.local_storage import LocalStorage
         root_path = LocalMetadataProvider._make_path(
             flow_name, run_id, step_name, task_id, create_on_absent=False)
         if root_path is None:
             return None
-        subpath = os.path.join(root_path, LocalDataStore.METADATA_DIR)
+        subpath = os.path.join(root_path, LocalStorage.METADATA_DIR)
         if os.path.isdir(subpath):
             return subpath
         return None

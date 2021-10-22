@@ -1,20 +1,21 @@
 import json
 import os
+import re
 import time
 from collections import namedtuple
 from datetime import datetime
 
-from metaflow.current import current
 from metaflow.exception import MetaflowInternalError
 from metaflow.util import get_username, resolve_identity
 
 
 DataArtifact = namedtuple('DataArtifact',
-                          'name ds_type url type sha')
+                          'name ds_type ds_root url type sha')
 
 MetaDatum = namedtuple('MetaDatum',
                        'field value type tags')
 
+attempt_id_re = re.compile(r"attempt_id:([0-9]+)")
 
 class MetadataProviderMeta(type):
     def __new__(metaname, classname, bases, attrs):
@@ -96,7 +97,7 @@ class MetadataProvider(object):
         '''
         return ''
 
-    def new_run_id(self, tags=[], sys_tags=[]):
+    def new_run_id(self, tags=None, sys_tags=None):
         '''
         Creates an ID and registers this new run.
 
@@ -105,9 +106,9 @@ class MetadataProvider(object):
         Parameters
         ----------
         tags : list, optional
-            Tags to apply to this particular run, by default []
+            Tags to apply to this particular run, by default None
         sys_tags : list, optional
-            System tags to apply to this particular run, by default []
+            System tags to apply to this particular run, by default None
 
         Returns
         -------
@@ -116,7 +117,7 @@ class MetadataProvider(object):
         '''
         raise NotImplementedError()
 
-    def register_run_id(self, run_id, tags=[], sys_tags=[]):
+    def register_run_id(self, run_id, tags=None, sys_tags=None):
         '''
         No-op operation in this implementation.
 
@@ -125,13 +126,13 @@ class MetadataProvider(object):
         run_id : int
             Run ID for this run
         tags : list, optional
-            Tags to apply to this particular run, by default []
+            Tags to apply to this particular run, by default None
         sys_tags : list, optional
-            System tags to apply to this particular run, by default []
+            System tags to apply to this particular run, by default None
         '''
         raise NotImplementedError()
 
-    def new_task_id(self, run_id, step_name, tags=[], sys_tags=[]):
+    def new_task_id(self, run_id, step_name, tags=None, sys_tags=None):
         '''
         Creates an ID and registers this new task.
 
@@ -144,9 +145,9 @@ class MetadataProvider(object):
         step_name : string
             Name of the step
         tags : list, optional
-            Tags to apply to this particular task, by default []
+            Tags to apply to this particular task, by default None
         sys_tags : list, optional
-            System tags to apply to this particular task, by default []
+            System tags to apply to this particular task, by default None
 
         Returns
         -------
@@ -155,7 +156,8 @@ class MetadataProvider(object):
         '''
         raise NotImplementedError()
 
-    def register_task_id(self, run_id, step_name, task_id, tags=[], sys_tags=[]):
+    def register_task_id(
+            self, run_id, step_name, task_id, attempt=0, tags=None, sys_tags=None):
         '''
         No-op operation in this implementation.
 
@@ -250,7 +252,8 @@ class MetadataProvider(object):
         pass
 
     @classmethod
-    def _get_object_internal(cls, obj_type, obj_order, sub_type, sub_order, filters=None, *args):
+    def _get_object_internal(
+        cls, obj_type, obj_order, sub_type, sub_order, filters, attempt, *args):
         '''
         Return objects for the implementation of this class
 
@@ -270,6 +273,13 @@ class MetadataProvider(object):
             Dictionary with keys 'any_tags', 'tags' and 'system_tags'. If specified
             will return only objects that have the specified tags present. Filters
             are ANDed together so all tags must be present for the object to be returned.
+        attempt : int or None
+            If None, returns artifacts for latest *done* attempt and all metadata. Otherwise,
+            returns artifacts for that attempt (existent, done or not) and *all* metadata
+            NOTE: Unlike its external facing `get_object`, this function should
+            return *all* metadata; the base class will properly implement the
+            filter. For artifacts, this function should filter artifacts at
+            the backend level.
 
         Return
         ------
@@ -278,7 +288,7 @@ class MetadataProvider(object):
         '''
         raise NotImplementedError()
 
-    def add_sticky_tags(self, tags=[], sys_tags=[]):
+    def add_sticky_tags(self, tags=None, sys_tags=None):
         '''
         Adds tags to be added to every run and task
 
@@ -290,15 +300,17 @@ class MetadataProvider(object):
         Parameters
         ----------
         tags : list, optional
-            Tags to add to every run/task, by default []
+            Tags to add to every run/task, by default None
         sys_tags : list, optional
-            System tags to add to every run/task, by default []
+            System tags to add to every run/task, by default None
         '''
-        self.sticky_tags.extend(tags)
-        self.sticky_sys_tags.extend(sys_tags)
+        if tags:
+            self.sticky_tags.update(tags)
+        if sys_tags:
+            self.sticky_sys_tags.update(sys_tags)
 
     @classmethod
-    def get_object(cls, obj_type, sub_type, filters=None, *args):
+    def get_object(cls, obj_type, sub_type, filters, attempt, *args):
         '''Returns the requested object depending on obj_type and sub_type
 
         obj_type can be one of 'root', 'flow', 'run', 'step', 'task',
@@ -331,6 +343,15 @@ class MetadataProvider(object):
             Dictionary with keys 'any_tags', 'tags' and 'system_tags'. If specified
             will return only objects that have the specified tags present. Filters
             are ANDed together so all tags must be present for the object to be returned.
+        attempt : int or None
+            If None, for metadata and artifacts:
+              - returns information about the latest attempt for artifacts
+              - returns all metadata across all attempts
+            Otherwise, returns information about metadata and artifacts for that
+            attempt only.
+            NOTE: For older versions of Metaflow (pre 2.4.0), the attempt for
+            metadata is not known; in that case, all metadata is returned (as
+            if None was passed in).
 
         Return
         ------
@@ -364,15 +385,31 @@ class MetadataProvider(object):
         if sub_type == 'metadata' and obj_type != 'task':
             raise MetaflowInternalError(msg='Metadata can only be retrieved at the task level')
 
-        return cls._get_object_internal(obj_type, type_order, sub_type, sub_order, filters, *args)
+        if attempt is not None:
+            try:
+                attempt_int = int(attempt)
+                if attempt_int < 0:
+                    raise ValueError("Attempt can only be positive")
+            except ValueError:
+                raise ValueError("Attempt can only be a positive integer")
+        else:
+            attempt_int = None
 
-    def _all_obj_elements(self, tags=[], sys_tags=[]):
+        pre_filter = cls._get_object_internal(
+            obj_type, type_order, sub_type, sub_order, filters, attempt_int, *args)
+        if attempt_int is None or sub_order != 6:
+            # If no attempt or not for metadata, just return as is
+            return pre_filter
+        return MetadataProvider._reconstruct_metadata_for_attempt(
+            pre_filter, attempt_int)
+
+    def _all_obj_elements(self, tags=None, sys_tags=None):
         user = get_username()
         return {
             'flow_id': self._flow_name,
             'user_name': user,
-            'tags': tags,
-            'system_tags': sys_tags,
+            'tags': list(tags) if tags else [],
+            'system_tags': list(sys_tags) if sys_tags else [],
             'ts_epoch': int(round(time.time() * 1000))}
 
     def _flow_to_json(self):
@@ -383,7 +420,7 @@ class MetadataProvider(object):
             'flow_id': self._flow_name,
             'ts_epoch': int(round(time.time() * 1000))}
 
-    def _run_to_json(self, run_id=None, tags=[], sys_tags=[]):
+    def _run_to_json(self, run_id=None, tags=None, sys_tags=None):
         if run_id is not None:
             d = {'run_number': run_id}
         else:
@@ -391,14 +428,14 @@ class MetadataProvider(object):
         d.update(self._all_obj_elements(tags, sys_tags))
         return d
 
-    def _step_to_json(self, run_id, step_name, tags=[], sys_tags=[]):
+    def _step_to_json(self, run_id, step_name, tags=None, sys_tags=None):
         d = {
             'run_number': run_id,
             'step_name': step_name}
         d.update(self._all_obj_elements(tags, sys_tags))
         return d
 
-    def _task_to_json(self, run_id, step_name, task_id=None, tags=[], sys_tags=[]):
+    def _task_to_json(self, run_id, step_name, task_id=None, tags=None, sys_tags=None):
         d = {
             'run_number': run_id,
             'step_name': step_name}
@@ -408,7 +445,7 @@ class MetadataProvider(object):
         return d
 
     def _object_to_json(
-            self, obj_type, run_id=None, step_name=None, task_id=None, tags=[], sys_tags=[]):
+            self, obj_type, run_id=None, step_name=None, task_id=None, tags=None, sys_tags=None):
         if obj_type == 'task':
             return self._task_to_json(run_id, step_name, task_id, tags, sys_tags)
         if obj_type == 'step':
@@ -430,7 +467,7 @@ class MetadataProvider(object):
                 'type': 'metaflow.artifact',
                 'sha': art.sha,
                 'ds_type': art.ds_type,
-                'location': art.url}
+                'location': art.url if art.url else ':root:%s' % art.ds_root}
             d.update(self._all_obj_elements(self.sticky_tags, self.sticky_sys_tags))
             result.append(d)
         return result
@@ -445,7 +482,7 @@ class MetadataProvider(object):
             'field_name': datum.field,
             'type': datum.type,
             'value': datum.value,
-            'tags': datum.tags,
+            'tags': list(set(datum.tags)) if datum.tags else [],
             'user_name': user,
             'ts_epoch': int(round(time.time() * 1000))} for datum in metadata]
 
@@ -462,12 +499,9 @@ class MetadataProvider(object):
             tags.append('metaflow_r_version:' + env['metaflow_r_version'])
         if 'r_version_code' in env:
             tags.append('r_version:' + env['r_version_code'])
-        if 'project_name' in current:
-            tags.append('project:' + current.project_name)
-            tags.append('project_branch:' + current.branch_name)
         return tags
 
-    def _register_code_package_metadata(self, run_id, step_name, task_id):
+    def _register_code_package_metadata(self, run_id, step_name, task_id, attempt):
         metadata = []
         code_sha = os.environ.get('METAFLOW_CODE_SHA')
         code_url = os.environ.get('METAFLOW_CODE_URL')
@@ -477,7 +511,9 @@ class MetadataProvider(object):
                 field='code-package',
                 value=json.dumps({'ds_type': code_ds, 'sha': code_sha, 'location': code_url}),
                 type='code-package',
-                tags=[]))
+                tags=["attempt_id:{0}".format(attempt)]))
+        # We don't tag with attempt_id here because not readily available; this
+        # is ok though as this doesn't change from attempt to attempt.
         if metadata:
             self.register_metadata(run_id, step_name, task_id, metadata)
 
@@ -504,10 +540,43 @@ class MetadataProvider(object):
             result = []
         return starting_point
 
+    @staticmethod
+    def _reconstruct_metadata_for_attempt(all_metadata, attempt_id):
+        have_all_attempt_id = True
+        attempts_start = {}
+        post_filter = []
+        for v in all_metadata:
+            if v['field_name'] == 'attempt':
+                attempts_start[int(v['value'])] = v['ts_epoch']
+            all_tags = v.get('tags')
+            if all_tags is None:
+                all_tags = []
+            for t in all_tags:
+                match_result = attempt_id_re.match(t)
+                if match_result:
+                    if int(match_result.group(1)) == attempt_id:
+                        post_filter.append(v)
+                    break
+            else:
+                # We didn't encounter a match for attempt_id
+                have_all_attempt_id = False
+
+        if not have_all_attempt_id:
+            # We reconstruct base on the attempts_start
+            start_ts = attempts_start.get(attempt_id, -1)
+            if start_ts < 0:
+                return [] # No metadata since the attempt hasn't started
+            # Doubt we will be using Python in year 3000
+            end_ts = attempts_start.get(attempt_id + 1, 32503680000000)
+            post_filter = [v for v in all_metadata
+                if v['ts_epoch'] >= start_ts and v['ts_epoch'] < end_ts]
+
+        return post_filter
+
     def __init__(self, environment, flow, event_logger, monitor):
         self._task_id_seq = -1
-        self.sticky_tags = []
-        self.sticky_sys_tags = []
+        self.sticky_tags = set()
+        self.sticky_sys_tags = set()
         self._flow_name = flow.name
         self._event_logger = event_logger
         self._monitor = monitor

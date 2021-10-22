@@ -11,6 +11,8 @@ from tempfile import NamedTemporaryFile
 from multiprocessing import Process, Queue
 from itertools import starmap, chain, islice
 
+from boto3.s3.transfer import TransferConfig
+
 try:
     # python2
     from urlparse import urlparse
@@ -26,14 +28,17 @@ import click
 # PYTHONPATH for the parent Metaflow explicitly.
 sys.path.insert(0,\
     os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+
 # we use Metaflow's parallel_imap_unordered instead of
 # multiprocessing.Pool because https://bugs.python.org/issue31886
 from metaflow.util import TempDir, url_quote, url_unquote
 from metaflow.multicore_utils import parallel_map
-from metaflow.datastore.util.s3util import aws_retry
+from metaflow.datatools.s3util import aws_retry, read_in_chunks
 
 NUM_WORKERS_DEFAULT = 64
 
+DOWNLOAD_FILE_THRESHOLD = 2 * TransferConfig().multipart_threshold
+DOWNLOAD_MAX_CHUNK = 2 * 1024 * 1024 * 1024 - 1
 class S3Url(object):
     def __init__(self,
         bucket, path, url, local, prefix,
@@ -74,6 +79,8 @@ def normalize_client_error(err):
     except ValueError:
         if error_code == 'AccessDenied':
             return 403
+        if error_code == 'NoSuchKey':
+            return 404
     return error_code
 
 # S3 worker pool
@@ -111,7 +118,7 @@ def worker(result_file_name, queue, mode):
 
     with open(result_file_name, 'w') as result_file:
         try:
-            from metaflow.datastore.util.s3util import get_s3_client
+            from metaflow.datatools.s3util import get_s3_client
             s3, client_error = get_s3_client()
             while True:
                 url, idx = queue.get()
@@ -125,65 +132,53 @@ def worker(result_file_name, queue, mode):
                     with open(url.local, 'w') as f:
                         json.dump(result, f)
                 elif mode == 'download':
-                    result_info = None
-                    is_missing = False
-                    if pre_op_info:
-                        result_info = op_info(url)
-                        if result_info['error'] == ERROR_URL_NOT_FOUND:
-                            is_missing = True
-                            result_file.write("%d %d\n" % (idx, -ERROR_URL_NOT_FOUND))
-                        elif result_info['error'] == ERROR_URL_ACCESS_DENIED:
-                            is_missing = True
-                            result_file.write("%d %d\n" % (idx, -ERROR_URL_ACCESS_DENIED))
-                        elif result_info['error'] is not None:
-                            raise result_info['raise_error']
-                    if is_missing:
-                        continue
-                    tmp = NamedTemporaryFile(dir='.', delete=False)
+                    tmp = NamedTemporaryFile(dir='.', mode='wb', delete=False)
                     try:
-                        if url.range is None:
-                            s3.download_file(url.bucket, url.path, tmp.name)
-                        else:
-                            # We do get_object. We don't actually do any retries
-                            # here because the higher levels will do the retry if
-                            # needed
+                        if url.range:
                             resp = s3.get_object(
                                 Bucket=url.bucket,
                                 Key=url.path,
                                 Range=url.range)
-                            code = str(resp['ResponseMetadata']['HTTPStatusCode'])
-                            if code[0] == '2':
-                                tmp.write(resp['Body'].read())
-                            else:
-                                # TODO: Better raised error
-                                raise RuntimeError("Could not load file")
+                        else:
+                            resp = s3.get_object(
+                                Bucket=url.bucket,
+                                Key=url.path)
+                        sz = resp['ContentLength']
+                        if not url.range and sz > DOWNLOAD_FILE_THRESHOLD:
+                            # In this case, it is more efficient to use download_file as it
+                            # will download multiple parts in parallel (it does it after
+                            # multipart_threshold)
+                            s3.download_file(url.bucket, url.path, tmp.name)
+                        else:
+                            read_in_chunks(tmp, resp['Body'], sz, DOWNLOAD_MAX_CHUNK)
                         tmp.close()
                         os.rename(tmp.name, url.local)
                     except client_error as err:
-                        error_code = normalize_client_error(err)
-                        if error_code == 404:
-                            pass # We skip this
-                        else:
-                            raise
-                    except:
-                        # TODO specific error message for out of disk space
                         tmp.close()
                         os.unlink(tmp.name)
-                        raise
-                    # If we have metadata that we retrieved, we also write it out
-                    # to a file
-                    if result_info:
+                        error_code = normalize_client_error(err)
+                        if error_code == 404:
+                            result_file.write("%d %d\n" % (idx, -ERROR_URL_NOT_FOUND))
+                            continue
+                        elif error_code == 403:
+                            result_file.write("%d %d\n" % (idx, -ERROR_URL_ACCESS_DENIED))
+                            continue
+                        else:
+                            raise
+                        # TODO specific error message for out of disk space
+                    # If we need the metadata, get it and write it out
+                    if pre_op_info:
                         with open('%s_meta' % url.local, mode='w') as f:
-                            args = {'size': result_info['size']}
-                            if result_info['content_type']:
-                                args['content_type'] = result_info['content_type']
-                            if result_info['metadata'] is not None:
-                                args['metadata'] = result_info['metadata']
+                            args = {'size': resp['ContentLength']}
+                            if resp['ContentType']:
+                                args['content_type'] = resp['ContentType']
+                            if resp['Metadata'] is not None:
+                                args['metadata'] = resp['Metadata']
                             json.dump(args, f)
                         # Finally, we push out the size to the result_pipe since
                         # the size is used for verification and other purposes and
                         # we want to avoid file operations for this simple process
-                        result_file.write("%d %d\n" % (idx, result_info['size']))
+                        result_file.write("%d %d\n" % (idx, resp['ContentLength']))
                 else:
                     # This is upload, if we have a pre_op, it means we do not
                     # want to overwrite
@@ -303,7 +298,7 @@ class S3Ops(object):
         self.client_error = None
 
     def reset_client(self, hard_reset=False):
-        from metaflow.datastore.util.s3util import get_s3_client
+        from metaflow.datatools.s3util import get_s3_client
         if hard_reset or self.s3 is None:
             self.s3, self.client_error = get_s3_client()
 

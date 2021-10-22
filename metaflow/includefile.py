@@ -12,7 +12,7 @@ from shutil import move
 import click
 
 from . import parameters
-from .datastore.datastore import TransformableObject
+from .current import current
 from .exception import MetaflowException
 from .metaflow_config import DATATOOLS_LOCALROOT, DATATOOLS_SUFFIX
 from .parameters import DeployTimeField, Parameter
@@ -103,8 +103,8 @@ class Local(object):
     def get_root_from_config(cls, echo, create_on_absent=True):
         result = DATATOOLS_LOCALROOT
         if result is None:
-            from .datastore.local import LocalDataStore
-            result = LocalDataStore.get_datastore_root_from_config(echo, create_on_absent)
+            from .datastore.local_storage import LocalStorage
+            result = LocalStorage.get_datastore_root_from_config(echo, create_on_absent)
             result = os.path.join(result, DATATOOLS_SUFFIX)
             if create_on_absent and not os.path.exists(result):
                 os.mkdir(result)
@@ -165,27 +165,6 @@ from .datatools import S3
 DATACLIENTS = {'local': Local,
                's3': S3}
 
-class IncludedFile(object):
-    # Thin wrapper to indicate to the MF client that this object is special
-    # and should be handled as an IncludedFile when returning it (ie: fetching
-    # the actual content)
-
-    def __init__(self, descriptor):
-        self._descriptor = json.dumps(descriptor)
-
-    @property
-    def descriptor(self):
-        return self._descriptor
-
-    def decode(self, name, var_type='Artifact'):
-        ok, file_type, err = LocalFile.is_file_handled(self._descriptor)
-        if not ok:
-            raise MetaflowException("%s '%s' could not be loaded: %s" % (var_type, name, err))
-        if file_type is None or isinstance(file_type, LocalFile):
-            raise MetaflowException("%s '%s' was not properly converted" % (var_type, name))
-        return file_type.load(self._descriptor)
-
-
 class LocalFile():
     def __init__(self, is_text, encoding, path):
         self._is_text = is_text
@@ -194,16 +173,7 @@ class LocalFile():
 
     @classmethod
     def is_file_handled(cls, path):
-        # This returns a tuple:
-        #  - True/False indicating whether the file is handled
-        #  - None if we need to create a handler for the file, a LocalFile if
-        #    we already know what to do with the file or a Uploader if the file
-        #    is already present remotely (either starting with s3:// or local://)
-        #  - An error message if file is not handled
         if path:
-            if isinstance(path, IncludedFile):
-                path = path.descriptor
-
             decoded_value = Uploader.decode_value(to_unicode(path))
             if decoded_value['type'] == 'self':
                 return True, LocalFile(
@@ -325,10 +295,15 @@ class IncludeFile(Parameter):
             name, required=required, help=help,
             type=FilePathClass(is_text, encoding), **kwargs)
 
-    def load_parameter(self, v):
-        if v is None:
-            return v
-        return v.decode(self.name, var_type='Parameter')
+    def load_parameter(self, val):
+        if val is None:
+            return val
+        ok, file_type, err = LocalFile.is_file_handled(val)
+        if not ok:
+            raise MetaflowException("Parameter '%s' could not be loaded: %s" % (self.name, err))
+        if file_type is None or isinstance(file_type, LocalFile):
+            raise MetaflowException("Parameter '%s' was not properly converted" % self.name)
+        return file_type.load(val)
 
 
 class Uploader():
@@ -341,11 +316,11 @@ class Uploader():
     @staticmethod
     def encode_url(url_type, url, **kwargs):
         # Avoid encoding twice (default -> URL -> _convert method of FilePath for example)
-        if isinstance(url, IncludedFile):
+        if url is None or len(url) == 0 or url[0] == '{':
             return url
         return_value = {'type': url_type, 'url': url}
         return_value.update(kwargs)
-        return IncludedFile(return_value)
+        return json.dumps(return_value)
 
     @staticmethod
     def decode_value(value):
@@ -367,21 +342,20 @@ class Uploader():
         echo(
             'Including file %s of size %d%s %s' % (path, sz, unit[pos], extra))
         try:
-            cur_obj = TransformableObject(io.open(path, mode='rb').read())
+            input_file = io.open(path, mode='rb').read()
         except IOError:
             # If we get an error here, since we know that the file exists already,
             # it means that read failed which happens with Python 2.7 for large files
             raise MetaflowException('Cannot read file at %s -- this is likely because it is too '
                                     'large to be properly handled by Python 2.7' % path)
-        sha = sha1(cur_obj.current()).hexdigest()
+        sha = sha1(input_file).hexdigest()
         path = os.path.join(self._client_class.get_root_from_config(echo, True),
                             flow_name,
                             sha)
         buf = io.BytesIO()
         with gzip.GzipFile(
                 fileobj=buf, mode='wb', compresslevel=3) as f:
-            f.write(cur_obj.current())
-        cur_obj.transform(lambda _: buf)
+            f.write(input_file)
         buf.seek(0)
         with self._client_class() as client:
             url = client.put(path, buf.getvalue(), overwrite=False)
