@@ -740,7 +740,12 @@ class DataArtifact(MetaflowObject):
 
         ds_type = self._object['ds_type']
         location = self._object['location']
-        components = self.path_components
+        # Reconstruct components in case pathspec contains numerical IDs
+        # We need the "cannonical" representation which is returned by the
+        # metadata server
+        components = [self._object[x] for x in
+            ['flow_id', 'run_number', 'step_name', 'task_id', 'name']]
+
         if filecache is None:
             # TODO: Pass proper environment to properly extract artifacts
             filecache = FileCache()
@@ -776,8 +781,11 @@ class DataArtifact(MetaflowObject):
 
         ds_type = self._object['ds_type']
         location = self._object['location']
-        components = self.path_components
-
+        # Reconstruct components in case pathspec contains numerical IDs
+        # We need the "cannonical" representation which is returned by the
+        # metadata server
+        components = [self._object[x] for x in
+            ['flow_id', 'run_number', 'step_name', 'task_id', 'name']]
         if filecache is None:
             # TODO: Pass proper environment to properly extract artifacts
             filecache = FileCache()
@@ -1234,9 +1242,14 @@ class Task(MetaflowObject):
         if filecache is None:
             filecache = FileCache()
 
+        # Reconstruct components in case pathspec contains numerical IDs
+        # We need the "cannonical" representation which is returned by the
+        # metadata server
+        components = [self._object[x] for x in
+            ['flow_id', 'run_number', 'step_name', 'task_id']]
         attempt = self.current_attempt
         logs = filecache.get_logs_stream(
-            ds_type, ds_root, stream, attempt, *self.path_components)
+            ds_type, ds_root, stream, attempt, *components)
         for line in merge_logs([blob for _, blob in logs]):
             msg = to_unicode(line.msg) if as_unicode else line.msg
             yield line.utc_tstamp, msg
@@ -1248,11 +1261,16 @@ class Task(MetaflowObject):
         log_info = json.loads(log_location)
         location = log_info['location']
         ds_type = log_info['ds_type']
+        # Reconstruct components in case pathspec contains numerical IDs
+        # We need the "cannonical" representation which is returned by the
+        # metadata server
+        components = [self._object[x] for x in
+            ['flow_id', 'run_number', 'step_name', 'task_id']]
         attempt = log_info['attempt']
         if filecache is None:
             filecache = FileCache()
         ret_val = filecache.get_log_legacy(
-            ds_type, location, logtype, int(attempt), *self.path_components)
+            ds_type, location, logtype, int(attempt), *components)
         if as_unicode and (ret_val is not None):
             return ret_val.decode(encoding='utf8')
         else:
@@ -1264,12 +1282,17 @@ class Task(MetaflowObject):
         log_info = json.loads(log_location)
         location = log_info['location']
         ds_type = log_info['ds_type']
+        # Reconstruct components in case pathspec contains numerical IDs
+        # We need the "cannonical" representation which is returned by the
+        # metadata server
+        components = [self._object[x] for x in
+            ['flow_id', 'run_number', 'step_name', 'task_id']]
         attempt = log_info['attempt']
         if filecache is None:
             filecache = FileCache()
 
         return filecache.get_legacy_log_size(
-            ds_type, location, logtype, int(attempt), *self.path_components)
+            ds_type, location, logtype, int(attempt), *components)
 
     def _log_size(self, stream):
         global filecache
@@ -1280,10 +1303,15 @@ class Task(MetaflowObject):
             return 0
         if filecache is None:
             filecache = FileCache()
+        # Reconstruct components in case pathspec contains numerical IDs
+        # We need the "cannonical" representation which is returned by the
+        # metadata server
+        components = [self._object[x] for x in
+            ['flow_id', 'run_number', 'step_name', 'task_id']]
         attempt = self.current_attempt
 
         return filecache.get_log_size(
-            ds_type, ds_root, stream, attempt, *self.path_components)
+            ds_type, ds_root, stream, attempt, *components)
 
 
 
