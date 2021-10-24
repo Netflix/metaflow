@@ -743,7 +743,7 @@ class DataArtifact(MetaflowObject):
         # Reconstruct components in case pathspec contains numerical IDs
         # We need the "cannonical" representation which is returned by the
         # metadata server
-        components = [self._object[x] for x in
+        components = [str(self._object[x]) for x in
             ['flow_id', 'run_number', 'step_name', 'task_id', 'name']]
 
         if filecache is None:
@@ -784,7 +784,7 @@ class DataArtifact(MetaflowObject):
         # Reconstruct components in case pathspec contains numerical IDs
         # We need the "cannonical" representation which is returned by the
         # metadata server
-        components = [self._object[x] for x in
+        components = [str(self._object[x]) for x in
             ['flow_id', 'run_number', 'step_name', 'task_id', 'name']]
         if filecache is None:
             # TODO: Pass proper environment to properly extract artifacts
@@ -1245,7 +1245,7 @@ class Task(MetaflowObject):
         # Reconstruct components in case pathspec contains numerical IDs
         # We need the "cannonical" representation which is returned by the
         # metadata server
-        components = [self._object[x] for x in
+        components = [str(self._object[x]) for x in
             ['flow_id', 'run_number', 'step_name', 'task_id']]
         attempt = self.current_attempt
         logs = filecache.get_logs_stream(
@@ -1264,7 +1264,7 @@ class Task(MetaflowObject):
         # Reconstruct components in case pathspec contains numerical IDs
         # We need the "cannonical" representation which is returned by the
         # metadata server
-        components = [self._object[x] for x in
+        components = [str(self._object[x]) for x in
             ['flow_id', 'run_number', 'step_name', 'task_id']]
         attempt = log_info['attempt']
         if filecache is None:
@@ -1285,7 +1285,7 @@ class Task(MetaflowObject):
         # Reconstruct components in case pathspec contains numerical IDs
         # We need the "cannonical" representation which is returned by the
         # metadata server
-        components = [self._object[x] for x in
+        components = [str(self._object[x]) for x in
             ['flow_id', 'run_number', 'step_name', 'task_id']]
         attempt = log_info['attempt']
         if filecache is None:
@@ -1306,7 +1306,7 @@ class Task(MetaflowObject):
         # Reconstruct components in case pathspec contains numerical IDs
         # We need the "cannonical" representation which is returned by the
         # metadata server
-        components = [self._object[x] for x in
+        components = [str(self._object[x]) for x in
             ['flow_id', 'run_number', 'step_name', 'task_id']]
         attempt = self.current_attempt
 
