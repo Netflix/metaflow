@@ -2,7 +2,7 @@ class MetaflowCard(object):
     type = None
 
     scope = 'task' # can be task | run 
-    def __init__(self,options={},components=[]):
+    def __init__(self,options={},components=[],graph=None):
         pass
     
     def _get_mustache(self):

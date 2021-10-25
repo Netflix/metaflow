@@ -18,6 +18,17 @@ from .exception import CardClassFoundException,\
                         IdNotFoundException,\
                         TypeRequiredException
 
+def serialize_flowgraph(flowgraph):
+    graph_dict = {}
+    for node in flowgraph.nodes.values():
+        for edge in node.out_funcs:
+            if node.name not in graph_dict:
+                graph_dict[node.name] = [edge]
+            else:
+                graph_dict[node.name].append(edge)
+    return graph_dict
+    
+
 def open_in_browser(card_path):
     url = 'file://' + os.path.abspath(card_path)
     webbrowser.open(url)
@@ -259,7 +270,7 @@ def create(ctx,pathspec,type=None,id=None,index=None,options=None,timeout=None,c
     runid,step_name,task_id = pathspec.split('/')
     flowname = ctx.obj.flow.name
     full_pathspec = '/'.join([flowname,runid,step_name,task_id])
-    
+    graph_dict = serialize_flowgraph(ctx.obj.graph)
     # Components are rendered in a MetaflowStep are added here. 
     component_arr = []
     if component_file is not None:
@@ -283,7 +294,7 @@ def create(ctx,pathspec,type=None,id=None,index=None,options=None,timeout=None,c
     ctx.obj.echo("Creating new card of type %s With timeout %s" % (filtered_card.type,timeout), fg='green')
     # save card to datastore
     try:
-        mf_card = filtered_card(options=options,components=component_arr)
+        mf_card = filtered_card(options=options,components=component_arr,graph=graph_dict)
     except TypeError as e:
         raise IncorrectCardArgsException(type,options)
     
