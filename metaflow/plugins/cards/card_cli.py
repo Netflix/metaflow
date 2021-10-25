@@ -20,12 +20,14 @@ from .exception import CardClassFoundException,\
 
 def serialize_flowgraph(flowgraph):
     graph_dict = {}
-    for node in flowgraph.nodes.values():
-        for edge in node.out_funcs:
-            if node.name not in graph_dict:
-                graph_dict[node.name] = [edge]
-            else:
-                graph_dict[node.name].append(edge)
+    for node in flowgraph:
+        graph_dict[node.name] = {
+            'type': node.type,
+            'box_next': node.type not in ('linear', 'join'),
+            'box_ends': node.matching_join,
+            'next': node.out_funcs,
+            'doc': node.doc
+        }
     return graph_dict
     
 
