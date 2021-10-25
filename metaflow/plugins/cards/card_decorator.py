@@ -92,13 +92,19 @@ class CardDecorator(StepDecorator):
             RaisingError = json.decoder.JSONDecodeError
         except AttributeError:  # Python 2
             RaisingError = ValueError
+        
+        self.card_options = None
             
         if type(self.attributes['options']) is str:
+            # print("found attributed",self.attributes['options'],type(self.attributes['options']))
             try:
-                self.attributes['options'] = json.loads(self.attributes['options'])
+                self.card_options = json.loads(self.attributes['options'])
             except RaisingError:
+                print('error loading attr')
                 # Setting Options from defaults
-                self.attributes['options'] = self.defaults['options']
+                self.card_options = self.defaults['options']
+        else:
+            self.card_options = self.attributes['options']
                 
         self._flow_datastore = flow_datastore
         self._environment = environment
@@ -182,8 +188,8 @@ class CardDecorator(StepDecorator):
         ]
         if temp_file is not None:
             cmd+= ['--component-file',temp_file.name]
-        if self.attributes['options'] is not None and len(self.attributes['options']) > 0:
-            cmd+= ['--options',json.dumps(self.attributes['options'])]
+        if self.card_options is not None and len(self.card_options) > 0:
+            cmd+= ['--options',json.dumps(self.card_options)]
         # set the id argument. 
         if self.attributes['id'] is not None and self.attributes['id'] != "":
             id_args = ["--id",self.attributes['id']]
