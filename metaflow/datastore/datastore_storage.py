@@ -91,8 +91,8 @@ class DataStoreStorage(object):
         m = cls.path_rexp.match(path)
         if not m or m.group('flow_name') != flow_name:
             raise DataException(
-                "Location %s does not correspond to a valid location for "
-                "flow %s." % (path, flow_name))
+                "Location '%s' does not correspond to a valid location for "
+                "flow '%s'." % (path, flow_name))
         return m.group('root')
 
     @classmethod
