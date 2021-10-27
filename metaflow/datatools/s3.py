@@ -22,6 +22,7 @@ from ..util import namedtuple_with_defaults,\
 from ..exception import MetaflowException
 from ..debug import debug
 
+import io
 try:
     # python2
     from urlparse import urlparse
@@ -39,6 +40,7 @@ try:
     boto_found = True
 except:
     boto_found = False
+
 
 def ensure_unicode(x):
     return None if x is None else to_unicode(x)
@@ -588,6 +590,40 @@ class S3(object):
                 content_type=addl_info['content_type'],
                 metadata=addl_info['metadata'])
         return S3Object(self._s3root, url, path)
+
+    def get_data(self, key=None):
+        """
+        Get a single object's data from S3. This works without creating temporary
+        files on local disk.
+        Args:
+            key: (optional) a suffix identifying the object. Can also be
+                 an object containing the properties `key`, `offset` and
+                 `length` to specify a range query. `S3GetObject` is such an object.
+        Returns:
+            byte array of the contents
+        """
+        url, r = self._url_and_range(key)
+        src = urlparse(url)
+
+        def _download(s3, tmp):
+            if r:
+                resp = s3.get_object(
+                    Bucket=src.netloc,
+                    Key=src.path.lstrip('/'),
+                    Range=r)
+            else:
+                resp = s3.get_object(
+                    Bucket=src.netloc,
+                    Key=src.path.lstrip('/'))
+            sz = resp['ContentLength']
+            with io.BytesIO() as buf:
+                read_in_chunks(buf, resp['Body'], sz, DOWNLOAD_MAX_CHUNK)
+                return buf.getvalue()
+        try:
+            _, data = self._one_boto_op(_download, url, create_tmp_file=False)
+        except MetaflowS3NotFound:
+            raise
+        return data
 
     def get_many(self, keys, return_missing=False, return_info=True):
         """
