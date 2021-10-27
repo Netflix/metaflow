@@ -972,7 +972,7 @@ class Task(MetaflowObject):
             Container of all DataArtifacts produced by this task
         """
         arts = list(self)
-        obj = namedtuple('MetaflowArtifacts', [art.id for art in self])
+        obj = namedtuple('MetaflowArtifacts', [art.id for art in arts])
         return obj._make(arts)
 
     @property
