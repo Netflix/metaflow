@@ -8,7 +8,8 @@ from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import DATASTORE_SYSROOT_S3
 from metaflow.metaflow_config import DEFAULT_METADATA, METADATA_SERVICE_URL, METADATA_SERVICE_HEADERS
 from metaflow.parameters import deploy_time_eval
-from metaflow.plugins import ResourcesDecorator, RetryDecorator, CatchDecorator
+from metaflow.plugins import ResourcesDecorator, RetryDecorator, CatchDecorator, TimeoutDecorator
+from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.plugins.environment_decorator import EnvironmentDecorator
 from metaflow.util import get_username, compress_list
 from metaflow.mflog import export_mflog_env_vars, bash_capture_logs, BASH_SAVE_LOGS
@@ -48,7 +49,8 @@ class ArgoWorkflow:
                  labels,
                  annotations,
                  max_workers,
-                 volumes):
+                 volumes,
+                 workflow_timeout):
         self.name = name
         self.flow = flow
         self.graph = graph
@@ -77,6 +79,7 @@ class ArgoWorkflow:
             }
         }
         self.max_workers = max_workers
+        self.workflow_timeout = workflow_timeout
         self._flow_attributes = self._parse_flow_decorator()
         self._workflow = remove_empty_elements(self._compile())
         self._cron = self._cron()
@@ -197,6 +200,7 @@ class ArgoWorkflow:
             'spec': {
                 'entrypoint': ENTRYPOINT,
                 'workflowMetadata': self.attributes,
+                'activeDeadlineSeconds': self.workflow_timeout,
                 'arguments': {
                     'parameters': self.parameters,
                 },
@@ -427,6 +431,7 @@ class ArgoWorkflow:
         res_decorator = parse_step_decorator(node, ResourcesDecorator)
         retry_decorator = parse_step_decorator(node, RetryDecorator)
         catch_decorator = parse_step_decorator(node, CatchDecorator)
+        timeout_decorator = parse_step_decorator(node, TimeoutDecorator)
 
         image = self._default_image()
         if attr.get('image'):
@@ -456,6 +461,7 @@ class ArgoWorkflow:
         template = {
             'name': dns_name(node.name),
             'metadata': metadata,
+            'activeDeadlineSeconds': get_run_time_limit_for_task(node.decorators),
             'inputs': {
                 'parameters': [{
                     'name': 'input-paths'

@@ -86,6 +86,10 @@ def argo(obj,
               type=int,
               show_default=True,
               help="Maximum number of parallel pods.")
+@click.option('--workflow-timeout',
+              default=None,
+              type=int,
+              help="Workflow timeout in seconds.")
 @click.option('--only-json',
               is_flag=True,
               default=False,
@@ -103,6 +107,7 @@ def create(obj,
            embedded,
            max_workers,
            volumes,
+           workflow_timeout=None,
            only_json=False):
     obj.echo("Deploying *%s* to Argo Workflow Templates..." % obj.workflow_template_name,
              bold=True)
@@ -141,7 +146,8 @@ def create(obj,
                             labels,
                             annotations,
                             max_workers,
-                            volumes)
+                            volumes,
+                            workflow_timeout)
 
     if only_json:
         obj.echo_always(workflow.to_json(), err=False, no_bold=True, nl=False)
