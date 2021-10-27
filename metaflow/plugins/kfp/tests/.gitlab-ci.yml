@@ -33,12 +33,17 @@ stages:
   # Extract the open source Metaflow version as the basis for our forked library version.
   METAFLOW_VERSION=$(cat $METAFLOW_VERSION_PATH | sed -nr "s/^version = ['\"]([^'\"]*)['\"]$/\1/p")
 
-  if [ "${CI_COMMIT_BRANCH}" = "${CI_DEFAULT_BRANCH}" ]; then
-    PY_LIBRARY_VERSION="${MAJOR_VERSION}.${MINOR_VERSION}.${CI_PIPELINE_IID}.${METAFLOW_VERSION}"
+  PY_LIBRARY_VERSION="${MAJOR_VERSION}.${MINOR_VERSION}.${CI_PIPELINE_IID}"
+  if [ "${CI_COMMIT_BRANCH}" != "${CI_DEFAULT_BRANCH}" ]; then
+    PY_LIBRARY_VERSION="${PY_LIBRARY_VERSION}-dev.${CI_PIPELINE_IID}"
+    # Ensure the image tag is compliant with PEP-440,
+    IMAGE_TAG="${PY_LIBRARY_VERSION}.dev${CI_PIPELINE_IID}"
   else
-    PY_LIBRARY_VERSION="0.0.${CI_PIPELINE_IID}.${METAFLOW_VERSION}"
+    IMAGE_TAG="${PY_LIBRARY_VERSION}"
   fi
-  IMAGE_TAG="${PY_LIBRARY_VERSION}"
+  # Only apply the Metaflow version to the python library as Docker versions do not have the concept of
+  # build metadata and the "+" character causes errors.
+  PY_LIBRARY_VERSION="${PY_LIBRARY_VERSION}+${METAFLOW_VERSION}"
 
 .test:
   extends: .generate_kubeconfig
