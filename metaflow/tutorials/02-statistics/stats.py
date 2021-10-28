@@ -25,9 +25,12 @@ class MovieStatsFlow(FlowSpec):
     4) Save a dictionary of genre specific statistics.
 
     """
-    movie_data = IncludeFile("movie_data",
-                             help="The path to a movie metadata file.",
-                             default=script_path('movies.csv'))
+
+    movie_data = IncludeFile(
+        "movie_data",
+        help="The path to a movie metadata file.",
+        default=script_path("movies.csv"),
+    )
 
     @step
     def start(self):
@@ -46,15 +49,15 @@ class MovieStatsFlow(FlowSpec):
 
         # The column 'genres' has a list of genres for each movie. Let's get
         # all the unique genres.
-        self.genres = {genre for genres \
-                       in self.dataframe['genres'] \
-                       for genre in genres.split('|')}
+        self.genres = {
+            genre for genres in self.dataframe["genres"] for genre in genres.split("|")
+        }
         self.genres = list(self.genres)
 
         # We want to compute some statistics for each genre. The 'foreach'
         # keyword argument allows us to compute the statistics for each genre in
         # parallel (i.e. a fan-out).
-        self.next(self.compute_statistics, foreach='genres')
+        self.next(self.compute_statistics, foreach="genres")
 
     @step
     def compute_statistics(self):
@@ -69,14 +72,13 @@ class MovieStatsFlow(FlowSpec):
 
         # Find all the movies that have this genre and build a dataframe with
         # just those movies and just the columns of interest.
-        selector = self.dataframe['genres'].\
-                   apply(lambda row: self.genre in row)
+        selector = self.dataframe["genres"].apply(lambda row: self.genre in row)
         self.dataframe = self.dataframe[selector]
-        self.dataframe = self.dataframe[['movie_title', 'genres', 'gross']]
+        self.dataframe = self.dataframe[["movie_title", "genres", "gross"]]
 
         # Get some statistics on the gross box office for these titles.
-        points = [.25, .5, .75]
-        self.quartiles = self.dataframe['gross'].quantile(points).values
+        points = [0.25, 0.5, 0.75]
+        self.quartiles = self.dataframe["gross"].quantile(points).values
 
         # Join the results from other genres.
         self.next(self.join)
@@ -88,10 +90,10 @@ class MovieStatsFlow(FlowSpec):
 
         """
         # Merge results from the genre specific computations.
-        self.genre_stats = {inp.genre.lower(): \
-                            {'quartiles': inp.quartiles,
-                             'dataframe': inp.dataframe} \
-                            for inp in inputs}
+        self.genre_stats = {
+            inp.genre.lower(): {"quartiles": inp.quartiles, "dataframe": inp.dataframe}
+            for inp in inputs
+        }
 
         self.next(self.end)
 
@@ -104,5 +106,5 @@ class MovieStatsFlow(FlowSpec):
         pass
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     MovieStatsFlow()

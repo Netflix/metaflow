@@ -15,14 +15,16 @@ class PlayListFlow(FlowSpec):
     3) Join the two to create a movie playlist and display it.
 
     """
-    genre = Parameter('genre',
-                      help="Filter movies for a particular genre.",
-                      default='Sci-Fi')
 
-    recommendations = Parameter('recommendations',
-                                help="The number of movies recommended for "
-                                "the playlist.",
-                                default=5)
+    genre = Parameter(
+        "genre", help="Filter movies for a particular genre.", default="Sci-Fi"
+    )
+
+    recommendations = Parameter(
+        "recommendations",
+        help="The number of movies recommended for " "the playlist.",
+        default=5,
+    )
 
     @step
     def start(self):
@@ -37,7 +39,7 @@ class PlayListFlow(FlowSpec):
         print("Using metadata provider: %s" % get_metadata())
 
         # Load the analysis from the MovieStatsFlow.
-        run = Flow('MovieStatsFlow').latest_successful_run
+        run = Flow("MovieStatsFlow").latest_successful_run
         print("Using analysis from '%s'" % str(run))
 
         self.genre_stats = run.data.genre_stats
@@ -55,12 +57,15 @@ class PlayListFlow(FlowSpec):
 
         # Concatenate all the genre specific data frames and choose a random
         # movie.
-        df = pandas.concat([data['dataframe'] \
-                            for genre, data in self.genre_stats.items() \
-                            if genre != self.genre.lower()])
+        df = pandas.concat(
+            [
+                data["dataframe"]
+                for genre, data in self.genre_stats.items()
+                if genre != self.genre.lower()
+            ]
+        )
         df = df.sample(n=1)
-        self.bonus = (df['movie_title'].values[0],
-                      df['genres'].values[0])
+        self.bonus = (df["movie_title"].values[0], df["genres"].values[0])
 
         self.next(self.join)
 
@@ -79,10 +84,10 @@ class PlayListFlow(FlowSpec):
             self.movies = []
 
         else:
-            df = self.genre_stats[genre]['dataframe']
-            quartiles = self.genre_stats[genre]['quartiles']
-            selector = df['gross'] >= quartiles[-1]
-            self.movies = list(df[selector]['movie_title'])
+            df = self.genre_stats[genre]["dataframe"]
+            quartiles = self.genre_stats[genre]["quartiles"]
+            selector = df["gross"] >= quartiles[-1]
+            self.movies = list(df[selector]["movie_title"])
 
         # Shuffle the playlist.
         shuffle(self.movies)
@@ -116,5 +121,5 @@ class PlayListFlow(FlowSpec):
         print("Bonus Pick: '%s' from '%s'" % (self.bonus[0], self.bonus[1]))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     PlayListFlow()

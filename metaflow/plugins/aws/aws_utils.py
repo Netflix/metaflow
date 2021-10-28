@@ -1,5 +1,6 @@
 import re
 
+
 def get_docker_registry(image_uri):
     """
     Explanation:

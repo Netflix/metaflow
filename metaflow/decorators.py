@@ -3,21 +3,27 @@ from functools import partial
 import re
 
 from .flowspec import FlowSpec
-from .exception import MetaflowInternalError, \
-    MetaflowException, InvalidDecoratorAttribute
+from .exception import (
+    MetaflowInternalError,
+    MetaflowException,
+    InvalidDecoratorAttribute,
+)
 
 import click
+
 
 class BadStepDecoratorException(MetaflowException):
     headline = "Syntax error"
 
     def __init__(self, deco, func):
-        msg =\
-            "You tried to apply decorator '{deco}' on '{func}' which is "\
-            "not declared as a @step. Make sure you apply this decorator "\
-            "on a function which has @step on the line just before the "\
-            "function name and @{deco} is above @step.".format(deco=deco,
-                                                               func=func.__name__)
+        msg = (
+            "You tried to apply decorator '{deco}' on '{func}' which is "
+            "not declared as a @step. Make sure you apply this decorator "
+            "on a function which has @step on the line just before the "
+            "function name and @{deco} is above @step.".format(
+                deco=deco, func=func.__name__
+            )
+        )
         super(BadStepDecoratorException, self).__init__(msg)
 
 
@@ -25,9 +31,10 @@ class BadFlowDecoratorException(MetaflowException):
     headline = "Syntax error"
 
     def __init__(self, deconame):
-        msg =\
-            "Decorator '%s' can be applied only to FlowSpecs. Make sure "\
+        msg = (
+            "Decorator '%s' can be applied only to FlowSpecs. Make sure "
             "the decorator is above a class definition." % deconame
+        )
         super(BadFlowDecoratorException, self).__init__(msg)
 
 
@@ -36,10 +43,14 @@ class UnknownStepDecoratorException(MetaflowException):
 
     def __init__(self, deconame):
         from .plugins import STEP_DECORATORS
-        decos = ', '.join(t.name for t in STEP_DECORATORS 
-                            if not t.name.endswith('_internal'))
-        msg = "Unknown step decorator *{deconame}*. The following decorators are "\
-              "supported: *{decos}*".format(deconame=deconame, decos=decos)
+
+        decos = ", ".join(
+            t.name for t in STEP_DECORATORS if not t.name.endswith("_internal")
+        )
+        msg = (
+            "Unknown step decorator *{deconame}*. The following decorators are "
+            "supported: *{decos}*".format(deconame=deconame, decos=decos)
+        )
         super(UnknownStepDecoratorException, self).__init__(msg)
 
 
@@ -47,9 +58,12 @@ class DuplicateStepDecoratorException(MetaflowException):
     headline = "Duplicate decorators"
 
     def __init__(self, deco, func):
-        msg = "Step '{step}' already has a decorator '{deco}'. "\
-              "You can specify each decorator only once."\
-              .format(step=func.__name__, deco=deco)
+        msg = (
+            "Step '{step}' already has a decorator '{deco}'. "
+            "You can specify each decorator only once.".format(
+                step=func.__name__, deco=deco
+            )
+        )
         super(DuplicateStepDecoratorException, self).__init__(msg)
 
 
@@ -58,9 +72,12 @@ class UnknownFlowDecoratorException(MetaflowException):
 
     def __init__(self, deconame):
         from .plugins import FLOW_DECORATORS
-        decos = ', '.join(t.name for t in FLOW_DECORATORS)
-        msg = "Unknown flow decorator *{deconame}*. The following decorators are "\
-              "supported: *{decos}*".format(deconame=deconame, decos=decos)
+
+        decos = ", ".join(t.name for t in FLOW_DECORATORS)
+        msg = (
+            "Unknown flow decorator *{deconame}*. The following decorators are "
+            "supported: *{decos}*".format(deconame=deconame, decos=decos)
+        )
         super(UnknownFlowDecoratorException, self).__init__(msg)
 
 
@@ -68,9 +85,10 @@ class DuplicateFlowDecoratorException(MetaflowException):
     headline = "Duplicate decorators"
 
     def __init__(self, deco):
-        msg = "Flow already has a decorator '{deco}'. "\
-              "You can specify each decorator only once."\
-              .format(deco=deco)
+        msg = (
+            "Flow already has a decorator '{deco}'. "
+            "You can specify each decorator only once.".format(deco=deco)
+        )
         super(DuplicateFlowDecoratorException, self).__init__(msg)
 
 
@@ -79,12 +97,10 @@ class Decorator(object):
     Base class for all decorators.
     """
 
-    name = 'NONAME'
+    name = "NONAME"
     defaults = {}
 
-    def __init__(self,
-                 attributes=None,
-                 statically_defined=False):
+    def __init__(self, attributes=None, statically_defined=False):
         self.attributes = self.defaults.copy()
         self.statically_defined = statically_defined
 
@@ -93,34 +109,35 @@ class Decorator(object):
                 if k in self.defaults:
                     self.attributes[k] = v
                 else:
-                    raise InvalidDecoratorAttribute(
-                        self.name, k, self.defaults)
+                    raise InvalidDecoratorAttribute(self.name, k, self.defaults)
 
     @classmethod
     def _parse_decorator_spec(cls, deco_spec):
-        top = deco_spec.split(':', 1)
+        top = deco_spec.split(":", 1)
         if len(top) == 1:
             return cls()
         else:
             name, attrspec = top
-            attrs = dict(map(lambda x: x.strip(), a.split('=')) 
-                for a in re.split(''',(?=[\s\w]+=)''', attrspec.strip('"\'')))
+            attrs = dict(
+                map(lambda x: x.strip(), a.split("="))
+                for a in re.split(""",(?=[\s\w]+=)""", attrspec.strip("\"'"))
+            )
             return cls(attributes=attrs)
 
     def make_decorator_spec(self):
         attrs = {k: v for k, v in self.attributes.items() if v is not None}
         if attrs:
-            attrstr = ','.join('%s=%s' % x for x in attrs.items())
-            return '%s:%s' % (self.name, attrstr)
+            attrstr = ",".join("%s=%s" % x for x in attrs.items())
+            return "%s:%s" % (self.name, attrstr)
         else:
             return self.name
 
     def __str__(self):
-        mode = 'decorated' if self.statically_defined else 'cli'
-        attrs = ' '.join('%s=%s' % x for x in self.attributes.items())
+        mode = "decorated" if self.statically_defined else "cli"
+        attrs = " ".join("%s=%s" % x for x in self.attributes.items())
         if attrs:
-            attrs = ' ' + attrs
-        fmt = '%s<%s%s>' % (self.name, mode, attrs)
+            attrs = " " + attrs
+        fmt = "%s<%s%s>" % (self.name, mode, attrs)
         return fmt
 
 
@@ -135,15 +152,9 @@ class FlowDecorator(Decorator):
         self._flow_decorators.append(self)
         super(FlowDecorator, self).__init__(*args, **kwargs)
 
-    def flow_init(self,
-                  flow,
-                  graph,
-                  environment,
-                  flow_datastore,
-                  metadata,
-                  logger,
-                  echo,
-                  options):
+    def flow_init(
+        self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
+    ):
         """
         Called when all decorators have been created for this flow.
         """
@@ -167,19 +178,22 @@ def add_decorator_options(cmd):
     for deco in flow_decorators():
         for option, kwargs in deco.options.items():
             if option in seen:
-                msg = "Flow decorator '%s' uses an option '%s' which is also "\
-                      "used by the decorator '%s'. This is a bug in Metaflow. "\
-                      "Please file a ticket on GitHub."\
-                      % (deco.name, option, seen[option])
+                msg = (
+                    "Flow decorator '%s' uses an option '%s' which is also "
+                    "used by the decorator '%s'. This is a bug in Metaflow. "
+                    "Please file a ticket on GitHub."
+                    % (deco.name, option, seen[option])
+                )
                 raise MetaflowInternalError(msg)
             else:
                 seen[option] = deco.name
-                cmd.params.insert(0, click.Option(('--' + option,), **kwargs))
+                cmd.params.insert(0, click.Option(("--" + option,), **kwargs))
     return cmd
 
 
 def flow_decorators():
     return FlowDecorator._flow_decorators
+
 
 class StepDecorator(Decorator):
     """
@@ -207,11 +221,13 @@ class StepDecorator(Decorator):
     state easily.
 
     TODO (savin): Initialize the decorators with flow, graph,
-                  step.__name__ etc., so that we don't have to 
-                  pass them around with every lifecycle call. 
+                  step.__name__ etc., so that we don't have to
+                  pass them around with every lifecycle call.
     """
 
-    def step_init(self, flow, graph, step_name, decorators, environment, flow_datastore, logger):
+    def step_init(
+        self, flow, graph, step_name, decorators, environment, flow_datastore, logger
+    ):
         """
         Called when all decorators have been created for this step
         """
@@ -230,8 +246,8 @@ class StepDecorator(Decorator):
         are attempts to run the process after the user code has failed all
         its retries.
 
-        Typically, the runtime takes the maximum of retry counts across 
-        decorators and user specification to determine the task retry count. 
+        Typically, the runtime takes the maximum of retry counts across
+        decorators and user specification to determine the task retry count.
         If you want to force no retries, return the special values (None, None).
         """
         return 0, 0
@@ -243,13 +259,9 @@ class StepDecorator(Decorator):
         """
         pass
 
-    def runtime_task_created(self,
-                             task_datastore,
-                             task_id,
-                             split_index,
-                             input_paths,
-                             is_cloned,
-                             ubf_context):
+    def runtime_task_created(
+        self, task_datastore, task_id, split_index, input_paths, is_cloned, ubf_context
+    ):
         """
         Called when the runtime has created a task related to this step.
         """
@@ -261,61 +273,50 @@ class StepDecorator(Decorator):
         """
         pass
 
-    def runtime_step_cli(self,
-                         cli_args,
-                         retry_count,
-                         max_user_code_retries,
-                         ubf_context):
+    def runtime_step_cli(
+        self, cli_args, retry_count, max_user_code_retries, ubf_context
+    ):
         """
         Access the command line for a step execution in the runtime context.
         """
         pass
 
-    def task_pre_step(self,
-                      step_name,
-                      task_datastore,
-                      metadata,
-                      run_id,
-                      task_id,
-                      flow,
-                      graph,
-                      retry_count,
-                      max_user_code_retries,
-                      ubf_context,
-                      inputs):
+    def task_pre_step(
+        self,
+        step_name,
+        task_datastore,
+        metadata,
+        run_id,
+        task_id,
+        flow,
+        graph,
+        retry_count,
+        max_user_code_retries,
+        ubf_context,
+        inputs,
+    ):
         """
         Run before the step function in the task context.
         """
         pass
 
-    def task_decorate(self,
-                      step_func,
-                      flow,
-                      graph,
-                      retry_count,
-                      max_user_code_retries,
-                      ubf_context):
+    def task_decorate(
+        self, step_func, flow, graph, retry_count, max_user_code_retries, ubf_context
+    ):
         return step_func
 
-    def task_post_step(self,
-                       step_name,
-                       flow,
-                       graph,
-                       retry_count,
-                       max_user_code_retries):
+    def task_post_step(
+        self, step_name, flow, graph, retry_count, max_user_code_retries
+    ):
         """
         Run after the step function has finished successfully in the task
         context.
         """
         pass
 
-    def task_exception(self,
-                       exception,
-                       step_name,
-                       flow,
-                       graph,
-                       retry_count,
-                       max_user_code_retries):
+    def task_exception(
+        self, exception, step_name, flow, graph, retry_count, max_user_code_retries
+    ):
         """
         Run if the step function raised an exception in the task context.
 
@@ -324,13 +325,9 @@ class StepDecorator(Decorator):
         """
         pass
 
-    def task_finished(self,
-                      step_name,
-                      flow,
-                      graph,
-                      is_task_ok,
-                      retry_count,
-                      max_user_code_retries):
+    def task_finished(
+        self, step_name, flow, graph, is_task_ok, retry_count, max_user_code_retries
+    ):
         """
         Run after the task context has been finalized.
 
@@ -362,8 +359,9 @@ def _base_flow_decorator(decofunc, *args, **kwargs):
             if decofunc.name in cls._flow_decorators:
                 raise DuplicateFlowDecoratorException(decofunc.name)
             else:
-                cls._flow_decorators[decofunc.name] = decofunc(attributes=kwargs,
-                                                               statically_defined=True)
+                cls._flow_decorators[decofunc.name] = decofunc(
+                    attributes=kwargs, statically_defined=True
+                )
         else:
             raise BadFlowDecoratorException(decofunc.name)
         return cls
@@ -373,6 +371,7 @@ def _base_flow_decorator(decofunc, *args, **kwargs):
         # function to be decorated as the first argument.
         def wrap(f):
             return _base_flow_decorator(decofunc, f, **kwargs)
+
         return wrap
 
 
@@ -385,15 +384,14 @@ def _base_step_decorator(decotype, *args, **kwargs):
         # No keyword arguments specified for the decorator, e.g. @foobar.
         # The first argument is the function to be decorated.
         func = args[0]
-        if not hasattr(func, 'is_step'):
+        if not hasattr(func, "is_step"):
             raise BadStepDecoratorException(decotype.name, func)
 
         # Only the first decorator applies
         if decotype.name in [deco.name for deco in func.decorators]:
             raise DuplicateStepDecoratorException(decotype.name, func)
         else:
-            func.decorators.append(decotype(attributes=kwargs,
-                                            statically_defined=True))
+            func.decorators.append(decotype(attributes=kwargs, statically_defined=True))
 
         return func
     else:
@@ -402,6 +400,7 @@ def _base_step_decorator(decotype, *args, **kwargs):
         # function to be decorated as the first argument.
         def wrap(f):
             return _base_step_decorator(decotype, f, **kwargs)
+
         return wrap
 
 
@@ -420,6 +419,7 @@ def _attach_decorators(flow, decospecs):
     for step in flow:
         _attach_decorators_to_step(step, decospecs)
 
+
 def _attach_decorators_to_step(step, decospecs):
     """
     Attach decorators to a step during runtime. This has the same
@@ -427,9 +427,10 @@ def _attach_decorators_to_step(step, decospecs):
     the step.
     """
     from .plugins import STEP_DECORATORS
+
     decos = {decotype.name: decotype for decotype in STEP_DECORATORS}
     for decospec in decospecs:
-        deconame = decospec.strip("'").split(':')[0]
+        deconame = decospec.strip("'").split(":")[0]
         if deconame not in decos:
             raise UnknownStepDecoratorException(deconame)
         # Attach the decorator to step if it doesn't have the decorator
@@ -439,25 +440,29 @@ def _attach_decorators_to_step(step, decospecs):
             deco = decos[deconame]._parse_decorator_spec(decospec)
             step.decorators.append(deco)
 
-def _init_flow_decorators(flow,
-                          graph,
-                          environment,
-                          flow_datastore,
-                          metadata,
-                          logger,
-                          echo,
-                          deco_options):
+
+def _init_flow_decorators(
+    flow, graph, environment, flow_datastore, metadata, logger, echo, deco_options
+):
     for deco in flow._flow_decorators.values():
         opts = {option: deco_options[option] for option in deco.options}
-        deco.flow_init(flow, graph, environment, 
-                       flow_datastore, metadata, logger, echo, opts)
+        deco.flow_init(
+            flow, graph, environment, flow_datastore, metadata, logger, echo, opts
+        )
 
 
 def _init_step_decorators(flow, graph, environment, flow_datastore, logger):
     for step in flow:
         for deco in step.decorators:
-            deco.step_init(flow, graph, step.__name__,
-                           step.decorators, environment, flow_datastore, logger)
+            deco.step_init(
+                flow,
+                graph,
+                step.__name__,
+                step.decorators,
+                environment,
+                flow_datastore,
+                logger,
+            )
 
 
 def step(f):
@@ -477,10 +482,11 @@ def step(f):
 
 def _import_plugin_decorators(globals_dict):
     """
-    Auto-generate a decorator function for every decorator 
+    Auto-generate a decorator function for every decorator
     defined in plugins.STEP_DECORATORS and plugins.FLOW_DECORATORS.
     """
     from .plugins import STEP_DECORATORS, FLOW_DECORATORS
+
     # Q: Why not use StepDecorators directly as decorators?
     # A: Getting an object behave as a decorator that can work
     #    both with and without arguments is surprisingly hard.

@@ -37,7 +37,7 @@ _types = [
     dict,
     defaultdict,
     OrderedDict,
-    datetime
+    datetime,
 ]
 
 _container_types = (list, tuple, set, frozenset, dict, defaultdict, OrderedDict)
@@ -56,7 +56,7 @@ else:
         bytes,
         unicode,  # noqa F821
         long,  # noqa F821
-        datetime
+        datetime,
     )
 
 _types_to_encoding = {x: idx for idx, x in enumerate(_types)}
@@ -103,7 +103,10 @@ def _load_none(obj_type, transferer, json_annotation, json_obj):
 
 @_register_dumper(_simple_types)
 def _dump_simple(obj_type, transferer, obj):
-    return (None, base64.b64encode(pickle.dumps(obj, protocol=defaultProtocol)).decode("utf-8"))
+    return (
+        None,
+        base64.b64encode(pickle.dumps(obj, protocol=defaultProtocol)).decode("utf-8"),
+    )
 
 
 @_register_loader(_simple_types)
@@ -216,8 +219,9 @@ class DataTransferer(object):
             # This is primarily used to transfer a reference to an object
             try:
                 json_obj = base64.b64encode(
-                    pickle.dumps(self._connection.pickle_object(obj),
-                                 protocol=defaultProtocol)
+                    pickle.dumps(
+                        self._connection.pickle_object(obj), protocol=defaultProtocol
+                    )
                 ).decode("utf-8")
             except ValueError as e:
                 raise RuntimeError("Unable to dump non base type: %s" % e)
@@ -233,8 +237,9 @@ class DataTransferer(object):
             # This is something that the connection handles
             try:
                 return self._connection.unpickle_object(
-                    pickle.loads(base64.b64decode(json_obj[FIELD_INLINE_VALUE]),
-                                 encoding="utf-8")
+                    pickle.loads(
+                        base64.b64decode(json_obj[FIELD_INLINE_VALUE]), encoding="utf-8"
+                    )
                 )
             except ValueError as e:
                 raise RuntimeError("Unable to load non base type: %s" % e)
@@ -270,7 +275,7 @@ class DataTransferer(object):
         if isinstance(obj, (tuple, set, frozenset)):
             cast_to = type(obj)
             obj = list(obj)
-            in_place = True # We can do in place since we copied the object
+            in_place = True  # We can do in place since we copied the object
         if isinstance(obj, OrderedDict):
             key_change_allowed = False
         if isinstance(obj, defaultdict):
@@ -282,9 +287,9 @@ class DataTransferer(object):
                 if not in_place:
                     obj = copy(obj)
                     in_place = True
-                obj['__default_factory'] = obj.default_factory
+                obj["__default_factory"] = obj.default_factory
                 obj.default_factory = None
-            elif obj.get('__default_factory') is not None:
+            elif obj.get("__default_factory") is not None:
                 # This is in the unpickle path, we need to reset the factory properly
                 update_default_factory = True
             has_changes = True
@@ -333,8 +338,8 @@ class DataTransferer(object):
         if update_default_factory:
             # We do this here because we now unpickled the reference
             # to default_dict and can set it back up again.
-            obj.default_factory = obj['__default_factory']
-            del obj['__default_factory']
+            obj.default_factory = obj["__default_factory"]
+            del obj["__default_factory"]
         if has_changes:
             if cast_to:
                 return cast_to(obj)
