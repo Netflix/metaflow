@@ -9,6 +9,7 @@ from metaflow.metaflow_config import DATASTORE_SYSROOT_S3
 from metaflow.metaflow_config import DEFAULT_METADATA, METADATA_SERVICE_URL, METADATA_SERVICE_HEADERS
 from metaflow.parameters import deploy_time_eval
 from metaflow.plugins import ResourcesDecorator, RetryDecorator, CatchDecorator, TimeoutDecorator
+from metaflow.plugins import KubernetesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.plugins.environment_decorator import EnvironmentDecorator
 from metaflow.util import get_username, compress_list
@@ -204,8 +205,7 @@ class ArgoWorkflow:
                 'arguments': {
                     'parameters': self.parameters,
                 },
-                'imagePullSecrets': self.image_pull_secrets if self.image_pull_secrets \
-                                    else self._flow_attributes.get('imagePullSecrets'),
+                'imagePullSecrets': self.image_pull_secrets or self._flow_attributes.get('imagePullSecrets'),
                 'volumes': self._get_volumes(),
                 'parallelism': self.max_workers,
                 'templates': self._generate_templates(),
@@ -240,12 +240,8 @@ class ArgoWorkflow:
         return parameters
 
     def _default_image(self):
-        if self.image:
-            return self.image
-        image = self._flow_attributes.get('image')
-        if image:
-            return image
-        return 'python:%s.%s' % platform.python_version_tuple()[:2]
+        return self.image or self._flow_attributes.get('image') or \
+            'python:%s.%s' % platform.python_version_tuple()[:2]
 
     def _get_volumes(self):
         v = self.volumes if self.volumes else self._flow_attributes.get('volumes', [])
@@ -257,9 +253,10 @@ class ArgoWorkflow:
     def _get_resources_shm(self, nodes):
         for node in nodes:
             for deco in node.decorators:
-                if isinstance(deco, ResourcesDecorator):
+                if isinstance(deco, (ResourcesDecorator, KubernetesDecorator)):
                     if deco.attributes.get('shared_memory'):
                         # rely on default linux kernel behaviour to allocate half of available RAM
+                        # because of this, there is no need to check for the max value
                         return {
                             'name': 'dev-shm',
                             'emptyDir': {
@@ -428,18 +425,18 @@ class ArgoWorkflow:
         """
         attr = parse_step_decorator(node, ArgoStepDecorator)
         env_decorator = parse_step_decorator(node, EnvironmentDecorator)
-        res_decorator = parse_step_decorator(node, ResourcesDecorator)
         retry_decorator = parse_step_decorator(node, RetryDecorator)
         catch_decorator = parse_step_decorator(node, CatchDecorator)
         timeout_decorator = parse_step_decorator(node, TimeoutDecorator)
-
-        image = self._default_image()
-        if attr.get('image'):
-            image = attr['image']
+        res_decorator = parse_step_decorator(node, ResourcesDecorator)
+        k8s_decorator = parse_step_decorator(node, KubernetesDecorator)
+        resources = merge_resources(res_decorator,
+                                    {k: v for k, v in k8s_decorator.items() if k in ResourcesDecorator.defaults})
+        image = attr.get('image') or k8s_decorator.get('image') or self._default_image()
         env, env_from = self._prepare_environment(attr, env_decorator)
-        res = self._resources(res_decorator)
+        res = self._resources(resources)
         volume_mounts = attr.get('volumeMounts', [])
-        volume_mounts.append(self._shared_memory(res_decorator))
+        volume_mounts.append(self._shared_memory(resources))
 
         user_code_retries = retry_decorator.get('times', 0)
         total_retries = user_code_retries + 1 if catch_decorator else user_code_retries
@@ -558,6 +555,18 @@ class ArgoWorkflow:
 def parse_step_decorator(node, deco_type):
     deco = [d for d in node.decorators if isinstance(d, deco_type)]
     return deco[0].attributes if deco else {}
+
+
+def merge_resources(deco1, deco2):
+    res = {}
+    for deco in (deco1, deco2):
+        for k, v in deco.items():
+            # We use the larger of @resources and @kubernetes attributes
+            # TODO: Fix https://github.com/Netflix/metaflow/issues/467
+            my_val = res.get(k)
+            if not (my_val is None and v is None):
+                res[k] = str(max(int(my_val or 0), int(v or 0)))
+    return res
 
 
 def start_task():

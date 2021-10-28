@@ -1,6 +1,7 @@
 import click
 import json
 import re
+import warnings
 
 from metaflow import current, decorators, parameters, JSONType
 from metaflow.metaflow_config import from_conf
@@ -129,6 +130,7 @@ def create(obj,
     package_url, package_sha = obj.flow_datastore.save_data(
         [obj.package.blob], len_hint=1)[0]
 
+    warn_use_argo_image(obj)
     workflow = ArgoWorkflow(obj.workflow_template_name,
                             obj.flow,
                             obj.graph,
@@ -268,3 +270,14 @@ def resolve_workflow_template_name(name):
                             "See https://kubernetes.io/docs/concepts/overview/working-with-objects/names/" % \
                             name)
     return name
+
+
+def warn_use_argo_image(obj):
+    for node in obj.graph.nodes:
+        for deco in obj.graph[node].decorators:
+            if deco.name == 'argo':
+                if 'image' in deco.attributes:
+                    with warnings.catch_warnings():
+                        warnings.simplefilter('default')
+                        warnings.warn('Use of @argo(image=...) is deprecated. Use @kuberntes(image=...) instead.')
+                    return
