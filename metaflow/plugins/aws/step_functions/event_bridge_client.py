@@ -4,11 +4,12 @@ from hashlib import sha1
 
 from metaflow.util import to_bytes, to_unicode
 
-class EventBridgeClient(object):
 
+class EventBridgeClient(object):
     def __init__(self, name):
         from ..aws_client import get_aws_client
-        self._client = get_aws_client('events')
+
+        self._client = get_aws_client("events")
         self.name = format(name)
 
     def cron(self, cron):
@@ -33,9 +34,7 @@ class EventBridgeClient(object):
 
     def _disable(self):
         try:
-            self._client.disable_rule(
-                Name=self.name
-            )
+            self._client.disable_rule(Name=self.name)
         except self._client.exceptions.ResourceNotFoundException:
             pass
 
@@ -43,33 +42,34 @@ class EventBridgeClient(object):
         # Generate a new rule or update existing rule.
         self._client.put_rule(
             Name=self.name,
-            ScheduleExpression='cron(%s)' % self.cron,
-            Description='Metaflow generated rule for %s' % self.name,
-            State='ENABLED'
+            ScheduleExpression="cron(%s)" % self.cron,
+            Description="Metaflow generated rule for %s" % self.name,
+            State="ENABLED",
         )
         # Assign AWS Step Functions ARN to the rule as a target.
         self._client.put_targets(
             Rule=self.name,
             Targets=[
                 {
-                    'Id':self.name,
-                    'Arn':self.state_machine_arn,
+                    "Id": self.name,
+                    "Arn": self.state_machine_arn,
                     # Set input parameters to empty.
-                    'Input':json.dumps({'Parameters':json.dumps({})}),
-                    'RoleArn':self.role_arn
+                    "Input": json.dumps({"Parameters": json.dumps({})}),
+                    "RoleArn": self.role_arn,
                 }
-            ]
+            ],
         )
+
 
 def format(name):
     # AWS Event Bridge has a limit of 64 chars for rule names.
     # We truncate the rule name if the computed name is greater
     # than 64 chars and append a hashed suffix to ensure uniqueness.
     if len(name) > 64:
-        name_hash = to_unicode(
-                        base64.b32encode(
-                            sha1(to_bytes(name)).digest()))[:16].lower()
+        name_hash = to_unicode(base64.b32encode(sha1(to_bytes(name)).digest()))[
+            :16
+        ].lower()
         # construct an 64 character long rule name
-        return '%s-%s' % (name[:47], name_hash)
+        return "%s-%s" % (name[:47], name_hash)
     else:
         return name

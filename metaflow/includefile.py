@@ -28,10 +28,12 @@ except:
 # TODO: This local "client" and the general notion of dataclients should probably
 # be moved somewhere else. Putting here to keep this change compact for now
 class MetaflowLocalURLException(MetaflowException):
-    headline = 'Invalid path'
+    headline = "Invalid path"
+
 
 class MetaflowLocalNotFound(MetaflowException):
-    headline = 'Local object not found'
+    headline = "Local object not found"
+
 
 class LocalObject(object):
     """
@@ -47,6 +49,7 @@ class LocalObject(object):
         # all fields of S3Object should return a unicode object
         def ensure_unicode(x):
             return None if x is None else to_unicode(x)
+
         path = ensure_unicode(path)
 
         self._path = path
@@ -104,6 +107,7 @@ class Local(object):
         result = DATATOOLS_LOCALROOT
         if result is None:
             from .datastore.local_storage import LocalStorage
+
             result = LocalStorage.get_datastore_root_from_config(echo, create_on_absent)
             result = os.path.join(result, DATATOOLS_SUFFIX)
             if create_on_absent and not os.path.exists(result):
@@ -125,24 +129,26 @@ class Local(object):
 
     def _path(self, key):
         key = to_unicode(key)
-        if key.startswith(u'local://'):
+        if key.startswith(u"local://"):
             return key[8:]
-        elif key[0] != u'/':
+        elif key[0] != u"/":
             if current.is_running_flow:
                 raise MetaflowLocalURLException(
                     "Specify Local(run=self) when you use Local inside a running "
                     "flow. Otherwise you have to use Local with full "
-                    "local:// urls or absolute paths.")
+                    "local:// urls or absolute paths."
+                )
             else:
                 raise MetaflowLocalURLException(
                     "Initialize Local with an 'localroot' or 'run' if you don't "
-                    "want to specify full local:// urls or absolute paths.")
+                    "want to specify full local:// urls or absolute paths."
+                )
         else:
             return key
 
     def get(self, key=None, return_missing=False):
         p = self._path(key)
-        url = u'local://%s' % p
+        url = u"local://%s" % p
         if not os.path.isfile(p):
             if return_missing:
                 p = None
@@ -154,18 +160,18 @@ class Local(object):
         p = self._path(key)
         if overwrite or (not os.path.exists(p)):
             Local._makedirs(os.path.dirname(p))
-            with open(p, 'wb') as f:
+            with open(p, "wb") as f:
                 f.write(obj)
-        return u'local://%s' % p
+        return u"local://%s" % p
 
 
 # From here on out, this is the IncludeFile implementation.
 from .datatools import S3
 
-DATACLIENTS = {'local': Local,
-               's3': S3}
+DATACLIENTS = {"local": Local, "s3": S3}
 
-class LocalFile():
+
+class LocalFile:
     def __init__(self, is_text, encoding, path):
         self._is_text = is_text
         self._encoding = encoding
@@ -175,16 +181,22 @@ class LocalFile():
     def is_file_handled(cls, path):
         if path:
             decoded_value = Uploader.decode_value(to_unicode(path))
-            if decoded_value['type'] == 'self':
-                return True, LocalFile(
-                    decoded_value['is_text'], decoded_value['encoding'],
-                    decoded_value['url']), None
-            path = decoded_value['url']
+            if decoded_value["type"] == "self":
+                return (
+                    True,
+                    LocalFile(
+                        decoded_value["is_text"],
+                        decoded_value["encoding"],
+                        decoded_value["url"],
+                    ),
+                    None,
+                )
+            path = decoded_value["url"]
         for prefix, handler in DATACLIENTS.items():
             if path.startswith(u"%s://" % prefix):
                 return True, Uploader(handler), None
         try:
-            with open(path, mode='r') as _:
+            with open(path, mode="r") as _:
                 pass
         except OSError:
             return False, None, "IncludeFile: could not open file '%s'" % path
@@ -206,13 +218,15 @@ class LocalFile():
         client = DATACLIENTS.get(ctx.ds_type)
         if client:
             return Uploader(client).store(
-                ctx.flow_name, self._path, self._is_text, self._encoding, ctx.logger)
+                ctx.flow_name, self._path, self._is_text, self._encoding, ctx.logger
+            )
         raise MetaflowException(
-            "IncludeFile: no client found for datastore type %s" % ctx.ds_type)
+            "IncludeFile: no client found for datastore type %s" % ctx.ds_type
+        )
 
 
 class FilePathClass(click.ParamType):
-    name = 'FilePath'
+    name = "FilePath"
     # The logic for this class is as follows:
     #  - It will always return a path that indicates the persisted path of the file.
     #    + If the value is already such a string, nothing happens and it returns that same value
@@ -237,78 +251,87 @@ class FilePathClass(click.ParamType):
             self.fail(err)
         if file_type is None:
             # Here, we need to store the file
-            return lambda is_text=self._is_text, encoding=self._encoding,\
-                value=value, ctx=parameters.context_proto: LocalFile(
-                    is_text, encoding, value)(ctx)
+            return lambda is_text=self._is_text, encoding=self._encoding, value=value, ctx=parameters.context_proto: LocalFile(
+                is_text, encoding, value
+            )(
+                ctx
+            )
         elif isinstance(file_type, LocalFile):
             # This is a default file that we evaluate now (to delay upload
             # until *after* the flow is checked)
             return lambda f=file_type, ctx=parameters.context_proto: f(ctx)
         else:
             # We will just store the URL in the datastore along with text/encoding info
-            return lambda is_text=self._is_text, encoding=self._encoding,\
-                value=value: Uploader.encode_url(
-                    'external', value, is_text=is_text, encoding=encoding)
+            return lambda is_text=self._is_text, encoding=self._encoding, value=value: Uploader.encode_url(
+                "external", value, is_text=is_text, encoding=encoding
+            )
 
     def __str__(self):
         return repr(self)
 
     def __repr__(self):
-        return 'FilePath'
+        return "FilePath"
 
 
 class IncludeFile(Parameter):
-
     def __init__(
-            self, name, required=False, is_text=True, encoding=None, help=None, **kwargs):
+        self, name, required=False, is_text=True, encoding=None, help=None, **kwargs
+    ):
         # Defaults are DeployTimeField
-        v = kwargs.get('default')
+        v = kwargs.get("default")
         if v is not None:
             _, file_type, _ = LocalFile.is_file_handled(v)
             # Ignore error because we may never use the default
             if file_type is None:
-                o = {
-                    'type': 'self',
-                    'is_text': is_text,
-                    'encoding': encoding,
-                    'url': v
-                }
-                kwargs['default'] = DeployTimeField(
+                o = {"type": "self", "is_text": is_text, "encoding": encoding, "url": v}
+                kwargs["default"] = DeployTimeField(
                     name,
                     str,
-                    'default',
-                    lambda ctx, full_evaluation, o=o: \
-                    LocalFile(o['is_text'], o['encoding'], o['url'])(ctx) \
-                        if full_evaluation else json.dumps(o),
-                    print_representation=v)
+                    "default",
+                    lambda ctx, full_evaluation, o=o: LocalFile(
+                        o["is_text"], o["encoding"], o["url"]
+                    )(ctx)
+                    if full_evaluation
+                    else json.dumps(o),
+                    print_representation=v,
+                )
             else:
-                kwargs['default'] = DeployTimeField(
+                kwargs["default"] = DeployTimeField(
                     name,
                     str,
-                    'default',
-                    lambda _, __, is_text=is_text, encoding=encoding, v=v: \
-                        Uploader.encode_url('external-default', v,
-                                            is_text=is_text, encoding=encoding),
-                    print_representation=v)
+                    "default",
+                    lambda _, __, is_text=is_text, encoding=encoding, v=v: Uploader.encode_url(
+                        "external-default", v, is_text=is_text, encoding=encoding
+                    ),
+                    print_representation=v,
+                )
 
         super(IncludeFile, self).__init__(
-            name, required=required, help=help,
-            type=FilePathClass(is_text, encoding), **kwargs)
+            name,
+            required=required,
+            help=help,
+            type=FilePathClass(is_text, encoding),
+            **kwargs
+        )
 
     def load_parameter(self, val):
         if val is None:
             return val
         ok, file_type, err = LocalFile.is_file_handled(val)
         if not ok:
-            raise MetaflowException("Parameter '%s' could not be loaded: %s" % (self.name, err))
+            raise MetaflowException(
+                "Parameter '%s' could not be loaded: %s" % (self.name, err)
+            )
         if file_type is None or isinstance(file_type, LocalFile):
-            raise MetaflowException("Parameter '%s' was not properly converted" % self.name)
+            raise MetaflowException(
+                "Parameter '%s' was not properly converted" % self.name
+            )
         return file_type.load(val)
 
 
-class Uploader():
+class Uploader:
 
-    file_type = 'uploader-v1'
+    file_type = "uploader-v1"
 
     def __init__(self, client_class):
         self._client_class = client_class
@@ -316,67 +339,73 @@ class Uploader():
     @staticmethod
     def encode_url(url_type, url, **kwargs):
         # Avoid encoding twice (default -> URL -> _convert method of FilePath for example)
-        if url is None or len(url) == 0 or url[0] == '{':
+        if url is None or len(url) == 0 or url[0] == "{":
             return url
-        return_value = {'type': url_type, 'url': url}
+        return_value = {"type": url_type, "url": url}
         return_value.update(kwargs)
         return json.dumps(return_value)
 
     @staticmethod
     def decode_value(value):
-        if value is None or len(value) == 0 or value[0] != '{':
-            return {'type': 'base', 'url': value}
+        if value is None or len(value) == 0 or value[0] != "{":
+            return {"type": "base", "url": value}
         return json.loads(value)
 
     def store(self, flow_name, path, is_text, encoding, echo):
         sz = os.path.getsize(path)
-        unit = ['B', 'KB', 'MB', 'GB', 'TB']
+        unit = ["B", "KB", "MB", "GB", "TB"]
         pos = 0
         while pos < len(unit) and sz >= 1024:
             sz = sz // 1024
             pos += 1
         if pos >= 3:
-            extra = '(this may take a while)'
+            extra = "(this may take a while)"
         else:
-            extra = ''
-        echo(
-            'Including file %s of size %d%s %s' % (path, sz, unit[pos], extra))
+            extra = ""
+        echo("Including file %s of size %d%s %s" % (path, sz, unit[pos], extra))
         try:
-            input_file = io.open(path, mode='rb').read()
+            input_file = io.open(path, mode="rb").read()
         except IOError:
             # If we get an error here, since we know that the file exists already,
             # it means that read failed which happens with Python 2.7 for large files
-            raise MetaflowException('Cannot read file at %s -- this is likely because it is too '
-                                    'large to be properly handled by Python 2.7' % path)
+            raise MetaflowException(
+                "Cannot read file at %s -- this is likely because it is too "
+                "large to be properly handled by Python 2.7" % path
+            )
         sha = sha1(input_file).hexdigest()
-        path = os.path.join(self._client_class.get_root_from_config(echo, True),
-                            flow_name,
-                            sha)
+        path = os.path.join(
+            self._client_class.get_root_from_config(echo, True), flow_name, sha
+        )
         buf = io.BytesIO()
-        with gzip.GzipFile(
-                fileobj=buf, mode='wb', compresslevel=3) as f:
+        with gzip.GzipFile(fileobj=buf, mode="wb", compresslevel=3) as f:
             f.write(input_file)
         buf.seek(0)
         with self._client_class() as client:
             url = client.put(path, buf.getvalue(), overwrite=False)
-            echo('File persisted at %s' % url)
-            return Uploader.encode_url(Uploader.file_type, url, is_text=is_text, encoding=encoding)
+            echo("File persisted at %s" % url)
+            return Uploader.encode_url(
+                Uploader.file_type, url, is_text=is_text, encoding=encoding
+            )
 
     def load(self, value):
         value_info = Uploader.decode_value(value)
         with self._client_class() as client:
-            obj = client.get(value_info['url'], return_missing=True)
+            obj = client.get(value_info["url"], return_missing=True)
             if obj.exists:
-                if value_info['type'] == Uploader.file_type:
+                if value_info["type"] == Uploader.file_type:
                     # We saved this file directly so we know how to read it out
-                    with gzip.GzipFile(filename=obj.path, mode='rb') as f:
-                        if value_info['is_text']:
-                            return io.TextIOWrapper(f, encoding=value_info.get('encoding')).read()
+                    with gzip.GzipFile(filename=obj.path, mode="rb") as f:
+                        if value_info["is_text"]:
+                            return io.TextIOWrapper(
+                                f, encoding=value_info.get("encoding")
+                            ).read()
                         return f.read()
                 else:
                     # We open this file according to the is_text and encoding information
-                    if value_info['is_text']:
-                        return io.open(obj.path, mode='rt', encoding=value_info.get('encoding')).read()
+                    if value_info["is_text"]:
+                        return io.open(
+                            obj.path, mode="rt", encoding=value_info.get("encoding")
+                        ).read()
                     else:
-                        return io.open(obj.path, mode='rb').read()
-            raise FileNotFoundError("File at %s does not exist" % value_info['url'])
+                        return io.open(obj.path, mode="rb").read()
+            raise FileNotFoundError("File at %s does not exist" % value_info["url"])

@@ -10,6 +10,7 @@ class CloseAfterUse(object):
     This class should be used in a with statement and, when the with
     scope exits, `close` will be called on the closer object
     """
+
     def __init__(self, data, closer=None):
         self.data = data
         self._closer = closer
@@ -24,7 +25,7 @@ class CloseAfterUse(object):
 
 class DataStoreStorage(object):
     """
-    A DataStoreStorage defines the interface of communication between the 
+    A DataStoreStorage defines the interface of communication between the
     higher-level datastores and the actual storage system.
 
     Both the ContentAddressedStore and the TaskDataStore use these methods to
@@ -32,11 +33,12 @@ class DataStoreStorage(object):
     be low-level; they are in a class to provide better abstraction but this
     class itself is not meant to be initialized.
     """
+
     TYPE = None
     datastore_root = None
     path_rexp = None
 
-    list_content_result = namedtuple('list_content_result', 'path is_file')
+    list_content_result = namedtuple("list_content_result", "path is_file")
 
     def __init__(self, root=None):
         self.datastore_root = root if root else self.datastore_root
@@ -82,38 +84,42 @@ class DataStoreStorage(object):
             Raised if the path is not a valid path from this datastore.
         """
         if cls.path_rexp is None:
-            cls.path_rexp = re.compile(cls.path_join(
-                '(?P<root>.*)',
-                '(?P<flow_name>[_a-zA-Z][_a-zA-Z0-9]+)',
-                'data',
-                '(?P<init>[0-9a-f]{2})',
-                '(?:r_)?(?P=init)[0-9a-f]{38}'))
+            cls.path_rexp = re.compile(
+                cls.path_join(
+                    "(?P<root>.*)",
+                    "(?P<flow_name>[_a-zA-Z][_a-zA-Z0-9]+)",
+                    "data",
+                    "(?P<init>[0-9a-f]{2})",
+                    "(?:r_)?(?P=init)[0-9a-f]{38}",
+                )
+            )
         m = cls.path_rexp.match(path)
-        if not m or m.group('flow_name') != flow_name:
+        if not m or m.group("flow_name") != flow_name:
             raise DataException(
                 "Location '%s' does not correspond to a valid location for "
-                "flow '%s'." % (path, flow_name))
-        return m.group('root')
+                "flow '%s'." % (path, flow_name)
+            )
+        return m.group("root")
 
     @classmethod
     def path_join(cls, *components):
         if len(components) == 0:
-            return ''
-        component = components[0].rstrip('/')
-        components = [component] + [c.strip('/') for c in components[1:]]
-        return '/'.join(components)
+            return ""
+        component = components[0].rstrip("/")
+        components = [component] + [c.strip("/") for c in components[1:]]
+        return "/".join(components)
 
     @classmethod
     def path_split(cls, path):
-        return path.split('/')
+        return path.split("/")
 
     @classmethod
     def basename(cls, path):
-        return path.split('/')[-1]
+        return path.split("/")[-1]
 
     @classmethod
     def dirname(cls, path):
-        return path.rsplit('/', 1)[0]
+        return path.rsplit("/", 1)[0]
 
     def full_uri(self, path):
         return self.path_join(self.datastore_root, path)

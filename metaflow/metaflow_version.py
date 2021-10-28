@@ -19,6 +19,7 @@ INFO_FILE = path.join(path.dirname(CURRENT_DIRECTORY), "INFO")
 GIT_COMMAND = "git"
 
 if name == "nt":
+
     def find_git_on_windows():
         """find the path to the git executable on windows"""
         # first see if git is in the path
@@ -33,11 +34,11 @@ if name == "nt":
         possible_locations = []
         # look in program files for msysgit
         if "PROGRAMFILES(X86)" in environ:
-            possible_locations.append("%s/Git/cmd/git.exe" %
-                                      environ["PROGRAMFILES(X86)"])
+            possible_locations.append(
+                "%s/Git/cmd/git.exe" % environ["PROGRAMFILES(X86)"]
+            )
         if "PROGRAMFILES" in environ:
-            possible_locations.append("%s/Git/cmd/git.exe" %
-                                      environ["PROGRAMFILES"])
+            possible_locations.append("%s/Git/cmd/git.exe" % environ["PROGRAMFILES"])
         # look for the github version of git
         if "LOCALAPPDATA" in environ:
             github_dir = "%s/GitHub" % environ["LOCALAPPDATA"]
@@ -45,8 +46,9 @@ if name == "nt":
                 for subdir in listdir(github_dir):
                     if not subdir.startswith("PortableGit"):
                         continue
-                    possible_locations.append("%s/%s/bin/git.exe" %
-                                              (github_dir, subdir))
+                    possible_locations.append(
+                        "%s/%s/bin/git.exe" % (github_dir, subdir)
+                    )
         for possible_location in possible_locations:
             if path.isfile(possible_location):
                 return possible_location
@@ -62,18 +64,23 @@ def call_git_describe(abbrev=7):
 
         # first, make sure we are actually in a Metaflow repo,
         # not some other repo
-        with open(devnull, 'w') as fnull:
+        with open(devnull, "w") as fnull:
             arguments = [GIT_COMMAND, "rev-parse", "--show-toplevel"]
-            reponame = check_output(arguments, cwd=CURRENT_DIRECTORY,
-                                    stderr=fnull).decode("ascii").strip()
-            if path.basename(reponame) != 'metaflow':
+            reponame = (
+                check_output(arguments, cwd=CURRENT_DIRECTORY, stderr=fnull)
+                .decode("ascii")
+                .strip()
+            )
+            if path.basename(reponame) != "metaflow":
                 return None
 
         with open(devnull, "w") as fnull:
-            arguments = [GIT_COMMAND, "describe", "--tags",
-                         "--abbrev=%d" % abbrev]
-            return check_output(arguments, cwd=CURRENT_DIRECTORY,
-                                stderr=fnull).decode("ascii").strip()
+            arguments = [GIT_COMMAND, "describe", "--tags", "--abbrev=%d" % abbrev]
+            return (
+                check_output(arguments, cwd=CURRENT_DIRECTORY, stderr=fnull)
+                .decode("ascii")
+                .strip()
+            )
 
     except (OSError, CalledProcessError):
         return None
@@ -99,7 +106,7 @@ def read_info_version():
     """Read version information from INFO file"""
     try:
         with open(INFO_FILE, "r") as contents:
-            return json.load(contents).get('metaflow_version')
+            return json.load(contents).get("metaflow_version")
     except IOError:
         return None
 
@@ -117,7 +124,7 @@ def get_version(pep440=False):
 
     Otherwise, the version logged by package installer is returned.
 
-    If even that information isn't available (likely when executing on a 
+    If even that information isn't available (likely when executing on a
     remote cloud instance), the version information is returned from INFO file
     in the current directory.
 
@@ -127,10 +134,11 @@ def get_version(pep440=False):
     version_addl = None
     if version is None:  # not a git repository
         import metaflow
+
         version = metaflow.__version__
         version_addl = metaflow.__version_addl__
-    if version is None: # not a proper python package
+    if version is None:  # not a proper python package
         version = read_info_version()
     if version and version_addl:
-        return '+'.join([version, version_addl])
+        return "+".join([version, version_addl])
     return version

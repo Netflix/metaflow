@@ -2,6 +2,7 @@ import inspect
 import ast
 import re
 
+
 def deindent_docstring(doc):
     if doc:
         # Find the indent to remove from the doctring. We consider the following possibilities:
@@ -28,16 +29,17 @@ def deindent_docstring(doc):
         matched_indent = None
         for line in doc.splitlines():
             if line:
-                matched_indent = re.match('[\t ]+', line)
+                matched_indent = re.match("[\t ]+", line)
                 if matched_indent is not None or saw_first_line:
                     break
                 saw_first_line = True
         if matched_indent:
-            return re.sub(r'\n' + matched_indent.group(), '\n', doc).strip()
+            return re.sub(r"\n" + matched_indent.group(), "\n", doc).strip()
         else:
             return doc
     else:
-        return ''
+        return ""
+
 
 class DAGNode(object):
     def __init__(self, func_ast, decos, doc):
@@ -66,7 +68,7 @@ class DAGNode(object):
         self.is_inside_foreach = False
 
     def _expr_str(self, expr):
-        return '%s.%s' % (expr.value.id, expr.attr)
+        return "%s.%s" % (expr.value.id, expr.attr)
 
     def _parse(self, func_ast):
 
@@ -74,9 +76,9 @@ class DAGNode(object):
         tail = func_ast.body[-1]
 
         # end doesn't need a transition
-        if self.name == 'end':
+        if self.name == "end":
             # TYPE: end
-            self.type = 'end'
+            self.type = "end"
 
         # ensure that the tail an expression
         if not isinstance(tail, ast.Expr):
@@ -84,7 +86,7 @@ class DAGNode(object):
 
         # determine the type of self.next transition
         try:
-            if not self._expr_str(tail.value.func) == 'self.next':
+            if not self._expr_str(tail.value.func) == "self.next":
                 return
 
             self.has_tail_next = True
@@ -94,37 +96,36 @@ class DAGNode(object):
             keywords = dict((k.arg, k.value.s) for k in tail.value.keywords)
 
             if len(keywords) == 1:
-                if 'foreach' in keywords:
+                if "foreach" in keywords:
                     # TYPE: foreach
-                    self.type = 'foreach'
+                    self.type = "foreach"
                     if len(self.out_funcs) == 1:
-                        self.foreach_param = keywords['foreach']
+                        self.foreach_param = keywords["foreach"]
                         self.invalid_tail_next = False
-                elif 'condition' in keywords:
+                elif "condition" in keywords:
                     # TYPE: split-or
-                    self.type = 'split-or'
+                    self.type = "split-or"
                     if len(self.out_funcs) == 2:
-                        self.condition = keywords['condition']
+                        self.condition = keywords["condition"]
                         self.invalid_tail_next = False
             elif len(keywords) == 0:
                 if len(self.out_funcs) > 1:
                     # TYPE: split-and
-                    self.type = 'split-and'
+                    self.type = "split-and"
                     self.invalid_tail_next = False
                 elif len(self.out_funcs) == 1:
                     # TYPE: linear
                     if self.num_args > 1:
-                        self.type = 'join'
+                        self.type = "join"
                     else:
-                        self.type = 'linear'
+                        self.type = "linear"
                     self.invalid_tail_next = False
 
         except AttributeError:
             return
 
     def __str__(self):
-        return\
-"""*[{0.name} {0.type} (line {0.func_lineno})]*
+        return """*[{0.name} {0.type} (line {0.func_lineno})]*
     in_funcs={in_funcs}
     out_funcs={out_funcs}
     split_parents={parents}
@@ -136,18 +137,19 @@ class DAGNode(object):
     invalid_tail_next={0.invalid_tail_next}
     condition={0.condition}
     foreach_param={0.foreach_param}
-    -> {out}"""\
-    .format(self,
-            matching_join=self.matching_join and '[%s]' % self.matching_join,
+    -> {out}""".format(
+            self,
+            matching_join=self.matching_join and "[%s]" % self.matching_join,
             is_inside_foreach=self.is_inside_foreach,
-            out_funcs=', '.join('[%s]' % x for x in self.out_funcs),
-            in_funcs=', '.join('[%s]' % x for x in self.in_funcs),
-            parents=', '.join('[%s]' % x for x in self.split_parents),
-            decos=' | '.join(map(str, self.decorators)),
-            out=', '.join('[%s]' % x for x in self.out_funcs))
+            out_funcs=", ".join("[%s]" % x for x in self.out_funcs),
+            in_funcs=", ".join("[%s]" % x for x in self.in_funcs),
+            parents=", ".join("[%s]" % x for x in self.split_parents),
+            decos=" | ".join(map(str, self.decorators)),
+            out=", ".join("[%s]" % x for x in self.out_funcs),
+        )
+
 
 class StepVisitor(ast.NodeVisitor):
-
     def __init__(self, nodes, flow):
         self.nodes = nodes
         self.flow = flow
@@ -155,11 +157,11 @@ class StepVisitor(ast.NodeVisitor):
 
     def visit_FunctionDef(self, node):
         func = getattr(self.flow, node.name)
-        if hasattr(func, 'is_step'):
+        if hasattr(func, "is_step"):
             self.nodes[node.name] = DAGNode(node, func.decorators, func.__doc__)
 
-class FlowGraph(object):
 
+class FlowGraph(object):
     def __init__(self, flow):
         self.name = flow.__name__
         self.nodes = self._create_nodes(flow)
@@ -170,8 +172,9 @@ class FlowGraph(object):
     def _create_nodes(self, flow):
         module = __import__(flow.__module__)
         tree = ast.parse(inspect.getsource(module)).body
-        root = [n for n in tree\
-                if isinstance(n, ast.ClassDef) and n.name == self.name][0]
+        root = [n for n in tree if isinstance(n, ast.ClassDef) and n.name == self.name][
+            0
+        ]
         nodes = {}
         StepVisitor(nodes, flow).visit(root)
         return nodes
@@ -181,20 +184,19 @@ class FlowGraph(object):
         # has is_inside_foreach=True *unless* all of those foreaches
         # are joined by the node
         for node in self.nodes.values():
-            foreaches = [p for p in node.split_parents
-                         if self.nodes[p].type == 'foreach']
-            if [f for f in foreaches
-                if self.nodes[f].matching_join != node.name]:
+            foreaches = [
+                p for p in node.split_parents if self.nodes[p].type == "foreach"
+            ]
+            if [f for f in foreaches if self.nodes[f].matching_join != node.name]:
                 node.is_inside_foreach = True
 
     def _traverse_graph(self):
-
         def traverse(node, seen, split_parents):
 
-            if node.type in ('split-or', 'split-and', 'foreach'):
+            if node.type in ("split-or", "split-and", "foreach"):
                 node.split_parents = split_parents
                 split_parents = split_parents + [node.name]
-            elif node.type == 'join':
+            elif node.type == "join":
                 # ignore joins without splits
                 if split_parents:
                     self[split_parents[-1]].matching_join = node.name
@@ -212,8 +214,8 @@ class FlowGraph(object):
                         child.in_funcs.add(node.name)
                         traverse(child, seen + [n], split_parents)
 
-        if 'start' in self:
-            traverse(self['start'], [], [])
+        if "start" in self:
+            traverse(self["start"], [], [])
 
         # fix the order of in_funcs
         for node in self.nodes.values():
@@ -229,28 +231,28 @@ class FlowGraph(object):
         return iter(self.nodes.values())
 
     def __str__(self):
-        return '\n'.join(str(n) for _, n in sorted((n.func_lineno, n)\
-                                for n in self.nodes.values()))
+        return "\n".join(
+            str(n) for _, n in sorted((n.func_lineno, n) for n in self.nodes.values())
+        )
 
     def output_dot(self):
-
         def edge_specs():
             for node in self.nodes.values():
                 for edge in node.out_funcs:
-                    yield '%s -> %s;' % (node.name, edge)
+                    yield "%s -> %s;" % (node.name, edge)
 
         def node_specs():
             for node in self.nodes.values():
-                nodetype = 'join' if node.num_args > 1 else node.type
-                yield '"{0.name}"'\
-                      '[ label = <<b>{0.name}</b> | <font point-size="10">{type}</font>> '\
-                      '  fontname = "Helvetica" '\
-                      '  shape = "record" ];'.format(node, type=nodetype)
+                nodetype = "join" if node.num_args > 1 else node.type
+                yield '"{0.name}"' '[ label = <<b>{0.name}</b> | <font point-size="10">{type}</font>> ' '  fontname = "Helvetica" ' '  shape = "record" ];'.format(
+                    node, type=nodetype
+                )
 
-        return "digraph {0.name} {{\n"\
-               "{nodes}\n"\
-               "{edges}\n"\
-               "}}".format(self,
-                           nodes='\n'.join(node_specs()),
-                           edges='\n'.join(edge_specs()))
-
+        return (
+            "digraph {0.name} {{\n"
+            "{nodes}\n"
+            "{edges}\n"
+            "}}".format(
+                self, nodes="\n".join(node_specs()), edges="\n".join(edge_specs())
+            )
+        )

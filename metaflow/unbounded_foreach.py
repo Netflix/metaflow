@@ -1,6 +1,7 @@
-CONTROL_TASK_TAG = 'control_task'
-UBF_CONTROL = 'ubf_control'
-UBF_TASK = 'ubf_task'
+CONTROL_TASK_TAG = "control_task"
+UBF_CONTROL = "ubf_control"
+UBF_TASK = "ubf_task"
+
 
 class UnboundedForeachInput(object):
     """

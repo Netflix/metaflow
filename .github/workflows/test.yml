@@ -7,8 +7,31 @@ on:
     branches:
     - master
 jobs:
+  formatter:
+    name: runner / black
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Check files using the black formatter
+        uses: rickstaa/action-black@v1
+        id: action_black
+        with:
+          black_args: "."
+      - name: Create Pull Request
+        if: steps.action_black.outputs.is_formatted == 'true'
+        uses: peter-evans/create-pull-request@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: "Format Python code with psf/black push"
+          commit-message: ":art: Format Python code with psf/black"
+          body: |
+            There appear to be some python formatting errors in #${{ github.event.number }} - ${{ github.sha }}.
+            This pull request uses the [psf/black](https://github.com/psf/black) formatter to fix these issues.
+            `black .`
+          base: ${{ github.head_ref }}
+          branch: actions/black
   test:
-    name: ${{ matrix.lang }} tests on ${{ matrix.os }}
+    name: tests / ${{ matrix.lang }} tests on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:

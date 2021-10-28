@@ -1,11 +1,12 @@
 from metaflow_test import MetaflowTest, ExpectationFailed, steps
 
+
 class DynamicParameterTest(MetaflowTest):
     PRIORITY = 3
     PARAMETERS = {
-        'str_param': {'default': 'str_func'},
-        'json_param': {'default': 'json_func', 'type': 'JSONType'},
-        'nondefault_param': {'default': 'lambda _: True', 'type': 'bool'}
+        "str_param": {"default": "str_func"},
+        "json_param": {"default": "json_func", "type": "JSONType"},
+        "nondefault_param": {"default": "lambda _: True", "type": "bool"},
     }
     HEADER = """
 import os
@@ -34,19 +35,18 @@ def json_func(ctx):
 @project(name='dynamic_parameters_project')
 """
 
-    @steps(0, ['singleton'], required=True)
+    @steps(0, ["singleton"], required=True)
     def step_single(self):
-        assert_equals(self.str_param, 'does this work?')
+        assert_equals(self.str_param, "does this work?")
         assert_equals(self.nondefault_param, False)
-        assert_equals(self.json_param, {'a': [8]})
+        assert_equals(self.json_param, {"a": [8]})
 
-    @steps(1, ['all'])
+    @steps(1, ["all"])
     def step_all(self):
         pass
 
     def check_results(self, flow, checker):
         for step in flow:
-            checker.assert_artifact(step.name, 'nondefault_param', False)
-            checker.assert_artifact(step.name, 'str_param', 'does this work?')
-            checker.assert_artifact(step.name, 'json_param', {'a': [8]})
-
+            checker.assert_artifact(step.name, "nondefault_param", False)
+            checker.assert_artifact(step.name, "str_param", "does this work?")
+            checker.assert_artifact(step.name, "json_param", {"a": [8]})

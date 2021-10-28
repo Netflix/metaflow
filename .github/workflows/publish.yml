@@ -4,7 +4,7 @@ on:
     types: [published]
 jobs:
   test:
-    name: ${{ matrix.lang }} tests on ${{ matrix.os }}
+    name: tests / ${{ matrix.lang }} tests on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:

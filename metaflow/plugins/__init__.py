@@ -2,15 +2,15 @@ import sys
 import types
 
 _expected_extensions = {
-    'FLOW_DECORATORS': [],
-    'STEP_DECORATORS': [],
-    'ENVIRONMENTS': [],
-    'METADATA_PROVIDERS': [],
-    'SIDECARS': {},
-    'LOGGING_SIDECARS': {},
-    'MONITOR_SIDECARS': {},
-    'AWS_CLIENT_PROVIDERS': [],
-    'get_plugin_cli': lambda : []
+    "FLOW_DECORATORS": [],
+    "STEP_DECORATORS": [],
+    "ENVIRONMENTS": [],
+    "METADATA_PROVIDERS": [],
+    "SIDECARS": {},
+    "LOGGING_SIDECARS": {},
+    "MONITOR_SIDECARS": {},
+    "AWS_CLIENT_PROVIDERS": [],
+    "get_plugin_cli": lambda: [],
 }
 
 try:
@@ -21,12 +21,16 @@ except ImportError as e:
         # e.name is set to the name of the package that fails to load
         # so don't error ONLY IF the error is importing this module (but do
         # error if there is a transitive import error)
-        if not (isinstance(e, ModuleNotFoundError) and \
-                e.name in ['metaflow_extensions', 'metaflow_extensions.plugins']):
+        if not (
+            isinstance(e, ModuleNotFoundError)
+            and e.name in ["metaflow_extensions", "metaflow_extensions.plugins"]
+        ):
             print(
                 "Cannot load metaflow_extensions plugins -- "
-                "if you want to ignore, uninstall metaflow_extensions package")
+                "if you want to ignore, uninstall metaflow_extensions package"
+            )
             raise
+
     class _fake(object):
         def __getattr__(self, name):
             if name in _expected_extensions:
@@ -40,19 +44,23 @@ else:
     # *except* for ones that are part of metaflow_extensions (basically providing
     # an aliasing mechanism)
     lazy_load_custom_modules = {}
-    addl_modules = _ext_plugins.__dict__.get('__mf_promote_submodules__')
+    addl_modules = _ext_plugins.__dict__.get("__mf_promote_submodules__")
     if addl_modules:
         # We make an alias for these modules which the metaflow_extensions author
         # wants to expose but that may not be loaded yet
         lazy_load_custom_modules = {
-            'metaflow.plugins.%s' % k: 'metaflow_extensions.plugins.%s' % k
-            for k in addl_modules}
+            "metaflow.plugins.%s" % k: "metaflow_extensions.plugins.%s" % k
+            for k in addl_modules
+        }
     for n, o in _ext_plugins.__dict__.items():
-        if not n.startswith('__') and not isinstance(o, types.ModuleType):
+        if not n.startswith("__") and not isinstance(o, types.ModuleType):
             globals()[n] = o
-        elif isinstance(o, types.ModuleType) and o.__package__ and \
-                o.__package__.startswith('metaflow_extensions'):
-            lazy_load_custom_modules['metaflow.plugins.%s' % n] = o
+        elif (
+            isinstance(o, types.ModuleType)
+            and o.__package__
+            and o.__package__.startswith("metaflow_extensions")
+        ):
+            lazy_load_custom_modules["metaflow.plugins.%s" % n] = o
     if lazy_load_custom_modules:
         # NOTE: We load things first to have metaflow_extensions override things here.
         # This does mean that for modules that have the same name (for example,
@@ -64,8 +72,9 @@ else:
         # load the non metaflow_extensions modules providing for possible confusion.
         # This keeps it cleaner.
         from metaflow import _LazyLoader
+
         sys.meta_path = [_LazyLoader(lazy_load_custom_modules)] + sys.meta_path
-    
+
     class _wrap(object):
         def __init__(self, obj):
             self.__dict__ = obj.__dict__
@@ -76,7 +85,6 @@ else:
             raise AttributeError
 
     _ext_plugins = _wrap(_ext_plugins)
-
 
 
 def get_plugin_cli():
@@ -95,7 +103,8 @@ def get_plugin_cli():
         package_cli.cli,
         batch_cli.cli,
         kubernetes_cli.cli,
-        step_functions_cli.cli]
+        step_functions_cli.cli,
+    ]
 
 
 def _merge_lists(base, overrides, attr):
@@ -108,6 +117,7 @@ def _merge_lists(base, overrides, attr):
     l.extend([d for d in base if getattr(d, attr) not in existing])
     return l
 
+
 # Add new decorators in this list
 from .catch_decorator import CatchDecorator
 from .timeout_decorator import TimeoutDecorator
@@ -116,33 +126,43 @@ from .retry_decorator import RetryDecorator
 from .resources_decorator import ResourcesDecorator
 from .aws.batch.batch_decorator import BatchDecorator
 from .aws.eks.kubernetes_decorator import KubernetesDecorator
-from .aws.step_functions.step_functions_decorator \
-                import StepFunctionsInternalDecorator
-from .test_unbounded_foreach_decorator\
-    import InternalTestUnboundedForeachDecorator, InternalTestUnboundedForeachInput
+from .aws.step_functions.step_functions_decorator import StepFunctionsInternalDecorator
+from .test_unbounded_foreach_decorator import (
+    InternalTestUnboundedForeachDecorator,
+    InternalTestUnboundedForeachInput,
+)
 from .conda.conda_step_decorator import CondaStepDecorator
 
-STEP_DECORATORS = _merge_lists([CatchDecorator,
-                                TimeoutDecorator,
-                                EnvironmentDecorator,
-                                ResourcesDecorator,
-                                RetryDecorator,
-                                BatchDecorator,
-                                KubernetesDecorator,
-                                StepFunctionsInternalDecorator,
-                                CondaStepDecorator,
-                                InternalTestUnboundedForeachDecorator],
-                                    _ext_plugins.STEP_DECORATORS, 'name')
+STEP_DECORATORS = _merge_lists(
+    [
+        CatchDecorator,
+        TimeoutDecorator,
+        EnvironmentDecorator,
+        ResourcesDecorator,
+        RetryDecorator,
+        BatchDecorator,
+        KubernetesDecorator,
+        StepFunctionsInternalDecorator,
+        CondaStepDecorator,
+        InternalTestUnboundedForeachDecorator,
+    ],
+    _ext_plugins.STEP_DECORATORS,
+    "name",
+)
 
 # Add Conda environment
 from .conda.conda_environment import CondaEnvironment
-ENVIRONMENTS = _merge_lists([CondaEnvironment], _ext_plugins.ENVIRONMENTS, 'TYPE')
+
+ENVIRONMENTS = _merge_lists([CondaEnvironment], _ext_plugins.ENVIRONMENTS, "TYPE")
 
 # Metadata providers
 from .metadata import LocalMetadataProvider, ServiceMetadataProvider
 
 METADATA_PROVIDERS = _merge_lists(
-    [LocalMetadataProvider, ServiceMetadataProvider], _ext_plugins.METADATA_PROVIDERS, 'TYPE')
+    [LocalMetadataProvider, ServiceMetadataProvider],
+    _ext_plugins.METADATA_PROVIDERS,
+    "TYPE",
+)
 
 # Every entry in this list becomes a class-level flow decorator.
 # Add an entry here if you need a new flow-level annotation. Be
@@ -151,46 +171,62 @@ METADATA_PROVIDERS = _merge_lists(
 from .conda.conda_flow_decorator import CondaFlowDecorator
 from .aws.step_functions.schedule_decorator import ScheduleDecorator
 from .project_decorator import ProjectDecorator
-FLOW_DECORATORS = _merge_lists([CondaFlowDecorator,
-                                ScheduleDecorator,
-                                ProjectDecorator],
-                            _ext_plugins.FLOW_DECORATORS, 'name')
+
+FLOW_DECORATORS = _merge_lists(
+    [CondaFlowDecorator, ScheduleDecorator, ProjectDecorator],
+    _ext_plugins.FLOW_DECORATORS,
+    "name",
+)
 
 
 # Sidecars
 from ..mflog.save_logs_periodically import SaveLogsPeriodicallySidecar
 from metaflow.metadata.heartbeat import MetadataHeartBeat
 
-SIDECARS = {'save_logs_periodically': SaveLogsPeriodicallySidecar,
-            'heartbeat': MetadataHeartBeat}
+SIDECARS = {
+    "save_logs_periodically": SaveLogsPeriodicallySidecar,
+    "heartbeat": MetadataHeartBeat,
+}
 SIDECARS.update(_ext_plugins.SIDECARS)
 
 # Add logger
 from .debug_logger import DebugEventLogger
-LOGGING_SIDECARS = {'debugLogger': DebugEventLogger,
-                    'nullSidecarLogger': None}
+
+LOGGING_SIDECARS = {"debugLogger": DebugEventLogger, "nullSidecarLogger": None}
 LOGGING_SIDECARS.update(_ext_plugins.LOGGING_SIDECARS)
 
 # Add monitor
 from .debug_monitor import DebugMonitor
-MONITOR_SIDECARS = {'debugMonitor': DebugMonitor,
-                    'nullSidecarMonitor': None}
+
+MONITOR_SIDECARS = {"debugMonitor": DebugMonitor, "nullSidecarMonitor": None}
 MONITOR_SIDECARS.update(_ext_plugins.MONITOR_SIDECARS)
 
 SIDECARS.update(LOGGING_SIDECARS)
 SIDECARS.update(MONITOR_SIDECARS)
 
 from .aws.aws_client import Boto3ClientProvider
+
 AWS_CLIENT_PROVIDERS = _merge_lists(
-    [Boto3ClientProvider], _ext_plugins.AWS_CLIENT_PROVIDERS, 'name')
+    [Boto3ClientProvider], _ext_plugins.AWS_CLIENT_PROVIDERS, "name"
+)
 
 # Erase all temporary names to avoid leaking things
 # We leave '_ext_plugins' and '_expected_extensions' because they are used in
 # a function (so they need to stick around)
-for _n in ['ver', 'n', 'o', 'e', 'lazy_load_custom_modules', '_LazyLoader',
-           '_merge_lists', '_fake', '_wrap', 'addl_modules']:
+for _n in [
+    "ver",
+    "n",
+    "o",
+    "e",
+    "lazy_load_custom_modules",
+    "_LazyLoader",
+    "_merge_lists",
+    "_fake",
+    "_wrap",
+    "addl_modules",
+]:
     try:
         del globals()[_n]
     except KeyError:
         pass
-del globals()['_n']
+del globals()["_n"]

@@ -4,10 +4,10 @@ from metaflow.sidecar_messages import Message
 
 
 class DebugEventLogger(object):
-    TYPE = 'debugLogger'
+    TYPE = "debugLogger"
 
     def log(self, msg):
-        sys.stderr.write('event_logger: ' + str(msg)+'\n')
+        sys.stderr.write("event_logger: " + str(msg) + "\n")
 
     def process_message(self, msg):
         # type: (Message) -> None
