@@ -77,6 +77,10 @@ class CatchDecorator(StepDecorator):
                        retry_count,
                        max_user_code_retries):
 
+        # Only "catch" exceptions after all retries are exhausted
+        if retry_count < max_user_code_retries:
+            return False
+
         if self.attributes['print_exception']:
             self._print_exception(step, flow)
 
