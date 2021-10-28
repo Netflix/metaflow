@@ -1,10 +1,11 @@
+import json
 import os
 import requests
 import time
 
 from distutils.version import LooseVersion
 
-from metaflow.exception import MetaflowException
+from metaflow.exception import MetaflowException, TaggingException
 from metaflow.metaflow_config import (
     METADATA_SERVICE_NUM_RETRIES,
     METADATA_SERVICE_HEADERS,
@@ -34,6 +35,7 @@ class ServiceMetadataProvider(MetadataProvider):
     TYPE = "service"
 
     _supports_attempt_gets = None
+    _can_perform_tagging = None
 
     def __init__(self, environment, flow, event_logger, monitor):
         super(ServiceMetadataProvider, self).__init__(
@@ -219,6 +221,32 @@ class ServiceMetadataProvider(MetadataProvider):
             if ex.http_code == 404:
                 return None
             raise
+
+    @classmethod
+    def _perform_operations_internal(cls, operations):
+        if cls._can_perform_tagging is None:
+            cls._can_perform_tagging = cls._version(None) is not None and LooseVersion(
+                cls._version(None)
+            ) >= LooseVersion("2.0.6")
+        if not cls._can_perform_tagging:
+            raise MetaflowException(
+                "Tagging not supported on this version of Metaflow service. "
+                "Try again with a more recent version of metaflow service "
+                "(>= 2.0.6)"
+            )
+        to_send = []
+        for op in operations:
+            if op.op_type != "tags":
+                raise ValueError("Only tag operations are supported")
+            to_send.append(
+                {
+                    "object_type": op.object_type,
+                    "id": op.id,
+                    "operation": op.operation,
+                    "tag": op.args["tag"],
+                }
+            )
+        return json.loads(cls._request(None, "/tags", data=to_send))
 
     def _new_run(self, run_id=None, tags=None, sys_tags=None):
         # first ensure that the flow exists
