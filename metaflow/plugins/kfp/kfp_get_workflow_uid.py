@@ -1,5 +1,6 @@
 def get_workflow_uid(
     work_flow_name: str,
+    s3_sensor_path: str,
 ) -> str:
     """
     The environment variables that this depends on:

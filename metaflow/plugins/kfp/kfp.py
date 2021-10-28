@@ -1114,19 +1114,6 @@ class KubeflowPipelines(object):
                                 shared_volumes=shared_volumes,
                             )
 
-            workflow_uid_op: ContainerOp = None
-            if any(
-                "volume" in s.resource_requirements
-                for s in step_to_kfp_component_map.values()
-            ):
-                workflow_uid_op = func_to_container_op(
-                    get_workflow_uid,
-                    base_image="gcr.io/cloud-builders/kubectl",
-                )(work_flow_name="{{workflow.name}}").set_display_name(
-                    "get_workflow_uid"
-                )
-                KubeflowPipelines._set_minimal_container_resources(workflow_uid_op)
-
             def create_s3_sensor_op():
                 s3_sensor_deco = self.flow._flow_decorators.get("s3_sensor")
                 if s3_sensor_deco:
@@ -1137,7 +1124,27 @@ class KubeflowPipelines(object):
                 else:
                     return None
 
-            def call_build_kfp_dag():
+            def create_workflow_uid_op(s3_sensor_path: str):
+                workflow_uid_op: ContainerOp = None
+                if any(
+                    "volume" in s.resource_requirements
+                    for s in step_to_kfp_component_map.values()
+                ):
+                    workflow_uid_op = func_to_container_op(
+                        get_workflow_uid,
+                        base_image="gcr.io/cloud-builders/kubectl",
+                    )(
+                        work_flow_name="{{workflow.name}}",
+                        s3_sensor_path=s3_sensor_path,
+                    ).set_display_name(
+                        "get_workflow_uid"
+                    )
+                    KubeflowPipelines._set_minimal_container_resources(workflow_uid_op)
+                    return workflow_uid_op
+                else:
+                    return None
+
+            def call_build_kfp_dag(workflow_uid_op: ContainerOp):
                 build_kfp_dag(
                     self.graph["start"],
                     workflow_uid=workflow_uid_op.output if workflow_uid_op else None,
@@ -1148,11 +1155,17 @@ class KubeflowPipelines(object):
 
             if self.notify:
                 with dsl.ExitHandler(self._create_exit_handler_op()):
-                    call_build_kfp_dag()
                     s3_sensor_op = create_s3_sensor_op()
+                    workflow_uid_op = create_workflow_uid_op(
+                        s3_sensor_op.output if s3_sensor_op else ""
+                    )
+                    call_build_kfp_dag(workflow_uid_op)
             else:
-                call_build_kfp_dag()
                 s3_sensor_op = create_s3_sensor_op()
+                workflow_uid_op = create_workflow_uid_op(
+                    s3_sensor_op.output if s3_sensor_op else ""
+                )
+                call_build_kfp_dag(workflow_uid_op)
 
             # Instruct KFP of the DAG order by iterating over the Metaflow
             # graph nodes.  Each Metaflow graph node has in_funcs (nodes that
@@ -1165,12 +1178,8 @@ class KubeflowPipelines(object):
                 for parent_step in node.in_funcs:
                     visited[node.name].after(visited[parent_step])
 
-            # ensure the start step only begins after the s3_sensor step completes
             if s3_sensor_op:
                 visited["start"].after(s3_sensor_op)
-                # ensure volume creation also happens after the s3_sensor step completes
-                if workflow_uid_op:
-                    workflow_uid_op.after(s3_sensor_op)
 
             dsl.get_pipeline_conf().add_op_transformer(pipeline_transform)
             dsl.get_pipeline_conf().set_parallelism(self.max_parallelism)
