@@ -12,6 +12,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - name: Discover typos with codespell
+        uses: codespell-project/actions-codespell@master
+        with:
+          ignore_words_list: ans,ot
+          skip: "*.csv,*.json"
       - name: Check files using the black formatter
         uses: rickstaa/action-black@v1
         id: action_black

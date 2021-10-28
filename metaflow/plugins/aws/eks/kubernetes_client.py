@@ -83,7 +83,7 @@ class KubernetesClient(object):
             # TODO (savin):
             #     1. Support generating kubeconfig on the fly using boto3
             #     2. Support auth via OIDC - https://docs.aws.amazon.com/eks/latest/userguide/authenticate-oidc-identity-provider.html
-            # Supporting the above auth mechanisms (atleast 1.) should be
+            # Supporting the above auth mechanisms (at least 1.) should be
             # good enough for the initial rollout.
             config.load_kube_config()
         self._client = client
@@ -386,7 +386,7 @@ class RunningJob(object):
     # https://github.com/kubernetes/kubernetes/issues/7856). `conditions` otoh
     # provide a deeper understanding about the state of the pod; however
     # conditions are not state machines and can be oscillating - from the
-    # offical API conventions guide:
+    # official API conventions guide:
     #     In general, condition values may change back and forth, but some
     #     condition transitions may be monotonic, depending on the resource and
     #     condition type. However, conditions are observations and not,

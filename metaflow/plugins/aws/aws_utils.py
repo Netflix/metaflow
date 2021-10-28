@@ -15,7 +15,7 @@ def get_docker_registry(image_uri):
             [@:]                - The separator must be either "@" or ":"
             ?                   - The separator is optional
         ((?<=[@:]).*)?      - [GROUP 2] TAG / DIGEST
-            (?<=[@:])           - A tag / digest must be preceeded by "@" or ":"
+            (?<=[@:])           - A tag / digest must be preceded by "@" or ":"
             .*                  - Capture rest of tag / digest
             ?                   - A tag / digest is optional
     Examples:

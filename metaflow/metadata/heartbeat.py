@@ -28,7 +28,7 @@ class MetadataHeartBeat(object):
     def process_message(self, msg):
         # type: (Message) -> None
         if msg.msg_type == MessageTypes.SHUTDOWN:
-            # todo shutdown doesnt do anything yet? should it still be called
+            # todo shutdown does not do anything yet? should it still be called
             self.shutdown()
         if (not self.req_thread.is_alive()) and msg.msg_type == MessageTypes.LOG_EVENT:
             # set post url

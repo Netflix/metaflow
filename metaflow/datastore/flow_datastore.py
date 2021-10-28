@@ -89,7 +89,7 @@ class FlowDataStore(object):
             must also be specified, by default None
         pathspecs : List[str], optional
             Full task specs (run_id/step_name/task_id). Can be used instead of
-            specifiying run_id and steps, by default None
+            specifying run_id and steps, by default None
         allow_not_done : bool, optional
             If True, returns the latest attempt of a task even if that attempt
             wasn't marked as done, by default False

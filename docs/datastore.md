@@ -33,7 +33,7 @@ items to operate on (for example, all the keys to fetch) than to call the same
 API multiple times with a single key at a time. All APIs are designed with
 batch processing in mind where it makes sense.
 
-#### Separation of responsabilities
+#### Separation of responsibilities
 Each class implements few functionalities and we attempted to maximize reuse.
 The idea is that this will also help in developing newer implementations going
 forward and being able to surgically change a few things while keeping most of
@@ -120,7 +120,7 @@ logic).
 Content stored by the content addressed store is addressable using a `key` which is
 returned when `save_blobs` is called. `raw` objects can also directly be accessed
 using a `uri` (also returned by `save_blobs`); the `uri` will point to the location
-of the `raw` bytes in the underlying `DataStoreStorage` (so for exmaple a local
+of the `raw` bytes in the underlying `DataStoreStorage` (so for example a local
 filesystem path or a S3 path). Objects that are not `raw` do not return a `uri`
 as they should only be accessed through the content addressed store.
 
