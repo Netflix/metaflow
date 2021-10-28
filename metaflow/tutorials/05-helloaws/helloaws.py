@@ -8,6 +8,7 @@ class HelloAWSFlow(FlowSpec):
     Run this flow to validate your AWS configuration.
 
     """
+
     @step
     def start(self):
         """
@@ -40,7 +41,7 @@ class HelloAWSFlow(FlowSpec):
         goes wrong, the step will be automatically retried.
 
         """
-        self.message = 'Hi from AWS!'
+        self.message = "Hi from AWS!"
         print("Metaflow says: %s" % self.message)
         self.next(self.end)
 
@@ -54,5 +55,5 @@ class HelloAWSFlow(FlowSpec):
         print("HelloAWS is finished.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     HelloAWSFlow()

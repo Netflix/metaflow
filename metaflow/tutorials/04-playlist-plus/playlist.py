@@ -9,8 +9,8 @@ def get_python_version():
 
     """
     import platform
-    versions = {'2' : '2.7.15',
-                '3' : '3.7.3'}
+
+    versions = {"2": "2.7.15", "3": "3.7.3"}
     return versions[platform.python_version_tuple()[0]]
 
 
@@ -31,20 +31,24 @@ class PlayListFlow(FlowSpec):
     3) Join the two to create a movie playlist and display it.
 
     """
-    genre = Parameter('genre',
-                      help="Filter movies for a particular genre.",
-                      default='Sci-Fi')
 
-    hint = Parameter('hint',
-                     help="Give a hint to the bonus movie algorithm.",
-                     default='Metaflow Release')
+    genre = Parameter(
+        "genre", help="Filter movies for a particular genre.", default="Sci-Fi"
+    )
 
-    recommendations = Parameter('recommendations',
-                                help="The number of movies recommended for "
-                                "the playlist.",
-                                default=5)
+    hint = Parameter(
+        "hint",
+        help="Give a hint to the bonus movie algorithm.",
+        default="Metaflow Release",
+    )
 
-    @conda(libraries={'pandas' : '1.3.3'})
+    recommendations = Parameter(
+        "recommendations",
+        help="The number of movies recommended for " "the playlist.",
+        default=5,
+    )
+
+    @conda(libraries={"pandas": "1.3.3"})
     @step
     def start(self):
         """
@@ -63,12 +67,12 @@ class PlayListFlow(FlowSpec):
         print("Using metadata provider: %s" % get_metadata())
 
         # Load the analysis from the MovieStatsFlow.
-        run = Flow('MovieStatsFlow').latest_successful_run
+        run = Flow("MovieStatsFlow").latest_successful_run
         print("Using analysis from '%s'" % str(run))
 
         # Get the dataframe from the start step before we sliced into into
         # genre specific dataframes.
-        self.dataframe = run['start'].task.data.dataframe
+        self.dataframe = run["start"].task.data.dataframe
 
         # Also grab the summary statistics.
         self.genre_stats = run.data.genre_stats
@@ -76,7 +80,7 @@ class PlayListFlow(FlowSpec):
         # Compute our two recommendation types in parallel.
         self.next(self.bonus_movie, self.genre_movies)
 
-    @conda(libraries={'editdistance': '0.5.3', 'pandas' : '1.3.3'})
+    @conda(libraries={"editdistance": "0.5.3", "pandas": "1.3.3"})
     @step
     def bonus_movie(self):
         """
@@ -96,16 +100,17 @@ class PlayListFlow(FlowSpec):
         def _edit_distance(movie_title):
             return editdistance.eval(self.hint, movie_title)
 
-
         # Compute the distance and take the argmin to find the closest title.
-        distance = self.dataframe['movie_title'].apply(_edit_distance)
+        distance = self.dataframe["movie_title"].apply(_edit_distance)
         index = distance.idxmin()
-        self.bonus = (self.dataframe['movie_title'].values[index],
-                      self.dataframe['genres'].values[index])
+        self.bonus = (
+            self.dataframe["movie_title"].values[index],
+            self.dataframe["genres"].values[index],
+        )
 
         self.next(self.join)
 
-    @conda(libraries={'pandas' : '1.3.3'})
+    @conda(libraries={"pandas": "1.3.3"})
     @step
     def genre_movies(self):
         """
@@ -126,10 +131,10 @@ class PlayListFlow(FlowSpec):
             self.movies = []
 
         else:
-            df = self.genre_stats[genre]['dataframe']
-            quartiles = self.genre_stats[genre]['quartiles']
-            selector = df['gross'] >= quartiles[-1]
-            self.movies = list(df[selector]['movie_title'])
+            df = self.genre_stats[genre]["dataframe"]
+            quartiles = self.genre_stats[genre]["quartiles"]
+            selector = df["gross"] >= quartiles[-1]
+            self.movies = list(df[selector]["movie_title"])
 
         # Shuffle the content.
         shuffle(self.movies)
@@ -163,5 +168,5 @@ class PlayListFlow(FlowSpec):
         print("Bonus Pick: '%s' from '%s'" % (self.bonus[0], self.bonus[1]))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     PlayListFlow()

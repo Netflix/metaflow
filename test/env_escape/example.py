@@ -3,18 +3,31 @@ import sys
 
 from metaflow import FlowSpec, step, conda
 
+
 def run_test(through_escape=False):
     # NOTE: This will be the same for both escaped path and non-escaped path
     # if the library test_lib is installed. For the unescaped path, we pretend
     # we installed the library by modifying the path
     if not through_escape:
         # HACK to pretend that we installed test_lib
-        sys.path.append(os.path.realpath(
-            os.path.join(os.path.dirname(__file__), '..', '..', 'metaflow', 'plugins',
-                         'env_escape', 'configurations', 'test_lib_impl')))
+        sys.path.append(
+            os.path.realpath(
+                os.path.join(
+                    os.path.dirname(__file__),
+                    "..",
+                    "..",
+                    "metaflow",
+                    "plugins",
+                    "env_escape",
+                    "configurations",
+                    "test_lib_impl",
+                )
+            )
+        )
         print("Path is %s" % str(sys.path))
 
     import test_lib as test
+
     if through_escape:
         # This tests package aliasing
         from test_lib.package import TestClass3
@@ -79,7 +92,6 @@ def run_test(through_escape=False):
 
 
 class EscapeTest(FlowSpec):
-
     @conda(disabled=True)
     @step
     def start(self):
@@ -111,5 +123,6 @@ class EscapeTest(FlowSpec):
     def end(self):
         pass
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     EscapeTest()

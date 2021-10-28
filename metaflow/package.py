@@ -10,11 +10,10 @@ from .metaflow_config import DEFAULT_PACKAGE_SUFFIXES
 from .util import to_unicode
 from . import R
 
-DEFAULT_SUFFIXES_LIST = DEFAULT_PACKAGE_SUFFIXES.split(',')
+DEFAULT_SUFFIXES_LIST = DEFAULT_PACKAGE_SUFFIXES.split(",")
 
 
 class MetaflowPackage(object):
-
     def __init__(self, flow, environment, echo, suffixes=DEFAULT_SUFFIXES_LIST):
         self.suffixes = list(set().union(suffixes, DEFAULT_SUFFIXES_LIST))
         self.environment = environment
@@ -24,37 +23,38 @@ class MetaflowPackage(object):
         except ImportError:
             self.metaflow_extensions_root = None
         else:
-            self.metaflow_extensions_root = os.path.dirname(metaflow_extensions.__file__)
+            self.metaflow_extensions_root = os.path.dirname(
+                metaflow_extensions.__file__
+            )
             self.metaflow_extensions_addl_suffixes = getattr(
-                metaflow_extensions,
-                'METAFLOW_EXTENSIONS_PACKAGE_SUFFIXES',
-                None)
+                metaflow_extensions, "METAFLOW_EXTENSIONS_PACKAGE_SUFFIXES", None
+            )
 
         self.flow_name = flow.name
         self.create_time = time.time()
         environment.init_environment(echo)
         for step in flow:
             for deco in step.decorators:
-                deco.package_init(flow,
-                                  step.__name__,
-                                  environment)
+                deco.package_init(flow, step.__name__, environment)
         self.blob = self._make()
 
     def _walk(self, root, exclude_hidden=True, addl_suffixes=None):
         if addl_suffixes is None:
             addl_suffixes = []
         root = to_unicode(root)  # handle files/folder with non ascii chars
-        prefixlen = len('%s/' % os.path.dirname(root))
+        prefixlen = len("%s/" % os.path.dirname(root))
         for path, dirs, files in os.walk(root):
-            if exclude_hidden and '/.' in path:
+            if exclude_hidden and "/." in path:
                 continue
             # path = path[2:] # strip the ./ prefix
             # if path and (path[0] == '.' or './' in path):
             #    continue
             for fname in files:
-                if fname[0] == '.':
+                if fname[0] == ".":
                     continue
-                if any(fname.endswith(suffix) for suffix in self.suffixes + addl_suffixes):
+                if any(
+                    fname.endswith(suffix) for suffix in self.suffixes + addl_suffixes
+                ):
                     p = os.path.join(path, fname)
                     yield p, p[prefixlen:]
 
@@ -70,31 +70,32 @@ class MetaflowPackage(object):
         # Metaflow customization if any
         if self.metaflow_extensions_root:
             for path_tuple in self._walk(
-                    self.metaflow_extensions_root,
-                    exclude_hidden=False,
-                    addl_suffixes=self.metaflow_extensions_addl_suffixes):
+                self.metaflow_extensions_root,
+                exclude_hidden=False,
+                addl_suffixes=self.metaflow_extensions_addl_suffixes,
+            ):
                 yield path_tuple
         # the package folders for environment
         for path_tuple in self.environment.add_to_package():
             yield path_tuple
         if R.use_r():
             # the R working directory
-            for path_tuple in self._walk('%s/' % R.working_dir()):
+            for path_tuple in self._walk("%s/" % R.working_dir()):
                 yield path_tuple
             # the R package
             for path_tuple in R.package_paths():
                 yield path_tuple
         else:
             # the user's working directory
-            flowdir = os.path.dirname(os.path.abspath(sys.argv[0])) + '/'
+            flowdir = os.path.dirname(os.path.abspath(sys.argv[0])) + "/"
             for path_tuple in self._walk(flowdir):
                 yield path_tuple
 
     def _add_info(self, tar):
-        info = tarfile.TarInfo('INFO')
+        info = tarfile.TarInfo("INFO")
         env = self.environment.get_environment_info()
         buf = BytesIO()
-        buf.write(json.dumps(env).encode('utf-8'))
+        buf.write(json.dumps(env).encode("utf-8"))
         buf.seek(0)
         info.size = len(buf.getvalue())
         tar.addfile(info, buf)
@@ -107,16 +108,17 @@ class MetaflowPackage(object):
             return tarinfo
 
         buf = BytesIO()
-        with tarfile.open(fileobj=buf, mode='w:gz', compresslevel=3) as tar:
+        with tarfile.open(fileobj=buf, mode="w:gz", compresslevel=3) as tar:
             self._add_info(tar)
             for path, arcname in self.path_tuples():
-                tar.add(path, arcname=arcname,
-                        recursive=False, filter=no_mtime)
+                tar.add(path, arcname=arcname, recursive=False, filter=no_mtime)
 
         blob = bytearray(buf.getvalue())
-        blob[4:8] = [0] * 4 # Reset 4 bytes from offset 4 to account for ts
+        blob[4:8] = [0] * 4  # Reset 4 bytes from offset 4 to account for ts
         return blob
 
     def __str__(self):
-        return '<code package for flow %s (created @ %s)>' % \
-            (self.flow_name, time.strftime("%a, %d %b %Y %H:%M:%S", self.create_time))
+        return "<code package for flow %s (created @ %s)>" % (
+            self.flow_name,
+            time.strftime("%a, %d %b %Y %H:%M:%S", self.create_time),
+        )

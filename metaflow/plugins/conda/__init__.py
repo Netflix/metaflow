@@ -3,7 +3,7 @@ import os
 import json
 import fcntl
 
-CONDA_MAGIC_FILE = 'conda.dependencies'
+CONDA_MAGIC_FILE = "conda.dependencies"
 
 
 def get_conda_manifest_path(ds_root, flow_name):
@@ -26,7 +26,7 @@ def write_to_conda_manifest(ds_root, flow_name, key, value):
     except OSError as x:
         if x.errno != errno.EEXIST:
             raise
-    with os.fdopen(os.open(path, os.O_RDWR | os.O_CREAT), 'r+') as f:
+    with os.fdopen(os.open(path, os.O_RDWR | os.O_CREAT), "r+") as f:
         try:
             fcntl.flock(f, fcntl.LOCK_EX)
             data = {}
