@@ -21,6 +21,9 @@ setup(name='metaflow',
         'boto3',
         'pylint'
       ],
+      extras_require = {
+        'kubernetes': ['kubernetes']
+      },
       tests_require = [
         'coverage'
       ])
