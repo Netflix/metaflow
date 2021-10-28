@@ -7,17 +7,19 @@ from io import BytesIO
 from collections import namedtuple
 from itertools import chain
 
+from metaflow.metadata.metadata import MetadataOperation
 from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.exception import (
     MetaflowNotFound,
     MetaflowNamespaceMismatch,
     MetaflowInternalError,
+    TaggingException,
 )
 
 from metaflow.metaflow_config import DEFAULT_METADATA, MAX_ATTEMPTS
 from metaflow.plugins import ENVIRONMENTS, METADATA_PROVIDERS
 from metaflow.unbounded_foreach import CONTROL_TASK_TAG
-from metaflow.util import cached_property, resolve_identity, to_unicode
+from metaflow.util import cached_property, is_stringish, resolve_identity, to_unicode
 
 from .filecache import FileCache
 
@@ -302,7 +304,9 @@ class MetaflowObject(object):
     Attributes
     ----------
     tags : Set
-        Tags associated with the object.
+        User and system tags associated with the object.
+    system_tags : Set
+        System tags associated with the object
     created_at : datetime
         Date and time this object was first created.
     parent : MetaflowObject
@@ -376,12 +380,15 @@ class MetaflowObject(object):
 
         self._created_at = datetime.fromtimestamp(self._object["ts_epoch"] / 1000.0)
 
-        self._tags = frozenset(
-            chain(self._object.get("system_tags") or [], self._object.get("tags") or [])
-        )
+        # Keep system tags and a set union of system tags + customized tags
+        self._system_tags = self._get_tags_set(self._object.get("system_tags"), None)
+        self._tags = self._get_tags_set(self._system_tags, self._object.get("tags"))
 
         if _namespace_check and not self.is_in_namespace():
             raise MetaflowNamespaceMismatch(current_namespace)
+
+    def _get_tags_set(self, system_tags, tags):
+        return frozenset(chain(system_tags or [], tags or []))
 
     def _get_object(self, *path_components):
         result = self._metaflow.metadata.get_object(
@@ -449,6 +456,48 @@ class MetaflowObject(object):
     @classmethod
     def _url_token(cls):
         return "%ss" % cls._NAME
+
+    def _tag_operations(self, operations):
+        if len(operations) == 0:
+            raise TaggingException("At least one tagging operation must be provided")
+        formatted_operations = []
+        # Perform some sanity checks to report more precisely to the user
+        for o, t in operations:
+            if o not in ["add", "remove"]:
+                raise TaggingException("Invalid tagging operation %s" % o)
+            if o == "add" and t in self._system_tags:
+                # We don't throw an error but just don't send it; it's a no-op
+                continue
+            if o == "remove":
+                if t in self._system_tags:
+                    raise TaggingException("Cannot remove system tag *%s*" % t)
+            formatted_operations.append(
+                MetadataOperation(
+                    op_type="tags",
+                    operation=o,
+                    id=self.pathspec,
+                    object_type=self._NAME,
+                    args={"tag": t},
+                )
+            )
+        result = self._metaflow.metadata.perform_operations(formatted_operations).get(
+            self.pathspec, None
+        )
+        if result and result["status"] == "ok":
+            self._object = result["data"]
+        else:
+            raise TaggingException(
+                "Unable to perform tagging operation on %s: %s"
+                % (
+                    self.pathspec,
+                    ": ".join([result["status"], result["data"]])
+                    if result
+                    else "<unknown error>",
+                )
+            )
+        # Keep system tags and a set union of system tags + customized tags
+        self._system_tags = self._get_tags_set(self._object.get("system_tags"), None)
+        self._tags = self._get_tags_set(self._system_tags, self._object.get("tags"))
 
     def is_in_namespace(self):
         """
@@ -544,6 +593,21 @@ class MetaflowObject(object):
             Tags associated with the object
         """
         return self._tags
+
+    @property
+    def system_tags(self):
+        """
+        System tags associated with this object.
+
+        Tags can be user defined or system defined. This returns only the
+        system tags associated with the object.
+
+        Returns
+        -------
+        List[string]
+            System tags associated with the object
+        """
+        return self._system_tags
 
     @property
     def created_at(self):
@@ -661,6 +725,61 @@ class MetaflowObject(object):
             ids = self.pathspec.split("/")
             self._path_components = ids
         return list(self._path_components)
+
+    def add_tag(self, tags):
+        """
+        Add the tags to the current object
+
+        If any of the tags is already a system tag, it is not added as a
+        user-tag but no error is returned (since it already exists as a
+        system tag). On success, all tags will have been added.
+
+        Parameters
+        ----------
+        tags : Iterable over string
+            Tags to add
+        """
+        return self.replace_tag([], tags)
+
+    def remove_tag(self, tags):
+        """
+        Remove the tags to the current object
+
+        Removing a system tag will result in an error. Removing a non-existent
+        user-tag is a no-op. On success, all tags will have been removed.
+
+        Parameters
+        ----------
+        tags : string or Iterable over string
+            Tags to remove
+        """
+        return self.replace_tag(tags, [])
+
+    def replace_tag(self, remove_tags, add_tags):
+        """
+        Removes and adds tags; the removal is done first
+
+        The same rules that apply to `add_tags` and `remove_tags` apply here,
+        respectively to the `add_tags` and `remove_tags` arguments.
+
+        Parameters
+        ----------
+        remove_tags : string or Iterable over string
+            Tags to remove
+        add_tags : string or Iterable over string
+            Tags to add
+        """
+        if not isinstance(remove_tags, (tuple, list)):
+            remove_tags = [remove_tags]
+        if not isinstance(add_tags, (tuple, list)):
+            add_tags = [add_tags]
+
+        if not all([is_stringish(x) for x in chain(remove_tags, add_tags)]):
+            print("Found tags: %s and %s" % (str(remove_tags), str(add_tags)))
+            raise ValueError("Tags can only be strings")
+        operations = [("remove", tag) for tag in remove_tags]
+        operations.extend(("add", tag) for tag in add_tags)
+        self._tag_operations(operations)
 
 
 class MetaflowData(object):

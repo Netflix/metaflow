@@ -124,6 +124,10 @@ class CommandException(MetaflowException):
     headline = "Invalid command"
 
 
+class TaggingException(MetaflowException):
+    headline = "Tagging operation failed"
+
+
 class MetaflowDataMissing(MetaflowException):
     headline = "Data missing"
 

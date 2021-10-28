@@ -14,6 +14,9 @@ DataArtifact = namedtuple("DataArtifact", "name ds_type ds_root url type sha")
 MetaDatum = namedtuple("MetaDatum", "field value type tags")
 
 attempt_id_re = re.compile(r"attempt_id:([0-9]+)")
+MetadataOperation = namedtuple(
+    "MetadataOperation", "op_type operation id object_type args"
+)
 
 
 class MetadataProviderMeta(type):
@@ -170,9 +173,9 @@ class MetadataProvider(object):
         task_id : int
             Task ID
         tags : list, optional
-            Tags to apply to this particular run, by default []
+            Tags to apply to this particular run, by default None
         sys_tags : list, optional
-            System tags to apply to this particular run, by default []
+            System tags to apply to this particular run, by default None
         """
         raise NotImplementedError()
 
@@ -282,6 +285,25 @@ class MetadataProvider(object):
         ------
             object or list :
                 Depending on the call, the type of object return varies
+        """
+        raise NotImplementedError()
+
+    @classmethod
+    def _perform_operations_internal(cls, operations):
+        """
+        Performs operations to update existing objects in the metadata.
+
+        See perform_operations
+
+        Parameters
+        ----------
+        operations : List[MetadataOperation]
+            Operations to apply; each operation will indicate what to do
+
+        Return
+        ------
+            List[object] :
+                Objects are returned after each modification
         """
         raise NotImplementedError()
 
@@ -406,6 +428,34 @@ class MetadataProvider(object):
         return MetadataProvider._reconstruct_metadata_for_attempt(
             pre_filter, attempt_int
         )
+
+    @classmethod
+    def perform_operations(cls, operations):
+        """
+        Performs operations to update existing objects in the metadata
+
+        Parameters
+        ----------
+        operations : List[MetadataOperation]
+            Operations to apply; each operation will indicate what to do
+
+        Return
+        ------
+            List[object] :
+                Objects are returned after each modification
+        """
+        # For now, the only operation we support are tag operations. Validate
+        # this
+        for op in operations:
+            if op.op_type != "tags":
+                raise MetaflowInternalError(msg="Invalid operation: %s" % op.op_type)
+            if op.operation not in ["add", "remove"]:
+                raise MetaflowInternalError(
+                    msg="Invalid tag operation: %s" % op.operation
+                )
+            if "tag" not in op.args:
+                raise MetaflowInternalError(msg="Missing tag information")
+        return cls._perform_operations_internal(operations)
 
     def _all_obj_elements(self, tags=None, sys_tags=None):
         user = get_username()
