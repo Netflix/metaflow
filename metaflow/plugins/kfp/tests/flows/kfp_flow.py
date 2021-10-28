@@ -1,13 +1,11 @@
 from typing import NamedTuple
 import os
 
-from aip_kfp_sdk.components.component import kfp_component
-
 from metaflow import FlowSpec, step, kfp, resources
 from kubernetes import client, config
+from kfp.components import func_to_container_op
 
 
-@kfp_component(use_code_pickling=False)
 def div_mod(
     dividend: int, divisor: int
 ) -> NamedTuple("result", [("quotient", int), ("remainder", int)]):
@@ -59,7 +57,7 @@ class KfpFlow(FlowSpec):
         self.next(self.end)
 
     @kfp(
-        preceding_component=div_mod,
+        preceding_component=func_to_container_op(div_mod, use_code_pickling=False),
         preceding_component_inputs="dividend divisor",
         preceding_component_outputs="quotient remainder",
         image=os.getenv("KFP_STEP_IMAGE", None),

@@ -83,34 +83,34 @@ build:docker:
   stage: build
   script:
     - *version
-    - export IMAGE_REPOSITORY_TAG=${DOCKER_REPO_URL}/${CI_PROJECT_NAMESPACE}/${PY_LIBRARY_NAME}:${IMAGE_TAG}
-    - 'docker build --no-cache -f metaflow/plugins/kfp/tests/Dockerfile --build-arg IMAGE_TAG=${IMAGE_REPOSITORY_TAG} -t ${IMAGE_REPOSITORY_TAG} .'
-    - 'echo ${DOCKER_API_KEY} | docker login -u ${DOCKER_USERNAME} --password-stdin ${DOCKER_REPO_URL}'
-    - STDERR=$(docker push ${IMAGE_REPOSITORY_TAG} 2>&1 >/dev/null) || true
-    - echo $STDERR
     - |
-      if [ -z "$STDERR" ] || [[ $STDERR == *"manifest invalid"* ]]; then
-        echo "Successful!"
-      else
-        echo "Error in pushing image to Artifactory." >&2
-        exit 1
-      fi
-    - echo ${IMAGE_REPOSITORY_TAG} > ${IMAGE_REPOSITORY_TAG_PATH}
+      build_image() {
+        image_repository_tag=$1
+        image_repository_tag_path=$2
 
-    # duplicate the above for another image to specifically test kfp_step_flow.py
-    - export IMAGE_REPOSITORY_TAG_KFP_STEP=${DOCKER_REPO_URL}/${CI_PROJECT_NAMESPACE}/${PY_LIBRARY_NAME}:${IMAGE_TAG}_kfp_step
-    - 'docker build --no-cache -f metaflow/plugins/kfp/tests/Dockerfile --build-arg IMAGE_TAG=${IMAGE_REPOSITORY_TAG_KFP_STEP} -t ${IMAGE_REPOSITORY_TAG_KFP_STEP} .'
-    - 'echo ${DOCKER_API_KEY} | docker login -u ${DOCKER_USERNAME} --password-stdin ${DOCKER_REPO_URL}'
-    - STDERR=$(docker push ${IMAGE_REPOSITORY_TAG_KFP_STEP} 2>&1 >/dev/null) || true
-    - echo $STDERR
+        DOCKER_BUILDKIT=1 docker build --no-cache -f metaflow/plugins/kfp/tests/Dockerfile --build-arg IMAGE_TAG=${image_repository_tag} -t ${image_repository_tag} .
+        echo ${DOCKER_API_KEY} | docker login -u ${DOCKER_USERNAME} --password-stdin ${DOCKER_REPO_URL}
+        STDERR=$(docker push ${image_repository_tag} 2>&1 >/dev/null) || true
+        echo $STDERR
+
+        if [ -z "$STDERR" ] || [[ $STDERR == *"manifest invalid"* ]] || [[ $STDERR == *"Not enough permissions to delete/overwrite artifact"* ]]; then
+          echo "Successful!"
+        else
+          echo "Error in pushing image to Artifactory." >&2
+          exit 1
+        fi
+        echo ${image_repository_tag} > ${image_repository_tag_path}
+      }
+
     - |
-      if [ -z "$STDERR" ] || [[ $STDERR == *"manifest invalid"* ]]; then
-        echo "Successful!"
-      else
-        echo "Error in pushing image to Artifactory." >&2
-        exit 1
-      fi
-    - echo ${IMAGE_REPOSITORY_TAG_KFP_STEP} > ${IMAGE_REPOSITORY_TAG_PATH_KFP_STEP}
+      export IMAGE_REPOSITORY_TAG=${DOCKER_REPO_URL}/${CI_PROJECT_NAMESPACE}/${PY_LIBRARY_NAME}:${IMAGE_TAG}
+      build_image $IMAGE_REPOSITORY_TAG $IMAGE_REPOSITORY_TAG_PATH
+
+    # Create another image specifically to test kfp_step_flow.py, this sets the image name within the built image
+    # such that the test can assert that for specific steps it is using this overridden image
+    - |
+      export IMAGE_REPOSITORY_TAG_KFP_STEP=${DOCKER_REPO_URL}/${CI_PROJECT_NAMESPACE}/${PY_LIBRARY_NAME}:${IMAGE_TAG}_kfp_step
+      build_image $IMAGE_REPOSITORY_TAG_KFP_STEP $IMAGE_REPOSITORY_TAG_PATH_KFP_STEP
   artifacts:
     paths:
       - ${IMAGE_REPOSITORY_TAG_PATH}
