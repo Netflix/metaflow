@@ -932,6 +932,7 @@ def start(
     cli_args._set_top_kwargs(ctx.params)
     ctx.obj.echo = echo
     ctx.obj.echo_always = echo_always
+    ctx.obj.is_quiet = quiet
     ctx.obj.graph = FlowGraph(ctx.obj.flow.__class__)
     ctx.obj.logger = logger
     ctx.obj.check = _check

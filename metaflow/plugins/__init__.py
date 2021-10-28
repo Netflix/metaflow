@@ -94,13 +94,14 @@ def get_plugin_cli():
     # that the flow is imported first
 
     # Add new CLI commands in this list
-    from . import package_cli
+    from . import package_cli, tagging_cli
     from .aws.batch import batch_cli
     from .aws.eks import kubernetes_cli
     from .aws.step_functions import step_functions_cli
 
     return _ext_plugins.get_plugin_cli() + [
         package_cli.cli,
+        tagging_cli.cli,
         batch_cli.cli,
         kubernetes_cli.cli,
         step_functions_cli.cli,
