@@ -138,7 +138,7 @@ def get_version(pep440=False):
         version = metaflow.__version__
         version_addl = metaflow.__version_addl__
     if version is None:  # not a proper python package
-        version = read_info_version()
-    if version and version_addl:
+        return read_info_version()
+    if version_addl:
         return "+".join([version, version_addl])
     return version
