@@ -9,13 +9,12 @@ from metaflow.exception import MetaflowInternalError
 from metaflow.util import get_username, resolve_identity
 
 
-DataArtifact = namedtuple('DataArtifact',
-                          'name ds_type ds_root url type sha')
+DataArtifact = namedtuple("DataArtifact", "name ds_type ds_root url type sha")
 
-MetaDatum = namedtuple('MetaDatum',
-                       'field value type tags')
+MetaDatum = namedtuple("MetaDatum", "field value type tags")
 
 attempt_id_re = re.compile(r"attempt_id:([0-9]+)")
+
 
 class MetadataProviderMeta(type):
     def __new__(metaname, classname, bases, attrs):
@@ -41,18 +40,18 @@ def with_metaclass(mcls):
     def decorator(cls):
         body = vars(cls).copy()
         # clean out class body
-        body.pop('__dict__', None)
-        body.pop('__weakref__', None)
+        body.pop("__dict__", None)
+        body.pop("__weakref__", None)
         return mcls(cls.__name__, cls.__bases__, body)
+
     return decorator
 
 
 @with_metaclass(MetadataProviderMeta)
 class MetadataProvider(object):
-
     @classmethod
     def compute_info(cls, val):
-        '''
+        """
         Compute the new information for this provider
 
         The computed value should be returned and will then be accessible directly as cls.INFO.
@@ -68,12 +67,12 @@ class MetadataProvider(object):
         -------
         str :
             Value to be set to INFO
-        '''
-        return ''
+        """
+        return ""
 
     @classmethod
     def default_info(cls):
-        '''
+        """
         Returns the default information for this provider
 
         This should compute and return the default value for the information regarding this provider.
@@ -83,22 +82,22 @@ class MetadataProvider(object):
         -------
         str
             Value to be set by default in INFO
-        '''
-        return ''
+        """
+        return ""
 
     def version(self):
-        '''
+        """
         Returns the version of this provider
 
         Returns
         -------
         str
             Version of the provider
-        '''
-        return ''
+        """
+        return ""
 
     def new_run_id(self, tags=None, sys_tags=None):
-        '''
+        """
         Creates an ID and registers this new run.
 
         The run ID will be unique within a given flow.
@@ -114,11 +113,11 @@ class MetadataProvider(object):
         -------
         int
             Run ID for the run
-        '''
+        """
         raise NotImplementedError()
 
     def register_run_id(self, run_id, tags=None, sys_tags=None):
-        '''
+        """
         No-op operation in this implementation.
 
         Parameters
@@ -129,11 +128,11 @@ class MetadataProvider(object):
             Tags to apply to this particular run, by default None
         sys_tags : list, optional
             System tags to apply to this particular run, by default None
-        '''
+        """
         raise NotImplementedError()
 
     def new_task_id(self, run_id, step_name, tags=None, sys_tags=None):
-        '''
+        """
         Creates an ID and registers this new task.
 
         The task ID will be unique within a flow, run and step
@@ -153,12 +152,13 @@ class MetadataProvider(object):
         -------
         int
             Task ID for the task
-        '''
+        """
         raise NotImplementedError()
 
     def register_task_id(
-            self, run_id, step_name, task_id, attempt=0, tags=None, sys_tags=None):
-        '''
+        self, run_id, step_name, task_id, attempt=0, tags=None, sys_tags=None
+    ):
+        """
         No-op operation in this implementation.
 
         Parameters
@@ -173,11 +173,11 @@ class MetadataProvider(object):
             Tags to apply to this particular run, by default []
         sys_tags : list, optional
             System tags to apply to this particular run, by default []
-        '''
+        """
         raise NotImplementedError()
 
     def get_runtime_environment(self, runtime_name):
-        '''
+        """
         Returns a dictionary of environment variables to be set
 
         Parameters
@@ -189,17 +189,13 @@ class MetadataProvider(object):
         -------
         dict[string] -> string
             Environment variables from this metadata provider
-        '''
-        return {'METAFLOW_RUNTIME_NAME': runtime_name,
-                'USER': get_username()}
+        """
+        return {"METAFLOW_RUNTIME_NAME": runtime_name, "USER": get_username()}
 
-    def register_data_artifacts(self,
-                                run_id,
-                                step_name,
-                                task_id,
-                                attempt_id,
-                                artifacts):
-        '''
+    def register_data_artifacts(
+        self, run_id, step_name, task_id, attempt_id, artifacts
+    ):
+        """
         Registers the fact that the data-artifacts are associated with
         the particular task.
 
@@ -218,11 +214,11 @@ class MetadataProvider(object):
             Attempt for the task
         artifacts : List of DataArtifact
             Artifacts associated with this task
-        '''
+        """
         raise NotImplementedError()
 
     def register_metadata(self, run_id, step_name, task_id, metadata):
-        '''
+        """
         Registers metadata with a task.
 
         Note that the same metadata can be registered multiple times for the same task (for example
@@ -239,7 +235,7 @@ class MetadataProvider(object):
             Task ID for the task
         metadata : List of MetaDatum
             Metadata associated with this task
-        '''
+        """
         raise NotImplementedError()
 
     def start_task_heartbeat(self, flow_id, run_id, step_name, task_id):
@@ -253,8 +249,9 @@ class MetadataProvider(object):
 
     @classmethod
     def _get_object_internal(
-        cls, obj_type, obj_order, sub_type, sub_order, filters, attempt, *args):
-        '''
+        cls, obj_type, obj_order, sub_type, sub_order, filters, attempt, *args
+    ):
+        """
         Return objects for the implementation of this class
 
         See get_object_internal for the description of what this function does
@@ -285,11 +282,11 @@ class MetadataProvider(object):
         ------
             object or list :
                 Depending on the call, the type of object return varies
-        '''
+        """
         raise NotImplementedError()
 
     def add_sticky_tags(self, tags=None, sys_tags=None):
-        '''
+        """
         Adds tags to be added to every run and task
 
         Tags can be added to record information about a run/task. Such tags can be specified on a
@@ -303,7 +300,7 @@ class MetadataProvider(object):
             Tags to add to every run/task, by default None
         sys_tags : list, optional
             System tags to add to every run/task, by default None
-        '''
+        """
         if tags:
             self.sticky_tags.update(tags)
         if sys_tags:
@@ -311,7 +308,7 @@ class MetadataProvider(object):
 
     @classmethod
     def get_object(cls, obj_type, sub_type, filters, attempt, *args):
-        '''Returns the requested object depending on obj_type and sub_type
+        """Returns the requested object depending on obj_type and sub_type
 
         obj_type can be one of 'root', 'flow', 'run', 'step', 'task',
         or 'artifact'
@@ -357,33 +354,38 @@ class MetadataProvider(object):
         ------
             object or list :
                 Depending on the call, the type of object return varies
-        '''
+        """
         obj_order = {
-            'root': 0,
-            'flow': 1,
-            'run': 2,
-            'step': 3,
-            'task': 4,
-            'artifact': 5,
-            'metadata': 6,
-            'self': 7}
+            "root": 0,
+            "flow": 1,
+            "run": 2,
+            "step": 3,
+            "task": 4,
+            "artifact": 5,
+            "metadata": 6,
+            "self": 7,
+        }
         type_order = obj_order.get(obj_type)
         sub_order = obj_order.get(sub_type)
 
         if type_order is None:
-            raise MetaflowInternalError(msg='Cannot find type %s' % obj_type)
+            raise MetaflowInternalError(msg="Cannot find type %s" % obj_type)
         if type_order > 5:
-            raise MetaflowInternalError(msg='Type %s is not allowed' % obj_type)
+            raise MetaflowInternalError(msg="Type %s is not allowed" % obj_type)
 
         if sub_order is None:
-            raise MetaflowInternalError(msg='Cannot find subtype %s' % sub_type)
+            raise MetaflowInternalError(msg="Cannot find subtype %s" % sub_type)
 
         if type_order >= sub_order:
-            raise MetaflowInternalError(msg='Subtype %s not allowed for %s' % (sub_type, obj_type))
+            raise MetaflowInternalError(
+                msg="Subtype %s not allowed for %s" % (sub_type, obj_type)
+            )
 
         # Metadata is always only at the task level
-        if sub_type == 'metadata' and obj_type != 'task':
-            raise MetaflowInternalError(msg='Metadata can only be retrieved at the task level')
+        if sub_type == "metadata" and obj_type != "task":
+            raise MetaflowInternalError(
+                msg="Metadata can only be retrieved at the task level"
+            )
 
         if attempt is not None:
             try:
@@ -396,61 +398,65 @@ class MetadataProvider(object):
             attempt_int = None
 
         pre_filter = cls._get_object_internal(
-            obj_type, type_order, sub_type, sub_order, filters, attempt_int, *args)
+            obj_type, type_order, sub_type, sub_order, filters, attempt_int, *args
+        )
         if attempt_int is None or sub_order != 6:
             # If no attempt or not for metadata, just return as is
             return pre_filter
         return MetadataProvider._reconstruct_metadata_for_attempt(
-            pre_filter, attempt_int)
+            pre_filter, attempt_int
+        )
 
     def _all_obj_elements(self, tags=None, sys_tags=None):
         user = get_username()
         return {
-            'flow_id': self._flow_name,
-            'user_name': user,
-            'tags': list(tags) if tags else [],
-            'system_tags': list(sys_tags) if sys_tags else [],
-            'ts_epoch': int(round(time.time() * 1000))}
+            "flow_id": self._flow_name,
+            "user_name": user,
+            "tags": list(tags) if tags else [],
+            "system_tags": list(sys_tags) if sys_tags else [],
+            "ts_epoch": int(round(time.time() * 1000)),
+        }
 
     def _flow_to_json(self):
         # No need to store tags, sys_tags or username at the flow level
         # since runs are the top level logical concept, which is where we
         # store tags, sys_tags and username
-        return {
-            'flow_id': self._flow_name,
-            'ts_epoch': int(round(time.time() * 1000))}
+        return {"flow_id": self._flow_name, "ts_epoch": int(round(time.time() * 1000))}
 
     def _run_to_json(self, run_id=None, tags=None, sys_tags=None):
         if run_id is not None:
-            d = {'run_number': run_id}
+            d = {"run_number": run_id}
         else:
             d = {}
         d.update(self._all_obj_elements(tags, sys_tags))
         return d
 
     def _step_to_json(self, run_id, step_name, tags=None, sys_tags=None):
-        d = {
-            'run_number': run_id,
-            'step_name': step_name}
+        d = {"run_number": run_id, "step_name": step_name}
         d.update(self._all_obj_elements(tags, sys_tags))
         return d
 
     def _task_to_json(self, run_id, step_name, task_id=None, tags=None, sys_tags=None):
-        d = {
-            'run_number': run_id,
-            'step_name': step_name}
+        d = {"run_number": run_id, "step_name": step_name}
         if task_id is not None:
-            d['task_id'] = task_id
+            d["task_id"] = task_id
         d.update(self._all_obj_elements(tags, sys_tags))
         return d
 
     def _object_to_json(
-            self, obj_type, run_id=None, step_name=None, task_id=None, tags=None, sys_tags=None):
-        if obj_type == 'task':
+        self,
+        obj_type,
+        run_id=None,
+        step_name=None,
+        task_id=None,
+        tags=None,
+        sys_tags=None,
+    ):
+        if obj_type == "task":
             return self._task_to_json(run_id, step_name, task_id, tags, sys_tags)
-        if obj_type == 'step':
+        if obj_type == "step":
             return self._step_to_json(run_id, step_name, tags, sys_tags)
-        if obj_type == 'run':
+        if obj_type == "run":
             return self._run_to_json(run_id, tags, sys_tags)
         return self._flow_to_json()
 
@@ -458,60 +464,71 @@ class MetadataProvider(object):
         result = []
         for art in artifacts:
             d = {
-                'run_number': run_id,
-                'step_name': step_name,
-                'task_id': task_id,
-                'attempt_id': attempt_id,
-                'name': art.name,
-                'content_type': art.type,
-                'type': 'metaflow.artifact',
-                'sha': art.sha,
-                'ds_type': art.ds_type,
-                'location': art.url if art.url else ':root:%s' % art.ds_root}
+                "run_number": run_id,
+                "step_name": step_name,
+                "task_id": task_id,
+                "attempt_id": attempt_id,
+                "name": art.name,
+                "content_type": art.type,
+                "type": "metaflow.artifact",
+                "sha": art.sha,
+                "ds_type": art.ds_type,
+                "location": art.url if art.url else ":root:%s" % art.ds_root,
+            }
             d.update(self._all_obj_elements(self.sticky_tags, self.sticky_sys_tags))
             result.append(d)
         return result
 
     def _metadata_to_json(self, run_id, step_name, task_id, metadata):
         user = get_username()
-        return [{
-            'flow_id': self._flow_name,
-            'run_number': run_id,
-            'step_name': step_name,
-            'task_id': task_id,
-            'field_name': datum.field,
-            'type': datum.type,
-            'value': datum.value,
-            'tags': list(set(datum.tags)) if datum.tags else [],
-            'user_name': user,
-            'ts_epoch': int(round(time.time() * 1000))} for datum in metadata]
+        return [
+            {
+                "flow_id": self._flow_name,
+                "run_number": run_id,
+                "step_name": step_name,
+                "task_id": task_id,
+                "field_name": datum.field,
+                "type": datum.type,
+                "value": datum.value,
+                "tags": list(set(datum.tags)) if datum.tags else [],
+                "user_name": user,
+                "ts_epoch": int(round(time.time() * 1000)),
+            }
+            for datum in metadata
+        ]
 
     def _tags(self):
         env = self._environment.get_environment_info()
         tags = [
             resolve_identity(),
-            'runtime:' + env['runtime'],
-            'python_version:' + env['python_version_code'],
-            'date:' + datetime.utcnow().strftime('%Y-%m-%d')]
-        if env['metaflow_version']:
-            tags.append('metaflow_version:' + env['metaflow_version'])
-        if 'metaflow_r_version' in env:
-            tags.append('metaflow_r_version:' + env['metaflow_r_version'])
-        if 'r_version_code' in env:
-            tags.append('r_version:' + env['r_version_code'])
+            "runtime:" + env["runtime"],
+            "python_version:" + env["python_version_code"],
+            "date:" + datetime.utcnow().strftime("%Y-%m-%d"),
+        ]
+        if env["metaflow_version"]:
+            tags.append("metaflow_version:" + env["metaflow_version"])
+        if "metaflow_r_version" in env:
+            tags.append("metaflow_r_version:" + env["metaflow_r_version"])
+        if "r_version_code" in env:
+            tags.append("r_version:" + env["r_version_code"])
         return tags
 
     def _register_code_package_metadata(self, run_id, step_name, task_id, attempt):
         metadata = []
-        code_sha = os.environ.get('METAFLOW_CODE_SHA')
-        code_url = os.environ.get('METAFLOW_CODE_URL')
-        code_ds = os.environ.get('METAFLOW_CODE_DS')
+        code_sha = os.environ.get("METAFLOW_CODE_SHA")
+        code_url = os.environ.get("METAFLOW_CODE_URL")
+        code_ds = os.environ.get("METAFLOW_CODE_DS")
         if code_sha:
-            metadata.append(MetaDatum(
-                field='code-package',
-                value=json.dumps({'ds_type': code_ds, 'sha': code_sha, 'location': code_url}),
-                type='code-package',
-                tags=["attempt_id:{0}".format(attempt)]))
+            metadata.append(
+                MetaDatum(
+                    field="code-package",
+                    value=json.dumps(
+                        {"ds_type": code_ds, "sha": code_sha, "location": code_url}
+                    ),
+                    type="code-package",
+                    tags=["attempt_id:{0}".format(attempt)],
+                )
+            )
         # We don't tag with attempt_id here because not readily available; this
         # is ok though as this doesn't change from attempt to attempt.
         if metadata:
@@ -524,17 +541,19 @@ class MetadataProvider(object):
         starting_point = elts
         result = []
         for key, value in filters.items():
-            if key == 'any_tags':
+            if key == "any_tags":
                 for obj in starting_point:
-                    if value in obj.get('tags', []) or value in obj.get('system_tags', []):
+                    if value in obj.get("tags", []) or value in obj.get(
+                        "system_tags", []
+                    ):
                         result.append(obj)
-            if key == 'tags':
+            if key == "tags":
                 for obj in starting_point:
-                    if value in obj.get('tags', []):
+                    if value in obj.get("tags", []):
                         result.append(obj)
-            if key == 'system_tags':
+            if key == "system_tags":
                 for obj in starting_point:
-                    if value in obj.get('system_tags', []):
+                    if value in obj.get("system_tags", []):
                         result.append(obj)
             starting_point = result
             result = []
@@ -546,9 +565,9 @@ class MetadataProvider(object):
         attempts_start = {}
         post_filter = []
         for v in all_metadata:
-            if v['field_name'] == 'attempt':
-                attempts_start[int(v['value'])] = v['ts_epoch']
-            all_tags = v.get('tags')
+            if v["field_name"] == "attempt":
+                attempts_start[int(v["value"])] = v["ts_epoch"]
+            all_tags = v.get("tags")
             if all_tags is None:
                 all_tags = []
             for t in all_tags:
@@ -565,11 +584,14 @@ class MetadataProvider(object):
             # We reconstruct base on the attempts_start
             start_ts = attempts_start.get(attempt_id, -1)
             if start_ts < 0:
-                return [] # No metadata since the attempt hasn't started
+                return []  # No metadata since the attempt hasn't started
             # Doubt we will be using Python in year 3000
             end_ts = attempts_start.get(attempt_id + 1, 32503680000000)
-            post_filter = [v for v in all_metadata
-                if v['ts_epoch'] >= start_ts and v['ts_epoch'] < end_ts]
+            post_filter = [
+                v
+                for v in all_metadata
+                if v["ts_epoch"] >= start_ts and v["ts_epoch"] < end_ts
+            ]
 
         return post_filter
 
@@ -581,6 +603,5 @@ class MetadataProvider(object):
         self._event_logger = event_logger
         self._monitor = monitor
         self._environment = environment
-        self._runtime = os.environ.get(
-            'METAFLOW_RUNTIME_NAME', 'dev')
+        self._runtime = os.environ.get("METAFLOW_RUNTIME_NAME", "dev")
         self.add_sticky_tags(sys_tags=self._tags())

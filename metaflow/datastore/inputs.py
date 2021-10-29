@@ -4,6 +4,7 @@ class Inputs(object):
     foreach: inputs[0].x
     both: (inp.x for inp in inputs)
     """
+
     def __init__(self, flows):
         # TODO sort by foreach index
         self.flows = list(flows)

@@ -22,13 +22,13 @@ except:
 #    introducing an external dependency like joblib.
 # 3) Supports closures and lambdas in contrast to multiprocessing.
 
+
 class MulticoreException(Exception):
     pass
 
+
 def _spawn(func, arg, dir):
-    with NamedTemporaryFile(prefix='parallel_map_',
-                            dir=dir,
-                            delete=False) as tmpfile:
+    with NamedTemporaryFile(prefix="parallel_map_", dir=dir, delete=False) as tmpfile:
         output_file = tmpfile.name
 
     # make sure stdout and stderr are flushed before forking. Otherwise
@@ -42,7 +42,7 @@ def _spawn(func, arg, dir):
         try:
             exit_code = 1
             ret = func(arg)
-            with open(output_file, 'wb') as f:
+            with open(output_file, "wb") as f:
                 pickle.dump(ret, f, protocol=pickle.HIGHEST_PROTOCOL)
             exit_code = 0
         except:
@@ -57,6 +57,7 @@ def _spawn(func, arg, dir):
             # finally blocks).
             os._exit(exit_code)
 
+
 def parallel_imap_unordered(func, iterable, max_parallel=None, dir=None):
 
     if max_parallel is None:
@@ -64,16 +65,15 @@ def parallel_imap_unordered(func, iterable, max_parallel=None, dir=None):
 
     ret = []
     args_iter = iter(iterable)
-    pids = [_spawn(func, arg, dir)
-            for arg in islice(args_iter, max_parallel)]
+    pids = [_spawn(func, arg, dir) for arg in islice(args_iter, max_parallel)]
 
     while pids:
 
         pid, output_file = pids.pop()
         if os.waitpid(pid, 0)[1]:
-            raise MulticoreException('Child failed')
+            raise MulticoreException("Child failed")
 
-        with open(output_file, 'rb') as f:
+        with open(output_file, "rb") as f:
             yield pickle.load(f)
         os.remove(output_file)
 
@@ -81,8 +81,8 @@ def parallel_imap_unordered(func, iterable, max_parallel=None, dir=None):
         if arg:
             pids.insert(0, _spawn(func, arg[0], dir))
 
-def parallel_map(func, iterable, **kwargs):
 
+def parallel_map(func, iterable, **kwargs):
     def wrapper(arg_with_idx):
         idx, arg = arg_with_idx
         return idx, func(arg)

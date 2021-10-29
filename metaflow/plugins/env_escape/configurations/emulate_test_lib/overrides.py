@@ -25,6 +25,7 @@ def remote_print_value(obj, func):
     print("Encoding for client")
     return v
 
+
 @local_getattr_override({"test_lib.TestClass1": "override_value"})
 def local_get_value2(stub, name, func):
     print("In local getattr override for %s" % name)
@@ -84,6 +85,7 @@ class SomeException:
 
     def _deserialize_user(self, json_obj):
         self.user_value = json_obj
+
 
 @remote_exception_serialize("test_lib.SomeException")
 def some_exception_serialize(ex):

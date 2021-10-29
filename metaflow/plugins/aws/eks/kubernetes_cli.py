@@ -69,12 +69,8 @@ def kubernetes():
 )
 @click.option("--cpu", help="CPU requirement for Kubernetes job on Amazon EKS.")
 @click.option("--gpu", help="GPU requirement for Kubernetes job on Amazon EKS.")
-@click.option(
-    "--disk", help="Disk requirement for Kubernetes job on Amazon EKS."
-)
-@click.option(
-    "--memory", help="Memory requirement for Kubernetes job on Amazon EKS."
-)
+@click.option("--disk", help="Disk requirement for Kubernetes job on Amazon EKS.")
+@click.option("--memory", help="Memory requirement for Kubernetes job on Amazon EKS.")
 @click.option("--run-id", help="Passed to the top-level 'step'.")
 @click.option("--task-id", help="Passed to the top-level 'step'.")
 @click.option("--input-paths", help="Passed to the top-level 'step'.")
@@ -84,12 +80,8 @@ def kubernetes():
 @click.option(
     "--tag", multiple=True, default=None, help="Passed to the top-level 'step'."
 )
-@click.option(
-    "--namespace", default=None, help="Passed to the top-level 'step'."
-)
-@click.option(
-    "--retry-count", default=0, help="Passed to the top-level 'step'."
-)
+@click.option("--namespace", default=None, help="Passed to the top-level 'step'.")
+@click.option("--retry-count", default=0, help="Passed to the top-level 'step'.")
 @click.option(
     "--max-user-code-retries", default=0, help="Passed to the top-level 'step'."
 )
@@ -141,8 +133,7 @@ def step(
     if input_paths:
         max_size = 30 * 1024
         split_vars = {
-            "METAFLOW_INPUT_PATHS_%d"
-            % (i // max_size): input_paths[i : i + max_size]
+            "METAFLOW_INPUT_PATHS_%d" % (i // max_size): input_paths[i : i + max_size]
             for i in range(0, len(input_paths), max_size)
         }
         kwargs["input_paths"] = "".join("${%s}" % s for s in split_vars.keys())
@@ -158,8 +149,7 @@ def step(
         )
     if retry_count:
         ctx.obj.echo_always(
-            "Sleeping %d minutes before the next retry"
-            % minutes_between_retries
+            "Sleeping %d minutes before the next retry" % minutes_between_retries
         )
         time.sleep(minutes_between_retries * 60)
 
@@ -172,22 +162,23 @@ def step(
 
     # this information is needed for log tailing
     ds = ctx.obj.flow_datastore.get_task_datastore(
-        mode='w',
-        run_id=kwargs['run_id'],
+        mode="w",
+        run_id=kwargs["run_id"],
         step_name=step_name,
-        task_id=kwargs['task_id'],
-        attempt=int(retry_count)
+        task_id=kwargs["task_id"],
+        attempt=int(retry_count),
     )
-    stdout_location = ds.get_log_location(TASK_LOG_SOURCE, 'stdout')
-    stderr_location = ds.get_log_location(TASK_LOG_SOURCE, 'stderr')
+    stdout_location = ds.get_log_location(TASK_LOG_SOURCE, "stdout")
+    stderr_location = ds.get_log_location(TASK_LOG_SOURCE, "stderr")
 
     def _sync_metadata():
-        if ctx.obj.metadata.TYPE == 'local':
+        if ctx.obj.metadata.TYPE == "local":
             sync_local_metadata_from_datastore(
-                DATASTORE_LOCAL_DIR, 
-                ctx.obj.flow_datastore.get_task_datastore(kwargs['run_id'],
-                                                          step_name,
-                                                          kwargs['task_id']))
+                DATASTORE_LOCAL_DIR,
+                ctx.obj.flow_datastore.get_task_datastore(
+                    kwargs["run_id"], step_name, kwargs["task_id"]
+                ),
+            )
 
     try:
         kubernetes = Kubernetes(

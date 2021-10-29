@@ -5,17 +5,25 @@ import sys
 import os
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import S3_ENDPOINT_URL, S3_VERIFY_CERTIFICATE, S3_RETRY_COUNT
+from metaflow.metaflow_config import (
+    S3_ENDPOINT_URL,
+    S3_VERIFY_CERTIFICATE,
+    S3_RETRY_COUNT,
+)
 
 
-TEST_S3_RETRY = 'TEST_S3_RETRY' in os.environ
+TEST_S3_RETRY = "TEST_S3_RETRY" in os.environ
+
 
 def get_s3_client():
     from metaflow.plugins.aws.aws_client import get_aws_client
+
     return get_aws_client(
-        's3',
+        "s3",
         with_error=True,
-        params={'endpoint_url': S3_ENDPOINT_URL, 'verify': S3_VERIFY_CERTIFICATE })
+        params={"endpoint_url": S3_ENDPOINT_URL, "verify": S3_VERIFY_CERTIFICATE},
+    )
+
 
 # decorator to retry functions that access S3
 def aws_retry(f):
@@ -25,9 +33,11 @@ def aws_retry(f):
             try:
                 ret = f(self, *args, **kwargs)
                 if TEST_S3_RETRY and i == 0:
-                    raise Exception("TEST_S3_RETRY env var set. "
-                                    "Pretending that an S3 op failed. "
-                                    "This is not a real failure.")
+                    raise Exception(
+                        "TEST_S3_RETRY env var set. "
+                        "Pretending that an S3 op failed. "
+                        "This is not a real failure."
+                    )
                 else:
                     return ret
             except MetaflowException as ex:
@@ -38,16 +48,20 @@ def aws_retry(f):
                     function_name = f.func_name
                 except AttributeError:
                     function_name = f.__name__
-                sys.stderr.write("S3 datastore operation %s failed (%s). "
-                                 "Retrying %d more times..\n"
-                                 % (function_name, ex, S3_RETRY_COUNT - i))
+                sys.stderr.write(
+                    "S3 datastore operation %s failed (%s). "
+                    "Retrying %d more times..\n"
+                    % (function_name, ex, S3_RETRY_COUNT - i)
+                )
                 self.reset_client(hard_reset=True)
                 last_exc = ex
                 # exponential backoff for real failures
                 if not (TEST_S3_RETRY and i == 0):
-                    time.sleep(2**i + random.randint(0, 5))
+                    time.sleep(2 ** i + random.randint(0, 5))
         raise last_exc
+
     return retry_wrapper
+
 
 # Read an AWS source in a chunked manner.
 # We read in chunks (at most 2GB -- here this is passed via max_chunk_size)
