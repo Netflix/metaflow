@@ -43,13 +43,13 @@ BASH_SAVE_LOGS = " ".join(BASH_SAVE_LOGS_ARGS)
 def bash_capture_logs(bash_expr, var_transform=None):
     if var_transform is None:
         var_transform = lambda s: "$%s" % s
-    cmd = "python -m metaflow.mflog.tee %s %s"
-    parts = (
+
+    return "python -m metaflow.mflog.redirect_streams %s %s %s %s" % (
+        TASK_LOG_SOURCE,
+        var_transform("MFLOG_STDOUT"),
+        var_transform("MFLOG_STDERR"),
         bash_expr,
-        cmd % (TASK_LOG_SOURCE, var_transform("MFLOG_STDOUT")),
-        cmd % (TASK_LOG_SOURCE, var_transform("MFLOG_STDERR")),
     )
-    return "(%s) 1>> >(%s) 2>> >(%s >&2)" % parts
 
 
 # update_delay determines how often logs should be uploaded to S3
