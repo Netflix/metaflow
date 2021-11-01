@@ -138,22 +138,18 @@ from .conda.conda_step_decorator import CondaStepDecorator
 from .cards.card_decorator import CardDecorator
 
 
-STEP_DECORATORS = _merge_lists(
-    [
-        CatchDecorator,
-        TimeoutDecorator,
-        EnvironmentDecorator,
-        ResourcesDecorator,
-        RetryDecorator,
-        BatchDecorator,
-        KubernetesDecorator,
-        StepFunctionsInternalDecorator,
-        CondaStepDecorator,
-        InternalTestUnboundedForeachDecorator,
-    ],
-    _ext_plugins.STEP_DECORATORS,
-    "name",
-)
+STEP_DECORATORS = _merge_lists([CatchDecorator,
+                                TimeoutDecorator,
+                                EnvironmentDecorator,
+                                ResourcesDecorator,
+                                RetryDecorator,
+                                BatchDecorator,
+                                CardDecorator,
+                                KubernetesDecorator,
+                                StepFunctionsInternalDecorator,
+                                CondaStepDecorator,
+                                InternalTestUnboundedForeachDecorator],
+                                    _ext_plugins.STEP_DECORATORS, 'name')
 
 # Add Conda environment
 from .conda.conda_environment import CondaEnvironment
