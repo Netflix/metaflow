@@ -493,10 +493,10 @@ class S3(object):
         def _info(s3, tmp):
             resp = s3.head_object(Bucket=src.netloc, Key=src.path.lstrip('/"'))
             return {
-                'content_type': resp['ContentType'],
-                'metadata': resp['Metadata'],
-                'size': resp['ContentLength'],
-                'last_modified': resp['LastModified'].timestamp(),
+                "content_type": resp["ContentType"],
+                "metadata": resp["Metadata"],
+                "size": resp["ContentLength"],
+                "last_modified": resp["LastModified"].timestamp(),
             }
 
         info_results = None
@@ -512,10 +512,10 @@ class S3(object):
                 self._s3root,
                 url,
                 path=None,
-                size=info_results['size'],
-                content_type=info_results['content_type'],
-                metadata=info_results['metadata'],
-                last_modified=info_results['last_modified'],
+                size=info_results["size"],
+                content_type=info_results["content_type"],
+                metadata=info_results["metadata"],
+                last_modified=info_results["last_modified"],
             )
         return S3Object(self._s3root, url, None)
 
@@ -559,7 +559,7 @@ class S3(object):
                     else:
                         yield self._s3root, s3url, None, info["size"], info[
                             "content_type"
-                        ], info["metadata"],  None, info['last_modified']
+                        ], info["metadata"], None, info["last_modified"]
                 else:
                     # This should not happen; we should always get a response
                     # even if it contains an error inside it
@@ -605,7 +605,7 @@ class S3(object):
                 return {
                     "content_type": resp["ContentType"],
                     "metadata": resp["Metadata"],
-                    'last_modified': resp['LastModified'].timestamp(),
+                    "last_modified": resp["LastModified"].timestamp(),
                 }
             return None
 
@@ -624,7 +624,7 @@ class S3(object):
                 path,
                 content_type=addl_info["content_type"],
                 metadata=addl_info["metadata"],
-                last_modified = addl_info['last_modified'],
+                last_modified=addl_info["last_modified"],
             )
         return S3Object(self._s3root, url, path)
 
@@ -666,7 +666,9 @@ class S3(object):
                             info = json.load(f)
                         yield self._s3root, s3url, os.path.join(
                             self._tmpdir, fname
-                        ), None, info["content_type"], info["metadata"], None, info['last_modified']
+                        ), None, info["content_type"], info["metadata"], None, info[
+                            "last_modified"
+                        ]
                     else:
                         yield self._s3root, s3prefix, None
                 else:
@@ -708,7 +710,9 @@ class S3(object):
                         info = json.load(f)
                     yield self._s3root, s3url, os.path.join(
                         self._tmpdir, fname
-                    ), None, info["content_type"], info["metadata"], None, info['last_modified']
+                    ), None, info["content_type"], info["metadata"], None, info[
+                        "last_modified"
+                    ]
                 else:
                     yield s3prefix, s3url, os.path.join(self._tmpdir, fname)
 
@@ -1037,7 +1041,7 @@ class S3(object):
                         raise MetaflowS3NotFound(err_out)
                     elif ex.returncode == s3op.ERROR_URL_ACCESS_DENIED:
                         raise MetaflowS3AccessDenied(err_out)
-                    print('Error with S3 operation:', err_out)
+                    print("Error with S3 operation:", err_out)
                     time.sleep(2 ** i + random.randint(0, 10))
 
         return None, err_out
