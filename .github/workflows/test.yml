@@ -29,7 +29,7 @@ jobs:
             This pull request uses the [psf/black](https://github.com/psf/black) formatter to fix these issues.
             `black .`
           base: ${{ github.head_ref }}
-          branch: actions/black
+          branch: actions/black-${{ github.head_ref }}
   test:
     name: tests / ${{ matrix.lang }} tests on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
