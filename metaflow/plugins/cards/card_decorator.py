@@ -5,9 +5,7 @@ import json
 import tempfile
 from metaflow.decorators import StepDecorator,flow_decorators
 from metaflow.current import current
-from metaflow.metaflow_environment import MetaflowEnvironment
-from metaflow.metadata.metadata import MetadataProvider
-from metaflow.util import to_unicode, compress_list, unicode_type
+from metaflow.util import to_unicode
 from .exception import BadCardNameException
 from .card_modules import serialize_components
 # from metaflow import get_metadata

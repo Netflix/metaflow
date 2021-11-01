@@ -18,6 +18,8 @@ from .exception import CardClassFoundException,\
                         IdNotFoundException,\
                         TypeRequiredException
 
+from .card_resolver import resolve_paths_from_task
+
 def serialize_flowgraph(flowgraph):
     graph_dict = {}
     for node in flowgraph:
@@ -98,12 +100,17 @@ def resolve_card(ctx,identifier,id=None,hash=None,type=None,index=0):
     else:
         card_id = identifier
     
-    card_datastore = CardDatastore(ctx.obj.flow_datastore,\
-                                run_id,\
-                                step_name,\
-                                task_id,\
-                                path_spec=pathspec)
-    card_paths_found = card_datastore.extract_card_paths(card_type=type,card_id=card_id,card_index=index,card_hash=hash)
+    card_paths_found,card_datastore = resolve_paths_from_task(
+        ctx.obj.flow_datastore,\
+        run_id,\
+        step_name,\
+        task_id,\
+        pathspec=pathspec,
+        type=type, \
+        card_id=card_id, \
+        index=index, \
+        hash=hash)
+        
     if len(card_paths_found) == 0 :
             # If there are no files found on the Path then raise an error of 
             raise CardNotPresentException(flow_name,\
