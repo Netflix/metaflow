@@ -7,25 +7,24 @@ from collections import namedtuple
 from metaflow.exception import MetaflowException
 from metaflow.util import to_bytes, to_fileobj, to_unicode
 
-VERSION = b'0'
+VERSION = b"0"
 
-RE = b'(\[!)?'\
-     b'\[MFLOG\|'\
-     b'(0)\|'\
-     b'(.+?)Z\|'\
-     b'(.+?)\|'\
-     b'(.+?)\]'\
-     b'(.*)'
+RE = b"(\[!)?" b"\[MFLOG\|" b"(0)\|" b"(.+?)Z\|" b"(.+?)\|" b"(.+?)\]" b"(.*)"
 
 # the RE groups defined above must match the MFLogline fields below
 # except utc_timestamp, which is filled in by the parser based on utc_tstamp_str
-MFLogline = namedtuple('MFLogline', ['should_persist',
-                                     'version',
-                                     'utc_tstamp_str',
-                                     'logsource',
-                                     'id',
-                                     'msg',
-                                     'utc_tstamp'])
+MFLogline = namedtuple(
+    "MFLogline",
+    [
+        "should_persist",
+        "version",
+        "utc_tstamp_str",
+        "logsource",
+        "id",
+        "msg",
+        "utc_tstamp",
+    ],
+)
 
 LINE_PARSER = re.compile(RE)
 
@@ -46,15 +45,19 @@ else:
     try:
         # python3
         from datetime import timezone
+
         def utc_to_local(utc_dt):
             return utc_dt.replace(tzinfo=timezone.utc).astimezone(tz=None)
+
     except ImportError:
         # python2
         import calendar
+
         def utc_to_local(utc_dt):
             timestamp = calendar.timegm(utc_dt.timetuple())
             local_dt = datetime.fromtimestamp(timestamp)
             return local_dt.replace(microsecond=utc_dt.microsecond)
+
 
 def decorate(source, line, version=VERSION, now=None, lineid=None):
     if now is None:
@@ -64,20 +67,15 @@ def decorate(source, line, version=VERSION, now=None, lineid=None):
         lineid = to_bytes(str(uuid.uuid4()))
     line = to_bytes(line)
     source = to_bytes(source)
-    return b''.join((b'[MFLOG|',
-                     version,
-                     b'|',
-                     tstamp,
-                     b'Z|',
-                     source,
-                     b'|',
-                     lineid,
-                     b']',
-                     line))
+    return b"".join(
+        (b"[MFLOG|", version, b"|", tstamp, b"Z|", source, b"|", lineid, b"]", line)
+    )
+
 
 def is_structured(line):
     line = to_bytes(line)
-    return line.startswith(b'[MFLOG|') or line.startswith(b'[![MFLOG|')
+    return line.startswith(b"[MFLOG|") or line.startswith(b"[![MFLOG|")
+
 
 def parse(line):
     line = to_bytes(line)
@@ -90,34 +88,38 @@ def parse(line):
         except:
             pass
 
+
 def set_should_persist(line):
     # this marker indicates that the logline should be persisted by
     # the receiver
     line = to_bytes(line)
-    if is_structured(line) and not line.startswith(b'[!['):
-        return b'[!' + line
+    if is_structured(line) and not line.startswith(b"[!["):
+        return b"[!" + line
     else:
         return line
+
 
 def unset_should_persist(line):
     # prior to persisting, the should_persist marker should be removed
     # from the logline using this function
     line = to_bytes(line)
-    if is_structured(line) and line.startswith(b'[!['):
+    if is_structured(line) and line.startswith(b"[!["):
         return line[2:]
     else:
         return line
 
+
 def refine(line, prefix=None, suffix=None):
     line = to_bytes(line)
-    prefix = to_bytes(prefix) if prefix else b''
-    suffix = to_bytes(suffix) if suffix else b''
-    parts = line.split(b']', 1)
+    prefix = to_bytes(prefix) if prefix else b""
+    suffix = to_bytes(suffix) if suffix else b""
+    parts = line.split(b"]", 1)
     if len(parts) == 2:
         header, body = parts
-        return b''.join((header, b']', prefix, body, suffix))
+        return b"".join((header, b"]", prefix, body, suffix))
     else:
         return line
+
 
 def merge_logs(logs):
     def line_iter(logblob):
@@ -132,13 +134,9 @@ def merge_logs(logs):
             else:
                 missing.append(line)
         for line in missing:
-            res = MFLogline(False,
-                            None,
-                            MISSING_TIMESTAMP_STR,
-                            None,
-                            None,
-                            line,
-                            MISSING_TIMESTAMP)
+            res = MFLogline(
+                False, None, MISSING_TIMESTAMP_STR, None, None, line, MISSING_TIMESTAMP
+            )
             yield res.utc_tstamp_str, res
 
     # note that sorted() below should be a very cheap, often a O(n) operation
