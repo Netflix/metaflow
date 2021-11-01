@@ -12,8 +12,7 @@ class Current(object):
 
     def _set_env(
         self,
-        flow_name=None,
-        run_id=None,
+        flow_name=None,        run_id=None,
         step_name=None,
         task_id=None,
         retry_count=None,
