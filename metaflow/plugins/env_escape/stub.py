@@ -27,8 +27,7 @@ LOCAL_ATTRS = (
             "___identifier___",
             "___connection___",
             "___refcount___",
-            "___local_overrides___"
-            "__class__",
+            "___local_overrides___" "__class__",
             "__init__",
             "__del__",
             "__delattr__",
@@ -60,6 +59,7 @@ LOCAL_ATTRS = (
 NORMAL_METHOD = 0
 STATIC_METHOD = 1
 CLASS_METHOD = 2
+
 
 def fwd_request(stub, request_type, *args, **kwargs):
     connection = object.__getattribute__(stub, "___connection___")
@@ -116,7 +116,7 @@ class Stub(with_metaclass(StubMetaClass, object)):
             pass
             self.___refcount___ -= 1
             if self.___refcount___ == 0:
-               fwd_request(self, OP_DEL)
+                fwd_request(self, OP_DEL)
         except Exception:
             # raised in a destructor, most likely on program termination,
             # when the connection might have already been closed.
@@ -193,11 +193,13 @@ def _make_method(method_type, connection, class_name, name, doc):
 
     def static_method(connection, class_name, name, *args, **kwargs):
         return connection.stub_request(
-            None, OP_CALLONCLASS, class_name, name, True, *args, **kwargs)
+            None, OP_CALLONCLASS, class_name, name, True, *args, **kwargs
+        )
 
     def class_method(connection, class_name, name, cls, *args, **kwargs):
         return connection.stub_request(
-            None, OP_CALLONCLASS, class_name, name, False, *args, **kwargs)
+            None, OP_CALLONCLASS, class_name, name, False, *args, **kwargs
+        )
 
     if method_type == NORMAL_METHOD:
         m = method
@@ -252,8 +254,14 @@ class MetaWithConnection(StubMetaClass):
             )
 
 
-def create_class(connection, class_name, overriden_methods,
-                 getattr_overrides, setattr_overrides, class_methods):
+def create_class(
+    connection,
+    class_name,
+    overriden_methods,
+    getattr_overrides,
+    setattr_overrides,
+    class_methods,
+):
 
     class_dict = {"__slots__": ()}
     for name, doc in class_methods.items():
@@ -270,24 +278,32 @@ def create_class(connection, class_name, overriden_methods,
                     lambda override, orig_method: lambda obj, *args, **kwargs: override(
                         obj, functools.partial(orig_method, obj), *args, **kwargs
                     )
-                )(overriden_methods[name],
-                  _make_method(method_type, connection, class_name, name, doc))
+                )(
+                    overriden_methods[name],
+                    _make_method(method_type, connection, class_name, name, doc),
+                )
             elif method_type == STATIC_METHOD:
                 class_dict[name] = (
                     lambda override, orig_method: lambda *args, **kwargs: override(
                         orig_method, *args, **kwargs
                     )
-                )(overriden_methods[name],
-                  _make_method(method_type, connection, class_name, name, doc))
+                )(
+                    overriden_methods[name],
+                    _make_method(method_type, connection, class_name, name, doc),
+                )
             elif method_type == CLASS_METHOD:
                 class_dict[name] = (
                     lambda override, orig_method: lambda cls, *args, **kwargs: override(
                         cls, functools.partial(orig_method, cls), *args, **kwargs
                     )
-                )(overriden_methods[name],
-                  _make_method(method_type, connection, class_name, name, doc))
+                )(
+                    overriden_methods[name],
+                    _make_method(method_type, connection, class_name, name, doc),
+                )
         elif name not in LOCAL_ATTRS:
-            class_dict[name] = _make_method(method_type, connection, class_name, name, doc)
+            class_dict[name] = _make_method(
+                method_type, connection, class_name, name, doc
+            )
     # Check for any getattr/setattr overrides
     special_attributes = set(getattr_overrides.keys())
     special_attributes.update(set(setattr_overrides.keys()))
@@ -296,14 +312,17 @@ def create_class(connection, class_name, overriden_methods,
         getter = getattr_overrides.get(attr)
         setter = setattr_overrides.get(attr)
         if getter is not None:
-            getter = lambda x, name=attr, inner=getter: \
-                inner(x, name, lambda y=x, name=name: y.__getattr__(name))
+            getter = lambda x, name=attr, inner=getter: inner(
+                x, name, lambda y=x, name=name: y.__getattr__(name)
+            )
         if setter is not None:
-            setter = lambda x, value, name=attr, inner=setter: \
-                inner(x, name, \
-                      lambda val, y=x, name=name: fwd_request(y, OP_SETATTR, name, val),
-                      value)
+            setter = lambda x, value, name=attr, inner=setter: inner(
+                x,
+                name,
+                lambda val, y=x, name=name: fwd_request(y, OP_SETATTR, name, val),
+                value,
+            )
             overriden_attrs.add(attr)
         class_dict[attr] = property(getter, setter)
-    class_dict['___local_overrides___'] = overriden_attrs
+    class_dict["___local_overrides___"] = overriden_attrs
     return MetaWithConnection(class_name, (Stub,), class_dict, connection)

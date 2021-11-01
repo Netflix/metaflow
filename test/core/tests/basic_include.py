@@ -4,11 +4,11 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps
 class BasicIncludeTest(MetaflowTest):
     PRIORITY = 1
     INCLUDE_FILES = {
-        'myfile_txt': {'default': "'./reg.txt'"},
-        'myfile_utf8': {'default': "'./utf8.txt'", 'encoding': "'utf8'"},
-        'myfile_binary': {'default': "'./utf8.txt'", 'is_text': False},
-        'myfile_overriden': {'default': "'./reg.txt'"},
-        'absent_file': {'required': False}
+        "myfile_txt": {"default": "'./reg.txt'"},
+        "myfile_utf8": {"default": "'./utf8.txt'", "encoding": "'utf8'"},
+        "myfile_binary": {"default": "'./utf8.txt'", "is_text": False},
+        "myfile_overriden": {"default": "'./reg.txt'"},
+        "absent_file": {"required": False},
     }
     HEADER = """
 import codecs
@@ -23,12 +23,13 @@ with open('override.txt', mode='w') as f:
     f.write("Override Text File")
 """
 
-    @steps(0, ['all'])
+    @steps(0, ["all"])
     def step_all(self):
         assert_equals("Regular Text File", self.myfile_txt)
         assert_equals(u"UTF Text File \u5e74", self.myfile_utf8)
         assert_equals(
-            u"UTF Text File \u5e74".encode(encoding='utf8'), self.myfile_binary)
+            u"UTF Text File \u5e74".encode(encoding="utf8"), self.myfile_binary
+        )
         assert_equals("Override Text File", self.myfile_overriden)
 
         # Check that an absent file does not make things crash
@@ -36,7 +37,7 @@ with open('override.txt', mode='w') as f:
         try:
             # Include files should be immutable
             self.myfile_txt = 5
-            raise ExpectationFailed(AttributeError, 'nothing')
+            raise ExpectationFailed(AttributeError, "nothing")
         except AttributeError:
             pass
 
@@ -44,30 +45,25 @@ with open('override.txt', mode='w') as f:
         for step in flow:
             checker.assert_artifact(
                 step.name,
-                'myfile_txt',
+                "myfile_txt",
                 None,
-                fields={'type': 'uploader-v1',
-                        'is_text': True,
-                        'encoding': None})
+                fields={"type": "uploader-v1", "is_text": True, "encoding": None},
+            )
             checker.assert_artifact(
                 step.name,
-                'myfile_utf8',
+                "myfile_utf8",
                 None,
-                fields={'type': 'uploader-v1',
-                        'is_text': True,
-                        'encoding': 'utf8'})
+                fields={"type": "uploader-v1", "is_text": True, "encoding": "utf8"},
+            )
             checker.assert_artifact(
                 step.name,
-                'myfile_binary',
+                "myfile_binary",
                 None,
-                fields={'type': 'uploader-v1',
-                        'is_text': False,
-                        'encoding': None})
+                fields={"type": "uploader-v1", "is_text": False, "encoding": None},
+            )
             checker.assert_artifact(
                 step.name,
-                'myfile_overriden',
+                "myfile_overriden",
                 None,
-                fields={'type': 'uploader-v1',
-                        'is_text': True,
-                        'encoding': None})
-
+                fields={"type": "uploader-v1", "is_text": True, "encoding": None},
+            )

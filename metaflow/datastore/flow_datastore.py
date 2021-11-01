@@ -6,17 +6,20 @@ from .. import metaflow_config
 from .content_addressed_store import ContentAddressedStore
 from .task_datastore import TaskDataStore
 
+
 class FlowDataStore(object):
     default_storage_impl = None
 
-    def __init__(self,
-                 flow_name,
-                 environment,
-                 metadata=None,
-                 event_logger=None,
-                 monitor=None,
-                 storage_impl=None,
-                 ds_root=None):
+    def __init__(
+        self,
+        flow_name,
+        environment,
+        metadata=None,
+        event_logger=None,
+        monitor=None,
+        storage_impl=None,
+        ds_root=None,
+    ):
         """
         Initialize a Flow level datastore.
 
@@ -43,8 +46,7 @@ class FlowDataStore(object):
             The optional root for this datastore; if not provided, use the
             default for the DataStoreStorage, optional
         """
-        storage_impl = storage_impl if storage_impl else \
-            self.default_storage_impl
+        storage_impl = storage_impl if storage_impl else self.default_storage_impl
         if storage_impl is None:
             raise RuntimeError("No datastore storage implementation specified")
         self._storage_impl = storage_impl(ds_root)
@@ -58,15 +60,16 @@ class FlowDataStore(object):
         self.monitor = monitor
 
         self.ca_store = ContentAddressedStore(
-            self._storage_impl.path_join(self.flow_name, 'data'),
-            self._storage_impl)
+            self._storage_impl.path_join(self.flow_name, "data"), self._storage_impl
+        )
 
     @property
     def datastore_root(self):
         return self._storage_impl.datastore_root
 
     def get_latest_task_datastores(
-            self, run_id=None, steps=None, pathspecs=None, allow_not_done=False):
+        self, run_id=None, steps=None, pathspecs=None, allow_not_done=False
+    ):
         """
         Return a list of TaskDataStore for a subset of the tasks.
 
@@ -101,28 +104,41 @@ class FlowDataStore(object):
         # eventually consistent `list_content` operation, and directly construct
         # the task_urls list.
         if pathspecs:
-            task_urls = [self._storage_impl.path_join(self.flow_name, pathspec)
-                         for pathspec in pathspecs]
+            task_urls = [
+                self._storage_impl.path_join(self.flow_name, pathspec)
+                for pathspec in pathspecs
+            ]
         else:
             run_prefix = self._storage_impl.path_join(self.flow_name, run_id)
             if steps:
-                step_urls = [self._storage_impl.path_join(run_prefix, step)
-                             for step in steps]
+                step_urls = [
+                    self._storage_impl.path_join(run_prefix, step) for step in steps
+                ]
             else:
-                step_urls = [step.path for step in self._storage_impl.list_content(
-                    [run_prefix]) if step.is_file is False]
-            task_urls = [task.path for task in self._storage_impl.list_content(
-                step_urls) if task.is_file is False]
+                step_urls = [
+                    step.path
+                    for step in self._storage_impl.list_content([run_prefix])
+                    if step.is_file is False
+                ]
+            task_urls = [
+                task.path
+                for task in self._storage_impl.list_content(step_urls)
+                if task.is_file is False
+            ]
         urls = []
         for task_url in task_urls:
             for attempt in range(metaflow_config.MAX_ATTEMPTS):
-                for suffix in [TaskDataStore.METADATA_DATA_SUFFIX,
-                               TaskDataStore.METADATA_ATTEMPT_SUFFIX,
-                               TaskDataStore.METADATA_DONE_SUFFIX]:
-                    urls.append(self._storage_impl.path_join(
-                        task_url,
-                        TaskDataStore.metadata_name_for_attempt(suffix, attempt)
-                    ))
+                for suffix in [
+                    TaskDataStore.METADATA_DATA_SUFFIX,
+                    TaskDataStore.METADATA_ATTEMPT_SUFFIX,
+                    TaskDataStore.METADATA_DONE_SUFFIX,
+                ]:
+                    urls.append(
+                        self._storage_impl.path_join(
+                            task_url,
+                            TaskDataStore.metadata_name_for_attempt(suffix, attempt),
+                        )
+                    )
 
         latest_started_attempts = {}
         done_attempts = set()
@@ -136,31 +152,41 @@ class FlowDataStore(object):
                     if fname == TaskDataStore.METADATA_DONE_SUFFIX:
                         done_attempts.add((run, step, task, attempt))
                     elif fname == TaskDataStore.METADATA_ATTEMPT_SUFFIX:
-                        latest_started_attempts[(run, step, task)] = \
-                            max(latest_started_attempts.get((run, step, task), 0),
-                                attempt)
+                        latest_started_attempts[(run, step, task)] = max(
+                            latest_started_attempts.get((run, step, task), 0), attempt
+                        )
                     elif fname == TaskDataStore.METADATA_DATA_SUFFIX:
                         # This somewhat breaks the abstraction since we are using
                         # load_bytes directly instead of load_metadata
-                        with open(path, 'rb') as f:
+                        with open(path, "rb") as f:
                             data_objs[(run, step, task, attempt)] = json.load(f)
         # We now figure out the latest attempt that started *and* finished.
         # Note that if an attempt started but didn't finish, we do *NOT* return
         # the previous attempt
         latest_started_attempts = set(
             (run, step, task, attempt)
-            for (run, step, task), attempt in latest_started_attempts.items())
+            for (run, step, task), attempt in latest_started_attempts.items()
+        )
         if allow_not_done:
             latest_to_fetch = latest_started_attempts
         else:
             latest_to_fetch = latest_started_attempts & done_attempts
-        latest_to_fetch = [(v[0], v[1], v[2], v[3], data_objs[v], 'r', allow_not_done)
-                           for v in latest_to_fetch]
+        latest_to_fetch = [
+            (v[0], v[1], v[2], v[3], data_objs[v], "r", allow_not_done)
+            for v in latest_to_fetch
+        ]
         return list(itertools.starmap(self.get_task_datastore, latest_to_fetch))
 
     def get_task_datastore(
-            self, run_id, step_name, task_id, attempt=None,
-            data_metadata=None, mode='r', allow_not_done=False):
+        self,
+        run_id,
+        step_name,
+        task_id,
+        attempt=None,
+        data_metadata=None,
+        mode="r",
+        allow_not_done=False,
+    ):
 
         return TaskDataStore(
             self,
@@ -170,7 +196,8 @@ class FlowDataStore(object):
             attempt=attempt,
             data_metadata=data_metadata,
             mode=mode,
-            allow_not_done=allow_not_done)
+            allow_not_done=allow_not_done,
+        )
 
     def save_data(self, data_iter, len_hint=0):
         """Saves data to the underlying content-addressed store

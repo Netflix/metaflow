@@ -44,11 +44,12 @@ from .client_modules import create_modules
 # it available to any sub-process that launch sa well.
 # We also store the maximum protocol version that we support for pickle so that
 # we can determine what to use
-ENV_ESCAPE_PY = os.environ.get('METAFLOW_ENV_ESCAPE_PY', sys.executable)
+ENV_ESCAPE_PY = os.environ.get("METAFLOW_ENV_ESCAPE_PY", sys.executable)
 ENV_ESCAPE_PICKLE_VERSION = os.environ.get(
-    'METAFLOW_ENV_ESCAPE_PICKLE_VERSION', str(pickle.HIGHEST_PROTOCOL))
-os.environ['METAFLOW_ENV_ESCAPE_PICKLE_VERSION'] = ENV_ESCAPE_PICKLE_VERSION
-os.environ['METAFLOW_ENV_ESCAPE_PY'] = ENV_ESCAPE_PY
+    "METAFLOW_ENV_ESCAPE_PICKLE_VERSION", str(pickle.HIGHEST_PROTOCOL)
+)
+os.environ["METAFLOW_ENV_ESCAPE_PICKLE_VERSION"] = ENV_ESCAPE_PICKLE_VERSION
+os.environ["METAFLOW_ENV_ESCAPE_PY"] = ENV_ESCAPE_PY
 
 
 def generate_trampolines(python_path):
@@ -58,7 +59,7 @@ def generate_trampolines(python_path):
 
     # in some cases we may want to disable environment escape
     # functionality, in that case, set METAFLOW_ENV_ESCAPE_DISABLED
-    if os.environ.get('METAFLOW_ENV_ESCAPE_DISABLED', False) in (True, 'True'):
+    if os.environ.get("METAFLOW_ENV_ESCAPE_DISABLED", False) in (True, "True"):
         return
 
     python_interpreter_path = ENV_ESCAPE_PY
@@ -73,28 +74,38 @@ def generate_trampolines(python_path):
             # e.name is set to the name of the package that fails to load
             # so don't error ONLY IF the error is importing this module (but do
             # error if there is a transitive import error)
-            if not (isinstance(e, ModuleNotFoundError) and e.name in [
-                    'metaflow_extensions', 'metaflow_extensions.plugins',
-                    'metaflow_extensions.plugins.env_escape']):
+            if not (
+                isinstance(e, ModuleNotFoundError)
+                and e.name
+                in [
+                    "metaflow_extensions",
+                    "metaflow_extensions.plugins",
+                    "metaflow_extensions.plugins.env_escape",
+                ]
+            ):
                 print(
                     "Cannot load metaflow_extensions env escape configurations -- "
-                    "if you want to ignore, uninstall metaflow_extensions package")
+                    "if you want to ignore, uninstall metaflow_extensions package"
+                )
                 raise
     else:
-        paths.append(os.path.dirname(os.path.abspath(custom_escape.__file__)) +
-                     "/configurations")
+        paths.append(
+            os.path.dirname(os.path.abspath(custom_escape.__file__)) + "/configurations"
+        )
 
     for rootpath in paths:
         for path in os.listdir(rootpath):
             path = os.path.join(rootpath, path)
             if os.path.isdir(path):
                 dir_name = os.path.basename(path)
-                if dir_name.startswith('emulate_'):
+                if dir_name.startswith("emulate_"):
                     module_names = dir_name[8:].split("__")
                     for module_name in module_names:
-                        with open(os.path.join(
-                                python_path, module_name + ".py"), mode='w') as f:
-                            f.write("""
+                        with open(
+                            os.path.join(python_path, module_name + ".py"), mode="w"
+                        ) as f:
+                            f.write(
+                                """
 import importlib
 import os
 import sys
@@ -148,13 +159,14 @@ if not "{python_path}":
     raise RuntimeError(
         "Trying to access an escaped module ({module_name}) without a valid interpreter")
 load()
-""" .format(
-    python_path=python_interpreter_path,
-    max_pickle_version=max_pickle_version,
-    path=path,
-    prefixes=module_names,
-    module_name=module_name
-))
+""".format(
+                                    python_path=python_interpreter_path,
+                                    max_pickle_version=max_pickle_version,
+                                    path=path,
+                                    prefixes=module_names,
+                                    module_name=module_name,
+                                )
+                            )
 
 
 def init(python_interpreter_path, max_pickle_version):
@@ -166,8 +178,8 @@ def init(python_interpreter_path, max_pickle_version):
         path = os.path.join(config_dir, path)
         if os.path.isdir(path):
             dir_name = os.path.basename(path)
-            if dir_name.startswith('emulate_'):
+            if dir_name.startswith("emulate_"):
                 module_names = dir_name[8:].split("__")
                 create_modules(
-                    python_interpreter_path, max_pickle_version, path,
-                    module_names)
+                    python_interpreter_path, max_pickle_version, path, module_names
+                )

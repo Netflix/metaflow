@@ -97,9 +97,7 @@ class ContentAddressedStore(object):
         # We don't actually want to overwrite but by saying =True, we avoid
         # checking again saving some operations. We are already sure we are not
         # sending duplicate files since we already checked.
-        self._storage_impl.save_bytes(
-            packing_iter(), overwrite=True, len_hint=len_hint
-        )
+        self._storage_impl.save_bytes(packing_iter(), overwrite=True, len_hint=len_hint)
         return results
 
     def load_blobs(self, keys, force_raw=False):
@@ -133,9 +131,7 @@ class ContentAddressedStore(object):
                 path = self._storage_impl.path_join(self._prefix, key[:2], key)
                 load_paths.append((key, path))
 
-        with self._storage_impl.load_bytes(
-            [p for _, p in load_paths]
-        ) as loaded:
+        with self._storage_impl.load_bytes([p for _, p in load_paths]) as loaded:
             for (key, _), (_, file_path, meta) in zip(load_paths, loaded):
                 # At this point, we either return the object as is (if raw) or
                 # decode it according to the encoding version
@@ -151,12 +147,9 @@ class ContentAddressedStore(object):
                             version = meta.get("cas_version", -1)
                             if version == -1:
                                 raise DataException(
-                                    "Could not extract encoding version for '%s'"
-                                    % path
+                                    "Could not extract encoding version for '%s'" % path
                                 )
-                            unpack_code = getattr(
-                                self, "_unpack_v%d" % version, None
-                            )
+                            unpack_code = getattr(self, "_unpack_v%d" % version, None)
                             if unpack_code is None:
                                 raise DataException(
                                     "Unknown encoding version %d for '%s' -- "
@@ -168,7 +161,8 @@ class ContentAddressedStore(object):
                             blob = unpack_code(f)
                         except Exception as e:
                             raise DataException(
-                                "Could not unpack artifact '%s': %s" % (path, e))
+                                "Could not unpack artifact '%s': %s" % (path, e)
+                            )
 
                 if self._blob_cache:
                     self._blob_cache.store_key(key, blob)

@@ -1,20 +1,20 @@
 from metaflow_test import MetaflowTest, ExpectationFailed, steps
 
+
 class LineageTest(MetaflowTest):
     PRIORITY = 1
 
-    @steps(0, ['start'])
+    @steps(0, ["start"])
     def step_start(self):
         self.lineage = (self._current_step,)
 
-    @steps(1, ['join'])
+    @steps(1, ["join"])
     def step_join(self):
         # we can't easily account for the number of foreach splits,
         # so we only care about unique lineages (hence set())
-        self.lineage = (tuple(sorted({x.lineage for x in inputs})),
-                        self._current_step)
+        self.lineage = (tuple(sorted({x.lineage for x in inputs})), self._current_step)
 
-    @steps(2, ['all'])
+    @steps(2, ["all"])
     def step_all(self):
         self.lineage += (self._current_step,)
 
@@ -29,7 +29,7 @@ class LineageTest(MetaflowTest):
         # collect lineages on the way and finally compare them
         # to the lineages produced by the actual run
         def traverse(step, lineage):
-            if graph[step].type == 'join':
+            if graph[step].type == "join":
                 join_sets[step].add(tuple(lineage))
                 if len(join_sets[step]) < len(graph[step].in_funcs):
                     return
@@ -39,7 +39,7 @@ class LineageTest(MetaflowTest):
             for n in graph[step].out_funcs:
                 traverse(n, lineage + (step,))
 
-        traverse('start', ())
+        traverse("start", ())
 
         for step in flow:
-            checker.assert_artifact(step.name, 'lineage', lineages[step.name])
+            checker.assert_artifact(step.name, "lineage", lineages[step.name])
