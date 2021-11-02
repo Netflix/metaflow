@@ -53,7 +53,7 @@ digraph Metaflow {
         command_run         [label="{command|run}", fillcolor=tan]
         new_run_id          [label="{metadata|new_run_id}", fillcolor=lightgoldenrod1]
         runtime_init        [label="{decorator|runtime_init}", fillcolor=lightblue2]
-        local_params        [label="{runtime|persist_parameters}", fillcolor=lightpink2]
+        local_params        [label="{runtime|persist_constants}", fillcolor=lightpink2]
         start_run_heartbeat [label="{metadata|start_run_heartbeat}", fillcolor=lightgoldenrod1]
         schedule_local_task [shape="circle", label="Schedule\nTask", width=1, fillcolor=grey78]
         runtime_finished    [label="{decorator|runtime_finished}", fillcolor=lightblue2]
@@ -99,7 +99,7 @@ digraph Metaflow {
         stepfunctions_run             [label="{AWS Step Functions|start_execution}", fillcolor=lightpink2]
         stepfunctions_bootstrap_batch [shape="circle", label="Bootstrap\nAWS Batch", width=1, fillcolor=grey78]
         stepfunctions_init            [label="{command|init}" fillcolor=tan]
-        stepfunctions_params          [label="{runtime|persist_parameters}", fillcolor=lightpink2]
+        stepfunctions_params          [label="{runtime|persist_constants}", fillcolor=lightpink2]
         stepfunctions_task            [shape="circle", label="Execute\nTask", width=1, fillcolor=grey78]
     }
 

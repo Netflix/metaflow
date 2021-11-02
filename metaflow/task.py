@@ -79,7 +79,8 @@ class MetaflowTask(object):
             vars.append(var)
 
         # make class-level values read-only to be more consistent across steps in a flow
-        converted_cls_vars = []
+        # they are also only persisted once and so we similarly pass them down if
+        # required
         for var in dir(cls):
             if var[0] == "_" or var in cls._NON_PARAMETERS or var in vars:
                 continue
@@ -88,10 +89,7 @@ class MetaflowTask(object):
             if isinstance(val, (MethodType, FunctionType, property, type)):
                 continue
             setattr(cls, var, property(fget=lambda _, val=val: val, fset=set_cls_var))
-            converted_cls_vars.append(var)
-        # Remember what we converted so we can properly persist them in
-        # task_datastore.py
-        setattr(self.flow, "_converted_cls_vars", converted_cls_vars)
+            vars.append(var)
 
         if passdown:
             self.flow._datastore.passdown_partial(parameter_ds, vars)
