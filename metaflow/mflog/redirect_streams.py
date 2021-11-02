@@ -29,7 +29,7 @@ def reader_thread(SOURCE, dest_file, dest_stream, src):
 
 
 if __name__ == "__main__":
-    SOURCE = sys.argv[1].encode("ascii")
+    SOURCE = sys.argv[1].encode("utf-8")
     stdout_dest = sys.argv[2]
     stderr_dest = sys.argv[3]
 
