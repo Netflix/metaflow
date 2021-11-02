@@ -640,12 +640,15 @@ class TaskDataStore(object):
         # we create a list of valid_artifacts in advance, outside of
         # artifacts_iter so we can provide a len_hint below
         valid_artifacts = []
+        valid_properties = getattr(flow, "_converted_cls_vars", [])
         for var in dir(flow):
             if var.startswith("__") or var in flow._EPHEMERAL:
                 continue
             # Skip over properties of the class (Parameters)
-            if hasattr(flow.__class__, var) and isinstance(
-                getattr(flow.__class__, var), property
+            if (
+                hasattr(flow.__class__, var)
+                and isinstance(getattr(flow.__class__, var), property)
+                and not var in valid_properties
             ):
                 continue
 
@@ -664,7 +667,11 @@ class TaskDataStore(object):
             # artifacts in memory simultaneously
             while valid_artifacts:
                 var, val = valid_artifacts.pop()
-                if not var.startswith("_") and var != "name":
+                if (
+                    not var.startswith("_")
+                    and var != "name"
+                    and not hasattr(flow.__class__, var)
+                ):
                     # NOTE: Destructive mutation of the flow object. We keep
                     # around artifacts called 'name' and anything starting with
                     # '_' as they are used by the Metaflow runtime.

@@ -3,6 +3,8 @@ import sys
 import os
 import time
 
+from types import MethodType, FunctionType
+
 from .metaflow_config import MAX_ATTEMPTS
 from .metadata import MetaDatum
 from .datastore import Inputs, TaskDataStoreSet
@@ -53,6 +55,10 @@ class MetaflowTask(object):
             step_function(input_obj)
 
     def _init_parameters(self, parameter_ds, passdown=True):
+        def set_cls_var(_, __):
+            raise AttributeError("Flow level attributes are not modifiable")
+
+        cls = self.flow.__class__
         # overwrite Parameters in the flow object
         vars = []
         for var, param in self.flow._get_parameters():
@@ -60,7 +66,7 @@ class MetaflowTask(object):
             # note x=x binds the current value of x to the closure
             def property_setter(
                 _,
-                cls=self.flow.__class__,
+                cls=cls,
                 param=param,
                 var=var,
                 parameter_ds=parameter_ds,
@@ -69,8 +75,24 @@ class MetaflowTask(object):
                 setattr(cls, var, property(fget=lambda _, val=v: val))
                 return v
 
-            setattr(self.flow.__class__, var, property(fget=property_setter))
+            setattr(cls, var, property(fget=property_setter))
             vars.append(var)
+
+        # make class-level values read-only to be more consistent across steps in a flow
+        converted_cls_vars = []
+        for var in dir(cls):
+            if var[0] == "_" or var in cls._NON_PARAMETERS or var in vars:
+                continue
+            val = getattr(cls, var)
+            # Exclude methods, properties and other classes
+            if isinstance(val, (MethodType, FunctionType, property, type)):
+                continue
+            setattr(cls, var, property(fget=lambda _, val=val: val, fset=set_cls_var))
+            converted_cls_vars.append(var)
+        # Remember what we converted so we can properly persist them in
+        # task_datastore.py
+        setattr(self.flow, "_converted_cls_vars", converted_cls_vars)
+
         if passdown:
             self.flow._datastore.passdown_partial(parameter_ds, vars)
         return vars
