@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from collections import defaultdict, deque
+import copy
 import random
 import select
 import sys
@@ -94,6 +95,50 @@ class BatchJob(object):
                 self._max_swap,
                 self._swappiness,
             )
+
+        # Multinode
+        if getattr(self, "_nodes", 0) > 1:
+            num_nodes = self._nodes
+            main_task_override = copy.deepcopy(self.payload["containerOverrides"])
+            # TERRIBLE HACK JUST TO TRY THIS WORKS
+
+            # main
+            commands = self.payload["containerOverrides"]["command"][-1]
+            # add split-index as this worker is also an ubf_task
+            commands = commands.replace("[multinode-args]", "--split-index 0")
+            main_task_override["command"][-1] = commands
+
+            # secondary tasks
+            secondary_task_container_override = copy.deepcopy(
+                self.payload["containerOverrides"]
+            )
+            secondary_commands = self.payload["containerOverrides"]["command"][-1]
+            # other tasks do not have control- prefix, and have the split id appended to the task -id
+            secondary_commands = secondary_commands.replace(
+                self._task_id,
+                self._task_id.replace("control-", "")
+                + "-node-$AWS_BATCH_JOB_NODE_INDEX",
+            )
+            secondary_commands = secondary_commands.replace(
+                "ubf_control",
+                "ubf_task",
+            )
+            secondary_commands = secondary_commands.replace(
+                "[multinode-args]", "--split-index $AWS_BATCH_JOB_NODE_INDEX"
+            )
+
+            secondary_task_container_override["command"][-1] = secondary_commands
+            self.payload["nodeOverrides"] = {
+                "nodePropertyOverrides": [
+                    {"targetNodes": "0:0", "containerOverrides": main_task_override},
+                    {
+                        "targetNodes": "1:{}".format(num_nodes - 1),
+                        "containerOverrides": secondary_task_container_override,
+                    },
+                ],
+            }
+            del self.payload["containerOverrides"]
+
         response = self._client.submit_job(**self.payload)
         job = RunningJob(response["jobId"], self._client)
         return job.update()
@@ -108,6 +153,7 @@ class BatchJob(object):
         max_swap,
         swappiness,
         host_volumes,
+        nodes,
     ):
         # identify platform from any compute environment associated with the
         # queue
@@ -146,6 +192,8 @@ class BatchJob(object):
         }
 
         if platform == "FARGATE" or platform == "FARGATE_SPOT":
+            if nodes > 1:
+                raise BatchJobException("Fargate does not support multinode jobs.")
             if execution_role is None:
                 raise BatchJobException(
                     "No AWS Fargate task execution IAM role found. Please see "
@@ -215,6 +263,25 @@ class BatchJob(object):
                     {"sourceVolume": name, "containerPath": host_path}
                 )
 
+        nodes = int(nodes)
+        if nodes > 1:
+            job_definition["type"] = "multinode"
+            job_definition["nodeProperties"] = {"numNodes": nodes, "mainNode": 0}
+            job_definition["nodeProperties"]["nodeRangeProperties"] = [
+                {
+                    "targetNodes": "0:0",  # The properties are same for main node and others,
+                    # but as we use nodeOverrides later for main and others
+                    # differently, also the job definition must match those patterns
+                    "container": job_definition["containerProperties"],
+                },
+                {
+                    "targetNodes": "1:{}".format(nodes - 1),
+                    "container": job_definition["containerProperties"],
+                },
+            ]
+            del job_definition["containerProperties"]  # not used for multi-node
+            self._nodes = nodes
+
         # check if job definition already exists
         def_name = (
             "metaflow_%s"
@@ -252,6 +319,7 @@ class BatchJob(object):
         max_swap,
         swappiness,
         host_volumes,
+        nodes,
     ):
         self.payload["jobDefinition"] = self._register_job_definition(
             image,
@@ -262,6 +330,7 @@ class BatchJob(object):
             max_swap,
             swappiness,
             host_volumes,
+            nodes,
         )
         return self
 
@@ -275,6 +344,10 @@ class BatchJob(object):
 
     def image(self, image):
         self._image = image
+        return self
+
+    def task_id(self, task_id):
+        self._task_id = task_id
         return self
 
     def iam_role(self, iam_role):
@@ -505,13 +578,22 @@ class RunningJob(object):
 
     @property
     def reason(self):
-        return self.info["container"].get("reason")
+        if "container" in self.info:
+            # single-node job
+            return self.info["container"].get("reason")
+        else:
+            # multinode
+            return self.info["statusReason"]
 
     @property
     def status_code(self):
         if not self.is_done:
             self.update()
-        return self.info["container"].get("exitCode")
+        if "container" in self.info:
+            return self.info["container"].get("exitCode")
+        else:
+            # multinode
+            return self.info["attempts"][-1]["container"].get("exitCode")
 
     def kill(self):
         if not self.is_done:

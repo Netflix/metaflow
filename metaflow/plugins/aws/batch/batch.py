@@ -1,4 +1,5 @@
 import atexit
+import copy
 import json
 import os
 import select
@@ -174,6 +175,7 @@ class Batch(object):
         env={},
         attrs={},
         host_volumes=None,
+        nodes=1,
     ):
         job_name = self._job_name(
             attrs.get("metaflow.user"),
@@ -204,6 +206,7 @@ class Batch(object):
                 max_swap,
                 swappiness,
                 host_volumes=host_volumes,
+                nodes=nodes,
             )
             .cpu(cpu)
             .gpu(gpu)
@@ -212,6 +215,7 @@ class Batch(object):
             .max_swap(max_swap)
             .swappiness(swappiness)
             .timeout_in_secs(run_time_limit)
+            .task_id(attrs.get("metaflow.task_id"))
             .environment_variable("AWS_DEFAULT_REGION", self._client.region())
             .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
             .environment_variable("METAFLOW_CODE_URL", code_package_url)
@@ -271,6 +275,7 @@ class Batch(object):
         max_swap=None,
         swappiness=None,
         host_volumes=None,
+        nodes=1,
         env={},
         attrs={},
     ):
@@ -302,11 +307,13 @@ class Batch(object):
             env=env,
             attrs=attrs,
             host_volumes=host_volumes,
+            nodes=nodes,
         )
+        self.nodes = nodes
         self.job = job.execute()
 
     def wait(self, stdout_location, stderr_location, echo=None):
-        def wait_for_launch(job):
+        def wait_for_launch(job, child_jobs):
             status = job.status
             echo(
                 "Task is starting (status %s)..." % status,
@@ -316,9 +323,15 @@ class Batch(object):
             t = time.time()
             while True:
                 if status != job.status or (time.time() - t) > 30:
+                    if not child_jobs:
+                        child_statuses = ""
+                    else:
+                        child_statuses = " (child nodes: [{}])".format(
+                            ", ".join([child_job.status for child_job in child_jobs])
+                        )
                     status = job.status
                     echo(
-                        "Task is starting (status %s)..." % status,
+                        "Task is starting (status %s)... %s" % (status, child_statuses),
                         "stderr",
                         batch_id=job.id,
                     )
@@ -348,16 +361,37 @@ class Batch(object):
         stdout_tail = S3Tail(stdout_location)
         stderr_tail = S3Tail(stderr_location)
 
+        child_jobs = []
+        if self.nodes > 1:
+            for node in range(1, self.nodes):
+                child_job = copy.copy(self.job)
+                child_job._id = child_job._id + "#{}".format(node)
+                child_jobs.append(child_job)
+
         # 1) Loop until the job has started
-        wait_for_launch(self.job)
+        wait_for_launch(self.job, child_jobs)
 
         # 2) Loop until the job has finished
         start_time = time.time()
         is_running = True
         next_log_update = start_time
         log_update_delay = 1
+        next_child_job_update = start_time
+        child_job_update_delay = 20
 
         while is_running:
+            if child_jobs and not all(child_job.is_running for child_job in child_jobs):
+                if time.time() > next_child_job_update:
+                    next_child_job_update = time.time() + child_job_update_delay
+                    print(
+                        "Child job status: {}".format(
+                            [
+                                "{}:{}".format(child_job.id, child_job.status)
+                                for child_job in child_jobs
+                            ]
+                        )
+                    )
+
             if time.time() > next_log_update:
                 _print_available(stdout_tail, "stdout")
                 _print_available(stderr_tail, "stderr")
