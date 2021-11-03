@@ -78,6 +78,7 @@ class MetaflowTask(object):
             setattr(cls, var, property(fget=property_setter))
             vars.append(var)
 
+        param_only_vars = list(vars)
         # make class-level values read-only to be more consistent across steps in a flow
         # they are also only persisted once and so we similarly pass them down if
         # required
@@ -93,7 +94,7 @@ class MetaflowTask(object):
 
         if passdown:
             self.flow._datastore.passdown_partial(parameter_ds, vars)
-        return vars
+        return param_only_vars
 
     def _init_data(self, run_id, join_type, input_paths):
         # We prefer to use the parallelized version to initialize datastores
