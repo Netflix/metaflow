@@ -226,6 +226,12 @@ def output_dot(obj):
 def dump(obj, input_path, private=None, max_value_size=None, include=None, file=None):
 
     output = {}
+    if file is not None:
+        echo(
+            "max_value_size will be set to None when a file variable "
+            "is provided so that values will not get replaced"
+        )
+        max_value_size = None 
     kwargs = {
         "show_private": private,
         "max_value_size": max_value_size,
