@@ -131,6 +131,7 @@ from .test_unbounded_foreach_decorator import (
     InternalTestUnboundedForeachDecorator,
     InternalTestUnboundedForeachInput,
 )
+from .multinode_decorator import MultinodeDecorator
 from .conda.conda_step_decorator import CondaStepDecorator
 
 STEP_DECORATORS = _merge_lists(
@@ -145,6 +146,7 @@ STEP_DECORATORS = _merge_lists(
         StepFunctionsInternalDecorator,
         CondaStepDecorator,
         InternalTestUnboundedForeachDecorator,
+        MultinodeDecorator,
     ],
     _ext_plugins.STEP_DECORATORS,
     "name",

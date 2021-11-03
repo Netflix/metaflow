@@ -364,6 +364,11 @@ class NativeRuntime(object):
             top = foreach_stack[-1]
             bottom = list(foreach_stack[:-1])
             s = tuple(bottom + [top._replace(index=None)])
+
+            # UBF control can also be the first task of the list. Then
+            # it will have index=0 instead of index=None.
+            if task.results.get("_control_task_is_mapper_zero", False):
+                s = tuple(bottom + [top._replace(index=0)])
             control_path = self._finished.get((task.step, s))
             if control_path:
                 # Control task was successful.
@@ -374,7 +379,6 @@ class NativeRuntime(object):
                 for i in range(num_splits):
                     s = tuple(bottom + [top._replace(index=i)])
                     required_tasks.append(self._finished.get((task.step, s)))
-                required_tasks.append(control_path)
 
                 if all(required_tasks):
                     # all tasks to be joined are ready. Schedule the next join step.
