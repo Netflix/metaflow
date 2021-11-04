@@ -22,7 +22,7 @@ from metaflow.metaflow_config import (
 from metaflow.sidecar import SidecarSubProcess
 
 from .batch import BatchException
-from ..aws_utils import get_docker_registry
+from ..aws_utils import compute_resource_attributes, get_docker_registry
 
 
 class BatchDecorator(StepDecorator):
@@ -85,9 +85,9 @@ class BatchDecorator(StepDecorator):
 
     name = "batch"
     defaults = {
-        "cpu": "1",
-        "gpu": "0",
-        "memory": "4096",
+        "cpu": None,
+        "gpu": None,
+        "memory": None,
         "image": None,
         "queue": BATCH_JOB_QUEUE,
         "iam_role": ECS_S3_ACCESS_IAM_ROLE,
@@ -96,6 +96,11 @@ class BatchDecorator(StepDecorator):
         "max_swap": None,
         "swappiness": None,
         "host_volumes": None,
+    }
+    resource_defaults = {
+        "cpu": "1",
+        "gpu": "0",
+        "memory": "4096",
     }
     package_url = None
     package_sha = None
@@ -142,14 +147,10 @@ class BatchDecorator(StepDecorator):
         self.environment = environment
         self.step = step
         self.flow_datastore = flow_datastore
-        for deco in decos:
-            if isinstance(deco, ResourcesDecorator):
-                for k, v in deco.attributes.items():
-                    # We use the larger of @resources and @batch attributes
-                    # TODO: Fix https://github.com/Netflix/metaflow/issues/467
-                    my_val = self.attributes.get(k)
-                    if not (my_val is None and v is None):
-                        self.attributes[k] = str(max(int(my_val or 0), int(v or 0)))
+
+        self.attributes.update(
+            compute_resource_attributes(decos, self, self.resource_defaults)
+        )
 
         # Set run time limit for the AWS Batch job.
         self.run_time_limit = get_run_time_limit_for_task(decos)
