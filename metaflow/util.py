@@ -50,7 +50,7 @@ except NameError:
 
     from shlex import quote as _quote
 
-if sys.version_info.major >= 3 and sys.version_info.minor >= 7:
+if sys.version_info >= (3, 7):
     from collections import namedtuple
 
     namedtuple_with_defaults = namedtuple

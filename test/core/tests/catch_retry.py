@@ -5,7 +5,7 @@ from metaflow import current
 class CatchRetryTest(MetaflowTest):
     PRIORITY = 2
 
-    @tag("retry(times=3)")
+    @tag("retry(times=3,minutes_between_retries=0)")
     @steps(0, ["start"])
     def step_start(self):
         import os, sys
@@ -18,7 +18,7 @@ class CatchRetryTest(MetaflowTest):
             raise TestRetry()
 
     # foreach splits don't support @catch but @retry should work
-    @tag("retry(times=2)")
+    @tag("retry(times=2,minutes_between_retries=0)")
     @steps(0, ["foreach-split"])
     def step_split(self):
         import os
@@ -28,7 +28,7 @@ class CatchRetryTest(MetaflowTest):
         else:
             raise TestRetry()
 
-    @tag("retry(times=2)")
+    @tag("retry(times=2,minutes_between_retries=0)")
     @steps(0, ["join"])
     def step_join(self):
         import os
@@ -51,7 +51,7 @@ class CatchRetryTest(MetaflowTest):
         raise ExternalCommandFailed("catch me!")
 
     @tag('catch(var="ex", print_exception=False)')
-    @tag("retry(times=2)")
+    @tag("retry(times=2,minutes_between_retries=0)")
     @steps(1, ["all"])
     def step_all(self):
         # Die a soft death; this should retry and then catch in the end
@@ -75,7 +75,7 @@ class CatchRetryTest(MetaflowTest):
                     for task in checker.artifact_dict("start", "invisible").values():
                         if task:
                             raise Exception(
-                                "'invisible' should not be visible " "in 'start'"
+                                "'invisible' should not be visible in 'start'"
                             )
                 except KeyError:
                     pass
