@@ -71,7 +71,8 @@ class Batch(object):
         # the `true` command is to make sure that the generated command
         # plays well with docker containers which have entrypoint set as
         # eval $@
-        cmd_str = "true && mkdir -p $pwd/.logs && %s && %s && %s; " % (
+        cmd_str = "true && mkdir -p %s && %s && %s && %s; " % (
+            LOGS_DIR,
             mflog_expr,
             init_expr,
             step_expr,
