@@ -8,9 +8,11 @@ class ConstantsTest(MetaflowTest):
     """
 
     PRIORITY = 0
-    CLASS_VARS = {'str_const': '"this is a constant"',
-                  'int_const': 123,
-                  'obj_const': '[]'}
+    CLASS_VARS = {
+        "str_const": '"this is a constant"',
+        "int_const": 123,
+        "obj_const": "[]",
+    }
 
     PARAMETERS = {
         "int_param": {"default": 456},
@@ -21,18 +23,18 @@ class ConstantsTest(MetaflowTest):
     def step_all(self):
         # make sure class attributes are available in all steps
         # through joins etc
-        assert_equals('this is a constant', self.str_const)
+        assert_equals("this is a constant", self.str_const)
         assert_equals(123, self.int_const)
         # obj_const is mutable. Not much that can be done about it
         assert_equals([], self.obj_const)
 
         assert_equals(456, self.int_param)
-        assert_equals('foobar', self.str_param)
+        assert_equals("foobar", self.str_param)
 
         # make sure class variables are not listed as parameters
         from metaflow import current
-        assert_equals({'int_param', 'str_param'},
-                      set(current.parameter_names))
+
+        assert_equals({"int_param", "str_param"}, set(current.parameter_names))
 
         try:
             self.int_param = 5
@@ -50,5 +52,5 @@ class ConstantsTest(MetaflowTest):
 
     def check_results(self, flow, checker):
         for step in flow:
-            checker.assert_artifact(step.name, 'int_param', 456)
-            checker.assert_artifact(step.name, 'int_const', 123)
+            checker.assert_artifact(step.name, "int_param", 456)
+            checker.assert_artifact(step.name, "int_const", 123)
