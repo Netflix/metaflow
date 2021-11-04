@@ -124,7 +124,7 @@ class CardDatastore(object):
         return card_name
     
     @staticmethod
-    def _card_info_from_path(path):
+    def card_info_from_path(path):
         """
         Args:
             path (str): The path to the card
@@ -183,7 +183,7 @@ class CardDatastore(object):
         cards_found = []
         for task_card_path in card_paths:
             card_path = task_card_path.path
-            cid,ctype,cidx,chash = self._card_info_from_path(card_path)
+            cid,ctype,cidx,chash = self.card_info_from_path(card_path)
             is_index_present = lambda x : True
             if card_index is not None:
                 # if the index is not none then the lambda checks it
@@ -209,8 +209,15 @@ class CardDatastore(object):
     def get_card_names(self,card_paths):
         name_tuples = []
         for path in card_paths:
-            name_tuples.append(self._card_info_from_path(path))
+            name_tuples.append(self.card_info_from_path(path))
         return name_tuples
+    
+    def get_card_html(self,path):
+        with self._backend.load_bytes([path]) as get_results:
+            for _, path, _ in get_results:
+                if path is not None:
+                    with open(path,'r') as f:
+                        return f.read()
     
     def cache_locally(self,path):
         with self._backend.load_bytes([path]) as get_results:

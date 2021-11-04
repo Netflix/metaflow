@@ -342,10 +342,7 @@ def view(ctx,identifier,id=None,hash=None,type=None,index=None):
 @click.pass_context
 def get(ctx,identifier,id=None,hash=None,type=None,index=None):
     available_card_paths,card_datastore,pathspec = resolve_card(ctx,identifier,type=type,index=index,id=id,hash=hash)
-    
-    
     if len(available_card_paths) == 1:
-        with open(card_datastore.cache_locally(available_card_paths[0]),'r') as f:
-            print(f.read())
+        print(card_datastore.get_card_html(available_card_paths[0]))
     else:
         list_availble_cards(ctx,pathspec,available_card_paths,card_datastore,command='get')

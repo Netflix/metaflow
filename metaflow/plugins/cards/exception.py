@@ -88,3 +88,11 @@ class UnrenderableCardException(MetaflowException):
             ' %s'%(card_type,args,traceback.format_exc())
         super(UnrenderableCardException, self).__init__(msg)
 
+
+
+class UnresolvableDatastoreException(MetaflowException):
+
+    headline = 'Cannot resolve datastore type from `Task.metadata`'
+    def __init__(self,task):
+        msg = "Cannot resolve the metadata `ds-type` from task with pathspec : %s " % task.pathspec
+        super(UnresolvableDatastoreException, self).__init__(msg)
