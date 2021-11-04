@@ -88,6 +88,9 @@ class FlowFormatter(object):
         yield 0, self.test.HEADER
         yield 0, "class %s(FlowSpec):" % self.flow_name
 
+        for var, val in self.test.CLASS_VARS.items():
+            yield 1, '%s = %s' % (var, val)
+
         for var, parameter in self.test.PARAMETERS.items():
             kwargs = ["%s=%s" % (k, v) for k, v in parameter.items()]
             yield 1, '%s = Parameter("%s", %s)' % (var, var, ",".join(kwargs))
