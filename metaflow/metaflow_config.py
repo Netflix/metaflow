@@ -182,6 +182,9 @@ if AWS_SANDBOX_ENABLED:
     METADATA_SERVICE_HEADERS['x-api-key'] = AWS_SANDBOX_API_KEY
     SFN_STATE_MACHINE_PREFIX = from_conf('METAFLOW_AWS_SANDBOX_STACK_NAME')
 
+METAFLOW_COVERAGE_SOURCE = from_conf("METAFLOW_COVERAGE_SOURCE", "metaflow")
+METAFLOW_COVERAGE_OMIT = from_conf("METAFLOW_COVERAGE_OMIT")
+
 
 # MAX_ATTEMPTS is the maximum number of attempts, including the first
 # task, retries, and the final fallback task and its retries.
