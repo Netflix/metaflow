@@ -27,8 +27,8 @@ from metaflow.mflog import (
 
 from .batch_client import BatchClient
 
-# Redirect structured logs to $pwd/.logs/
-LOGS_DIR = "$pwd/.logs"
+# Redirect structured logs to $PWD/.logs/
+LOGS_DIR = "$PWD/.logs"
 STDOUT_FILE = "mflog_stdout"
 STDERR_FILE = "mflog_stderr"
 STDOUT_PATH = os.path.join(LOGS_DIR, STDOUT_FILE)

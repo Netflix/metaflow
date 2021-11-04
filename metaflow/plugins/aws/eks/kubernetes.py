@@ -28,8 +28,8 @@ from metaflow.mflog.mflog import refine, set_should_persist
 
 from .kubernetes_client import KubernetesClient
 
-# Redirect structured logs to $pwd/.logs/
-LOGS_DIR = "$pwd/.logs"
+# Redirect structured logs to $PWD/.logs/
+LOGS_DIR = "$PWD/.logs"
 STDOUT_FILE = "mflog_stdout"
 STDERR_FILE = "mflog_stderr"
 STDOUT_PATH = os.path.join(LOGS_DIR, STDOUT_FILE)
