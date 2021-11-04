@@ -27,8 +27,8 @@ from metaflow.mflog import (
 
 from .batch_client import BatchClient
 
-# Redirect structured logs to /logs/
-LOGS_DIR = "/logs"
+# Redirect structured logs to $pwd/.logs/
+LOGS_DIR = "$pwd/.logs"
 STDOUT_FILE = "mflog_stdout"
 STDERR_FILE = "mflog_stderr"
 STDOUT_PATH = os.path.join(LOGS_DIR, STDOUT_FILE)
@@ -71,7 +71,7 @@ class Batch(object):
         # the `true` command is to make sure that the generated command
         # plays well with docker containers which have entrypoint set as
         # eval $@
-        cmd_str = "true && mkdir -p /logs && %s && %s && %s; " % (
+        cmd_str = "true && mkdir -p $pwd/.logs && %s && %s && %s; " % (
             mflog_expr,
             init_expr,
             step_expr,

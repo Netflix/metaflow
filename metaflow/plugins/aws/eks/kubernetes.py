@@ -28,8 +28,8 @@ from metaflow.mflog.mflog import refine, set_should_persist
 
 from .kubernetes_client import KubernetesClient
 
-# Redirect structured logs to /logs/
-LOGS_DIR = "/logs"
+# Redirect structured logs to $pwd/.logs/
+LOGS_DIR = "$pwd/.logs"
 STDOUT_FILE = "mflog_stdout"
 STDERR_FILE = "mflog_stderr"
 STDOUT_PATH = os.path.join(LOGS_DIR, STDOUT_FILE)
@@ -148,7 +148,7 @@ class Kubernetes(object):
         # The `true` command is to make sure that the generated command
         # plays well with docker containers which have entrypoint set as
         # eval $@
-        cmd_str = "true && mkdir -p /logs && %s && %s && %s; " % (
+        cmd_str = "true && mkdir -p .logs && %s && %s && %s; " % (
             mflog_expr,
             init_expr,
             step_expr,
