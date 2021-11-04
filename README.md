@@ -46,4 +46,9 @@ There are several ways to get in touch with us:
 * Chat with us on: http://chat.metaflow.org 
 
 ## Contributing
+
 We welcome contributions to Metaflow. Please see our [contribution guide](https://docs.metaflow.org/introduction/contributing-to-metaflow) for more details.
+
+### Code style
+
+We use [black](https://black.readthedocs.io/en/stable/) as a code formatter. The easiest way to ensure your commits are always formatted with the correct version of `black` it is to use [pre-commit](https://pre-commit.com/): install it and then run `pre-commit install` once in your local copy of the repo. 
