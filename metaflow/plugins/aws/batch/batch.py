@@ -20,8 +20,8 @@ from metaflow.metaflow_config import (
 from metaflow.mflog.mflog import refine, set_should_persist
 from metaflow.mflog import (
     export_mflog_env_vars,
-    bash_capture_logs,
-    update_delay,
+    capture_output_to_mflog,
+    tail_logs,
     BASH_SAVE_LOGS,
 )
 
@@ -59,8 +59,11 @@ class Batch(object):
         )
         init_cmds = environment.get_package_commands(code_package_url)
         init_expr = " && ".join(init_cmds)
-        step_expr = bash_capture_logs(
-            " && ".join(environment.bootstrap_commands(step_name) + step_cmds)
+        step_expr = " && ".join(
+            [
+                capture_output_to_mflog(a)
+                for a in (environment.bootstrap_commands(step_name) + step_cmds)
+            ]
         )
 
         # construct an entry point that
@@ -329,63 +332,24 @@ class Batch(object):
                 select.poll().poll(200)
 
         prefix = b"[%s] " % util.to_bytes(self.job.id)
-
-        def _print_available(tail, stream, should_persist=False):
-            # print the latest batch of lines from S3Tail
-            try:
-                for line in tail:
-                    if should_persist:
-                        line = set_should_persist(line)
-                    else:
-                        line = refine(line, prefix=prefix)
-                    echo(line.strip().decode("utf-8", errors="replace"), stream)
-            except Exception as ex:
-                echo(
-                    "[ temporary error in fetching logs: %s ]" % ex,
-                    "stderr",
-                    batch_id=self.job.id,
-                )
-
         stdout_tail = S3Tail(stdout_location)
         stderr_tail = S3Tail(stderr_location)
 
         # 1) Loop until the job has started
         wait_for_launch(self.job)
 
-        # 2) Loop until the job has finished
-        start_time = time.time()
-        is_running = True
-        next_log_update = start_time
-        log_update_delay = 1
+        # 2) Tail logs until the job has finished
+        tail_logs(
+            prefix=prefix,
+            stdout_tail=stdout_tail,
+            stderr_tail=stderr_tail,
+            echo=echo,
+            has_log_updates=lambda: self.job.is_running,
+        )
 
-        while is_running:
-            if time.time() > next_log_update:
-                _print_available(stdout_tail, "stdout")
-                _print_available(stderr_tail, "stderr")
-                now = time.time()
-                log_update_delay = update_delay(now - start_time)
-                next_log_update = now + log_update_delay
-                is_running = self.job.is_running
-
-            # This sleep should never delay log updates. On the other hand,
-            # we should exit this loop when the task has finished without
-            # a long delay, regardless of the log tailing schedule
-            d = min(log_update_delay, 5.0)
-            select.poll().poll(d * 1000)
-
-        # 3) Fetch remaining logs
-        #
-        # It is possible that we exit the loop above before all logs have been
-        # shown.
-        #
-        # TODO if we notice AWS Batch failing to upload logs to S3, we can add a
-        # HEAD request here to ensure that the file exists prior to calling
-        # S3Tail and note the user about truncated logs if it doesn't
-        _print_available(stdout_tail, "stdout")
-        _print_available(stderr_tail, "stderr")
         # In case of hard crashes (OOM), the final save_logs won't happen.
-        # We fetch the remaining logs from AWS CloudWatch and persist them to
-        # Amazon S3.
+        # We can fetch the remaining logs from AWS CloudWatch and persist them
+        # to Amazon S3.
 
         if self.job.is_crashed:
             msg = next(
