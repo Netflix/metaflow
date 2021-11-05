@@ -276,8 +276,8 @@ def warn_use_argo_image(obj):
     for node in obj.graph.nodes:
         for deco in obj.graph[node].decorators:
             if deco.name == 'argo':
-                if 'image' in deco.attributes:
+                if deco.attributes.get('image'):
                     with warnings.catch_warnings():
                         warnings.simplefilter('default')
-                        warnings.warn('Use of @argo(image=...) is deprecated. Use @kuberntes(image=...) instead.')
+                        warnings.warn('Use of @argo(image=...) is deprecated. Use @kubernetes(image=...) instead.')
                     return
