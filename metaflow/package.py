@@ -76,19 +76,19 @@ class MetaflowPackage(object):
                 addl_suffixes=self.metaflow_extensions_addl_suffixes,
             ):
                 yield path_tuple
-             
+
         # Any custom packages exposed via decorators
         deco_module_paths = set()
         for step in self._flow:
             for deco in step.decorators:
                 for path_tuple in deco.add_to_package():
-                    file_path,_ = path_tuple
+                    file_path, _ = path_tuple
                     # Check if the path is not duplicated as
                     # many steps can have the same card
                     if file_path not in deco_module_paths:
                         deco_module_paths.add(file_path)
-                        yield path_tuple            
-        
+                        yield path_tuple
+
         # the package folders for environment
         for path_tuple in self.environment.add_to_package():
             yield path_tuple

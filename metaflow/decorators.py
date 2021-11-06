@@ -238,7 +238,7 @@ class StepDecorator(Decorator):
         Called to determine package components
         """
         pass
-    
+
     def add_to_package(self):
         """
         Called to add custom packages needed for a decorator

@@ -2,38 +2,39 @@ from metaflow.datastore import DATASTORES, FlowDataStore
 from .card_resolver import resolve_paths_from_task
 from .exception import UnresolvableDatastoreException
 
+
 class Card:
-    def __init__(self,card_ds,type,path,html=None,id=None,created_on=None):
-        self._path =path
-        self._html =html
+    def __init__(self, card_ds, type, path, html=None, id=None, created_on=None):
+        self._path = path
+        self._html = html
         self.type = type
-        self._id =id
+        self._id = id
         self._created_on = created_on
         self._card_ds = card_ds
 
-    @property    
+    @property
     def html(self):
         if self._html is not None:
             return self._html
-        self._html = self._card_ds.get_card_html(
-            self.path
-        )
+        self._html = self._card_ds.get_card_html(self.path)
         return self._html
-    
+
     @property
     def id(self):
         return self._id
-        
+
     @property
     def path(self):
         return self._path
-    
+
     def nb(self):
-        from IPython.core.display import HTML,display
+        from IPython.core.display import HTML, display
+
         display(HTML(self.html))
 
+
 class CardIterator:
-    def __init__(self,card_paths,card_ds) -> None:
+    def __init__(self, card_paths, card_ds) -> None:
         self._card_paths = card_paths
         self._card_ds = card_ds
         self._current = 0
@@ -45,12 +46,12 @@ class CardIterator:
     def __getitem__(self, index):
         return self._get_card(index)
 
-    def _get_card(self,index):
+    def _get_card(self, index):
         if index >= self._high:
             raise IndexError
         path = self._card_paths[index]
-        cid, ctype, _, _ =  self._card_ds.card_info_from_path(path)
-        # todo : find card creation date and put it in client. 
+        cid, ctype, _, _ = self._card_ds.card_info_from_path(path)
+        # todo : find card creation date and put it in client.
         return Card(
             self._card_ds,
             ctype,
@@ -59,51 +60,55 @@ class CardIterator:
             id=cid,
             created_on=None,
         )
-    
-    def _wrap_iframe(self,html):
-        return """
+
+    def _wrap_iframe(self, html):
+        return (
+            """
         <iframe width="1200" height="800">
         %s
         </iframe>
-        """%html
-    
-    def _make_heading(self,type):
+        """
+            % html
+        )
+
+    def _make_heading(self, type):
         return "<h1>Displaying Card Of Type : %s</h1>" % type.title()
-    
-    def _wrap_html(self,html):
-        return """
+
+    def _wrap_html(self, html):
+        return (
+            """
         <html>
             <head></head>
             <body>
                 %s
             </body>
         </html>
-        """%html
-        
-    
+        """
+            % html
+        )
+
     def _repr_html_(self):
         main_html_str = []
-        for idx,_ in enumerate(self._card_paths):
+        for idx, _ in enumerate(self._card_paths):
             card = self._get_card(idx)
-            main_html_str.append(
-                self._make_heading(card.type)
-            )
-            main_html_str.append(
-                self._wrap_iframe(card.html)
-            )
+            main_html_str.append(self._make_heading(card.type))
+            main_html_str.append(self._wrap_iframe(card.html))
         # return self._wrap_html()
-        return '\n'.join(main_html_str)
+        return "\n".join(main_html_str)
 
     def __next__(self):
         self._current += 1
         if self._current >= self._high:
             raise StopIteration
         return self._get_card(self._current)
-    
 
 
-def get_cards(task,id=None,type=None,):
-    _, run_id, step_name, task_id = task.pathspec.split('/')
+def get_cards(
+    task,
+    id=None,
+    type=None,
+):
+    _, run_id, step_name, task_id = task.pathspec.split("/")
     card_paths, card_ds = resolve_paths_from_task(
         _get_flow_datastore(task),
         run_id,
@@ -113,21 +118,20 @@ def get_cards(task,id=None,type=None,):
         card_id=id,
         type=type,
     )
-    return CardIterator(card_paths,card_ds)
-    
+    return CardIterator(card_paths, card_ds)
 
 
 def _get_flow_datastore(task):
-    flow_name = task.pathspec.split('/')[0]
+    flow_name = task.pathspec.split("/")[0]
     # Resolve datastore type
     ds_type = None
     ds_root = None
     for meta in task.metadata:
-        if meta.name == 'ds-type':
+        if meta.name == "ds-type":
             ds_type = meta.value
-        if meta.name == 'ds-root':
+        if meta.name == "ds-root":
             ds_root = meta.value
-    
+
     if ds_type is None:
         raise UnresolvableDatastoreException(task)
 
@@ -136,7 +140,7 @@ def _get_flow_datastore(task):
         flow_name=flow_name,
         environment=None,  # TODO: Add environment here
         storage_impl=storage_impl,
-        # ! ds root cannot be none otherwise `list_content` 
-        # ! method fails in the datastore abstraction. 
-        ds_root=ds_root
+        # ! ds root cannot be none otherwise `list_content`
+        # ! method fails in the datastore abstraction.
+        ds_root=ds_root,
     )

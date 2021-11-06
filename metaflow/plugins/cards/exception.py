@@ -1,98 +1,136 @@
 from metaflow.exception import MetaflowException
 import traceback
 
+
 class CardClassFoundException(MetaflowException):
     """
     This exception is raised with MetaflowCard class is not present for a particular card type.
     """
-    headline = 'MetaflowCard not found'
-    
+
+    headline = "MetaflowCard not found"
+
     def __init__(self, card_name):
         exc = traceback.format_exc()
-        msg = "MetaflowCard named %s not found. Check the `type` "\
-                "attribute in @card" % (card_name)
+        msg = (
+            "MetaflowCard named %s not found. Check the `type` "
+            "attribute in @card" % (card_name)
+        )
         super(CardClassFoundException, self).__init__(msg)
 
 
 class BadCardNameException(MetaflowException):
-    headline = 'Unsupportable id in @card'
-    
+    headline = "Unsupportable id in @card"
+
     def __init__(self, card_name):
         exc = traceback.format_exc()
-        msg = "Card with id %s is not supported. "\
-                "Card ids should follow the pattern : [a-zA-Z0-9_]" % (card_name)
+        msg = (
+            "Card with id %s is not supported. "
+            "Card ids should follow the pattern : [a-zA-Z0-9_]" % (card_name)
+        )
         super(BadCardNameException, self).__init__(msg)
+
 
 class IdNotFoundException(MetaflowException):
 
-    headline = 'Cannot find card id'
+    headline = "Cannot find card id"
 
-    def __init__(self,card_id):
-        msg = 'Cannot find card with id %s in the datastore' % card_id
+    def __init__(self, card_id):
+        msg = "Cannot find card with id %s in the datastore" % card_id
         super().__init__(msg=msg)
 
 
 class TypeRequiredException(MetaflowException):
 
-    headline = 'Card type missing exception'
+    headline = "Card type missing exception"
 
     def __init__(self):
-        msg = 'if IDENTIFIER is a pathspec than --type is required'
+        msg = "if IDENTIFIER is a pathspec than --type is required"
         super().__init__(msg=msg)
+
 
 class CardNotPresentException(MetaflowException):
     """
-    This exception is raised with a card is not present in the datastore. 
+    This exception is raised with a card is not present in the datastore.
     """
-    
-    headline = 'Card not found in datastore'
 
-    def __init__(self,flow_name, run_id,step_name,card_type=None,card_id=None,card_index=None,card_hash=None):
-        idx_msg = ''
-        hash_msg=''
-        msg =''
+    headline = "Card not found in datastore"
+
+    def __init__(
+        self,
+        flow_name,
+        run_id,
+        step_name,
+        card_type=None,
+        card_id=None,
+        card_index=None,
+        card_hash=None,
+    ):
+        idx_msg = ""
+        hash_msg = ""
+        msg = ""
         if card_index is not None:
-            idx_msg = ' and index %s' % card_index
-        
+            idx_msg = " and index %s" % card_index
+
         if card_hash is not None:
-            hash_msg = ' and hash %s' % card_hash
+            hash_msg = " and hash %s" % card_hash
         if card_type is not None:
-            msg = 'Card of type %s %s %s not present for path-spec'\
-                ' %s/%s/%s'%(card_type,idx_msg,hash_msg,flow_name,run_id,step_name)
+            msg = "Card of type %s %s %s not present for path-spec" " %s/%s/%s" % (
+                card_type,
+                idx_msg,
+                hash_msg,
+                flow_name,
+                run_id,
+                step_name,
+            )
         elif card_id is not None:
-            msg = 'Card of id %s %s %s not present for path-spec'\
-                ' %s/%s/%s'%(card_id,idx_msg,hash_msg,flow_name,run_id,step_name)
+            msg = "Card of id %s %s %s not present for path-spec" " %s/%s/%s" % (
+                card_id,
+                idx_msg,
+                hash_msg,
+                flow_name,
+                run_id,
+                step_name,
+            )
         else:
-            msg = 'Card not present for path-spec'\
-                ' %s/%s/%s %s %s'%(flow_name,run_id,step_name,idx_msg,hash_msg)
-        
+            msg = "Card not present for path-spec" " %s/%s/%s %s %s" % (
+                flow_name,
+                run_id,
+                step_name,
+                idx_msg,
+                hash_msg,
+            )
+
         super(CardNotPresentException, self).__init__(msg)
 
 
 class IncorrectCardArgsException(MetaflowException):
-    
-    headline = 'Incorrect arguements to @card decorator'
 
-    def __init__(self,card_type,args):
-        msg = 'Card of type %s cannot support arguements'\
-            ' %s'%(card_type,args)
+    headline = "Incorrect arguements to @card decorator"
+
+    def __init__(self, card_type, args):
+        msg = "Card of type %s cannot support arguements" " %s" % (card_type, args)
         super(IncorrectCardArgsException, self).__init__(msg)
 
 
 class UnrenderableCardException(MetaflowException):
-    
-    headline = 'Unable to render @card'
 
-    def __init__(self,card_type,args):
-        msg = 'Card of type %s is unable to be rendered with arguements %s.\nStack trace : '\
-            ' %s'%(card_type,args,traceback.format_exc())
+    headline = "Unable to render @card"
+
+    def __init__(self, card_type, args):
+        msg = (
+            "Card of type %s is unable to be rendered with arguements %s.\nStack trace : "
+            " %s" % (card_type, args, traceback.format_exc())
+        )
         super(UnrenderableCardException, self).__init__(msg)
-
 
 
 class UnresolvableDatastoreException(MetaflowException):
 
-    headline = 'Cannot resolve datastore type from `Task.metadata`'
-    def __init__(self,task):
-        msg = "Cannot resolve the metadata `ds-type` from task with pathspec : %s " % task.pathspec
+    headline = "Cannot resolve datastore type from `Task.metadata`"
+
+    def __init__(self, task):
+        msg = (
+            "Cannot resolve the metadata `ds-type` from task with pathspec : %s "
+            % task.pathspec
+        )
         super(UnresolvableDatastoreException, self).__init__(msg)

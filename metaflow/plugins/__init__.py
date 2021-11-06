@@ -2,16 +2,16 @@ import sys
 import types
 
 _expected_extensions = {
-    'FLOW_DECORATORS': [],
-    'STEP_DECORATORS': [],
-    'ENVIRONMENTS': [],
-    'METADATA_PROVIDERS': [],
-    'SIDECARS': {},
-    'LOGGING_SIDECARS': {},
-    'MONITOR_SIDECARS': {},
-    'AWS_CLIENT_PROVIDERS': [],
-    'get_plugin_cli': lambda : [],
-    'CARDS': []
+    "FLOW_DECORATORS": [],
+    "STEP_DECORATORS": [],
+    "ENVIRONMENTS": [],
+    "METADATA_PROVIDERS": [],
+    "SIDECARS": {},
+    "LOGGING_SIDECARS": {},
+    "MONITOR_SIDECARS": {},
+    "AWS_CLIENT_PROVIDERS": [],
+    "get_plugin_cli": lambda: [],
+    "CARDS": [],
 }
 
 try:
@@ -100,7 +100,7 @@ def get_plugin_cli():
     from .aws.eks import kubernetes_cli
     from .aws.step_functions import step_functions_cli
     from .cards import card_cli
-    
+
     return _ext_plugins.get_plugin_cli() + [
         package_cli.cli,
         batch_cli.cli,
@@ -138,18 +138,23 @@ from .conda.conda_step_decorator import CondaStepDecorator
 from .cards.card_decorator import CardDecorator
 
 
-STEP_DECORATORS = _merge_lists([CatchDecorator,
-                                TimeoutDecorator,
-                                EnvironmentDecorator,
-                                ResourcesDecorator,
-                                RetryDecorator,
-                                BatchDecorator,
-                                CardDecorator,
-                                KubernetesDecorator,
-                                StepFunctionsInternalDecorator,
-                                CondaStepDecorator,
-                                InternalTestUnboundedForeachDecorator],
-                                    _ext_plugins.STEP_DECORATORS, 'name')
+STEP_DECORATORS = _merge_lists(
+    [
+        CatchDecorator,
+        TimeoutDecorator,
+        EnvironmentDecorator,
+        ResourcesDecorator,
+        RetryDecorator,
+        BatchDecorator,
+        CardDecorator,
+        KubernetesDecorator,
+        StepFunctionsInternalDecorator,
+        CondaStepDecorator,
+        InternalTestUnboundedForeachDecorator,
+    ],
+    _ext_plugins.STEP_DECORATORS,
+    "name",
+)
 
 # Add Conda environment
 from .conda.conda_environment import CondaEnvironment
@@ -182,7 +187,8 @@ FLOW_DECORATORS = _merge_lists(
 # Cards
 from .cards.card_modules import MF_CARDS_EXTERNAL_MODULES
 from .cards.card_modules.basic import BasicCard
-CARDS = _merge_lists([BasicCard],MF_CARDS_EXTERNAL_MODULES,'type')
+
+CARDS = _merge_lists([BasicCard], MF_CARDS_EXTERNAL_MODULES, "type")
 
 # Sidecars
 from ..mflog.save_logs_periodically import SaveLogsPeriodicallySidecar
