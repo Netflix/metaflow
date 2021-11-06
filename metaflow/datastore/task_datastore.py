@@ -643,7 +643,7 @@ class TaskDataStore(object):
         for var in dir(flow):
             if var.startswith("__") or var in flow._EPHEMERAL:
                 continue
-            # Skip over properties of the class (Parameters)
+            # Skip over properties of the class (Parameters or class variables)
             if hasattr(flow.__class__, var) and isinstance(
                 getattr(flow.__class__, var), property
             ):
