@@ -1,17 +1,22 @@
 from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
 
+
 class CardImportTest(MetaflowTest):
     """
     Test that checks if the card decorator imports custom modules as intended
     """
-    PRIORITY = 2 
+
+    PRIORITY = 2
 
     @tag('card(type="mock_card")')
-    @steps(0, ['start'],)
+    @steps(
+        0,
+        ["start"],
+    )
     def step_start(self):
-        self.data = 'abc'
+        self.data = "abc"
 
-    @steps(1, ['all'])
+    @steps(1, ["all"])
     def step_all(self):
         pass
 
@@ -21,16 +26,26 @@ class CardImportTest(MetaflowTest):
             from hashlib import sha1
             import os
             import errno
+
             card_stored = False
-            CARD_DIRECTORY_NAME='mf.cards'
+            CARD_DIRECTORY_NAME = "mf.cards"
             for step in run:
                 for task in step:
-                    if step.id == 'start':
-                        stored_path = os.path.join('.metaflow',CARD_DIRECTORY_NAME,flow.name,'runs',run.id,'tasks',task.id,'cards')
+                    if step.id == "start":
+                        stored_path = os.path.join(
+                            ".metaflow",
+                            CARD_DIRECTORY_NAME,
+                            flow.name,
+                            "runs",
+                            run.id,
+                            "tasks",
+                            task.id,
+                            "cards",
+                        )
                         try:
                             # If the path was created then card was stored
                             os.stat(stored_path)
-                            card_stored=True
+                            card_stored = True
                         except OSError as e:
                             if e.errno == errno.ENOENT:
                                 pass

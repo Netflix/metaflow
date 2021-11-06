@@ -38,8 +38,10 @@ class AssertArtifactFailed(Exception):
 class AssertLogFailed(Exception):
     pass
 
+
 class AssertCardFailed(Exception):
     pass
+
 
 class ExpectationFailed(Exception):
     def __init__(self, expected, got):
