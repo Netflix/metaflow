@@ -1026,7 +1026,7 @@ class KubeflowPipelines(object):
                         container_op.container.add_env_variable(env)
 
                 if kfp_component.total_retries and kfp_component.total_retries > 0:
-                    container_op.set_retry(kfp_component.total_retries)
+                    container_op.set_retry(kfp_component.total_retries, policy="Always")
 
                 if preceding_kfp_component_op:
                     container_op.after(preceding_kfp_component_op)

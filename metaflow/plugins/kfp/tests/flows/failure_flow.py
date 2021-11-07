@@ -1,8 +1,18 @@
 import os
 import signal
+import subprocess
 import time
 
-from metaflow import FlowSpec, step, retry, catch, timeout, current, Step
+from metaflow import (
+    FlowSpec,
+    step,
+    retry,
+    catch,
+    timeout,
+    current,
+    Step,
+    Parameter,
+)
 from metaflow.exception import MetaflowExceptionWrapper
 
 
@@ -12,6 +22,43 @@ class FailureFlow(FlowSpec):
     @retry
     @step
     def start(self):
+        self.retry_count = current.retry_count
+        print(self.retry_log.format(retry_count=current.retry_count))
+        self.download_kubectl()
+        if current.retry_count < 1:
+            # delete and terminate myself!!
+            command = (
+                f"./kubectl delete pod {os.environ.get('POD_NAME')} "
+                f"--namespace {os.environ.get('POD_NAMESPACE')}"
+            )
+
+            print(f"{command=}")
+            output = subprocess.check_output(command, shell=True)
+            print(str(output))
+        else:
+            command = (
+                f"./kubectl get workflow {os.environ.get('ARGO_WORKFLOW_NAME')} "
+                f"--namespace {os.environ.get('POD_NAMESPACE')} -o yaml"
+            )
+            print(f"{command=}")
+            output = subprocess.check_output(command, shell=True)
+            assert "pod deleted during operation" in str(output)
+            print("let's succeed")
+
+        self.next(self.user_failure)
+
+    def download_kubectl(self):
+        output = subprocess.check_output(
+            "curl -LO https://dl.k8s.io/release/$(curl -L -s "
+            "https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl",
+            shell=True,
+        )
+        print(str(output))
+        subprocess.check_output("chmod u+x ./kubectl", shell=True)
+
+    @retry
+    @step
+    def user_failure(self):
         self.retry_count = current.retry_count
         print(self.retry_log.format(retry_count=current.retry_count))
         if current.retry_count < 1:
@@ -24,9 +71,11 @@ class FailureFlow(FlowSpec):
     @step
     def no_retry(self):
         print("Testing logging for retries")
-        start_step: Step = Step(f"{current.flow_name}/{current.run_id}/start")
+        user_failure_step: Step = Step(
+            f"{current.flow_name}/{current.run_id}/user_failure"
+        )
         expected_logs = self.retry_log.format(retry_count=1)
-        logs = start_step.task.stdout
+        logs = user_failure_step.task.stdout
         print("\n=== logs for task {task} ===")
         print(logs)
         print("\n=== logs ended ===")
