@@ -61,14 +61,6 @@ class CardIterator:
             created_on=None,
         )
 
-    def _wrap_iframe(self, html):
-        return (
-            """
-        <iframe width="1200" height="800" sandbox='allow-same-origin allow-top-navigation allow-scripts allow-forms' style='display:block; margin:0px;' frameborder='0' srcdoc='%s'/>
-        """
-            % html
-        )
-
     def _make_heading(self, type):
         return "<h1>Displaying Card Of Type : %s</h1>" % type.title()
 
@@ -85,14 +77,28 @@ class CardIterator:
             % html
         )
 
-    def _repr_html_(self):
-        main_html_str = []
+    def nb(self):
+        from IPython.core.display import HTML
+        from IPython.display import display_html
+
+        main_html = []
         for idx, _ in enumerate(self._card_paths):
             card = self._get_card(idx)
-            main_html_str.append(self._make_heading(card.type))
-            main_html_str.append(self._wrap_iframe(card.html))
+            main_html.append(HTML(data=self._make_heading(card.type)))
+            main_html.append(HTML(data=card.html))
+        display_html(*main_html)
+
+    def _repr_html_(self):
+        from IPython.core.display import HTML
+        from IPython.display import display_html
+
+        main_html = []
+        for idx, _ in enumerate(self._card_paths):
+            card = self._get_card(idx)
+            main_html.append(self._make_heading(card.type))
+            main_html.append(card.html)
         # return self._wrap_html()
-        return "\n".join(main_html_str)
+        return "\n".join(main_html)
 
     def __next__(self):
         self._current += 1
