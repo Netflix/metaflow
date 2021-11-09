@@ -34,7 +34,7 @@ class Card:
 
 
 class CardIterator:
-    def __init__(self, card_paths, card_ds) -> None:
+    def __init__(self, card_paths, card_ds):
         self._card_paths = card_paths
         self._card_ds = card_ds
         self._current = 0
@@ -64,9 +64,7 @@ class CardIterator:
     def _wrap_iframe(self, html):
         return (
             """
-        <iframe width="1200" height="800">
-        %s
-        </iframe>
+        <iframe width="1200" height="800" sandbox='allow-same-origin allow-top-navigation allow-scripts allow-forms' style='display:block; margin:0px;' frameborder='0' srcdoc='%s'/>
         """
             % html
         )
