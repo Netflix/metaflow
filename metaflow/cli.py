@@ -476,6 +476,12 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
     type=click.Choice(["none", UBF_CONTROL, UBF_TASK]),
     help="Provides additional context if this task is of type " "unbounded foreach.",
 )
+@click.option(
+    "--cluster-size",
+    default=0,
+    type=int,
+    help="Size of cluster. Ignored in local mode.",
+)
 @click.pass_context
 def step(
     ctx,
@@ -492,7 +498,9 @@ def step(
     clone_run_id=None,
     decospecs=None,
     ubf_context="none",
+    cluster_size=None,
 ):
+    print(sys.argv)
     if ubf_context == "none":
         ubf_context = None
     if opt_namespace is not None:
@@ -902,6 +910,7 @@ def start(
     monitor=None,
     **deco_options
 ):
+    print("START", ctx)
     global echo
     if quiet:
         echo = echo_dev_null
