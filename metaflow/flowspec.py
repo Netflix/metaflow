@@ -37,8 +37,8 @@ class Multinode(UnboundedForeachInput):
     Unbounded-for-each placeholder for supporting multinode steps.
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, cluster_size):
+        self.cluster_size = cluster_size
 
     def __getitem__(self, item):
         return item
@@ -144,10 +144,6 @@ class FlowSpec(object):
         return iter(self._steps)
 
     def __getattr__(self, name):
-        if name == "_multinode_ubf_iter":
-            # Special multinode UBF iterator object
-            return Multinode()
-
         if self._datastore and name in self._datastore:
             # load the attribute from the datastore...
             x = self._datastore[name]
@@ -444,6 +440,7 @@ class FlowSpec(object):
         step = self._current_step
 
         foreach = kwargs.pop("foreach", None)
+        cluster_size = kwargs.pop("cluster_size", None)
         condition = kwargs.pop("condition", None)
         if kwargs:
             kw = next(iter(kwargs))
@@ -481,12 +478,12 @@ class FlowSpec(object):
                 raise InvalidNextException(msg)
             funcs.append(name)
 
-        # if only one dst, check if it is a multinode one. If it is, then create a synthetic
-        # UBF construct.
-        if len(dsts) == 1:
-            dst = dsts[0]
-            if any(deco.name == "multinode" for deco in dst.__func__.decorators):
-                foreach = "_multinode_ubf_iter"
+        if cluster_size:
+            assert (
+                len(dsts) == 1
+            ), "Only one destination allowed when cluster_size used in self.next()"
+            foreach = "_multinode_ubf_iter"
+            self._multinode_ubf_iter = Multinode(cluster_size)
 
         # check: foreach and condition are mutually exclusive
         if not (foreach is None or condition is None):

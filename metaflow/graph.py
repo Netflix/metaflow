@@ -2,6 +2,8 @@ import inspect
 import ast
 import re
 
+# from metaflow.decorators import MultinodeDecorator
+
 
 def deindent_docstring(doc):
     if doc:
@@ -63,7 +65,7 @@ class DAGNode(object):
         self.in_funcs = set()
         self.split_parents = []
         self.matching_join = None
-        self.is_multinode_step = any(deco.name == "multinode" for deco in decos)
+        # self.is_multinode_step = any(isinstance(deco, MultinodeDecorator) for deco in decos)
 
         # these attributes are populated by _postprocess
         self.is_inside_foreach = False
@@ -94,7 +96,10 @@ class DAGNode(object):
             self.invalid_tail_next = True
             self.tail_next_lineno = tail.lineno
             self.out_funcs = [e.attr for e in tail.value.args]
-            keywords = dict((k.arg, k.value.s) for k in tail.value.keywords)
+
+            keywords = dict(
+                (k.arg, getattr(k.value, "s", None)) for k in tail.value.keywords
+            )
 
             if len(keywords) == 1:
                 if "foreach" in keywords:
@@ -102,6 +107,10 @@ class DAGNode(object):
                     self.type = "foreach"
                     if len(self.out_funcs) == 1:
                         self.foreach_param = keywords["foreach"]
+                        self.invalid_tail_next = False
+                elif "cluster_size" in keywords:
+                    self.type = "foreach"
+                    if len(self.out_funcs) == 1:
                         self.invalid_tail_next = False
                 elif "condition" in keywords:
                     # TYPE: split-or
@@ -193,12 +202,6 @@ class FlowGraph(object):
 
     def _traverse_graph(self):
         def traverse(node, seen, split_parents):
-            # check multinode: if the next step is a multinode-step, then
-            # this step is of type "foreach"
-            if len(node.out_funcs) == 1:
-                child = self[node.out_funcs[0]]
-                if child.is_multinode_step:
-                    node.type = "foreach"
             if node.type in ("split-or", "split-and", "foreach"):
                 node.split_parents = split_parents
                 split_parents = split_parents + [node.name]

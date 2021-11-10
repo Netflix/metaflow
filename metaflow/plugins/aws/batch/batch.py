@@ -175,7 +175,7 @@ class Batch(object):
         env={},
         attrs={},
         host_volumes=None,
-        nodes=1,
+        cluster_size=1,
     ):
         job_name = self._job_name(
             attrs.get("metaflow.user"),
@@ -206,7 +206,7 @@ class Batch(object):
                 max_swap,
                 swappiness,
                 host_volumes=host_volumes,
-                nodes=nodes,
+                cluster_size=cluster_size,
             )
             .cpu(cpu)
             .gpu(gpu)
@@ -275,7 +275,7 @@ class Batch(object):
         max_swap=None,
         swappiness=None,
         host_volumes=None,
-        nodes=1,
+        cluster_size=1,
         env={},
         attrs={},
     ):
@@ -307,9 +307,9 @@ class Batch(object):
             env=env,
             attrs=attrs,
             host_volumes=host_volumes,
-            nodes=nodes,
+            cluster_size=cluster_size,
         )
-        self.nodes = nodes
+        self.cluster_size = cluster_size
         self.job = job.execute()
 
     def wait(self, stdout_location, stderr_location, echo=None):
@@ -362,8 +362,8 @@ class Batch(object):
         stderr_tail = S3Tail(stderr_location)
 
         child_jobs = []
-        if self.nodes > 1:
-            for node in range(1, self.nodes):
+        if self.cluster_size > 1:
+            for node in range(1, self.cluster_size):
                 child_job = copy.copy(self.job)
                 child_job._id = child_job._id + "#{}".format(node)
                 child_jobs.append(child_job)

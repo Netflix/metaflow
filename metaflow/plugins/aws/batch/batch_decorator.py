@@ -98,7 +98,6 @@ class BatchDecorator(StepDecorator):
         "max_swap": None,
         "swappiness": None,
         "host_volumes": None,
-        "nodes": 1,
     }
     package_url = None
     package_sha = None
@@ -153,10 +152,7 @@ class BatchDecorator(StepDecorator):
                     my_val = self.attributes.get(k)
                     if not (my_val is None and v is None):
                         self.attributes[k] = str(max(int(my_val or 0), int(v or 0)))
-            elif (
-                deco.__class__.__name__ == "MultinodeDecorator"
-            ):  # avoid circular dependency
-                self.attributes["nodes"] = deco.nodes
+
         # Set run time limit for the AWS Batch job.
         self.run_time_limit = get_run_time_limit_for_task(decos)
         if self.run_time_limit < 60:
@@ -255,14 +251,14 @@ class BatchDecorator(StepDecorator):
 
             self._save_logs_sidecar = SidecarSubProcess("save_logs_periodically")
 
-        nodes = self.attributes["nodes"]
-
-        if nodes > 1 and ubf_context == UBF_CONTROL:
+        cluster_size = int(os.environ.get("AWS_BATCH_JOB_NUM_NODES", 1))
+        if cluster_size > 1 and ubf_context == UBF_CONTROL:
             # UBF handling for multinode case
             control_task_id = current.task_id
             top_task_id = control_task_id.replace("control-", "")  # chop "-0"
             mapper_task_ids = [control_task_id] + [
-                "%s-node-%d" % (top_task_id, node_idx) for node_idx in range(1, nodes)
+                "%s-node-%d" % (top_task_id, node_idx)
+                for node_idx in range(1, cluster_size)
             ]
             flow._control_mapper_tasks = [
                 "%s/%s/%s" % (run_id, step_name, mapper_task_id)
@@ -270,8 +266,8 @@ class BatchDecorator(StepDecorator):
             ]
             flow._control_task_is_mapper_zero = True
 
-        if nodes > 1:
-            _set_multinode_environment()
+        if cluster_size > 1:
+            _setup_multinode_environment()
 
     def task_post_step(
         self, step_name, flow, graph, retry_count, max_user_code_retries
@@ -362,8 +358,8 @@ class BatchDecorator(StepDecorator):
             )[0]
 
 
-def _set_multinode_environment():
-    # setup the multinode environment
+def _setup_multinode_environment():
+    # setup the multinode environment variables.
     import socket
 
     if "AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS" not in os.environ:

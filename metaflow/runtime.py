@@ -435,11 +435,17 @@ class NativeRuntime(object):
             next_step = next_steps[0]
 
         unbounded_foreach = not task.results.is_none("_unbounded_foreach")
-
         if unbounded_foreach:
             # Need to push control process related task.
+            ubf_iter_name = task.results.get("_foreach_var")
+            ubf_iter = task.results.get(ubf_iter_name)
             self._queue_push(
-                next_step, {"input_paths": [task.path], "ubf_context": UBF_CONTROL}
+                next_step,
+                {
+                    "input_paths": [task.path],
+                    "ubf_context": UBF_CONTROL,
+                    "ubf_iter": ubf_iter,
+                },
             )
         else:
             num_splits = task.results["_foreach_num_splits"]
@@ -596,6 +602,7 @@ class Task(object):
         input_paths=None,
         split_index=None,
         ubf_context=None,
+        ubf_iter=None,
         clone_run_id=None,
         origin_ds_set=None,
         may_clone=False,
@@ -614,6 +621,8 @@ class Task(object):
             # easily. There is anyway a corresponding int id stored in the
             # metadata backend - so this should be fine.
             task_id = "control-%s-%s-%s" % (run, input_step, input_task)
+        else:
+            self.multinode_iterator = None
         # Register only regular Metaflow (non control) tasks.
         if task_id is None:
             task_id = str(metadata.new_task_id(run_id, step))
@@ -633,6 +642,7 @@ class Task(object):
         self.input_paths = input_paths
         self.split_index = split_index
         self.ubf_context = ubf_context
+        self.ubf_iter = ubf_iter
         self.decos = decos
         self.entrypoint = entrypoint
         self.environment = environment
