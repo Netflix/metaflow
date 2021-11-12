@@ -107,7 +107,11 @@ class FlowSpec(object):
             fname = fname[:-1]
         return os.path.basename(fname)
 
-    def _set_constants(self, kwargs):
+    def _set_constants(self, graph, kwargs):
+        from metaflow.decorators import (
+            flow_decorators,
+        )  # To prevent circular dependency
+
         # Persist values for parameters and other constants (class level variables)
         # only once. This method is called before persist_constants is called to
         # persist all values set using setattr
@@ -124,6 +128,7 @@ class FlowSpec(object):
         seen.clear()
         self._success = True
 
+        parameters_info = []
         for var, param in self._get_parameters():
             seen.add(var)
             val = kwargs[param.name.replace("-", "_").lower()]
@@ -133,17 +138,42 @@ class FlowSpec(object):
                 val = val()
             val = val.split(param.separator) if val and param.separator else val
             setattr(self, var, val)
+            parameters_info.append({"name": var, "type": param.__class__.__name__})
 
         # Do the same for class variables which will be forced constant as modifications
         # to them don't propagate well since we create a new process for each step and
         # re-read the flow file
+        constants_info = []
         for var in dir(self.__class__):
             if var[0] == "_" or var in self._NON_PARAMETERS or var in seen:
                 continue
             val = getattr(self.__class__, var)
             if isinstance(val, (MethodType, FunctionType, property, type)):
                 continue
+            constants_info.append({"name": var, "type": type(val).__name__})
             setattr(self, var, val)
+
+        # We store the DAG information as an artifact called _graph_artifact
+        steps_info, steps_structure = graph.output_steps()
+
+        graph_artifact = {
+            "file": os.path.basename(os.path.abspath(sys.argv[0])),
+            "parameters": parameters_info,
+            "constants": constants_info,
+            "steps_info": steps_info,
+            "steps_structure": steps_structure,
+            "doc": graph.doc,
+            "decorators": [
+                {
+                    "name": deco.name,
+                    "attributes": deco.attributes,
+                    "statically_defined": deco.statically_defined,
+                }
+                for deco in flow_decorators()
+                if not deco.name.startswith("_")
+            ],
+        }
+        self._graph_artifact = graph_artifact
 
     def _get_parameters(self):
         for var in dir(self):

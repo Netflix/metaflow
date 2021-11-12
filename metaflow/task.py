@@ -92,6 +92,18 @@ class MetaflowTask(object):
             setattr(cls, var, property(fget=lambda _, val=val: val, fset=set_cls_var))
             vars.append(var)
 
+        # We also passdown _graph_artifact through the entire graph
+        setattr(
+            cls,
+            "_graph_artifact",
+            property(
+                fget=lambda _, parameter_ds=parameter_ds: parameter_ds[
+                    "_graph_artifact"
+                ]
+            ),
+        )
+        vars.append("_graph_artifact")
+
         if passdown:
             self.flow._datastore.passdown_partial(parameter_ds, vars)
         return param_only_vars
@@ -382,7 +394,7 @@ class MetaflowTask(object):
 
         # 4. initialize the current singleton
         current._set_env(
-            flow_name=self.flow.name,
+            flow=self.flow,
             run_id=run_id,
             step_name=step_name,
             task_id=task_id,

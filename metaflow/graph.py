@@ -256,3 +256,57 @@ class FlowGraph(object):
                 self, nodes="\n".join(node_specs()), edges="\n".join(edge_specs())
             )
         )
+
+    def output_steps(self):
+
+        steps_info = {}
+        steps_structure = []
+
+        def node_to_dict(name, node):
+            return {
+                "name": name,
+                "type": node.type,
+                "line": node.func_lineno,
+                "doc": node.doc,
+                "decorators": [
+                    {
+                        "name": deco.name,
+                        "attributes": deco.attributes,
+                        "statically_defined": deco.statically_defined,
+                    }
+                    for deco in node.decorators
+                    if not deco.name.startswith("_")
+                ],
+                "next": node.out_funcs,
+                "foreach_artifact": node.foreach_param,
+            }
+
+        def populate_block(start_name, end_name):
+            cur_name = start_name
+            resulting_list = []
+            while cur_name != end_name:
+                cur_node = self.nodes[cur_name]
+                node_dict = node_to_dict(cur_name, cur_node)
+
+                steps_info[cur_name] = node_dict
+                resulting_list.append(cur_name)
+
+                if cur_node.type not in ("linear", "join"):
+                    # We need to look at the different branches for this
+                    resulting_list.append(
+                        [
+                            populate_block(s, cur_node.matching_join)
+                            for s in cur_node.out_funcs
+                        ]
+                    )
+                    cur_name = cur_node.matching_join
+                else:
+                    cur_name = cur_node.out_funcs[0]
+            return resulting_list
+
+        steps_structure = populate_block("start", "end")
+
+        steps_info["end"] = node_to_dict("end", self.nodes["end"])
+        steps_structure.append("end")
+
+        return steps_info, steps_structure
