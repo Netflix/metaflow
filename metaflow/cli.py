@@ -474,7 +474,7 @@ def step(ctx,
         cov = Coverage(data_suffix=True,
                        auto_data=True,
                        source=METAFLOW_COVERAGE_SOURCE.split(","),
-                       omit=METAFLOW_COVERAGE_OMIT.split(","),
+                       omit=METAFLOW_COVERAGE_OMIT.split(",") if METAFLOW_COVERAGE_OMIT else None,
                        branch=True)
         cov.start()
 
