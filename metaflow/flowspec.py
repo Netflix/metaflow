@@ -3,6 +3,7 @@ import os
 import sys
 import inspect
 import traceback
+from types import FunctionType, MethodType
 
 from . import cmd_with_io
 from .parameters import Parameter
@@ -117,6 +118,44 @@ class FlowSpec(object):
         if fname.endswith(".pyc"):
             fname = fname[:-1]
         return os.path.basename(fname)
+
+    def _set_constants(self, kwargs):
+        # Persist values for parameters and other constants (class level variables)
+        # only once. This method is called before persist_constants is called to
+        # persist all values set using setattr
+        seen = set()
+        for var, param in self._get_parameters():
+            norm = param.name.lower()
+            if norm in seen:
+                raise MetaflowException(
+                    "Parameter *%s* is specified twice. "
+                    "Note that parameter names are "
+                    "case-insensitive." % param.name
+                )
+            seen.add(norm)
+        seen.clear()
+        self._success = True
+
+        for var, param in self._get_parameters():
+            seen.add(var)
+            val = kwargs[param.name.replace("-", "_").lower()]
+            # Support for delayed evaluation of parameters. This is used for
+            # includefile in particular
+            if callable(val):
+                val = val()
+            val = val.split(param.separator) if val and param.separator else val
+            setattr(self, var, val)
+
+        # Do the same for class variables which will be forced constant as modifications
+        # to them don't propagate well since we create a new process for each step and
+        # re-read the flow file
+        for var in dir(self.__class__):
+            if var[0] == "_" or var in self._NON_PARAMETERS or var in seen:
+                continue
+            val = getattr(self.__class__, var)
+            if isinstance(val, (MethodType, FunctionType, property, type)):
+                continue
+            setattr(self, var, val)
 
     def _get_parameters(self):
         for var in dir(self):

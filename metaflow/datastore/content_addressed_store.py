@@ -118,7 +118,8 @@ class ContentAddressedStore(object):
 
         Returns
         -------
-        Returns an iterator of (string, bytes) tuples
+        Returns an iterator of (string, bytes) tuples; the iterator will return the keys
+        in the same order as the input argument.
         """
         load_paths = []
         for key in keys:
