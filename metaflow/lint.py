@@ -31,8 +31,6 @@ class FlowLinter(object):
     def ensure_non_nested_foreach(self, f):
         return self._decorate("require_non_nested_foreach", f)
 
-    # TODO: num_parallel matches with a multinode
-
     def check(self, f):
         self._checks.append(f)
         f.attrs = []
@@ -207,6 +205,10 @@ def check_split_join_balance(graph):
         "Step *end* reached before a split started at step(s) *{roots}* "
         "were joined. Add a join step before *end*."
     )
+    msg0_parallel = (
+        "Step *end* reached before a parallel step *{root}* "
+        "was joined. Add a join step before *end*."
+    )
     msg1 = (
         "Step *{0.name}* seems like a join step (it takes an extra input "
         "argument) but an incorrect number of steps (*{paths}*) lead to "
@@ -232,7 +234,10 @@ def check_split_join_balance(graph):
             if split_stack:
                 split_type, split_roots = split_stack.pop()
                 roots = ", ".join(split_roots)
-                raise LintWarn(msg0.format(roots=roots))
+                if graph[split_roots[0]].parallel_step:
+                    raise LintWarn(msg0_parallel.format(root=split_roots[0]))
+                else:
+                    raise LintWarn(msg0.format(roots=roots))
         elif node.type == "join":
             if split_stack:
                 split_type, split_roots = split_stack[-1]
