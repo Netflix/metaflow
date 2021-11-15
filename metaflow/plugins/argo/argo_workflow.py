@@ -13,7 +13,7 @@ from metaflow.plugins import KubernetesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.plugins.environment_decorator import EnvironmentDecorator
 from metaflow.util import get_username, compress_list
-from metaflow.mflog import export_mflog_env_vars, bash_capture_logs, BASH_SAVE_LOGS
+from metaflow.mflog import export_mflog_env_vars, capture_output_to_mflog, BASH_SAVE_LOGS
 from metaflow.metaflow_environment import metaflow_version
 from .argo_client import ArgoClient
 from .argo_decorator import ArgoStepDecorator, ArgoInternalStepDecorator
@@ -342,7 +342,7 @@ class ArgoWorkflow:
             init_cmds.extend(self.environment.get_package_commands(self.code_package_url))
         init_cmds.extend(self.environment.bootstrap_commands(node.name))
         init_expr = ' && '.join(init_cmds)
-        step_expr = bash_capture_logs(' && '.join(self._step_commands(node, retry_count, user_code_retries)))
+        step_expr = capture_output_to_mflog(' && '.join(self._step_commands(node, retry_count, user_code_retries)))
         cmd = ['true', mflog_expr, init_expr, step_expr]
         cmd_str =  '%s; c=$?; %s; exit $c' % (' && '.join(c for c in cmd if c), BASH_SAVE_LOGS)
         return shlex.split('bash -c \"%s\"' % cmd_str)
