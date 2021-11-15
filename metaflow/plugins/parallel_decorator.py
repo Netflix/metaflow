@@ -1,9 +1,11 @@
 from metaflow.decorators import StepDecorator
 from metaflow.unbounded_foreach import UBF_CONTROL
 
+
 class ParallelDecorator(StepDecorator):
     name = "parallel"
     defaults = {}
+    IS_PARALLEL = True
 
     def __init__(self, attributes=None, statically_defined=False):
         super(ParallelDecorator, self).__init__(attributes, statically_defined)

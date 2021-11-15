@@ -480,7 +480,9 @@ class FlowSpec(object):
 
         if num_parallel:
             if len(dsts) > 1:
-                raise InvalidNextException("Only one destination allowed when num_parallel used in self.next()")
+                raise InvalidNextException(
+                    "Only one destination allowed when num_parallel used in self.next()"
+                )
             foreach = "_parallel_ubf_iter"
             self._parallel_ubf_iter = ParallelUBF(num_parallel)
 

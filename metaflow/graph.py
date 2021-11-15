@@ -47,6 +47,7 @@ class DAGNode(object):
         self.func_lineno = func_ast.lineno
         self.decorators = decos
         self.doc = deindent_docstring(doc)
+        self.parallel_step = any(getattr(deco, "IS_PARALLEL", False) for deco in decos)
 
         # these attributes are populated by _parse
         self.tail_next_lineno = 0
@@ -57,14 +58,13 @@ class DAGNode(object):
         self.num_args = 0
         self.condition = None
         self.foreach_param = None
+        self.parallel_foreach = False
         self._parse(func_ast)
 
         # these attributes are populated by _traverse_graph
         self.in_funcs = set()
         self.split_parents = []
         self.matching_join = None
-        # self.is_multinode_step = any(isinstance(deco, MultinodeDecorator) for deco in decos)
-
         # these attributes are populated by _postprocess
         self.is_inside_foreach = False
 
@@ -98,7 +98,6 @@ class DAGNode(object):
             keywords = dict(
                 (k.arg, getattr(k.value, "s", None)) for k in tail.value.keywords
             )
-
             if len(keywords) == 1:
                 if "foreach" in keywords:
                     # TYPE: foreach
@@ -108,6 +107,7 @@ class DAGNode(object):
                         self.invalid_tail_next = False
                 elif "num_parallel" in keywords:
                     self.type = "foreach"
+                    self.parallel_foreach = True
                     if len(self.out_funcs) == 1:
                         self.invalid_tail_next = False
                 elif "condition" in keywords:
@@ -128,7 +128,6 @@ class DAGNode(object):
                     else:
                         self.type = "linear"
                     self.invalid_tail_next = False
-
         except AttributeError:
             return
 
@@ -145,6 +144,8 @@ class DAGNode(object):
     invalid_tail_next={0.invalid_tail_next}
     condition={0.condition}
     foreach_param={0.foreach_param}
+    parallel_step={0.parallel_step}
+    parallel_foreach={0.parallel_foreach}
     -> {out}""".format(
             self,
             matching_join=self.matching_join and "[%s]" % self.matching_join,

@@ -343,8 +343,6 @@ class StepDecorator(Decorator):
         pass
 
 
-
-
 def _base_flow_decorator(decofunc, *args, **kwargs):
     """
     Decorator prototype for all flow (class) decorators. This function gets
@@ -500,4 +498,3 @@ def _import_plugin_decorators(globals_dict):
     # add flow-level decorators
     for decotype in FLOW_DECORATORS:
         globals_dict[decotype.name] = partial(_base_flow_decorator, decotype)
-

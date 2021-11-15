@@ -280,6 +280,35 @@ def check_empty_foreaches(graph):
                 raise LintWarn(msg.format(node, join=joins[0]))
 
 
+@linter.ensure_static_graph
+@linter.check
+def check_parallel_step_after_next(graph):
+    msg = (
+        "Step *{0.name}* is called as a parallel step with self.next(num_parallel=..) "
+        "but does not have a @parallel decorator."
+    )
+    for node in graph:
+        if node.parallel_foreach and not all(
+            graph[out_node].parallel_step for out_node in node.out_funcs
+        ):
+            raise LintWarn(msg.format(node))
+
+
+@linter.ensure_static_graph
+@linter.check
+def check_parallel_foreach_calls_parallel_step(graph):
+    msg = (
+        "Step *{0.name}* has a @parallel decorator, but is not called "
+        " with self.next(num_parallel=...) from step  *{1.name}*."
+    )
+    for node in graph:
+        if node.parallel_step:
+            for node2 in graph:
+                if node2.out_funcs and node.name in node2.out_funcs:
+                    if not node2.parallel_foreach:
+                        raise LintWarn(msg.format(node, node2))
+
+
 @linter.ensure_non_nested_foreach
 @linter.check
 def check_nested_foreach(graph):
