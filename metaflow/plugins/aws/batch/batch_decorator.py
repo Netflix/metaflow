@@ -332,7 +332,7 @@ class BatchDecorator(StepDecorator):
             try:
                 step_path = "%s/%s/%s" % (flow.name, current.run_id, step_name)
                 tasks = [task for task in Step(step_path)]
-                if len(tasks) == len(flow._control_mapper_tasks) - 1:
+                if len(tasks) == len(flow._control_mapper_tasks):
                     if all(
                         task.finished_at is not None for task in tasks
                     ):  # for some reason task.finished fails
