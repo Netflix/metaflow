@@ -176,7 +176,7 @@ class NativeRuntime(object):
     def run_id(self):
         return self._run_id
 
-    def persist_parameters(self, task_id=None):
+    def persist_constants(self, task_id=None):
         task = self._new_task("_parameters", task_id=task_id)
         if not task.is_cloned:
             task.persist(self._flow)
@@ -614,7 +614,7 @@ class Task(object):
         if task_id is None:
             task_id = str(metadata.new_task_id(run_id, step))
         else:
-            # task_id is preset only by persist_parameters() or control tasks.
+            # task_id is preset only by persist_constants() or control tasks.
             if ubf_context == UBF_CONTROL:
                 metadata.register_task_id(
                     run_id, step, task_id, 0, sys_tags=[CONTROL_TASK_TAG]
