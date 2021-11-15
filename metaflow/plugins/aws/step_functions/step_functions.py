@@ -437,6 +437,11 @@ class StepFunctions(object):
             # JsonPath-foo embedded in the parent states, we have this
             # information easily available.
 
+            if node.parallel_foreach:
+                raise StepFunctionsException(
+                    "Parallel steps are not supported yet with AWS step functions."
+                )
+
             # Handle foreach join.
             if (
                 node.type == "join"
