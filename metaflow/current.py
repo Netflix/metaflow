@@ -1,3 +1,9 @@
+from collections import namedtuple
+import os
+
+Parallel = namedtuple("Parallel", ["main_ip", "num_nodes", "node_index"])
+
+
 class Current(object):
     def __init__(self):
         self._flow_name = None
@@ -82,6 +88,14 @@ class Current(object):
     @property
     def username(self):
         return self._username
+
+    @property
+    def parallel(self):
+        return Parallel(
+            main_ip=os.environ.get("MF_PARALLEL_MAIN_IP", "127.0.0.1"),
+            num_nodes=int(os.environ.get("MF_PARALLEL_NUM_NODES", "1")),
+            node_index=int(os.environ.get("MF_PARALLEL_NODE_INDEX", "0")),
+        )
 
 
 # instantiate the Current singleton. This will be populated

@@ -366,14 +366,10 @@ def _setup_multinode_environment():
         # we are the main node
         local_ips = socket.gethostbyname_ex(socket.gethostname())[-1]
         assert local_ips, "Could not find local ip address"
-        os.environ["MF_MULTINODE_MAIN_IP"] = local_ips[0]
+        os.environ["MF_PARALLEL_MAIN_IP"] = local_ips[0]
     else:
-        os.environ["MF_MULTINODE_MAIN_IP"] = os.environ[
+        os.environ["MF_PARALLEL_MAIN_IP"] = os.environ[
             "AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS"
         ]
-    os.environ["MF_MULTINODE_NUM_NODES"] = os.environ["AWS_BATCH_JOB_NUM_NODES"]
-    os.environ["MF_MULTINODE_NODE_INDEX"] = os.environ["AWS_BATCH_JOB_NODE_INDEX"]
-    print(
-        "Multinode environment:",
-        {k: v for k, v in os.environ.items() if k.startswith("MF_MULTINODE")},
-    )
+    os.environ["MF_PARALLEL_NUM_NODES"] = os.environ["AWS_BATCH_JOB_NUM_NODES"]
+    os.environ["MF_PARALLEL_NODE_INDEX"] = os.environ["AWS_BATCH_JOB_NODE_INDEX"]
