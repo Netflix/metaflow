@@ -2,8 +2,6 @@ import inspect
 import ast
 import re
 
-# from metaflow.decorators import MultinodeDecorator
-
 
 def deindent_docstring(doc):
     if doc:
@@ -108,7 +106,7 @@ class DAGNode(object):
                     if len(self.out_funcs) == 1:
                         self.foreach_param = keywords["foreach"]
                         self.invalid_tail_next = False
-                elif "cluster_size" in keywords:
+                elif "num_parallel" in keywords:
                     self.type = "foreach"
                     if len(self.out_funcs) == 1:
                         self.invalid_tail_next = False

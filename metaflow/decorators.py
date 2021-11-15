@@ -343,21 +343,6 @@ class StepDecorator(Decorator):
         pass
 
 
-class MultinodeDecorator(StepDecorator):
-    name = "multinode"
-    defaults = {}
-
-    def __init__(self, attributes=None, statically_defined=False):
-        super(MultinodeDecorator, self).__init__(attributes, statically_defined)
-
-    def runtime_step_cli(
-        self, cli_args, retry_count, max_user_code_retries, ubf_context
-    ):
-        from .unbounded_foreach import UBF_CONTROL
-
-        if ubf_context == UBF_CONTROL:
-            cluster_size = cli_args.task.ubf_iter.cluster_size
-            cli_args.command_options["cluster-size"] = str(cluster_size)
 
 
 def _base_flow_decorator(decofunc, *args, **kwargs):
@@ -516,7 +501,3 @@ def _import_plugin_decorators(globals_dict):
     for decotype in FLOW_DECORATORS:
         globals_dict[decotype.name] = partial(_base_flow_decorator, decotype)
 
-    # Add multinode decorator
-    globals_dict[MultinodeDecorator.name] = partial(
-        _base_step_decorator, MultinodeDecorator
-    )

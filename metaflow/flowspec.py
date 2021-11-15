@@ -32,13 +32,13 @@ class InvalidNextException(MetaflowException):
         super(InvalidNextException, self).__init__(msg, line_no)
 
 
-class Multinode(UnboundedForeachInput):
+class ParallelUBF(UnboundedForeachInput):
     """
-    Unbounded-for-each placeholder for supporting multinode steps.
+    Unbounded-for-each placeholder for supporting parallel (multi-node) steps.
     """
 
-    def __init__(self, cluster_size):
-        self.cluster_size = cluster_size
+    def __init__(self, num_parallel):
+        self.num_parallel = num_parallel
 
     def __getitem__(self, item):
         return item
@@ -440,7 +440,7 @@ class FlowSpec(object):
         step = self._current_step
 
         foreach = kwargs.pop("foreach", None)
-        cluster_size = kwargs.pop("cluster_size", None)
+        num_parallel = kwargs.pop("num_parallel", None)
         condition = kwargs.pop("condition", None)
         if kwargs:
             kw = next(iter(kwargs))
@@ -478,12 +478,11 @@ class FlowSpec(object):
                 raise InvalidNextException(msg)
             funcs.append(name)
 
-        if cluster_size:
-            assert (
-                len(dsts) == 1
-            ), "Only one destination allowed when cluster_size used in self.next()"
-            foreach = "_multinode_ubf_iter"
-            self._multinode_ubf_iter = Multinode(cluster_size)
+        if num_parallel:
+            if len(dsts) > 1:
+                raise InvalidNextException("Only one destination allowed when num_parallel used in self.next()")
+            foreach = "_parallel_ubf_iter"
+            self._parallel_ubf_iter = ParallelUBF(num_parallel)
 
         # check: foreach and condition are mutually exclusive
         if not (foreach is None or condition is None):

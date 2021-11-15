@@ -31,7 +31,7 @@ class FlowLinter(object):
     def ensure_non_nested_foreach(self, f):
         return self._decorate("require_non_nested_foreach", f)
 
-    # TODO: cluster_size matches with a multinode
+    # TODO: num_parallel matches with a multinode
 
     def check(self, f):
         self._checks.append(f)

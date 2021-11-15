@@ -621,8 +621,6 @@ class Task(object):
             # easily. There is anyway a corresponding int id stored in the
             # metadata backend - so this should be fine.
             task_id = "control-%s-%s-%s" % (run, input_step, input_task)
-        else:
-            self.multinode_iterator = None
         # Register only regular Metaflow (non control) tasks.
         if task_id is None:
             task_id = str(metadata.new_task_id(run_id, step))
