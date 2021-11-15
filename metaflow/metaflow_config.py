@@ -173,7 +173,7 @@ SFN_EXECUTION_LOG_GROUP_ARN = from_conf("METAFLOW_SFN_EXECUTION_LOG_GROUP_ARN")
 # Kubernetes configuration
 ###
 # Kubernetes namespace to use for all objects created by Metaflow
-KUBERNETES_NAMESPACE = from_conf("METAFLOW_KUBERNETES_NAMESPACE")
+KUBERNETES_NAMESPACE = from_conf("METAFLOW_KUBERNETES_NAMESPACE", "default")
 # Service account to use by K8S jobs created by Metaflow
 KUBERNETES_SERVICE_ACCOUNT = from_conf("METAFLOW_KUBERNETES_SERVICE_ACCOUNT")
 # Default container image for K8S
