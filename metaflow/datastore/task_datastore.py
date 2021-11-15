@@ -338,7 +338,6 @@ class TaskDataStore(object):
                 "load artifacts" % self._path
             )
         to_load = []
-        sha_to_names = {}
         for name in names:
             info = self._info.get(name)
             # We use gzip+pickle-v2 as this is the oldest/most compatible.
@@ -353,15 +352,13 @@ class TaskDataStore(object):
                     "Python 3.4 or later is required to load artifact '%s'" % name
                 )
             else:
-                sha = self._objects[name]
-                sha_to_names[sha] = name
-                to_load.append(sha)
+                to_load.append(self._objects[name])
         # At this point, we load what we don't have from the CAS
         # We assume that if we have one "old" style artifact, all of them are
         # like that which is an easy assumption to make since artifacts are all
         # stored by the same implementation of the datastore for a given task.
-        for sha, blob in self._ca_store.load_blobs(to_load):
-            yield sha_to_names[sha], pickle.loads(blob)
+        for name, (_, blob) in zip(names, self._ca_store.load_blobs(to_load)):
+            yield name, pickle.loads(blob)
 
     @require_mode("r")
     def get_artifact_sizes(self, names):
@@ -643,7 +640,7 @@ class TaskDataStore(object):
         for var in dir(flow):
             if var.startswith("__") or var in flow._EPHEMERAL:
                 continue
-            # Skip over properties of the class (Parameters)
+            # Skip over properties of the class (Parameters or class variables)
             if hasattr(flow.__class__, var) and isinstance(
                 getattr(flow.__class__, var), property
             ):

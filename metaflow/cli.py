@@ -477,10 +477,10 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
     help="Provides additional context if this task is of type " "unbounded foreach.",
 )
 @click.option(
-    "--cluster-size",
+    "--num-parallel",
     default=0,
     type=int,
-    help="Size of cluster. Ignored in local mode.",
+    help="Num of parallel instances of a step. Ignored in local mode.",
 )
 @click.pass_context
 def step(
@@ -498,9 +498,8 @@ def step(
     clone_run_id=None,
     decospecs=None,
     ubf_context="none",
-    cluster_size=None,
+    num_parallel=None,
 ):
-    print(sys.argv)
     if ubf_context == "none":
         ubf_context = None
     if opt_namespace is not None:
@@ -600,8 +599,8 @@ def init(obj, run_id=None, task_id=None, tags=None, **kwargs):
         obj.monitor,
         run_id=run_id,
     )
-    parameters.set_parameters(obj.flow, kwargs)
-    runtime.persist_parameters(task_id=task_id)
+    obj.flow._set_constants(kwargs)
+    runtime.persist_constants(task_id=task_id)
 
 
 def common_run_options(func):
@@ -719,7 +718,7 @@ def resume(
         max_num_splits=max_num_splits,
         max_log_size=max_log_size * 1024 * 1024,
     )
-    runtime.persist_parameters()
+    runtime.persist_constants()
     runtime.execute()
 
     write_run_id(run_id_file, runtime.run_id)
@@ -774,8 +773,8 @@ def run(
     write_latest_run_id(obj, runtime.run_id)
     write_run_id(run_id_file, runtime.run_id)
 
-    parameters.set_parameters(obj.flow, kwargs)
-    runtime.persist_parameters()
+    obj.flow._set_constants(kwargs)
+    runtime.persist_constants()
     runtime.execute()
 
 
@@ -910,7 +909,6 @@ def start(
     monitor=None,
     **deco_options
 ):
-    print("START", ctx)
     global echo
     if quiet:
         echo = echo_dev_null

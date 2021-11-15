@@ -97,10 +97,9 @@ class BatchJob(object):
             )
 
         # Multinode
-        if getattr(self, "cluster_size", 0) > 1:
-            num_nodes = self.cluster_size
+        if getattr(self, "num_parallel", 0) > 1:
+            num_nodes = self.num_parallel
             main_task_override = copy.deepcopy(self.payload["containerOverrides"])
-            # TERRIBLE HACK JUST TO TRY THIS WORKS
 
             # main
             commands = self.payload["containerOverrides"]["command"][-1]
@@ -153,7 +152,7 @@ class BatchJob(object):
         max_swap,
         swappiness,
         host_volumes,
-        cluster_size,
+        num_parallel,
     ):
         # identify platform from any compute environment associated with the
         # queue
@@ -192,7 +191,7 @@ class BatchJob(object):
         }
 
         if platform == "FARGATE" or platform == "FARGATE_SPOT":
-            if cluster_size > 1:
+            if num_parallel > 1:
                 raise BatchJobException("Fargate does not support multinode jobs.")
             if execution_role is None:
                 raise BatchJobException(
@@ -263,11 +262,11 @@ class BatchJob(object):
                     {"sourceVolume": name, "containerPath": host_path}
                 )
 
-        self.cluster_size = cluster_size or 1
-        if self.cluster_size > 1:
+        self.num_parallel = num_parallel or 1
+        if self.num_parallel > 1:
             job_definition["type"] = "multinode"
             job_definition["nodeProperties"] = {
-                "numNodes": self.cluster_size,
+                "numNodes": self.num_parallel,
                 "mainNode": 0,
             }
             job_definition["nodeProperties"]["nodeRangeProperties"] = [
@@ -278,7 +277,7 @@ class BatchJob(object):
                     "container": job_definition["containerProperties"],
                 },
                 {
-                    "targetNodes": "1:{}".format(self.cluster_size - 1),
+                    "targetNodes": "1:{}".format(self.num_parallel - 1),
                     "container": job_definition["containerProperties"],
                 },
             ]
@@ -321,7 +320,7 @@ class BatchJob(object):
         max_swap,
         swappiness,
         host_volumes,
-        cluster_size,
+        num_parallel,
     ):
         self.payload["jobDefinition"] = self._register_job_definition(
             image,
@@ -332,7 +331,7 @@ class BatchJob(object):
             max_swap,
             swappiness,
             host_volumes,
-            cluster_size,
+            num_parallel,
         )
         return self
 

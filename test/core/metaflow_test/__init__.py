@@ -90,6 +90,7 @@ class MetaflowTest(object):
     PRIORITY = 999999999
     PARAMETERS = {}
     INCLUDE_FILES = {}
+    CLASS_VARS = {}
     HEADER = ""
 
     def check_results(self, flow, checker):

@@ -1,4 +1,9 @@
 import math
+import time
+
+from .mflog import refine, set_should_persist
+
+from metaflow.util import to_unicode
 
 # Log source indicates the system that *minted the timestamp*
 # for the logline. This means that for a single task we can
@@ -39,17 +44,17 @@ BASH_SAVE_LOGS_ARGS = ["python", "-m", "metaflow.mflog.save_logs"]
 BASH_SAVE_LOGS = " ".join(BASH_SAVE_LOGS_ARGS)
 
 # this function returns a bash expression that redirects stdout
-# and stderr of the given bash expression to mflog.tee
-def bash_capture_logs(bash_expr, var_transform=None):
+# and stderr of the given command to mflog
+def capture_output_to_mflog(command_and_args, var_transform=None):
     if var_transform is None:
         var_transform = lambda s: "$%s" % s
-    cmd = "python -m metaflow.mflog.tee %s %s"
-    parts = (
-        bash_expr,
-        cmd % (TASK_LOG_SOURCE, var_transform("MFLOG_STDOUT")),
-        cmd % (TASK_LOG_SOURCE, var_transform("MFLOG_STDERR")),
+
+    return "python -m metaflow.mflog.redirect_streams %s %s %s %s" % (
+        TASK_LOG_SOURCE,
+        var_transform("MFLOG_STDOUT"),
+        var_transform("MFLOG_STDERR"),
+        command_and_args,
     )
-    return "(%s) 1>> >(%s) 2>> >(%s >&2)" % parts
 
 
 # update_delay determines how often logs should be uploaded to S3
@@ -71,7 +76,8 @@ def update_delay(secs_since_start):
 
 
 # this function is used to generate a Bash 'export' expression that
-# sets environment variables that are used by 'tee' and 'save_logs'.
+# sets environment variables that are used by 'redirect_streams' and
+# 'save_logs'.
 # Note that we can't set the env vars statically, as some of them
 # may need to be evaluated during runtime
 def export_mflog_env_vars(
@@ -99,3 +105,41 @@ def export_mflog_env_vars(
         env_vars["MF_DATASTORE_ROOT"] = datastore_root
 
     return "export " + " ".join("%s=%s" % kv for kv in env_vars.items())
+
+
+def tail_logs(prefix, stdout_tail, stderr_tail, echo, has_log_updates):
+    def _available_logs(tail, stream, echo, should_persist=False):
+        # print the latest batch of lines
+        try:
+            for line in tail:
+                if should_persist:
+                    line = set_should_persist(line)
+                else:
+                    line = refine(line, prefix=prefix)
+                echo(line.strip().decode("utf-8", errors="replace"), stream)
+        except Exception as ex:
+            echo(
+                "%s[ temporary error in fetching logs: %s ]" % to_unicode(prefix),
+                ex,
+                "stderr",
+            )
+
+    start_time = time.time()
+    next_log_update = start_time
+    log_update_delay = 1
+    while has_log_updates():
+        if time.time() > next_log_update:
+            _available_logs(stdout_tail, "stdout", echo)
+            _available_logs(stderr_tail, "stderr", echo)
+            now = time.time()
+            log_update_delay = update_delay(now - start_time)
+            next_log_update = now + log_update_delay
+
+        # This sleep should never delay log updates. On the other hand,
+        # we should exit this loop when the task has finished without
+        # a long delay, regardless of the log tailing schedule
+        time.sleep(min(log_update_delay, 5.0))
+    # It is possible that we exit the loop above before all logs have been
+    # tailed.
+    _available_logs(stdout_tail, "stdout", echo)
+    _available_logs(stderr_tail, "stderr", echo)

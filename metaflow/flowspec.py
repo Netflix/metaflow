@@ -3,6 +3,7 @@ import os
 import sys
 import inspect
 import traceback
+from types import FunctionType, MethodType
 
 from . import cmd_with_io
 from .parameters import Parameter
@@ -32,13 +33,13 @@ class InvalidNextException(MetaflowException):
         super(InvalidNextException, self).__init__(msg, line_no)
 
 
-class Multinode(UnboundedForeachInput):
+class ParallelUBF(UnboundedForeachInput):
     """
-    Unbounded-for-each placeholder for supporting multinode steps.
+    Unbounded-for-each placeholder for supporting parallel (multi-node) steps.
     """
 
-    def __init__(self, cluster_size):
-        self.cluster_size = cluster_size
+    def __init__(self, num_parallel):
+        self.num_parallel = num_parallel
 
     def __getitem__(self, item):
         return item
@@ -117,6 +118,44 @@ class FlowSpec(object):
         if fname.endswith(".pyc"):
             fname = fname[:-1]
         return os.path.basename(fname)
+
+    def _set_constants(self, kwargs):
+        # Persist values for parameters and other constants (class level variables)
+        # only once. This method is called before persist_constants is called to
+        # persist all values set using setattr
+        seen = set()
+        for var, param in self._get_parameters():
+            norm = param.name.lower()
+            if norm in seen:
+                raise MetaflowException(
+                    "Parameter *%s* is specified twice. "
+                    "Note that parameter names are "
+                    "case-insensitive." % param.name
+                )
+            seen.add(norm)
+        seen.clear()
+        self._success = True
+
+        for var, param in self._get_parameters():
+            seen.add(var)
+            val = kwargs[param.name.replace("-", "_").lower()]
+            # Support for delayed evaluation of parameters. This is used for
+            # includefile in particular
+            if callable(val):
+                val = val()
+            val = val.split(param.separator) if val and param.separator else val
+            setattr(self, var, val)
+
+        # Do the same for class variables which will be forced constant as modifications
+        # to them don't propagate well since we create a new process for each step and
+        # re-read the flow file
+        for var in dir(self.__class__):
+            if var[0] == "_" or var in self._NON_PARAMETERS or var in seen:
+                continue
+            val = getattr(self.__class__, var)
+            if isinstance(val, (MethodType, FunctionType, property, type)):
+                continue
+            setattr(self, var, val)
 
     def _get_parameters(self):
         for var in dir(self):
@@ -440,7 +479,7 @@ class FlowSpec(object):
         step = self._current_step
 
         foreach = kwargs.pop("foreach", None)
-        cluster_size = kwargs.pop("cluster_size", None)
+        num_parallel = kwargs.pop("num_parallel", None)
         condition = kwargs.pop("condition", None)
         if kwargs:
             kw = next(iter(kwargs))
@@ -478,12 +517,13 @@ class FlowSpec(object):
                 raise InvalidNextException(msg)
             funcs.append(name)
 
-        if cluster_size:
-            assert (
-                len(dsts) == 1
-            ), "Only one destination allowed when cluster_size used in self.next()"
-            foreach = "_multinode_ubf_iter"
-            self._multinode_ubf_iter = Multinode(cluster_size)
+        if num_parallel:
+            if len(dsts) > 1:
+                raise InvalidNextException(
+                    "Only one destination allowed when num_parallel used in self.next()"
+                )
+            foreach = "_parallel_ubf_iter"
+            self._parallel_ubf_iter = ParallelUBF(num_parallel)
 
         # check: foreach and condition are mutually exclusive
         if not (foreach is None or condition is None):

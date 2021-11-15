@@ -8,11 +8,8 @@ from metaflow.decorators import StepDecorator
 from metaflow.metadata import MetaDatum
 from metaflow.metadata.util import sync_local_metadata_to_datastore
 from metaflow.metaflow_config import (
-    ECS_S3_ACCESS_IAM_ROLE,
-    BATCH_JOB_QUEUE,
-    BATCH_CONTAINER_IMAGE,
-    BATCH_CONTAINER_REGISTRY,
-    ECS_FARGATE_EXECUTION_ROLE,
+    KUBERNETES_CONTAINER_IMAGE,
+    KUBERNETES_CONTAINER_REGISTRY,
     DATASTORE_LOCAL_DIR,
 )
 from metaflow.plugins import ResourcesDecorator
@@ -85,8 +82,8 @@ class KubernetesDecorator(StepDecorator):
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:
             # If metaflow-config specifies a docker image, just use that.
-            if BATCH_CONTAINER_IMAGE:
-                self.attributes["image"] = BATCH_CONTAINER_IMAGE
+            if KUBERNETES_CONTAINER_IMAGE:
+                self.attributes["image"] = KUBERNETES_CONTAINER_IMAGE
             # If metaflow-config doesn't specify a docker image, assign a
             # default docker image.
             else:
@@ -98,9 +95,9 @@ class KubernetesDecorator(StepDecorator):
                 )
         # Assign docker registry URL for the image.
         if not get_docker_registry(self.attributes["image"]):
-            if BATCH_CONTAINER_REGISTRY:
+            if KUBERNETES_CONTAINER_REGISTRY:
                 self.attributes["image"] = "%s/%s" % (
-                    BATCH_CONTAINER_REGISTRY.rstrip("/"),
+                    KUBERNETES_CONTAINER_REGISTRY.rstrip("/"),
                     self.attributes["image"],
                 )
 
@@ -129,6 +126,11 @@ class KubernetesDecorator(StepDecorator):
                     my_val = self.attributes.get(k)
                     if not (my_val is None and v is None):
                         self.attributes[k] = str(max(int(my_val or 0), int(v or 0)))
+
+            if getattr(deco, "IS_PARALLEL", False):
+                raise KubernetesException(
+                    "Kubernetes decorator does not support parallel execution yet."
+                )
 
         # Set run time limit for the Kubernetes job.
         self.run_time_limit = get_run_time_limit_for_task(decos)

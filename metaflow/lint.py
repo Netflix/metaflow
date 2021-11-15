@@ -31,7 +31,7 @@ class FlowLinter(object):
     def ensure_non_nested_foreach(self, f):
         return self._decorate("require_non_nested_foreach", f)
 
-    # TODO: cluster_size matches with a multinode
+    # TODO: num_parallel matches with a multinode
 
     def check(self, f):
         self._checks.append(f)
@@ -278,6 +278,35 @@ def check_empty_foreaches(graph):
             joins = [n for n in node.out_funcs if graph[n].type == "join"]
             if joins:
                 raise LintWarn(msg.format(node, join=joins[0]))
+
+
+@linter.ensure_static_graph
+@linter.check
+def check_parallel_step_after_next(graph):
+    msg = (
+        "Step *{0.name}* is called as a parallel step with self.next(num_parallel=..) "
+        "but does not have a @parallel decorator."
+    )
+    for node in graph:
+        if node.parallel_foreach and not all(
+            graph[out_node].parallel_step for out_node in node.out_funcs
+        ):
+            raise LintWarn(msg.format(node))
+
+
+@linter.ensure_static_graph
+@linter.check
+def check_parallel_foreach_calls_parallel_step(graph):
+    msg = (
+        "Step *{0.name}* has a @parallel decorator, but is not called "
+        " with self.next(num_parallel=...) from step  *{1.name}*."
+    )
+    for node in graph:
+        if node.parallel_step:
+            for node2 in graph:
+                if node2.out_funcs and node.name in node2.out_funcs:
+                    if not node2.parallel_foreach:
+                        raise LintWarn(msg.format(node, node2))
 
 
 @linter.ensure_non_nested_foreach

@@ -31,7 +31,12 @@ from .debug import debug
 from .decorators import flow_decorators
 from .mflog import mflog, RUNTIME_LOG_SOURCE
 from .util import to_unicode, compress_list, unicode_type
-from .unbounded_foreach import CONTROL_TASK_TAG, UBF_CONTROL, UBF_TASK
+from .unbounded_foreach import (
+    CONTROL_TASK_TAG,
+    UBF_CONTROL,
+    CONTROL_AND_MAPPER_TAG,
+    UBF_TASK,
+)
 
 MAX_WORKERS = 16
 MAX_NUM_SPLITS = 100
@@ -176,7 +181,7 @@ class NativeRuntime(object):
     def run_id(self):
         return self._run_id
 
-    def persist_parameters(self, task_id=None):
+    def persist_constants(self, task_id=None):
         task = self._new_task("_parameters", task_id=task_id)
         if not task.is_cloned:
             task.persist(self._flow)
@@ -621,16 +626,23 @@ class Task(object):
             # easily. There is anyway a corresponding int id stored in the
             # metadata backend - so this should be fine.
             task_id = "control-%s-%s-%s" % (run, input_step, input_task)
-        else:
-            self.multinode_iterator = None
         # Register only regular Metaflow (non control) tasks.
         if task_id is None:
             task_id = str(metadata.new_task_id(run_id, step))
         else:
-            # task_id is preset only by persist_parameters() or control tasks.
+            # task_id is preset only by persist_constants() or control tasks.
             if ubf_context == UBF_CONTROL:
+                tags = [CONTROL_TASK_TAG]
+                # for parallel steps, the control task is also a normal task, i.e "mapper"
+                # in the UBF vocabulary
+                if flow._graph[step].parallel_step:
+                    tags.append(CONTROL_AND_MAPPER_TAG)
                 metadata.register_task_id(
-                    run_id, step, task_id, 0, sys_tags=[CONTROL_TASK_TAG]
+                    run_id,
+                    step,
+                    task_id,
+                    0,
+                    sys_tags=tags,
                 )
             else:
                 metadata.register_task_id(run_id, step, task_id, 0)

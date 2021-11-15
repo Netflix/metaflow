@@ -251,14 +251,14 @@ class BatchDecorator(StepDecorator):
 
             self._save_logs_sidecar = SidecarSubProcess("save_logs_periodically")
 
-        cluster_size = int(os.environ.get("AWS_BATCH_JOB_NUM_NODES", 1))
-        if cluster_size > 1 and ubf_context == UBF_CONTROL:
+        num_parallel = int(os.environ.get("AWS_BATCH_JOB_NUM_NODES", 1))
+        if num_parallel > 1 and ubf_context == UBF_CONTROL:
             # UBF handling for multinode case
             control_task_id = current.task_id
             top_task_id = control_task_id.replace("control-", "")  # chop "-0"
             mapper_task_ids = [control_task_id] + [
                 "%s-node-%d" % (top_task_id, node_idx)
-                for node_idx in range(1, cluster_size)
+                for node_idx in range(1, num_parallel)
             ]
             flow._control_mapper_tasks = [
                 "%s/%s/%s" % (run_id, step_name, mapper_task_id)
@@ -266,7 +266,7 @@ class BatchDecorator(StepDecorator):
             ]
             flow._control_task_is_mapper_zero = True
 
-        if cluster_size > 1:
+        if num_parallel > 1:
             _setup_multinode_environment()
 
     def task_post_step(
@@ -339,12 +339,12 @@ class BatchDecorator(StepDecorator):
                         return True
                 else:
                     print(
-                        "Not sufficient number of tasks:",
-                        len(tasks),
-                        len(flow._control_mapper_tasks),
+                        "Waiting for all parallel tasks to finish. Finished: {}/{}".format(
+                            len(tasks),
+                            len(flow._control_mapper_tasks),
+                        )
                     )
             except Exception as e:
-                print(e)
                 pass
         raise Exception(
             "Batch secondary workers did not finish in %s seconds" % TIMEOUT
@@ -366,14 +366,10 @@ def _setup_multinode_environment():
         # we are the main node
         local_ips = socket.gethostbyname_ex(socket.gethostname())[-1]
         assert local_ips, "Could not find local ip address"
-        os.environ["MF_MULTINODE_MAIN_IP"] = local_ips[0]
+        os.environ["MF_PARALLEL_MAIN_IP"] = local_ips[0]
     else:
-        os.environ["MF_MULTINODE_MAIN_IP"] = os.environ[
+        os.environ["MF_PARALLEL_MAIN_IP"] = os.environ[
             "AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS"
         ]
-    os.environ["MF_MULTINODE_NUM_NODES"] = os.environ["AWS_BATCH_JOB_NUM_NODES"]
-    os.environ["MF_MULTINODE_NODE_INDEX"] = os.environ["AWS_BATCH_JOB_NODE_INDEX"]
-    print(
-        "Multinode environment:",
-        {k: v for k, v in os.environ.items() if k.startswith("MF_MULTINODE")},
-    )
+    os.environ["MF_PARALLEL_NUM_NODES"] = os.environ["AWS_BATCH_JOB_NUM_NODES"]
+    os.environ["MF_PARALLEL_NODE_INDEX"] = os.environ["AWS_BATCH_JOB_NODE_INDEX"]

@@ -122,6 +122,7 @@ def _merge_lists(base, overrides, attr):
 from .catch_decorator import CatchDecorator
 from .timeout_decorator import TimeoutDecorator
 from .environment_decorator import EnvironmentDecorator
+from .parallel_decorator import ParallelDecorator
 from .retry_decorator import RetryDecorator
 from .resources_decorator import ResourcesDecorator
 from .aws.batch.batch_decorator import BatchDecorator
@@ -144,6 +145,7 @@ STEP_DECORATORS = _merge_lists(
         KubernetesDecorator,
         StepFunctionsInternalDecorator,
         CondaStepDecorator,
+        ParallelDecorator,
         InternalTestUnboundedForeachDecorator,
     ],
     _ext_plugins.STEP_DECORATORS,
