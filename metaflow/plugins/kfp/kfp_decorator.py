@@ -12,8 +12,7 @@ from metaflow.exception import MetaflowException
 from metaflow.metadata import MetaDatum
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.plugins.kfp.kfp_constants import (
-    preceding_component_inputs_PATH,
-    PASSED_IN_SPLIT_INDEXES_ENV_NAME,
+    PRECEDING_COMPONENT_INPUTS_PATH,
 )
 from metaflow.plugins.kfp.kfp_foreach_splits import KfpForEachSplits
 from metaflow.sidecar import SidecarSubProcess
@@ -38,7 +37,7 @@ class KfpInternalDecorator(StepDecorator):
       preceding_component_outputs are returned by the KFP component to incorporate
       back into Metaflow Flow state.  We do this by having the previous step
       return these as a namedtuple to KFP.  They are saved to
-      preceding_component_inputs_PATH in task_finished
+      PRECEDING_COMPONENT_INPUTS_PATH in task_finished
 
     preceding_component_outputs:
       preceding_component_inputs are Flow state fields to expose to a KFP step by
@@ -166,7 +165,7 @@ class KfpInternalDecorator(StepDecorator):
                 os.environ["PRECEDING_COMPONENT_INPUTS"]
             )
             if len(preceding_component_inputs) > 0:
-                with open(preceding_component_inputs_PATH, "w") as file:
+                with open(PRECEDING_COMPONENT_INPUTS_PATH, "w") as file:
                     # Get fields from running Flow and persist as json to local FS
                     fields_dictionary = {
                         key: flow.__getattribute__(key)

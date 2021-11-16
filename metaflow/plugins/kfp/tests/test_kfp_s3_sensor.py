@@ -26,21 +26,37 @@ for the integration tests.
 """
 
 
+def data_formatter(path: str, flow_parameters: dict) -> str:
+    path = path.format(date=flow_parameters["date"])
+    return path
+
+
 def identity_formatter(path: str, flow_parameters: dict) -> str:
     return path
 
 
+date_formatter_code_encoded = base64.b64encode(
+    marshal.dumps(data_formatter.__code__)
+).decode("ascii")
+
+
+identity_formatter_code_encoded = base64.b64encode(
+    marshal.dumps(identity_formatter.__code__)
+).decode("ascii")
+
+
 @mock_s3
 @pytest.mark.parametrize(
-    "upload_bucket, upload_key, upload_path, processed_path, flow_parameters_json, os_expandvars",
+    "upload_bucket, upload_key, upload_path, processed_path, flow_parameters_json, os_expandvars, formatter_encoded",
     [
         (
             "sample_bucket",
             "sample_prefix/sample_file.txt",
             "s3://sample_bucket/sample_prefix/sample_file.txt",
             "s3://sample_bucket/sample_prefix/sample_file.txt",
-            '{"key": "value"}',
+            '{"date": "07-02-2021"}',
             False,
+            identity_formatter_code_encoded,
         ),
         (
             "sample_bucket",
@@ -49,14 +65,16 @@ def identity_formatter(path: str, flow_parameters: dict) -> str:
             "s3://sample_bucket/sample_prefix/date=07-02-2021/sample.txt",
             '{"date": "07-02-2021"}',
             False,
+            date_formatter_code_encoded,
         ),
         (
             "sample_bucket",
             "sample_prefix/date=08-03-2022/sample.txt",
             "s3://sample_bucket/sample_prefix/date=$DATE/sample.txt",
             "s3://sample_bucket/sample_prefix/date=08-03-2022/sample.txt",
-            '{"key": "value"}',
+            "{}",
             True,
+            None,  # os_expandvars is only used when no formatter is passed
         ),
     ],
 )
@@ -67,12 +85,9 @@ def test_wait_for_s3_path(
     processed_path: str,
     flow_parameters_json: str,
     os_expandvars: bool,
+    formatter_encoded: str,
 ):
     os.environ["DATE"] = "08-03-2022"
-
-    identity_formatter_code_encoded = base64.b64encode(
-        marshal.dumps(identity_formatter.__code__)
-    ).decode("ascii")
 
     upload_file = tempfile.NamedTemporaryFile()
 
@@ -84,7 +99,7 @@ def test_wait_for_s3_path(
         path=upload_path,
         timeout_seconds=1,
         polling_interval_seconds=1,
-        path_formatter_code_encoded=identity_formatter_code_encoded,
+        path_formatter_code_encoded=formatter_encoded,
         flow_parameters_json=flow_parameters_json,
         os_expandvars=os_expandvars,
     )
@@ -96,16 +111,12 @@ def test_wait_for_s3_path(
 # looks for a nonexistent S3 path. This ensures we don't have an idle
 # pod using up resources continuously.
 def test_wait_for_s3_path_timeout_exception():
-    identity_formatter_code_encoded = base64.b64encode(
-        marshal.dumps(identity_formatter.__code__)
-    ).decode("ascii")
-
     with pytest.raises(TimeoutError):
         wait_for_s3_path(
             path="s3://sample_bucket/sample_prefix/sample_key",
             timeout_seconds=1,
             polling_interval_seconds=1,
             path_formatter_code_encoded=identity_formatter_code_encoded,
-            flow_parameters_json='{"key": "value"}',
+            flow_parameters_json="{}",
             os_expandvars=False,
         )

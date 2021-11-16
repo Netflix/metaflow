@@ -1,12 +1,19 @@
-from kfp.components import func_to_container_op
+import click
 
 
-@func_to_container_op
+from typing import Dict
+
+
+@click.command()
+@click.option("--flow_name")
+@click.option("--status")
+@click.option("--kfp_run_id")
+@click.option("--notify_variables_json")
 def exit_handler(
     flow_name: str,
     status: str,
     kfp_run_id: str,
-    notify_variables: dict,
+    notify_variables_json: str,
 ):
     """
     The environment variables that this depends on:
@@ -20,7 +27,10 @@ def exit_handler(
         ARGO_WORKFLOW_NAME
         METAFLOW_NOTIFY_EMAIL_BODY
     """
+    import json
     import os
+
+    notify_variables: Dict[str, str] = json.loads(notify_variables_json)
 
     def get_env(name, default=None) -> str:
         return notify_variables.get(name, os.environ.get(name, default=default))
@@ -78,3 +88,7 @@ def exit_handler(
         email_notify(notify_on_success)
     else:
         print("No notification is necessary!")
+
+
+if __name__ == "__main__":
+    exit_handler()
