@@ -24,7 +24,7 @@ class MetaflowCardComponent(object):
 
 
 class ErroredComponent(MetaflowCardComponent):
-    def __init__(self, component_name, exception):
+    def __init__(self, component_name, exception, **kwargs):
         self.component_name = component_name
         self.exception = exception
 
