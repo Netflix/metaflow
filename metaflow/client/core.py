@@ -939,6 +939,30 @@ class Task(MetaflowObject):
         ]
 
     @property
+    def origin_pathspec(self):
+        """
+        Pathspec of the origin task that the current task was cloned from.
+
+        Returns
+        -------
+        str
+            Pathspec of the origin task
+        """
+        origin_task_id = None
+        origin_run_id = None
+        for metadata in self.metadata:
+            if metadata.name == "origin-task-id":
+                origin_task_id = metadata.value
+            elif metadata.name == "origin-run-id":
+                origin_run_id = metadata.value
+        if origin_task_id is None:
+            return None
+
+        step_name = self.parent.id
+        flow_name = self.parent.parent.parent.id
+        return "%s/%s/%s/%s" % (flow_name, origin_run_id, step_name, origin_task_id)
+
+    @property
     def metadata_dict(self):
         """
         Dictionary mapping metadata names (keys) and their associated values.
