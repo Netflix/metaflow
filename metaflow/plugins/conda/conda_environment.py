@@ -40,6 +40,11 @@ class CondaEnvironment(MetaflowEnvironment):
     def init_environment(self, echo):
         # Print a message for now
         echo("Bootstrapping conda environment..." + "(this could take a few minutes)")
+        echo(
+            "Use of Conda is subject to the terms of service for Anaconda which can "
+            "be found here: https://www.anaconda.com/terms-of-service and typically "
+            "requires a license for commercial use."
+        )
         self.base_env.init_environment(echo)
 
     def validate_environment(self, echo):
