@@ -241,7 +241,7 @@ class ArgoWorkflow:
 
     def _default_image(self):
         return self.image or self._flow_attributes.get('image') or \
-            'python:%s.%s' % platform.python_version_tuple()[:2]
+               'python:%s.%s' % platform.python_version_tuple()[:2]
 
     def _get_volumes(self):
         v = self.volumes if self.volumes else self._flow_attributes.get('volumes', [])
@@ -342,9 +342,14 @@ class ArgoWorkflow:
             init_cmds.extend(self.environment.get_package_commands(self.code_package_url))
         init_cmds.extend(self.environment.bootstrap_commands(node.name))
         init_expr = ' && '.join(init_cmds)
-        step_expr = capture_output_to_mflog(' && '.join(self._step_commands(node, retry_count, user_code_retries)))
+        step_expr = " && ".join(
+            [
+                capture_output_to_mflog(a)
+                for a in (self._step_commands(node, retry_count, user_code_retries))
+            ]
+        )
         cmd = ['true', mflog_expr, init_expr, step_expr]
-        cmd_str =  '%s; c=$?; %s; exit $c' % (' && '.join(c for c in cmd if c), BASH_SAVE_LOGS)
+        cmd_str = '%s; c=$?; %s; exit $c' % (' && '.join(c for c in cmd if c), BASH_SAVE_LOGS)
         return shlex.split('bash -c \"%s\"' % cmd_str)
 
     def _step_commands(self, node, retry_count, user_code_retries):
@@ -379,14 +384,8 @@ class ArgoWorkflow:
             paths = '%s/_parameters/%s' % (run_id, task_id_params)
 
         if node.type == 'join' and self.graph[node.split_parents[-1]].type == 'foreach':
-            # convert input-paths from argo aggregation json and save into $METAFLOW_PARENT_PATHS
-            # which will be used by --input-paths $METAFLOW_PARENT_PATHS
             module = 'metaflow.plugins.argo.convert_argo_aggregation'
-            export_parent_tasks = 'METAFLOW_PARENT_PATHS=$(python -m %s %s)' \
-                                  % (module, paths)
-            paths = '$METAFLOW_PARENT_PATHS'
-
-            cmds.append(export_parent_tasks)
+            paths = '$(python -m %s %s)' % (module, paths)
 
         top_level = [
             '--quiet',
@@ -694,7 +693,7 @@ def remove_empty_elements(spec):
     """
     Removes empty elements from the dictionary and all sub-dictionaries.
     """
-    whitelist = ['none']        # Don't eliminate artifact's {"archive": {"none": {}}}
+    whitelist = ['none']  # Don't eliminate artifact's {"archive": {"none": {}}}
     if isinstance(spec, dict):
         kids = {k: remove_empty_elements(v) for k, v in spec.items() if v or k in whitelist}
         return {k: v for k, v in kids.items() if v or k in whitelist}
