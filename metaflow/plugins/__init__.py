@@ -186,9 +186,9 @@ FLOW_DECORATORS = _merge_lists(
 
 # Cards
 from .cards.card_modules import MF_CARDS_EXTERNAL_MODULES
-from .cards.card_modules.basic import BasicCard
+from .cards.card_modules.basic import DefaultCard
 
-CARDS = _merge_lists([BasicCard], MF_CARDS_EXTERNAL_MODULES, "type")
+CARDS = _merge_lists([DefaultCard], MF_CARDS_EXTERNAL_MODULES, "type")
 
 # Sidecars
 from ..mflog.save_logs_periodically import SaveLogsPeriodicallySidecar
