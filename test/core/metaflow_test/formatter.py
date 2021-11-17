@@ -131,6 +131,11 @@ class FlowFormatter(object):
                     node["foreach"],
                     node["foreach_var"],
                 )
+            elif "num_parallel" in node:
+                yield 2, "self.next(self.%s, num_parallel=%d)" % (
+                    node["parallel"],
+                    node["num_parallel"],
+                )
 
         yield 0, "if __name__ == '__main__':"
         yield 1, "%s()" % self.flow_name

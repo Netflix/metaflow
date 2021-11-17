@@ -101,14 +101,6 @@ def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_c
         kwargs["retry_count"] = str(retry_count)
 
         cmd = cli_args.step_command(executable, script, step_name, step_kwargs=kwargs)
-        step_cli = u" ".join(cmd)
-        # Print cmdline for execution. Doesn't work without the temporary
-        # unicode object while using `print`.
-        print(
-            u"[${cwd}] Starting split#{split} with cmd:{cmd}".format(
-                cwd=os.getcwd(), split=node_index, cmd=step_cli
-            )
-        )
         p = subprocess.Popen(cmd)
         subprocesses.append(p)
 
