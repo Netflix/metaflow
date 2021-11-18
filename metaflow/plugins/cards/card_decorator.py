@@ -63,6 +63,10 @@ class CardDecorator(StepDecorator):
         else:
             metaflow_cards_root = os.path.dirname(metaflow_cards.__file__)
 
+        from . import card_modules
+
+        card_modules_root = os.path.dirname(card_modules.__file__)
+
         if metaflow_cards_root:
             # What if a file is too large and
             # gets tagged along the metaflow_cards
@@ -71,6 +75,9 @@ class CardDecorator(StepDecorator):
             # Should we have package suffixes added over here?
             for path_tuple in self._walk(metaflow_cards_root):
                 yield path_tuple
+
+        for path_tuple in self._walk(card_modules_root):
+            yield path_tuple
 
     def _walk(self, root):
         root = to_unicode(root)  # handle files/folder with non ascii chars
