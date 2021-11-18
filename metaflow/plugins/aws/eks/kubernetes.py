@@ -20,8 +20,8 @@ from metaflow.metaflow_config import (
 )
 from metaflow.mflog import (
     export_mflog_env_vars,
-    bash_capture_logs,
-    update_delay,
+    capture_output_to_mflog,
+    tail_logs,
     BASH_SAVE_LOGS,
 )
 from metaflow.mflog.mflog import refine, set_should_persist
@@ -134,10 +134,13 @@ class Kubernetes(object):
         )
         init_cmds = self._environment.get_package_commands(code_package_url)
         init_expr = " && ".join(init_cmds)
-        step_expr = bash_capture_logs(
-            " && ".join(
-                self._environment.bootstrap_commands(self._step_name) + step_cmds
-            )
+        step_expr = " && ".join(
+            [
+                capture_output_to_mflog(a)
+                for a in (
+                    self._environment.bootstrap_commands(self._step_name) + step_cmds
+                )
+            ]
         )
 
         # Construct an entry point that
@@ -302,48 +305,21 @@ class Kubernetes(object):
                     break
                 time.sleep(1)
 
-        def _print_available(tail, stream, should_persist=False):
-            # print the latest batch of lines from S3Tail
-            prefix = b"[%s] " % util.to_bytes(self._job.id)
-            try:
-                for line in tail:
-                    if should_persist:
-                        line = set_should_persist(line)
-                    else:
-                        line = refine(line, prefix=prefix)
-                    echo(line.strip().decode("utf-8", errors="replace"), stream)
-            except Exception as ex:
-                echo(
-                    "[ temporary error in fetching logs: %s ]" % ex,
-                    "stderr",
-                    job_id=self._job.id,
-                )
-
+        prefix = b"[%s] " % util.to_bytes(self._job.id)
         stdout_tail = S3Tail(stdout_location)
         stderr_tail = S3Tail(stderr_location)
 
         # 1) Loop until the job has started
         wait_for_launch(self._job)
 
-        # 2) Loop until the job has finished
-        start_time = time.time()
-        is_running = True
-        next_log_update = start_time
-        log_update_delay = 1
-
-        while is_running:
-            if time.time() > next_log_update:
-                _print_available(stdout_tail, "stdout")
-                _print_available(stderr_tail, "stderr")
-                now = time.time()
-                log_update_delay = update_delay(now - start_time)
-                next_log_update = now + log_update_delay
-                is_running = self._job.is_running
-
-            # This sleep should never delay log updates. On the other hand,
-            # we should exit this loop when the task has finished without
-            # a long delay, regardless of the log tailing schedule
-            time.sleep(min(log_update_delay, 5.0))
+        # 2) Tail logs until the job has finished
+        tail_logs(
+            prefix=prefix,
+            stdout_tail=stdout_tail,
+            stderr_tail=stderr_tail,
+            echo=echo,
+            has_log_updates=lambda: self._job.is_running,
+        )
 
         # 3) Fetch remaining logs
         #
@@ -355,8 +331,6 @@ class Kubernetes(object):
         #               exists prior to calling S3Tail and note the user about
         #               truncated logs if it doesn't.
         # TODO (savin): For hard crashes, we can fetch logs from the pod.
-        _print_available(stdout_tail, "stdout")
-        _print_available(stderr_tail, "stderr")
 
         if self._job.has_failed:
             exit_code, reason = self._job.reason

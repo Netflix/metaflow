@@ -8,12 +8,10 @@ from metaflow.decorators import StepDecorator
 from metaflow.metadata import MetaDatum
 from metaflow.metadata.util import sync_local_metadata_to_datastore
 from metaflow.metaflow_config import (
-    ECS_S3_ACCESS_IAM_ROLE,
-    BATCH_JOB_QUEUE,
-    BATCH_CONTAINER_IMAGE,
-    BATCH_CONTAINER_REGISTRY,
-    ECS_FARGATE_EXECUTION_ROLE,
+    KUBERNETES_CONTAINER_IMAGE,
+    KUBERNETES_CONTAINER_REGISTRY,
     DATASTORE_LOCAL_DIR,
+    KUBERNETES_NAMESPACE,
 )
 from metaflow.plugins import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
@@ -81,12 +79,14 @@ class KubernetesDecorator(StepDecorator):
     def __init__(self, attributes=None, statically_defined=False):
         super(KubernetesDecorator, self).__init__(attributes, statically_defined)
 
+        if not self.attributes["namespace"]:
+            self.attributes["namespace"] = KUBERNETES_NAMESPACE
         # TODO: Unify the logic with AWS Batch
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:
             # If metaflow-config specifies a docker image, just use that.
-            if BATCH_CONTAINER_IMAGE:
-                self.attributes["image"] = BATCH_CONTAINER_IMAGE
+            if KUBERNETES_CONTAINER_IMAGE:
+                self.attributes["image"] = KUBERNETES_CONTAINER_IMAGE
             # If metaflow-config doesn't specify a docker image, assign a
             # default docker image.
             else:
@@ -98,9 +98,9 @@ class KubernetesDecorator(StepDecorator):
                 )
         # Assign docker registry URL for the image.
         if not get_docker_registry(self.attributes["image"]):
-            if BATCH_CONTAINER_REGISTRY:
+            if KUBERNETES_CONTAINER_REGISTRY:
                 self.attributes["image"] = "%s/%s" % (
-                    BATCH_CONTAINER_REGISTRY.rstrip("/"),
+                    KUBERNETES_CONTAINER_REGISTRY.rstrip("/"),
                     self.attributes["image"],
                 )
 
