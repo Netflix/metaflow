@@ -198,7 +198,7 @@ class CardDecorator(StepDecorator):
         executable = sys.executable
         cmd = [
             executable,
-            os.path.basename(sys.argv[0]),
+            sys.argv[0],
         ]
         cmd += self._create_top_level_args() + [
             "card",

@@ -49,7 +49,7 @@ def _full_classname(obj):
 
 
 class TaskToDict:
-    def __init__(self, only_repr=False) -> None:
+    def __init__(self, only_repr=False):
         # this dictionary holds all the supported functions
         #
         r = reprlib.Repr()
