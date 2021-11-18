@@ -153,10 +153,10 @@ class FlowSpec(object):
             constants_info.append({"name": var, "type": type(val).__name__})
             setattr(self, var, val)
 
-        # We store the DAG information as an artifact called _graph_artifact
+        # We store the DAG information as an artifact called _graph_info
         steps_info, steps_structure = graph.output_steps()
 
-        graph_artifact = {
+        graph_info = {
             "file": os.path.basename(os.path.abspath(sys.argv[0])),
             "parameters": parameters_info,
             "constants": constants_info,
@@ -173,7 +173,7 @@ class FlowSpec(object):
                 if not deco.name.startswith("_")
             ],
         }
-        self._graph_artifact = graph_artifact
+        self._graph_info = graph_info
 
     def _get_parameters(self):
         for var in dir(self):
@@ -497,7 +497,6 @@ class FlowSpec(object):
         step = self._current_step
 
         foreach = kwargs.pop("foreach", None)
-        condition = kwargs.pop("condition", None)
         if kwargs:
             kw = next(iter(kwargs))
             msg = (
@@ -533,14 +532,6 @@ class FlowSpec(object):
                 )
                 raise InvalidNextException(msg)
             funcs.append(name)
-
-        # check: foreach and condition are mutually exclusive
-        if not (foreach is None or condition is None):
-            msg = (
-                "Step *{step}* has an invalid self.next() transition. "
-                "Specify either 'foreach' or 'condition', not both.".format(step=step)
-            )
-            raise InvalidNextException(msg)
 
         # check: foreach is valid
         if foreach:
@@ -596,25 +587,8 @@ class FlowSpec(object):
 
             self._foreach_var = foreach
 
-        # check: condition is valid
-        if condition:
-            if not isinstance(condition, basestring):
-                msg = (
-                    "Step *{step}* has an invalid self.next() transition. "
-                    "The argument to 'condition' must be a string.".format(step=step)
-                )
-                raise InvalidNextException(msg)
-            if len(dsts) != 2:
-                msg = (
-                    "Step *{step}* has an invalid self.next() transition. "
-                    "Specify two targets for 'condition': The first target "
-                    "is used if the condition evaluates to true, the second "
-                    "otherwise.".format(step=step)
-                )
-                raise InvalidNextException(msg)
-
         # check: non-keyword transitions are valid
-        if foreach is None and condition is None:
+        if foreach is None:
             if len(dsts) < 1:
                 msg = (
                     "Step *{step}* has an invalid self.next() transition. "
@@ -623,7 +597,7 @@ class FlowSpec(object):
                 )
                 raise InvalidNextException(msg)
 
-        self._transition = (funcs, foreach, condition)
+        self._transition = (funcs, foreach)
 
     def __str__(self):
         step_name = getattr(self, "_current_step", None)

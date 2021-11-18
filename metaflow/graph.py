@@ -55,7 +55,6 @@ class DAGNode(object):
         self.has_tail_next = False
         self.invalid_tail_next = False
         self.num_args = 0
-        self.condition = None
         self.foreach_param = None
         self._parse(func_ast)
 
@@ -102,20 +101,16 @@ class DAGNode(object):
                     if len(self.out_funcs) == 1:
                         self.foreach_param = keywords["foreach"]
                         self.invalid_tail_next = False
-                elif "condition" in keywords:
-                    # TYPE: split-or
-                    self.type = "split-or"
-                    if len(self.out_funcs) == 2:
-                        self.condition = keywords["condition"]
-                        self.invalid_tail_next = False
             elif len(keywords) == 0:
                 if len(self.out_funcs) > 1:
-                    # TYPE: split-and
-                    self.type = "split-and"
+                    # TYPE: split
+                    self.type = "split"
                     self.invalid_tail_next = False
                 elif len(self.out_funcs) == 1:
                     # TYPE: linear
-                    if self.num_args > 1:
+                    if self.name == "start":
+                        self.type = "start"
+                    elif self.num_args > 1:
                         self.type = "join"
                     else:
                         self.type = "linear"
@@ -135,7 +130,6 @@ class DAGNode(object):
     num_args={0.num_args}
     has_tail_next={0.has_tail_next} (line {0.tail_next_lineno})
     invalid_tail_next={0.invalid_tail_next}
-    condition={0.condition}
     foreach_param={0.foreach_param}
     -> {out}""".format(
             self,
@@ -193,7 +187,7 @@ class FlowGraph(object):
     def _traverse_graph(self):
         def traverse(node, seen, split_parents):
 
-            if node.type in ("split-or", "split-and", "foreach"):
+            if node.type in ("split", "foreach"):
                 node.split_parents = split_parents
                 split_parents = split_parents + [node.name]
             elif node.type == "join":
@@ -291,7 +285,7 @@ class FlowGraph(object):
                 steps_info[cur_name] = node_dict
                 resulting_list.append(cur_name)
 
-                if cur_node.type not in ("linear", "join"):
+                if cur_node.type not in ("start", "linear", "join"):
                     # We need to look at the different branches for this
                     resulting_list.append(
                         [

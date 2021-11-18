@@ -1,6 +1,6 @@
 class Inputs(object):
     """
-    split-and: inputs.step_a.x inputs.step_b.x
+    split: inputs.step_a.x inputs.step_b.x
     foreach: inputs[0].x
     both: (inp.x for inp in inputs)
     """

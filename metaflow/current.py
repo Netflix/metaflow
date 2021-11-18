@@ -31,9 +31,7 @@ class Current(object):
     ):
         if flow is not None:
             self._flow_name = flow.name
-            self.__class__.graph = property(
-                fget=lambda _, flow=flow: flow._graph_artifact
-            )
+            self.__class__.graph = property(fget=lambda _, flow=flow: flow._graph_info)
 
         self._run_id = run_id
         self._step_name = step_name
