@@ -853,6 +853,13 @@ class DataArtifact(MetaflowObject):
         return self.created_at
 
 
+def _origin_run_id_from_task(task):
+    for metadata in task.metadata:
+        if metadata.name == "origin-run-id":
+            return metadata.value
+    return None
+
+
 class Task(MetaflowObject):
     """
     A Task represents an execution of a step.
@@ -1494,6 +1501,25 @@ class Step(MetaflowObject):
         for t in self:
             return t.environment_info
 
+    @property
+    def origin_pathspec(self):
+        """
+        Pathspec of the origin step that the current step was cloned from.
+
+        Returns
+        -------
+        str
+            Pathspec of the origin step or None
+        """
+        task = self.task
+        origin_run_id = None
+        origin_run_id = _origin_run_id_from_task(task)
+        if origin_run_id is None:
+            return None
+        step_name = self.id
+        flow_name = self.parent.parent.id
+        return "%s/%s/%s" % (flow_name, origin_run_id, step_name)
+
 
 class Run(MetaflowObject):
     """
@@ -1524,6 +1550,24 @@ class Run(MetaflowObject):
     def _iter_filter(self, x):
         # exclude _parameters step
         return x.id[0] != "_"
+
+    @property
+    def origin_pathspec(self):
+        """
+        Pathspec of the origin run that the current run was cloned from.
+
+        Returns
+        -------
+        str
+            Pathspec of the origin run or None
+        """
+        task = next(self.steps()).task
+        origin_run_id = None
+        origin_run_id = _origin_run_id_from_task(task)
+        if origin_run_id is None:
+            return None
+        flow_name = self.parent.id
+        return "%s/%s" % (flow_name, origin_run_id)
 
     def steps(self, *tags):
         """
