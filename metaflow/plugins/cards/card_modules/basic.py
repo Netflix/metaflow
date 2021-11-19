@@ -229,7 +229,7 @@ class DefaultCard(MetaflowCard):
 
         if len(img_components) > 0:
             img_section = SectionComponent(
-                title="Images Data",
+                title="Image Data",
                 columns=len(img_components),
                 contents=img_components,
             ).render()
