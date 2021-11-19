@@ -308,31 +308,31 @@ def test_toleration_and_affinity_compile_only() -> None:
     # Test toleration generated from resource spec for CPU pods
     assert not has_node_toleration(
         step_template=step_templates["small_default_pod"],
-        key="node.kubernetes.io/instance-type",
-        value="r5.12xlarge",
+        key="node.k8s.zgtools.net/purpose",
+        value="high-memory",
     )
     assert not has_node_toleration(
         step_template=step_templates["small_cpu_pod"],
-        key="node.kubernetes.io/instance-type",
-        value="r5.12xlarge",
+        key="node.k8s.zgtools.net/purpose",
+        value="high-memory",
     )
     assert not has_node_toleration(
         step_template=step_templates["small_memory_pod"],
-        key="node.kubernetes.io/instance-type",
-        value="r5.12xlarge",
+        key="node.k8s.zgtools.net/purpose",
+        value="high-memory",
     )
     assert has_node_toleration(
         step_template=step_templates["large_cpu_pod"],
-        key="node.kubernetes.io/instance-type",
-        value="r5.12xlarge",
+        key="node.k8s.zgtools.net/purpose",
+        value="high-memory",
     )
     assert has_node_toleration(
         step_template=step_templates["large_memory_pod"],
-        key="node.kubernetes.io/instance-type",
-        value="r5.12xlarge",
+        key="node.k8s.zgtools.net/purpose",
+        value="high-memory",
     )
     assert has_node_toleration(
         step_template=step_templates["large_memory_cpu_pod"],
-        key="node.kubernetes.io/instance-type",
-        value="r5.12xlarge",
+        key="node.k8s.zgtools.net/purpose",
+        value="high-memory",
     )

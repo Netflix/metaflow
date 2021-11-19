@@ -419,9 +419,11 @@ class KubeflowPipelines(object):
         cpu: number of vCPU requested. Fractions are allowed.
         memory: memory requested in GB (not GiB)
         """
-        # Base on observed resource data Oct. 21, 2021, available resource per c5.4xlarge node:
-        # Memory: 20.24GB = 18.85 GiB = 27.72 GiB (allocatable) - 8.87 GiB (DaemonSet)
-        # CPU: 10.34 vCPU = 15.89 (allocatable) - 5.55 (DaemonSet)
+        # Analysis on Oct. 21, 2021:
+        # c5.4xlarge is the default CPU pods
+        # Base on observed resource data available resource per c5.4xlarge node:
+        #   Memory: 20.24GB = 18.85 GiB = 27.72 GiB (allocatable) - 8.87 GiB (DaemonSet)
+        #   CPU: 10.34 vCPU = 15.89 (allocatable) - 5.55 (DaemonSet)
         # Argo additionally adds a "wait" container to pods per step, taking default resources
 
         # Threshold should leave significant margin below estimated available resource
@@ -435,9 +437,9 @@ class KubeflowPipelines(object):
         if memory >= memory_threshold or cpu >= cpu_threshold:
             return V1Toleration(
                 effect="NoSchedule",
-                key="node.kubernetes.io/instance-type",
+                key="node.k8s.zgtools.net/purpose",
                 operator="Equal",
-                value="r5.12xlarge",
+                value="high-memory",
             )
         else:
             return None
