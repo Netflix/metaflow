@@ -235,7 +235,7 @@ class MetaflowTask(object):
         x._set_datastore(datastore)
         return x
 
-    def clone_only(self, step_name, run_id, task_id, clone_origin_task):
+    def clone_only(self, step_name, run_id, task_id, clone_origin_task, retry_count):
         if not clone_origin_task:
             raise MetaflowInternalError(
                 "task.clone_only needs a valid " "clone_origin_task value."
@@ -252,8 +252,27 @@ class MetaflowTask(object):
         origin = self.flow_datastore.get_task_datastore(
             origin_run_id, origin_step_name, origin_task_id
         )
-
+        metadata_tags = ["attempt_id:{0}".format(retry_count)]
         output.clone(origin)
+        self.metadata.register_metadata(
+            run_id,
+            step_name,
+            task_id,
+            [
+                MetaDatum(
+                    field="origin-task-id",
+                    value=str(origin_task_id),
+                    type="origin-task-id",
+                    tags=metadata_tags,
+                ),
+                MetaDatum(
+                    field="origin-run-id",
+                    value=str(origin_run_id),
+                    type="origin-run-id",
+                    tags=metadata_tags,
+                ),
+            ],
+        )
         output.done()
 
     def _finalize_control_task(self):

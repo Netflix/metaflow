@@ -946,7 +946,7 @@ class Task(MetaflowObject):
         Returns
         -------
         str
-            Pathspec of the origin task
+            Pathspec of the origin task or None
         """
         origin_task_id = None
         origin_run_id = None

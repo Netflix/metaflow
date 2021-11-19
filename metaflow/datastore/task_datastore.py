@@ -111,8 +111,6 @@ class TaskDataStore(object):
         self._attempt = attempt
         self._metadata = flow_datastore.metadata
         self._parent = flow_datastore
-        self._origin_task_id = None
-        self._origin_run_id = None
 
         # The GZIP encodings are for backward compatibility
         self._encodings = {"pickle-v2", "gzip+pickle-v2"}
@@ -555,25 +553,6 @@ class TaskDataStore(object):
         )
 
         if self._metadata:
-            origin_task_metadata = []
-            if self._origin_task_id is not None:
-                origin_task_metadata.extend(
-                    [
-                        MetaDatum(
-                            field="origin-task-id",
-                            value=str(self._origin_task_id),
-                            type="origin-task-id",
-                            tags=["attempt_id:{0}".format(self._attempt)],
-                        ),
-                        MetaDatum(
-                            field="origin-run-id",
-                            value=str(self._origin_run_id),
-                            type="origin-run-id",
-                            tags=["attempt_id:{0}".format(self._attempt)],
-                        ),
-                    ]
-                )
-
             self._metadata.register_metadata(
                 self._run_id,
                 self._step_name,
@@ -585,8 +564,7 @@ class TaskDataStore(object):
                         type="attempt-done",
                         tags=["attempt_id:{0}".format(self._attempt)],
                     )
-                ]
-                + origin_task_metadata,
+                ],
             )
             artifacts = [
                 DataArtifact(
@@ -620,8 +598,6 @@ class TaskDataStore(object):
         """
         self._objects = origin._objects
         self._info = origin._info
-        self._origin_task_id = origin.task_id
-        self._origin_run_id = origin.run_id
 
     @only_if_not_done
     @require_mode("w")
