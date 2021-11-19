@@ -77,7 +77,8 @@ class CardDecorator(StepDecorator):
                 yield path_tuple
 
         for path_tuple in self._walk(card_modules_root):
-            yield path_tuple
+            file_path, arcname = path_tuple
+            yield (file_path, os.path.join("metaflow", "plugins", "cards", arcname))
 
     def _walk(self, root):
         root = to_unicode(root)  # handle files/folder with non ascii chars

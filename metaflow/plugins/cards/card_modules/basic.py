@@ -159,8 +159,8 @@ class DefaultCard(MetaflowCard):
 
     type = "default"
 
-    def __init__(self, options=dict(only_repr=False), components=[], graph=None):
-        self._only_repr = False
+    def __init__(self, options=dict(only_repr=True), components=[], graph=None):
+        self._only_repr = True
         self._graph = graph
         if "only_repr" in options:
             self._only_repr = options["only_repr"]
@@ -202,7 +202,7 @@ class DefaultCard(MetaflowCard):
 
         param_ids = [p.id for p in task.parent.parent["_parameters"].task]
         parameter_table = SectionComponent(
-            title="Table Of Flow Parameters",
+            title="Parameters Of Flow",
             contents=[
                 TableComponent(
                     headers=param_ids,
@@ -210,38 +210,40 @@ class DefaultCard(MetaflowCard):
                 ).render()
             ],
         ).render()
-
-        table_section = SectionComponent(
-            title="Tables Detected From the Code", contents=table_comps
-        ).render()
-        img_section = SectionComponent(
-            title="Images Of Various Kinds",
-            columns=len(img_components),
-            contents=img_components,
-        ).render()
         artrifact_component = ArtifactsComponent(data=task_data_dict["data"]).render()
         artifact_section = SectionComponent(
             title="Artifacts", contents=[artrifact_component]
         ).render()
         dag_component = DagComponent(data=task_data_dict["graph"]).render()
+
+        page_contents = [
+            parameter_table,
+            dag_component,
+        ]
+
+        if len(table_comps) > 0:
+            table_section = SectionComponent(
+                title="Tabular Data", contents=table_comps
+            ).render()
+            page_contents.append(table_section)
+
+        if len(img_components) > 0:
+            img_section = SectionComponent(
+                title="Images Data",
+                columns=len(img_components),
+                contents=img_components,
+            ).render()
+            page_contents.append(img_section)
+
+        page_contents.append(artifact_section)
+
         page_component = PageComponent(
             title="Task Info",
-            contents=[
-                parameter_table,
-                img_section,
-                table_section,
-                artifact_section,
-                dag_component,
-            ],
+            contents=page_contents,
         ).render()
 
         final_component_dict["components"].append(
-            TitleComponent(text="Default Card").render()
-        )
-        final_component_dict["components"].append(
-            SubTitleComponent(
-                text="This card displays all default characteristics"
-            ).render()
+            TitleComponent(text=task_data_dict["pathspec"]).render()
         )
         final_component_dict["components"].append(page_component)
         pt = self._get_mustache()
