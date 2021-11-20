@@ -853,13 +853,6 @@ class DataArtifact(MetaflowObject):
         return self.created_at
 
 
-def _origin_run_id_from_task(task):
-    for metadata in task.metadata:
-        if metadata.name == "origin-run-id":
-            return metadata.value
-    return None
-
-
 class Task(MetaflowObject):
     """
     A Task represents an execution of a step.
@@ -904,6 +897,8 @@ class Task(MetaflowObject):
         Code package for this task (if present)
     environment_info : Dict
         Information about the execution environment (for example Conda)
+    origin_pathspec : str
+        Pathspec of the origin task (if it is present)
     """
 
     _NAME = "task"
@@ -956,18 +951,14 @@ class Task(MetaflowObject):
             Pathspec of the origin task or None
         """
         origin_task_id = None
-        origin_run_id = None
         for metadata in self.metadata:
             if metadata.name == "origin-task-id":
                 origin_task_id = metadata.value
-            elif metadata.name == "origin-run-id":
-                origin_run_id = metadata.value
+                break
         if origin_task_id is None:
             return None
-
-        step_name = self.parent.id
-        flow_name = self.parent.parent.parent.id
-        return "%s/%s/%s/%s" % (flow_name, origin_run_id, step_name, origin_task_id)
+        step_orig = self.parent.origin_pathspec
+        return "%s/%s" % (step_orig, origin_task_id)
 
     @property
     def metadata_dict(self):
@@ -1378,6 +1369,8 @@ class Step(MetaflowObject):
         Time this step finished (time of completion of the last task)
     environment_info : Dict
         Information about the execution environment (for example Conda)
+    origin_pathspec : str
+        Pathspec of the origin step (if it is present)
     """
 
     _NAME = "step"
@@ -1512,13 +1505,11 @@ class Step(MetaflowObject):
             Pathspec of the origin step or None
         """
         task = self.task
-        origin_run_id = None
-        origin_run_id = _origin_run_id_from_task(task)
-        if origin_run_id is None:
+        runorig = self.parent.origin_pathspec
+        if runorig is None:
             return None
         step_name = self.id
-        flow_name = self.parent.parent.id
-        return "%s/%s/%s" % (flow_name, origin_run_id, step_name)
+        return "%s/%s" % (runorig, step_name)
 
 
 class Run(MetaflowObject):
@@ -1541,6 +1532,8 @@ class Run(MetaflowObject):
         Code package for this run (if present)
     end_task : Task
         Task for the end step (if it is present already)
+    origin_pathspec : str
+        Pathspec of the origin run (if it is present)
     """
 
     _NAME = "run"
@@ -1563,7 +1556,10 @@ class Run(MetaflowObject):
         """
         task = next(self.steps()).task
         origin_run_id = None
-        origin_run_id = _origin_run_id_from_task(task)
+        for metadata in task.metadata:
+            if metadata.name == "origin-run-id":
+                origin_run_id = metadata.value
+                break
         if origin_run_id is None:
             return None
         flow_name = self.parent.id
