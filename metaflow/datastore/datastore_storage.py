@@ -262,5 +262,7 @@ class DataStoreStorage(object):
 
             Note that the file at `path` may no longer be accessible outside of
             the scope of the returned object.
+
+            Note that the order of the iterator will be the same as the input paths.
         """
         raise NotImplementedError
