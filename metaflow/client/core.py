@@ -897,6 +897,8 @@ class Task(MetaflowObject):
         Code package for this task (if present)
     environment_info : Dict
         Information about the execution environment (for example Conda)
+    origin_pathspec : str
+        Pathspec of the origin task (if it is present)
     """
 
     _NAME = "task"
@@ -937,6 +939,26 @@ class Task(MetaflowObject):
             )
             for obj in all_metadata
         ]
+
+    @property
+    def origin_pathspec(self):
+        """
+        Pathspec of the origin task that the current task was cloned from.
+
+        Returns
+        -------
+        str
+            Pathspec of the origin task or None
+        """
+        origin_task_id = None
+        for metadata in self.metadata:
+            if metadata.name == "origin-task-id":
+                origin_task_id = metadata.value
+                break
+        if origin_task_id is None:
+            return None
+        step_orig = self.parent.origin_pathspec
+        return "%s/%s" % (step_orig, origin_task_id)
 
     @property
     def metadata_dict(self):
@@ -1347,6 +1369,8 @@ class Step(MetaflowObject):
         Time this step finished (time of completion of the last task)
     environment_info : Dict
         Information about the execution environment (for example Conda)
+    origin_pathspec : str
+        Pathspec of the origin step (if it is present)
     """
 
     _NAME = "step"
@@ -1470,6 +1494,23 @@ class Step(MetaflowObject):
         for t in self:
             return t.environment_info
 
+    @property
+    def origin_pathspec(self):
+        """
+        Pathspec of the origin step that the current step was cloned from.
+
+        Returns
+        -------
+        str
+            Pathspec of the origin step or None
+        """
+        task = self.task
+        runorig = self.parent.origin_pathspec
+        if runorig is None:
+            return None
+        step_name = self.id
+        return "%s/%s" % (runorig, step_name)
+
 
 class Run(MetaflowObject):
     """
@@ -1491,6 +1532,8 @@ class Run(MetaflowObject):
         Code package for this run (if present)
     end_task : Task
         Task for the end step (if it is present already)
+    origin_pathspec : str
+        Pathspec of the origin run (if it is present)
     """
 
     _NAME = "run"
@@ -1500,6 +1543,27 @@ class Run(MetaflowObject):
     def _iter_filter(self, x):
         # exclude _parameters step
         return x.id[0] != "_"
+
+    @property
+    def origin_pathspec(self):
+        """
+        Pathspec of the origin run that the current run was cloned from.
+
+        Returns
+        -------
+        str
+            Pathspec of the origin run or None
+        """
+        task = next(self.steps()).task
+        origin_run_id = None
+        for metadata in task.metadata:
+            if metadata.name == "origin-run-id":
+                origin_run_id = metadata.value
+                break
+        if origin_run_id is None:
+            return None
+        flow_name = self.parent.id
+        return "%s/%s" % (flow_name, origin_run_id)
 
     def steps(self, *tags):
         """
