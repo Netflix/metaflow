@@ -20,7 +20,7 @@ from .exception import (
     TypeRequiredException,
 )
 
-from .card_resolver import resolve_paths_from_task
+from .card_resolver import resolve_paths_from_task, resumed_info
 
 
 def serialize_flowgraph(flowgraph):
@@ -41,7 +41,9 @@ def open_in_browser(card_path):
     webbrowser.open(url)
 
 
-def resolve_card(ctx, identifier, id=None, hash=None, type=None, index=0):
+def resolve_card(
+    ctx, identifier, id=None, hash=None, type=None, index=0, follow_resumed=True
+):
     """Resolves the card path based on the arguments provided. We allow identifier to be a pathspec or a id of card.
 
     Args:
@@ -73,6 +75,7 @@ def resolve_card(ctx, identifier, id=None, hash=None, type=None, index=0):
         # what should be the args we expose
         run_id, step_name, task_id = identifier.split("/")
         pathspec = "/".join([flow_name, run_id, step_name, task_id])
+        task = Task(pathspec)
     else:  # If identifier is not a pathspec then it may be referencing the latest run
         # this means the identifier is card-id
         # So we first resolve the id to stepname.
@@ -93,7 +96,15 @@ def resolve_card(ctx, identifier, id=None, hash=None, type=None, index=0):
         pathspec = task.pathspec
         task_id = task.id
 
-    ctx.obj.echo("Resolving card : %s" % pathspec, fg="green")
+    resume_status = resumed_info(task)
+    if resume_status.task_resumed:
+        pathspec = resume_status.origin_task_pathspec
+        ctx.obj.echo(
+            "Resolving card resumed from : %s" % resume_status.origin_task_pathspec,
+            fg="green",
+        )
+    else:
+        ctx.obj.echo("Resolving card : %s" % pathspec, fg="green")
     # to resolve card_id we first check if the identifier is a pathspec and if it is then we check if the `id` is set or not to resolve card_id
     card_id = None
     if is_path_spec:
@@ -235,6 +246,12 @@ def card_read_options_and_arguments(func):
         type=int,
         help="Index of the card decorator",
     )
+    @click.option(
+        "--dont-follow-resumed",
+        default=False,
+        is_flag=True,
+        help="Doesn't follow the origin-task-id of resumed tasks to seek cards stored for resumed tasks.",
+    )
     @wraps(func)
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
@@ -355,7 +372,15 @@ def create(
 @click.argument("identifier")
 @card_read_options_and_arguments
 @click.pass_context
-def view(ctx, identifier, id=None, hash=None, type=None, index=None):
+def view(
+    ctx,
+    identifier,
+    id=None,
+    hash=None,
+    type=None,
+    index=None,
+    dont_follow_resumed=False,
+):
     """
     View the HTML card in browser based on the IDENTIFIER.\n
     The IDENTIFIER can be:\n
@@ -364,7 +389,13 @@ def view(ctx, identifier, id=None, hash=None, type=None, index=None):
         - id given in the @card\n
     """
     available_card_paths, card_datastore, pathspec = resolve_card(
-        ctx, identifier, type=type, index=index, id=id, hash=hash
+        ctx,
+        identifier,
+        type=type,
+        index=index,
+        id=id,
+        hash=hash,
+        follow_resumed=not dont_follow_resumed,
     )
     if len(available_card_paths) == 1:
         open_in_browser(card_datastore.cache_locally(available_card_paths[0]))
@@ -378,9 +409,23 @@ def view(ctx, identifier, id=None, hash=None, type=None, index=None):
 @click.argument("identifier")
 @card_read_options_and_arguments
 @click.pass_context
-def get(ctx, identifier, id=None, hash=None, type=None, index=None):
+def get(
+    ctx,
+    identifier,
+    id=None,
+    hash=None,
+    type=None,
+    index=None,
+    dont_follow_resumed=False,
+):
     available_card_paths, card_datastore, pathspec = resolve_card(
-        ctx, identifier, type=type, index=index, id=id, hash=hash
+        ctx,
+        identifier,
+        type=type,
+        index=index,
+        id=id,
+        hash=hash,
+        follow_resumed=not dont_follow_resumed,
     )
     if len(available_card_paths) == 1:
         print(card_datastore.get_card_html(available_card_paths[0]))

@@ -1,16 +1,32 @@
 from metaflow.datastore import DATASTORES, FlowDataStore
-from .card_resolver import resolve_paths_from_task
+from metaflow.client import Task
+from .card_resolver import resolve_paths_from_task, resumed_info, ResumedInfo
 from .exception import UnresolvableDatastoreException
 
 
 class Card:
-    def __init__(self, card_ds, type, path, html=None, id=None, created_on=None):
+    def __init__(
+        self,
+        card_ds,
+        type,
+        path,
+        html=None,
+        id=None,
+        created_on=None,
+        from_resumed=False,
+        origin_pathspec=None,
+    ):
+        # private attributes
         self._path = path
         self._html = html
-        self.type = type
         self._id = id
         self._created_on = created_on
         self._card_ds = card_ds
+
+        # public attributes
+        self.type = type
+        self.from_resumed = from_resumed
+        self.origin_pathspec = origin_pathspec
 
     @property
     def html(self):
@@ -34,11 +50,13 @@ class Card:
 
 
 class CardIterator:
-    def __init__(self, card_paths, card_ds):
+    def __init__(self, card_paths, card_ds, from_resumed=False, origin_pathspec=None):
         self._card_paths = card_paths
         self._card_ds = card_ds
         self._current = 0
         self._high = len(card_paths)
+        self.from_resumed = from_resumed
+        self.origin_pathspec = origin_pathspec
 
     def __iter__(self):
         return self
@@ -107,12 +125,15 @@ class CardIterator:
         return self._get_card(self._current)
 
 
-def get_cards(
-    task,
-    id=None,
-    type=None,
-):
+def get_cards(task, id=None, type=None, follow_resumed=True):
+    resume_status = ResumedInfo(False, None)
+    if follow_resumed:
+        resume_status = resumed_info(task)
+        if resume_status.task_resumed:
+            task = Task(resume_status.origin_task_pathspec)
+
     _, run_id, step_name, task_id = task.pathspec.split("/")
+
     card_paths, card_ds = resolve_paths_from_task(
         _get_flow_datastore(task),
         run_id,
@@ -122,7 +143,12 @@ def get_cards(
         card_id=id,
         type=type,
     )
-    return CardIterator(card_paths, card_ds)
+    return CardIterator(
+        card_paths,
+        card_ds,
+        from_resumed=resume_status.task_resumed,
+        origin_pathspec=resume_status.origin_task_pathspec,
+    )
 
 
 def _get_flow_datastore(task):

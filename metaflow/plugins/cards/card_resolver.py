@@ -1,5 +1,23 @@
+from collections import namedtuple
+from metaflow.client import Task
 from .card_datastore import CardDatastore, stepname_from_card_id, NUM_SHORT_HASH_CHARS
 from .exception import CardNotPresentException
+
+ResumedInfo = namedtuple("ResumedInfo", ["task_resumed", "origin_task_pathspec"])
+
+
+def _chase_origin(task):
+    task_origin = None
+    ref_task = task
+    while ref_task.origin_pathspec is not None:
+        task_origin = ref_task.origin_pathspec
+        ref_task = Task(task_origin)
+    return task_origin
+
+
+def resumed_info(task):
+    origin_pathspec = _chase_origin(task)
+    return ResumedInfo(origin_pathspec is not None, origin_pathspec)
 
 
 def resolve_paths_from_task(
