@@ -89,7 +89,7 @@ def normalize_client_error(err):
     try:
         return int(error_code)
     except ValueError:
-        if error_code == "AccessDenied":
+        if error_code in ("AccessDenied", "AllAccessDisabled"):
             return 403
         if error_code == "NoSuchKey":
             return 404
@@ -400,7 +400,7 @@ class S3Ops(object):
         except self.s3.exceptions.NoSuchBucket:
             return False, prefix_url, ERROR_URL_NOT_FOUND
         except self.client_error as err:
-            if err.response["Error"]["Code"] == "AccessDenied":
+            if err.response["Error"]["Code"] in ("AccessDenied", "AllAccessDisabled"):
                 return False, prefix_url, ERROR_URL_ACCESS_DENIED
             else:
                 raise
