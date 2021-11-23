@@ -84,7 +84,7 @@ class MetaflowPackage(object):
                 for path_tuple in deco.add_to_package():
                     file_path, _ = path_tuple
                     # Check if the path is not duplicated as
-                    # many steps can have the same card
+                    # many steps can have the same packages being imported
                     if file_path not in deco_module_paths:
                         deco_module_paths.add(file_path)
                         yield path_tuple
