@@ -1,106 +1,95 @@
-import posixpath
-import requests
-from requests.packages.urllib3.util.retry import Retry
-
+from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import from_conf
-from .argo_exception import ArgoException
 
 
 class ArgoClient(object):
-    """Works with Argo Workflows' resources using the REST Api Server"""
+    """Works with Argo Workflows' resources using kubernetes"""
 
-    def __init__(self, auth, k8s_namespace):
-        server = from_conf('METAFLOW_ARGO_SERVER')
-        if server is None:
-            raise ArgoException("The METAFLOW_ARGO_SERVER is needed to support "
-                                "the create, trigger or list-runs command")
-        self.api = posixpath.join(server, 'api/v1')
+    def __init__(self, k8s_namespace):
+        try:
+            from kubernetes import client, config
+        except (NameError, ImportError):
+            raise MetaflowException(
+                "Could not import module 'kubernetes'. Install kubernetes "
+                "Python package (https://pypi.org/project/kubernetes/) first."
+            )
+
+        config.load_kube_config()
+        self.client = client
+        self.api_instance = self.client.CustomObjectsApi()
 
         if k8s_namespace is None:
             k8s_namespace = 'default'
         self.k8s_namespace = from_conf('METAFLOW_K8S_NAMESPACE', default=k8s_namespace)
+        self.kwargs = {
+            'version': 'v1alpha1',
+            'group': 'argoproj.io',
+            'namespace': self.k8s_namespace
+        }
 
-        self.sess = requests.Session()
-        self.sess.headers.update({'Authorization': auth})
-        self.sess.hooks = {'response': lambda r, *args, **kwargs: r.raise_for_status()}
-
-        # Sometimes POST fails because DELETE doesn't remove a resource immediately
-        retry = Retry(total=3, status_forcelist=[409], method_whitelist=['POST'], backoff_factor=1)
-        self.sess.mount(self.api, requests.adapters.HTTPAdapter(max_retries=retry))
-
-    def create_template(self, name, definition):
+    def create_template(self, name, body):
         """
         Deploys the Argo WorkflowTemplate.  Overwrites the
         existing one with the same name
         """
         try:
-            # Try to delete the WorkflowTemplate if exists
-            url = posixpath.join(self.api, 'workflow-templates', self.k8s_namespace, name)
-            self.sess.delete(url)
-        except requests.HTTPError as err:
-            if err.response.status_code != 404:
+            self.api_instance.delete_namespaced_custom_object(name=name, plural='workflowtemplates', **self.kwargs)
+        except self.client.rest.ApiException as e:
+            if e.status != 404:
                 raise
-
-        url = posixpath.join(self.api, 'workflow-templates', self.k8s_namespace)
-        r = self.sess.post(url, json={'template': definition})
-        return r.json()
+        api_response = self.api_instance.create_namespaced_custom_object(body=body, plural='workflowtemplates',
+                                                                         **self.kwargs)
+        return api_response
 
     def submit(self, workflow):
         """
         Submits an Argo Workflow from the WorkflowTemplate
         """
-        url = posixpath.join(self.api, 'workflows', self.k8s_namespace)
-        r = requests.post(url, json={'workflow': workflow})
-        return r.json()
+        api_response = self.api_instance.create_namespaced_custom_object(body=workflow, plural='workflows',
+                                                                         **self.kwargs)
+        return api_response
 
     def list_workflows(self, name, phases):
         """
         Lists Argo Workflows spawned from the WorkflowTemplate "name"
         """
-        params = {
-            'fields': 'items.metadata.name,items.status.phase,'
-                      'items.status.startedAt,items.status.finishedAt'
-        }
         selectors = ['metaflow.workflow_template=%s' % name]
         if phases:
             selectors.append('workflows.argoproj.io/phase in (%s)' % ','.join(phases))
-        params['listOptions.labelSelector'] = ', '.join(selectors)
+        label_selector = ', '.join(selectors)
 
-        url = posixpath.join(self.api, 'workflows', self.k8s_namespace)
-        r = self.sess.get(url, params=params)
-        return r.json()['items']
+        api_response = self.api_instance.list_namespaced_custom_object(label_selector=label_selector,
+                                                                       plural='workflows', **self.kwargs)
+
+        return api_response['items']
 
     def get_template(self, name):
         """
         Returns a WorkflowTemplate spec
         """
         try:
-            url = posixpath.join(self.api, 'workflow-templates', self.k8s_namespace, name)
-            r = self.sess.get(url)
-            return r.json()
-        except requests.HTTPError as err:
-            if err.response.status_code == 404:
+            api_response = self.api_instance.get_namespaced_custom_object(name=name, plural='workflowtemplates',
+                                                                          **self.kwargs)
+        except self.client.rest.ApiException as e:
+            if e.status == 404:
                 return None
             raise
 
-    def create_cron_wf(self, name, definition):
+        return api_response
+
+    def create_cron_wf(self, name, body):
         """
         Deploys the Argo Cron Workflow Template.
         Overwrites the existing one with the same name
         """
         self.delete_cron_wf(name)
-        url = posixpath.join(self.api, 'cron-workflows', self.k8s_namespace)
-        r = self.sess.post(url, json={'cronWorkflow': definition})
-        return r.json()
+        api_response = self.api_instance.create_namespaced_custom_object(body=body, plural='cronworkflows',
+                                                                         **self.kwargs)
+        return api_response
 
     def delete_cron_wf(self, name):
         try:
-            # Try to delete the cron wf if exists
-            url = posixpath.join(self.api, 'cron-workflows', self.k8s_namespace, name)
-            params = {
-                'deleteOptions.propagationPolicy': 'Orphan' # preserve existing workflows
-            }
-            self.sess.delete(url, params=params)
-        except requests.HTTPError as err:
-            if err.response.status_code != 404:
+            self.api_instance.delete_namespaced_custom_object(name=name, plural='cronworkflows', **self.kwargs)
+        except self.client.rest.ApiException as e:
+            if e.status != 404:
                 raise

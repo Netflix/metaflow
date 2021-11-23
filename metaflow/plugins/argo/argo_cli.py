@@ -70,9 +70,6 @@ def argo(obj,
               type=JSONParam,
               default={},
               help="Volumes definition for the workflow.")
-@click.option("--token",
-              default=None,
-              help="Authentication token to call Argo Server.")
 @click.option('--k8s-namespace',
               'k8s_namespace',
               default=None,
@@ -103,7 +100,6 @@ def create(obj,
            env_from,
            labels,
            annotations,
-           token,
            k8s_namespace,
            embedded,
            max_workers,
@@ -154,26 +150,23 @@ def create(obj,
     if only_json:
         obj.echo_always(workflow.to_json(), err=False, no_bold=True, nl=False)
     else:
-        workflow.deploy(token, k8s_namespace)
+        workflow.deploy(k8s_namespace)
         obj.echo("WorkflowTemplate *{name}* is pushed to Argo Workflows successfully.\n"
                  .format(name=obj.workflow_template_name),
                  bold=True)
-        workflow.schedule(token, k8s_namespace)
+        workflow.schedule(k8s_namespace)
         obj.echo("What will trigger execution of the workflow:", bold=True)
         obj.echo(workflow.trigger_explanation(), indent=True)
 
 
 @parameters.add_custom_parameters(deploy_mode=False)
 @argo.command(help="Trigger the workflow from the Argo Workflow Template.")
-@click.option("--token",
-              default=None,
-              help="Authentication token to call Argo Server.")
 @click.option('--k8s-namespace',
               'k8s_namespace',
               default=None,
               help="Submit the Workflow in the specified kubernetes namespace.")
 @click.pass_obj
-def trigger(obj, token, k8s_namespace, **kwargs):
+def trigger(obj, k8s_namespace, **kwargs):
     def _convert_value(param):
         v = kwargs.get(param.name)
         return json.dumps(v) if param.kwargs.get('type') == JSONType else \
@@ -182,7 +175,7 @@ def trigger(obj, token, k8s_namespace, **kwargs):
     params = {p.name: _convert_value(p)
               for _, p in obj.flow._get_parameters()
               if kwargs.get(p.name) is not None}
-    response = ArgoWorkflow.trigger(token, k8s_namespace, obj.workflow_template_name, params)
+    response = ArgoWorkflow.trigger(k8s_namespace, obj.workflow_template_name, params)
     id = response['metadata']['name']
     obj.echo("Workflow *{name}* is triggered on Argo Workflows (run-id *{id}*)."
              .format(name=obj.workflow_template_name, id=id),
@@ -191,9 +184,6 @@ def trigger(obj, token, k8s_namespace, **kwargs):
 
 @argo.command(help="List workflows on Argo Workflows.")
 @click.pass_obj
-@click.option("--token",
-              default=None,
-              help="Authentication token to call Argo Server.")
 @click.option('--k8s-namespace',
               'k8s_namespace',
               default=None,
@@ -208,7 +198,7 @@ def trigger(obj, token, k8s_namespace, **kwargs):
               help="List workflows in the 'Failed' state on Argo Workflows.")
 @click.option("--error", default=False, is_flag=True,
               help="List workflows in the 'Error' state on Argo Workflows.")
-def list_runs(obj, token, k8s_namespace, pending, running, succeeded, failed, error):
+def list_runs(obj, k8s_namespace, pending, running, succeeded, failed, error):
     states = []
     if pending:
         states.append('Pending')
@@ -221,7 +211,7 @@ def list_runs(obj, token, k8s_namespace, pending, running, succeeded, failed, er
     if error:
         states.append('Error')
 
-    workflows = ArgoWorkflow.list(token, k8s_namespace, obj.workflow_template_name, states)
+    workflows = ArgoWorkflow.list(k8s_namespace, obj.workflow_template_name, states)
     if not workflows:
         if states:
             status = ','.join(['*%s*' % s for s in states])
@@ -232,7 +222,7 @@ def list_runs(obj, token, k8s_namespace, pending, running, succeeded, failed, er
                      (obj.workflow_template_name))
         return
     for wf in workflows:
-        if wf['status']['finishedAt']:
+        if 'finishedAt' in wf['status']:
             obj.echo(
                 "*{id}* "
                 "startedAt:'{startedAt}' "

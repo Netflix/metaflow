@@ -94,15 +94,15 @@ class ArgoWorkflow:
         else:
             return 'No triggers defined. You need to launch this workflow manually.'
 
-    def deploy(self, auth, k8s_namespace):
+    def deploy(self, k8s_namespace):
         try:
-            ArgoClient(auth, k8s_namespace).create_template(self.name, self._workflow)
+            ArgoClient(k8s_namespace).create_template(self.name, self._workflow)
         except Exception as e:
             raise ArgoException(e)
 
-    def schedule(self, auth, k8s_namespace):
+    def schedule(self, k8s_namespace):
         try:
-            client = ArgoClient(auth, k8s_namespace)
+            client = ArgoClient(k8s_namespace)
             if self._cron is None:
                 client.delete_cron_wf(self.name)
             else:
@@ -126,7 +126,7 @@ class ArgoWorkflow:
             raise ArgoException(e)
 
     @classmethod
-    def trigger(cls, auth, k8s_namespace, name, parameters):
+    def trigger(cls, k8s_namespace, name, parameters):
         workflow = {
             'apiVersion': 'argoproj.io/v1alpha1',
             'kind': 'Workflow',
@@ -145,7 +145,7 @@ class ArgoWorkflow:
             }
         }
         try:
-            client = ArgoClient(auth, k8s_namespace)
+            client = ArgoClient(k8s_namespace)
             template = client.get_template(name)
         except Exception as e:
             raise ArgoException(e)
@@ -158,9 +158,9 @@ class ArgoWorkflow:
             raise ArgoException(e)
 
     @classmethod
-    def list(cls, auth, k8s_namespace, name, phases):
+    def list(cls, k8s_namespace, name, phases):
         try:
-            client = ArgoClient(auth, k8s_namespace)
+            client = ArgoClient(k8s_namespace)
             tmpl = client.get_template(name)
         except Exception as e:
             raise ArgoException(e)
