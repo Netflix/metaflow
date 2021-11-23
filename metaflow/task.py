@@ -108,7 +108,6 @@ class MetaflowTask(object):
 
         # We also passdown _graph_info through the entire graph
         set_as_parameter(
-            cls,
             "_graph_info",
             lambda _, parameter_ds=parameter_ds: parameter_ds["_graph_info"],
         )
@@ -375,6 +374,8 @@ class MetaflowTask(object):
         )
 
         step_func = getattr(self.flow, step_name)
+        decorators = step_func.decorators
+
         node = self.flow._graph[step_name]
         join_type = None
         if node.type == "join":
@@ -499,7 +500,6 @@ class MetaflowTask(object):
                         }
                     )
 
-            decorators = step_func.decorators
             for deco in decorators:
 
                 deco.task_pre_step(
