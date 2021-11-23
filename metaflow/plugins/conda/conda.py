@@ -6,8 +6,11 @@ import time
 from distutils.version import LooseVersion
 
 from metaflow.exception import MetaflowException
+from metaflow.metaflow_config import CONDA_USE_MAMBA
 from metaflow.metaflow_environment import InvalidEnvironmentException
 from metaflow.util import which
+
+MAMBA_SUPPORTED_COMMANDS = {"install", "create", "list", "search", "run", "info", "clean"}
 
 
 class CondaException(MetaflowException):
@@ -175,10 +178,17 @@ class Conda(object):
                 "CONDA_SUBDIR": (architecture if architecture else ""),
                 "CONDA_USE_ONLY_TAR_BZ2": "True",
             }
+            if CONDA_USE_MAMBA:
+                # remove banner to get valid JSON output
+                env["MAMBA_NO_BANNER"] = "1"
             if disable_safety_checks:
                 env["CONDA_SAFETY_CHECKS"] = "disabled"
+            if CONDA_USE_MAMBA and args[0] in MAMBA_SUPPORTED_COMMANDS:
+                bin = which("mamba")
+            else:
+                bin = self._bin
             return subprocess.check_output(
-                [self._bin] + args, stderr=subprocess.PIPE, env=dict(os.environ, **env)
+                [bin] + args, stderr=subprocess.PIPE, env=dict(os.environ, **env)
             ).strip()
         except subprocess.CalledProcessError as e:
             try:
