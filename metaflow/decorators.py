@@ -239,6 +239,12 @@ class StepDecorator(Decorator):
         """
         pass
 
+    def add_to_package(self):
+        """
+        Called to add custom packages needed for a decorator
+        """
+        return []
+
     def step_task_retry_count(self):
         """
         Called to determine the number of times this task should be retried.
