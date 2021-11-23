@@ -1504,7 +1504,6 @@ class Step(MetaflowObject):
         str
             Pathspec of the origin step or None
         """
-        task = self.task
         runorig = self.parent.origin_pathspec
         if runorig is None:
             return None
