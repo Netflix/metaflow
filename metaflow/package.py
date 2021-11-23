@@ -82,11 +82,12 @@ class MetaflowPackage(object):
         for step in self._flow:
             for deco in step.decorators:
                 for path_tuple in deco.add_to_package():
-                    file_path, _ = path_tuple
+                    file_path, file_name = path_tuple
                     # Check if the path is not duplicated as
                     # many steps can have the same packages being imported
-                    if file_path not in deco_module_paths:
-                        deco_module_paths.add(file_path)
+                    check_name = "%s-%s" % (file_path, file_name)
+                    if check_name not in deco_module_paths:
+                        deco_module_paths.add(check_name)
                         yield path_tuple
 
         # the package folders for environment

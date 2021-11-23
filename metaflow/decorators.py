@@ -241,7 +241,8 @@ class StepDecorator(Decorator):
 
     def add_to_package(self):
         """
-        Called to add custom packages needed for a decorator
+        Called to add custom packages needed for a decorator.
+        Returns a list of tuples where each tuple represents (file_path,arcname)
         """
         return []
 
