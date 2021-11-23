@@ -8,13 +8,14 @@ from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import DATASTORE_SYSROOT_S3
 from metaflow.metaflow_config import DEFAULT_METADATA, METADATA_SERVICE_URL, METADATA_SERVICE_HEADERS
 from metaflow.parameters import deploy_time_eval
-from metaflow.plugins import ResourcesDecorator, RetryDecorator, CatchDecorator, TimeoutDecorator
+from metaflow.plugins import ResourcesDecorator, RetryDecorator, CatchDecorator
 from metaflow.plugins import KubernetesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.plugins.environment_decorator import EnvironmentDecorator
 from metaflow.util import get_username, compress_list
 from metaflow.mflog import export_mflog_env_vars, capture_output_to_mflog, BASH_SAVE_LOGS
 from metaflow.metaflow_environment import metaflow_version
+from metaflow.plugins.aws.eks.kubernetes import sanitize_label_value
 from .argo_client import ArgoClient
 from .argo_decorator import ArgoStepDecorator, ArgoInternalStepDecorator
 from .argo_exception import ArgoException
@@ -71,14 +72,23 @@ class ArgoWorkflow:
         self.volumes = volumes
         self.attributes = {
             'labels': {
-                'metaflow.workflow_template': name,
+                'app': 'metaflow',
+                'metaflow/workflow_template': name,
+                'metaflow/flow_name': sanitize_label_value(self.flow.name),
+                'app.kubernetes.io/created-by': get_username(),
             },
+            # TODO: Add annotations based on https://kubernetes.io/blog/2021/04/20/annotating-k8s-for-humans/
             'annotations': {
-                'metaflow.owner': get_username(),
-                'metaflow.version': metaflow_version.get_version(),
-                'metaflow.flow_name': flow.name,
-            }
+                'metaflow/run_id': '{{workflow.name}}',  # should be a label but cannot sanitize argo variable
+            },
         }
+        # Add Metaflow system tags as labels
+        self.system_tags = {
+            "metaflow/%s" % sys_tag[: sys_tag.index(":")]:
+            sanitize_label_value(sys_tag[sys_tag.index(":") + 1:])
+            for sys_tag in self.metadata.sticky_sys_tags
+        }
+        self.attributes['labels'].update(self.system_tags)
         self.max_workers = max_workers
         self.workflow_timeout = workflow_timeout
         self._flow_attributes = self._parse_flow_decorator()
@@ -426,7 +436,6 @@ class ArgoWorkflow:
         env_decorator = parse_step_decorator(node, EnvironmentDecorator)
         retry_decorator = parse_step_decorator(node, RetryDecorator)
         catch_decorator = parse_step_decorator(node, CatchDecorator)
-        timeout_decorator = parse_step_decorator(node, TimeoutDecorator)
         res_decorator = parse_step_decorator(node, ResourcesDecorator)
         k8s_decorator = parse_step_decorator(node, KubernetesDecorator)
         resources = merge_resources(res_decorator,
@@ -446,13 +455,21 @@ class ArgoWorkflow:
             'labels': {
                 **attr.get('labels', {}),
                 **self.attributes['labels'],
+                'metaflow/step_name': sanitize_label_value(dns_name(node.name)),
+                'app.kubernetes.io/name': 'metaflow-task',
+                'app.kubernetes.io/part-of': 'metaflow',
+                'app.kubernetes.io/created-by': get_username(),
             },
             'annotations': {
                 **attr.get('annotations', {}),
                 **self.attributes['annotations'],
-                **{'metaflow.step_name': node.name},
+
+                # should be a label but cannot sanitize argo variables
+                'metaflow/task_id': '{{pod.name}}',
+                'metaflow/attempt': retry_count,
             },
         }
+        metadata['labels'].update(self.system_tags)
 
         template = {
             'name': dns_name(node.name),
