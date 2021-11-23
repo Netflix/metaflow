@@ -1,9 +1,11 @@
 import json
+import os
 from metaflow.util import is_stringish
 
 from . import (
     MetaflowCheck,
     AssertArtifactFailed,
+    AssertCardFailed,
     AssertLogFailed,
     assert_equals,
     assert_exception,
@@ -102,5 +104,29 @@ class MetadataCheck(MetaflowCheck):
                 % (step, logtype, repr(value), logtype, repr(log_value))
             )
 
+    def assert_card(self, step, task, card_type, value, exact_match=True):
+        card_iter = self.get_card(step, task, card_type)
+        card_data = None
+        if len(card_iter) > 0:
+            card_data = card_iter[0].html
+        if (exact_match and card_data != value) or (
+            not exact_match and value not in card_data
+        ):
+            raise AssertCardFailed(
+                "Task '%s/%s' expected %s card with content '%s' but got '%s'"
+                % (self.run_id, step, card_type, repr(value), repr(card_data))
+            )
+        return True
+
     def get_log(self, step, logtype):
         return "".join(getattr(task, logtype) for task in self.run[step])
+
+    def get_card(self, step, task, card_type):
+        from metaflow.plugins.cards.card_client import get_cards
+        from metaflow.client import Task
+
+        run = self.run
+        task = Task(os.path.join(run.pathspec, step, task))
+        iterator = get_cards(task, type=card_type)
+        # todo : is this correct ?
+        return iterator

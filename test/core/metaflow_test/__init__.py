@@ -125,6 +125,9 @@ class MetaflowCheck(object):
     def assert_log(self, step, logtype, value, exact_match=True):
         raise NotImplementedError()
 
+    def get_card(self, step, task, card_type):
+        raise NotImplementedError()
+
 
 def new_checker(flow):
     from . import cli_check, metadata_check
