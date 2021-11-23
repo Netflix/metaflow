@@ -58,6 +58,9 @@ class CardIterator:
         self.from_resumed = from_resumed
         self.origin_pathspec = origin_pathspec
 
+    def __len__(self):
+        return self._high
+
     def __iter__(self):
         return self
 
