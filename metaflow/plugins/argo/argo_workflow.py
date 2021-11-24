@@ -14,7 +14,6 @@ from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.plugins.environment_decorator import EnvironmentDecorator
 from metaflow.util import get_username, compress_list
 from metaflow.mflog import export_mflog_env_vars, capture_output_to_mflog, BASH_SAVE_LOGS
-from metaflow.metaflow_environment import metaflow_version
 from metaflow.plugins.aws.eks.kubernetes import sanitize_label_value
 from .argo_client import ArgoClient
 from .argo_decorator import ArgoStepDecorator, ArgoInternalStepDecorator
@@ -74,12 +73,11 @@ class ArgoWorkflow:
             'labels': {
                 'app': 'metaflow',
                 'metaflow/workflow_template': name,
-                'metaflow/flow_name': sanitize_label_value(self.flow.name),
                 'app.kubernetes.io/created-by': get_username(),
             },
             # TODO: Add annotations based on https://kubernetes.io/blog/2021/04/20/annotating-k8s-for-humans/
             'annotations': {
-                'metaflow/run_id': '{{workflow.name}}',  # should be a label but cannot sanitize argo variable
+                'metaflow/flow_name': self.flow.name,
             },
         }
         # Add Metaflow system tags as labels
@@ -465,7 +463,6 @@ class ArgoWorkflow:
                 **self.attributes['annotations'],
 
                 # should be a label but cannot sanitize argo variables
-                'metaflow/task_id': '{{pod.name}}',
                 'metaflow/attempt': retry_count,
             },
         }
