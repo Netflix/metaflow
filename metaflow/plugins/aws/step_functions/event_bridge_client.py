@@ -10,10 +10,16 @@ class EventBridgeClient(object):
         from ..aws_client import get_aws_client
 
         self._client = get_aws_client("events")
+        self._dependent_state_machine_arn = None
+        self._cron = None
         self.name = format(name)
 
     def cron(self, cron):
-        self.cron = cron
+        self._cron = cron
+        return self
+
+    def dependent_state_machine_arn(self, dep_state_machine_arn):
+        self._dependent_state_machine_arn = dep_state_machine_arn
         return self
 
     def role_arn(self, role_arn):
@@ -25,11 +31,15 @@ class EventBridgeClient(object):
         return self
 
     def schedule(self):
-        if not self.cron:
+        if not self._cron and not self._dependent_state_machine_arn:
             # reset the schedule
             self._disable()
+        # If dependent state machine arn set, use that to create schedule
+        elif self._dependent_state_machine_arn:
+            self._set_dependent_flow()
+        # If not, use cron
         else:
-            self._set()
+            self._set_cron()
         return self.name
 
     def _disable(self):
@@ -38,11 +48,50 @@ class EventBridgeClient(object):
         except self._client.exceptions.ResourceNotFoundException:
             pass
 
-    def _set(self):
+    def _create_event_pattern(self):
+
+        trigger_definition = {
+            "source": ["aws.states"],
+            "detail-type": [
+                "Step Functions Execution Status Change"
+            ],
+            "detail": {
+                "status": ["SUCCEEDED"],
+                "stateMachineArn": [
+                    self._dependent_state_machine_arn
+                ]
+            }
+        }
+
+        return trigger_definition
+
+    def _set_dependent_flow(self):
         # Generate a new rule or update existing rule.
         self._client.put_rule(
             Name=self.name,
-            ScheduleExpression="cron(%s)" % self.cron,
+            EventPattern=json.dumps(self._create_event_pattern()),
+            Description="Metaflow generated rule for %s" % self.name,
+            State="ENABLED",
+        )
+        # Assign AWS Step Functions ARN to the rule as a target.
+        self._client.put_targets(
+            Rule=self.name,
+            Targets=[
+                {
+                    "Id": self.name,
+                    "Arn": self.state_machine_arn,
+                    # Set input parameters to empty.
+                    "Input": json.dumps({"Parameters": json.dumps({})}),
+                    "RoleArn": self.role_arn,
+                }
+            ],
+        )
+
+    def _set_cron(self):
+        # Generate a new rule or update existing rule.
+        self._client.put_rule(
+            Name=self.name,
+            ScheduleExpression="cron(%s)" % self._cron,
             Description="Metaflow generated rule for %s" % self.name,
             State="ENABLED",
         )

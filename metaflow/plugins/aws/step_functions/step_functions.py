@@ -33,7 +33,6 @@ class StepFunctionsException(MetaflowException):
 class StepFunctionsSchedulingException(MetaflowException):
     headline = "AWS Step Functions scheduling error"
 
-
 class StepFunctions(object):
     def __init__(
         self,
@@ -74,14 +73,14 @@ class StepFunctions(object):
 
         self._client = StepFunctionsClient()
         self._workflow = self._compile()
-        self._cron = self._cron()
+        self._schedule = self._get_schedule_definition()
         self._state_machine_arn = None
 
     def to_json(self):
         return self._workflow.to_json(pretty=True)
 
     def trigger_explanation(self):
-        if self._cron:
+        if self._schedule:
             # Sometime in the future, we should vendor (or write) a utility
             # that can translate cron specifications into a human readable
             # format and push to the user for a better UX, someday.
@@ -144,13 +143,12 @@ class StepFunctions(object):
                 "aws* on your terminal."
             )
         try:
-            self.event_bridge_rule = (
-                EventBridgeClient(self.name)
-                .cron(self._cron)
-                .role_arn(EVENTS_SFN_ACCESS_IAM_ROLE)
-                .state_machine_arn(self._state_machine_arn)
-                .schedule()
-            )
+            self.event_bridge_rule = \
+                self._schedule.generate_eventbridge_rule(
+                    self.name,
+                    self._state_machine_arn,
+                    EVENTS_SFN_ACCESS_IAM_ROLE
+                )
         except Exception as e:
             raise StepFunctionsSchedulingException(repr(e))
 
@@ -316,7 +314,7 @@ class StepFunctions(object):
             workflow.timeout_seconds(self.workflow_timeout)
         return _visit(self.graph["start"], workflow)
 
-    def _cron(self):
+    def _get_schedule_definition(self):
         schedule = self.flow._flow_decorators.get("schedule")
         if schedule:
             return schedule.schedule
@@ -324,7 +322,7 @@ class StepFunctions(object):
 
     def _process_parameters(self):
         parameters = []
-        has_schedule = self._cron() is not None
+        has_schedule = self._get_schedule_definition() is not None
         seen = set()
         for var, param in self.flow._get_parameters():
             # Throw an exception if the parameter is specified twice.
