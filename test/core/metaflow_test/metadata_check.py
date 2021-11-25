@@ -121,12 +121,10 @@ class MetadataCheck(MetaflowCheck):
     def get_log(self, step, logtype):
         return "".join(getattr(task, logtype) for task in self.run[step])
 
-    def get_card(self, step, task, card_type):
+    def get_card(self, step, card_type):
         from metaflow.plugins.cards.card_client import get_cards
-        from metaflow.client import Task
 
-        run = self.run
-        task = Task(os.path.join(run.pathspec, step, task))
-        iterator = get_cards(task, type=card_type)
-        # todo : is this correct ?
-        return iterator
+        for task in self.run[step]:
+            iterator = get_cards(task, type=card_type)
+            # todo : is this correct ?
+            return iterator

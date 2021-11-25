@@ -9,10 +9,7 @@ class CardImportTest(MetaflowTest):
     PRIORITY = 2
 
     @tag('card(type="mock_card")')
-    @steps(
-        0,
-        ["start"],
-    )
+    @steps(0, ["start"])
     def step_start(self):
         self.data = "abc"
 

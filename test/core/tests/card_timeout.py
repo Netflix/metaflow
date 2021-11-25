@@ -10,14 +10,8 @@ class CardTimeoutTest(MetaflowTest):
 
     PRIORITY = 2
 
-    @tag("timeout(seconds=10)")
-    @tag('card(type="timeout_card",options={"timeout":30})')
-    @steps(
-        0,
-        [
-            "start",
-        ],
-    )
+    @tag('card(type="timeout_card",timeout=30,options=dict(timeout=50))')
+    @steps(0, ["start"])
     def step_start(self):
         self.data = "abc"
 
@@ -26,4 +20,4 @@ class CardTimeoutTest(MetaflowTest):
         pass
 
     def check_results(self, flow, checker):
-        pass
+        print(flow)

@@ -10,10 +10,7 @@ class CardErrorTest(MetaflowTest):
     PRIORITY = 2
 
     @tag('card(type="error_card")')
-    @steps(
-        0,
-        ["start"],
-    )
+    @steps(0, ["start"])
     def step_start(self):
         self.data = "abc"
 

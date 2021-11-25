@@ -12,26 +12,17 @@ class CardDecoratorBasicTest(MetaflowTest):
     PRIORITY = 3
 
     @tag('card(type="basic")')
-    @steps(
-        0,
-        ["start"],
-    )
+    @steps(0, ["start"])
     def step_start(self):
         self.data = "abc"
 
     @tag('card(type="basic")')
-    @steps(
-        0,
-        ["foreach-nested-inner"],
-    )
+    @steps(0, ["foreach-nested-inner"])
     def step_foreach_inner(self):
         self.data = "bcd"
 
     @tag('card(type="basic")')
-    @steps(
-        1,
-        ["join"],
-    )
+    @steps(1, ["join"])
     def step_join(self):
         self.data = "jkl"
 
@@ -40,4 +31,4 @@ class CardDecoratorBasicTest(MetaflowTest):
         pass
 
     def check_results(self, flow, checker):
-        pass
+        print(flow)
