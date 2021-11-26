@@ -1,7 +1,6 @@
 from collections import namedtuple
 from metaflow.client import Task
-from .card_datastore import CardDatastore, stepname_from_card_id, NUM_SHORT_HASH_CHARS
-from .exception import CardNotPresentException
+from .card_datastore import CardDatastore
 
 ResumedInfo = namedtuple("ResumedInfo", ["task_resumed", "origin_task_pathspec"])
 

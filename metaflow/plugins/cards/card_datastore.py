@@ -197,7 +197,7 @@ class CardDatastore(object):
             is_index_present = lambda x: True
             if card_index is not None:
                 # if the index is not none then the lambda checks it
-                is_index_present = lambda x: str(x) == str(cidx)
+                is_index_present = lambda x: x == cidx
 
             if not is_index_present(str(card_index)):
                 continue
