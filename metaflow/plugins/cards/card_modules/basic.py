@@ -201,12 +201,13 @@ class DefaultCard(MetaflowCard):
             table_comps.append(TableComponent(title=tabname, **tab_dict).render())
 
         param_ids = [p.id for p in task.parent.parent["_parameters"].task]
+        # This makes a vertical table.
         parameter_table = SectionComponent(
-            title="Parameters Of Flow",
+            title="Flow Parameters",
             contents=[
                 TableComponent(
-                    headers=param_ids,
-                    data=[[task[pid].data for pid in param_ids]],
+                    headers=[],
+                    data=[[pid, task[pid].data] for pid in param_ids],
                 ).render()
             ],
         ).render()
@@ -214,13 +215,11 @@ class DefaultCard(MetaflowCard):
         artifact_section = SectionComponent(
             title="Artifacts", contents=[artrifact_component]
         ).render()
-        dag_component = DagComponent(data=task_data_dict["graph"]).render()
+        dag_component = SectionComponent(
+            title="DAG", contents=[DagComponent(data=task_data_dict["graph"]).render()]
+        ).render()
 
-        page_contents = [
-            parameter_table,
-            dag_component,
-        ]
-
+        page_contents = [parameter_table, dag_component, artifact_section]
         if len(table_comps) > 0:
             table_section = SectionComponent(
                 title="Tabular Data", contents=table_comps
@@ -234,8 +233,6 @@ class DefaultCard(MetaflowCard):
                 contents=img_components,
             ).render()
             page_contents.append(img_section)
-
-        page_contents.append(artifact_section)
 
         page_component = PageComponent(
             title="Task Info",
