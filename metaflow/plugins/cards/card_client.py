@@ -1,5 +1,4 @@
 from metaflow.datastore import DATASTORES, FlowDataStore
-from metaflow.client import Task
 from .card_resolver import resolve_paths_from_task, resumed_info, ResumedInfo
 from .exception import UnresolvableDatastoreException
 
@@ -129,6 +128,8 @@ class CardIterator:
 
 
 def get_cards(task, id=None, type=None, follow_resumed=True):
+    from metaflow.client import Task
+
     resume_status = ResumedInfo(False, None)
     if follow_resumed:
         resume_status = resumed_info(task)

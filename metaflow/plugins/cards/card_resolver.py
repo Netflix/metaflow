@@ -1,11 +1,13 @@
 from collections import namedtuple
-from metaflow.client import Task
+
 from .card_datastore import CardDatastore
 
 ResumedInfo = namedtuple("ResumedInfo", ["task_resumed", "origin_task_pathspec"])
 
 
 def _chase_origin(task):
+    from metaflow.client import Task
+
     task_origin = None
     ref_task = task
     while ref_task.origin_pathspec is not None:

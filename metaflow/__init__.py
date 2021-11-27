@@ -212,6 +212,7 @@ from .decorators import step, _import_plugin_decorators
 # this auto-generates decorator functions from Decorator objects
 # in the top-level metaflow namespace
 _import_plugin_decorators(globals())
+from . import cards
 
 # Client
 from .client import (
