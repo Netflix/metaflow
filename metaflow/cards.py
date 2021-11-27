@@ -14,4 +14,6 @@ from metaflow.plugins.cards.card_modules.basic import (
     ArtifactsComponent,
     RENDER_TEMPLATE,
     TaskToDict,
+    DefaultComponent,
+    ChartComponent,
 )
