@@ -60,7 +60,13 @@ class SectionComponent(DefaultComponent):
 
     def render(self):
         datadict = super().render()
-        datadict["contents"] = self._contents
+        contents = []
+        for content in self._contents:
+            if issubclass(type(content), MetaflowCardComponent):
+                contents.append(content.render())
+            else:
+                contents.append(content)
+        datadict["contents"] = contents
         if self._columns is not None:
             datadict["columns"] = self._columns
         return datadict
@@ -177,7 +183,13 @@ class PageComponent(DefaultComponent):
 
     def render(self):
         datadict = super().render()
-        datadict["contents"] = self._contents
+        contents = []
+        for content in self._contents:
+            if issubclass(type(content), MetaflowCardComponent):
+                contents.append(content.render())
+            else:
+                contents.append(content)
+        datadict["contents"] = contents
         return datadict
 
 
@@ -194,21 +206,37 @@ class ArtifactsComponent(DefaultComponent):
         return datadict
 
 
-class DefaultCard(MetaflowCard):
+class TaskInfoComponent(MetaflowCardComponent):
+    """
+    Properties
+        page_content : a list of MetaflowCardComponents going as task info
+        final_component: the dictionary returned by the `render` function of this class.
+    """
 
-    type = "default"
-
-    def __init__(self, options=dict(only_repr=True), components=[], graph=None):
-        self._only_repr = True
+    def __init__(
+        self, task, page_title="Task Info", only_repr=True, graph=None, components=[]
+    ) -> None:
+        self._task = task
+        self._only_repr = only_repr
         self._graph = graph
-        if "only_repr" in options:
-            self._only_repr = options["only_repr"]
+        self._components = components
+        self._page_title = page_title
+        self.final_component = None
+        self.page_component = None
 
-    def render(self, task):
-        task_data_dict = TaskToDict(only_repr=self._only_repr)(task, graph=self._graph)
-        mf_version = [t for t in task.parent.parent.tags if "metaflow_version" in t][
-            0
-        ].split("metaflow_version:")[1]
+    def render(self):
+        """
+
+        Returns:
+            a dictionary of form:
+                dict(metadata = {},components= [])
+        """
+        task_data_dict = TaskToDict(only_repr=self._only_repr)(
+            self._task, graph=self._graph
+        )
+        mf_version = [
+            t for t in self._task.parent.parent.tags if "metaflow_version" in t
+        ][0].split("metaflow_version:")[1]
         final_component_dict = dict(
             metadata=dict(
                 metaflow_version=mf_version, version=1, template="defaultCardTemplate"
@@ -239,14 +267,14 @@ class DefaultCard(MetaflowCard):
             tab_dict = task_data_dict["tables"][tabname]
             table_comps.append(TableComponent(title=tabname, **tab_dict).render())
 
-        param_ids = [p.id for p in task.parent.parent["_parameters"].task]
+        param_ids = [p.id for p in self._task.parent.parent["_parameters"].task]
         # This makes a vertical table.
         parameter_table = SectionComponent(
             title="Flow Parameters",
             contents=[
                 TableComponent(
                     headers=[],
-                    data=[[pid, task[pid].data] for pid in param_ids],
+                    data=[[pid, self._task[pid].data] for pid in param_ids],
                 ).render()
             ],
         ).render()
@@ -273,8 +301,11 @@ class DefaultCard(MetaflowCard):
             ).render()
             page_contents.append(img_section)
 
+        if len(self._components) > 0:
+            page_contents.extend(self._components)
+
         page_component = PageComponent(
-            title="Task Info",
+            title=self._page_title,
             contents=page_contents,
         ).render()
 
@@ -282,6 +313,35 @@ class DefaultCard(MetaflowCard):
             TitleComponent(text=task_data_dict["pathspec"]).render()
         )
         final_component_dict["components"].append(page_component)
+
+        # These Properties will provide a way to access these components
+        # once render is finished
+        # this will Make this object reusable for run level cards.
+        self.final_component = final_component_dict
+
+        self.page_component = page_component
+
+        return final_component_dict
+
+
+class DefaultCard(MetaflowCard):
+
+    type = "default"
+
+    def __init__(self, options=dict(only_repr=True), components=[], graph=None):
+        self._only_repr = True
+        self._graph = graph
+        if "only_repr" in options:
+            self._only_repr = options["only_repr"]
+        self._components = components
+
+    def render(self, task):
+        final_component_dict = TaskInfoComponent(
+            task,
+            only_repr=self._only_repr,
+            graph=self._graph,
+            components=self._components,
+        ).render()
         pt = self._get_mustache()
         data_dict = dict(task_data=json.dumps(json.dumps(final_component_dict)))
         return pt.render(RENDER_TEMPLATE, data_dict)

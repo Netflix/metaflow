@@ -16,4 +16,5 @@ from metaflow.plugins.cards.card_modules.basic import (
     TaskToDict,
     DefaultComponent,
     ChartComponent,
+    TaskInfoComponent,
 )
