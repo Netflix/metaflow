@@ -312,7 +312,7 @@ class MetaflowObject(object):
     path_components : List[string]
         Components of the pathspec
     origin_pathspec : str
-        Pathspec of the `Run`/`Step`/`Task`, the current MetaflowObject has been cloned from
+        Pathspec of the `Run`/`Step`/`Task`, the current MetaflowObject has been cloned from or None if not a cloned object
     """
 
     _NAME = "base"
