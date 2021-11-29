@@ -10,7 +10,15 @@ from metaflow.metaflow_config import CONDA_USE_MAMBA
 from metaflow.metaflow_environment import InvalidEnvironmentException
 from metaflow.util import which
 
-MAMBA_SUPPORTED_COMMANDS = {"install", "create", "list", "search", "run", "info", "clean"}
+MAMBA_SUPPORTED_COMMANDS = {
+    "install",
+    "create",
+    "list",
+    "search",
+    "run",
+    "info",
+    "clean",
+}
 
 
 class CondaException(MetaflowException):
