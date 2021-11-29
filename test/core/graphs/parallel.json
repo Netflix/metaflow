@@ -9,7 +9,8 @@
         },
         "parallel_inner": {
             "linear": "parallel_join",
-            "quals": ["parallel-inner"]
+            "quals": ["parallel-step"],
+            "parallel_step": true
         },
         "parallel_join": {
             "linear": "end",

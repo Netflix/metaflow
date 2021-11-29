@@ -19,7 +19,7 @@ class TagCatchTest(MetaflowTest):
 
     # foreach splits don't support @catch but @retry should work
     @tag("retry(times=2)")
-    @steps(0, ["foreach-split"])
+    @steps(0, ["foreach-split", "parallel-split"])
     def step_split(self):
         import os
 
@@ -30,7 +30,7 @@ class TagCatchTest(MetaflowTest):
 
     @tag("retry(times=2)")
     @steps(0, ["join"])
-    def step_join(self):
+    def step_join(self, inputs):
         import os
 
         if current.retry_count == 2:
@@ -95,7 +95,9 @@ class TagCatchTest(MetaflowTest):
                 checker.assert_artifact("end", "test_attempt", 3)
 
             else:
-                for task in checker.artifact_dict(step.name, "ex").values():
+                # Use artifact_dict_if_exists because for parallel tasks, only the
+                # control task will have the 'ex' artifact.
+                for task in checker.artifact_dict_if_exists(step.name, "ex").values():
                     extype = "metaflow.plugins.catch_decorator." "FailureHandledByCatch"
                     assert_equals(extype, str(task["ex"].type))
                     break
@@ -116,7 +118,14 @@ class TagCatchTest(MetaflowTest):
                 for task in step:
                     data = task.data
                     got = sorted(m.value for m in task.metadata if m.type == "attempt")
-                    assert_equals(list(map(str, range(attempts))), got)
+                    if flow._graph[step.id].parallel_step:
+                        if "control" in task.id:
+                            assert_equals(list(map(str, range(attempts))), got)
+                        else:
+                            # non-control tasks have one attempt less for parallel steps
+                            assert_equals(list(map(str, range(attempts - 1))), got)
+                    else:
+                        assert_equals(list(map(str, range(attempts))), got)
 
             assert_equals(False, "invisible" in run["start"].task.data)
             assert_equals(3, run["start"].task.data.test_attempt)

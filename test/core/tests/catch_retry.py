@@ -19,7 +19,7 @@ class CatchRetryTest(MetaflowTest):
 
     # foreach splits don't support @catch but @retry should work
     @tag("retry(times=2,minutes_between_retries=0)")
-    @steps(0, ["foreach-split"])
+    @steps(0, ["foreach-split", "parallel-split"])
     def step_split(self):
         import os
 
