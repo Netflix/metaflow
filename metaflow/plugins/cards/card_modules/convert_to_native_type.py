@@ -84,7 +84,7 @@ class TaskToDict:
             "bytes": self._parse_bytes,
         }
 
-    def __call__(self, task, graph=None) -> dict:
+    def __call__(self, task, graph=None):
         # task_props = ['stderr','stdout','created_at','finished_at','pathspec']
         # todo : dictionary Pretty printing.
         task_dict = dict(
@@ -100,7 +100,7 @@ class TaskToDict:
         task_dict.update(type_infered_objects)
         return task_dict
 
-    def _create_task_data_dict(self, task) -> dict:
+    def _create_task_data_dict(self, task):
 
         task_data_dict = {}
         type_infered_objects = {"images": {}, "tables": {}}

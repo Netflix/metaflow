@@ -4,31 +4,61 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
 class CardDecoratorBasicTest(MetaflowTest):
     """
     Test that checks if the card decorator stores the information as intended for a built in card
-    # todo: Add code to cli_checker to create a get_card methods
-    # todo: Add uuid key in an artifact and store it in card;
-    # todo: Check in the checker this UUID
+    - sets the pathspec in the a task
+    - Checker Asserts that taskpathspec in the card and the one set in the task match.
     """
 
     PRIORITY = 3
 
-    @tag('card(type="basic")')
+    @tag('card(type="taskspec_card")')
     @steps(0, ["start"])
     def step_start(self):
-        self.data = "abc"
+        from metaflow import current
 
-    @tag('card(type="basic")')
+        self.task = current.pathspec
+
+    @tag('card(type="taskspec_card")')
     @steps(0, ["foreach-nested-inner"])
     def step_foreach_inner(self):
-        self.data = "bcd"
+        from metaflow import current
 
-    @tag('card(type="basic")')
+        self.task = current.pathspec
+
+    @tag('card(type="taskspec_card")')
     @steps(1, ["join"])
     def step_join(self):
-        self.data = "jkl"
+        from metaflow import current
 
+        self.task = current.pathspec
+
+    @tag('card(type="taskspec_card")')
     @steps(1, ["all"])
     def step_all(self):
-        pass
+        from metaflow import current
+
+        self.task = current.pathspec
 
     def check_results(self, flow, checker):
-        print(flow)
+        run = checker.get_run()
+        if run is None:
+            # This means CliCheck is in context.
+            for step in flow:
+                cli_check_dict = checker.artifact_dict(step.name, "task")
+                for task_pathspec in cli_check_dict:
+                    taskpathspec_artifact = cli_check_dict[task_pathspec]["task"]
+                    task_id = task_pathspec.split("/")[-1]
+                    checker.assert_card(
+                        step.name,
+                        task_id,
+                        "taskspec_card",
+                        "%s\n" % taskpathspec_artifact,
+                    )
+        else:
+            # This means MetadataCheck is in context.
+            for step in flow:
+                meta_check_dict = checker.artifact_dict(step.name, "task")
+                for task_id in meta_check_dict:
+                    taskpathspec = meta_check_dict[task_id]["task"]
+                    checker.assert_card(
+                        step.name, task_id, "taskspec_card", "%s" % taskpathspec
+                    )

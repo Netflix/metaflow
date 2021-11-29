@@ -23,7 +23,7 @@ except:
 
 
 class CliCheck(MetaflowCheck):
-    def run_cli(self, args, capture_output=False):
+    def run_cli(self, args, capture_output=False, pipe_error_to_output=False):
         cmd = [sys.executable, "test_flow.py"]
 
         # remove --quiet from top level options to capture output from echo
@@ -31,11 +31,14 @@ class CliCheck(MetaflowCheck):
         cmd.extend([opt for opt in self.cli_options if opt != "--quiet"])
 
         cmd.extend(args)
+        options_kwargs = {}
+        if pipe_error_to_output:
+            options_kwargs["stderr"] = subprocess.STDOUT
 
         if capture_output:
-            return subprocess.check_output(cmd)
+            return subprocess.check_output(cmd, **options_kwargs)
         else:
-            subprocess.check_call(cmd)
+            subprocess.check_call(cmd, **options_kwargs)
 
     def assert_artifact(self, step, name, value, fields=None):
         for task, artifacts in self.artifact_dict(step, name).items():
@@ -106,7 +109,16 @@ class CliCheck(MetaflowCheck):
         return True
 
     def assert_card(self, step, task, card_type, value, exact_match=True):
-        card_data = self.get_card(step, task, card_type)
+        from metaflow.plugins.cards.exception import CardNotPresentException
+
+        no_card_found_message = CardNotPresentException.headline
+        try:
+            card_data = self.get_card(step, task, card_type)
+        except subprocess.CalledProcessError as e:
+            if no_card_found_message in e.output.decode("utf-8").strip():
+                card_data = None
+            else:
+                raise e
         if (exact_match and card_data != value) or (
             not exact_match and value not in card_data
         ):
@@ -122,9 +134,12 @@ class CliCheck(MetaflowCheck):
             "card",
             "get",
             "%s/%s/%s" % (self.run_id, step, task),
-            "--type" % card_type,
+            "--type",
+            card_type,
         ]
-        return self.run_cli(cmd, capture_output=True).decode("utf-8")
+        return self.run_cli(cmd, capture_output=True, pipe_error_to_output=True).decode(
+            "utf-8"
+        )
 
     def get_log(self, step, logtype):
         cmd = ["--quiet", "logs", "--%s" % logtype, "%s/%s" % (self.run_id, step)]

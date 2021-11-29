@@ -1,11 +1,15 @@
-from metaflow.plugins.cards.card_modules import MetaflowCard
+from metaflow.cards import MetaflowCard
 
 
 class MockCard(MetaflowCard):
     type = "mock_card"
 
+    def __init__(self, options={"key": "dummy_key"}, **kwargs):
+        self._key = options["key"]
+
     def render(self, task):
-        return "%s" % task.pathspec
+        task_data = task[self._key].data
+        return "%s" % task_data
 
 
 class ErrorCard(MetaflowCard):

@@ -5,6 +5,7 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
 class CardErrorTest(MetaflowTest):
     """
     Test that checks if the card decorator handles Errors gracefully.
+    In the checker assert that the end step finished an has artifacts after failing to create the card on the start step
     """
 
     PRIORITY = 2
@@ -16,7 +17,7 @@ class CardErrorTest(MetaflowTest):
 
     @steps(1, ["all"])
     def step_all(self):
-        pass
+        self.data = "end"
 
     def check_results(self, flow, checker):
-        pass
+        checker.assert_artifact("end", "data", "end")

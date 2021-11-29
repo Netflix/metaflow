@@ -215,7 +215,7 @@ class TaskInfoComponent(MetaflowCardComponent):
 
     def __init__(
         self, task, page_title="Task Info", only_repr=True, graph=None, components=[]
-    ) -> None:
+    ):
         self._task = task
         self._only_repr = only_repr
         self._graph = graph
@@ -345,3 +345,10 @@ class DefaultCard(MetaflowCard):
         pt = self._get_mustache()
         data_dict = dict(task_data=json.dumps(json.dumps(final_component_dict)))
         return pt.render(RENDER_TEMPLATE, data_dict)
+
+
+class TaskSpecCard(MetaflowCard):
+    type = "taskspec_card"
+
+    def render(self, task):
+        return "%s" % task.pathspec

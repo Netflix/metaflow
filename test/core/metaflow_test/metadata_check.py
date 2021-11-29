@@ -105,10 +105,20 @@ class MetadataCheck(MetaflowCheck):
             )
 
     def assert_card(self, step, task, card_type, value, exact_match=True):
-        card_iter = self.get_card(step, task, card_type)
+        from metaflow.plugins.cards.exception import CardNotPresentException
+
+        try:
+            card_iter = self.get_card(step, task, card_type)
+        except CardNotPresentException:
+            card_iter = None
         card_data = None
-        if len(card_iter) > 0:
-            card_data = card_iter[0].html
+        # FUTURE FIXME:
+        # We are checking the first card here.
+        # Not all possible present cards
+        # This should change in the future when we support many decorator.
+        if card_iter is not None:
+            if len(card_iter) > 0:
+                card_data = card_iter[0].html
         if (exact_match and card_data != value) or (
             not exact_match and value not in card_data
         ):
@@ -121,10 +131,8 @@ class MetadataCheck(MetaflowCheck):
     def get_log(self, step, logtype):
         return "".join(getattr(task, logtype) for task in self.run[step])
 
-    def get_card(self, step, card_type):
-        from metaflow.plugins.cards.card_client import get_cards
+    def get_card(self, step, task, card_type):
+        from metaflow.cards import get_cards
 
-        for task in self.run[step]:
-            iterator = get_cards(task, type=card_type)
-            # todo : is this correct ?
-            return iterator
+        iterator = get_cards(self.run[step][task], type=card_type)
+        return iterator

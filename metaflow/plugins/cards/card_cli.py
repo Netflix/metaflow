@@ -123,12 +123,10 @@ def resolve_card(
     # to resolve card_id we first check if the identifier is a pathspec and if it is then we check if the `id` is set or not to resolve card_id
     # todo : Fix this with `coalesce function`
     cid = None
-    if not is_path_spec:
-        if card_id is not None:
-            cid = card_id
-    else:
+    if is_path_spec and card_id is not None:
+        cid = card_id
+    elif not is_path_spec:
         cid = identifier
-
     card_paths_found, card_datastore = resolve_paths_from_task(
         ctx.obj.flow_datastore,
         run_id,
@@ -185,7 +183,6 @@ def list_availble_cards(ctx, path_spec, card_paths, card_datastore, command="vie
         "\nFound %d card matching for your query..." % len(path_tuples), fg="green"
     )
     task_pathspec = "/".join(path_spec.split("/")[1:])
-
     card_list = []
     for path_tuple in path_tuples:
         card_id, card_type, card_index, card_hash = path_tuple
@@ -337,6 +334,7 @@ def create(
     timeout=None,
     component_file=None,
 ):
+
     assert (
         len(pathspec.split("/")) == 3
     ), "Expecting pathspec of form <runid>/<stepname>/<taskid>"
