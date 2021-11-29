@@ -49,7 +49,7 @@ def serialize_components(past_component_arr):
             continue
         try:
             rendered_obj = component.render()
-            assert type(rendered_obj) == str
+            assert type(rendered_obj) == str or type(rendered_obj) == dict
             serialized_components.append(rendered_obj)
         except AssertionError:
             serialized_components.append(

@@ -34,7 +34,7 @@ class CardDecorator(StepDecorator):
             regex_match = re.match(CARD_ID_PATTERN, self.attributes["id"])
             if regex_match is None:
                 raise BadCardNameException(self.attributes["id"])
-        # set the index property over here so that we can supporting multiple-decorators
+        # set the index property over here so that we can support multiple-decorators
         for step in flow._steps:
             deco_idx = 0
             for deco in step.decorators:

@@ -8,7 +8,6 @@ import os
 import shutil
 from metaflow.datastore.local_storage import LocalStorage
 
-from .card_decorator import CardDecorator
 from .exception import CardNotPresentException
 
 CARD_DIRECTORY_NAME = "mf.cards"
@@ -17,6 +16,8 @@ NUM_SHORT_HASH_CHARS = 5
 
 
 def stepname_from_card_id(card_id, flow):
+    from .card_decorator import CardDecorator
+
     for step in flow._steps:
         for deco in step.decorators:
             if isinstance(deco, CardDecorator):
@@ -197,7 +198,7 @@ class CardDatastore(object):
             is_index_present = lambda x: True
             if card_index is not None:
                 # if the index is not none then the lambda checks it
-                is_index_present = lambda x: str(x) == str(cidx)
+                is_index_present = lambda x: x == cidx
 
             if not is_index_present(str(card_index)):
                 continue

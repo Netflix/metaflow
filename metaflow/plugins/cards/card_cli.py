@@ -42,15 +42,15 @@ def open_in_browser(card_path):
 
 
 def resolve_card(
-    ctx, identifier, id=None, hash=None, type=None, index=0, follow_resumed=True
+    ctx, identifier, card_id=None, hash=None, type=None, index=0, follow_resumed=True
 ):
     """Resolves the card path based on the arguments provided. We allow identifier to be a pathspec or a id of card.
 
     Args:
         ctx : click context object
         identifier : id of card or pathspec
-        id ([type], optional): if identifier is pathspec then this will be used.
-        hash ([type], optional): This is to specifically resolve the card via the hash. This is useful when there may be many card with same id or hash.
+        card_id (optional): id of card that can be specified along with the pathspec; If a task has multiple cards then card_id can help narrow down the exact card to be resolved.
+        hash (optional): This is to specifically resolve the card via the hash. This is useful when there may be many card with same id or type for a pathspec.
         type : type of card
         index : index of card decorator (Will be useful once we support many @card decorators.)
 
@@ -59,7 +59,7 @@ def resolve_card(
         CardNotPresentException: No card could be found for the identifier (may it be pathspec or id)
 
     Returns:
-        (card_paths,card_datastore,taskpathspec) : Tuple[List[str],CardDatastore,str]
+        (card_paths, card_datastore, taskpathspec) : Tuple[List[str],CardDatastore,str]
     """
     is_path_spec = False
     if "/" in identifier:
@@ -70,6 +70,7 @@ def resolve_card(
 
     flow_name = ctx.obj.flow.name
     pathspec, run_id, step_name, task_id = None, None, None, None
+    more_than_one_task = False
     # this means that identifier is a pathspec
     if is_path_spec:
         # what should be the args we expose
@@ -88,30 +89,45 @@ def resolve_card(
         step = Step("/".join([flow_name, run_id, step_name]))
         tasks = list(step)
         if len(tasks) == 0:
-            raise Exception(
-                "No Tasks found for Step '%s' and Run '%s'" % (step_name, run_id)
-            )
+            raise Exception("No Tasks found for %s/%s" % (step_name, run_id))
         task = tasks[0]
-
+        if len(tasks) > 1:
+            more_than_one_task = True
         pathspec = task.pathspec
         task_id = task.id
-
-    resume_status = resumed_info(task)
-    if resume_status.task_resumed:
-        pathspec = resume_status.origin_task_pathspec
-        ctx.obj.echo(
-            "Resolving card resumed from : %s" % resume_status.origin_task_pathspec,
-            fg="green",
-        )
+    # Check if we need to chase origin or not.
+    if follow_resumed:
+        resume_status = resumed_info(task)
+        if resume_status.task_resumed:
+            pathspec = resume_status.origin_task_pathspec
+            ctx.obj.echo(
+                "Resolving card resumed from: %s" % resume_status.origin_task_pathspec,
+                fg="green",
+            )
+        else:
+            print_str = "Resolving card: %s" % pathspec
+            if more_than_one_task:
+                print_str = (
+                    "Resolving card of the first task from %d tasks with pathspec %s"
+                    % (len(tasks), pathspec)
+                )
+            ctx.obj.echo(print_str, fg="green")
     else:
-        ctx.obj.echo("Resolving card : %s" % pathspec, fg="green")
+        print_str = "Resolving card: %s" % pathspec
+        if more_than_one_task:
+            print_str = (
+                "Resolving card of the first task from %d tasks with pathspec %s"
+                % (len(tasks), pathspec)
+            )
+        ctx.obj.echo(print_str, fg="green")
     # to resolve card_id we first check if the identifier is a pathspec and if it is then we check if the `id` is set or not to resolve card_id
-    card_id = None
-    if is_path_spec:
-        if id is not None:
-            card_id = id
+    # todo : Fix this with `coalesce function`
+    cid = None
+    if not is_path_spec:
+        if card_id is not None:
+            cid = card_id
     else:
-        card_id = identifier
+        cid = identifier
 
     card_paths_found, card_datastore = resolve_paths_from_task(
         ctx.obj.flow_datastore,
@@ -120,7 +136,7 @@ def resolve_card(
         task_id,
         pathspec=pathspec,
         type=type,
-        card_id=card_id,
+        card_id=cid,
         index=index,
         hash=hash,
     )
@@ -166,7 +182,7 @@ def list_availble_cards(ctx, path_spec, card_paths, card_datastore, command="vie
     scriptname = ctx.obj.flow.script_name
     path_tuples = card_datastore.get_card_names(card_paths)
     ctx.obj.echo(
-        "\nFound %s card matching for your query..." % str(len(path_tuples)), fg="green"
+        "\nFound %d card matching for your query..." % len(path_tuples), fg="green"
     )
     task_pathspec = "/".join(path_spec.split("/")[1:])
 
@@ -188,16 +204,16 @@ def list_availble_cards(ctx, path_spec, card_paths, card_datastore, command="vie
             task_pathspec,
             command=command,
             hash=randhash[:NUM_SHORT_HASH_CHARS],
-            id=randid,
+            identifier=randid,
         ),
         fg="yellow",
     )
 
 
-def make_command(script_name, taskspec, command="get", hash=None, id=None):
+def make_command(script_name, taskspec, command="get", hash=None, identifier=None):
     calling_args = ["--hash", hash]
-    if id is not None:
-        calling_args = ["--id", id]
+    if identifier is not None:
+        calling_args = ["--id", identifier]
     return " ".join(
         [
             ">>>",
@@ -261,7 +277,7 @@ def card_read_options_and_arguments(func):
 
 def render_card(mf_card, task, timeout_value=None):
     rendered_info = None
-    if timeout_value is None:
+    if timeout_value is None or timeout_value < 0:
         rendered_info = mf_card.render(task)
     else:
         with timeout(timeout_value):
@@ -393,7 +409,7 @@ def view(
         identifier,
         type=type,
         index=index,
-        id=id,
+        card_id=id,
         hash=hash,
         follow_resumed=not dont_follow_resumed,
     )
@@ -423,7 +439,7 @@ def get(
         identifier,
         type=type,
         index=index,
-        id=id,
+        card_id=id,
         hash=hash,
         follow_resumed=not dont_follow_resumed,
     )
