@@ -1,4 +1,3 @@
-import reprlib
 import json
 import sys
 import base64
@@ -51,7 +50,8 @@ def _full_classname(obj):
 class TaskToDict:
     def __init__(self, only_repr=False):
         # this dictionary holds all the supported functions
-        #
+        import reprlib
+
         r = reprlib.Repr()
         r.maxarray = 100
         r.maxstring = 100
