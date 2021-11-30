@@ -21,14 +21,9 @@ class MetaflowPackage(object):
         try:
             import metaflow_extensions
         except ImportError:
-            self.metaflow_extensions_root = None
+            self.metaflow_extensions_path = []
         else:
-            self.metaflow_extensions_root = os.path.dirname(
-                metaflow_extensions.__file__
-            )
-            self.metaflow_extensions_addl_suffixes = getattr(
-                metaflow_extensions, "METAFLOW_EXTENSIONS_PACKAGE_SUFFIXES", None
-            )
+            self.metaflow_extensions_path = list(metaflow_extensions.__path__)
 
         self.flow_name = flow.name
         self.create_time = time.time()
@@ -68,11 +63,10 @@ class MetaflowPackage(object):
         for path_tuple in self._walk(self.metaflow_root, exclude_hidden=False):
             yield path_tuple
         # Metaflow customization if any
-        if self.metaflow_extensions_root:
+        for extensions_path in self.metaflow_extensions_path:
             for path_tuple in self._walk(
-                self.metaflow_extensions_root,
+                extensions_path,
                 exclude_hidden=False,
-                addl_suffixes=self.metaflow_extensions_addl_suffixes,
             ):
                 yield path_tuple
         # the package folders for environment
