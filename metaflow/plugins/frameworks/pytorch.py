@@ -78,6 +78,7 @@ class PyTorchHelper:
 
         output_file = args_file.name + ".out"
         if not os.path.exists(output_file):
+            print("No output file")
             return None
         with open(output_file, "rb") as output_values_f:
             output = pickle.load(output_values_f)

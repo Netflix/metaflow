@@ -576,8 +576,8 @@ def spawn(ctx, target_module, target_function, pickled_argument_file):
         fun = getattr(module, target_function)
         results = fun(**kwargs)
         if results:
-            with open(pickled_argument_file, "wb") as output_f:
-                pickle.dump(output_f)
+            with open(pickled_argument_file + ".out", "wb") as output_f:
+                pickle.dump(results, file=output_f)
     except Exception as ex:
         print(ex)
         raise
