@@ -255,9 +255,27 @@ class TaskInfoComponent(MetaflowCardComponent):
             "finished_at",
             "pathspec",
         ]
+        user_info = [t for t in self._task.parent.parent.tags if "user" in t]
+        task_metadata_dict = {
+            "Task Created On": task_data_dict["created_at"],
+            "Task Finished On": task_data_dict["finished_at"],
+        }
+        if len(user_info) > 0:
+            task_metadata_dict["User"] = user_info[0].split("user:")[1]
 
         for m in metadata:
             final_component_dict["metadata"][m] = task_data_dict[m]
+
+        metadata_table = SectionComponent(
+            title="Task Metadata",
+            contents=[
+                TableComponent(
+                    headers=list(task_metadata_dict.keys()),
+                    data=[list(task_metadata_dict.values())],
+                    vertical=True,
+                )
+            ],
+        )
 
         img_components = []
         for img_name in task_data_dict["images"]:
@@ -291,7 +309,12 @@ class TaskInfoComponent(MetaflowCardComponent):
             title="DAG", contents=[DagComponent(data=task_data_dict["graph"]).render()]
         ).render()
 
-        page_contents = [parameter_table, dag_component, artifact_section]
+        page_contents = [
+            metadata_table,
+            parameter_table,
+            dag_component,
+            artifact_section,
+        ]
         if len(table_comps) > 0:
             table_section = SectionComponent(
                 title="Tabular Data", contents=table_comps
