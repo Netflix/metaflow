@@ -132,10 +132,13 @@ class BarChartComponent(ChartComponent):
 class TableComponent(DefaultComponent):
     type = "table"
 
-    def __init__(self, title=None, subtitle=None, headers=[], data=[[]]):
+    def __init__(
+        self, title=None, subtitle=None, headers=[], data=[[]], vertical=False
+    ):
         super().__init__(title=title, subtitle=subtitle)
         self._headers = []
         self._data = [[]]
+        self._vertical = vertical
 
         if self._validate_header_type(headers):
             self._headers = headers
@@ -158,6 +161,7 @@ class TableComponent(DefaultComponent):
         datadict = super().render()
         datadict["columns"] = self._headers
         datadict["data"] = self._data
+        datadict["vertical"] = self._vertical
         return datadict
 
 
@@ -273,8 +277,9 @@ class TaskInfoComponent(MetaflowCardComponent):
             title="Flow Parameters",
             contents=[
                 TableComponent(
-                    headers=[],
-                    data=[[pid, self._task[pid].data] for pid in param_ids],
+                    headers=param_ids,
+                    data=[[self._task[pid].data for pid in param_ids]],
+                    vertical=True,
                 ).render()
             ],
         ).render()
