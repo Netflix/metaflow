@@ -87,7 +87,7 @@ def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_c
     # start workers
     subprocesses = []
     for node_index in range(1, num_parallel):
-        task_id = "%s-node-%d" % (top_task_id, node_index)
+        task_id = "%s_node_%d" % (top_task_id, node_index)
         mapper_task_ids.append(task_id)
         os.environ["MF_PARALLEL_NODE_INDEX"] = str(node_index)
         input_paths = "%s/%s/%s" % (run_id, split_step_name, split_task_id)
