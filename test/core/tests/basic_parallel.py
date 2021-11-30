@@ -8,15 +8,14 @@ class BasicParallelTest(MetaflowTest):
     def split(self):
         self.my_node_index = None
 
-    @tag("parallel")
-    @steps(0, ["parallel-inner"], required=True)
+    @steps(0, ["parallel-step"], required=True)
     def inner(self):
         from metaflow import current
 
         assert_equals(4, current.parallel.num_nodes)
         self.my_node_index = current.parallel.node_index
 
-    @steps(0, ["parallel-join"], required=True)
+    @steps(0, ["join"], required=True)
     def join(self, inputs):
         got = sorted([inp.my_node_index for inp in inputs])
         assert_equals(list(range(4)), got)

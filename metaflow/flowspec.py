@@ -517,7 +517,7 @@ class FlowSpec(object):
                 raise InvalidNextException(msg)
             funcs.append(name)
 
-        if num_parallel:
+        if num_parallel is not None and num_parallel >= 1:
             if len(dsts) > 1:
                 raise InvalidNextException(
                     "Only one destination allowed when num_parallel used in self.next()"
