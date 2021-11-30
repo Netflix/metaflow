@@ -53,7 +53,7 @@ class ArgoClient(object):
         """
         Lists Argo Workflows spawned from the WorkflowTemplate "name"
         """
-        selectors = ['metaflow.workflow_template=%s' % name]
+        selectors = ['metaflow/workflow_template=%s' % name]
         if phases:
             selectors.append('workflows.argoproj.io/phase in (%s)' % ','.join(phases))
         label_selector = ', '.join(selectors)
