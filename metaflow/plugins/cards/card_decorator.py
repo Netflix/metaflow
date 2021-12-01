@@ -25,6 +25,7 @@ class CardDecorator(StepDecorator):
         "id": None,
         "scope": "task",
         "timeout": 45,
+        "save_errors": True,
     }
 
     def runtime_init(self, flow, graph, package, run_id):
@@ -228,6 +229,9 @@ class CardDecorator(StepDecorator):
 
         if self.attributes["timeout"] is not None:
             cmd += ["--timeout", str(self.attributes["timeout"])]
+
+        if self.attributes["save_errors"]:
+            cmd += ["--with-error-card"]
 
         response, fail = self._run_command(cmd, os.environ)
         if fail:

@@ -178,6 +178,45 @@ class DagComponent(DefaultComponent):
         return datadict
 
 
+class TextComponent(DefaultComponent):
+    type = "text"
+
+    def __init__(self, text=None):
+        super().__init__(title=None, subtitle=None)
+        self._text = text
+
+    def render(self):
+        datadict = super().render()
+        datadict["text"] = self._text
+        return datadict
+
+
+class LogComponent(DefaultComponent):
+    type = "log"
+
+    def __init__(self, data=None):
+        super().__init__(title=None, subtitle=None)
+        self._data = data
+
+    def render(self):
+        datadict = super().render()
+        datadict["data"] = self._data
+        return datadict
+
+
+class HTMLComponent(DefaultComponent):
+    type = "html"
+
+    def __init__(self, data=None):
+        super().__init__(title=None, subtitle=None)
+        self._data = data
+
+    def render(self):
+        datadict = super().render()
+        datadict["data"] = self._data
+        return datadict
+
+
 class PageComponent(DefaultComponent):
     type = "page"
 
@@ -371,6 +410,40 @@ class TaskInfoComponent(MetaflowCardComponent):
         self.page_component = page_component
 
         return final_component_dict
+
+
+class ErrorCard(MetaflowCard):
+
+    type = "error"
+
+    def __init__(self, options={}, components=[], graph=None):
+        self._only_repr = True
+        self._graph = graph
+        self._components = components
+
+    def render(self, task, stack_trace=None):
+        trace = "None"
+        if stack_trace is not None:
+            trace = stack_trace
+
+        page = PageComponent(
+            title="Error Card",
+            contents=[
+                SectionComponent(
+                    title="Card Render Failed With Error",
+                    contents=[TextComponent(text=trace)],
+                )
+            ],
+        ).render()
+        final_component_dict = dict(
+            metadata={
+                "pathspec": task.pathspec,
+            },
+            components=[page],
+        )
+        pt = self._get_mustache()
+        data_dict = dict(task_data=json.dumps(json.dumps(final_component_dict)))
+        return pt.render(RENDER_TEMPLATE, data_dict)
 
 
 class DefaultCard(MetaflowCard):

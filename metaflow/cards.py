@@ -17,4 +17,5 @@ from metaflow.plugins.cards.card_modules.basic import (
     DefaultComponent,
     ChartComponent,
     TaskInfoComponent,
+    ErrorCard,
 )

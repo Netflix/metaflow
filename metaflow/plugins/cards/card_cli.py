@@ -325,6 +325,12 @@ def render_card(mf_card, task, timeout_value=None):
     type=str,
     help="JSON File with Pre-rendered components.(internal)",
 )
+@click.option(
+    "--with-error-card",
+    default=False,
+    is_flag=True,
+    help="Upon failing to render a card render a card holding the stack trace",
+)
 @click.pass_context
 def create(
     ctx,
@@ -335,16 +341,24 @@ def create(
     options=None,
     timeout=None,
     component_file=None,
+    with_error_card=False,
 ):
 
-    assert (
-        len(pathspec.split("/")) == 3
-    ), "Expecting pathspec of form <runid>/<stepname>/<taskid>"
+    rendered_info = None  # Variable holding all the information which will be rendered
+    error_stack_trace = None  # Variable which will keep a track if there was an error
+
+    if len(pathspec.split("/")) != 3:
+        raise CommandException(
+            msg="Expecting pathspec of form <runid>/<stepname>/<taskid>"
+        )
     runid, step_name, task_id = pathspec.split("/")
     flowname = ctx.obj.flow.name
     full_pathspec = "/".join([flowname, runid, step_name, task_id])
+
+    # todo : Import the changes from Netflix/metaflow#833 for Graph
     graph_dict = serialize_flowgraph(ctx.obj.graph)
-    # Components are rendered in a MetaflowStep are added here.
+
+    # Components are rendered in a Step and added via `current.card.append` are added here.
     component_arr = []
     if component_file is not None:
         with open(component_file, "r") as f:
@@ -352,36 +366,63 @@ def create(
 
     task = Task(full_pathspec)
     from metaflow.plugins import CARDS
+    from metaflow.cards import ErrorCard
 
+    error_card = ErrorCard
     filtered_cards = [CardClass for CardClass in CARDS if CardClass.type == type]
-    if len(filtered_cards) == 0:
-        raise CardClassFoundException(type)
-
     card_datastore = CardDatastore(
         ctx.obj.flow_datastore, runid, step_name, task_id, path_spec=full_pathspec
     )
 
-    filtered_card = filtered_cards[0]
-    ctx.obj.echo(
-        "Creating new card of type %s With timeout %s" % (filtered_card.type, timeout),
-        fg="green",
-    )
-    # save card to datastore
-    try:
-        mf_card = filtered_card(
-            options=options, components=component_arr, graph=graph_dict
-        )
-    except TypeError as e:
-        raise IncorrectCardArgsException(type, options)
+    if len(filtered_cards) == 0:
+        if with_error_card:
+            error_stack_trace = str(CardClassFoundException(type))
+        else:
+            raise CardClassFoundException(type)
 
-    try:
-        rendered_info = render_card(mf_card, task, timeout_value=timeout)
-    except:  # TODO : Catch exec trace over here.
-        raise UnrenderableCardException(type, options)
-    else:
-        if rendered_info is None:
-            return
-        card_datastore.save_card(type, id, index, rendered_info)
+    if len(filtered_cards) > 0:
+        filtered_card = filtered_cards[0]
+        ctx.obj.echo(
+            "Creating new card of type %s With timeout %s"
+            % (filtered_card.type, timeout),
+            fg="green",
+        )
+        # If the card is Instatiatable then
+        # first instantiate; If instantiation has a TypeError
+        # then check for with_error_card and accordingly
+        # store the exception as a string or raise the exception
+        try:
+            mf_card = filtered_card(
+                options=options, components=component_arr, graph=graph_dict
+            )
+        except TypeError as e:
+            if with_error_card:
+                mf_card = None
+                error_stack_trace = str(IncorrectCardArgsException(type, options))
+            else:
+                raise IncorrectCardArgsException(type, options)
+
+        if mf_card:
+            try:
+                rendered_info = render_card(mf_card, task, timeout_value=timeout)
+            except:
+                if with_error_card:
+                    error_stack_trace = str(UnrenderableCardException(type, options))
+                else:
+                    raise UnrenderableCardException(type, options)
+        #
+
+    if error_stack_trace is not None:
+        rendered_info = error_card().render(task, stack_trace=error_stack_trace)
+
+    if rendered_info is None:
+        rendered_info = error_card().render(
+            task, stack_trace="No information rendered From card of type %s" % type
+        )
+
+    # todo : should we save native type for error card or error type ?
+    save_type = type  # if error_stack_trace is not None else 'error'
+    card_datastore.save_card(save_type, id, index, rendered_info)
 
 
 @card.command()
