@@ -20,11 +20,11 @@ CARD_ID_PATTERN = re.compile(
 class CardDecorator(StepDecorator):
     name = "card"
     defaults = {
-        "type": "basic",
+        "type": "default",
         "options": {},
         "id": None,
         "scope": "task",
-        "timeout": None,
+        "timeout": 45,
     }
 
     def runtime_init(self, flow, graph, package, run_id):
@@ -108,13 +108,15 @@ class CardDecorator(StepDecorator):
 
         self.card_options = None
 
+        # Populate the defaults which may be missing.
+        missing_keys = set(self.defaults.keys()) - set(self.attributes.keys())
+        for k in missing_keys:
+            self.attributes[k] = self.defaults[k]
+
         if type(self.attributes["options"]) is str:
-            # print("found attributed",self.attributes['options'],type(self.attributes['options']))
             try:
                 self.card_options = json.loads(self.attributes["options"])
             except RaisingError:
-                print("error loading attr")
-                # Setting Options from defaults
                 self.card_options = self.defaults["options"]
         else:
             self.card_options = self.attributes["options"]
