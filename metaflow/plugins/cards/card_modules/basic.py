@@ -238,6 +238,8 @@ class TaskInfoComponent(MetaflowCardComponent):
         task_data_dict = TaskToDict(only_repr=self._only_repr)(
             self._task, graph=self._graph
         )
+        # ignore the name as an artifact
+        del task_data_dict["data"]["name"]
         mf_version = [
             t for t in self._task.parent.parent.tags if "metaflow_version" in t
         ][0].split("metaflow_version:")[1]
@@ -289,19 +291,36 @@ class TaskInfoComponent(MetaflowCardComponent):
             tab_dict = task_data_dict["tables"][tabname]
             table_comps.append(TableComponent(title=tabname, **tab_dict).render())
 
-        param_ids = [p.id for p in self._task.parent.parent["_parameters"].task]
-        # This makes a vertical table.
+        # ignore the name as a parameter
+        param_ids = [
+            p.id for p in self._task.parent.parent["_parameters"].task if p.id != "name"
+        ]
+        if len(param_ids) > 0:
+            param_component = TableComponent(
+                headers=param_ids,
+                data=[[self._task[pid].data for pid in param_ids]],
+                # This makes a vertical table.
+                vertical=True,
+            ).render()
+        else:
+            param_component = TitleComponent(text="No Parameters")
+
         parameter_table = SectionComponent(
             title="Flow Parameters",
-            contents=[
-                TableComponent(
-                    headers=param_ids,
-                    data=[[self._task[pid].data for pid in param_ids]],
-                    vertical=True,
-                ).render()
-            ],
+            contents=[param_component],
         ).render()
-        artrifact_component = ArtifactsComponent(data=task_data_dict["data"]).render()
+
+        # Don't include parameter ids + "name" in the task artifacts
+        artifact_dict = {
+            k: task_data_dict["data"][k]
+            for k in task_data_dict["data"]
+            if k not in param_ids
+        }
+        if len(artifact_dict) > 0:
+            artrifact_component = ArtifactsComponent(data=artifact_dict).render()
+        else:
+            artrifact_component = TitleComponent(text="No Artifacts")
+
         artifact_section = SectionComponent(
             title="Artifacts", contents=[artrifact_component]
         ).render()
