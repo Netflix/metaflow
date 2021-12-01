@@ -8,8 +8,11 @@ from metaflow.metaflow_config import from_conf
 from metaflow.package import MetaflowPackage
 from metaflow.plugins import BatchDecorator
 from .argo_workflow import ArgoWorkflow, dns_name
-from .argo_exception import ArgoException
+from metaflow.exception import MetaflowException
 
+
+class InvalidArgoName(MetaflowException):
+    headline = "Invalid Argo workflow template name"
 
 class JsonParam(click.ParamType):
     name = 'json'
@@ -110,7 +113,7 @@ def create(obj,
              bold=True)
 
     if obj.flow_datastore.TYPE != 's3':
-        raise ArgoException("Argo Workflows require --datastore=s3.")
+        raise MetaflowException("Argo Workflows require --datastore=s3.")
 
     # When using conda attach AWS Batch decorator to the flow.
     # This results in 'linux-64' libraries to be packaged.
@@ -222,7 +225,7 @@ def list_runs(obj, k8s_namespace, pending, running, succeeded, failed, error):
                      (obj.workflow_template_name))
         return
     for wf in workflows:
-        if 'finishedAt' in wf['status']:
+        if 'finishedAt' in wf['status'] and wf['status']['finishedAt'] is not None:
             obj.echo(
                 "*{id}* "
                 "startedAt:'{startedAt}' "
@@ -256,9 +259,9 @@ def resolve_workflow_template_name(name):
         name = prefix + '-' + name
 
     if not re.match('^[a-z0-9]([-.a-z0-9]*[a-z0-9])?$', name):
-        raise ArgoException("Invalid workflow template name: *%s*.\n"
-                            "See https://kubernetes.io/docs/concepts/overview/working-with-objects/names/" % \
-                            name)
+        raise InvalidArgoName("Invalid workflow template name: *%s*.\n"
+                              "See https://kubernetes.io/docs/concepts/overview/working-with-objects/names/" % \
+                              name)
     return name
 
 
