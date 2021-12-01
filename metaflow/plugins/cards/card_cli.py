@@ -1,5 +1,6 @@
 from metaflow.client import Task
 from metaflow import Flow, JSONType, Step
+from metaflow.exception import CommandException
 import webbrowser
 import json
 import click
@@ -64,9 +65,10 @@ def resolve_card(
     is_path_spec = False
     if "/" in identifier:
         is_path_spec = True
-        assert (
-            len(identifier.split("/")) == 3
-        ), "Expecting pathspec of form <runid>/<stepname>/<taskid>"
+        if len(identifier.split("/")) != 3:
+            raise CommandException(
+                msg="Expecting pathspec of form <runid>/<stepname>/<taskid>"
+            )
 
     flow_name = ctx.obj.flow.name
     pathspec, run_id, step_name, task_id = None, None, None, None
