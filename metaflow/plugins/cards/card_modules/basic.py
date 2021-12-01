@@ -296,12 +296,9 @@ class TaskInfoComponent(MetaflowCardComponent):
             p.id for p in self._task.parent.parent["_parameters"].task if p.id != "name"
         ]
         if len(param_ids) > 0:
-            param_component = TableComponent(
-                headers=param_ids,
-                data=[[self._task[pid].data for pid in param_ids]],
-                # This makes a vertical table.
-                vertical=True,
-            ).render()
+            param_component = ArtifactsComponent(
+                data={pid: task_data_dict["data"][pid] for pid in param_ids}
+            )
         else:
             param_component = TitleComponent(text="No Parameters")
 
