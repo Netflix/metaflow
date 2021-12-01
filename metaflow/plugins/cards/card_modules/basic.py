@@ -289,7 +289,12 @@ class TaskInfoComponent(MetaflowCardComponent):
         table_comps = []
         for tabname in task_data_dict["tables"]:
             tab_dict = task_data_dict["tables"][tabname]
-            table_comps.append(TableComponent(title=tabname, **tab_dict).render())
+            table_comps.append(
+                SectionComponent(
+                    title="Artifact Name: %s" % tabname,
+                    contents=[TableComponent(**tab_dict)],
+                )
+            )
 
         # ignore the name as a parameter
         param_ids = [

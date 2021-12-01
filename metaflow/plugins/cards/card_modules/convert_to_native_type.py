@@ -105,8 +105,18 @@ class TaskToDict:
         task_data_dict = {}
         type_infered_objects = {"images": {}, "tables": {}}
         for data in task:
-            data_object = data.data
-            task_data_dict[data.id] = self._convert_to_native_type(data_object)
+            try:
+                data_object = data.data
+                task_data_dict[data.id] = self._convert_to_native_type(data_object)
+            except ModuleNotFoundError as e:
+                # this means pickle couldn't find the module.
+                task_data_dict[data.id] = dict(
+                    type=e.name,
+                    data="<unable to unpickle>",
+                    large_object=False,
+                    supported_type=False,
+                    only_repr=self._only_repr,
+                )
 
             # Resolve special types.
             type_resolved_obj = self._extract_type_infered_object(data_object)
@@ -122,6 +132,7 @@ class TaskToDict:
         # check images
         obj_type_name = self._get_object_type(data_object)
         if obj_type_name == "bytes":
+            # todo : as this works after a certain version of python; throw an error over here.
             import imghdr
 
             resp = imghdr.what(None, h=data_object)
