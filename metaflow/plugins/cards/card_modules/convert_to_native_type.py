@@ -132,11 +132,13 @@ class TaskToDict:
         # check images
         obj_type_name = self._get_object_type(data_object)
         if obj_type_name == "bytes":
-            # todo : as this works after a certain version of python; throw an error over here.
+            # Works for python 3.1+
             import imghdr
 
             resp = imghdr.what(None, h=data_object)
-            if resp is not None:
+            # Only accept types suppored on the web
+            # https://developer.mozilla.org/en-US/docs/Web/Media/Formats/Image_types
+            if resp is not None and resp in ["gif", "png", "jpeg", "webp"]:
                 return TypeResolvedObject(
                     self._parse_image(data_object, resp), True, False
                 )
