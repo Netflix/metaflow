@@ -29,6 +29,10 @@ class ParallelDecorator(StepDecorator):
     def task_decorate(
         self, step_func, flow, graph, retry_count, max_user_code_retries, ubf_context
     ):
+        def step_func_with_setup():
+            self.setup_distributed_env(flow)
+            step_func()
+
         if (
             ubf_context == UBF_CONTROL
             and os.environ.get("METAFLOW_RUNTIME_ENVIRONMENT", "local") == "local"
@@ -36,16 +40,19 @@ class ParallelDecorator(StepDecorator):
             from functools import partial
 
             env_to_use = getattr(self.environment, "base_env", self.environment)
-
             return partial(
                 _local_multinode_control_task_step_func,
                 flow,
                 env_to_use,
-                step_func,
+                step_func_with_setup,
                 retry_count,
             )
         else:
-            return step_func
+            return step_func_with_setup
+
+    def setup_distributed_env(self, flow):
+        # Overridden by subclasses to setup particular framework's environment.
+        pass
 
 
 def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_count):
