@@ -17,10 +17,12 @@ class PytorchParallelDecorator(ParallelDecorator):
     def task_decorate(
         self, step_func, flow, graph, retry_count, max_user_code_retries, ubf_context
     ):
-        setup_torch_distributed(1)
         return super().task_decorate(
             step_func, flow, graph, retry_count, max_user_code_retries, ubf_context
         )
+
+    def setup_distributed_env(self, flow):
+        setup_torch_distributed(1)
 
 
 class PyTorchHelper:
