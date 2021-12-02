@@ -7,10 +7,6 @@ from collections import namedtuple
 TypeResolvedObject = namedtuple("TypeResolvedObject", ["data", "is_image", "is_table"])
 
 
-class UnResolvableType(Exception):
-    pass
-
-
 TIME_FORMAT = "%Y-%m-%d %I:%M:%S %p"
 MAX_ARTIFACT_SIZE = 1  # in 1 MB
 
@@ -51,6 +47,9 @@ class TaskToDict:
     def __init__(self, only_repr=False):
         # this dictionary holds all the supported functions
         import reprlib
+        import pprint
+
+        self._pretty_print = pprint
 
         r = reprlib.Repr()
         r.maxarray = 100
@@ -195,8 +194,12 @@ class TaskToDict:
         if obj_type_name == None:
             return rep.repr(data_object), obj_type_name, supported_type, large_object
         elif self._only_repr:
-            return rep.repr(data_object), obj_type_name, supported_type, large_object
-
+            return (
+                self._pretty_print_obj(data_object),
+                obj_type_name,
+                supported_type,
+                large_object,
+            )
         if obj_type_name in self._supported_types:
             supported_type = True
             type_parsing_func = self._supported_types[obj_type_name]
@@ -209,6 +212,18 @@ class TaskToDict:
             data_obj = rep.repr(data_object)
 
         return data_obj, obj_type_name, supported_type, large_object
+
+    def _pretty_print_obj(self, data_object):
+        data = self._repr.repr(data_object)
+        if "..." in data:
+            return data
+        else:
+            pretty_print_op = self._pretty_print.pformat(
+                data_object, indent=2, width=50, compact=True
+            )
+            if pretty_print_op is None:
+                return data
+            return pretty_print_op
 
     def _get_repr(self):
         return self._repr
