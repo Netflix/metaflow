@@ -1,7 +1,8 @@
+import heapq
 import re
 import time
 import uuid
-import heapq
+
 from datetime import datetime
 from collections import namedtuple
 from metaflow.exception import MetaflowException
@@ -40,7 +41,7 @@ MISSING_TIMESTAMP_STR = MISSING_TIMESTAMP.strftime(ISOFORMAT)
 if time.timezone == 0:
     # the local timezone is UTC (common on servers). Don't waste time
     # on conversions
-    utc_to_local = lambda x: x
+    def utc_to_local(x): return x
 else:
     try:
         # python3
