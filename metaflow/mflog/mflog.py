@@ -6,7 +6,6 @@ import uuid
 
 from datetime import datetime
 from collections import namedtuple
-from metaflow.exception import MetaflowException
 from metaflow.util import to_bytes, to_fileobj, to_unicode
 
 VERSION = b"0"
