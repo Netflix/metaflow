@@ -49,8 +49,8 @@ def download_conda_packages(flow_name, env_id):
 def install_conda_environment(env_id, packages):
     args = [
         "if ! type conda  >/dev/null 2>&1; \
-            then wget --no-check-certificate https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-pypy3-Linux-x86_64.sh -O Miniforge3.sh >/dev/null 2>&1; \
-            bash ./Miniforge3.sh -b; fi",
+            then wget --no-check-certificate https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh -O Miniforge3.sh >/dev/null 2>&1; \
+            bash ./Miniforge3.sh -b; ln -sf /root/miniforge3/bin/conda /usr/local/bin/conda ; fi",
         "cd {0}".format(os.path.join(os.getcwd(), "pkgs")),
         "conda create --yes --no-default-packages -p {0} --no-deps {1} >/dev/null 2>&1".format(
             os.path.join(os.getcwd(), env_id), " ".join(packages)
