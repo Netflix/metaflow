@@ -10,7 +10,9 @@ into the user provided S3 path.
 
 
 @s3_sensor(
-    path=join("$METAFLOW_DATASTORE_SYSROOT_S3", "{file_name}"),
+    path=join(
+        "$METAFLOW_DATASTORE_SYSROOT_S3", "s3_sensor_test_key_files", "{file_name}"
+    ),
     timeout_seconds=600,
     polling_interval_seconds=5,
     os_expandvars=True,

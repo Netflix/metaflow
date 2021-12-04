@@ -2,12 +2,14 @@ import tempfile
 from os import listdir
 from os.path import isfile, join
 
-import yaml
-from subprocess_tee import run
 import json
-import re
 import requests
-from typing import List, Dict
+from requests.models import Response
+import yaml
+from subprocess import CompletedProcess
+from subprocess_tee import run
+import re
+from typing import List, Dict, Tuple
 
 import pytest
 import time
@@ -44,8 +46,8 @@ non_standard_test_flows = [
     "raise_error_flow.py",
     "s3_sensor_flow.py",
     "s3_sensor_with_formatter_flow.py",
+    "validate_s3_sensor_flows.py",
     "toleration_and_affinity_flow.py",
-    "upload_to_s3_flow.py",
 ]
 
 
@@ -57,7 +59,7 @@ def _python():
 
 
 def obtain_flow_file_paths(flow_dir_path: str) -> List[str]:
-    file_paths = [
+    file_paths: List[str] = [
         file_name
         for file_name in listdir(flow_dir_path)
         if isfile(join(flow_dir_path, file_name))
@@ -69,85 +71,112 @@ def obtain_flow_file_paths(flow_dir_path: str) -> List[str]:
 
 def test_s3_sensor_flow(pytestconfig) -> None:
     # ensure the s3_sensor waits for some time before the key exists
-    file_name = f"s3-sensor-file-{uuid.uuid1()}.txt"
-    file_name_for_formatter_test = f"s3-sensor-file-{uuid.uuid1()}.txt"
+    file_name: str = f"s3-sensor-file-{uuid.uuid1()}.txt"
+    file_name_for_formatter_test: str = f"s3-sensor-file-{uuid.uuid1()}.txt"
 
-    upload_to_s3_flow_cmd = (
-        f"{_python()} flows/upload_to_s3_flow.py --datastore=s3 kfp run "
-        f"--file_name {file_name} --file_name_for_formatter_test {file_name_for_formatter_test} "
-    )
-    s3_sensor_flow_cmd = (
-        f"{_python()} flows/s3_sensor_flow.py --datastore=s3 kfp run --wait-for-completion "
+    s3_sensor_flow_cmd: str = (
+        f"{_python()} flows/s3_sensor_flow.py --datastore=s3 kfp run "
         f"--file_name {file_name} --notify "
     )
-    s3_sensor_with_formatter_flow_cmd = (
-        f"{_python()} flows/s3_sensor_with_formatter_flow.py --datastore=s3 kfp run --wait-for-completion "
+    s3_sensor_with_formatter_flow_cmd: str = (
+        f"{_python()} flows/s3_sensor_with_formatter_flow.py --datastore=s3 kfp run "
         f"--file_name_for_formatter_test {file_name_for_formatter_test} --notify "
     )
 
-    main_config_cmds = (
+    main_config_cmds: str = (
         f"--workflow-timeout 1800 " f"--experiment metaflow_test --tag test_t1 "
     )
 
-    upload_to_s3_flow_cmd += main_config_cmds
     s3_sensor_flow_cmd += main_config_cmds
     s3_sensor_with_formatter_flow_cmd += main_config_cmds
 
     if pytestconfig.getoption("image"):
-        image_cmds = (
+        image_cmds: str = (
             f"--no-s3-code-package --base-image {pytestconfig.getoption('image')} "
         )
-        upload_to_s3_flow_cmd += image_cmds
-        s3_sensor_flow_cmd += image_cmds
-        s3_sensor_with_formatter_flow_cmd += image_cmds
+    else:
+        image_cmds: str = ""
 
-    exponential_backoff_from_platform_errors(upload_to_s3_flow_cmd, 0)
-    exponential_backoff_from_platform_errors(s3_sensor_flow_cmd, 0)
-    exponential_backoff_from_platform_errors(s3_sensor_with_formatter_flow_cmd, 0)
+    s3_sensor_flow_cmd += image_cmds
+    s3_sensor_with_formatter_flow_cmd += image_cmds
 
-    return
+    kfp_run_id: str
+    s3_sensor_argo_workflow_name: str
+    (
+        kfp_run_id,
+        s3_sensor_argo_workflow_name,
+    ) = run_cmd_with_backoff_from_platform_errors(
+        s3_sensor_flow_cmd, correct_return_code=0
+    )
+    kfp_run_id_formatter_flow: str
+    s3_sensor_with_formatter_argo_workflow_name: str
+    (
+        kfp_run_id_formatter_flow,
+        s3_sensor_with_formatter_argo_workflow_name,
+    ) = run_cmd_with_backoff_from_platform_errors(
+        s3_sensor_with_formatter_flow_cmd, correct_return_code=0
+    )
+
+    validate_s3_sensor_flow_cmd: str = (
+        f"{_python()} flows/validate_s3_sensor_flows.py --datastore=s3 kfp run "
+        f"--file_name {file_name} --file_name_for_formatter_test {file_name_for_formatter_test} "
+        f"--s3_sensor_argo_workflow_name {s3_sensor_argo_workflow_name} --s3_sensor_with_formatter_argo_workflow_name {s3_sensor_with_formatter_argo_workflow_name} "
+        f"--wait-for-completion "
+    )
+    validate_s3_sensor_flow_cmd += main_config_cmds
+    validate_s3_sensor_flow_cmd += image_cmds
+    run_cmd_with_backoff_from_platform_errors(
+        validate_s3_sensor_flow_cmd, correct_return_code=0
+    )
 
 
 # This test ensures that a flow fails correctly,
 # and when it fails, an OpsGenie email is sent.
 def test_error_and_opsgenie_alert(pytestconfig) -> None:
-    test_cmd = (
+    raise_error_flow_cmd: str = (
         f"{_python()} flows/raise_error_flow.py --datastore=s3 kfp run "
         f"--wait-for-completion --workflow-timeout 1800 "
         f"--experiment metaflow_test --tag test_t1 --notify "
     )
     if pytestconfig.getoption("image"):
-        test_cmd += (
+        image_cmds: str = (
             f"--no-s3-code-package --base-image {pytestconfig.getoption('image')}"
         )
+    else:
+        image_cmds: str = ""
+    raise_error_flow_cmd += image_cmds
 
-    error_flow_id = exponential_backoff_from_platform_errors(test_cmd, 1)
-    opsgenie_auth_headers = {
+    error_flow_id: str
+    error_flow_workflow_name: str
+    error_flow_id, error_flow_workflow_name = run_cmd_with_backoff_from_platform_errors(
+        raise_error_flow_cmd, correct_return_code=1
+    )
+    opsgenie_auth_headers: Dict[str, str] = {
         "Content-Type": "application/json",
         "Authorization": f"GenieKey {pytestconfig.getoption('opsgenie_api_token')}",
     }
 
     # Look for the alert with the correct kfp_run_id in the description.
-    list_alerts_endpoint = f"https://api.opsgenie.com/v2/alerts?query=description:{error_flow_id}&limit=1&sort=createdAt&order=des"
-    list_alerts_response = requests.get(
+    list_alerts_endpoint: str = f"https://api.opsgenie.com/v2/alerts?query=description:{error_flow_id}&limit=1&sort=createdAt&order=des"
+    list_alerts_response: Response = requests.get(
         list_alerts_endpoint, headers=opsgenie_auth_headers
     )
     assert list_alerts_response.status_code == 200
 
-    list_alerts_response_json = json.loads(list_alerts_response.text)
+    list_alerts_response_json: dict = json.loads(list_alerts_response.text)
     # assert we have found the alert (there should only be one alert with that kfp_run_id)
     assert len(list_alerts_response_json["data"]) == 1
     alert_alias = list_alerts_response_json["data"][0]["alias"]
 
-    close_alert_data = {
+    close_alert_data: str = {
         "user": "AIP Integration Testing Service",
         "source": "AIP Integration Testing Service",
         "note": "Closing ticket because the test is complete.",
     }
-    close_alert_endpoint = (
+    close_alert_endpoint: str = (
         f"https://api.opsgenie.com/v2/alerts/{alert_alias}/close?identifierType=alias"
     )
-    close_alert_response = requests.post(
+    close_alert_response: Response = requests.post(
         close_alert_endpoint,
         data=json.dumps(close_alert_data),
         headers=opsgenie_auth_headers,
@@ -160,7 +189,7 @@ def test_error_and_opsgenie_alert(pytestconfig) -> None:
     )
 
     # Test logging of raise_error_flow
-    test_cmd = (
+    check_error_handling_flow_cmd: str = (
         f"{_python()} flows/check_error_handling_flow.py "
         f"--datastore=s3 --with retry kfp run "
         f"--wait-for-completion --workflow-timeout 1800 "
@@ -168,20 +197,19 @@ def test_error_and_opsgenie_alert(pytestconfig) -> None:
         f"--error_flow_id={error_flow_id} "
         f"--notify "
     )
-    if pytestconfig.getoption("image"):
-        test_cmd += (
-            f"--no-s3-code-package --base-image {pytestconfig.getoption('image')}"
-        )
-    exponential_backoff_from_platform_errors(test_cmd, 0)
+    check_error_handling_flow_cmd += image_cmds
+    run_cmd_with_backoff_from_platform_errors(
+        check_error_handling_flow_cmd, correct_return_code=0
+    )
 
     return
 
 
 @pytest.mark.parametrize("flow_file_path", obtain_flow_file_paths("flows"))
 def test_flows(pytestconfig, flow_file_path: str) -> None:
-    full_path = join("flows", flow_file_path)
+    full_path: str = join("flows", flow_file_path)
 
-    test_cmd = (
+    test_cmd: str = (
         f"{_python()} {full_path} --datastore=s3 --with retry kfp run "
         f"--wait-for-completion --workflow-timeout 1800 "
         f"--max-parallelism 3 --experiment metaflow_test --tag test_t1 "
@@ -191,22 +219,22 @@ def test_flows(pytestconfig, flow_file_path: str) -> None:
             f"--no-s3-code-package --base-image {pytestconfig.getoption('image')}"
         )
 
-    exponential_backoff_from_platform_errors(test_cmd, 0)
+    run_cmd_with_backoff_from_platform_errors(test_cmd, correct_return_code=0)
 
     return
 
 
-def exponential_backoff_from_platform_errors(
+def run_cmd_with_backoff_from_platform_errors(
     kfp_run_cmd: str, correct_return_code: int
-) -> str:
+) -> Tuple[str, str]:
     # Within this function, we use the special feature of subprocess_tee which allows us
     # to capture both stdout and stderr (akin to stdout=PIPE, stderr=PIPE in the regular subprocess.run)
     # as well as output to stdout and stderr (which users can see on the Gitlab logs). We check
     # if the error message is due to a KFAM issue, and if so, we do an exponential backoff.
 
-    backoff_intervals_in_seconds = [0, 2, 4, 8, 16, 32]
+    backoff_intervals_in_seconds: List[int] = [0, 2, 4, 8, 16, 32]
 
-    platform_error_messages = [
+    platform_error_messages: List[str] = [
         "Reason: Unauthorized",
         "Failed to connect to the KFAM service",
         "Failed to create a new experiment",
@@ -215,7 +243,7 @@ def exponential_backoff_from_platform_errors(
     for interval in backoff_intervals_in_seconds:
         time.sleep(interval)
 
-        run_and_wait_process = run(
+        run_and_wait_process: CompletedProcess = run(
             kfp_run_cmd,
             universal_newlines=True,
             shell=True,
@@ -235,11 +263,15 @@ def exponential_backoff_from_platform_errors(
             "KFAM issues not resolved after successive backoff attempts."
         )
 
-    kfp_run_id = re.search("Metaflow run_id=(.*)\n", run_and_wait_process.stderr).group(
-        1
-    )
+    kfp_run_id: str = re.search(
+        "Metaflow run_id=(.*)\n", run_and_wait_process.stderr
+    ).group(1)
+    argo_workflow_output_string: str = re.search(
+        "Argo workflow: (.*)\n", run_and_wait_process.stderr
+    ).group(1)
+    argo_workflow_name: str = argo_workflow_output_string.split(" ")[-1]
 
-    return kfp_run_id
+    return kfp_run_id, argo_workflow_name
 
 
 def exists_nvidia_accelerator(node_selector_term: Dict) -> bool:
@@ -266,16 +298,16 @@ def has_node_toleration(
 
 
 def test_toleration_and_affinity_compile_only() -> None:
-    step_templates = {}
+    step_templates: Dict[str, str] = {}
     with tempfile.TemporaryDirectory() as yaml_tmp_dir:
-        yaml_file_path = join(yaml_tmp_dir, "toleration_and_affinity_flow.yaml")
+        yaml_file_path: str = join(yaml_tmp_dir, "toleration_and_affinity_flow.yaml")
 
-        compile_to_yaml_cmd = (
+        compile_to_yaml_cmd: str = (
             f"{_python()} flows/toleration_and_affinity_flow.py --datastore=s3 --with retry kfp run"
             f" --no-s3-code-package --yaml-only --pipeline-path {yaml_file_path}"
         )
 
-        compile_to_yaml_process = run(
+        compile_to_yaml_process: CompletedProcess = run(
             compile_to_yaml_cmd,
             universal_newlines=True,
             shell=True,
@@ -284,7 +316,7 @@ def test_toleration_and_affinity_compile_only() -> None:
 
         with open(f"{yaml_file_path}", "r") as stream:
             try:
-                flow_yaml = yaml.safe_load(stream)
+                flow_yaml: dict = yaml.safe_load(stream)
             except yaml.YAMLError as exc:
                 print(exc)
 

@@ -41,6 +41,7 @@ from metaflow.metaflow_config import (
 )
 from metaflow.plugins import KfpInternalDecorator, EnvironmentDecorator
 from metaflow.plugins.kfp.kfp_decorator import KfpException
+from metaflow.plugins.kfp.kfp_constants import S3_SENSOR_RETRY_COUNT
 from .accelerator_decorator import AcceleratorDecorator
 from .kfp_foreach_splits import graph_to_task_ids, KfpForEachSplits
 from ..aws.batch.batch_decorator import BatchDecorator
@@ -816,7 +817,8 @@ class KubeflowPipelines(object):
                     self._create_exit_handler_op(flow_variables.package_commands)
                 ):
                     s3_sensor_op: Optional[ContainerOp] = self.create_s3_sensor_op(
-                        flow_parameters_json, flow_variables
+                        flow_parameters_json,
+                        flow_variables,
                     )
                     workflow_uid_op: Optional[
                         ContainerOp
@@ -829,7 +831,8 @@ class KubeflowPipelines(object):
             else:
                 # TODO: can this and above duplicated code be in a function?
                 s3_sensor_op: Optional[ContainerOp] = self.create_s3_sensor_op(
-                    flow_parameters_json, flow_variables
+                    flow_parameters_json,
+                    flow_variables,
                 )
                 workflow_uid_op: Optional[ContainerOp] = self._create_workflow_uid_op(
                     s3_sensor_op.output if s3_sensor_op else "",
@@ -1020,7 +1023,9 @@ class KubeflowPipelines(object):
             return None
 
     def create_s3_sensor_op(
-        self, flow_parameters_json: str, flow_variables: FlowVariables
+        self,
+        flow_parameters_json: str,
+        flow_variables: FlowVariables,
     ):
         s3_sensor_deco: Optional[FlowDecorator] = self.flow._flow_decorators.get(
             "s3_sensor"
@@ -1066,6 +1071,8 @@ class KubeflowPipelines(object):
             (
                 f"{package_commands}"
                 " && python -m metaflow.plugins.kfp.kfp_s3_sensor"
+                f" --kfp_run_id {dsl.RUN_ID_PLACEHOLDER}"
+                f" --flow_name {self.name}"
                 f" --flow_parameters_json '{flow_parameters_json}'"
                 f" --path {path}"
                 f" --path_formatter_code_encoded '{path_formatter_code_encoded}'"
@@ -1084,6 +1091,7 @@ class KubeflowPipelines(object):
         ).set_display_name("s3_sensor")
 
         KubeflowPipelines._set_minimal_container_resources(s3_sensor_op)
+        s3_sensor_op.set_retry(S3_SENSOR_RETRY_COUNT, policy="OnError")
         return s3_sensor_op
 
     def _create_exit_handler_op(self, package_commands: str) -> ContainerOp:

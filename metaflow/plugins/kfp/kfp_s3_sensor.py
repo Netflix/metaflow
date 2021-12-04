@@ -7,28 +7,72 @@ This function is called within the s3_sensor_op running container.
 from email.policy import default
 import click
 
+import os
 import pathlib
 from typing import Dict
+import botocore
+import base64
+import json
+import marshal
+import time
+from urllib.parse import urlparse, ParseResult
+
+from typing import Tuple
+
+from metaflow.datastore.util.s3util import get_s3_client
+
+
+def construct_elapsed_time_s3_bucket_and_key(
+    flow_name: str, kfp_run_id: str
+) -> Tuple[str, str]:
+    s3_path = os.path.join(
+        os.getenv("METAFLOW_DATASTORE_SYSROOT_S3"),
+        flow_name,
+        kfp_run_id,
+        "_s3_sensor",
+    )
+    s3_path_parsed: ParseResult = urlparse(s3_path)
+    bucket: str = s3_path_parsed.netloc
+    key: str = s3_path_parsed.path.lstrip("/")
+    return bucket, key
+
+
+def read_elapsed_time_s3_path(
+    s3: botocore.client.BaseClient, flow_name: str, kfp_run_id: str
+) -> float:
+    bucket: str
+    key: str
+    bucket, key = construct_elapsed_time_s3_bucket_and_key(flow_name, kfp_run_id)
+
+    try:
+        s3.head_object(Bucket=bucket, Key=key)
+    except botocore.exceptions.ClientError as e:
+        elapsed_time: float = 0.0
+    else:
+        s3_object: dict = s3.get_object(Bucket=bucket, Key=key)
+        elapsed_time: float = float(s3_object["Body"].read().decode("utf-8"))
+    return elapsed_time
+
+
+def write_elapsed_time_s3_path(
+    s3: botocore.client.BaseClient, flow_name: str, kfp_run_id: str, elapsed_time: float
+) -> None:
+    bucket, key = construct_elapsed_time_s3_bucket_and_key(flow_name, kfp_run_id)
+    elapsed_time_binary_data = str(elapsed_time).encode("ascii")
+    s3.put_object(Body=elapsed_time_binary_data, Bucket=bucket, Key=key)
 
 
 # We separate out this function to ensure it can be unit-tested.
 def wait_for_s3_path(
     path: str,
+    flow_name: str,
+    kfp_run_id: str,
     timeout_seconds: int,
     polling_interval_seconds: int,
     path_formatter_code_encoded: str,
     flow_parameters_json: str,
     os_expandvars: bool,
 ) -> str:
-    import boto3
-    import botocore
-    import base64
-    import json
-    import marshal
-    import time
-    from urllib.parse import urlparse
-    import os
-
     flow_parameters: Dict[str, str] = json.loads(flow_parameters_json)
 
     if path_formatter_code_encoded:
@@ -46,7 +90,7 @@ def wait_for_s3_path(
     else:
         if os_expandvars:
             # expand OS env variables
-            path = os.path.expandvars(path)
+            path: str = os.path.expandvars(path)
         # default variable substitution
         path: str = path.format(**flow_parameters)
 
@@ -54,14 +98,19 @@ def wait_for_s3_path(
     # we're looking for
     print(f"Waiting for path: {path}...")
 
-    parsed_path = urlparse(path)
+    parsed_path: ParseResult = urlparse(path)
+    bucket: str
+    key: str
     bucket, key = parsed_path.netloc, parsed_path.path.lstrip("/")
+    s3: botocore.client.BaseClient
+    s3, _ = get_s3_client()
 
-    s3 = boto3.client("s3")
-    start_time = time.time()
+    previous_elapsed_time: float = read_elapsed_time_s3_path(s3, flow_name, kfp_run_id)
+
+    start_time: float = time.time()
     while True:
-        current_time = time.time()
-        elapsed_time = current_time - start_time
+        current_time: float = time.time()
+        elapsed_time: float = current_time - start_time + previous_elapsed_time
         if elapsed_time > timeout_seconds:
             raise TimeoutError("Timed out while waiting for S3 key..")
 
@@ -73,6 +122,7 @@ def wait_for_s3_path(
             print(f"Object found at path {path}! Elapsed time: {elapsed_time}.")
             break
 
+        write_elapsed_time_s3_path(s3, flow_name, kfp_run_id, elapsed_time)
         time.sleep(polling_interval_seconds)
 
     output_path = "/tmp/outputs/Output"
@@ -85,6 +135,8 @@ def wait_for_s3_path(
 
 @click.command()
 @click.option("--path")
+@click.option("--flow_name")
+@click.option("--kfp_run_id")
 @click.option("--timeout_seconds", type=int)
 @click.option("--polling_interval_seconds", type=int)
 @click.option("--path_formatter_code_encoded")
@@ -92,6 +144,8 @@ def wait_for_s3_path(
 @click.option("--os_expandvars/--no_os_expandvars", default=False)
 def wait_for_s3_path_cli(
     path: str,
+    flow_name: str,
+    kfp_run_id: str,
     timeout_seconds: int,
     polling_interval_seconds: int,
     path_formatter_code_encoded: str,
@@ -100,6 +154,8 @@ def wait_for_s3_path_cli(
 ) -> str:
     return wait_for_s3_path(
         path,
+        flow_name,
+        kfp_run_id,
         timeout_seconds,
         polling_interval_seconds,
         path_formatter_code_encoded,
