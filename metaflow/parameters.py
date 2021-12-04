@@ -165,7 +165,7 @@ class Parameter(object):
         self.kwargs = kwargs
         # TODO: check that the type is one of the supported types
         param_type = self.kwargs["type"] = self._get_type(kwargs)
-        reserved_params = ['params', 'with', 'max-num-splits', 'max-workers']
+        reserved_params = ['params', 'with', 'max-num-splits', 'max-workers', 'tag', 'run-id-file', 'namespace']
 
         if self.name in reserved_params:
             raise MetaflowException(
