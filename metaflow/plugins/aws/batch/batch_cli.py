@@ -11,7 +11,7 @@ from metaflow import R
 from metaflow.exception import CommandException, METAFLOW_EXIT_DISALLOW_RETRY
 from metaflow.metadata.util import sync_local_metadata_from_datastore
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
-from metaflow.mflog import TASK_LOG_SOURCE
+from metaflow.mflog import TASK_LOG_SOURCE, capture_output_to_mflog
 
 from .batch import Batch, BatchKilledException
 
@@ -263,7 +263,7 @@ def step(
         with ctx.obj.monitor.measure("metaflow.aws.batch.launch_job"):
             batch.launch_job(
                 step_name,
-                step_cli,
+                capture_output_to_mflog(step_cli),
                 task_spec,
                 code_package_sha,
                 code_package_url,
