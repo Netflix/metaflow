@@ -135,6 +135,7 @@ from .test_unbounded_foreach_decorator import (
 from .conda.conda_step_decorator import CondaStepDecorator
 from .frameworks.pytorch import PytorchParallelDecorator
 from .frameworks.tensorflow import TensorflowParallelDecorator
+from .frameworks.dask import DaskDistributed
 
 STEP_DECORATORS = _merge_lists(
     [
@@ -151,6 +152,7 @@ STEP_DECORATORS = _merge_lists(
         PytorchParallelDecorator,
         TensorflowParallelDecorator,
         InternalTestUnboundedForeachDecorator,
+        DaskDistributed,
     ],
     _ext_plugins.STEP_DECORATORS,
     "name",
