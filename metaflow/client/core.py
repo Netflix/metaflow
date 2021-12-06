@@ -576,7 +576,7 @@ class MetaflowObject(object):
                 # If we had a step
                 task = latest_step.task
                 origin_run_id = [m.value for m in task.metadata if m.name == "origin-run-id"]
-                if origin_run_id
+                if origin_run_id:
                     origin_pathspec = "%s/%s" % (self.parent.id, origin_run_id[0])
         else:
             parent_pathspec = self.parent.origin_pathspec if self.parent else None
