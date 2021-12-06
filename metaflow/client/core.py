@@ -312,7 +312,8 @@ class MetaflowObject(object):
     path_components : List[string]
         Components of the pathspec
     origin_pathspec : str
-        Pathspec of the `Run`/`Step`/`Task`, the current MetaflowObject has been cloned from or None if not a cloned object
+        Pathspec of the original object this object was cloned from (in the case of a resume).
+        None if not applicable.
     """
 
     _NAME = "base"
@@ -570,36 +571,25 @@ class MetaflowObject(object):
         """
         origin_pathspec = None
         if self._NAME == "run":
-            # If there is an empty generator the return None.
             latest_step = next(self.steps())
-            if latest_step is None:
-                return None
-            task = latest_step.task
-            origin_run_id = None
-            for metadata in task.metadata:
-                if metadata.name == "origin-run-id":
-                    origin_run_id = metadata.value
-                    break
-            if origin_run_id is None:
-                return None
-            flow_name = self.parent.id
-            origin_pathspec = "%s/%s" % (flow_name, origin_run_id)
-        elif self._NAME == "step":
-            runorig = self.parent.origin_pathspec
-            if runorig is None:
-                return None
-            step_name = self.id
-            origin_pathspec = "%s/%s" % (runorig, step_name)
-        elif self._NAME == "task":
-            origin_task_id = None
-            for metadata in self.metadata:
-                if metadata.name == "origin-task-id":
-                    origin_task_id = metadata.value
-                    break
-            if origin_task_id is None:
-                return None
-            step_orig = self.parent.origin_pathspec
-            origin_pathspec = "%s/%s" % (step_orig, origin_task_id)
+            if latest_step:
+                # If we had a step
+                task = latest_step.task
+                origin_run_id = [m.value for m in task.metadata if m.name == "origin-run-id"]
+                if origin_run_id
+                    origin_pathspec = "%s/%s" % (self.parent.id, origin_run_id[0])
+        else:
+            parent_pathspec = self.parent.origin_pathspec if self.parent else None
+            if parent_pathspec:
+                my_id = self.id
+                if self._NAME == "task":
+                    origin_task_id = [m.value for m in self.metadata if m.name == "origin-task-id"]
+                if origin_task_id:
+                    my_id = origin_task_id[0]
+                else:
+                    my_id = None
+                if my_id is not None:
+                    origin_pathspec = "%s/%s" % (parent_pathspec, my_id)
         return origin_pathspec
 
     @property
