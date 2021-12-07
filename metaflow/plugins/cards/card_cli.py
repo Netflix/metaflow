@@ -2,11 +2,10 @@ from metaflow.client import Task
 from metaflow import Flow, JSONType, Step
 from metaflow.exception import CommandException
 import webbrowser
-import json
+import re
 import click
 import os
 import signal
-import sys
 import random
 from contextlib import contextmanager
 from functools import wraps
@@ -17,7 +16,6 @@ from .exception import (
     IncorrectCardArgsException,
     UnrenderableCardException,
     CardNotPresentException,
-    TypeRequiredException,
 )
 
 from .card_resolver import resolve_paths_from_task, resumed_info
@@ -62,7 +60,6 @@ def resolve_card(ctx, pathspec, hash=None, type=None, follow_resumed=True):
 
     flow_name = ctx.obj.flow.name
     run_id, step_name, task_id = None, None, None
-    more_than_one_task = False
     # what should be the args we expose
     run_id, step_name, task_id = pathspec.split("/")
     pathspec = "/".join([flow_name, run_id, step_name, task_id])
@@ -247,13 +244,6 @@ def render_card(mf_card, task, timeout_value=None):
     help="Maximum amount of time allowed to create card.",
 )
 @click.option(
-    "--component-file",
-    default=None,
-    show_default=True,
-    type=str,
-    help="JSON File with Pre-rendered components.(internal)",
-)
-@click.option(
     "--with-error-card",
     default=False,
     is_flag=True,
@@ -266,7 +256,6 @@ def create(
     type=None,
     options=None,
     timeout=None,
-    component_file=None,
     with_error_card=False,
 ):
 
@@ -284,14 +273,9 @@ def create(
     # todo : Import the changes from Netflix/metaflow#833 for Graph
     graph_dict = serialize_flowgraph(ctx.obj.graph)
 
-    # Components are rendered in a Step and added via `current.card.append` are added here.
-    component_arr = []
-    if component_file is not None:
-        with open(component_file, "r") as f:
-            component_arr = json.load(f)
-
     task = Task(full_pathspec)
     from metaflow.plugins import CARDS
+    from metaflow.plugins.cards.exception import CARD_ID_PATTERN
     from metaflow.cards import ErrorCard
 
     error_card = ErrorCard
@@ -300,7 +284,7 @@ def create(
         ctx.obj.flow_datastore, runid, step_name, task_id, path_spec=full_pathspec
     )
 
-    if len(filtered_cards) == 0:
+    if len(filtered_cards) == 0 or type is None:
         if with_error_card:
             error_stack_trace = str(CardClassFoundException(type))
         else:
@@ -318,9 +302,7 @@ def create(
         # then check for with_error_card and accordingly
         # store the exception as a string or raise the exception
         try:
-            mf_card = filtered_card(
-                options=options, components=component_arr, graph=graph_dict
-            )
+            mf_card = filtered_card(options=options, components=[], graph=graph_dict)
         except TypeError as e:
             if with_error_card:
                 mf_card = None
@@ -347,7 +329,11 @@ def create(
         )
 
     # todo : should we save native type for error card or error type ?
-    save_type = type  # if error_stack_trace is not None else 'error'
+    if type is not None and re.match(CARD_ID_PATTERN, type) is not None:
+        save_type = type
+    else:
+        save_type = "error"
+
     card_datastore.save_card(save_type, rendered_info)
 
 

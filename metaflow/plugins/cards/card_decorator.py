@@ -6,7 +6,6 @@ import tempfile
 from metaflow.decorators import StepDecorator, flow_decorators
 from metaflow.current import current
 from metaflow.util import to_unicode
-from .card_modules import serialize_components
 
 # from metaflow import get_metadata
 import re
@@ -119,28 +118,16 @@ class CardDecorator(StepDecorator):
         ubf_context,
         inputs,
     ):
-        from functools import partial
-
         self._task_datastore = task_datastore
-        current._update_env({"card": []})
         self._metadata = metadata
 
     def task_finished(
         self, step_name, flow, graph, is_task_ok, retry_count, max_user_code_retries
     ):
-        component_strings = []
-        # Upon task finish we render cards which are held in current.
-        # The `serialize_components` function safely tries to render each component
-        # These components are passed down to the next card subprocess via a temp JSON file
-        if len(current.card) > 0:
-            component_strings = serialize_components(current.card)
-
         if not is_task_ok:
-            # todo : What do we do when underlying `step` soft-fails.
-            # Todo : What do we do when underlying `@card` fails in some way?
             return
         runspec = "/".join([current.run_id, current.step_name, current.task_id])
-        self._run_cards_subprocess(runspec, component_strings)
+        self._run_cards_subprocess(runspec)
 
     @staticmethod
     def _options(mapping):
@@ -172,13 +159,7 @@ class CardDecorator(StepDecorator):
             top_level_options.update(deco.get_top_level_options())
         return list(self._options(top_level_options))
 
-    def _run_cards_subprocess(self, runspec, component_strings):
-        temp_file = None
-        if len(component_strings) > 0:
-            temp_file = tempfile.NamedTemporaryFile("w", suffix=".json")
-            json.dump(component_strings, temp_file)
-            temp_file.seek(0)
-
+    def _run_cards_subprocess(self, runspec):
         executable = sys.executable
         cmd = [
             executable,
@@ -193,8 +174,6 @@ class CardDecorator(StepDecorator):
             # Add the options relating to card arguments.
             # todo : add scope as a CLI arg for the create method.
         ]
-        if temp_file is not None:
-            cmd += ["--component-file", temp_file.name]
         if self.card_options is not None and len(self.card_options) > 0:
             cmd += ["--options", json.dumps(self.card_options)]
         # set the id argument.
@@ -205,10 +184,8 @@ class CardDecorator(StepDecorator):
         if self.attributes["save_errors"]:
             cmd += ["--with-error-card"]
 
-        response, fail = self._run_command(cmd, os.environ)
-        if fail:
-            # todo : Handle failure scenarios better.
-            print("Process Failed", response.decode("utf-8"))
+        self._run_command(cmd, os.environ)
+        # do nothing on failure as we create an error card
 
     def _run_command(self, cmd, env):
         fail = False

@@ -1,5 +1,9 @@
 from metaflow.exception import MetaflowException
 import traceback
+import re
+
+TYPE_CHECK_REGEX = "^[a-zA-Z0-9_]+$"
+CARD_ID_PATTERN = re.compile(TYPE_CHECK_REGEX)
 
 
 class CardClassFoundException(MetaflowException):
@@ -100,3 +104,17 @@ class UnresolvableDatastoreException(MetaflowException):
             % task.pathspec
         )
         super(UnresolvableDatastoreException, self).__init__(msg)
+
+
+class IncorrectCardModuleAttributeTypeException(MetaflowException):
+    headline = "card related modules need to have `CARD` attribute as `list`"
+
+    def __init__(
+        self,
+        module_name,
+    ):
+        msg = (
+            "Ignoring import of module %s since the CARDS attribute "
+            "is not a `list`." % (module_name)
+        )
+        super().__init__(msg=msg, lineno=None)
