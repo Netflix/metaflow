@@ -584,15 +584,15 @@ class MetaflowObject(object):
             parent_pathspec = self.parent.origin_pathspec if self.parent else None
             if parent_pathspec:
                 my_id = self.id
+                origin_task_id = None
                 if self._NAME == "task":
                     origin_task_id = [
                         m.value for m in self.metadata if m.name == "origin-task-id"
                     ]
-
-                if origin_task_id:
-                    my_id = origin_task_id[0]
-                else:
-                    my_id = None
+                    if origin_task_id:
+                        my_id = origin_task_id[0]
+                    else:
+                        my_id = None
                 if my_id is not None:
                     origin_pathspec = "%s/%s" % (parent_pathspec, my_id)
         return origin_pathspec
