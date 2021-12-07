@@ -1016,6 +1016,7 @@ class S3(object):
                     )
                     return stdout, None
                 except subprocess.CalledProcessError as ex:
+                    print(ex)
                     stderr.seek(0)
                     err_out = stderr.read().decode("utf-8", errors="replace")
                     stderr.seek(0)

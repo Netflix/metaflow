@@ -1,4 +1,5 @@
 import os
+import copy
 import time
 import math
 import random
@@ -162,134 +163,238 @@ class KubernetesJob(object):
         # Note: This implementation ensures that there is only one unique Pod
         # (unique UID) per Metaflow task attempt.
         client = self._client_wrapper.get()
-        self._job = client.V1Job(
-            api_version="batch/v1",
-            kind="Job",
-            metadata=client.V1ObjectMeta(
-                # Annotations are for humans
-                annotations=self._kwargs.get("annotations", {}),
-                # While labels are for Kubernetes
-                labels=self._kwargs.get("labels", {}),
-                name=self._kwargs["name"],  # Unique within the namespace
-                namespace=self._kwargs["namespace"],  # Defaults to `default`
-            ),
-            spec=client.V1JobSpec(
-                # Retries are handled by Metaflow when it is responsible for
-                # executing the flow. The responsibility is moved to Kubernetes
-                # when AWS Step Functions / Argo are responsible for the
-                # execution.
-                backoff_limit=self._kwargs.get("retries", 0),
-                completions=1,  # A single non-indexed pod job
-                # TODO (savin): Implement a job clean-up option in the
-                # kubernetes CLI.
-                ttl_seconds_after_finished=7
-                * 60
-                * 60  # Remove job after a week. TODO (savin): Make this
-                * 24,  # configurable
-                template=client.V1PodTemplateSpec(
-                    metadata=client.V1ObjectMeta(
-                        annotations=self._kwargs.get("annotations", {}),
-                        labels=self._kwargs.get("labels", {}),
-                        name=self._kwargs["name"],
-                        namespace=self._kwargs["namespace"],
-                    ),
-                    spec=client.V1PodSpec(
-                        # Timeout is set on the pod and not the job (important!)
-                        active_deadline_seconds=self._kwargs["timeout_in_seconds"],
-                        # TODO (savin): Enable affinities for GPU scheduling.
-                        #               This requires some thought around the
-                        #               UX since specifying affinities can get
-                        #               complicated quickly. We may well decide
-                        #               to move it out of scope for the initial
-                        #               roll out.
-                        # affinity=?,
-                        containers=[
-                            client.V1Container(
-                                command=self._kwargs["command"],
-                                env=[
-                                    client.V1EnvVar(name=k, value=str(v))
-                                    for k, v in self._kwargs.get(
-                                        "environment_variables", {}
-                                    ).items()
-                                ]
-                                # And some downward API magic. Add (key, value)
-                                # pairs below to make pod metadata available
-                                # within Kubernetes container.
-                                #
-                                # TODO: Figure out a way to make job
-                                # metadata visible within the container
-                                + [
-                                    client.V1EnvVar(
-                                        name=k,
-                                        value_from=client.V1EnvVarSource(
-                                            field_ref=client.V1ObjectFieldSelector(
-                                                field_path=str(v)
+
+        if self._kwargs.get("num_parallel", 0) > 1:
+            self._job = self._create_parallel_job()
+        else:
+            self._job = client.V1Job(
+                api_version="batch/v1",
+                kind="Job",
+                metadata=client.V1ObjectMeta(
+                    # Annotations are for humans
+                    annotations=self._kwargs.get("annotations", {}),
+                    # While labels are for Kubernetes
+                    labels=self._kwargs.get("labels", {}),
+                    name=self._kwargs["name"],  # Unique within the namespace
+                    namespace=self._kwargs["namespace"],  # Defaults to `default`
+                ),
+                spec=client.V1JobSpec(
+                    # Retries are handled by Metaflow when it is responsible for
+                    # executing the flow. The responsibility is moved to Kubernetes
+                    # when AWS Step Functions / Argo are responsible for the
+                    # execution.
+                    backoff_limit=self._kwargs.get("retries", 0),
+                    completions=1,  # A single non-indexed pod job
+                    # TODO (savin): Implement a job clean-up option in the
+                    # kubernetes CLI.
+                    ttl_seconds_after_finished=7
+                    * 60
+                    * 60  # Remove job after a week. TODO (savin): Make this
+                    * 24,  # configurable
+                    template=client.V1PodTemplateSpec(
+                        metadata=client.V1ObjectMeta(
+                            annotations=self._kwargs.get("annotations", {}),
+                            labels=self._kwargs.get("labels", {}),
+                            name=self._kwargs["name"],
+                            namespace=self._kwargs["namespace"],
+                        ),
+                        spec=client.V1PodSpec(
+                            # Timeout is set on the pod and not the job (important!)
+                            active_deadline_seconds=self._kwargs["timeout_in_seconds"],
+                            # TODO (savin): Enable affinities for GPU scheduling.
+                            #               This requires some thought around the
+                            #               UX since specifying affinities can get
+                            #               complicated quickly. We may well decide
+                            #               to move it out of scope for the initial
+                            #               roll out.
+                            # affinity=?,
+                            containers=[
+                                client.V1Container(
+                                    command=self._kwargs["command"],
+                                    env=[
+                                        client.V1EnvVar(name=k, value=str(v))
+                                        for k, v in self._kwargs.get(
+                                            "environment_variables", {}
+                                        ).items()
+                                    ]
+                                    # And some downward API magic. Add (key, value)
+                                    # pairs below to make pod metadata available
+                                    # within Kubernetes container.
+                                    #
+                                    # TODO: Figure out a way to make job
+                                    # metadata visible within the container
+                                    + [
+                                        client.V1EnvVar(
+                                            name=k,
+                                            value_from=client.V1EnvVarSource(
+                                                field_ref=client.V1ObjectFieldSelector(
+                                                    field_path=str(v)
+                                                )
+                                            ),
+                                        )
+                                        for k, v in {
+                                            "METAFLOW_KUBERNETES_POD_NAMESPACE": "metadata.namespace",
+                                            "METAFLOW_KUBERNETES_POD_NAME": "metadata.name",
+                                            "METAFLOW_KUBERNETES_POD_ID": "metadata.uid",
+                                        }.items()
+                                    ],
+                                    env_from=[
+                                        client.V1EnvFromSource(
+                                            secret_ref=client.V1SecretEnvSource(
+                                                name=str(k)
                                             )
-                                        ),
-                                    )
-                                    for k, v in {
-                                        "METAFLOW_KUBERNETES_POD_NAMESPACE": "metadata.namespace",
-                                        "METAFLOW_KUBERNETES_POD_NAME": "metadata.name",
-                                        "METAFLOW_KUBERNETES_POD_ID": "metadata.uid",
-                                    }.items()
-                                ],
-                                env_from=[
-                                    client.V1EnvFromSource(
-                                        secret_ref=client.V1SecretEnvSource(name=str(k))
-                                    )
-                                    for k in self._kwargs.get("secrets", [])
-                                ],
-                                image=self._kwargs["image"],
-                                name=self._kwargs["name"],
-                                resources=client.V1ResourceRequirements(
-                                    requests={
-                                        "cpu": str(self._kwargs["cpu"]),
-                                        "memory": "%sM" % str(self._kwargs["memory"]),
-                                        "ephemeral-storage": "%sM"
-                                        % str(self._kwargs["disk"]),
-                                    }
-                                ),
-                            )
-                        ],
-                        node_selector={
-                            # TODO: What should be the format of node selector -
-                            #       key:value or key=value?
-                            str(k.split("=", 1)[0]): str(k.split("=", 1)[1])
-                            for k in self._kwargs.get("node_selector", [])
-                        },
-                        # TODO (savin): At some point in the very near future,
-                        #               support docker access secrets.
-                        # image_pull_secrets=?,
-                        #
-                        # TODO (savin): We should, someday, get into the pod
-                        #               priority business
-                        # preemption_policy=?,
-                        #
-                        # A Container in a Pod may fail for a number of
-                        # reasons, such as because the process in it exited
-                        # with a non-zero exit code, or the Container was
-                        # killed due to OOM etc. If this happens, fail the pod
-                        # and let Metaflow handle the retries.
-                        restart_policy="Never",
-                        service_account_name=self._kwargs["service_account"],
-                        # Terminate the container immediately on SIGTERM
-                        termination_grace_period_seconds=0,
-                        # TODO (savin): Enable tolerations for GPU scheduling.
-                        #               This requires some thought around the
-                        #               UX since specifying tolerations can get
-                        #               complicated quickly.
-                        # tolerations=?,
-                        #
-                        # TODO (savin): At some point in the very near future,
-                        #               support custom volumes (PVCs/EVCs).
-                        # volumes=?,
-                        #
-                        # TODO (savin): Set termination_message_policy
+                                        )
+                                        for k in self._kwargs.get("secrets", [])
+                                    ],
+                                    image=self._kwargs["image"],
+                                    name=self._kwargs["name"],
+                                    resources=client.V1ResourceRequirements(
+                                        requests={
+                                            "cpu": str(self._kwargs["cpu"]),
+                                            "memory": "%sM"
+                                            % str(self._kwargs["memory"]),
+                                            "ephemeral-storage": "%sM"
+                                            % str(self._kwargs["disk"]),
+                                        }
+                                    ),
+                                )
+                            ],
+                            node_selector={
+                                # TODO: What should be the format of node selector -
+                                #       key:value or key=value?
+                                str(k.split("=", 1)[0]): str(k.split("=", 1)[1])
+                                for k in self._kwargs.get("node_selector", [])
+                            },
+                            # TODO (savin): At some point in the very near future,
+                            #               support docker access secrets.
+                            # image_pull_secrets=?,
+                            #
+                            # TODO (savin): We should, someday, get into the pod
+                            #               priority business
+                            # preemption_policy=?,
+                            #
+                            # A Container in a Pod may fail for a number of
+                            # reasons, such as because the process in it exited
+                            # with a non-zero exit code, or the Container was
+                            # killed due to OOM etc. If this happens, fail the pod
+                            # and let Metaflow handle the retries.
+                            restart_policy="Never",
+                            service_account_name=self._kwargs["service_account"],
+                            # Terminate the container immediately on SIGTERM
+                            termination_grace_period_seconds=0,
+                            # TODO (savin): Enable tolerations for GPU scheduling.
+                            #               This requires some thought around the
+                            #               UX since specifying tolerations can get
+                            #               complicated quickly.
+                            # tolerations=?,
+                            #
+                            # TODO (savin): At some point in the very near future,
+                            #               support custom volumes (PVCs/EVCs).
+                            # volumes=?,
+                            #
+                            # TODO (savin): Set termination_message_policy
+                        ),
                     ),
                 ),
-            ),
-        )
+            )
         return self
+
+    def _create_parallel_job(self):
+        job_name = self._kwargs["name"]
+        command = self._kwargs["command"]
+        main_command = command[:]
+        main_command[-1] = main_command[-1].replace(
+            "[multinode-args]", " --split-index 0 --ubf-context ubf_control"
+        )
+
+        secondary_command = command[:]
+        secondary_command[-1] = secondary_command[-1].replace(
+            self._task_id,
+            self._task_id.replace("control-", "") + "-node-$(($VK_TASK_INDEX + 1))",
+        )
+        secondary_command[-1] = secondary_command[-1].replace(
+            "[multinode-args]",
+            " --split-index $(($VK_TASK_INDEX + 1)) --ubf-context ubf_task",
+        )
+
+        metaflow_envs = [
+            {"name": k, "valueFrom": {"fieldRef": {"fieldPath": str(v)}}}
+            for k, v in {
+                "METAFLOW_KUBERNETES_POD_NAMESPACE": "metadata.namespace",
+                "METAFLOW_KUBERNETES_POD_NAME": "metadata.name",
+                "METAFLOW_KUBERNETES_POD_ID": "metadata.uid",
+            }.items()
+        ]
+        metaflow_envs += [
+            {
+                "name": "MF_KUBERNETES_NUM_PARALLEL",
+                "value": str(self._kwargs["num_parallel"]),
+            }
+        ]
+        main_task = {
+            "replicas": 1,
+            "name": "m",
+            "template": {
+                "spec": {
+                    "containers": [
+                        {
+                            "image": self._kwargs["image"],
+                            "name": "usercontainer",
+                            "imagePullPolicy": "IfNotPresent",
+                            "command": main_command,
+                            "env": [
+                                {"name": k, "value": str(v)}
+                                for k, v in self._kwargs.get(
+                                    "environment_variables", {}
+                                ).items()
+                            ]
+                            + metaflow_envs,
+                            "envFrom": [
+                                {"secrefRef": {"name": str(k)}}
+                                for k in self._kwargs.get("secrets", [])
+                            ],
+                            "resources": {
+                                "requests": {
+                                    "cpu": str(self._kwargs["cpu"]),
+                                    "memory": "%sM" % str(self._kwargs["memory"]),
+                                    "ephemeral-storage": "%sM"
+                                    % str(self._kwargs["disk"]),
+                                }
+                            },
+                        },
+                    ]
+                }
+            },
+        }
+        secondary_task = copy.deepcopy(main_task)
+        secondary_task["name"] = "s"
+        secondary_task["replicas"] = self._kwargs["num_parallel"] - 1
+        secondary_task["template"]["spec"]["containers"][0][
+            "command"
+        ] = secondary_command
+        secondary_task["template"]["spec"]["containers"][0]["env"] += [
+            {"name": "MF_KUBERNETES_ROLE", "value": "secondary"}
+        ]
+        job_spec = {
+            "apiVersion": "batch.volcano.sh/v1alpha1",
+            "kind": "Job",
+            "metadata": {"name": job_name},
+            "spec": {
+                "minAvailable": self._kwargs["num_parallel"],
+                "schedulerName": "volcano",
+                "priorityClassName": "high-priority",
+                "policies": [{"event": "PodEvicted", "action": "RestartJob"}],
+                "plugins": {"ssh": [], "env": [], "svc": []},
+                "maxRetry": 5,
+                "queue": "default",
+                "tasks": [
+                    main_task,
+                    secondary_task,
+                ],
+            },
+        }
+        print(job_spec)
+        return job_spec
 
     def execute(self):
         client = self._client_wrapper.get()
@@ -298,18 +403,30 @@ class KubernetesJob(object):
             #               there doesn't seem to be a kubernetes-native way to
             #               achieve the guarantees that we are seeking.
             #               Hopefully, we will be able to get creative soon.
-            response = (
-                client.BatchV1Api()
-                .create_namespaced_job(
-                    body=self._job, namespace=self._kwargs["namespace"]
+            if isinstance(self._job, dict):
+
+                response = client.CustomObjectsApi().create_namespaced_custom_object(
+                    group="batch.volcano.sh",
+                    version="v1alpha1",
+                    plural="jobs",
+                    body=self._job,
+                    namespace=self._kwargs["namespace"],
                 )
-                .to_dict()
-            )
+                print(response)
+            else:
+                response = (
+                    client.BatchV1Api()
+                    .create_namespaced_job(
+                        body=self._job, namespace=self._kwargs["namespace"]
+                    )
+                    .to_dict()
+                )
             return RunningJob(
                 client_wrapper=self._client_wrapper,
                 name=response["metadata"]["name"],
                 uid=response["metadata"]["uid"],
                 namespace=response["metadata"]["namespace"],
+                num_parallel=self._kwargs.get("num_parallel"),
             )
         except client.rest.ApiException as e:
             raise KubernetesJobException(
@@ -334,6 +451,10 @@ class KubernetesJob(object):
 
     def cpu(self, cpu):
         self._kwargs["cpu"] = cpu
+        return self
+
+    def task_id(self, task_id):
+        self._task_id = task_id
         return self
 
     def memory(self, mem):
@@ -416,11 +537,12 @@ class RunningJob(object):
     JOB_ACTIVE = "job:active"
     JOB_FAILED = ""
 
-    def __init__(self, client_wrapper, name, uid, namespace):
+    def __init__(self, client_wrapper, name, uid, namespace, num_parallel):
         self._client_wrapper = client_wrapper
         self._name = name
         self._id = uid
         self._namespace = namespace
+        self._num_parallel = num_parallel
 
         self._job = self._fetch_job()
         self._pod = self._fetch_pod()
@@ -438,11 +560,20 @@ class RunningJob(object):
     def _fetch_job(self):
         client = self._client_wrapper.get()
         try:
-            return (
-                client.BatchV1Api()
-                .read_namespaced_job(name=self._name, namespace=self._namespace)
-                .to_dict()
-            )
+            if self._num_parallel:
+                return client.CustomObjectsApi().get_namespaced_custom_object(
+                    group="batch.volcano.sh",
+                    version="v1alpha1",
+                    plural="jobs",
+                    name=self._name,
+                    namespace=self._namespace,
+                )
+            else:
+                return (
+                    client.BatchV1Api()
+                    .read_namespaced_job(name=self._name, namespace=self._namespace)
+                    .to_dict()
+                )
         except client.rest.ApiException as e:
             # TODO: Handle failures as well as the fact that a different
             #       process can delete the job.
@@ -560,7 +691,9 @@ class RunningJob(object):
             return (
                 bool(self._job["status"].get("succeeded"))
                 or bool(self._job["status"].get("failed"))
-                or (self._job["spec"]["parallelism"] == 0)
+                or (
+                    self._job["spec"].get("parallelism", None) == 0
+                )  # parallelism not in the volcano jobs
             )
 
         if not _job_done():
@@ -582,11 +715,12 @@ class RunningJob(object):
             # If not done, check for newer pod status
             self._pod = self._fetch_pod()
         # Success!
+        print(self._job["status"])
         if bool(self._job["status"].get("succeeded")):
             return "Job:Succeeded"
         # Failure!
         if bool(self._job["status"].get("failed")) or (
-            self._job["spec"]["parallelism"] == 0
+            self._job["spec"].get("parallelism", None) == 0
         ):
             return "Job:Failed"
         if bool(self._job["status"].get("active")):

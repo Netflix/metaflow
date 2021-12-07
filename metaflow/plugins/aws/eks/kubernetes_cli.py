@@ -90,6 +90,8 @@ def kubernetes():
     default=5 * 24 * 60 * 60,  # Default is set to 5 days
     help="Run time limit in seconds for Kubernetes job.",
 )
+@click.option("--num-parallel", type=int)
+@click.option("--ubf-context", type=str)
 @click.pass_context
 def step(
     ctx,
@@ -107,6 +109,8 @@ def step(
     disk=None,
     memory=None,
     run_time_limit=None,
+    num_parallel=None,
+    ubf_context=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", job_id=None):
@@ -160,6 +164,10 @@ def step(
         step_args=" ".join(util.dict_to_cli_options(kwargs)),
     )
 
+    if num_parallel and num_parallel > 1:
+        # For multinode, we need to add a placeholder that can be mutated by the caller
+        step_cli += " [multinode-args]"
+
     # this information is needed for log tailing
     ds = ctx.obj.flow_datastore.get_task_datastore(
         mode="w",
@@ -210,6 +218,7 @@ def step(
                 memory=memory,
                 run_time_limit=run_time_limit,
                 env=env,
+                num_parallel=num_parallel,
             )
     except Exception as e:
         traceback.print_exc()

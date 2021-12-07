@@ -3,7 +3,7 @@ import sys
 import platform
 import requests
 
-from metaflow import util
+from metaflow import current, util
 from metaflow.decorators import StepDecorator
 from metaflow.metadata import MetaDatum
 from metaflow.metadata.util import sync_local_metadata_to_datastore
@@ -18,6 +18,7 @@ from metaflow.sidecar import SidecarSubProcess
 
 from .kubernetes import KubernetesException
 from ..aws_utils import get_docker_registry
+from metaflow.unbounded_foreach import UBF_CONTROL
 
 
 class KubernetesDecorator(StepDecorator):
@@ -127,11 +128,6 @@ class KubernetesDecorator(StepDecorator):
                     if not (my_val is None and v is None):
                         self.attributes[k] = str(max(int(my_val or 0), int(v or 0)))
 
-            if getattr(deco, "IS_PARALLEL", False):
-                raise KubernetesException(
-                    "Kubernetes decorator does not support parallel execution yet."
-                )
-
         # Set run time limit for the Kubernetes job.
         self.run_time_limit = get_run_time_limit_for_task(decos)
         if self.run_time_limit < 60:
@@ -220,6 +216,24 @@ class KubernetesDecorator(StepDecorator):
             # Start MFLog sidecar to collect task logs.
             self._save_logs_sidecar = SidecarSubProcess("save_logs_periodically")
 
+        num_parallel = int(os.environ.get("MF_KUBERNETES_NUM_PARALLEL", 1))
+        if num_parallel > 1 and ubf_context == UBF_CONTROL:
+            # UBF handling for multinode case
+            control_task_id = current.task_id
+            top_task_id = control_task_id.replace("control-", "")  # chop "-0"
+            mapper_task_ids = [control_task_id] + [
+                "%s-node-%d" % (top_task_id, node_idx)
+                for node_idx in range(1, num_parallel)
+            ]
+            flow._control_mapper_tasks = [
+                "%s/%s/%s" % (run_id, step_name, mapper_task_id)
+                for mapper_task_id in mapper_task_ids
+            ]
+            flow._control_task_is_mapper_zero = True
+
+        if num_parallel > 1:
+            _setup_multinode_environment()
+
     def task_post_step(
         self, step_name, flow, graph, retry_count, max_user_code_retries
     ):
@@ -269,3 +283,15 @@ class KubernetesDecorator(StepDecorator):
             cls.package_url, cls.package_sha = flow_datastore.save_data(
                 [package.blob], len_hint=1
             )[0]
+
+
+def _setup_multinode_environment():
+    # setup the multinode environment variables.
+    main_ip = open("/etc/volcano/m.host", "r").read()
+    print("MAIN IP", main_ip)
+    os.environ["MF_PARALLEL_MAIN_IP"] = main_ip
+    os.environ["MF_PARALLEL_NUM_NODES"] = os.environ["MF_KUBERNETES_NUM_PARALLEL"]
+    if os.environ.get("MF_KUBERNETES_ROLE", "main") == "secondary":
+        os.environ["MF_PARALLEL_NODE_INDEX"] = str(1 + int(os.environ["VK_TASK_INDEX"]))
+    else:
+        os.environ["MF_PARALLEL_NODE_INDEX"] = os.environ["VK_TASK_INDEX"]
