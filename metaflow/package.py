@@ -101,11 +101,7 @@ class MetaflowPackage(object):
                     if file_name not in deco_module_paths:
                         deco_module_paths[file_name] = file_path
                         yield path_tuple
-                    elif deco_module_paths[file_name] == file_path:
-                        pass
-                    elif (
-                        file_name in deco_module_paths
-                    ):  # this means non unique file_name to file_path mapping.
+                    elif deco_module_paths[file_name] != file_path:
                         raise NonUniqueFileNameToFilePathMappingException(
                             file_name, [deco_module_paths[file_name], file_path]
                         )
