@@ -219,8 +219,7 @@ def render_card(mf_card, task, timeout_value=None):
     return rendered_info
 
 
-# Finished According to the Memo
-@card.command(help="create the HTML card")
+@card.command(help="create a HTML card")
 @click.argument("pathspec", type=str)
 @click.option(
     "--type",
@@ -338,26 +337,24 @@ def create(
 
 
 @card.command()
-@click.argument("identifier")
+@click.argument("pathspec")
 @card_read_options_and_arguments
 @click.pass_context
 def view(
     ctx,
-    identifier,
+    pathspec,
     hash=None,
     type=None,
     dont_follow_resumed=False,
 ):
     """
-    View the HTML card in browser based on the IDENTIFIER.\n
-    The IDENTIFIER can be:\n
-        - run path spec : <runid>/<stepname>/<taskid>\n
-                    OR\n
-        - id given in the @card\n
+    View the HTML card in browser based on the pathspec.\n
+    The Task pathspec is of the form:\n
+        <runid>/<stepname>/<taskid>\n
     """
     available_card_paths, card_datastore, pathspec = resolve_card(
         ctx,
-        identifier,
+        pathspec,
         type=type,
         hash=hash,
         follow_resumed=not dont_follow_resumed,
@@ -371,19 +368,24 @@ def view(
 
 
 @card.command()
-@click.argument("identifier")
+@click.argument("pathspec")
 @card_read_options_and_arguments
 @click.pass_context
 def get(
     ctx,
-    identifier,
+    pathspec,
     hash=None,
     type=None,
     dont_follow_resumed=False,
 ):
+    """
+    Get the HTML string of the card based on pathspec.\n
+    The Task pathspec is of the form:\n
+        <runid>/<stepname>/<taskid>\n
+    """
     available_card_paths, card_datastore, pathspec = resolve_card(
         ctx,
-        identifier,
+        pathspec,
         type=type,
         hash=hash,
         follow_resumed=not dont_follow_resumed,
