@@ -6,8 +6,6 @@ import tempfile
 from metaflow.decorators import StepDecorator, flow_decorators
 from metaflow.current import current
 from metaflow.util import to_unicode
-from .exception import BadCardNameException
-from .card_modules import serialize_components
 
 # from metaflow import get_metadata
 import re
@@ -20,27 +18,12 @@ CARD_ID_PATTERN = re.compile(
 class CardDecorator(StepDecorator):
     name = "card"
     defaults = {
-        "type": "basic",
+        "type": "default",
         "options": {},
-        "id": None,
         "scope": "task",
-        "timeout": None,
+        "timeout": 45,
+        "save_errors": True,
     }
-
-    def runtime_init(self, flow, graph, package, run_id):
-        # Check if the card-id matches the regex pattern .
-        # same pattern is asserted in the import to ensure no "-" in card ids/Otherwise naming goes for a toss.
-        if self.attributes["id"] is not None:
-            regex_match = re.match(CARD_ID_PATTERN, self.attributes["id"])
-            if regex_match is None:
-                raise BadCardNameException(self.attributes["id"])
-        # set the index property over here so that we can support multiple-decorators
-        for step in flow._steps:
-            deco_idx = 0
-            for deco in step.decorators:
-                if isinstance(deco, self.__class__):
-                    deco._index = deco_idx
-                    deco_idx += 1
 
     def __init__(self, *args, **kwargs):
         super(CardDecorator, self).__init__(*args, **kwargs)
@@ -48,9 +31,6 @@ class CardDecorator(StepDecorator):
         self._environment = None
         self._metadata = None
         # todo : first allow multiple decorators with a step
-
-        # self._index is useful when many decorators are stacked on top of one another.
-        self._index = None
 
     def add_to_package(self):
         return list(self._load_card_package())
@@ -108,13 +88,15 @@ class CardDecorator(StepDecorator):
 
         self.card_options = None
 
+        # Populate the defaults which may be missing.
+        missing_keys = set(self.defaults.keys()) - set(self.attributes.keys())
+        for k in missing_keys:
+            self.attributes[k] = self.defaults[k]
+
         if type(self.attributes["options"]) is str:
-            # print("found attributed",self.attributes['options'],type(self.attributes['options']))
             try:
                 self.card_options = json.loads(self.attributes["options"])
             except RaisingError:
-                print("error loading attr")
-                # Setting Options from defaults
                 self.card_options = self.defaults["options"]
         else:
             self.card_options = self.attributes["options"]
@@ -136,28 +118,16 @@ class CardDecorator(StepDecorator):
         ubf_context,
         inputs,
     ):
-        from functools import partial
-
         self._task_datastore = task_datastore
-        current._update_env({"card": []})
         self._metadata = metadata
 
     def task_finished(
         self, step_name, flow, graph, is_task_ok, retry_count, max_user_code_retries
     ):
-        component_strings = []
-        # Upon task finish we render cards which are held in current.
-        # The `serialize_components` function safely tries to render each component
-        # These components are passed down to the next card subprocess via a temp JSON file
-        if len(current.card) > 0:
-            component_strings = serialize_components(current.card)
-
         if not is_task_ok:
-            # todo : What do we do when underlying `step` soft-fails.
-            # Todo : What do we do when underlying `@card` fails in some way?
             return
         runspec = "/".join([current.run_id, current.step_name, current.task_id])
-        self._run_cards_subprocess(runspec, component_strings)
+        self._run_cards_subprocess(runspec)
 
     @staticmethod
     def _options(mapping):
@@ -189,13 +159,7 @@ class CardDecorator(StepDecorator):
             top_level_options.update(deco.get_top_level_options())
         return list(self._options(top_level_options))
 
-    def _run_cards_subprocess(self, runspec, component_strings):
-        temp_file = None
-        if len(component_strings) > 0:
-            temp_file = tempfile.NamedTemporaryFile("w", suffix=".json")
-            json.dump(component_strings, temp_file)
-            temp_file.seek(0)
-
+    def _run_cards_subprocess(self, runspec):
         executable = sys.executable
         cmd = [
             executable,
@@ -210,27 +174,18 @@ class CardDecorator(StepDecorator):
             # Add the options relating to card arguments.
             # todo : add scope as a CLI arg for the create method.
         ]
-        if temp_file is not None:
-            cmd += ["--component-file", temp_file.name]
         if self.card_options is not None and len(self.card_options) > 0:
             cmd += ["--options", json.dumps(self.card_options)]
         # set the id argument.
-        if self.attributes["id"] is not None and self.attributes["id"] != "":
-            id_args = ["--id", self.attributes["id"]]
-            cmd += id_args
-        if self._index is not None:
-            idx_args = ["--index", str(self._index)]
-        else:
-            idx_args = ["--index", "0"]  # setting zero as default
-        cmd += idx_args
 
         if self.attributes["timeout"] is not None:
             cmd += ["--timeout", str(self.attributes["timeout"])]
 
-        response, fail = self._run_command(cmd, os.environ)
-        if fail:
-            # todo : Handle failure scenarios better.
-            print("Process Failed", response.decode("utf-8"))
+        if self.attributes["save_errors"]:
+            cmd += ["--with-error-card"]
+
+        self._run_command(cmd, os.environ)
+        # do nothing on failure as we create an error card
 
     def _run_command(self, cmd, env):
         fail = False

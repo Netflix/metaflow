@@ -178,6 +178,45 @@ class DagComponent(DefaultComponent):
         return datadict
 
 
+class TextComponent(DefaultComponent):
+    type = "text"
+
+    def __init__(self, text=None):
+        super().__init__(title=None, subtitle=None)
+        self._text = text
+
+    def render(self):
+        datadict = super().render()
+        datadict["text"] = self._text
+        return datadict
+
+
+class LogComponent(DefaultComponent):
+    type = "log"
+
+    def __init__(self, data=None):
+        super().__init__(title=None, subtitle=None)
+        self._data = data
+
+    def render(self):
+        datadict = super().render()
+        datadict["data"] = self._data
+        return datadict
+
+
+class HTMLComponent(DefaultComponent):
+    type = "html"
+
+    def __init__(self, data=None):
+        super().__init__(title=None, subtitle=None)
+        self._data = data
+
+    def render(self):
+        datadict = super().render()
+        datadict["data"] = self._data
+        return datadict
+
+
 class PageComponent(DefaultComponent):
     type = "page"
 
@@ -238,6 +277,8 @@ class TaskInfoComponent(MetaflowCardComponent):
         task_data_dict = TaskToDict(only_repr=self._only_repr)(
             self._task, graph=self._graph
         )
+        # ignore the name as an artifact
+        del task_data_dict["data"]["name"]
         mf_version = [
             t for t in self._task.parent.parent.tags if "metaflow_version" in t
         ][0].split("metaflow_version:")[1]
@@ -255,10 +296,16 @@ class TaskInfoComponent(MetaflowCardComponent):
             "finished_at",
             "pathspec",
         ]
-        user_info = [t for t in self._task.parent.parent.tags if "user" in t]
+        tags = self._task.parent.parent.tags
+        user_info = [t for t in tags if "user" in t]
         task_metadata_dict = {
             "Task Created On": task_data_dict["created_at"],
             "Task Finished On": task_data_dict["finished_at"],
+            # Remove Microseconds from timedelta
+            "Task Duration": str(self._task.finished_at - self._task.created_at).split(
+                "."
+            )[0],
+            "Tags": ", ".join(tags),
         }
         if len(user_info) > 0:
             task_metadata_dict["User"] = user_info[0].split("user:")[1]
@@ -287,21 +334,40 @@ class TaskInfoComponent(MetaflowCardComponent):
         table_comps = []
         for tabname in task_data_dict["tables"]:
             tab_dict = task_data_dict["tables"][tabname]
-            table_comps.append(TableComponent(title=tabname, **tab_dict).render())
+            table_comps.append(
+                SectionComponent(
+                    title="Artifact Name: %s" % tabname,
+                    contents=[TableComponent(**tab_dict)],
+                )
+            )
 
-        param_ids = [p.id for p in self._task.parent.parent["_parameters"].task]
-        # This makes a vertical table.
+        # ignore the name as a parameter
+        param_ids = [
+            p.id for p in self._task.parent.parent["_parameters"].task if p.id != "name"
+        ]
+        if len(param_ids) > 0:
+            param_component = ArtifactsComponent(
+                data={pid: task_data_dict["data"][pid] for pid in param_ids}
+            )
+        else:
+            param_component = TitleComponent(text="No Parameters")
+
         parameter_table = SectionComponent(
             title="Flow Parameters",
-            contents=[
-                TableComponent(
-                    headers=param_ids,
-                    data=[[self._task[pid].data for pid in param_ids]],
-                    vertical=True,
-                ).render()
-            ],
+            contents=[param_component],
         ).render()
-        artrifact_component = ArtifactsComponent(data=task_data_dict["data"]).render()
+
+        # Don't include parameter ids + "name" in the task artifacts
+        artifact_dict = {
+            k: task_data_dict["data"][k]
+            for k in task_data_dict["data"]
+            if k not in param_ids
+        }
+        if len(artifact_dict) > 0:
+            artrifact_component = ArtifactsComponent(data=artifact_dict).render()
+        else:
+            artrifact_component = TitleComponent(text="No Artifacts")
+
         artifact_section = SectionComponent(
             title="Artifacts", contents=[artrifact_component]
         ).render()
@@ -312,7 +378,6 @@ class TaskInfoComponent(MetaflowCardComponent):
         page_contents = [
             metadata_table,
             parameter_table,
-            dag_component,
             artifact_section,
         ]
         if len(table_comps) > 0:
@@ -332,6 +397,8 @@ class TaskInfoComponent(MetaflowCardComponent):
         if len(self._components) > 0:
             page_contents.extend(self._components)
 
+        page_contents.append(dag_component)
+
         page_component = PageComponent(
             title=self._page_title,
             contents=page_contents,
@@ -350,6 +417,40 @@ class TaskInfoComponent(MetaflowCardComponent):
         self.page_component = page_component
 
         return final_component_dict
+
+
+class ErrorCard(MetaflowCard):
+
+    type = "error"
+
+    def __init__(self, options={}, components=[], graph=None):
+        self._only_repr = True
+        self._graph = graph
+        self._components = components
+
+    def render(self, task, stack_trace=None):
+        trace = "None"
+        if stack_trace is not None:
+            trace = stack_trace
+
+        page = PageComponent(
+            title="Error Card",
+            contents=[
+                SectionComponent(
+                    title="Card Render Failed With Error",
+                    contents=[TextComponent(text=trace)],
+                )
+            ],
+        ).render()
+        final_component_dict = dict(
+            metadata={
+                "pathspec": task.pathspec,
+            },
+            components=[page],
+        )
+        pt = self._get_mustache()
+        data_dict = dict(task_data=json.dumps(json.dumps(final_component_dict)))
+        return pt.render(RENDER_TEMPLATE, data_dict)
 
 
 class DefaultCard(MetaflowCard):

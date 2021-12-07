@@ -2,10 +2,12 @@
 
 """
 
+from collections import namedtuple
 from hashlib import sha1
 from io import BytesIO
 import os
 import shutil
+
 from metaflow.datastore.local_storage import LocalStorage
 
 from .exception import CardNotPresentException
@@ -13,6 +15,8 @@ from .exception import CardNotPresentException
 CARD_DIRECTORY_NAME = "mf.cards"
 TEMP_DIR_NAME = "metaflow_card_cache"
 NUM_SHORT_HASH_CHARS = 5
+
+CardInfo = namedtuple("CardInfo", ["type", "hash"])
 
 
 def stepname_from_card_id(card_id, flow):
@@ -127,14 +131,6 @@ class CardDatastore(object):
         )
 
     @staticmethod
-    def _make_card_file_name(card_type, card_index, card_id=None):
-        if card_id is not None:
-            card_name = "%s-%s-%s" % (card_id, card_type, card_index)
-        else:
-            card_name = "%s-%s" % (card_type, card_index)
-        return card_name
-
-    @staticmethod
     def card_info_from_path(path):
         """
         Args:
@@ -144,30 +140,22 @@ class CardDatastore(object):
             Exception: When the card_path is invalid
 
         Returns:
-            (card_id,card_type,card_index,card_hash)
+            CardInfo
         """
         card_file_name = path.split("/")[-1]
         file_split = card_file_name.split("-")
-        has_id = False
-        if len(file_split) == 4:
-            has_id = True
-        elif len(file_split) < 3 or len(file_split) > 4:
+        if len(file_split) != 2:
             raise Exception(
-                "Invalid card file name %s. Card file names should be of form ID-TYPE-INDEX-HASH.html or TYPE-INDEX-HASH.html"
+                "Invalid card file name %s. Card file names should be of form TYPE-HASH.html"
                 % card_file_name
             )
-        card_id, card_type, card_index, card_hash = None, None, None, None
-        if has_id:
-            card_id, card_type, card_index, card_hash = file_split
-        else:
-            card_type, card_index, card_hash = file_split
+        card_type, card_hash = None, None
+        card_type, card_hash = file_split
         card_hash = card_hash.split(".html")[0]
-        return card_id, card_type, card_index, card_hash
+        return CardInfo(card_type, card_hash)
 
-    def save_card(self, card_type, card_id, card_index, card_html, overwrite=True):
-        card_file_name = self._make_card_file_name(
-            card_type, card_index, card_id=card_id
-        )
+    def save_card(self, card_type, card_html, overwrite=True):
+        card_file_name = card_type
         card_path = self.get_card_location(
             self._get_card_path(), card_file_name, card_html
         )
@@ -175,9 +163,7 @@ class CardDatastore(object):
             [(card_path, BytesIO(bytes(card_html, "utf-8")))], overwrite=overwrite
         )
 
-    def _list_card_paths(
-        self, card_type=None, card_id=None, card_index=None, card_hash=None
-    ):
+    def _list_card_paths(self, card_type=None, card_hash=None):
         card_path = self._get_card_path()
         card_paths = self._backend.list_content([card_path])
         if len(card_paths) == 0:
@@ -186,30 +172,20 @@ class CardDatastore(object):
                 self._flow_name,
                 self._run_id,
                 self._step_name,
-                card_index=card_index,
-                card_id=card_id,
                 card_hash=card_hash,
                 card_type=card_type,
             )
         cards_found = []
         for task_card_path in card_paths:
             card_path = task_card_path.path
-            cid, ctype, cidx, chash = self.card_info_from_path(card_path)
-            is_index_present = lambda x: True
-            if card_index is not None:
-                # if the index is not none then the lambda checks it
-                is_index_present = lambda x: x == cidx
-
-            if not is_index_present(str(card_index)):
-                continue
-
-            # if id,type or hash don't match then continue.
-            if card_id is not None and card_id != cid:
-                continue
-            elif card_type is not None and ctype != card_type:
+            card_info = self.card_info_from_path(card_path)
+            if card_type is not None and card_info.type != card_type:
                 continue
             elif card_hash is not None:
-                if chash != card_hash and card_hash != chash[:NUM_SHORT_HASH_CHARS]:
+                if (
+                    card_info.hash != card_hash
+                    and card_hash != card_info.hash[:NUM_SHORT_HASH_CHARS]
+                ):
                     continue
 
             if task_card_path.is_file:
@@ -218,10 +194,7 @@ class CardDatastore(object):
         return cards_found
 
     def get_card_names(self, card_paths):
-        name_tuples = []
-        for path in card_paths:
-            name_tuples.append(self.card_info_from_path(path))
-        return name_tuples
+        return [self.card_info_from_path(path) for path in card_paths]
 
     def get_card_html(self, path):
         with self._backend.load_bytes([path]) as get_results:
@@ -240,12 +213,8 @@ class CardDatastore(object):
                     shutil.copy(path, main_path)
                     return main_path
 
-    def extract_card_paths(
-        self, card_type=None, card_id=None, card_index=None, card_hash=None
-    ):
+    def extract_card_paths(self, card_type=None, card_hash=None):
         return self._list_card_paths(
             card_type=card_type,
-            card_id=card_id,
-            card_index=card_index,
             card_hash=card_hash,
         )

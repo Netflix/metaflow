@@ -2,12 +2,17 @@ import sys
 import pkgutil
 import importlib
 import re
+
 import traceback
 
 # todo : create common import for this later.
-TYPE_CHECK_REGEX = "^[a-zA-Z0-9_]+$"
-CARD_ID_PATTERN = re.compile(TYPE_CHECK_REGEX)
-from .card import MetaflowCard, MetaflowCardComponent, serialize_components
+
+from ..exception import (
+    IncorrectCardModuleAttributeTypeException,
+    TYPE_CHECK_REGEX,
+    CARD_ID_PATTERN,
+)
+from .card import MetaflowCard, MetaflowCardComponent
 
 
 # Code from https://packaging.python.org/guides/creating-and-discovering-plugins/#using-namespace-packages
@@ -38,6 +43,7 @@ except ImportError as e:
             )
             raise
 else:
+    all_cards = []
     for finder, name, ispkg in iter_namespace(_card_modules):
         # todo : find a better way to handle errors over here
         # In the case of an import failure of a certain module,
@@ -56,37 +62,36 @@ else:
             # Inside metaflow_cards.custom_package.__init__ add
             # from .some_card_module import SomeCard
             # CARDS = [SomeCard]
-            assert card_module.CARDS is not None
-            assert isinstance(card_module.CARDS, list)
+            if not hasattr(card_module, "CARDS"):
+                raise AttributeError()
+            if not isinstance(card_module.CARDS, list):
+                raise IncorrectCardModuleAttributeTypeException(name)
             # todo: Check if types need to be validated;
             # todo : check if the registrations are happening in a clean way
-            for card in card_module.CARDS:
-                try:
-                    assert card.type is not None
-                except AttributeError as e:
-                    print(
-                        "Ignoring import of module %s since "
-                        "it lacks an associated `type` property." % (card.__class__)
-                    )
-                    continue
-                regex_match = re.match(CARD_ID_PATTERN, card.type)
-                if regex_match is None:
-                    print(
-                        "Ignoring import of MetaflowCard %s since "
-                        "the `type` doesn't follow regex patterns. MetaflowCard.type "
-                        "should follow this regex pattern %s"
-                        % (card.type, TYPE_CHECK_REGEX)
-                    )
-                    continue
-                MF_CARDS_EXTERNAL_MODULES.append(card)
-            #
+            all_cards.extend(card_module.CARDS)
         except AttributeError as e:
             print(
                 "Ignoring import of module %s since "
                 "it lacks an associated CARDS attribute." % (name)
             )
-        except AssertionError as e:
+        except IncorrectCardModuleAttributeTypeException as e:
+            print(e.headline + "\n\t" + e.message)
+
+    for card in all_cards:
+
+        if not hasattr(card, "type") or card.type is None:
             print(
-                "Ignoring import of module %s since the CARDS attribute "
-                "is not a `list`." % (name)
+                "Ignoring import of module %s since "
+                "it lacks an associated `type` property "
+                "or the property is set as None." % (card.__name__)
             )
+            continue
+        regex_match = re.match(CARD_ID_PATTERN, card.type)
+        if regex_match is None:
+            print(
+                "Ignoring import of MetaflowCard %s since "
+                "the `type` doesn't follow regex patterns. MetaflowCard.type "
+                "should follow this regex pattern %s" % (card.type, TYPE_CHECK_REGEX)
+            )
+            continue
+        MF_CARDS_EXTERNAL_MODULES.append(card)

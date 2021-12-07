@@ -1,5 +1,9 @@
 from metaflow.exception import MetaflowException
 import traceback
+import re
+
+TYPE_CHECK_REGEX = "^[a-zA-Z0-9_]+$"
+CARD_ID_PATTERN = re.compile(TYPE_CHECK_REGEX)
 
 
 class CardClassFoundException(MetaflowException):
@@ -16,27 +20,6 @@ class CardClassFoundException(MetaflowException):
             "attribute in @card" % (card_name)
         )
         super(CardClassFoundException, self).__init__(msg)
-
-
-class BadCardNameException(MetaflowException):
-    headline = "Unsupportable id in @card"
-
-    def __init__(self, card_name):
-        exc = traceback.format_exc()
-        msg = (
-            "Card with id %s is not supported. "
-            "Card ids should follow the pattern : [a-zA-Z0-9_]" % (card_name)
-        )
-        super(BadCardNameException, self).__init__(msg)
-
-
-class IdNotFoundException(MetaflowException):
-
-    headline = "Cannot find card id"
-
-    def __init__(self, card_id):
-        msg = "Cannot find card with id %s in the datastore" % card_id
-        super().__init__(msg=msg)
 
 
 class TypeRequiredException(MetaflowException):
@@ -61,30 +44,17 @@ class CardNotPresentException(MetaflowException):
         run_id,
         step_name,
         card_type=None,
-        card_id=None,
-        card_index=None,
         card_hash=None,
     ):
         idx_msg = ""
         hash_msg = ""
         msg = ""
-        if card_index is not None:
-            idx_msg = " and index %s" % card_index
 
         if card_hash is not None:
             hash_msg = " and hash %s" % card_hash
         if card_type is not None:
             msg = "Card of type %s %s %s not present for path-spec" " %s/%s/%s" % (
                 card_type,
-                idx_msg,
-                hash_msg,
-                flow_name,
-                run_id,
-                step_name,
-            )
-        elif card_id is not None:
-            msg = "Card of id %s %s %s not present for path-spec" " %s/%s/%s" % (
-                card_id,
                 idx_msg,
                 hash_msg,
                 flow_name,
@@ -134,3 +104,17 @@ class UnresolvableDatastoreException(MetaflowException):
             % task.pathspec
         )
         super(UnresolvableDatastoreException, self).__init__(msg)
+
+
+class IncorrectCardModuleAttributeTypeException(MetaflowException):
+    headline = "card related modules need to have `CARD` attribute as `list`"
+
+    def __init__(
+        self,
+        module_name,
+    ):
+        msg = (
+            "Ignoring import of module %s since the CARDS attribute "
+            "is not a `list`." % (module_name)
+        )
+        super().__init__(msg=msg, lineno=None)

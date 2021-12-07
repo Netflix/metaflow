@@ -7,10 +7,6 @@ from collections import namedtuple
 TypeResolvedObject = namedtuple("TypeResolvedObject", ["data", "is_image", "is_table"])
 
 
-class UnResolvableType(Exception):
-    pass
-
-
 TIME_FORMAT = "%Y-%m-%d %I:%M:%S %p"
 MAX_ARTIFACT_SIZE = 1  # in 1 MB
 
@@ -51,6 +47,9 @@ class TaskToDict:
     def __init__(self, only_repr=False):
         # this dictionary holds all the supported functions
         import reprlib
+        import pprint
+
+        self._pretty_print = pprint
 
         r = reprlib.Repr()
         r.maxarray = 100
@@ -105,8 +104,18 @@ class TaskToDict:
         task_data_dict = {}
         type_infered_objects = {"images": {}, "tables": {}}
         for data in task:
-            data_object = data.data
-            task_data_dict[data.id] = self._convert_to_native_type(data_object)
+            try:
+                data_object = data.data
+                task_data_dict[data.id] = self._convert_to_native_type(data_object)
+            except ModuleNotFoundError as e:
+                # this means pickle couldn't find the module.
+                task_data_dict[data.id] = dict(
+                    type=e.name,
+                    data="<unable to unpickle>",
+                    large_object=False,
+                    supported_type=False,
+                    only_repr=self._only_repr,
+                )
 
             # Resolve special types.
             type_resolved_obj = self._extract_type_infered_object(data_object)
@@ -122,10 +131,13 @@ class TaskToDict:
         # check images
         obj_type_name = self._get_object_type(data_object)
         if obj_type_name == "bytes":
+            # Works for python 3.1+
             import imghdr
 
             resp = imghdr.what(None, h=data_object)
-            if resp is not None:
+            # Only accept types suppored on the web
+            # https://developer.mozilla.org/en-US/docs/Web/Media/Formats/Image_types
+            if resp is not None and resp in ["gif", "png", "jpeg", "webp"]:
                 return TypeResolvedObject(
                     self._parse_image(data_object, resp), True, False
                 )
@@ -182,8 +194,12 @@ class TaskToDict:
         if obj_type_name == None:
             return rep.repr(data_object), obj_type_name, supported_type, large_object
         elif self._only_repr:
-            return rep.repr(data_object), obj_type_name, supported_type, large_object
-
+            return (
+                self._pretty_print_obj(data_object),
+                obj_type_name,
+                supported_type,
+                large_object,
+            )
         if obj_type_name in self._supported_types:
             supported_type = True
             type_parsing_func = self._supported_types[obj_type_name]
@@ -196,6 +212,18 @@ class TaskToDict:
             data_obj = rep.repr(data_object)
 
         return data_obj, obj_type_name, supported_type, large_object
+
+    def _pretty_print_obj(self, data_object):
+        data = self._repr.repr(data_object)
+        if "..." in data:
+            return data
+        else:
+            pretty_print_op = self._pretty_print.pformat(
+                data_object, indent=2, width=50, compact=True
+            )
+            if pretty_print_op is None:
+                return data
+            return pretty_print_op
 
     def _get_repr(self):
         return self._repr
