@@ -301,7 +301,10 @@ class TaskInfoComponent(MetaflowCardComponent):
         task_metadata_dict = {
             "Task Created On": task_data_dict["created_at"],
             "Task Finished On": task_data_dict["finished_at"],
-            "Task Duration": str(self._task.finished_at - self._task.created_at),
+            # Remove Microseconds from timedelta
+            "Task Duration": str(self._task.finished_at - self._task.created_at).split(
+                "."
+            )[0],
             "Tags": ", ".join(tags),
         }
         if len(user_info) > 0:
