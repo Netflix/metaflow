@@ -316,6 +316,12 @@ class S3(object):
                 bucket = parsed.netloc
             if not prefix:
                 prefix = parsed.path
+
+                if DATATOOLS_S3ROOT is None:
+                    raise MetaflowS3URLException(
+                        "No config or correct S3 root path provided when trying to use S3 storage"
+                    )
+
             if isinstance(run, FlowSpec):
                 if current.is_running_flow:
                     prefix = os.path.join(prefix, current.flow_name, current.run_id)
