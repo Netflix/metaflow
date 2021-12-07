@@ -322,7 +322,7 @@ def create(
     if error_stack_trace is not None:
         rendered_info = error_card().render(task, stack_trace=error_stack_trace)
 
-    if rendered_info is None:
+    if rendered_info is None and with_error_card:
         rendered_info = error_card().render(
             task, stack_trace="No information rendered From card of type %s" % type
         )
@@ -333,7 +333,8 @@ def create(
     else:
         save_type = "error"
 
-    card_datastore.save_card(save_type, rendered_info)
+    if rendered_info is not None:
+        card_datastore.save_card(save_type, rendered_info)
 
 
 @card.command()
