@@ -1,5 +1,5 @@
 CONTROL_TASK_TAG = "control_task"
-CONTROL_AND_MAPPER_TAG = "control_and_mapper"
+CONTROL_AND_MAPPER_TAG = "control_and_mapper"  # Set if the task is both a control task and a vanilla UBF task.
 UBF_CONTROL = "ubf_control"
 UBF_TASK = "ubf_task"
 
