@@ -10,7 +10,6 @@ class Card:
         type,
         path,
         html=None,
-        id=None,
         created_on=None,
         from_resumed=False,
         origin_pathspec=None,
@@ -18,7 +17,6 @@ class Card:
         # private attributes
         self._path = path
         self._html = html
-        self._id = id
         self._created_on = created_on
         self._card_ds = card_ds
 
@@ -33,10 +31,6 @@ class Card:
             return self._html
         self._html = self._card_ds.get_card_html(self.path)
         return self._html
-
-    @property
-    def id(self):
-        return self._id
 
     @property
     def path(self):
@@ -70,14 +64,13 @@ class CardIterator:
         if index >= self._high:
             raise IndexError
         path = self._card_paths[index]
-        cid, ctype, _, _ = self._card_ds.card_info_from_path(path)
+        card_info = self._card_ds.card_info_from_path(path)
         # todo : find card creation date and put it in client.
         return Card(
             self._card_ds,
-            ctype,
+            card_info.type,
             path,
             html=None,
-            id=cid,
             created_on=None,
         )
 
@@ -127,7 +120,7 @@ class CardIterator:
         return self._get_card(self._current)
 
 
-def get_cards(task, id=None, type=None, follow_resumed=True):
+def get_cards(task, type=None, follow_resumed=True):
     from metaflow.client import Task
 
     resume_status = ResumedInfo(False, None)
@@ -144,7 +137,6 @@ def get_cards(task, id=None, type=None, follow_resumed=True):
         step_name,
         task_id,
         pathspec=task.pathspec,
-        card_id=id,
         type=type,
     )
     return CardIterator(

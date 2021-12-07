@@ -375,7 +375,6 @@ class TaskInfoComponent(MetaflowCardComponent):
         page_contents = [
             metadata_table,
             parameter_table,
-            dag_component,
             artifact_section,
         ]
         if len(table_comps) > 0:
@@ -394,6 +393,8 @@ class TaskInfoComponent(MetaflowCardComponent):
 
         if len(self._components) > 0:
             page_contents.extend(self._components)
+
+        page_contents.append(dag_component)
 
         page_component = PageComponent(
             title=self._page_title,

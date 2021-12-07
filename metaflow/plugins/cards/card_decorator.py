@@ -6,7 +6,6 @@ import tempfile
 from metaflow.decorators import StepDecorator, flow_decorators
 from metaflow.current import current
 from metaflow.util import to_unicode
-from .exception import BadCardNameException
 from .card_modules import serialize_components
 
 # from metaflow import get_metadata
@@ -22,26 +21,10 @@ class CardDecorator(StepDecorator):
     defaults = {
         "type": "default",
         "options": {},
-        "id": None,
         "scope": "task",
         "timeout": 45,
         "save_errors": True,
     }
-
-    def runtime_init(self, flow, graph, package, run_id):
-        # Check if the card-id matches the regex pattern .
-        # same pattern is asserted in the import to ensure no "-" in card ids/Otherwise naming goes for a toss.
-        if self.attributes["id"] is not None:
-            regex_match = re.match(CARD_ID_PATTERN, self.attributes["id"])
-            if regex_match is None:
-                raise BadCardNameException(self.attributes["id"])
-        # set the index property over here so that we can support multiple-decorators
-        for step in flow._steps:
-            deco_idx = 0
-            for deco in step.decorators:
-                if isinstance(deco, self.__class__):
-                    deco._index = deco_idx
-                    deco_idx += 1
 
     def __init__(self, *args, **kwargs):
         super(CardDecorator, self).__init__(*args, **kwargs)
@@ -49,9 +32,6 @@ class CardDecorator(StepDecorator):
         self._environment = None
         self._metadata = None
         # todo : first allow multiple decorators with a step
-
-        # self._index is useful when many decorators are stacked on top of one another.
-        self._index = None
 
     def add_to_package(self):
         return list(self._load_card_package())
@@ -218,14 +198,6 @@ class CardDecorator(StepDecorator):
         if self.card_options is not None and len(self.card_options) > 0:
             cmd += ["--options", json.dumps(self.card_options)]
         # set the id argument.
-        if self.attributes["id"] is not None and self.attributes["id"] != "":
-            id_args = ["--id", self.attributes["id"]]
-            cmd += id_args
-        if self._index is not None:
-            idx_args = ["--index", str(self._index)]
-        else:
-            idx_args = ["--index", "0"]  # setting zero as default
-        cmd += idx_args
 
         if self.attributes["timeout"] is not None:
             cmd += ["--timeout", str(self.attributes["timeout"])]
