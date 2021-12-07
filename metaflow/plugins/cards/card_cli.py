@@ -259,7 +259,7 @@ def create(
 ):
 
     rendered_info = None  # Variable holding all the information which will be rendered
-    error_stack_trace = None  # Variable which will keep a track if there was an error
+    error_stack_trace = None  # Variable which will keep a track of error
 
     if len(pathspec.split("/")) != 3:
         raise CommandException(
