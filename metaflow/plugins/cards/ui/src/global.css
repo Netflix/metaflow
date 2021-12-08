@@ -1,0 +1,132 @@
+:root {
+  --bg: #fafafa;
+  --black: #2e2e27;
+  --blue: rgb(12, 102, 222);
+  --component-spacer: 3rem;
+  --dk-grey: #6a6a6a;
+  --dk-primary: #ef863b;
+  --dk-secondary: #13172d;
+  --dk-tertiary: #0f426e;
+  --error: #cf483e;
+  --grey: #c7c7c7;
+  --highlight: #f8d9d8;
+  --lt-blue: #4fa7ff;
+  --lt-grey: #f3f3f3;
+  --lt-primary: #ffcb8b;
+  --lt-secondary: #434d81;
+  --lt-tertiary: #4189c9;
+  --primary: #faab4a;
+  --quadrary: #f8d9d8;
+  --secondary: #2e3454;
+  --tertiary: #2a679d;
+  --white: #f9f9f9;
+
+  --system-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, "Noto Sans", "Liberation Sans", sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --mono-font: ui-monospace, Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono",
+    "Roboto Mono", "Oxygen Mono", "Ubuntu Monospace", "Source Code Pro",
+    "Fira Mono", "Droid Sans Mono", "Courier New", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  overflow-y: visible;
+  text-align: left;
+  font-family: var(--system-font);
+  font-weight: 300;
+  font-size: 13px;
+  min-height: 100vh;
+  padding: 0;
+  margin: 0;
+  color: var(--black);
+  background: var(--bg);
+}
+
+.mono,
+code.mono,
+pre.mono {
+  font-family: var(--mono-font);
+  font-weight: lighter;
+}
+
+table,
+th,
+td {
+  border: 1px solid var(--grey);
+  border-collapse: collapse;
+  text-align: center;
+  color: var(--black);
+}
+
+table {
+  position: relative;
+  min-width: 100%;
+}
+
+td,
+th {
+  padding: 0.5rem 1.5rem;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+p {
+  margin: 0 0 1rem;
+}
+
+p:last-of-type {
+  margin-bottom: 2rem;
+}
+
+ul {
+  margin: 0;
+  padding: 0;
+}
+
+.textButton {
+  cursor: pointer;
+  text-align: left;
+  line-height: 1.5;
+  font-family: var(--system-font);
+  background: none;
+  border: 1px solid transparent;
+  outline: none;
+  padding: 0;
+}
+
+button.textButton:focus,
+a:focus,
+button.textButton:active {
+  border: 1px dashed var(--grey);
+  background: transparent;
+}
+
+#svelte {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+}
+
+@media (min-width: 60rem) {
+  #svelte {
+    flex-direction: column;
+  }
+}
+
+:not(pre) > code[class*="language-"],
+pre[class*="language-"] {
+  background: transparent !important;
+  text-shadow: none;
+  user-select: auto;
+}
