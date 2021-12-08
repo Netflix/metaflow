@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "cross-env OUTPUT_DIR=public/valay rollup -c",
+    "build": "cross-env OUTPUT_DIR=../card_modules rollup -c",
     "dev": "rollup -c -w",
     "start": "sirv public --no-clear",
     "check": "svelte-check --tsconfig ./tsconfig.json"

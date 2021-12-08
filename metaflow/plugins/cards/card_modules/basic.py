@@ -5,7 +5,7 @@ from .convert_to_native_type import TaskToDict
 
 ABS_DIR_PATH = os.path.dirname(os.path.abspath(__file__))
 RENDER_TEMPLATE_PATH = os.path.join(ABS_DIR_PATH, "base.html")
-JS_PATH = os.path.join(ABS_DIR_PATH, "bundle.js")
+JS_PATH = os.path.join(ABS_DIR_PATH, "main.js")
 CSS_PATH = os.path.join(ABS_DIR_PATH, "bundle.css")
 
 
