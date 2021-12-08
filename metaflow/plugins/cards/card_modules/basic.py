@@ -5,9 +5,19 @@ from .convert_to_native_type import TaskToDict
 
 ABS_DIR_PATH = os.path.dirname(os.path.abspath(__file__))
 RENDER_TEMPLATE_PATH = os.path.join(ABS_DIR_PATH, "base.html")
-RENDER_TEMPLATE = None
-with open(RENDER_TEMPLATE_PATH, "r") as f:
-    RENDER_TEMPLATE = f.read()
+JS_PATH = os.path.join(ABS_DIR_PATH, "bundle.js")
+CSS_PATH = os.path.join(ABS_DIR_PATH, "bundle.css")
+
+
+def open_and_save(path):
+    with open(path, "r") as f:
+        return f.read()
+
+
+# todo : Should these be dynamically loaded ?
+RENDER_TEMPLATE = open_and_save(RENDER_TEMPLATE_PATH)
+JS_DATA = open_and_save(JS_PATH)
+CSS_DATA = open_and_save(CSS_PATH)
 
 
 class DefaultComponent(MetaflowCardComponent):
@@ -472,7 +482,11 @@ class DefaultCard(MetaflowCard):
             components=self._components,
         ).render()
         pt = self._get_mustache()
-        data_dict = dict(task_data=json.dumps(json.dumps(final_component_dict)))
+        data_dict = dict(
+            task_data=json.dumps(json.dumps(final_component_dict)),
+            javascript=JS_DATA,
+            css=CSS_DATA,
+        )
         return pt.render(RENDER_TEMPLATE, data_dict)
 
 
