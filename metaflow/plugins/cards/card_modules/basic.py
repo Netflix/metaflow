@@ -9,15 +9,9 @@ JS_PATH = os.path.join(ABS_DIR_PATH, "bundle.js")
 CSS_PATH = os.path.join(ABS_DIR_PATH, "bundle.css")
 
 
-def open_and_save(path):
+def read_file(path):
     with open(path, "r") as f:
         return f.read()
-
-
-# todo : Should these be dynamically loaded ?
-RENDER_TEMPLATE = open_and_save(RENDER_TEMPLATE_PATH)
-JS_DATA = open_and_save(JS_PATH)
-CSS_DATA = open_and_save(CSS_PATH)
 
 
 class DefaultComponent(MetaflowCardComponent):
@@ -475,6 +469,9 @@ class DefaultCard(MetaflowCard):
         self._components = components
 
     def render(self, task):
+        RENDER_TEMPLATE = read_file(RENDER_TEMPLATE_PATH)
+        JS_DATA = read_file(JS_PATH)
+        CSS_DATA = read_file(CSS_PATH)
         final_component_dict = TaskInfoComponent(
             task,
             only_repr=self._only_repr,
