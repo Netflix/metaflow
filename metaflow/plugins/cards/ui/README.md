@@ -2,14 +2,14 @@
 
 This directory contains the files that generate the Javascript and CSS to be used in the standalone HTML file when the cards are generated.
 
-The code uses (Svelte)[https://svelte.dev/]
+The code uses [svelte](https://svelte.dev/)
 
 ## To run locally
 
 - `yarn install`
 - `yarn dev`
 
-This will run a (server)[http://localhost:5000] showing a single card, using example data.
+This will run a [server](http://localhost:5000) showing a single card, using example data.
 
 ## To make changes to be used by metaflow
 
