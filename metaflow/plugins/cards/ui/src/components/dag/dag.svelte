@@ -1,8 +1,4 @@
 <!-- Draws a DAG (Directed Acyclic Graph) based on the input steps -->
-<script context="module">
-  export const currentStepContext = "currentStep";
-</script>
-
 <script lang="ts">
   import "./dag.css";
   import Connectors from "./connectors.svelte";
@@ -11,6 +7,7 @@
   import type { Boxes, DagComponent } from "../../types";
   import { cardData } from "../../store";
   import { getStepNameFromPathSpec } from "../../utils";
+  import { currentStepContext } from "./constants.svelte";
 
   export let componentData: DagComponent;
 
