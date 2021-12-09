@@ -263,7 +263,7 @@ def step(
         with ctx.obj.monitor.measure("metaflow.aws.batch.launch_job"):
             batch.launch_job(
                 step_name,
-                capture_output_to_mflog(step_cli),
+                step_cli,
                 task_spec,
                 code_package_sha,
                 code_package_url,
