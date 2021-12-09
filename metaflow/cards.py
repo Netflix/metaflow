@@ -12,7 +12,7 @@ from metaflow.plugins.cards.card_modules.basic import (
     DagComponent,
     PageComponent,
     ArtifactsComponent,
-    RENDER_TEMPLATE,
+    RENDER_TEMPLATE_PATH,
     TaskToDict,
     DefaultComponent,
     ChartComponent,

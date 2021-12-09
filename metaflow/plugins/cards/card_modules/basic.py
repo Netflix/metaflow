@@ -5,9 +5,11 @@ from .convert_to_native_type import TaskToDict
 
 ABS_DIR_PATH = os.path.dirname(os.path.abspath(__file__))
 RENDER_TEMPLATE_PATH = os.path.join(ABS_DIR_PATH, "base.html")
-RENDER_TEMPLATE = None
-with open(RENDER_TEMPLATE_PATH, "r") as f:
-    RENDER_TEMPLATE = f.read()
+
+
+def read_file(path):
+    with open(path, "r") as f:
+        return f.read()
 
 
 class DefaultComponent(MetaflowCardComponent):
@@ -429,6 +431,7 @@ class ErrorCard(MetaflowCard):
         self._components = components
 
     def render(self, task, stack_trace=None):
+        RENDER_TEMPLATE = read_file(RENDER_TEMPLATE_PATH)
         trace = "None"
         if stack_trace is not None:
             trace = stack_trace
@@ -465,6 +468,7 @@ class DefaultCard(MetaflowCard):
         self._components = components
 
     def render(self, task):
+        RENDER_TEMPLATE = read_file(RENDER_TEMPLATE_PATH)
         final_component_dict = TaskInfoComponent(
             task,
             only_repr=self._only_repr,
@@ -472,7 +476,9 @@ class DefaultCard(MetaflowCard):
             components=self._components,
         ).render()
         pt = self._get_mustache()
-        data_dict = dict(task_data=json.dumps(json.dumps(final_component_dict)))
+        data_dict = dict(
+            task_data=json.dumps(json.dumps(final_component_dict)),
+        )
         return pt.render(RENDER_TEMPLATE, data_dict)
 
 

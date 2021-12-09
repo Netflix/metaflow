@@ -1,5 +1,5 @@
 from metaflow.client import Task
-from metaflow import Flow, JSONType, Step
+from metaflow import JSONType, namespace
 from metaflow.exception import CommandException
 import webbrowser
 import re
@@ -9,7 +9,7 @@ import signal
 import random
 from contextlib import contextmanager
 from functools import wraps
-from metaflow.exception import MetaflowNotFound
+from metaflow.exception import MetaflowNamespaceMismatch
 from .card_datastore import CardDatastore, stepname_from_card_id, NUM_SHORT_HASH_CHARS
 from .exception import (
     CardClassFoundException,
@@ -63,7 +63,13 @@ def resolve_card(ctx, pathspec, hash=None, type=None, follow_resumed=True):
     # what should be the args we expose
     run_id, step_name, task_id = pathspec.split("/")
     pathspec = "/".join([flow_name, run_id, step_name, task_id])
-    task = Task(pathspec)
+    try:
+        task = Task(pathspec)
+    except MetaflowNamespaceMismatch as e:
+        # todo : What to do in such cases where there is a namespace mismatch
+        namespace(None)
+        task = Task(pathspec)
+
     print_str = "Resolving card: %s" % pathspec
     if follow_resumed:
         resume_status = resumed_info(task)
