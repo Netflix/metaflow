@@ -166,7 +166,10 @@ class Kubernetes(object):
         # We lose the last logs in this scenario.
         #
         # TODO: Find a way to capture hard exit logs in Kubernetes.
-        cmd_str += "c=$?; %s; exit $c" % BASH_SAVE_LOGS
+        cmd_str += (
+            "c=$?; echo $c; mflog 'Going to write logs. ';  %s; mflog 'Done writing logs. Sleeping 60;'; exit $c"
+            % BASH_SAVE_LOGS
+        )
         return shlex.split('bash -c "%s"' % cmd_str)
 
     def launch_job(self, **kwargs):

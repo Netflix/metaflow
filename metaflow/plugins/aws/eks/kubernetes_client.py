@@ -333,6 +333,7 @@ class KubernetesJob(object):
             "name": "m",
             "template": {
                 "spec": {
+                    "restartPolicy": "OnFailure",
                     "containers": [
                         {
                             "image": self._kwargs["image"],
@@ -359,7 +360,7 @@ class KubernetesJob(object):
                                 }
                             },
                         },
-                    ]
+                    ],
                 }
             },
         }
@@ -380,7 +381,7 @@ class KubernetesJob(object):
                 "minAvailable": self._kwargs["num_parallel"],
                 "schedulerName": "volcano",
                 "priorityClassName": "high-priority",
-                "policies": [{"event": "PodEvicted", "action": "RestartJob"}],
+                # "policies": [{"event": "PodEvicted", "action": "RestartJob"}],
                 "plugins": {"ssh": [], "env": [], "svc": []},
                 "maxRetry": 5,
                 "queue": "default",
@@ -390,7 +391,7 @@ class KubernetesJob(object):
                 ],
             },
         }
-        print(job_spec)
+        # print(job_spec)
         return job_spec
 
     def execute(self):
@@ -683,14 +684,19 @@ class RunningJob(object):
             # Either the job succeeds or fails naturally or we may have
             # forced the pod termination causing the job to still be in an
             # active state but for all intents and purposes dead to us.
+            if self._num_parallel:
+                return self._job.get("status", {}).get("state", {}).get(
+                    "phase"
+                ) not in {
+                    "Pending",
+                    "Running",
+                }  # TODO(aapo): check
 
             # TODO (savin): check for self._job
             return (
                 bool(self._job["status"].get("succeeded"))
                 or bool(self._job["status"].get("failed"))
-                or (
-                    self._job["spec"].get("parallelism", None) == 0
-                )  # parallelism not in the volcano jobs
+                or (self._job["spec"]["parallelism"] == 0)
             )
 
         if not _job_done():
@@ -712,7 +718,15 @@ class RunningJob(object):
             # If not done, check for newer pod status
             self._pod = self._fetch_pod()
         # Success!
-        print(self._job["status"])
+
+        if self._num_parallel:
+            print(self._job["status"]["state"])
+            if self._job["status"]["state"]["phase"] == "Pending":
+                return "Job:Pending"
+            elif self._job["status"]["state"]["phase"] == "Running":
+                return "Job:Active"
+            return "Job:" + self._job["status"]["state"]["phase"]
+
         if bool(self._job["status"].get("succeeded")):
             return "Job:Succeeded"
         # Failure!
@@ -764,6 +778,12 @@ class RunningJob(object):
         # or the Job is not allowed to launch any more pods
 
         if self._check_is_done():
+            if self._num_parallel:
+                return (
+                    bool(self._job["status"]["state"].get("failed"))
+                    or self._job.get("status", {}).get("state", {}).get("phase")
+                    == "Failed"
+                )
             if (
                 bool(self._job["status"].get("failed"))
                 or (self._job["spec"]["parallelism"] == 0)
@@ -780,6 +800,11 @@ class RunningJob(object):
         if not self._check_is_done():
             # If not done, check if pod has been assigned and is in Running
             # phase
+            if self._num_parallel:
+                return (
+                    self._job.get("status", {}).get("state", {}).get("phase")
+                    == "Running"
+                )
             if self._pod is None:
                 return False
             pod_phase = self._pod.get("status", {}).get("phase")
