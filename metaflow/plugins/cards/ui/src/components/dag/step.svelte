@@ -7,8 +7,8 @@
 
   export let name: string;
   export let step: DagStep;
-  export let numLevels: number = 0;
-  export let el: HTMLElement;
+  export let numLevels = 0;
+  export let el: HTMLElement | null;
 
   let success = false;
   let error = false;
@@ -16,8 +16,8 @@
 
   // Calculate number of levels in the stack under the step rectangle
   let levelsToShow: string;
-  const offset: number = 4;
-  const numPerLevel: number = 3;
+  const offset = 4;
+  const numPerLevel = 3;
 
   // Show the number of levels on the right if the number of tasks > the number on the left
   const levelCutoffs: Record<number, number> = {
@@ -46,7 +46,7 @@
   }
 
   if (numLevels > 0) {
-    levels = new Array(numLevels).fill("");
+    levels = new Array<string>(numLevels).fill("");
   }
 
   // For each of the levels in the stack show a status with errors first, then successes

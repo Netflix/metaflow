@@ -7,8 +7,18 @@
   const { title, contents } = componentData;
 </script>
 
-<div id={`page-${title || "No Title"}`}>
+<div id={`page-${title || "No Title"}`} class="page">
   {#each contents || [] as component}
     <CardComponentRenderer componentData={component} />
   {/each}
 </div>
+
+<style>
+  .page:last-of-type {
+    margin-bottom: var(--component-spacer);
+  }
+
+  :global(.page:last-of-type section:last-of-type hr) {
+    display: none;
+  }
+</style>

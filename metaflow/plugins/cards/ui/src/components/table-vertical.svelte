@@ -26,15 +26,15 @@
 {/if}
 
 <style>
-  table {
+  td {
     text-align: left;
   }
 
   td.labelColumn {
     text-align: right;
     background-color: var(--lt-grey);
-    font-weight: 600;
-    width: 0;
+    font-weight: 700;
+    width: 12%;
     white-space: nowrap;
   }
 </style>

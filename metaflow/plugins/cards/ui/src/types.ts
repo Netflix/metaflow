@@ -7,7 +7,7 @@ export type Status = "success" | "error" | "idle" | "in-progress";
 // used to build tree that supports pages and sections on the aside nav
 export type PageHierarchy = Record<string, string[]>;
 
-export type Boxes = Record<string, DOMRect>;
+export type Boxes = Record<string, HTMLElement>;
 
 /* ------------------------------- DATA TYPES ------------------------------- */
 
@@ -103,6 +103,12 @@ export interface TextComponent {
   text: string;
 }
 
+export interface HeadingComponent {
+  type: "heading";
+  title?: string;
+  subtitle?: string;
+}
+
 // this component should support any tabular data, we will have to write a small
 // transform to support pandas/numpy etc.
 export interface TableComponent {
@@ -153,6 +159,7 @@ export type CardComponent =
   | ArtifactsComponent
   | BarChartComponent
   | DagComponent
+  | HeadingComponent
   | ImageComponent
   | LineChartComponent
   | LogComponent

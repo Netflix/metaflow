@@ -36,14 +36,11 @@
     max-height: 50rem;
   }
 
-  tr:nth-of-type(even) td {
-    background: var(--lt-grey);
-  }
-
   th {
     position: sticky;
     top: -1px;
     z-index: 2;
-    background: var(--lt-grey);
+    white-space: nowrap;
+    background: var(--white);
   }
 </style>

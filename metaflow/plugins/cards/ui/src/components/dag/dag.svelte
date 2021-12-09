@@ -7,7 +7,7 @@
   import "./dag.css";
   import Connectors from "./connectors.svelte";
   import StepWrapper from "./step-wrapper.svelte";
-  import { onMount, setContext } from "svelte";
+  import { setContext } from "svelte";
   import type { Boxes, DagComponent } from "../../types";
   import { cardData } from "../../store";
   import { getStepNameFromPathSpec } from "../../utils";
@@ -17,49 +17,35 @@
   const { data: steps } = componentData;
   let boxes: Boxes = {};
   let el: HTMLElement;
-  let box: DOMRect;
-  let innerWidth: number;
-  let boxTop: number;
-  let boxLeft: number;
 
   setContext(
     currentStepContext,
     getStepNameFromPathSpec($cardData?.metadata?.pathspec)
   );
 
-  let resizeTimeout: NodeJS.Timeout;
-  const RESIZE_TIMEOUT = 300;
-  let resizing: boolean = false;
-
-  const getContainerPosition = () => {
-    box = el?.getBoundingClientRect();
-  };
+  let resizeTimeout: ReturnType<typeof setTimeout>;
+  const RESIZE_TIMEOUT = 100;
+  let resizing = false;
 
   // Debounce the resizing so the processor doesn't get overloaded
   const handleResize = (): void => {
     resizing = true;
     clearTimeout(resizeTimeout);
     resizeTimeout = setTimeout(() => {
-      getContainerPosition();
       resizing = false;
     }, RESIZE_TIMEOUT);
   };
-
-  onMount(getContainerPosition);
-
-  $: boxTop = box?.top ?? 0;
-  $: boxLeft = box?.left ?? 0;
 </script>
 
-<svelte:window bind:innerWidth on:resize={handleResize} />
+<svelte:window on:resize={handleResize} />
 
-<div bind:this={el} style="position: relative">
+<div bind:this={el} style="position: relative; line-height: 1">
   {#if steps?.start}
-    <StepWrapper {steps} stepName="start" bind:boxes {innerWidth} />
+    <StepWrapper {steps} stepName="start" bind:boxes />
   {:else}
     <p>No start step</p>
   {/if}
   {#if !resizing && Object.keys(boxes).length}
-    <Connectors {boxes} {steps} top={boxTop} left={boxLeft} />
+    <Connectors {boxes} {steps} container={el} />
   {/if}
 </div>

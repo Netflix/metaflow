@@ -25,7 +25,13 @@
     padding: 1rem;
     border-radius: 5px;
     text-align: center;
-    margin: 0 auto;
+    margin: 0 auto var(--component-spacer);
+  }
+
+  @media (min-width: 60rem) {
+    figure {
+      margin-bottom: 0;
+    }
   }
 
   img {

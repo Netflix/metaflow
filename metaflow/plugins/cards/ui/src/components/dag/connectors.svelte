@@ -6,8 +6,7 @@
 
   export let steps: Dag;
   export let boxes: Boxes;
-  export let top: number;
-  export let left: number;
+  export let container: HTMLElement;
 
   interface ConnectorData {
     top: number;
@@ -20,14 +19,18 @@
 
   $: {
     connectors = [];
+    const containerBox = container.getBoundingClientRect();
+    const top = containerBox.top;
+    const left = containerBox.left;
+
     boxes &&
       Object.keys(steps).forEach((stepName) => {
         const currentStep = steps[stepName];
-        const currentBox = boxes[stepName];
+        const currentBox = boxes[stepName].getBoundingClientRect();
 
         // for each next step, calculate the position of the connector from this step
         currentStep.next?.forEach((nextStep) => {
-          const nextBox = boxes[nextStep];
+          const nextBox = boxes[nextStep].getBoundingClientRect();
           const newConnectorData: ConnectorData = {
             top: currentBox.bottom - top,
             left: currentBox.left - left + currentBox.width / 2,

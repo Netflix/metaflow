@@ -24,7 +24,12 @@
     <span class="cancelButton">
       <Icon icon="mdi:close" />
     </span>
-    <div class="modalContainer" on:click={(e) => e.stopImmediatePropagation()}>
+    <div
+      class="modalContainer"
+      on:click={(e) => {
+        e?.stopImmediatePropagation();
+      }}
+    >
       <ComponentRenderer componentData={$modal} />
     </div>
   </div>

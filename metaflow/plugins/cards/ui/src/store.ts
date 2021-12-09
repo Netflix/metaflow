@@ -6,15 +6,17 @@ export const cardData = (() => {
   const store: Writable<types.CardResponse | undefined> = writable(undefined);
 
   try {
-    const data = JSON.parse((window as any).__DATA__);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    const data = JSON.parse((window as any).__DATA__) as types.CardResponse;
     store.set(data);
   } catch (error) {
     // for now we are loading an example card if there is no string
     fetch("/card-example.json")
       .then((resp) => resp.json())
-      .then((data) => {
+      .then((data: types.CardResponse) => {
         store.set(data);
-      });
+      })
+      .catch(console.error);
   }
 
   return store;

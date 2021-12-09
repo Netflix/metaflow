@@ -60,7 +60,7 @@ export const getStepNameFromPathSpec = (
   if (!pathspec) {
     return undefined;
   }
-  const [flow, run, step, task] = pathspec.split("/");
+  const step = pathspec.split("/")?.[2];
   return step;
 };
 

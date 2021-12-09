@@ -12,26 +12,13 @@
 
   main {
     flex: 0 1 auto;
-    overflow-y: scroll;
-    padding: 3rem;
-    width: 100%;
+    max-width: 100rem;
+    padding: 1.5rem;
   }
 
   @media (min-width: 60rem) {
     main {
-      padding: 2rem 4.5rem;
-    }
-  }
-
-  @media (min-width: 80rem) {
-    main {
-      padding: 2rem 6rem;
-    }
-  }
-
-  @media (min-width: 100rem) {
-    main {
-      padding: 2rem 9rem;
+      margin-left: var(--aside-width);
     }
   }
 </style>

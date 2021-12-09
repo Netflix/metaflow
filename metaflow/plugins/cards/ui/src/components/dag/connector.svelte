@@ -1,10 +1,10 @@
 <!-- A line that connects each step to the next. -->
 <script type="ts">
   // In rems
-  export let top: number = 0;
-  export let left: number = 0;
-  export let bottom: number = 0;
-  export let right: number = 0;
+  export let top = 0;
+  export let left = 0;
+  export let bottom = 0;
+  export let right = 0;
 
   // Note: also defined in CSS
   const strokeWidth = 0.5;
@@ -12,7 +12,7 @@
   let shouldFlip: boolean;
   let width: number;
   let height: number;
-  let straightLine: boolean = false;
+  let straightLine = false;
 
   $: {
     shouldFlip = right - left < 0;

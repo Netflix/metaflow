@@ -6,7 +6,9 @@
     "build": "cross-env OUTPUT_DIR=../card_modules rollup -c",
     "dev": "rollup -c -w",
     "start": "sirv public --no-clear",
-    "check": "svelte-check --tsconfig ./tsconfig.json"
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "lint": "eslint src --ext .ts,.svelte",
+    "lint:fix": "yarn run lint --fix"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^21.0.1",
@@ -14,6 +16,11 @@
     "@rollup/plugin-typescript": "^8.3.0",
     "@tsconfig/svelte": "^2.0.1",
     "cross-env": "^7.0.3",
+    "@types/node": "^16.11.12",
+    "@typescript-eslint/eslint-plugin": "^5.6.0",
+    "@typescript-eslint/parser": "^5.6.0",
+    "eslint": "^8.4.0",
+    "eslint-plugin-svelte3": "^3.2.1",
     "rollup": "^2.60.0",
     "rollup-plugin-css-only": "^3.1.0",
     "rollup-plugin-livereload": "^2.0.5",

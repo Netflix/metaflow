@@ -20,7 +20,8 @@
 
 <style>
   .log {
-    padding: 2rem;
     background: var(--lt-grey) !important;
+    font-size: 0.9rem;
+    padding: 2rem;
   }
 </style>

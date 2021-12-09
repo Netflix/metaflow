@@ -3,6 +3,7 @@
   import Artifacts from "./artifacts.svelte";
   import BarChart from "./bar-chart.svelte";
   import Dag from "./dag/dag.svelte";
+  import Heading from "./heading.svelte";
   import Image from "./image.svelte";
   import LineChart from "./line-chart.svelte";
   import Log from "./log.svelte";
@@ -19,6 +20,7 @@
     artifacts: Artifacts,
     barChart: BarChart,
     dag: Dag,
+    heading: Heading,
     image: Image,
     lineChart: LineChart,
     log: Log,

@@ -9,7 +9,9 @@
   function highlightCode() {
     // after prism highlights it adds the class, so we're making sure it only loads once
     if (el && !el.classList.contains("language-python")) {
-      (window as any)?.Prism?.highlightElement(el);
+      if (typeof window !== "undefined") {
+        (window as any)?.Prism?.highlightElement(el);
+      }
     }
   }
 
@@ -24,25 +26,14 @@
 </tr>
 
 <style>
-  td {
-    background: var(--lt-grey);
-    border: none;
-    text-align: left;
-  }
-
-  tr {
-    border-bottom: 1px solid var(--grey);
-  }
-
   .idCell {
     font-weight: bold;
-    border-right: 1px dashed grey;
     text-align: right;
+    background: var(--lt-grey);
   }
 
   .codeCell {
     text-align: left;
-    background: white;
     user-select: all;
   }
 </style>

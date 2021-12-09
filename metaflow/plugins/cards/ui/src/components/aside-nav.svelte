@@ -31,7 +31,6 @@
 <style>
   .nav {
     border-radius: 0 0 5px 0;
-    color: var(--lt-grey);
     display: none;
     margin: 0;
     top: 0;
@@ -51,11 +50,14 @@
   }
 
   .navItem li:hover {
-    text-decoration: underline;
+    color: var(--blue);
   }
 
   .pageId {
-    color: var(--grey);
+    display: block;
+    border-bottom: 1px solid var(--grey);
+    padding: 0 0.5rem;
+    margin-bottom: 1rem;
   }
 
   @media (min-width: 60rem) {
@@ -69,6 +71,7 @@
 
     .navList li {
       display: block;
+      margin: 0.5rem 0;
     }
   }
 </style>

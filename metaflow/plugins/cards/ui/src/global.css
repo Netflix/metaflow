@@ -1,17 +1,19 @@
+@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap");
+
 :root {
-  --bg: #fafafa;
-  --black: #2e2e27;
-  --blue: rgb(12, 102, 222);
-  --component-spacer: 3rem;
-  --dk-grey: #6a6a6a;
+  --bg: #ffffff;
+  --black: #333;
+  --blue: #0c66de;
+  --dk-grey: #767676;
   --dk-primary: #ef863b;
   --dk-secondary: #13172d;
   --dk-tertiary: #0f426e;
   --error: #cf483e;
-  --grey: #c7c7c7;
+  --grey: rgba(0, 0, 0, 0.125);
   --highlight: #f8d9d8;
   --lt-blue: #4fa7ff;
   --lt-grey: #f3f3f3;
+  --lt-lt-grey: #f9f9f9;
   --lt-primary: #ffcb8b;
   --lt-secondary: #434d81;
   --lt-tertiary: #4189c9;
@@ -19,11 +21,11 @@
   --quadrary: #f8d9d8;
   --secondary: #2e3454;
   --tertiary: #2a679d;
-  --white: #f9f9f9;
+  --white: #ffffff;
 
-  --system-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial, "Noto Sans", "Liberation Sans", sans-serif, "Apple Color Emoji",
-    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --component-spacer: 3rem;
+  --aside-width: 20rem;
+
   --mono-font: ui-monospace, Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono",
     "Roboto Mono", "Oxygen Mono", "Ubuntu Monospace", "Source Code Pro",
     "Fira Mono", "Droid Sans Mono", "Courier New", monospace;
@@ -35,17 +37,28 @@
 
 html,
 body {
-  height: 100%;
-  overflow-y: visible;
-  text-align: left;
-  font-family: var(--system-font);
-  font-weight: 300;
-  font-size: 13px;
-  min-height: 100vh;
-  padding: 0;
-  margin: 0;
-  color: var(--black);
   background: var(--bg);
+  color: var(--black);
+  font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+    "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
+    sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  text-size-adjust: 100%;
+  margin: 0;
+  min-height: 100vh;
+  overflow-y: visible;
+  padding: 0;
+  text-align: left;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-font-smoothing: antialiased;
+  width: 100%;
+}
+
+#app {
+  width: 100%;
+  min-height: 100vh;
 }
 
 .mono,
@@ -58,7 +71,6 @@ pre.mono {
 table,
 th,
 td {
-  border: 1px solid var(--grey);
   border-collapse: collapse;
   text-align: center;
   color: var(--black);
@@ -69,22 +81,26 @@ table {
   min-width: 100%;
 }
 
-td,
+td {
+  padding: 0.66rem 1.25rem;
+  background: var(--lt-lt-grey);
+  border: 1px solid #fff;
+}
+
 th {
-  padding: 0.5rem 1.5rem;
+  border: none;
+  color: var(--dk-grey);
+  font-weight: normal;
+  padding: 0.5rem;
 }
 
 h1,
 h2,
 h3,
 h4,
-h5,
-p {
-  margin: 0 0 1rem;
-}
-
-p:last-of-type {
-  margin-bottom: 2rem;
+h5 {
+  font-weight: 700;
+  margin: 0.5rem 0;
 }
 
 ul {
@@ -92,11 +108,21 @@ ul {
   padding: 0;
 }
 
+p {
+  margin: 0 0 1rem;
+}
+
+p:last-of-type {
+  margin: 0;
+}
+
+button {
+  font-size: 1rem;
+}
+
 .textButton {
   cursor: pointer;
   text-align: left;
-  line-height: 1.5;
-  font-family: var(--system-font);
   background: none;
   border: 1px solid transparent;
   outline: none;
@@ -110,18 +136,9 @@ button.textButton:active {
   background: transparent;
 }
 
-#svelte {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  overflow: hidden;
-  position: relative;
-}
-
-@media (min-width: 60rem) {
-  #svelte {
-    flex-direction: column;
-  }
+button.textButton:hover {
+  color: var(--blue);
+  text-decoration: none;
 }
 
 :not(pre) > code[class*="language-"],

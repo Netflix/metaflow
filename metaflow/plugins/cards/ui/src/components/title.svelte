@@ -1,7 +1,7 @@
 <!-- This component renders a title for use throughout your page -->
 <script lang="ts">
   import type * as types from "../types";
-  export let componentData: types.TextComponent;
+  export let componentData: types.TitleComponent;
   const { text } = componentData;
 </script>
 
@@ -11,8 +11,6 @@
 
 <style>
   .title {
-    font-size: 1.5rem;
-    font-weight: 600;
     text-align: left;
   }
 </style>

@@ -1,15 +1,29 @@
 <!-- This component gives us a wrapper for main aside components -->
+<script lang="ts">
+  import Logo from "./logo.svelte";
+  import * as constants from "../constants";
+</script>
+
 <aside>
-  <slot />
+  <div>
+    <div class="logoContainer">
+      <Logo />
+    </div>
+    <slot />
+  </div>
+  <ul>
+    <li><a href={constants.MF_CARD_DOCS_URL}>@card Docs</a></li>
+    <li><a href={constants.OB_SLACK_URL}>Slack Help</a></li>
+    <li><a href={constants.MF_GITHUB_URL}>Github</a></li>
+  </ul>
 </aside>
 
 <style>
   aside {
-    background: var(--black);
-    color: var(--lt-grey);
     display: none;
     line-height: 2;
     text-align: left;
+    /* background: var(--lt-lt-grey); */
   }
 
   @media (min-width: 60rem) {
@@ -18,10 +32,9 @@
       flex-direction: column;
       height: 100vh;
       justify-content: space-between;
-      max-width: 400px;
-      min-width: 200px;
-      padding: 1.5rem 4rem 1.5rem 2rem;
-      width: 20%;
+      padding: 2.5rem 0 1.5rem 1.5rem;
+      position: fixed;
+      width: var(--aside-width);
     }
   }
 
@@ -30,13 +43,20 @@
   }
 
   :global(aside a, aside button, aside a:visited) {
-    color: var(--lt-grey);
     text-decoration: none;
     cursor: pointer;
+    font-weight: 700;
+    color: var(--black);
   }
 
   :global(aside a:hover, aside button:hover) {
-    color: var(--lt-blue);
     text-decoration: underline;
+  }
+
+  :global(.logoContainer svg) {
+    width: 100%;
+    max-width: 140px;
+    margin-bottom: 3.75rem;
+    height: auto;
   }
 </style>

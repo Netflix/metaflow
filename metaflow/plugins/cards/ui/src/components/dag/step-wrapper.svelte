@@ -6,19 +6,18 @@
 
   export let steps: Dag;
   export let stepName: string;
-  export let levels: number = 0;
+  export let levels = 0;
   export let boxes: Boxes = {};
-  export let innerWidth: number;
 
-  let stepElement: HTMLElement;
+  let stepElement: HTMLElement | null = null;
 
-  const getBoxes = () => {
-    boxes[stepName] = stepElement?.getBoundingClientRect();
+  const setBox = () => {
+    if (stepElement) {
+      boxes[stepName] = stepElement;
+    }
   };
 
-  onMount(getBoxes);
-
-  $: innerWidth && getBoxes();
+  onMount(setBox);
 
   let currentStep = steps[stepName];
   if (!currentStep) {
@@ -56,20 +55,13 @@
             stepName={nextStepName}
             levels={childLevels}
             {boxes}
-            {innerWidth}
           />
         {/each}
       </div>
     {/if}
     {#if currentStep.box_ends}
       <div class="gap" />
-      <svelte:self
-        {steps}
-        stepName={currentStep.box_ends}
-        {levels}
-        {boxes}
-        {innerWidth}
-      />
+      <svelte:self {steps} stepName={currentStep.box_ends} {levels} {boxes} />
     {/if}
   </div>
 {/if}
