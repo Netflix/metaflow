@@ -143,7 +143,12 @@ def kill(ctx, run_id, user, my_runs):
 # TODO: Maybe remove it altogether since it's not used here
 @click.option("--ubf-context", default=None, type=click.Choice([None, "ubf_control"]))
 @click.option("--host-volumes", multiple=True)
-@click.option("--num-parallel", type=int)
+@click.option(
+    "--num-parallel",
+    default=0,
+    type=int,
+    help="Number of parallel nodes to run as a multi-node job.",
+)
 @click.pass_context
 def step(
     ctx,
@@ -192,7 +197,7 @@ def step(
         kwargs["input_paths"] = "".join("${%s}" % s for s in split_vars.keys())
 
     step_args = " ".join(util.dict_to_cli_options(kwargs))
-    num_parallel = num_parallel or 1
+    num_parallel = num_parallel or 0
     if num_parallel and num_parallel > 1:
         # For multinode, we need to add a placeholder that can be mutated by the caller
         step_args += " [multinode-args]"
