@@ -146,7 +146,7 @@
 
   .rectangle {
     background-color: var(--dag-bg-static);
-    border: 3px solid var(--dag-border);
+    border: 1px solid var(--dag-border);
     box-sizing: border-box;
     position: relative;
     height: var(--dag-step-height);
