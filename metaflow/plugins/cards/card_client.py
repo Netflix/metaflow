@@ -1,6 +1,8 @@
 from metaflow.datastore import DATASTORES, FlowDataStore
 from .card_resolver import resolve_paths_from_task, resumed_info, ResumedInfo
 from .exception import UnresolvableDatastoreException
+import os
+import tempfile
 
 
 class Card:
@@ -25,6 +27,9 @@ class Card:
         self.from_resumed = from_resumed
         self.origin_pathspec = origin_pathspec
 
+        # Tempfile to open stuff in browser
+        self._temp_file = None
+
     @property
     def html(self):
         if self._html is not None:
@@ -35,6 +40,16 @@ class Card:
     @property
     def path(self):
         return self._path
+
+    def browser(self):
+        import webbrowser
+
+        self._temp_file = tempfile.NamedTemporaryFile(suffix=".html")
+        html = self.html
+        self._temp_file.write(html.encode())
+        self._temp_file.seek(0)
+        url = "file://" + os.path.abspath(self._temp_file.name)
+        webbrowser.open(url)
 
     def nb(self):
         from IPython.core.display import HTML, display
