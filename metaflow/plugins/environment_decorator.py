@@ -24,8 +24,11 @@ class EnvironmentDecorator(StepDecorator):
     vars : Dict
         Dictionary of environment variables to add/update prior to executing your step.
     """
-    name = 'environment'
-    defaults = {'vars': {}}
 
-    def runtime_step_cli(self, cli_args, retry_count, max_user_code_retries, ubf_context):
-        cli_args.env.update(self.attributes['vars'].items())
+    name = "environment"
+    defaults = {"vars": {}}
+
+    def runtime_step_cli(
+        self, cli_args, retry_count, max_user_code_retries, ubf_context
+    ):
+        cli_args.env.update(self.attributes["vars"].items())

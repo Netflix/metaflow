@@ -1,17 +1,20 @@
 from metaflow_test import MetaflowTest, ExpectationFailed, steps
 
+
 class CurrentSingletonTest(MetaflowTest):
     """
     Test that the current singleton returns the right values
     """
+
     PRIORITY = 1
 
     HEADER = "@project(name='current_singleton')"
 
-    @steps(0, ['start'])
+    @steps(0, ["start"])
     def step_start(self):
         from uuid import uuid4
         from metaflow import current
+
         self.project_names = {current.project_name}
         self.branch_names = {current.branch_name}
         self.project_flow_names = {current.project_flow_name}
@@ -26,7 +29,7 @@ class CurrentSingletonTest(MetaflowTest):
         self.uuid = str(uuid4())
         self.task_data = {current.pathspec: self.uuid}
 
-    @steps(1, ['join'])
+    @steps(1, ["join"])
     def step_join(self):
         from uuid import uuid4
         from metaflow import current
@@ -65,7 +68,7 @@ class CurrentSingletonTest(MetaflowTest):
         self.uuid = str(uuid4())
         self.task_data[current.pathspec] = self.uuid
 
-    @steps(2, ['all'])
+    @steps(2, ["all"])
     def step_all(self):
         from uuid import uuid4
         from metaflow import current
@@ -89,27 +92,30 @@ class CurrentSingletonTest(MetaflowTest):
         if run is None:
             # very basic sanity check for CLI
             for step in flow:
-                checker.assert_artifact(step.name, 'step_name', step.name)
-                checker.assert_artifact(step.name,
-                                        'project_names',
-                                        {'current_singleton'})
+                checker.assert_artifact(step.name, "step_name", step.name)
+                checker.assert_artifact(
+                    step.name, "project_names", {"current_singleton"}
+                )
         else:
             from metaflow import Task
+
             task_data = run.data.task_data
             for pathspec, uuid in task_data.items():
                 assert_equals(Task(pathspec).data.uuid, uuid)
             for step in run:
                 for task in step:
                     assert_equals(task.data.step_name, step.id)
-                    pathspec = '/'.join(task.pathspec.split('/')[-4:])
+                    pathspec = "/".join(task.pathspec.split("/")[-4:])
                     assert_equals(task.data.uuid, task_data[pathspec])
-            assert_equals(run.data.project_names, {'current_singleton'})
-            assert_equals(run.data.branch_names, {'user.tester'})
-            assert_equals(run.data.project_flow_names,\
-                {'current_singleton.user.tester.CurrentSingletonTestFlow'})
+            assert_equals(run.data.project_names, {"current_singleton"})
+            assert_equals(run.data.branch_names, {"user.tester"})
+            assert_equals(
+                run.data.project_flow_names,
+                {"current_singleton.user.tester.CurrentSingletonTestFlow"},
+            )
             assert_equals(run.data.is_production, {False})
             assert_equals(run.data.flow_names, {run.parent.id})
             assert_equals(run.data.run_ids, {run.id})
             assert_equals(run.data.origin_run_ids, {None})
-            assert_equals(run.data.namespaces, {'user:tester'})
-            assert_equals(run.data.usernames, {'tester'})
+            assert_equals(run.data.namespaces, {"user:tester"})
+            assert_equals(run.data.usernames, {"tester"})

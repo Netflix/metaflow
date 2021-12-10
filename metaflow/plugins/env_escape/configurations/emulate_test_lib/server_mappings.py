@@ -3,8 +3,9 @@ import os
 import sys
 
 # HACK to pretend that we installed test_lib
-sys.path.append(os.path.realpath(
-    os.path.join(os.path.dirname(__file__), '..', 'test_lib_impl')))
+sys.path.append(
+    os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "test_lib_impl"))
+)
 
 import test_lib as lib
 
