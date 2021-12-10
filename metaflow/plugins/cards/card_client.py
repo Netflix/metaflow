@@ -55,7 +55,8 @@ class CardIterator:
         return self._high
 
     def __iter__(self):
-        return self
+        for idx in range(self._high):
+            yield self._get_card(idx)
 
     def __getitem__(self, index):
         return self._get_card(index)
