@@ -118,8 +118,8 @@ class ContentAddressedStore(object):
 
         Returns
         -------
-        Returns an iterator of (string, bytes) tuples; the iterator will return the keys
-        in the same order as the input argument.
+        Returns an iterator of (string, bytes) tuples; the iterator may return keys
+        in a different order than were passed in.
         """
         load_paths = []
         for key in keys:
@@ -133,7 +133,8 @@ class ContentAddressedStore(object):
                 load_paths.append((key, path))
 
         with self._storage_impl.load_bytes([p for _, p in load_paths]) as loaded:
-            for (key, _), (_, file_path, meta) in zip(load_paths, loaded):
+            for (path_key, file_path, meta) in loaded:
+                key = self._storage_impl.path_split(path_key)[-1]
                 # At this point, we either return the object as is (if raw) or
                 # decode it according to the encoding version
                 with open(file_path, "rb") as f:

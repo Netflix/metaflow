@@ -31,7 +31,7 @@ except:
     # python3
     from urllib.parse import urlparse
 
-from .s3util import get_s3_client, read_in_chunks
+from .s3util import get_s3_client, read_in_chunks, get_timestamp
 
 try:
     import boto3
@@ -496,7 +496,7 @@ class S3(object):
                 "content_type": resp["ContentType"],
                 "metadata": resp["Metadata"],
                 "size": resp["ContentLength"],
-                "last_modified": resp["LastModified"].timestamp(),
+                "last_modified": get_timestamp(resp["LastModified"]),
             }
 
         info_results = None
@@ -605,7 +605,7 @@ class S3(object):
                 return {
                     "content_type": resp["ContentType"],
                     "metadata": resp["Metadata"],
-                    "last_modified": resp["LastModified"].timestamp(),
+                    "last_modified": get_timestamp(resp["LastModified"]),
                 }
             return None
 
