@@ -2,7 +2,7 @@ import type * as types from "./types";
 import { writable } from "svelte/store";
 import type { Writable } from "svelte/store";
 
-export const cardData = (() => {
+export const cardData: Writable<types.CardResponse | undefined> = (() => {
   const store: Writable<types.CardResponse | undefined> = writable(undefined);
 
   try {

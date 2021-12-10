@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { SvelteComponentDev } from "svelte/internal";
   import type * as types from "../types";
   import Artifacts from "./artifacts.svelte";
   import BarChart from "./bar-chart.svelte";
@@ -16,26 +17,29 @@
 
   export let componentData: types.CardComponent;
 
-  const typesMap: Record<typeof componentData.type, any> = {
-    artifacts: Artifacts,
-    barChart: BarChart,
-    dag: Dag,
-    heading: Heading,
-    image: Image,
-    lineChart: LineChart,
-    log: Log,
-    page: Page,
-    section: Section,
-    subtitle: Subtitle,
-    table: Table,
-    text: Text,
-    title: Title,
-  };
+  const typesMap: Record<typeof componentData.type, typeof SvelteComponentDev> =
+    {
+      artifacts: Artifacts,
+      barChart: BarChart,
+      dag: Dag,
+      heading: Heading,
+      image: Image,
+      lineChart: LineChart,
+      log: Log,
+      page: Page,
+      section: Section,
+      subtitle: Subtitle,
+      table: Table,
+      text: Text,
+      title: Title,
+    };
 </script>
 
-{#if componentData?.type}
-  <svelte:component
-    this={typesMap?.[componentData.type] || Title}
-    {componentData}
-  />
-{/if}
+<svelte:component this={typesMap?.[componentData.type]} {componentData}>
+  <!-- if the component is a page or a section, we'll recursively render for the children -->
+  {#if (componentData.type === "page" || componentData.type === "section") && componentData?.contents}
+    {#each componentData.contents as child}
+      <svelte:self this={typesMap?.[child.type]} componentData={child} />
+    {/each}
+  {/if}
+</svelte:component>
