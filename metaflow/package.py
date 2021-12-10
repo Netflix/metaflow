@@ -24,6 +24,9 @@ class MetaflowPackage(object):
             self.metaflow_extensions_path = []
         else:
             self.metaflow_extensions_path = list(metaflow_extensions.__path__)
+            self.metaflow_extensions_addl_suffixes = getattr(
+                metaflow_extensions, "METAFLOW_EXTENSIONS_PACKAGE_SUFFIXES", None
+            )
 
         self.flow_name = flow.name
         self.create_time = time.time()
@@ -67,6 +70,7 @@ class MetaflowPackage(object):
             for path_tuple in self._walk(
                 extensions_path,
                 exclude_hidden=False,
+                addl_suffixes=self.metaflow_extensions_addl_suffixes,
             ):
                 yield path_tuple
         # the package folders for environment
