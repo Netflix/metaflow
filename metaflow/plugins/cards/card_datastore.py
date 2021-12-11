@@ -9,7 +9,12 @@ import os
 import shutil
 
 from metaflow.datastore.local_storage import LocalStorage
-from metaflow.metaflow_config import DATASTORE_CARD_S3ROOT, DATASTORE_CARD_LOCALROOT
+from metaflow.metaflow_config import (
+    DATASTORE_CARD_S3ROOT,
+    DATASTORE_CARD_LOCALROOT,
+    DATASTORE_LOCAL_DIR,
+    DATASTORE_CARD_SUFFIX,
+)
 
 from .exception import CardNotPresentException
 
@@ -38,7 +43,27 @@ class CardDatastore(object):
         if storage_type == "s3":
             return DATASTORE_CARD_S3ROOT
         else:
-            return DATASTORE_CARD_LOCALROOT
+            # Borrowing some of the logic from LocalStorage.get_storage_root
+            result = DATASTORE_CARD_LOCALROOT
+            if result is None:
+                current_path = os.getcwd()
+                check_dir = os.path.join(
+                    current_path, DATASTORE_LOCAL_DIR, DATASTORE_CARD_SUFFIX
+                )
+                check_dir = os.path.realpath(check_dir)
+                orig_path = check_dir
+                while not os.path.isdir(check_dir):
+                    print(check_dir)
+                    new_path = os.path.dirname(current_path)
+                    if new_path == current_path:
+                        break  # We are no longer making upward progress
+                    current_path = new_path
+                    check_dir = os.path.join(
+                        current_path, DATASTORE_LOCAL_DIR, DATASTORE_CARD_SUFFIX
+                    )
+                result = orig_path
+
+            return result
 
     def __init__(self, flow_datastore, run_id, step_name, task_id, path_spec=None):
         self._backend = flow_datastore._storage_impl
