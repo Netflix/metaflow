@@ -42,7 +42,7 @@ class CardDecorator(StepDecorator):
             metaflow_cards_root = None
         else:
             if len(metaflow_cards.__path__._path) > 0:
-                metaflow_cards_root = metaflow_cards.__path__._path
+                metaflow_cards_root = metaflow_cards.__path__._path[0]
 
         if metaflow_cards_root:
             # What if a file is too large and
