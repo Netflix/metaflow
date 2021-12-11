@@ -1,5 +1,6 @@
 from metaflow.datastore import DATASTORES, FlowDataStore
 from .card_resolver import resolve_paths_from_task, resumed_info
+from .card_datastore import CardDatastore
 from .exception import UnresolvableDatastoreException
 import os
 import tempfile
@@ -166,11 +167,14 @@ def _get_flow_datastore(task):
     flow_name = task.pathspec.split("/")[0]
     # Resolve datastore type
     ds_type = None
-    ds_root = None
+    # We need to set the correct datastore root here so that
+    # we can ensure the the card client picks up the correct path to the cards
+    ds_root = CardDatastore.get_storage_root(ds_type)
+
     for meta in task.metadata:
         if meta.name == "ds-type":
             ds_type = meta.value
-        if meta.name == "ds-root":
+        if ds_root is None and meta.name == "ds-root":
             ds_root = meta.value
 
     if ds_type is None:
