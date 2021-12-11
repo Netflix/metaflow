@@ -1,5 +1,5 @@
 from metaflow.datastore import DATASTORES, FlowDataStore
-from .card_resolver import resolve_paths_from_task, resumed_info, ResumedInfo
+from .card_resolver import resolve_paths_from_task, resumed_info
 from .exception import UnresolvableDatastoreException
 import os
 import tempfile
