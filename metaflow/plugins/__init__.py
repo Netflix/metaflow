@@ -11,6 +11,7 @@ _expected_extensions = {
     "MONITOR_SIDECARS": {},
     "AWS_CLIENT_PROVIDERS": [],
     "get_plugin_cli": lambda: [],
+    "CARDS": [],
 }
 
 try:
@@ -98,10 +99,12 @@ def get_plugin_cli():
     from .aws.batch import batch_cli
     from .aws.eks import kubernetes_cli
     from .aws.step_functions import step_functions_cli
+    from .cards import card_cli
 
     return _ext_plugins.get_plugin_cli() + [
         package_cli.cli,
         batch_cli.cli,
+        card_cli.cli,
         kubernetes_cli.cli,
         step_functions_cli.cli,
     ]
@@ -132,6 +135,8 @@ from .test_unbounded_foreach_decorator import (
     InternalTestUnboundedForeachInput,
 )
 from .conda.conda_step_decorator import CondaStepDecorator
+from .cards.card_decorator import CardDecorator
+
 
 STEP_DECORATORS = _merge_lists(
     [
@@ -141,6 +146,7 @@ STEP_DECORATORS = _merge_lists(
         ResourcesDecorator,
         RetryDecorator,
         BatchDecorator,
+        CardDecorator,
         KubernetesDecorator,
         StepFunctionsInternalDecorator,
         CondaStepDecorator,
@@ -178,6 +184,10 @@ FLOW_DECORATORS = _merge_lists(
     "name",
 )
 
+# Cards
+from .cards.card_modules import MF_CARDS_EXTERNAL_MODULES
+
+CARDS = MF_CARDS_EXTERNAL_MODULES
 
 # Sidecars
 from ..mflog.save_logs_periodically import SaveLogsPeriodicallySidecar
