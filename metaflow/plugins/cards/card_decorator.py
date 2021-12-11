@@ -41,8 +41,8 @@ class CardDecorator(StepDecorator):
         except ImportError:
             metaflow_cards_root = None
         else:
-            if len(metaflow_cards.__path__) > 0:
-                metaflow_cards_root = metaflow_cards.__path__[0]
+            if len(metaflow_cards.__path__._path) > 0:
+                metaflow_cards_root = metaflow_cards.__path__._path
 
         from . import card_modules
 
