@@ -7,10 +7,23 @@ from io import BytesIO
 from itertools import chain
 
 from .metaflow_config import DEFAULT_PACKAGE_SUFFIXES
+from .exception import MetaflowException
 from .util import to_unicode
 from . import R
 
 DEFAULT_SUFFIXES_LIST = DEFAULT_PACKAGE_SUFFIXES.split(",")
+
+
+class NonUniqueFileNameToFilePathMappingException(MetaflowException):
+    headline = "Non Unique file path for a file name included in code package"
+
+    def __init__(self, filename, file_paths, lineno=None):
+        msg = (
+            "Filename %s included in the code package includes multiple different paths for the same name : %s.\n"
+            "The `filename` in the `add_to_package` decorator hook requires a unqiue `file_path` to `file_name` mapping"
+            % (filename, ", ".join(file_paths))
+        )
+        super().__init__(msg=msg, lineno=lineno)
 
 
 class MetaflowPackage(object):
@@ -78,16 +91,20 @@ class MetaflowPackage(object):
                 yield path_tuple
 
         # Any custom packages exposed via decorators
-        deco_module_paths = set()
+        deco_module_paths = {}
         for step in self._flow:
             for deco in step.decorators:
                 for path_tuple in deco.add_to_package():
-                    file_path, _ = path_tuple
+                    file_path, file_name = path_tuple
                     # Check if the path is not duplicated as
-                    # many steps can have the same card
-                    if file_path not in deco_module_paths:
-                        deco_module_paths.add(file_path)
+                    # many steps can have the same packages being imported
+                    if file_name not in deco_module_paths:
+                        deco_module_paths[file_name] = file_path
                         yield path_tuple
+                    elif deco_module_paths[file_name] != file_path:
+                        raise NonUniqueFileNameToFilePathMappingException(
+                            file_name, [deco_module_paths[file_name], file_path]
+                        )
 
         # the package folders for environment
         for path_tuple in self.environment.add_to_package():

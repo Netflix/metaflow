@@ -241,7 +241,15 @@ class StepDecorator(Decorator):
 
     def add_to_package(self):
         """
-        Called to add custom packages needed for a decorator
+        Called to add custom packages needed for a decorator. This hook will be
+        called in the `MetaflowPackage` class where metaflow compiles the code package
+        tarball. This hook is invoked in the `MetaflowPackage`'s `path_tuples`
+        function. The `path_tuples` function is a generator that yields a tuple of
+        `(file_path, arcname)`.`file_path` is the path of the file in the local file system;
+        the `arcname` is the path of the file in the constructed tarball or the path of the file
+        after decompressing the tarball.
+
+        Returns a list of tuples where each tuple represents (file_path, arcname)
         """
         return []
 
