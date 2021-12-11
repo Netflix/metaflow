@@ -9,106 +9,46 @@ import os
 import shutil
 
 from metaflow.datastore.local_storage import LocalStorage
+from metaflow.metaflow_config import DATASTORE_CARD_S3ROOT, DATASTORE_CARD_LOCALROOT
 
 from .exception import CardNotPresentException
 
-CARD_DIRECTORY_NAME = "mf.cards"
 TEMP_DIR_NAME = "metaflow_card_cache"
 NUM_SHORT_HASH_CHARS = 5
 
 CardInfo = namedtuple("CardInfo", ["type", "hash"])
 
 
-def stepname_from_card_id(card_id, flow):
-    from .card_decorator import CardDecorator
-
-    for step in flow._steps:
-        for deco in step.decorators:
-            if isinstance(deco, CardDecorator):
-                if deco.attributes["id"] == card_id:
-                    return step.name
-    return None
-
-
-class CardPathBuilder(object):
-    @classmethod
-    def path_spec_resolver(cls, pathspec):
-        run_id, step_name, task_id = None, None, None
-        splits = pathspec.split("/")
-        if len(splits) == 1:  # only flowname mentioned
-            return splits[0], run_id, step_name, task_id
-        elif len(splits) == 2:  # flowname , runid mentioned
-            return splits[0], splits[1], step_name, task_id
-        elif len(splits) == 3:  # flowname , runid , stepname
-            return splits[0], splits[1], splits[2], task_id
-        elif len(splits) == 4:  # flowname ,runid ,stepname , taskid
-            return splits[0], splits[1], splits[2], splits[3]
-
-    @classmethod
-    def make_path(cls, sysroot, flow_name, run_id=None, task_id=None, pathspec=None):
-        if sysroot is None:
-            return None
-
-        if pathspec is not None:
-            flow_name, run_id, step_name, task_id = cls.path_spec_resolver(pathspec)
-
-        if flow_name is None:
-            return sysroot
-        elif run_id is None:
-            # todo :[DSC][FUTURE] find namespace here
-            # todo :[DSC][FUTURE] what happens when user has namepsace set to none;
-            #             What do we default to here ?
-            from metaflow import get_namespace
-
-            namespacename = get_namespace()
-            if not namespacename:
-                pth_arr = [sysroot, CARD_DIRECTORY_NAME, flow_name, "cards"]
-            else:
-                pth_arr = [
-                    sysroot,
-                    CARD_DIRECTORY_NAME,
-                    flow_name,
-                    "cards",
-                    namespacename,
-                    "cards",
-                ]
-        elif task_id is None:
-            pth_arr = [sysroot, CARD_DIRECTORY_NAME, flow_name, "runs", run_id, "cards"]
-        else:
-            pth_arr = [
-                sysroot,
-                CARD_DIRECTORY_NAME,
-                flow_name,
-                "runs",
-                run_id,
-                "tasks",
-                task_id,
-                "cards",
-            ]
-
-        if sysroot == "":
-            pth_arr.pop(0)
-        return os.path.join(*pth_arr)
+def path_spec_resolver(pathspec):
+    run_id, step_name, task_id = None, None, None
+    splits = pathspec.split("/")
+    if len(splits) == 1:  # only flowname mentioned
+        return splits[0], run_id, step_name, task_id
+    elif len(splits) == 2:  # flowname , runid mentioned
+        return splits[0], splits[1], step_name, task_id
+    elif len(splits) == 3:  # flowname , runid , stepname
+        return splits[0], splits[1], splits[2], task_id
+    elif len(splits) == 4:  # flowname ,runid ,stepname , taskid
+        return splits[0], splits[1], splits[2], splits[3]
 
 
 class CardDatastore(object):
-    root = None
-    # Todo :
-    # should the datastore backend be a direct arguement or
-    # should we use the flow datastore argument ?
+    @classmethod
+    def get_storage_root(cls, storage_type):
+        if storage_type == "s3":
+            return DATASTORE_CARD_S3ROOT
+        else:
+            return DATASTORE_CARD_LOCALROOT
+
     def __init__(self, flow_datastore, run_id, step_name, task_id, path_spec=None):
         self._backend = flow_datastore._storage_impl
         self._flow_name = flow_datastore.flow_name
         self._run_id = run_id
         self._step_name = step_name
         self._task_id = task_id
-        self._path_spec = path_spec
+        self._pathspec = path_spec
         self._temp_card_save_path = self._get_card_path(base_pth=TEMP_DIR_NAME)
         LocalStorage._makedirs(self._temp_card_save_path)
-        # TODO :
-        # Figure if the path should follow the same pattern
-        # for local and s3 datastore backend
-        # todo: Check if main root is needed;
 
     @classmethod
     def get_card_location(cls, base_path, card_name, card_html):
@@ -117,17 +57,32 @@ class CardDatastore(object):
             "%s-%s.html" % (card_name, sha1(bytes(card_html, "utf-8")).hexdigest()),
         )
 
+    def _make_path(self, base_pth, pathspec=None):
+        sysroot = base_pth
+
+        if pathspec is not None:
+            flow_name, run_id, step_name, task_id = path_spec_resolver(pathspec)
+
+        # For task level cards the flow_name and run_id and task_id are required
+        if flow_name is not None and run_id is not None and task_id is not None:
+            pth_arr = [
+                sysroot,
+                flow_name,
+                "runs",
+                run_id,
+                "tasks",
+                task_id,
+                "cards",
+            ]
+
+        if sysroot == "" or sysroot == None:
+            pth_arr.pop(0)
+        return self._backend.path_join(*pth_arr)
+
     def _get_card_path(self, base_pth=""):
-        return CardPathBuilder.make_path(
-            # Adding this to avoid errors with s3;
-            # S3Backend has s3root set which requires a relative path
-            # over an absolute path; Providing relative path for local datastore
-            # also works similarly;
+        return self._make_path(
             base_pth,
-            self._flow_name,
-            run_id=self._run_id,
-            task_id=self._task_id,
-            pathspec=self._path_spec,
+            pathspec=self._pathspec,
         )
 
     @staticmethod

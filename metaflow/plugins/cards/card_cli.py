@@ -10,7 +10,7 @@ import random
 from contextlib import contextmanager
 from functools import wraps
 from metaflow.exception import MetaflowNamespaceMismatch
-from .card_datastore import CardDatastore, stepname_from_card_id, NUM_SHORT_HASH_CHARS
+from .card_datastore import CardDatastore, NUM_SHORT_HASH_CHARS
 from .exception import (
     CardClassFoundException,
     IncorrectCardArgsException,
@@ -194,6 +194,10 @@ def card(ctx):
         [ctx.obj.metadata.TYPE, ctx.obj.metadata.default_info()]
     )
     metadata(setting_metadata)
+    # set the card root to the datastore according to the configuration.
+    root_pth = CardDatastore.get_storage_root(ctx.obj.flow_datastore._storage_impl.TYPE)
+    if root_pth is not None:
+        ctx.obj.flow_datastore._storage_impl.datastore_root = root_pth
 
 
 def card_read_options_and_arguments(func):
