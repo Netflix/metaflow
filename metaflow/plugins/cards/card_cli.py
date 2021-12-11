@@ -261,6 +261,12 @@ def render_card(mf_card, task, timeout_value=None):
     type=int,
     help="Maximum amount of time allowed to create card.",
 )
+@click.option(
+    "--with-error-card",
+    default=False,
+    is_flag=True,
+    help="Upon failing to render a card render a card holding the stack trace",
+)
 @click.pass_context
 def create(
     ctx,
@@ -268,9 +274,11 @@ def create(
     type=None,
     options=None,
     timeout=None,
+    with_error_card=False,
 ):
 
     rendered_info = None  # Variable holding all the information which will be rendered
+    error_stack_trace = None  # Variable which will keep a track of error
 
     if len(pathspec.split("/")) != 3:
         raise CommandException(
@@ -286,14 +294,19 @@ def create(
     task = Task(full_pathspec)
     from metaflow.plugins import CARDS
     from metaflow.plugins.cards.exception import CARD_ID_PATTERN
+    from metaflow.cards import ErrorCard
 
+    error_card = ErrorCard
     filtered_cards = [CardClass for CardClass in CARDS if CardClass.type == type]
     card_datastore = CardDatastore(
         ctx.obj.flow_datastore, runid, step_name, task_id, path_spec=full_pathspec
     )
 
     if len(filtered_cards) == 0 or type is None:
-        raise CardClassFoundException(type)
+        if with_error_card:
+            error_stack_trace = str(CardClassFoundException(type))
+        else:
+            raise CardClassFoundException(type)
 
     if len(filtered_cards) > 0:
         filtered_card = filtered_cards[0]
@@ -309,18 +322,37 @@ def create(
         try:
             mf_card = filtered_card(options=options, components=[], graph=graph_dict)
         except TypeError as e:
-            raise IncorrectCardArgsException(type, options)
+            if with_error_card:
+                mf_card = None
+                error_stack_trace = str(IncorrectCardArgsException(type, options))
+            else:
+                raise IncorrectCardArgsException(type, options)
 
         if mf_card:
             try:
                 rendered_info = render_card(mf_card, task, timeout_value=timeout)
             except:
-                raise UnrenderableCardException(type, options)
+                if with_error_card:
+                    error_stack_trace = str(UnrenderableCardException(type, options))
+                else:
+                    raise UnrenderableCardException(type, options)
         #
+
+    if error_stack_trace is not None:
+        rendered_info = error_card().render(task, stack_trace=error_stack_trace)
+
+    if rendered_info is None and with_error_card:
+        rendered_info = error_card().render(
+            task,
+            stack_trace="No information rendered From card of type %s because the card could have timed out"
+            % type,
+        )
 
     # todo : should we save native type for error card or error type ?
     if type is not None and re.match(CARD_ID_PATTERN, type) is not None:
         save_type = type
+    else:
+        save_type = "error"
 
     if rendered_info is not None:
         card_datastore.save_card(save_type, rendered_info)

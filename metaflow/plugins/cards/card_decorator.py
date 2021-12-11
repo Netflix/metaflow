@@ -18,7 +18,7 @@ CARD_ID_PATTERN = re.compile(
 class CardDecorator(StepDecorator):
     name = "card"
     defaults = {
-        "type": None,
+        "type": "default",
         "options": {},
         "scope": "task",
         "timeout": 45,
@@ -44,6 +44,10 @@ class CardDecorator(StepDecorator):
             if len(metaflow_cards.__path__) > 0:
                 metaflow_cards_root = metaflow_cards.__path__[0]
 
+        from . import card_modules
+
+        card_modules_root = os.path.dirname(card_modules.__file__)
+
         if metaflow_cards_root:
             # What if a file is too large and
             # gets tagged along the metaflow_cards
@@ -51,8 +55,11 @@ class CardDecorator(StepDecorator):
             # that get created;
             # Should we have package suffixes added over here?
             for path_tuple in self._walk(metaflow_cards_root):
-                # print(path_tuple)
                 yield path_tuple
+
+        for path_tuple in self._walk(card_modules_root):
+            file_path, arcname = path_tuple
+            yield (file_path, os.path.join("metaflow", "plugins", "cards", arcname))
 
     def _walk(self, root):
         root = to_unicode(root)  # handle files/folder with non ascii chars
@@ -174,6 +181,9 @@ class CardDecorator(StepDecorator):
 
         if self.attributes["timeout"] is not None:
             cmd += ["--timeout", str(self.attributes["timeout"])]
+
+        if self.attributes["save_errors"]:
+            cmd += ["--with-error-card"]
 
         self._run_command(cmd, os.environ)
         # do nothing on failure as we create an error card
