@@ -32,6 +32,7 @@ from .decorators import flow_decorators
 from .mflog import mflog, RUNTIME_LOG_SOURCE
 from .util import to_unicode, compress_list, unicode_type
 from .unbounded_foreach import CONTROL_TASK_TAG, UBF_CONTROL, UBF_TASK
+import metaflow.tracing as tracing
 
 MAX_WORKERS = 16
 MAX_NUM_SPLITS = 100
@@ -997,6 +998,7 @@ class Worker(object):
                 )
         env.update(args.get_env())
         env["PYTHONUNBUFFERED"] = "x"
+        tracing.inject_tracing_vars(env)
         # NOTE bufsize=1 below enables line buffering which is required
         # by read_logline() below that relies on readline() not blocking
         # print('running', args)

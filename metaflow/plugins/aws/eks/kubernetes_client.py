@@ -2,7 +2,7 @@ import os
 import time
 import math
 import random
-
+from metaflow.tracing import inject_tracing_vars
 
 try:
     unicode
@@ -229,6 +229,10 @@ class KubernetesJob(object):
                                         "METAFLOW_KUBERNETES_POD_NAME": "metadata.name",
                                         "METAFLOW_KUBERNETES_POD_ID": "metadata.uid",
                                     }.items()
+                                ]
+                                + [
+                                    client.V1EnvVar(name=k, value=str(v))
+                                    for k, v in inject_tracing_vars({}).items()
                                 ],
                                 env_from=[
                                     client.V1EnvFromSource(

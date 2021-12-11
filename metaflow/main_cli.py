@@ -8,6 +8,7 @@ from os.path import expanduser
 from metaflow.datastore.local_storage import LocalStorage
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.util import to_unicode
+import metaflow.tracing as tracing
 
 
 def makedirs(path):
@@ -30,6 +31,7 @@ def echo_always(line, **kwargs):
     click.secho(line, **kwargs)
 
 
+@tracing.cli_entrypoint("cli/main")
 @click.group(invoke_without_command=True)
 @click.pass_context
 def main(ctx):

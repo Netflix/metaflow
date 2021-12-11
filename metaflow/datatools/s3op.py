@@ -33,6 +33,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 from metaflow.util import TempDir, url_quote, url_unquote
 from metaflow.multicore_utils import parallel_map
 from metaflow.datatools.s3util import aws_retry, read_in_chunks, get_timestamp
+import metaflow.tracing as tracing
 
 NUM_WORKERS_DEFAULT = 64
 
@@ -99,6 +100,7 @@ def normalize_client_error(err):
 # S3 worker pool
 
 
+@tracing.cli_entrypoint("s3op/worker")
 def worker(result_file_name, queue, mode):
     # Interpret mode, it can either be a single op or something like
     # info_download or info_upload which implies:
@@ -517,6 +519,7 @@ def cli():
     pass
 
 
+@tracing.cli_entrypoint("s3op/list")
 @cli.command("list", help="List S3 objects")
 @click.option(
     "--inputs",
@@ -567,6 +570,7 @@ def lst(prefixes, inputs=None, num_workers=None, recursive=None):
             print(format_triplet(url.prefix, url.url, str(size)))
 
 
+@tracing.cli_entrypoint("s3op/put")
 @cli.command(help="Upload files to S3")
 @click.option(
     "--file",
@@ -674,6 +678,7 @@ def _populate_prefixes(prefixes, inputs):
     return prefixes
 
 
+@tracing.cli_entrypoint("s3op/get")
 @cli.command(help="Download files from S3")
 @click.option(
     "--recursive/--no-recursive",

@@ -9,6 +9,7 @@ from metaflow.exception import CommandException, METAFLOW_EXIT_DISALLOW_RETRY
 from metaflow.metadata.util import sync_local_metadata_from_datastore
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.mflog import TASK_LOG_SOURCE
+import metaflow.tracing as tracing
 
 from .kubernetes import Kubernetes, KubernetesKilledException
 
@@ -27,6 +28,7 @@ def kubernetes():
     pass
 
 
+@tracing.cli_entrypoint("kubernetes/step")
 @kubernetes.command(
     help="Execute a single task on Kubernetes using Amazon EKS. This command "
     "calls the top-level step command inside a Kubernetes job with the given "

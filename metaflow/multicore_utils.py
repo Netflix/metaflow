@@ -4,6 +4,7 @@ import traceback
 from itertools import islice
 from multiprocessing import cpu_count
 from tempfile import NamedTemporaryFile
+import metaflow.tracing as tracing
 
 try:
     # Python 2
@@ -39,23 +40,24 @@ def _spawn(func, arg, dir):
     if pid:
         return pid, output_file
     else:
-        try:
-            exit_code = 1
-            ret = func(arg)
-            with open(output_file, "wb") as f:
-                pickle.dump(ret, f, protocol=pickle.HIGHEST_PROTOCOL)
-            exit_code = 0
-        except:
-            # we must not let any exceptions escape this function
-            # which might trigger unintended side-effects
-            traceback.print_exc()
-        finally:
-            sys.stderr.flush()
-            sys.stdout.flush()
-            # we can't use sys.exit(0) here since it raises SystemExit
-            # that may have unintended side-effects (e.g. triggering
-            # finally blocks).
-            os._exit(exit_code)
+        with tracing.post_fork():
+            try:
+                exit_code = 1
+                ret = func(arg)
+                with open(output_file, "wb") as f:
+                    pickle.dump(ret, f, protocol=pickle.HIGHEST_PROTOCOL)
+                exit_code = 0
+            except:
+                # we must not let any exceptions escape this function
+                # which might trigger unintended side-effects
+                traceback.print_exc()
+            finally:
+                sys.stderr.flush()
+                sys.stdout.flush()
+                # we can't use sys.exit(0) here since it raises SystemExit
+                # that may have unintended side-effects (e.g. triggering
+                # finally blocks).
+                os._exit(exit_code)
 
 
 def parallel_imap_unordered(func, iterable, max_parallel=None, dir=None):

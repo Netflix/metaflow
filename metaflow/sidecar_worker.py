@@ -13,6 +13,7 @@ sys.path.insert(0, parentDir)
 
 from metaflow.sidecar_messages import MessageTypes, deserialize
 from metaflow.plugins import SIDECARS
+import metaflow.tracing as tracing
 
 
 class WorkershutdownError(Exception):
@@ -44,6 +45,7 @@ def process_messages(worker):
         pass
 
 
+@tracing.cli_entrypoint("sidecar")
 @click.command(help="Initialize workers")
 @click.argument("worker-type")
 def main(worker_type):
