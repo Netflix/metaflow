@@ -72,11 +72,11 @@ def resolve_card(ctx, pathspec, hash=None, type=None, follow_resumed=True):
 
     print_str = "Resolving card: %s" % pathspec
     if follow_resumed:
-        resume_status = resumed_info(task)
-        if resume_status.task_resumed:
-            pathspec = resume_status.origin_task_pathspec
+        origin_taskpathspec = resumed_info(task)
+        if origin_taskpathspec:
+            pathspec = origin_taskpathspec
             ctx.obj.echo(
-                "Resolving card resumed from: %s" % resume_status.origin_task_pathspec,
+                "Resolving card resumed from: %s" % origin_taskpathspec,
                 fg="green",
             )
         else:

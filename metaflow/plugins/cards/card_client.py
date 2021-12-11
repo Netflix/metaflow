@@ -139,11 +139,10 @@ class CardIterator:
 def get_cards(task, type=None, follow_resumed=True):
     from metaflow.client import Task
 
-    resume_status = ResumedInfo(False, None)
     if follow_resumed:
-        resume_status = resumed_info(task)
-        if resume_status.task_resumed:
-            task = Task(resume_status.origin_task_pathspec)
+        origin_taskpathspec = resumed_info(task)
+        if origin_taskpathspec:
+            task = Task(origin_taskpathspec)
 
     _, run_id, step_name, task_id = task.pathspec.split("/")
 
@@ -158,8 +157,8 @@ def get_cards(task, type=None, follow_resumed=True):
     return CardIterator(
         card_paths,
         card_ds,
-        from_resumed=resume_status.task_resumed,
-        origin_pathspec=resume_status.origin_task_pathspec,
+        from_resumed=origin_taskpathspec is not None,
+        origin_pathspec=origin_taskpathspec,
     )
 
 
