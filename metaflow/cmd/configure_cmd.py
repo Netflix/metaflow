@@ -7,6 +7,7 @@ from os.path import expanduser
 from metaflow.util import to_unicode
 from metaflow._vendor import click
 from metaflow.util import to_unicode
+import metaflow.tracing as tracing
 
 
 from .util import echo_always, makedirs

@@ -3,6 +3,7 @@ import sys
 import traceback
 from datetime import datetime
 from functools import wraps
+import metaflow.tracing as tracing
 
 from metaflow._vendor import click
 
@@ -796,6 +797,7 @@ def resume(
     runtime.execute()
 
 
+@tracing.cli_entrypoint("cli/run")
 @parameters.add_custom_parameters(deploy_mode=True)
 @cli.command(help="Run the workflow locally.")
 @common_run_options
@@ -894,6 +896,7 @@ def version(obj):
     echo_always(obj.version)
 
 
+@tracing.cli_entrypoint("cli/start")
 @decorators.add_decorator_options
 @click.command(
     cls=click.CommandCollection,
