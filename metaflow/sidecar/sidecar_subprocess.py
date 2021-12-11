@@ -12,6 +12,7 @@ from os import O_NONBLOCK
 
 from .sidecar_messages import Message, MessageTypes
 from ..debug import debug
+from ..tracing import inject_tracing_vars
 
 MUST_SEND_RETRY_TIMES = 4
 MESSAGE_WRITE_TIMEOUT_IN_MS = 1000
@@ -127,11 +128,14 @@ class SidecarSubProcess(object):
     def _start_subprocess(self, cmdline):
         for _ in range(3):
             try:
+                env = os.environ.copy()
+                inject_tracing_vars(env)
                 # Set stdout=sys.stdout & stderr=sys.stderr
                 # to print to console the output of sidecars.
                 return subprocess.Popen(
                     cmdline,
                     stdin=subprocess.PIPE,
+                    env=env,
                     stdout=sys.stdout if debug.sidecar else subprocess.DEVNULL,
                     stderr=sys.stderr if debug.sidecar else subprocess.DEVNULL,
                     bufsize=0,

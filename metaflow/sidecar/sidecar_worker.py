@@ -14,6 +14,7 @@ sys.path.insert(0, parentDir)
 from metaflow.sidecar import Message, MessageTypes
 from metaflow.plugins import SIDECARS
 from metaflow._vendor import click
+import metaflow.tracing as tracing
 
 
 def process_messages(worker_type, worker):
@@ -47,6 +48,7 @@ def process_messages(worker_type, worker):
         pass
 
 
+@tracing.cli_entrypoint("sidecar")
 @click.command(help="Initialize workers")
 @click.argument("worker-type")
 def main(worker_type):
