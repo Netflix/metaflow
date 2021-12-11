@@ -13,8 +13,10 @@ def export_parameters(output_file):
             # Replace `-` with `_` is parameter names since `-` isn't an
             # allowed character for environment variables. cli.py will
             # correctly translate the replaced `-`s.
-            f.write('export METAFLOW_INIT_%s=%s\n' %
-                (k.upper().replace('-', '_'), json.dumps(params[k])))
+            normalized_name = k.upper().replace('-', '_')
+            dumps = json.dumps(params[k])
+            value = f"'{dumps}'" if isinstance(params[k], dict) else dumps
+            f.write(f"export METAFLOW_INIT_{normalized_name}={value}\n")
     os.chmod(output_file, 509)
 
 def export_parent_task_ids(output_file):
