@@ -4,6 +4,6 @@
     "strictNullChecks": true,
     "noImplicitAny": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules/*", "__sapper__/*", "public/*"]
+  "include": ["src/**/*", "cypress/**/*"],
+  "exclude": ["node_modules/*", "__sapper__/*", "public/*", "src/**/*.js"]
 }
