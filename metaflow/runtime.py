@@ -5,12 +5,10 @@ Execute the flow with a native runtime
 using local / remote processes
 """
 from __future__ import print_function
-import json
 import os
 import sys
 import fcntl
 import time
-import select
 import subprocess
 from datetime import datetime
 from io import BytesIO
@@ -25,8 +23,6 @@ from .exception import (
 )
 from . import procpoll
 from .datastore import TaskDataStoreSet
-from .datastore.exceptions import DataException
-from .metadata import MetaDatum
 from .debug import debug
 from .decorators import flow_decorators
 from .mflog import mflog, RUNTIME_LOG_SOURCE
