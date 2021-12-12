@@ -20,7 +20,6 @@ from .util import (
     decompress_list,
     write_latest_run_id,
     get_latest_run_id,
-    to_unicode,
 )
 from .task import MetaflowTask
 from .exception import CommandException, MetaflowException
