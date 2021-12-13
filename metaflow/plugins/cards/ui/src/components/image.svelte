@@ -36,7 +36,8 @@
 
   img {
     max-width: 100%;
-    max-height: 100%;
+    /* arbitrary number here to prevent overflow */
+    max-height: 500px;
   }
 
   .label {
