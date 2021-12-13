@@ -27,18 +27,22 @@ class PlayListFlow(FlowSpec):
     4) Displays the top entries from the playlist.
 
     """
-    movie_data = IncludeFile("movie_data",
-                             help="The path to a movie metadata file.",
-                             default=script_path('movies.csv'))
 
-    genre = Parameter('genre',
-                      help="Filter movies for a particular genre.",
-                      default='Sci-Fi')
+    movie_data = IncludeFile(
+        "movie_data",
+        help="The path to a movie metadata file.",
+        default=script_path("movies.csv"),
+    )
 
-    recommendations = Parameter('recommendations',
-                                help="The number of movies to recommend in "
-                                "the playlist.",
-                                default=5)
+    genre = Parameter(
+        "genre", help="Filter movies for a particular genre.", default="Sci-Fi"
+    )
+
+    recommendations = Parameter(
+        "recommendations",
+        help="The number of movies to recommend in " "the playlist.",
+        default=5,
+    )
 
     @step
     def start(self):
@@ -47,15 +51,14 @@ class PlayListFlow(FlowSpec):
 
         """
         # For this example, we only need the movie title and the genres.
-        columns = ['movie_title', 'genres']
+        columns = ["movie_title", "genres"]
 
         # Create a simple data frame as a dictionary of lists.
-        self.dataframe = dict((column, list()) \
-                              for column in columns)
+        self.dataframe = dict((column, list()) for column in columns)
 
         # Parse the CSV header.
-        lines = self.movie_data.split('\n')
-        header = lines[0].split(',')
+        lines = self.movie_data.split("\n")
+        header = lines[0].split(",")
         idx = {column: header.index(column) for column in columns}
 
         # Populate our dataframe from the lines of the CSV file.
@@ -63,7 +66,7 @@ class PlayListFlow(FlowSpec):
             if not line:
                 continue
 
-            fields = line.rsplit(',', 4)
+            fields = line.rsplit(",", 4)
             for column in columns:
                 self.dataframe[column].append(fields[idx[column]])
 
@@ -79,11 +82,13 @@ class PlayListFlow(FlowSpec):
         from random import choice
 
         # Find all the movies that are not in the provided genre.
-        movies = [(movie, genres) \
-                  for movie, genres \
-                  in zip(self.dataframe['movie_title'],
-                         self.dataframe['genres']) \
-                  if self.genre.lower() not in genres.lower()]
+        movies = [
+            (movie, genres)
+            for movie, genres in zip(
+                self.dataframe["movie_title"], self.dataframe["genres"]
+            )
+            if self.genre.lower() not in genres.lower()
+        ]
 
         # Choose one randomly.
         self.bonus = choice(movies)
@@ -99,11 +104,13 @@ class PlayListFlow(FlowSpec):
         from random import shuffle
 
         # Find all the movies titles in the specified genre.
-        self.movies = [movie \
-                       for movie, genres \
-                       in zip(self.dataframe['movie_title'],
-                              self.dataframe['genres']) \
-                       if self.genre.lower() in genres.lower()]
+        self.movies = [
+            movie
+            for movie, genres in zip(
+                self.dataframe["movie_title"], self.dataframe["genres"]
+            )
+            if self.genre.lower() in genres.lower()
+        ]
 
         # Randomize the title names.
         shuffle(self.movies)
@@ -137,5 +144,5 @@ class PlayListFlow(FlowSpec):
         print("Bonus Pick: '%s' from '%s'" % (self.bonus[0], self.bonus[1]))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     PlayListFlow()

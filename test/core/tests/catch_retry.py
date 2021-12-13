@@ -2,10 +2,10 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
 from metaflow import current
 
 
-class TagCatchTest(MetaflowTest):
+class CatchRetryTest(MetaflowTest):
     PRIORITY = 2
 
-    @tag("retry(times=3)")
+    @tag("retry(times=3,minutes_between_retries=0)")
     @steps(0, ["start"])
     def step_start(self):
         import os, sys
@@ -18,7 +18,7 @@ class TagCatchTest(MetaflowTest):
             raise TestRetry()
 
     # foreach splits don't support @catch but @retry should work
-    @tag("retry(times=2)")
+    @tag("retry(times=2,minutes_between_retries=0)")
     @steps(0, ["foreach-split"])
     def step_split(self):
         import os
@@ -28,7 +28,7 @@ class TagCatchTest(MetaflowTest):
         else:
             raise TestRetry()
 
-    @tag("retry(times=2)")
+    @tag("retry(times=2,minutes_between_retries=0)")
     @steps(0, ["join"])
     def step_join(self):
         import os
@@ -51,13 +51,12 @@ class TagCatchTest(MetaflowTest):
         raise ExternalCommandFailed("catch me!")
 
     @tag('catch(var="ex", print_exception=False)')
-    @tag("retry(times=2)")
+    @tag("retry(times=2,minutes_between_retries=0)")
     @steps(1, ["all"])
     def step_all(self):
-        import signal, os
-
-        # die an ugly death
-        os.kill(os.getpid(), signal.SIGKILL)
+        # Die a soft death; this should retry and then catch in the end
+        self.retry_with_catch = current.retry_count
+        raise TestRetry()
 
     def check_results(self, flow, checker):
 
@@ -76,7 +75,7 @@ class TagCatchTest(MetaflowTest):
                     for task in checker.artifact_dict("start", "invisible").values():
                         if task:
                             raise Exception(
-                                "'invisible' should not be visible " "in 'start'"
+                                "'invisible' should not be visible in 'start'"
                             )
                 except KeyError:
                     pass
@@ -96,11 +95,20 @@ class TagCatchTest(MetaflowTest):
 
             else:
                 for task in checker.artifact_dict(step.name, "ex").values():
-                    extype = "metaflow.plugins.catch_decorator." "FailureHandledByCatch"
+                    extype = "metaflow_test.TestRetry"
                     assert_equals(extype, str(task["ex"].type))
                     break
                 else:
                     raise Exception("No artifact 'ex' in step '%s'" % step.name)
+                for task in checker.artifact_dict(
+                    step.name, "retry_with_catch"
+                ).values():
+                    assert_equals(task["retry_with_catch"], 2)
+                    break
+                else:
+                    raise Exception(
+                        "No artifact 'retry_with_catch' in step '%s'" % step.name
+                    )
 
         run = checker.get_run()
         if run:
@@ -110,9 +118,11 @@ class TagCatchTest(MetaflowTest):
                 if flow._graph[step.id].type in ("foreach", "join"):
                     # 1 normal run + 2 retries = 3 attempts
                     attempts = 3
+                elif step.id == "start":
+                    attempts = 4  # 1 normal run + 3 retries = 4 attempts
                 else:
-                    # 1 normal run + 2 retries + 1 fallback = 4 attempts
-                    attempts = 4
+                    # 1 normal run + 2 retries = 3 attempts
+                    attempts = 3
                 for task in step:
                     data = task.data
                     got = sorted(m.value for m in task.metadata if m.type == "attempt")

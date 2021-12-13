@@ -21,11 +21,14 @@ def makedirs(path):
         else:
             raise
 
+
 def echo_dev_null(*args, **kwargs):
     pass
 
+
 def echo_always(line, **kwargs):
     click.secho(line, **kwargs)
+
 
 @click.group(invoke_without_command=True)
 @click.pass_context
@@ -34,176 +37,176 @@ def main(ctx):
     echo = echo_always
 
     import metaflow
-    echo('Metaflow ',
-         fg='magenta',
-         bold=True,
-         nl=False)
+
+    echo("Metaflow ", fg="magenta", bold=True, nl=False)
 
     if ctx.invoked_subcommand is None:
-        echo('(%s): ' % metaflow.__version__,
-             fg='magenta',
-             bold=False,
-             nl=False)
+        echo("(%s): " % metaflow.__version__, fg="magenta", bold=False, nl=False)
     else:
-        echo('(%s)\n' % metaflow.__version__,
-             fg='magenta',
-             bold=False)
+        echo("(%s)\n" % metaflow.__version__, fg="magenta", bold=False)
 
     if ctx.invoked_subcommand is None:
-        echo("More data science, less engineering\n",
-             fg='magenta')
+        echo("More data science, less engineering\n", fg="magenta")
 
         # metaflow URL
-        echo('http://docs.metaflow.org', fg='cyan', nl=False)
-        echo(' - Read the documentation')
+        echo("http://docs.metaflow.org", fg="cyan", nl=False)
+        echo(" - Read the documentation")
 
         # metaflow chat
-        echo('http://chat.metaflow.org', fg='cyan', nl=False)
-        echo(' - Chat with us')
+        echo("http://chat.metaflow.org", fg="cyan", nl=False)
+        echo(" - Chat with us")
 
         # metaflow help email
-        echo('help@metaflow.org', fg='cyan', nl=False)
-        echo('        - Get help by email\n')
+        echo("help@metaflow.org", fg="cyan", nl=False)
+        echo("        - Get help by email\n")
 
         # print a short list of next steps.
-        short_help = {'tutorials': 'Browse and access metaflow tutorials.',
-                      'configure': 'Configure metaflow to access the cloud.',
-                      'status': 'Display the current working tree.',
-                      'help': 'Show all available commands to run.'}
+        short_help = {
+            "tutorials": "Browse and access metaflow tutorials.",
+            "configure": "Configure metaflow to access the cloud.",
+            "status": "Display the current working tree.",
+            "help": "Show all available commands to run.",
+        }
 
-        echo('Commands:', bold=False)
+        echo("Commands:", bold=False)
 
         for cmd, desc in short_help.items():
-            echo('  metaflow {0:<10} '.format(cmd),
-                 fg='cyan',
-                 bold=False,
-                 nl=False)
+            echo("  metaflow {0:<10} ".format(cmd), fg="cyan", bold=False, nl=False)
 
-            echo('%s' % desc)
+            echo("%s" % desc)
 
-@main.command(help='Show all available commands.')
+
+@main.command(help="Show all available commands.")
 @click.pass_context
 def help(ctx):
     print(ctx.parent.get_help())
 
-@main.command(help='Show flows accessible from the current working tree.')
+
+@main.command(help="Show flows accessible from the current working tree.")
 def status():
     from metaflow.client import get_metadata
+
     res = get_metadata()
     if res:
-        res = res.split('@')
+        res = res.split("@")
     else:
-        raise click.ClickException('Unknown status: cannot find a Metadata provider')
-    if res[0] == 'service':
-        echo('Using Metadata provider at: ', nl=False)
-        echo('"%s"\n' % res[1], fg='cyan')
-        echo('To list available flows, type:\n')
-        echo('1. python')
-        echo('2. from metaflow import Metaflow')
-        echo('3. list(Metaflow())')
+        raise click.ClickException("Unknown status: cannot find a Metadata provider")
+    if res[0] == "service":
+        echo("Using Metadata provider at: ", nl=False)
+        echo('"%s"\n' % res[1], fg="cyan")
+        echo("To list available flows, type:\n")
+        echo("1. python")
+        echo("2. from metaflow import Metaflow")
+        echo("3. list(Metaflow())")
         return
 
     from metaflow.client import namespace, metadata, Metaflow
 
     # Get the local data store path
-    path = LocalStorage.get_datastore_root_from_config(
-        echo, create_on_absent=False)
+    path = LocalStorage.get_datastore_root_from_config(echo, create_on_absent=False)
     # Throw an exception
     if path is None:
-        raise click.ClickException("Could not find " +\
-                                   click.style('"%s"' % DATASTORE_LOCAL_DIR,
-                                               fg='red') +\
-                                   " in the current working tree.")
+        raise click.ClickException(
+            "Could not find "
+            + click.style('"%s"' % DATASTORE_LOCAL_DIR, fg="red")
+            + " in the current working tree."
+        )
 
     stripped_path = os.path.dirname(path)
     namespace(None)
-    metadata('local@%s' % stripped_path)
-    echo('Working tree found at: ', nl=False)
-    echo('"%s"\n' % stripped_path, fg='cyan')
-    echo('Available flows:', fg='cyan', bold=True)
+    metadata("local@%s" % stripped_path)
+    echo("Working tree found at: ", nl=False)
+    echo('"%s"\n' % stripped_path, fg="cyan")
+    echo("Available flows:", fg="cyan", bold=True)
     for flow in Metaflow():
-        echo('* %s' % flow, fg='cyan')
+        echo("* %s" % flow, fg="cyan")
+
 
 @main.group(help="Browse and access the metaflow tutorial episodes.")
 def tutorials():
     pass
 
+
 def get_tutorials_dir():
     metaflow_dir = os.path.dirname(__file__)
     package_dir = os.path.dirname(metaflow_dir)
-    tutorials_dir = os.path.join(package_dir, 'metaflow', 'tutorials')
+    tutorials_dir = os.path.join(package_dir, "metaflow", "tutorials")
 
     return tutorials_dir
 
+
 def get_tutorial_metadata(tutorial_path):
     metadata = {}
-    with open(os.path.join(tutorial_path, 'README.md')) as readme:
-        content =  readme.read()
+    with open(os.path.join(tutorial_path, "README.md")) as readme:
+        content = readme.read()
 
-    paragraphs = [paragraph.strip() \
-                  for paragraph \
-                  in content.split('#') if paragraph]
-    metadata['description'] = paragraphs[0].split('**')[1]
-    header = paragraphs[0].split('\n')
-    header = header[0].split(':')
-    metadata['episode'] = header[0].strip()[len('Episode '):]
-    metadata['title'] = header[1].strip()
+    paragraphs = [paragraph.strip() for paragraph in content.split("#") if paragraph]
+    metadata["description"] = paragraphs[0].split("**")[1]
+    header = paragraphs[0].split("\n")
+    header = header[0].split(":")
+    metadata["episode"] = header[0].strip()[len("Episode ") :]
+    metadata["title"] = header[1].strip()
 
     for paragraph in paragraphs[1:]:
-        if paragraph.startswith('Before playing'):
-            lines = '\n'.join(paragraph.split('\n')[1:])
-            metadata['prereq'] = lines.replace('```', '')
+        if paragraph.startswith("Before playing"):
+            lines = "\n".join(paragraph.split("\n")[1:])
+            metadata["prereq"] = lines.replace("```", "")
 
-        if paragraph.startswith('Showcasing'):
-            lines = '\n'.join(paragraph.split('\n')[1:])
-            metadata['showcase'] = lines.replace('```', '')
+        if paragraph.startswith("Showcasing"):
+            lines = "\n".join(paragraph.split("\n")[1:])
+            metadata["showcase"] = lines.replace("```", "")
 
-        if paragraph.startswith('To play'):
-            lines = '\n'.join(paragraph.split('\n')[1:])
-            metadata['play'] = lines.replace('```', '')
+        if paragraph.startswith("To play"):
+            lines = "\n".join(paragraph.split("\n")[1:])
+            metadata["play"] = lines.replace("```", "")
 
     return metadata
+
 
 def get_all_episodes():
     episodes = []
     for name in sorted(os.listdir(get_tutorials_dir())):
         # Skip hidden files (like .gitignore)
-        if not name.startswith('.'):
+        if not name.startswith("."):
             episodes.append(name)
     return episodes
 
+
 @tutorials.command(help="List the available episodes.")
 def list():
-    echo('Episodes:', fg='cyan', bold=True)
+    echo("Episodes:", fg="cyan", bold=True)
     for name in get_all_episodes():
         path = os.path.join(get_tutorials_dir(), name)
         metadata = get_tutorial_metadata(path)
-        echo('* {0: <20} '.format(metadata['episode']),
-             fg='cyan',
-             nl=False)
-        echo('- {0}'.format(metadata['title']))
+        echo("* {0: <20} ".format(metadata["episode"]), fg="cyan", nl=False)
+        echo("- {0}".format(metadata["title"]))
 
-    echo('\nTo pull the episodes, type: ')
-    echo('metaflow tutorials pull', fg='cyan')
+    echo("\nTo pull the episodes, type: ")
+    echo("metaflow tutorials pull", fg="cyan")
+
 
 def validate_episode(episode):
     src_dir = os.path.join(get_tutorials_dir(), episode)
     if not os.path.isdir(src_dir):
-        raise click.BadArgumentUsage("Episode " + \
-                                     click.style("\"{0}\"".format(episode),
-                                                 fg='red') + " does not exist."\
-                                     " To see a list of available episodes, "\
-                                     "type:\n" + \
-                                     click.style("metaflow tutorials list",
-                                                 fg='cyan'))
+        raise click.BadArgumentUsage(
+            "Episode "
+            + click.style('"{0}"'.format(episode), fg="red")
+            + " does not exist."
+            " To see a list of available episodes, "
+            "type:\n" + click.style("metaflow tutorials list", fg="cyan")
+        )
+
 
 def autocomplete_episodes(ctx, args, incomplete):
     return [k for k in get_all_episodes() if incomplete in k]
 
-@tutorials.command(help="Pull episodes "\
-                   "into your current working directory.")
-@click.option('--episode', default="", help="Optional episode name "\
-              "to pull only a single episode.")
+
+@tutorials.command(help="Pull episodes " "into your current working directory.")
+@click.option(
+    "--episode",
+    default="",
+    help="Optional episode name " "to pull only a single episode.",
+)
 def pull(episode):
     tutorials_dir = get_tutorials_dir()
     if not episode:
@@ -214,7 +217,7 @@ def pull(episode):
         for episode in episodes:
             validate_episode(episode)
     # Create destination `metaflow-tutorials` dir.
-    dst_parent = os.path.join(os.getcwd(), 'metaflow-tutorials')
+    dst_parent = os.path.join(os.getcwd(), "metaflow-tutorials")
     makedirs(dst_parent)
 
     # Pull specified episodes.
@@ -222,67 +225,83 @@ def pull(episode):
         dst_dir = os.path.join(dst_parent, episode)
         # Check if episode has already been pulled before.
         if os.path.exists(dst_dir):
-            if click.confirm("Episode " + \
-                             click.style("\"{0}\"".format(episode), fg='red') +\
-                             " has already been pulled before. Do you wish "\
-                             "to delete the existing version?"):
+            if click.confirm(
+                "Episode "
+                + click.style('"{0}"'.format(episode), fg="red")
+                + " has already been pulled before. Do you wish "
+                "to delete the existing version?"
+            ):
                 shutil.rmtree(dst_dir)
             else:
                 continue
-        echo('Pulling episode ', nl=False)
-        echo('\"{0}\"'.format(episode), fg='cyan', nl=False)
+        echo("Pulling episode ", nl=False)
+        echo('"{0}"'.format(episode), fg="cyan", nl=False)
         # TODO: Is the following redundant?
-        echo(' into your current working directory.')
+        echo(" into your current working directory.")
         # Copy from (local) metaflow package dir to current.
         src_dir = os.path.join(tutorials_dir, episode)
         shutil.copytree(src_dir, dst_dir)
 
-    echo('\nTo know more about an episode, type:\n', nl=False)
-    echo('metaflow tutorials info [EPISODE]', fg='cyan')
+    echo("\nTo know more about an episode, type:\n", nl=False)
+    echo("metaflow tutorials info [EPISODE]", fg="cyan")
 
-@tutorials.command(help='Find out more about an episode.')
-@click.argument('episode', autocompletion=autocomplete_episodes)
+
+@tutorials.command(help="Find out more about an episode.")
+@click.argument("episode", autocompletion=autocomplete_episodes)
 def info(episode):
     validate_episode(episode)
     src_dir = os.path.join(get_tutorials_dir(), episode)
     metadata = get_tutorial_metadata(src_dir)
-    echo('Synopsis:', fg='cyan', bold=True)
-    echo('%s' % metadata['description'])
+    echo("Synopsis:", fg="cyan", bold=True)
+    echo("%s" % metadata["description"])
 
-    echo('\nShowcasing:', fg='cyan', bold=True, nl=True)
-    echo('%s' % metadata['showcase'])
+    echo("\nShowcasing:", fg="cyan", bold=True, nl=True)
+    echo("%s" % metadata["showcase"])
 
-    if 'prereq' in metadata:
-        echo('\nBefore playing:', fg='cyan', bold=True, nl=True)
-        echo('%s' % metadata['prereq'])
+    if "prereq" in metadata:
+        echo("\nBefore playing:", fg="cyan", bold=True, nl=True)
+        echo("%s" % metadata["prereq"])
 
-    echo('\nTo play:', fg='cyan', bold=True)
-    echo('%s' % metadata['play'])
+    echo("\nTo play:", fg="cyan", bold=True)
+    echo("%s" % metadata["play"])
+
 
 # NOTE: This code needs to be in sync with metaflow/metaflow_config.py.
-METAFLOW_CONFIGURATION_DIR =\
-    expanduser(os.environ.get('METAFLOW_HOME', '~/.metaflowconfig'))
+METAFLOW_CONFIGURATION_DIR = expanduser(
+    os.environ.get("METAFLOW_HOME", "~/.metaflowconfig")
+)
+
 
 @main.group(help="Configure Metaflow to access the cloud.")
 def configure():
     makedirs(METAFLOW_CONFIGURATION_DIR)
 
+
 def get_config_path(profile):
-    config_file = 'config.json' if not profile else ('config_%s.json' % profile)
+    config_file = "config.json" if not profile else ("config_%s.json" % profile)
     path = os.path.join(METAFLOW_CONFIGURATION_DIR, config_file)
     return path
+
 
 def overwrite_config(profile):
     path = get_config_path(profile)
     if os.path.exists(path):
         if not click.confirm(
-            click.style('We found an existing configuration for your ' +
-                        'profile. Do you want to modify the existing ' +
-                        'configuration?', fg='red', bold=True)):
-            echo('You can configure a different named profile by using the '
-                 '--profile argument. You can activate this profile by setting '
-                 'the environment variable METAFLOW_PROFILE to the named '
-                 'profile.', fg='yellow')
+            click.style(
+                "We found an existing configuration for your "
+                + "profile. Do you want to modify the existing "
+                + "configuration?",
+                fg="red",
+                bold=True,
+            )
+        ):
+            echo(
+                "You can configure a different named profile by using the "
+                "--profile argument. You can activate this profile by setting "
+                "the environment variable METAFLOW_PROFILE to the named "
+                "profile.",
+                fg="yellow",
+            )
             return False
     return True
 
@@ -291,10 +310,13 @@ def check_for_missing_profile(profile):
     path = get_config_path(profile)
     # Absence of default config is equivalent to running locally.
     if profile and not os.path.exists(path):
-        raise click.ClickException("Couldn't find configuration for profile " +
-                                   click.style('"%s"' % profile, fg='red') +
-                                   " in " +
-                                   click.style('"%s"' % path, fg='red'))
+        raise click.ClickException(
+            "Couldn't find configuration for profile "
+            + click.style('"%s"' % profile, fg="red")
+            + " in "
+            + click.style('"%s"' % path, fg="red")
+        )
+
 
 def get_env(profile):
     path = get_config_path(profile)
@@ -303,153 +325,181 @@ def get_env(profile):
             return json.load(f)
     return {}
 
+
 def persist_env(env_dict, profile):
     # TODO: Should we persist empty env_dict or notify user differently?
     path = get_config_path(profile)
 
-    with open(path, 'w') as f:
+    with open(path, "w") as f:
         json.dump(env_dict, f, indent=4, sort_keys=True)
 
-    echo('\nConfiguration successfully written to ', nl=False, bold=True)
-    echo('"%s"' % path, fg='cyan')
+    echo("\nConfiguration successfully written to ", nl=False, bold=True)
+    echo('"%s"' % path, fg="cyan")
 
-@configure.command(help='Reset configuration to disable cloud access.')
-@click.option('--profile', '-p', default='',
-              help="Optional named profile.")
+
+@configure.command(help="Reset configuration to disable cloud access.")
+@click.option("--profile", "-p", default="", help="Optional named profile.")
 def reset(profile):
     check_for_missing_profile(profile)
     path = get_config_path(profile)
     if os.path.exists(path):
-        if click.confirm('Do you really wish to reset the configuration in ' +\
-                         click.style('"%s"' % path, fg='cyan'), abort=True):
+        if click.confirm(
+            "Do you really wish to reset the configuration in "
+            + click.style('"%s"' % path, fg="cyan"),
+            abort=True,
+        ):
             os.remove(path)
-            echo('Configuration successfully reset to run locally.')
+            echo("Configuration successfully reset to run locally.")
     else:
-        echo('Configuration is already reset to run locally.')
+        echo("Configuration is already reset to run locally.")
 
-@configure.command(help='Show existing configuration.')
-@click.option('--profile', '-p', default='',
-              help="Optional named profile.")
+
+@configure.command(help="Show existing configuration.")
+@click.option("--profile", "-p", default="", help="Optional named profile.")
 def show(profile):
     check_for_missing_profile(profile)
     path = get_config_path(profile)
     env_dict = {}
     if os.path.exists(path):
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             env_dict = json.load(f)
     if env_dict:
-        echo('Showing configuration in ', nl=False)
-        echo('"%s"\n' % path, fg='cyan')
-        for k,v in env_dict.items():
-            echo('%s=%s' % (k, v))
+        echo("Showing configuration in ", nl=False)
+        echo('"%s"\n' % path, fg="cyan")
+        for k, v in env_dict.items():
+            echo("%s=%s" % (k, v))
     else:
-        echo('Configuration is set to run locally.')
+        echo("Configuration is set to run locally.")
 
-@configure.command(help='Export configuration to a file.')
-@click.option('--profile', '-p', default='',
-              help="Optional named profile whose configuration must be "
-                   "exported.")
-@click.argument('output_filename', type=click.Path(resolve_path=True))
+
+@configure.command(help="Export configuration to a file.")
+@click.option(
+    "--profile",
+    "-p",
+    default="",
+    help="Optional named profile whose configuration must be " "exported.",
+)
+@click.argument("output_filename", type=click.Path(resolve_path=True))
 def export(profile, output_filename):
     check_for_missing_profile(profile)
     # Export its contents to a new file.
     path = get_config_path(profile)
     env_dict = {}
     if os.path.exists(path):
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             env_dict = json.load(f)
     # resolve_path doesn't expand `~` in `path`.
     output_path = expanduser(output_filename)
     if os.path.exists(output_path):
-        if click.confirm('Do you wish to overwrite the contents in ' +
-                         click.style('"%s"' % output_path, fg='cyan') + '?',
-                         abort=True):
+        if click.confirm(
+            "Do you wish to overwrite the contents in "
+            + click.style('"%s"' % output_path, fg="cyan")
+            + "?",
+            abort=True,
+        ):
             pass
     # Write to file.
-    with open(output_path, 'w') as f:
+    with open(output_path, "w") as f:
         json.dump(env_dict, f, indent=4, sort_keys=True)
-    echo('Configuration successfully exported to: ', nl=False)
-    echo('"%s"' % output_path, fg='cyan')
+    echo("Configuration successfully exported to: ", nl=False)
+    echo('"%s"' % output_path, fg="cyan")
 
-@configure.command(help='Import configuration from a file.', name='import')
-@click.option('--profile', '-p', default='',
-              help="Optional named profile to which the configuration must be "
-                   "imported into.")
-@click.argument('input_filename', type=click.Path(exists=True,
-                                                  resolve_path=True))
+
+@configure.command(help="Import configuration from a file.", name="import")
+@click.option(
+    "--profile",
+    "-p",
+    default="",
+    help="Optional named profile to which the configuration must be " "imported into.",
+)
+@click.argument("input_filename", type=click.Path(exists=True, resolve_path=True))
 def import_from(profile, input_filename):
     check_for_missing_profile(profile)
     # Import configuration.
     input_path = expanduser(input_filename)
     env_dict = {}
-    with open(input_path, 'r') as f:
+    with open(input_path, "r") as f:
         env_dict = json.load(f)
-    echo('Configuration successfully read from: ', nl=False)
-    echo('"%s"' % input_path, fg='cyan')
+    echo("Configuration successfully read from: ", nl=False)
+    echo('"%s"' % input_path, fg="cyan")
 
     # Persist configuration.
     overwrite_config(profile)
     persist_env(env_dict, profile)
 
-@configure.command(help='Configure metaflow to access hosted sandbox.')
-@click.option('--profile', '-p', default='',
-                help='Configure a named profile. Activate the profile by setting ' 
-                    '`METAFLOW_PROFILE` environment variable.')
+
+@configure.command(help="Configure metaflow to access hosted sandbox.")
+@click.option(
+    "--profile",
+    "-p",
+    default="",
+    help="Configure a named profile. Activate the profile by setting "
+    "`METAFLOW_PROFILE` environment variable.",
+)
 def sandbox(profile):
     overwrite_config(profile)
     # Prompt for user input.
-    encoded_str = click.prompt('Following instructions from '
-                               'https://metaflow.org/sandbox, '
-                               'please paste the encoded magic string',
-                               type=str)
+    encoded_str = click.prompt(
+        "Following instructions from "
+        "https://metaflow.org/sandbox, "
+        "please paste the encoded magic string",
+        type=str,
+    )
     # Decode the bytes to env_dict.
     try:
         import base64, zlib
         from metaflow.util import to_bytes
-        env_dict =\
-            json.loads(to_unicode(zlib.decompress(base64.b64decode(to_bytes(encoded_str)))))
+
+        env_dict = json.loads(
+            to_unicode(zlib.decompress(base64.b64decode(to_bytes(encoded_str))))
+        )
     except:
         # TODO: Add the URL for contact us page in the error?
-        raise click.BadArgumentUsage('Could not decode the sandbox '\
-                                     'configuration. Please contact us.')
+        raise click.BadArgumentUsage(
+            "Could not decode the sandbox " "configuration. Please contact us."
+        )
     # Persist to a file.
     persist_env(env_dict, profile)
 
 
 def cyan(string):
-    return click.style(string, fg='cyan')
+    return click.style(string, fg="cyan")
+
 
 def yellow(string):
-    return click.style(string, fg='yellow')
+    return click.style(string, fg="yellow")
+
 
 def red(string):
-    return click.style(string, fg='red')
+    return click.style(string, fg="red")
+
 
 def configure_s3_datastore(existing_env):
     env = {}
     # Set Amazon S3 as default datastore.
-    env['METAFLOW_DEFAULT_DATASTORE'] = 's3'
+    env["METAFLOW_DEFAULT_DATASTORE"] = "s3"
     # Set Amazon S3 folder for datastore.
-    env['METAFLOW_DATASTORE_SYSROOT_S3'] =\
-        click.prompt(cyan('[METAFLOW_DATASTORE_SYSROOT_S3]') + 
-                        ' Amazon S3 folder for Metaflow artifact storage ' +
-                        '(s3://<bucket>/<prefix>).',
-                        default=\
-                        existing_env.get('METAFLOW_DATASTORE_SYSROOT_S3'),
-                        show_default=True)
+    env["METAFLOW_DATASTORE_SYSROOT_S3"] = click.prompt(
+        cyan("[METAFLOW_DATASTORE_SYSROOT_S3]")
+        + " Amazon S3 folder for Metaflow artifact storage "
+        + "(s3://<bucket>/<prefix>).",
+        default=existing_env.get("METAFLOW_DATASTORE_SYSROOT_S3"),
+        show_default=True,
+    )
     # Set Amazon S3 folder for datatools.
-    env['METAFLOW_DATATOOLS_SYSROOT_S3'] =\
-            click.prompt(cyan('[METAFLOW_DATATOOLS_SYSROOT_S3]') + 
-                            yellow(' (optional)') + 
-                            ' Amazon S3 folder for Metaflow datatools ' +
-                            '(s3://<bucket>/<prefix>).',
-                            default=\
-                            existing_env.get('METAFLOW_DATATOOLS_SYSROOT_S3',
-                                os.path.join(
-                                    env['METAFLOW_DATASTORE_SYSROOT_S3'],
-                                        'data')),
-                            show_default=True)
+    env["METAFLOW_DATATOOLS_SYSROOT_S3"] = click.prompt(
+        cyan("[METAFLOW_DATATOOLS_SYSROOT_S3]")
+        + yellow(" (optional)")
+        + " Amazon S3 folder for Metaflow datatools "
+        + "(s3://<bucket>/<prefix>).",
+        default=existing_env.get(
+            "METAFLOW_DATATOOLS_SYSROOT_S3",
+            os.path.join(env["METAFLOW_DATASTORE_SYSROOT_S3"], "data"),
+        ),
+        show_default=True,
+    )
     return env
+
 
 def configure_metadata_service(existing_env):
     empty_profile = False
@@ -458,31 +508,32 @@ def configure_metadata_service(existing_env):
     env = {}
 
     # Set Metadata Service as default.
-    env['METAFLOW_DEFAULT_METADATA'] = 'service'
+    env["METAFLOW_DEFAULT_METADATA"] = "service"
     # Set URL for the Metadata Service.
-    env['METAFLOW_SERVICE_URL'] =\
-            click.prompt(cyan('[METAFLOW_SERVICE_URL]') +
-                            ' URL for Metaflow Service.',
-                            default=existing_env.get('METAFLOW_SERVICE_URL'),
-                            show_default=True)
+    env["METAFLOW_SERVICE_URL"] = click.prompt(
+        cyan("[METAFLOW_SERVICE_URL]") + " URL for Metaflow Service.",
+        default=existing_env.get("METAFLOW_SERVICE_URL"),
+        show_default=True,
+    )
     # Set internal URL for the Metadata Service.
-    env['METAFLOW_SERVICE_INTERNAL_URL'] =\
-            click.prompt(cyan('[METAFLOW_SERVICE_INTERNAL_URL]') +
-                            yellow(' (optional)') +
-                            ' URL for Metaflow Service ' +
-                            '(Accessible only within VPC).',
-                            default=\
-                            existing_env.get('METAFLOW_SERVICE_INTERNAL_URL',
-                                env['METAFLOW_SERVICE_URL']),
-                            show_default=True)
+    env["METAFLOW_SERVICE_INTERNAL_URL"] = click.prompt(
+        cyan("[METAFLOW_SERVICE_INTERNAL_URL]")
+        + yellow(" (optional)")
+        + " URL for Metaflow Service "
+        + "(Accessible only within VPC).",
+        default=existing_env.get(
+            "METAFLOW_SERVICE_INTERNAL_URL", env["METAFLOW_SERVICE_URL"]
+        ),
+        show_default=True,
+    )
     # Set Auth Key for the Metadata Service.
-    env['METAFLOW_SERVICE_AUTH_KEY'] =\
-            click.prompt(cyan('[METAFLOW_SERVICE_AUTH_KEY]') + 
-                            yellow(' (optional)') +
-                            ' Auth Key for Metaflow Service.',
-                            default=\
-                            existing_env.get('METAFLOW_SERVICE_AUTH_KEY', ''),
-                            show_default=True)
+    env["METAFLOW_SERVICE_AUTH_KEY"] = click.prompt(
+        cyan("[METAFLOW_SERVICE_AUTH_KEY]")
+        + yellow(" (optional)")
+        + " Auth Key for Metaflow Service.",
+        default=existing_env.get("METAFLOW_SERVICE_AUTH_KEY", ""),
+        show_default=True,
+    )
     return env
 
 
@@ -493,33 +544,35 @@ def configure_datastore_and_metadata(existing_env):
     env = {}
 
     # Configure Amazon S3 as the datastore.
-    use_s3_as_datastore = click.confirm('\nMetaflow can use ' +
-                            yellow('Amazon S3 as the storage backend') +
-                            ' for all code and data artifacts on ' +
-                            'AWS.\nAmazon S3 is a strict requirement if you ' +
-                            'intend to execute your flows on AWS Batch ' +
-                            'and/or schedule them on AWS Step ' +
-                            'Functions.\nWould you like to configure Amazon ' +
-                            'S3 as the default storage backend?',
-                            default=empty_profile or \
-                            existing_env.get(
-                                'METAFLOW_DEFAULT_DATASTORE', '') == 's3',
-                            abort=False)
+    use_s3_as_datastore = click.confirm(
+        "\nMetaflow can use "
+        + yellow("Amazon S3 as the storage backend")
+        + " for all code and data artifacts on "
+        + "AWS.\nAmazon S3 is a strict requirement if you "
+        + "intend to execute your flows on AWS Batch "
+        + "and/or schedule them on AWS Step "
+        + "Functions.\nWould you like to configure Amazon "
+        + "S3 as the default storage backend?",
+        default=empty_profile
+        or existing_env.get("METAFLOW_DEFAULT_DATASTORE", "") == "s3",
+        abort=False,
+    )
     if use_s3_as_datastore:
         env.update(configure_s3_datastore(existing_env))
 
     # Configure Metadata service for tracking.
-    if click.confirm('\nMetaflow can use a ' +
-                     yellow('remote Metadata Service to track') + 
-                     ' and persist flow execution metadata.\nConfiguring the '
-                     'service is a requirement if you intend to schedule your '
-                     'flows with AWS Step Functions.\nWould you like to '
-                     'configure the Metadata Service?',
-                     default=empty_profile or\
-                        existing_env.get('METAFLOW_DEFAULT_METADATA', '') ==\
-                            'service' or\
-                        'METAFLOW_SFN_IAM_ROLE' in env,
-                     abort=False):
+    if click.confirm(
+        "\nMetaflow can use a "
+        + yellow("remote Metadata Service to track")
+        + " and persist flow execution metadata.\nConfiguring the "
+        "service is a requirement if you intend to schedule your "
+        "flows with AWS Step Functions.\nWould you like to "
+        "configure the Metadata Service?",
+        default=empty_profile
+        or existing_env.get("METAFLOW_DEFAULT_METADATA", "") == "service"
+        or "METAFLOW_SFN_IAM_ROLE" in env,
+        abort=False,
+    ):
         env.update(configure_metadata_service(existing_env))
     return env
 
@@ -530,81 +583,79 @@ def configure_aws_batch(existing_env):
         empty_profile = True
     env = {}
 
-
     # Set AWS Batch Job Queue.
-    env['METAFLOW_BATCH_JOB_QUEUE'] =\
-            click.prompt(cyan('[METAFLOW_BATCH_JOB_QUEUE]') +
-                            ' AWS Batch Job Queue.',
-                            default=\
-                            existing_env.get('METAFLOW_BATCH_JOB_QUEUE'),
-                            show_default=True)
+    env["METAFLOW_BATCH_JOB_QUEUE"] = click.prompt(
+        cyan("[METAFLOW_BATCH_JOB_QUEUE]") + " AWS Batch Job Queue.",
+        default=existing_env.get("METAFLOW_BATCH_JOB_QUEUE"),
+        show_default=True,
+    )
     # Set IAM role for AWS Batch jobs to assume.
-    env['METAFLOW_ECS_S3_ACCESS_IAM_ROLE'] =\
-            click.prompt(cyan('[METAFLOW_ECS_S3_ACCESS_IAM_ROLE]') + 
-                            ' IAM role for AWS Batch jobs to access AWS ' +
-                            'resources (Amazon S3 etc.).',
-                            default=\
-                            existing_env.get('METAFLOW_ECS_S3_ACCESS_IAM_ROLE'),
-                            show_default=True)
+    env["METAFLOW_ECS_S3_ACCESS_IAM_ROLE"] = click.prompt(
+        cyan("[METAFLOW_ECS_S3_ACCESS_IAM_ROLE]")
+        + " IAM role for AWS Batch jobs to access AWS "
+        + "resources (Amazon S3 etc.).",
+        default=existing_env.get("METAFLOW_ECS_S3_ACCESS_IAM_ROLE"),
+        show_default=True,
+    )
     # Set default Docker repository for AWS Batch jobs.
-    env['METAFLOW_BATCH_CONTAINER_REGISTRY'] =\
-            click.prompt(cyan('[METAFLOW_BATCH_CONTAINER_REGISTRY]') + 
-                            yellow(' (optional)') +
-                            ' Default Docker image repository for AWS ' +
-                            'Batch jobs. If nothing is specified, ' +
-                            'dockerhub (hub.docker.com/) is ' +
-                            'used as default.',
-                            default=\
-                            existing_env.get('METAFLOW_BATCH_CONTAINER_REGISTRY', ''),
-                            show_default=True)
+    env["METAFLOW_BATCH_CONTAINER_REGISTRY"] = click.prompt(
+        cyan("[METAFLOW_BATCH_CONTAINER_REGISTRY]")
+        + yellow(" (optional)")
+        + " Default Docker image repository for AWS "
+        + "Batch jobs. If nothing is specified, "
+        + "dockerhub (hub.docker.com/) is "
+        + "used as default.",
+        default=existing_env.get("METAFLOW_BATCH_CONTAINER_REGISTRY", ""),
+        show_default=True,
+    )
     # Set default Docker image for AWS Batch jobs.
-    env['METAFLOW_BATCH_CONTAINER_IMAGE'] =\
-            click.prompt(cyan('[METAFLOW_BATCH_CONTAINER_IMAGE]') + 
-                            yellow(' (optional)') +
-                            ' Default Docker image for AWS Batch jobs. ' +
-                            'If nothing is specified, an appropriate ' +
-                            'python image is used as default.',
-                            default=\
-                            existing_env.get('METAFLOW_BATCH_CONTAINER_IMAGE', ''),
-                            show_default=True)
+    env["METAFLOW_BATCH_CONTAINER_IMAGE"] = click.prompt(
+        cyan("[METAFLOW_BATCH_CONTAINER_IMAGE]")
+        + yellow(" (optional)")
+        + " Default Docker image for AWS Batch jobs. "
+        + "If nothing is specified, an appropriate "
+        + "python image is used as default.",
+        default=existing_env.get("METAFLOW_BATCH_CONTAINER_IMAGE", ""),
+        show_default=True,
+    )
 
     # Configure AWS Step Functions for scheduling.
-    if click.confirm('\nMetaflow can ' +
-                        yellow('schedule your flows on AWS Step '
-                            'Functions') + 
-                        ' and trigger them at a specific cadence using '
-                        'Amazon EventBridge.\nTo support flows involving '
-                        'foreach steps, you would need access to AWS '
-                        'DynamoDB.\nWould you like to configure AWS Step '
-                        'Functions for scheduling?',
-                        default=empty_profile or
-                        'METAFLOW_SFN_IAM_ROLE' in existing_env,
-                        abort=False):
+    if click.confirm(
+        "\nMetaflow can "
+        + yellow("schedule your flows on AWS Step " "Functions")
+        + " and trigger them at a specific cadence using "
+        "Amazon EventBridge.\nTo support flows involving "
+        "foreach steps, you would need access to AWS "
+        "DynamoDB.\nWould you like to configure AWS Step "
+        "Functions for scheduling?",
+        default=empty_profile or "METAFLOW_SFN_IAM_ROLE" in existing_env,
+        abort=False,
+    ):
         # Configure IAM role for AWS Step Functions.
-        env['METAFLOW_SFN_IAM_ROLE'] =\
-                click.prompt(cyan('[METAFLOW_SFN_IAM_ROLE]') + 
-                                ' IAM role for AWS Step Functions to ' +
-                                'access AWS resources (AWS Batch, ' +
-                                'AWS DynamoDB).',
-                                default=\
-                                existing_env.get('METAFLOW_SFN_IAM_ROLE'),
-                                show_default=True)
+        env["METAFLOW_SFN_IAM_ROLE"] = click.prompt(
+            cyan("[METAFLOW_SFN_IAM_ROLE]")
+            + " IAM role for AWS Step Functions to "
+            + "access AWS resources (AWS Batch, "
+            + "AWS DynamoDB).",
+            default=existing_env.get("METAFLOW_SFN_IAM_ROLE"),
+            show_default=True,
+        )
         # Configure IAM role for AWS Events Bridge.
-        env['METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE'] =\
-                click.prompt(cyan('[METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE]') + 
-                                ' IAM role for Amazon EventBridge to ' +
-                                'access AWS Step Functions.',
-                                default=\
-                                existing_env.get('METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE'),
-                                show_default=True)
+        env["METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE"] = click.prompt(
+            cyan("[METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE]")
+            + " IAM role for Amazon EventBridge to "
+            + "access AWS Step Functions.",
+            default=existing_env.get("METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE"),
+            show_default=True,
+        )
         # Configure AWS DynamoDB Table for AWS Step Functions.
-        env['METAFLOW_SFN_DYNAMO_DB_TABLE'] =\
-                click.prompt(cyan('[METAFLOW_SFN_DYNAMO_DB_TABLE]') + 
-                            ' AWS DynamoDB table name for tracking '+
-                            'AWS Step Functions execution metadata.',
-                                default=\
-                                existing_env.get('METAFLOW_SFN_DYNAMO_DB_TABLE'),
-                                show_default=True)
+        env["METAFLOW_SFN_DYNAMO_DB_TABLE"] = click.prompt(
+            cyan("[METAFLOW_SFN_DYNAMO_DB_TABLE]")
+            + " AWS DynamoDB table name for tracking "
+            + "AWS Step Functions execution metadata.",
+            default=existing_env.get("METAFLOW_SFN_DYNAMO_DB_TABLE"),
+            show_default=True,
+        )
     return env
 
 
@@ -612,32 +663,42 @@ def check_kubernetes_client(ctx):
     try:
         import kubernetes
     except ImportError:
-        echo("Please install python kubernetes client first " + \
-                "(run " + yellow('pip install kubernetes')  + \
-                " or equivalent in your favorite python package manager)"
+        echo(
+            "Please install python kubernetes client first "
+            + "(run "
+            + yellow("pip install kubernetes")
+            + " or equivalent in your favorite python package manager)"
         )
         ctx.abort()
 
 
 def check_kubernetes_config(ctx):
     from kubernetes import config
+
     try:
         all_contexts, current_context = config.list_kube_config_contexts()
-        click.confirm("You have a valid kubernetes configuration. The current context is set to " + \
-            yellow(current_context["name"]) + " " + \
-            "Proceed?",
+        click.confirm(
+            "You have a valid kubernetes configuration. The current context is set to "
+            + yellow(current_context["name"])
+            + " "
+            + "Proceed?",
             default=True,
-            abort=True
+            abort=True,
         )
     except config.config_exception.ConfigException as e:
-        click.confirm("\nYou don't seem to have a valid kubernetes configuration file. " + \
-                        "The error from kubernetes client library: " + \
-                        red(str(e)) + "." + \
-                        "To create a kubernetes configuration for EKS, you typically need to run " + yellow("aws eks update-kubeconfig --name <CLUSTER NAME>") + \
-                        ". For further details, refer to AWS Documentation at https://docs.aws.amazon.com/eks/latest/userguide/create-kubeconfig.html\n"
-                        'Do you want to proceed with configuring Metaflow for EKS anyway?',
-                        default=False,
-                        abort=True)
+        click.confirm(
+            "\nYou don't seem to have a valid kubernetes configuration file. "
+            + "The error from kubernetes client library: "
+            + red(str(e))
+            + "."
+            + "To create a kubernetes configuration for EKS, you typically need to run "
+            + yellow("aws eks update-kubeconfig --name <CLUSTER NAME>")
+            + ". For further details, refer to AWS Documentation at https://docs.aws.amazon.com/eks/latest/userguide/create-kubeconfig.html\n"
+            "Do you want to proceed with configuring Metaflow for EKS anyway?",
+            default=False,
+            abort=True,
+        )
+
 
 def configure_eks(existing_env):
     empty_profile = False
@@ -646,75 +707,88 @@ def configure_eks(existing_env):
     env = {}
 
     # Set K8S Namespace
-    env['METAFLOW_KUBERNETES_NAMESPACE'] =\
-            click.prompt(cyan('[METAFLOW_KUBERNETES_NAMESPACE]') +
-                            yellow(' (optional)') +
-                            ' Kubernetes Namespace ',
-                            default="default",
-                            show_default=True)
+    env["METAFLOW_KUBERNETES_NAMESPACE"] = click.prompt(
+        cyan("[METAFLOW_KUBERNETES_NAMESPACE]")
+        + yellow(" (optional)")
+        + " Kubernetes Namespace ",
+        default="default",
+        show_default=True,
+    )
 
     # Set K8S SA
-    env['METAFLOW_KUBERNETES_SERVICE_ACCOUNT'] =\
-            click.prompt(cyan('[METAFLOW_KUBERNETES_SERVICE_ACCOUNT]') +
-                            yellow(' (optional)') +
-                            ' Kubernetes Service Account ',
-                            default="default",
-                            show_default=True)
+    env["METAFLOW_KUBERNETES_SERVICE_ACCOUNT"] = click.prompt(
+        cyan("[METAFLOW_KUBERNETES_SERVICE_ACCOUNT]")
+        + yellow(" (optional)")
+        + " Kubernetes Service Account ",
+        default="default",
+        show_default=True,
+    )
 
     # Set default Docker repository for K8S jobs.
-    env['METAFLOW_KUBERNETES_CONTAINER_REGISTRY'] =\
-            click.prompt(cyan('[METAFLOW_KUBERNETES_CONTAINER_REGISTRY]') + 
-                            yellow(' (optional)') +
-                            ' Default Docker image repository for K8S ' +
-                            'jobs. If nothing is specified, ' +
-                            'dockerhub (hub.docker.com/) is ' +
-                            'used as default.',
-                            default=\
-                            existing_env.get('METAFLOW_KUBERNETES_CONTAINER_REGISTRY', ''),
-                            show_default=True)
+    env["METAFLOW_KUBERNETES_CONTAINER_REGISTRY"] = click.prompt(
+        cyan("[METAFLOW_KUBERNETES_CONTAINER_REGISTRY]")
+        + yellow(" (optional)")
+        + " Default Docker image repository for K8S "
+        + "jobs. If nothing is specified, "
+        + "dockerhub (hub.docker.com/) is "
+        + "used as default.",
+        default=existing_env.get("METAFLOW_KUBERNETES_CONTAINER_REGISTRY", ""),
+        show_default=True,
+    )
     # Set default Docker image for K8S jobs.
-    env['METAFLOW_KUBERNETES_CONTAINER_IMAGE'] =\
-            click.prompt(cyan('[METAFLOW_KUBERNETES_CONTAINER_IMAGE]') + 
-                            yellow(' (optional)') +
-                            ' Default Docker image for K8S jobs. ' +
-                            'If nothing is specified, an appropriate ' +
-                            'python image is used as default.',
-                            default=\
-                            existing_env.get('METAFLOW_KUBERNETES_CONTAINER_IMAGE', ''),
-                            show_default=True)
+    env["METAFLOW_KUBERNETES_CONTAINER_IMAGE"] = click.prompt(
+        cyan("[METAFLOW_KUBERNETES_CONTAINER_IMAGE]")
+        + yellow(" (optional)")
+        + " Default Docker image for K8S jobs. "
+        + "If nothing is specified, an appropriate "
+        + "python image is used as default.",
+        default=existing_env.get("METAFLOW_KUBERNETES_CONTAINER_IMAGE", ""),
+        show_default=True,
+    )
 
     return env
 
 
 def verify_aws_credentials(ctx):
     # Verify that the user has configured AWS credentials on their computer.
-    if not click.confirm('\nMetaflow relies on ' +  
-                         yellow('AWS access credentials') + 
-                         ' present on your computer to access resources on AWS.'
-                         '\nBefore proceeding further, please confirm that you '
-                         'have already configured these access credentials on '
-                         'this computer.',
-                         default=True):
-        echo('There are many ways to setup your AWS access credentials. You '
-             'can get started by following this guide: ',
-             nl=False,
-             fg='yellow')
-        echo('https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html',
-             fg='cyan')
+    if not click.confirm(
+        "\nMetaflow relies on "
+        + yellow("AWS access credentials")
+        + " present on your computer to access resources on AWS."
+        "\nBefore proceeding further, please confirm that you "
+        "have already configured these access credentials on "
+        "this computer.",
+        default=True,
+    ):
+        echo(
+            "There are many ways to setup your AWS access credentials. You "
+            "can get started by following this guide: ",
+            nl=False,
+            fg="yellow",
+        )
+        echo(
+            "https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html",
+            fg="cyan",
+        )
         ctx.abort()
 
 
-@configure.command(help='Configure metaflow to access self-managed AWS resources.')
-@click.option('--profile', '-p', default='',
-                help='Configure a named profile. Activate the profile by setting ' 
-                    '`METAFLOW_PROFILE` environment variable.')
+@configure.command(help="Configure metaflow to access self-managed AWS resources.")
+@click.option(
+    "--profile",
+    "-p",
+    default="",
+    help="Configure a named profile. Activate the profile by setting "
+    "`METAFLOW_PROFILE` environment variable.",
+)
 @click.pass_context
 def aws(ctx, profile):
 
     # Greet the user!
-    echo('Welcome to Metaflow! Follow the prompts to configure your '
-         'installation.\n',
-         bold=True)
+    echo(
+        "Welcome to Metaflow! Follow the prompts to configure your " "installation.\n",
+        bold=True,
+    )
 
     # Check for existing configuration.
     if not overwrite_config(profile):
@@ -731,34 +805,40 @@ def aws(ctx, profile):
     env.update(configure_datastore_and_metadata(existing_env))
 
     # Configure AWS Batch for compute if using S3
-    if env.get('METAFLOW_DEFAULT_DATASTORE') == 's3':
-        if click.confirm('\nMetaflow can scale your flows by ' +
-                            yellow('executing your steps on AWS Batch') + 
-                            '.\nAWS Batch is a strict requirement if you intend '
-                            'to schedule your flows on AWS Step Functions.\nWould '
-                            'you like to configure AWS Batch as your compute '
-                            'backend?',
-                            default=empty_profile or 
-                            'METAFLOW_BATCH_JOB_QUEUE' in existing_env,
-                            abort=False):
+    if env.get("METAFLOW_DEFAULT_DATASTORE") == "s3":
+        if click.confirm(
+            "\nMetaflow can scale your flows by "
+            + yellow("executing your steps on AWS Batch")
+            + ".\nAWS Batch is a strict requirement if you intend "
+            "to schedule your flows on AWS Step Functions.\nWould "
+            "you like to configure AWS Batch as your compute "
+            "backend?",
+            default=empty_profile or "METAFLOW_BATCH_JOB_QUEUE" in existing_env,
+            abort=False,
+        ):
             env.update(configure_aws_batch(existing_env))
 
     persist_env({k: v for k, v in env.items() if v}, profile)
 
 
-@configure.command(help='Configure metaflow to use AWS EKS.')
-@click.option('--profile', '-p', default='',
-                help='Configure a named profile. Activate the profile by setting ' 
-                    '`METAFLOW_PROFILE` environment variable.')
+@configure.command(help="Configure metaflow to use AWS EKS.")
+@click.option(
+    "--profile",
+    "-p",
+    default="",
+    help="Configure a named profile. Activate the profile by setting "
+    "`METAFLOW_PROFILE` environment variable.",
+)
 @click.pass_context
 def eks(ctx, profile):
 
     check_kubernetes_client(ctx)
 
     # Greet the user!
-    echo('Welcome to Metaflow! Follow the prompts to configure your '
-         'installation.\n',
-         bold=True)
+    echo(
+        "Welcome to Metaflow! Follow the prompts to configure your " "installation.\n",
+        bold=True,
+    )
 
     check_kubernetes_config(ctx)
 
@@ -772,36 +852,41 @@ def eks(ctx, profile):
 
     env = existing_env.copy()
 
-    if existing_env.get('METAFLOW_DEFAULT_DATASTORE') == 's3':
+    if existing_env.get("METAFLOW_DEFAULT_DATASTORE") == "s3":
         # Skip S3 configuration if it is already configured
         pass
-    elif not existing_env.get('METAFLOW_DEFAULT_DATASTORE'):
+    elif not existing_env.get("METAFLOW_DEFAULT_DATASTORE"):
         env.update(configure_s3_datastore(existing_env))
     else:
         # If configured to use something else, offer to switch to S3
-        click.confirm('\nMetaflow on EKS needs to use S3 as a datastore, ' +
-                            "but your existing configuration is not using S3. " +
-                            'Would you like to reconfigure it to use S3?',
-                            default=True,
-                            abort=True)
+        click.confirm(
+            "\nMetaflow on EKS needs to use S3 as a datastore, "
+            + "but your existing configuration is not using S3. "
+            + "Would you like to reconfigure it to use S3?",
+            default=True,
+            abort=True,
+        )
         env.update(configure_s3_datastore(existing_env))
 
     # Configure remote metadata.
-    if existing_env.get('METAFLOW_DEFAULT_METADATA') == 'service':
+    if existing_env.get("METAFLOW_DEFAULT_METADATA") == "service":
         # Skip metadata service configuration if it is already configured
         pass
     else:
-        if click.confirm('\nMetaflow can use a ' +
-                        yellow('remote Metadata Service to track') + 
-                        ' and persist flow execution metadata. \nWould you like to '
-                        'configure the Metadata Service?',
-                        default=True,
-                        abort=False):
+        if click.confirm(
+            "\nMetaflow can use a "
+            + yellow("remote Metadata Service to track")
+            + " and persist flow execution metadata. \nWould you like to "
+            "configure the Metadata Service?",
+            default=True,
+            abort=False,
+        ):
             env.update(configure_metadata_service(existing_env))
 
     # Configure AWS EKS for compute.
     env.update(configure_eks(existing_env))
 
     persist_env({k: v for k, v in env.items() if v}, profile)
+
 
 main()

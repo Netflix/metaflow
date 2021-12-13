@@ -1,4 +1,3 @@
-
 import os
 
 from itertools import starmap
@@ -17,7 +16,7 @@ except:
 
 
 class S3Storage(DataStoreStorage):
-    TYPE = 's3'
+    TYPE = "s3"
 
     def __init__(self, root=None):
         super(S3Storage, self).__init__(root)
@@ -28,8 +27,11 @@ class S3Storage(DataStoreStorage):
         return DATASTORE_SYSROOT_S3
 
     def is_file(self, paths):
-        with S3(s3root=self.datastore_root,
-                tmproot=os.getcwd(), external_client=self.s3_client) as s3:
+        with S3(
+            s3root=self.datastore_root,
+            tmproot=os.getcwd(),
+            external_client=self.s3_client,
+        ) as s3:
             if len(paths) > 10:
                 s3objs = s3.info_many(paths, return_missing=True)
                 return [s3obj.exists for s3obj in s3objs]
@@ -40,24 +42,37 @@ class S3Storage(DataStoreStorage):
                 return result
 
     def info_file(self, path):
-        with S3(s3root=self.datastore_root,
-                tmproot=os.getcwd(), external_client=self.s3_client) as s3:
+        with S3(
+            s3root=self.datastore_root,
+            tmproot=os.getcwd(),
+            external_client=self.s3_client,
+        ) as s3:
             s3obj = s3.info(path, return_missing=True)
             return s3obj.exists, s3obj.metadata
 
     def size_file(self, path):
-        with S3(s3root=self.datastore_root,
-                tmproot=os.getcwd(), external_client=self.s3_client) as s3:
+        with S3(
+            s3root=self.datastore_root,
+            tmproot=os.getcwd(),
+            external_client=self.s3_client,
+        ) as s3:
             s3obj = s3.info(path, return_missing=True)
             return s3obj.size
 
     def list_content(self, paths):
-        strip_prefix_len = len(self.datastore_root.rstrip('/')) + 1
-        with S3(s3root=self.datastore_root,
-                tmproot=os.getcwd(), external_client=self.s3_client) as s3:
+        strip_prefix_len = len(self.datastore_root.rstrip("/")) + 1
+        with S3(
+            s3root=self.datastore_root,
+            tmproot=os.getcwd(),
+            external_client=self.s3_client,
+        ) as s3:
             results = s3.list_paths(paths)
-            return [self.list_content_result(
-                path=o.url[strip_prefix_len:], is_file=o.exists) for o in results]
+            return [
+                self.list_content_result(
+                    path=o.url[strip_prefix_len:], is_file=o.exists
+                )
+                for o in results
+            ]
 
     def save_bytes(self, path_and_bytes_iter, overwrite=False, len_hint=0):
         def _convert():
@@ -69,8 +84,11 @@ class S3Storage(DataStoreStorage):
                 else:
                     yield path, obj, None, None, None
 
-        with S3(s3root=self.datastore_root,
-                tmproot=os.getcwd(), external_client=self.s3_client) as s3:
+        with S3(
+            s3root=self.datastore_root,
+            tmproot=os.getcwd(),
+            external_client=self.s3_client,
+        ) as s3:
             # HACK: The S3 datatools we rely on does not currently do a good job
             # determining if uploading things in parallel is more efficient than
             # serially. We use a heuristic for now where if we have a lot of
@@ -100,8 +118,11 @@ class S3Storage(DataStoreStorage):
         if len(paths) == 0:
             return CloseAfterUse(iter([]))
 
-        s3 = S3(s3root=self.datastore_root,
-                tmproot=os.getcwd(), external_client=self.s3_client)
+        s3 = S3(
+            s3root=self.datastore_root,
+            tmproot=os.getcwd(),
+            external_client=self.s3_client,
+        )
 
         def iter_results():
             # We similarly do things in parallel for many files. This is again
@@ -120,4 +141,5 @@ class S3Storage(DataStoreStorage):
                         yield r.key, r.path, r.metadata
                     else:
                         yield r.key, None, None
+
         return CloseAfterUse(iter_results(), closer=s3)

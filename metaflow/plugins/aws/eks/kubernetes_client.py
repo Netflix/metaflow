@@ -30,7 +30,7 @@ def k8s_retry(deadline_seconds=60, max_backoff=32):
 
             deadline = time.time() + deadline_seconds
             retry_number = 0
-            
+
             while True:
                 try:
                     result = function(*args, **kwargs)
@@ -38,17 +38,20 @@ def k8s_retry(deadline_seconds=60, max_backoff=32):
                 except client.rest.ApiException as e:
                     if e.status == 500:
                         current_t = time.time()
-                        backoff_delay = min(math.pow(2, retry_number) + random.random(), max_backoff)
+                        backoff_delay = min(
+                            math.pow(2, retry_number) + random.random(), max_backoff
+                        )
                         if current_t + backoff_delay < deadline:
                             time.sleep(backoff_delay)
                             retry_number += 1
-                            continue # retry again
+                            continue  # retry again
                         else:
                             raise
                     else:
                         raise
 
         return wrapper
+
     return decorator
 
 
@@ -103,9 +106,6 @@ class KubernetesJob(object):
     def __init__(self, client_wrapper, **kwargs):
         self._client_wrapper = client_wrapper
         self._kwargs = kwargs
-
-        # Kubernetes namespace defaults to `default`
-        self._kwargs["namespace"] = self._kwargs["namespace"] or "default"
 
     def create(self):
         # Check that job attributes are sensible.

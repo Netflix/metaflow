@@ -17,17 +17,19 @@ from .util import is_stringish
 #   variable also disables automatic cleaning of subdirectories, which can
 #   fill up disk space quickly
 
+
 class Debug(object):
     def __init__(self):
         import metaflow.metaflow_config as config
+
         for typ in config.DEBUG_OPTIONS:
-            if getattr(config, 'METAFLOW_DEBUG_%s' % typ.upper()):
+            if getattr(config, "METAFLOW_DEBUG_%s" % typ.upper()):
                 op = partial(self.log, typ)
             else:
                 op = self.noop
             # use debug.$type_exec(args) to log command line for subprocesses
             # of type $type
-            setattr(self, '%s_exec' % typ, op)
+            setattr(self, "%s_exec" % typ, op)
             # use the debug.$type flag to check if logging is enabled for $type
             setattr(self, typ, op != self.noop)
 
@@ -35,8 +37,8 @@ class Debug(object):
         if is_stringish(args):
             s = args
         else:
-            s = ' '.join(args)
-        print('debug[%s]: %s' % (typ, s), file=sys.stderr)
+            s = " ".join(args)
+        print("debug[%s]: %s" % (typ, s), file=sys.stderr)
 
     def noop(self, args):
         pass

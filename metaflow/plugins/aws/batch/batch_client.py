@@ -3,7 +3,6 @@ from collections import defaultdict, deque
 from contextlib import contextmanager
 import random
 import select
-import sys
 import time
 import hashlib
 
@@ -88,6 +87,7 @@ def describe_jobs(batch_client, jobs):
     while not data["jobs"]:
         data = _describe_jobs(batch_client, jobs)  # Throttled til failure
     return data
+
 
 
 class BatchClient(object):
@@ -445,6 +445,7 @@ class BatchJob(object):
     def attempts(self, attempts):
         self.payload["retryStrategy"]["attempts"] = attempts
         return self
+
 
 
 class TriableException(Exception):

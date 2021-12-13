@@ -10,17 +10,22 @@ TaskDataStoreSet allows you to prefetch multiple (read) datastores into a
 cache and lets you access them. As a performance optimization it also lets you 
 prefetch select data artifacts leveraging a shared cache.
 """
+
+
 class TaskDataStoreSet(object):
-    def __init__(self,
-                 flow_datastore,
-                 run_id,
-                 steps=None,
-                 pathspecs=None,
-                 prefetch_data_artifacts=None,
-                 allow_not_done=False):
+    def __init__(
+        self,
+        flow_datastore,
+        run_id,
+        steps=None,
+        pathspecs=None,
+        prefetch_data_artifacts=None,
+        allow_not_done=False,
+    ):
 
         task_datastores = flow_datastore.get_latest_task_datastores(
-            run_id, steps=steps, pathspecs=pathspecs, allow_not_done=allow_not_done)
+            run_id, steps=steps, pathspecs=pathspecs, allow_not_done=allow_not_done
+        )
 
         if prefetch_data_artifacts:
             # produce a set of SHA keys to prefetch based on artifact names
@@ -29,7 +34,7 @@ class TaskDataStoreSet(object):
                 prefetch.update(ds.keys_for_artifacts(prefetch_data_artifacts))
             # ignore missing keys
             prefetch.discard(None)
-            
+
             # prefetch artifacts and share them with all datastores
             # in this DatastoreSet
             preloaded = dict(flow_datastore.ca_store.load_blobs(prefetch))
@@ -52,12 +57,14 @@ class TaskDataStoreSet(object):
         for v in self.pathspec_cache.values():
             yield v
 
+
 """
 This class ensures that blobs that correspond to artifacts that
 are common to all datastores in this set are only loaded once 
 """
-class ImmutableBlobCache(BlobCache):
 
+
+class ImmutableBlobCache(BlobCache):
     def __init__(self, preloaded):
         self._preloaded = preloaded
 

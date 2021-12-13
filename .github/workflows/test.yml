@@ -7,8 +7,14 @@ on:
     branches:
     - master
 jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-python@v2
+    - uses: pre-commit/action@v2.0.3
   test:
-    name: ${{ matrix.lang }} tests on ${{ matrix.os }}
+    name: tests / ${{ matrix.lang }} tests on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:

@@ -5,9 +5,10 @@ from ..metaflow_config import DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_LOCAL
 from .datastore_storage import CloseAfterUse, DataStoreStorage
 from .exceptions import DataException
 
+
 class LocalStorage(DataStoreStorage):
-    TYPE = 'local'
-    METADATA_DIR = '_meta'
+    TYPE = "local"
+    METADATA_DIR = "_meta"
 
     @classmethod
     def get_datastore_root_from_config(cls, echo, create_on_absent=True):
@@ -16,7 +17,7 @@ class LocalStorage(DataStoreStorage):
             try:
                 # Python2
                 current_path = os.getcwdu()
-            except: # noqa E722
+            except:  # noqa E722
                 current_path = os.getcwd()
             check_dir = os.path.join(current_path, DATASTORE_LOCAL_DIR)
             check_dir = os.path.realpath(check_dir)
@@ -32,8 +33,9 @@ class LocalStorage(DataStoreStorage):
             if top_level_reached:
                 if create_on_absent:
                     # Could not find any directory to use so create a new one
-                    echo('Creating local datastore in current directory (%s)'
-                         % orig_path)
+                    echo(
+                        "Creating local datastore in current directory (%s)" % orig_path
+                    )
                     os.mkdir(orig_path)
                     result = orig_path
                 else:
@@ -66,7 +68,7 @@ class LocalStorage(DataStoreStorage):
         if file_exists:
             full_meta_path = "%s_meta" % self.full_uri(path)
             try:
-                with open(full_meta_path, 'r') as f:
+                with open(full_meta_path, "r") as f:
                     return True, json.load(f)
             except OSError:
                 return True, None
@@ -95,9 +97,9 @@ class LocalStorage(DataStoreStorage):
                     results.append(
                         self.list_content_result(
                             path=self.path_join(path, f),
-                            is_file=self.is_file(
-                                [self.path_join(path, f)])[0])
-                        )        
+                            is_file=self.is_file([self.path_join(path, f)])[0],
+                        )
+                    )
             except FileNotFoundError as e:
                 pass
         return results
@@ -112,10 +114,10 @@ class LocalStorage(DataStoreStorage):
             if not overwrite and os.path.exists(full_path):
                 continue
             LocalStorage._makedirs(os.path.dirname(full_path))
-            with open(full_path, mode='wb') as f:
+            with open(full_path, mode="wb") as f:
                 f.write(byte_obj.read())
             if metadata:
-                with open("%s_meta" % full_path, mode='w') as f:
+                with open("%s_meta" % full_path, mode="w") as f:
                     json.dump(metadata, f)
 
     def load_bytes(self, paths):
@@ -125,9 +127,10 @@ class LocalStorage(DataStoreStorage):
                 metadata = None
                 if os.path.exists(full_path):
                     if os.path.exists("%s_meta" % full_path):
-                        with open("%s_meta" % full_path, mode='r') as f:
+                        with open("%s_meta" % full_path, mode="r") as f:
                             metadata = json.load(f)
                     yield path, full_path, metadata
                 else:
                     yield path, None, None
+
         return CloseAfterUse(iter_results())

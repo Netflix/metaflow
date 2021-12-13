@@ -3,9 +3,11 @@ def get_plugin_cli():
 
 
 from .flow_options import FlowDecoratorWithOptions
+
 FLOW_DECORATORS = [FlowDecoratorWithOptions]
 
 from .test_step_decorator import TestStepDecorator
+
 STEP_DECORATORS = [TestStepDecorator]
 
 ENVIRONMENTS = []
@@ -18,4 +20,4 @@ LOGGING_SIDECARS = {}
 
 MONITOR_SIDECARS = {}
 
-__mf_promote_submodules__ = ['nondecoplugin']
+__mf_promote_submodules__ = ["nondecoplugin"]

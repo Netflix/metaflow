@@ -20,16 +20,16 @@ from metaflow.metaflow_config import (
 )
 from metaflow.mflog import (
     export_mflog_env_vars,
-    bash_capture_logs,
-    update_delay,
-    BASH_SAVE_LOGS
+    capture_output_to_mflog,
+    tail_logs,
+    BASH_SAVE_LOGS,
 )
 from metaflow.mflog.mflog import refine, set_should_persist
 
 from .kubernetes_client import KubernetesClient
 
-# Redirect structured logs to /logs/
-LOGS_DIR = "/logs"
+# Redirect structured logs to $PWD/.logs/
+LOGS_DIR = "$PWD/.logs"
 STDOUT_FILE = "mflog_stdout"
 STDERR_FILE = "mflog_stderr"
 STDOUT_PATH = os.path.join(LOGS_DIR, STDOUT_FILE)
@@ -44,41 +44,36 @@ class KubernetesKilledException(MetaflowException):
     headline = "Kubernetes Batch job killed"
 
 
-def generate_rfc1123_name(flow_name,
-    run_id,
-    step_name,
-    task_id,
-    attempt
-):
+def generate_rfc1123_name(flow_name, run_id, step_name, task_id, attempt):
     """
     Generate RFC 1123 compatible name. Specifically, the format is:
         <let-or-digit>[*[<let-or-digit-or-hyphen>]<let-or-digit>]
-    
-    The generated name consists from a human-readable prefix, derived from 
+
+    The generated name consists from a human-readable prefix, derived from
     flow/step/task/attempt, and a hash suffux.
     """
     long_name = "-".join(
-            [
-                flow_name,
-                run_id,
-                step_name,
-                task_id,
-                attempt,
-            ]
-        )
-    hash = hashlib.sha256(long_name.encode('utf-8')).hexdigest()
+        [
+            flow_name,
+            run_id,
+            step_name,
+            task_id,
+            attempt,
+        ]
+    )
+    hash = hashlib.sha256(long_name.encode("utf-8")).hexdigest()
 
-    if long_name.startswith('_'):
+    if long_name.startswith("_"):
         # RFC 1123 names can't start with hyphen so slap an extra prefix on it
-        sanitized_long_name = 'u' + long_name.replace('_', '-').lower()
+        sanitized_long_name = "u" + long_name.replace("_", "-").lower()
     else:
-        sanitized_long_name = long_name.replace('_', '-').lower()
+        sanitized_long_name = long_name.replace("_", "-").lower()
 
     # the name has to be under 63 chars total
-    return sanitized_long_name[:57] + '-' + hash[:5]
+    return sanitized_long_name[:57] + "-" + hash[:5]
 
 
-LABEL_VALUE_REGEX = re.compile(r'^[a-zA-Z0-9]([a-zA-Z0-9\-\_\.]{0,61}[a-zA-Z0-9])?$')
+LABEL_VALUE_REGEX = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9\-\_\.]{0,61}[a-zA-Z0-9])?$")
 
 
 def sanitize_label_value(val):
@@ -90,14 +85,14 @@ def sanitize_label_value(val):
     # position, this function will likely return distinct values, so you can
     # still filter on those. For example, "alice$" and "alice&" will be
     # sanitized into different values "alice_b3f201" and "alice_2a6f13".
-    if val == '' or LABEL_VALUE_REGEX.match(val):
+    if val == "" or LABEL_VALUE_REGEX.match(val):
         return val
-    hash = hashlib.sha256(val.encode('utf-8')).hexdigest()
+    hash = hashlib.sha256(val.encode("utf-8")).hexdigest()
 
     # Replace invalid chars with dots, and if the first char is
     # non-alphahanumeric, replace it with 'u' to make it valid
-    sanitized_val = re.sub('^[^A-Z0-9a-z]', 'u', re.sub(r"[^A-Za-z0-9.\-_]", "_", val))
-    return sanitized_val[:57] + '-' + hash[:5]
+    sanitized_val = re.sub("^[^A-Z0-9a-z]", "u", re.sub(r"[^A-Za-z0-9.\-_]", "_", val))
+    return sanitized_val[:57] + "-" + hash[:5]
 
 
 class Kubernetes(object):
@@ -139,11 +134,13 @@ class Kubernetes(object):
         )
         init_cmds = self._environment.get_package_commands(code_package_url)
         init_expr = " && ".join(init_cmds)
-        step_expr = bash_capture_logs(
-            " && ".join(
-                self._environment.bootstrap_commands(self._step_name)
-                + step_cmds
-            )
+        step_expr = " && ".join(
+            [
+                capture_output_to_mflog(a)
+                for a in (
+                    self._environment.bootstrap_commands(self._step_name) + step_cmds
+                )
+            ]
         )
 
         # Construct an entry point that
@@ -154,7 +151,8 @@ class Kubernetes(object):
         # The `true` command is to make sure that the generated command
         # plays well with docker containers which have entrypoint set as
         # eval $@
-        cmd_str = "true && mkdir -p /logs && %s && %s && %s; " % (
+        cmd_str = "true && mkdir -p %s && %s && %s && %s; " % (
+            LOGS_DIR,
             mflog_expr,
             init_expr,
             step_expr,
@@ -238,16 +236,12 @@ class Kubernetes(object):
             .environment_variable("METAFLOW_CODE_URL", code_package_url)
             .environment_variable("METAFLOW_CODE_DS", code_package_ds)
             .environment_variable("METAFLOW_USER", user)
-            .environment_variable(
-                "METAFLOW_SERVICE_URL", BATCH_METADATA_SERVICE_URL
-            )
+            .environment_variable("METAFLOW_SERVICE_URL", BATCH_METADATA_SERVICE_URL)
             .environment_variable(
                 "METAFLOW_SERVICE_HEADERS",
                 json.dumps(BATCH_METADATA_SERVICE_HEADERS),
             )
-            .environment_variable(
-                "METAFLOW_DATASTORE_SYSROOT_S3", DATASTORE_SYSROOT_S3
-            )
+            .environment_variable("METAFLOW_DATASTORE_SYSROOT_S3", DATASTORE_SYSROOT_S3)
             .environment_variable("METAFLOW_DATATOOLS_S3ROOT", DATATOOLS_S3ROOT)
             .environment_variable("METAFLOW_DEFAULT_DATASTORE", "s3")
             .environment_variable("METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA)
@@ -282,14 +276,13 @@ class Kubernetes(object):
         for sys_tag in self._metadata.sticky_sys_tags:
             job.label(
                 "metaflow/%s" % sys_tag[: sys_tag.index(":")],
-                sanitize_label_value(sys_tag[sys_tag.index(":") + 1 :])
+                sanitize_label_value(sys_tag[sys_tag.index(":") + 1 :]),
             )
         # TODO: Add annotations based on https://kubernetes.io/blog/2021/04/20/annotating-k8s-for-humans/
 
         return job.create()
 
     def wait(self, stdout_location, stderr_location, echo=None):
-
         def wait_for_launch(job):
             status = job.status
             echo(
@@ -312,48 +305,21 @@ class Kubernetes(object):
                     break
                 time.sleep(1)
 
-        def _print_available(tail, stream, should_persist=False):
-            # print the latest batch of lines from S3Tail
-            prefix = b"[%s] " % util.to_bytes(self._job.id)
-            try:
-                for line in tail:
-                    if should_persist:
-                        line = set_should_persist(line)
-                    else:
-                        line = refine(line, prefix=prefix)
-                    echo(line.strip().decode("utf-8", errors="replace"), stream)
-            except Exception as ex:
-                echo(
-                    "[ temporary error in fetching logs: %s ]" % ex,
-                    "stderr",
-                    job_id=self._job.id,
-                )
-
+        prefix = b"[%s] " % util.to_bytes(self._job.id)
         stdout_tail = S3Tail(stdout_location)
         stderr_tail = S3Tail(stderr_location)
 
         # 1) Loop until the job has started
         wait_for_launch(self._job)
 
-        # 2) Loop until the job has finished
-        start_time = time.time()
-        is_running = True
-        next_log_update = start_time
-        log_update_delay = 1
-
-        while is_running:
-            if time.time() > next_log_update:
-                _print_available(stdout_tail, "stdout")
-                _print_available(stderr_tail, "stderr")
-                now = time.time()
-                log_update_delay = update_delay(now - start_time)
-                next_log_update = now + log_update_delay
-                is_running = self._job.is_running
-
-            # This sleep should never delay log updates. On the other hand,
-            # we should exit this loop when the task has finished without
-            # a long delay, regardless of the log tailing schedule
-            time.sleep(min(log_update_delay, 5.0))
+        # 2) Tail logs until the job has finished
+        tail_logs(
+            prefix=prefix,
+            stdout_tail=stdout_tail,
+            stderr_tail=stderr_tail,
+            echo=echo,
+            has_log_updates=lambda: self._job.is_running,
+        )
 
         # 3) Fetch remaining logs
         #
@@ -365,8 +331,6 @@ class Kubernetes(object):
         #               exists prior to calling S3Tail and note the user about
         #               truncated logs if it doesn't.
         # TODO (savin): For hard crashes, we can fetch logs from the pod.
-        _print_available(stdout_tail, "stdout")
-        _print_available(stderr_tail, "stderr")
 
         if self._job.has_failed:
             exit_code, reason = self._job.reason
@@ -380,14 +344,11 @@ class Kubernetes(object):
             )
             if exit_code:
                 if int(exit_code) == 139:
-                    raise KubernetesException(
-                        "Task failed with a segmentation fault."
-                    )
+                    raise KubernetesException("Task failed with a segmentation fault.")
                 else:
                     msg = "%s (exit code %s)" % (msg, exit_code)
             raise KubernetesException(
-                "%s. This could be a transient error. "
-                "Use @retry to retry." % msg
+                "%s. This could be a transient error. " "Use @retry to retry." % msg
             )
 
         exit_code, _ = self._job.reason
