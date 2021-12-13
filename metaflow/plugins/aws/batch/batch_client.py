@@ -15,13 +15,10 @@ from metaflow.metaflow_config import AWS_SANDBOX_ENABLED
 from ..aws_utils import retry
 
 
-def batch_retry(deadline_seconds=60, max_backoff=32):
+def batch_retry(function=None, *, deadline_seconds=60, max_backoff=32):
     """Exponential backoff retrying on batch_client.exceptions.ClientError"""
     from metaflow.metaflow_config import BATCH_DESCRIBE_JOBS_DEADLINE_SECS as DEADLINE
-    from metaflow.metaflow_config import BATCH_DESCRIBE_JOBS_BACKOFF as BACKOFF
-    from ..aws_client import get_aws_client
-
-    batch_client = get_aws_client("batch")
+    from metaflow.metaflow_config import BATCH_DESCRIBE_JOBS_MAX_BACKOFF as BACKOFF
 
     # Overide defaults if the user has specified backoff in env or config.
     # This is done here rather than metaflow_config to speed up development
@@ -29,13 +26,20 @@ def batch_retry(deadline_seconds=60, max_backoff=32):
     deadline_seconds = deadline_seconds if DEADLINE is None else DEADLINE
     max_backoff = max_backoff if BACKOFF is None else BACKOFF
 
+    def exception():
+        from ..aws_client import get_aws_client
+
+        batch_client = get_aws_client("batch")
+        return batch_client.exceptions.ClientError
+
     def exception_handler(e):
         """Retry only is the HTTP status code ==429 or >=500"""
         code = e.response["ResponseMetadata"]["HTTPStatusCode"]
         return code == 429 or code >= 500
 
     return retry(
-        exceptions=batch_client.exceptions.ClientError,
+        function=function,
+        exception=exception,
         exception_handler=exception_handler,
         deadline_seconds=deadline_seconds,
         max_backoff=max_backoff,
@@ -43,7 +47,7 @@ def batch_retry(deadline_seconds=60, max_backoff=32):
 
 
 @batch_retry
-def _describe_job_definitions(batch_client, **payload):
+def describe_job_definitions(batch_client, **payload):
     return batch_client.describe_job_definitions(**payload)
 
 
@@ -59,7 +63,7 @@ def describe_jobs(batch_client, jobs):
     # We poll here to guard against that.
     data = {"jobs": []}
     while not data["jobs"]:
-        data = _describe_jobs(batch_client, jobs)  # Throttled til failure
+        data = _describe_jobs(batch_client, jobs)  # NB: retry enabled
     return data
 
 

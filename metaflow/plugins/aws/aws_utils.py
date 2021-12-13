@@ -58,7 +58,7 @@ def get_docker_registry(image_uri):
 def retry(
     function=None,
     *,
-    exceptions=tuple(),
+    exception=None,
     exception_handler=lambda x: True,
     deadline_seconds=None,
     max_backoff=None,
@@ -72,7 +72,7 @@ def retry(
     Args:
         function: Included in the design pattern to allow the decorator to run
                   with and without parentheses (@deco and @deco(params))
-        exceptions: A single exception or a tuple of exceptions.
+        exception: A function which returns an exception which triggers a retry.
         exception_handler: A filter function, for which True indicates that a retry
                            should take place, and False indicates that the exception
                            should be raised.
@@ -92,21 +92,26 @@ def retry(
 
             while True:
                 try:
+                    print("trying", f, args, kwargs)
                     result = f(*args, **kwargs)
                     return result
-                except exceptions as e:
+                except exception() as e:
+                    print("got exception", e)
                     if exception_handler(e):
                         current_t = time.time()
                         backoff_delay = min(
                             math.pow(2, retry_number) + random.random(), max_backoff
                         )
                         if current_t + backoff_delay < deadline:
+                            print("retrying")
                             time.sleep(backoff_delay)
                             retry_number += 1
                             continue  # retry again
                         else:
+                            print("no more tries")
                             raise
                     else:
+                        print("no retrying")
                         raise
 
         return wrapper
