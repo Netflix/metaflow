@@ -151,9 +151,19 @@ BATCH_METADATA_SERVICE_HEADERS = METADATA_SERVICE_HEADERS
 BATCH_EMIT_TAGS = from_conf("METAFLOW_BATCH_EMIT_TAGS", False)
 
 # To set the number of retries when throttling client.describe_jobs
-# in plugins.aws.batch.batch_client via Throttle()
-BATCH_DESCRIBE_JOBS_THROTTLE_TRIES = int(from_conf("BATCH_DESCRIBE_JOBS_THROTTLE_TRIES", 20))
-BATCH_DESCRIBE_JOBS_THROTTLE_DELTA = int(from_conf("BATCH_DESCRIBE_JOBS_THROTTLE_DELTA", 1))
+# in plugins.aws.batch.batch_client via batch_retry()
+BATCH_DESCRIBE_JOBS_THROTTLE_TRIES = from_conf(
+    "BATCH_DESCRIBE_JOBS_THROTTLE_TRIES", None  # default in aws.batch.batch_client
+)
+BATCH_DESCRIBE_JOBS_THROTTLE_DELTA = from_conf(
+    "BATCH_DESCRIBE_JOBS_THROTTLE_DELTA", None  # default in aws.batch.batch_client
+)
+# Convert to int if set, otherwise will fall back on defaults in aws.batch.batch_client
+if BATCH_DESCRIBE_JOBS_THROTTLE_TRIES is not None:
+    BATCH_DESCRIBE_JOBS_THROTTLE_TRIES = int(BATCH_DESCRIBE_JOBS_THROTTLE_TRIES)
+if BATCH_DESCRIBE_JOBS_THROTTLE_DELTA is not None:
+    BATCH_DESCRIBE_JOBS_THROTTLE_DELTA = int(BATCH_DESCRIBE_JOBS_THROTTLE_DELTA)
+
 
 ###
 # AWS Step Functions configuration
