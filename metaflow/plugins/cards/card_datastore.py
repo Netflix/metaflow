@@ -111,7 +111,7 @@ class CardDatastore(object):
 
         if sysroot == "" or sysroot == None:
             pth_arr.pop(0)
-        return self._backend.path_join(*pth_arr)
+        return os.path.join(*pth_arr)
 
     def _get_card_path(self, base_pth=""):
         return self._make_path(
