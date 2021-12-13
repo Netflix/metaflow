@@ -452,7 +452,9 @@ class ErrorCard(MetaflowCard):
             components=[page],
         )
         pt = self._get_mustache()
-        data_dict = dict(task_data=json.dumps(json.dumps(final_component_dict)))
+        data_dict = dict(
+            title=task.pathspec, task_data=json.dumps(json.dumps(final_component_dict))
+        )
         return pt.render(RENDER_TEMPLATE, data_dict)
 
 
@@ -477,6 +479,7 @@ class DefaultCard(MetaflowCard):
         ).render()
         pt = self._get_mustache()
         data_dict = dict(
+            title=task.pathspec,
             task_data=json.dumps(json.dumps(final_component_dict)),
         )
         return pt.render(RENDER_TEMPLATE, data_dict)
