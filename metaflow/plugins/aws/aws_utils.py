@@ -57,17 +57,32 @@ def get_docker_registry(image_uri):
 
 def retry(
     function=None,
-    exceptions=[],
+    *,
+    exceptions=tuple(),
     exception_handler=lambda x: True,
     deadline_seconds=None,
     max_backoff=None,
 ):
     """
-    Implements truncated exponential backoff from
-    https://cloud.google.com/storage/docs/retry-strategy#exponential-backoff
+    A factory method which returns a truncated exponential backoff retry decorator.
+
+    For deadline_seconds and max_backoff see
+    https://cloud.google.com/storage/docs/retry-strategy#exponential-backoff.
+
+    Args:
+        function: Included in the design pattern to allow the decorator to run
+                  with and without parentheses (@deco and @deco(params))
+        exceptions: A single exception or a tuple of exceptions.
+        exception_handler: A filter function, for which True indicates that a retry
+                           should take place, and False indicates that the exception
+                           should be raised.
     """
 
     def decorator(f):
+        """
+        Implements truncated exponential backoff from
+        https://cloud.google.com/storage/docs/retry-strategy#exponential-backoff
+        """
         from functools import wraps
 
         @wraps(f)

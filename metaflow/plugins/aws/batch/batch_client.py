@@ -15,10 +15,10 @@ from metaflow.metaflow_config import AWS_SANDBOX_ENABLED
 from ..aws_utils import retry
 
 
-def batch_retry(deadline_seconds=1, max_backoff=20):
+def batch_retry(deadline_seconds=60, max_backoff=32):
     """Exponential backoff retrying on batch_client.exceptions.ClientError"""
-    from metaflow.metaflow_config import BATCH_DESCRIBE_JOBS_THROTTLE_DELTA as DELTA
-    from metaflow.metaflow_config import BATCH_DESCRIBE_JOBS_THROTTLE_TRIES as TRIES
+    from metaflow.metaflow_config import BATCH_DESCRIBE_JOBS_DEADLINE_SECS as DEADLINE
+    from metaflow.metaflow_config import BATCH_DESCRIBE_JOBS_BACKOFF as BACKOFF
     from ..aws_client import get_aws_client
 
     batch_client = get_aws_client("batch")
@@ -26,10 +26,8 @@ def batch_retry(deadline_seconds=1, max_backoff=20):
     # Overide defaults if the user has specified backoff in env or config.
     # This is done here rather than metaflow_config to speed up development
     # turnaround when debugging failures.
-    if DELTA is not None:
-        deadline_seconds = DELTA
-    if TRIES is not None:
-        max_backoff = TRIES
+    deadline_seconds = deadline_seconds if DEADLINE is None else DEADLINE
+    max_backoff = max_backoff if BACKOFF is None else BACKOFF
 
     def exception_handler(e):
         """Retry only is the HTTP status code ==429 or >=500"""
