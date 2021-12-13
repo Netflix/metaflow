@@ -1,7 +1,6 @@
 <!-- This component gives us a wrapper for main aside components -->
 <script lang="ts">
   import Logo from "./logo.svelte";
-  import * as constants from "../constants";
 </script>
 
 <aside>
@@ -11,11 +10,6 @@
     </div>
     <slot />
   </div>
-  <ul>
-    <li><a href={constants.MF_CARD_DOCS_URL}>@card Docs</a></li>
-    <li><a href={constants.OB_SLACK_URL}>Slack Help</a></li>
-    <li><a href={constants.MF_GITHUB_URL}>Github</a></li>
-  </ul>
 </aside>
 
 <style>
