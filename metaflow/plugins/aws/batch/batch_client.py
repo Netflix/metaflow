@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
 from collections import defaultdict, deque
-from contextlib import contextmanager
-import random
 import select
-import time
 import hashlib
 
 try:
@@ -14,68 +11,47 @@ except NameError:
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import AWS_SANDBOX_ENABLED
-from metaflow.metaflow_config import BATCH_DESCRIBE_JOBS_THROTTLE_DELTA as DELTA
-from metaflow.metaflow_config import BATCH_DESCRIBE_JOBS_THROTTLE_TRIES as TRIES
+
+from ..aws_utils import retry
 
 
-class Throttle(object):
-    def __init__(self, delta_in_secs=DELTA, num_tries=TRIES):
-        self._now = time.time()
-        self.delta_in_secs = int(delta_in_secs)  # Cast if from env variable
-        self.num_tries = int(num_tries)  # Cast if from env variable
-        self._reset()
+def batch_retry(deadline_seconds=1, max_backoff=20):
+    """Exponential backoff retrying on batch_client.exceptions.ClientError"""
+    from metaflow.metaflow_config import BATCH_DESCRIBE_JOBS_THROTTLE_DELTA as DELTA
+    from metaflow.metaflow_config import BATCH_DESCRIBE_JOBS_THROTTLE_TRIES as TRIES
+    from ..aws_client import get_aws_client
 
-    def _reset(self):
-        self._tries_left = self.num_tries
+    batch_client = get_aws_client("batch")
 
-    def __call__(self, func):
-        def wrapped(*args, **kwargs):
-            # Don't poll incessantly
-            wait = self.delta_in_secs - (time.time() - self._now)
-            if wait > 0:
-                time.sleep(wait)
-                self._now = time.time()
-            # Throttle til failure
-            while "throttling":
-                try:
-                    value = func(*args, **kwargs)
-                except TriableException as ex:
-                    self._tries_left -= 1
-                    if self._tries_left == 0:
-                        raise ex.ex
-                    backoff = (self.delta_in_secs * 1.2) ** (
-                        self.num_tries - self._tries_left
-                    )
-                    jitter = random.randint(0, 3 * self.delta_in_secs)
-                    time.sleep(backoff + jitter)
-                else:
-                    self._reset()
-                    return value
+    # Overide defaults if the user has specified backoff in env or config.
+    # This is done here rather than metaflow_config to speed up development
+    # turnaround when debugging failures.
+    if DELTA is not None:
+        deadline_seconds = DELTA
+    if TRIES is not None:
+        max_backoff = TRIES
 
-        return wrapped
+    def exception_handler(e):
+        """Retry only is the HTTP status code ==429 or >=500"""
+        code = e.response["ResponseMetadata"]["HTTPStatusCode"]
+        return (code == 429 or code >= 500)
+
+    return retry(
+        exceptions=batch_client.exceptions.ClientError,
+        exception_handler=exception_handler,
+        deadline_seconds=deadline_seconds,
+        max_backoff=max_backoff
+    )
 
 
-@contextmanager
-def manage_client_error(batch_client):
-    try:
-        yield
-    except batch_client.exceptions.ClientError as err:
-        code = err.response["ResponseMetadata"]["HTTPStatusCode"]
-        if code == 429 or code >= 500:
-            raise TriableException(err)
-        raise err
-
-
-@Throttle()
+@batch_retry
 def _describe_job_definitions(batch_client, **payload):
-    with manage_client_error(batch_client):
-        return batch_client.describe_job_definitions(**payload)
+    return batch_client.describe_job_definitions(**payload)
 
 
-@Throttle()
+@batch_retry
 def _describe_jobs(batch_client, jobs):
-    with manage_client_error(batch_client):
-        return batch_client.describe_jobs(jobs=jobs)
+    return batch_client.describe_jobs(jobs=jobs)
 
 
 def describe_jobs(batch_client, jobs):
@@ -89,20 +65,18 @@ def describe_jobs(batch_client, jobs):
     return data
 
 
-
 class BatchClient(object):
     def __init__(self):
         from ..aws_client import get_aws_client
-
-        self._client = get_aws_client("batch")
+        self._client = get_aws_client('batch')
 
     def active_job_queues(self):
-        paginator = self._client.get_paginator("describe_job_queues")
+        paginator = self._client.get_paginator('describe_job_queues')
         return (
-            queue["jobQueueName"]
+            queue['jobQueueName']
             for page in paginator.paginate()
-            for queue in page["jobQueues"]
-            if queue["state"] == "ENABLED" and queue["status"] == "VALID"
+            for queue in page['jobQueues']
+            if queue['state'] == 'ENABLED' and queue['status'] == 'VALID'
         )
 
     def unfinished_jobs(self):
@@ -110,23 +84,22 @@ class BatchClient(object):
         return (
             job
             for queue in queues
-            for status in ["SUBMITTED", "PENDING", "RUNNABLE", "STARTING", "RUNNING"]
-            for page in self._client.get_paginator("list_jobs").paginate(
+            for status in ['SUBMITTED', 'PENDING', 'RUNNABLE', 'STARTING', 'RUNNING']
+            for page in self._client.get_paginator('list_jobs').paginate(
                 jobQueue=queue, jobStatus=status
             )
-            for job in page["jobSummaryList"]
+            for job in page['jobSummaryList']
         )
 
     def describe_jobs(self, job_ids):
-        for jobIds in [job_ids[i : i + 100] for i in range(0, len(job_ids), 100)]:
-            for jobs in describe_jobs(self._client, jobIds)["jobs"]:
+        for jobIds in [job_ids[i:i+100] for i in range(0, len(job_ids), 100)]:
+            for jobs in describe_jobs(self._client, jobIds)['jobs']:
                 yield jobs
 
     def describe_job_queue(self, job_queue):
-        paginator = self._client.get_paginator("describe_job_queues").paginate(
-            jobQueues=[job_queue], maxResults=1
-        )
-        return paginator.paginate()["jobQueues"][0]
+        paginator = self._client.get_paginator('describe_job_queues').paginate(
+            jobQueues=[job_queue], maxResults=1)
+        return paginator.paginate()['jobQueues'][0]
 
     def job(self):
         return BatchJob(self._client)
@@ -140,7 +113,7 @@ class BatchClient(object):
 
 
 class BatchJobException(MetaflowException):
-    headline = "AWS Batch job error"
+    headline = 'AWS Batch job error'
 
 
 class BatchJob(object):
@@ -152,37 +125,33 @@ class BatchJob(object):
     def execute(self):
         if self._image is None:
             raise BatchJobException(
-                "Unable to launch AWS Batch job. No docker image specified."
+                'Unable to launch AWS Batch job. No docker image specified.'
             )
         if self._iam_role is None:
             raise BatchJobException(
-                "Unable to launch AWS Batch job. No IAM role specified."
+                'Unable to launch AWS Batch job. No IAM role specified.'
             )
-        if "jobDefinition" not in self.payload:
-            self.payload["jobDefinition"] = self._register_job_definition(
-                self._image,
-                self._iam_role,
-                self.payload["job_queue"],
-                self._execution_role,
-                self._shared_memory,
-                self._max_swap,
-                self._swappiness,
-            )
+        if 'jobDefinition' not in self.payload:
+            self.payload['jobDefinition'] = self._register_job_definition(self._image,
+                                                                          self._iam_role,
+                                                                          self.payload['job_queue'],
+                                                                          self._execution_role,
+                                                                          self._shared_memory,
+                                                                          self._max_swap,
+                                                                          self._swappiness)
         response = self._client.submit_job(**self.payload)
-        job = RunningJob(response["jobId"], self._client)
+        job = RunningJob(response['jobId'], self._client)
         return job.update()
 
-    def _register_job_definition(
-        self,
-        image,
-        job_role,
-        job_queue,
-        execution_role,
-        shared_memory,
-        max_swap,
-        swappiness,
-        host_volumes,
-    ):
+    def _register_job_definition(self,
+                                 image,
+                                 job_role,
+                                 job_queue,
+                                 execution_role,
+                                 shared_memory,
+                                 max_swap,
+                                 swappiness,
+                                 host_volumes):
         # identify platform from any compute environment associated with the
         # queue
         if AWS_SANDBOX_ENABLED:
@@ -192,62 +161,64 @@ class BatchJob(object):
             platform = "EC2"
         else:
             response = self._client.describe_job_queues(jobQueues=[job_queue])
-            if len(response["jobQueues"]) == 0:
-                raise BatchJobException("AWS Batch Job Queue %s not found." % job_queue)
-            compute_environment = response["jobQueues"][0]["computeEnvironmentOrder"][
-                0
-            ]["computeEnvironment"]
+            if len(response['jobQueues']) == 0:
+                raise BatchJobException('AWS Batch Job Queue %s not found.' % job_queue)
+            compute_environment = response['jobQueues'][0] \
+                                    ['computeEnvironmentOrder'][0] \
+                                    ['computeEnvironment']
             response = self._client.describe_compute_environments(
-                computeEnvironments=[compute_environment]
-            )
-            platform = response["computeEnvironments"][0]["computeResources"]["type"]
+                computeEnvironments=[compute_environment])
+            platform = response['computeEnvironments'][0] \
+                            ['computeResources']['type']
 
         # compose job definition
         job_definition = {
-            "type": "container",
-            "containerProperties": {
-                "image": image,
-                "jobRoleArn": job_role,
-                "command": ["echo", "hello world"],
-                "resourceRequirements": [
-                    {"value": "1", "type": "VCPU"},
-                    {"value": "4096", "type": "MEMORY"},
+            'type': 'container',
+            'containerProperties': {
+                'image': image,
+                'jobRoleArn': job_role,
+                'command': ['echo', 'hello world'],
+                'resourceRequirements': [
+                    {
+                        'value': '1',
+                        'type': 'VCPU'
+                    },
+                    {
+                        'value': '4096',
+                        'type': 'MEMORY'
+                    },
                 ],
             },
             # This propagates the AWS Batch resource tags to the underlying
             # ECS tasks.
-            "propagateTags": True,
+            'propagateTags': True,
         }
 
-        if platform == "FARGATE" or platform == "FARGATE_SPOT":
+        if platform == 'FARGATE' or platform == 'FARGATE_SPOT':
             if execution_role is None:
                 raise BatchJobException(
-                    "No AWS Fargate task execution IAM role found. Please see "
-                    "https://docs.aws.amazon.com/batch/latest/userguide/execution-IAM-role.html "
-                    "and set the role as METAFLOW_ECS_FARGATE_EXECUTION_ROLE "
-                    "environment variable."
+                    'No AWS Fargate task execution IAM role found. Please see '
+                    'https://docs.aws.amazon.com/batch/latest/userguide/execution-IAM-role.html '
+                    'and set the role as METAFLOW_ECS_FARGATE_EXECUTION_ROLE '
+                    'environment variable.'
                 )
-            job_definition["containerProperties"]["executionRoleArn"] = execution_role
-            job_definition["platformCapabilities"] = ["FARGATE"]
-            job_definition["containerProperties"]["networkConfiguration"] = {
-                "assignPublicIp": "ENABLED"
-            }
+            job_definition['containerProperties']['executionRoleArn'] = execution_role
+            job_definition['platformCapabilities'] = ['FARGATE']
+            job_definition['containerProperties']['networkConfiguration'] = \
+                {'assignPublicIp': 'ENABLED'}
 
-        if platform == "EC2" or platform == "SPOT":
-            if "linuxParameters" not in job_definition["containerProperties"]:
-                job_definition["containerProperties"]["linuxParameters"] = {}
+        if platform == 'EC2' or platform == 'SPOT':
+            if 'linuxParameters' not in job_definition['containerProperties']:
+                job_definition['containerProperties']['linuxParameters'] = {}
             if shared_memory is not None:
-                if not (
-                    isinstance(shared_memory, (int, unicode, basestring))
-                    and int(shared_memory) > 0
-                ):
+                if not (isinstance(shared_memory, (int, unicode, basestring)) and int(shared_memory) > 0):
                     raise BatchJobException(
-                        "Invalid shared memory size value ({}); "
-                        "it should be greater than 0".format(shared_memory)
+                        'Invalid shared memory size value ({}); '
+                        'it should be greater than 0'.format(shared_memory)
                     )
                 else:
-                    job_definition["containerProperties"]["linuxParameters"][
-                        "sharedMemorySize"
+                    job_definition['containerProperties']['linuxParameters'][
+                        'sharedMemorySize'
                     ] = int(shared_memory)
             if swappiness is not None:
                 if not (
@@ -256,95 +227,88 @@ class BatchJob(object):
                     and int(swappiness) < 100
                 ):
                     raise BatchJobException(
-                        "Invalid swappiness value ({}); "
-                        "(should be 0 or greater and less than 100)".format(swappiness)
+                        'Invalid swappiness value ({}); '
+                        '(should be 0 or greater and less than 100)'.format(swappiness)
                     )
                 else:
-                    job_definition["containerProperties"]["linuxParameters"][
-                        "swappiness"
+                    job_definition['containerProperties']['linuxParameters'][
+                        'swappiness'
                     ] = int(swappiness)
             if max_swap is not None:
-                if not (
-                    isinstance(max_swap, (int, unicode, basestring))
-                    and int(max_swap) >= 0
-                ):
+                if not (isinstance(max_swap, (int, unicode, basestring))
+                        and int(max_swap) >= 0):
                     raise BatchJobException(
-                        "Invalid swappiness value ({}); "
-                        "(should be 0 or greater)".format(max_swap)
+                        'Invalid swappiness value ({}); '
+                        '(should be 0 or greater)'.format(max_swap)
                     )
                 else:
-                    job_definition["containerProperties"]["linuxParameters"][
-                        "maxSwap"
-                    ] = int(max_swap)
+                    job_definition['containerProperties']['linuxParameters'] /
+                        ['maxSwap'] = int(max_swap)
 
         if host_volumes:
-            job_definition["containerProperties"]["volumes"] = []
-            job_definition["containerProperties"]["mountPoints"] = []
+            job_definition['containerProperties']['volumes'] = []
+            job_definition['containerProperties']['mountPoints'] = []
             for host_path in host_volumes:
-                name = host_path.replace("/", "_").replace(".", "_")
-                job_definition["containerProperties"]["volumes"].append(
-                    {"name": name, "host": {"sourcePath": host_path}}
+                name = host_path.replace('/', '_').replace('.', '_')
+                job_definition['containerProperties']['volumes'].append(
+                    {'name': name, 'host': {'sourcePath': host_path}}
                 )
-                job_definition["containerProperties"]["mountPoints"].append(
-                    {"sourceVolume": name, "containerPath": host_path}
+                job_definition['containerProperties']['mountPoints'].append(
+                    {'sourceVolume': name, 'containerPath': host_path}
                 )
 
         # check if job definition already exists
         def_name = (
-            "metaflow_%s"
-            % hashlib.sha224(str(job_definition).encode("utf-8")).hexdigest()
+            'metaflow_%s'
+            % hashlib.sha224(str(job_definition).encode('utf-8')).hexdigest()
         )
-        payload = {"jobDefinitionName": def_name, "status": "ACTIVE"}
+        payload = {'jobDefinitionName': def_name, 'status': 'ACTIVE'}
         response = _describe_job_definitions(self._client, **payload)
-        if len(response["jobDefinitions"]) > 0:
-            return response["jobDefinitions"][0]["jobDefinitionArn"]
+        if len(response['jobDefinitions']) > 0:
+            return response['jobDefinitions'][0]['jobDefinitionArn']
 
         # else create a job definition
-        job_definition["jobDefinitionName"] = def_name
+        job_definition['jobDefinitionName'] = def_name
         try:
             response = self._client.register_job_definition(**job_definition)
         except Exception as ex:
-            if type(ex).__name__ == "ParamValidationError" and (
-                platform == "FARGATE" or platform == "FARGATE_SPOT"
+            if type(ex).__name__ == 'ParamValidationError' and (
+                platform == 'FARGATE' or platform == 'FARGATE_SPOT'
             ):
                 raise BatchJobException(
-                    "%s \nPlease ensure you have installed boto3>=1.16.29 if "
-                    "you intend to launch AWS Batch jobs on AWS Fargate "
-                    "compute platform." % ex
+                    '%s \nPlease ensure you have installed boto3>=1.16.29 if '
+                    'you intend to launch AWS Batch jobs on AWS Fargate '
+                    'compute platform.' % ex
                 )
             else:
                 raise ex
-        return response["jobDefinitionArn"]
+        return response['jobDefinitionArn']
 
-    def job_def(
-        self,
-        image,
-        iam_role,
-        job_queue,
-        execution_role,
-        shared_memory,
-        max_swap,
-        swappiness,
-        host_volumes,
-    ):
-        self.payload["jobDefinition"] = self._register_job_definition(
-            image,
-            iam_role,
-            job_queue,
-            execution_role,
-            shared_memory,
-            max_swap,
-            swappiness,
-            host_volumes,
-        )
+    def job_def(self,
+                image,
+                iam_role,
+                job_queue,
+                execution_role,
+                shared_memory,
+                max_swap,
+                swappiness,
+                host_volumes):
+        self.payload['jobDefinition'] = self._register_job_definition(image,
+                                                                      iam_role,
+                                                                      job_queue,
+                                                                      execution_role,
+                                                                      shared_memory,
+                                                                      max_swap,
+                                                                      swappiness,
+                                                                      host_volumes)
         return self
 
     def job_name(self, job_name):
-        self.payload["jobName"] = job_name
+        self.payload['jobName'] = job_name
         return self
 
     def job_queue(self, job_queue):
-        self.payload["jobQueue"] = job_queue
+        self.payload['jobQueue'] = job_queue
         return self
 
     def image(self, image):
@@ -372,85 +336,80 @@ class BatchJob(object):
         return self
 
     def command(self, command):
-        if "command" not in self.payload["containerOverrides"]:
-            self.payload["containerOverrides"]["command"] = []
-        self.payload["containerOverrides"]["command"].extend(command)
+        if 'command' not in self.payload['containerOverrides']:
+            self.payload['containerOverrides']['command'] = []
+        self.payload['containerOverrides']['command'].extend(command)
         return self
 
     def cpu(self, cpu):
         if not (isinstance(cpu, (int, unicode, basestring, float)) and float(cpu) > 0):
             raise BatchJobException(
-                "Invalid CPU value ({}); it should be greater than 0".format(cpu)
+                'Invalid CPU value ({}); it should be greater than 0'.format(cpu)
             )
-        if "resourceRequirements" not in self.payload["containerOverrides"]:
-            self.payload["containerOverrides"]["resourceRequirements"] = []
-        self.payload["containerOverrides"]["resourceRequirements"].append(
-            {"value": str(cpu), "type": "VCPU"}
+        if 'resourceRequirements' not in self.payload['containerOverrides']:
+            self.payload['containerOverrides']['resourceRequirements'] = []
+        self.payload['containerOverrides']['resourceRequirements'].append(
+            {'value': str(cpu), 'type': 'VCPU'}
         )
         return self
 
     def memory(self, mem):
         if not (isinstance(mem, (int, unicode, basestring)) and int(mem) > 0):
             raise BatchJobException(
-                "Invalid memory value ({}); it should be greater than 0".format(mem)
+                'Invalid memory value ({}); it should be greater than 0'.format(mem)
             )
-        if "resourceRequirements" not in self.payload["containerOverrides"]:
-            self.payload["containerOverrides"]["resourceRequirements"] = []
-        self.payload["containerOverrides"]["resourceRequirements"].append(
-            {"value": str(mem), "type": "MEMORY"}
+        if 'resourceRequirements' not in self.payload['containerOverrides']:
+            self.payload['containerOverrides']['resourceRequirements'] = []
+        self.payload['containerOverrides']['resourceRequirements'].append(
+            {'value': str(mem), 'type': 'MEMORY'}
         )
         return self
 
     def gpu(self, gpu):
         if not (isinstance(gpu, (int, unicode, basestring))):
             raise BatchJobException(
-                "invalid gpu value: ({}) (should be 0 or greater)".format(gpu)
+                'invalid gpu value: ({}) (should be 0 or greater)'.format(gpu)
             )
         if int(gpu) > 0:
-            if "resourceRequirements" not in self.payload["containerOverrides"]:
-                self.payload["containerOverrides"]["resourceRequirements"] = []
-            self.payload["containerOverrides"]["resourceRequirements"].append(
-                {"type": "GPU", "value": str(gpu)}
+            if 'resourceRequirements' not in self.payload['containerOverrides']:
+                self.payload['containerOverrides']['resourceRequirements'] = []
+            self.payload['containerOverrides']['resourceRequirements'].append(
+                {'type': 'GPU', 'value': str(gpu)}
             )
         return self
 
     def environment_variable(self, name, value):
-        if "environment" not in self.payload["containerOverrides"]:
-            self.payload["containerOverrides"]["environment"] = []
+        if 'environment' not in self.payload['containerOverrides']:
+            self.payload['containerOverrides']['environment'] = []
         value = str(value)
-        if value.startswith("$$.") or value.startswith("$."):
+        if value.startswith('$$.') or value.startswith('$.'):
             # Context Object substitution for AWS Step Functions
             # https://docs.aws.amazon.com/step-functions/latest/dg/input-output-contextobject.html
-            self.payload["containerOverrides"]["environment"].append(
-                {"name": name, "value.$": value}
+            self.payload['containerOverrides']['environment'].append(
+                {'name': name, 'value.$': value}
             )
         else:
-            self.payload["containerOverrides"]["environment"].append(
-                {"name": name, "value": value}
+            self.payload['containerOverrides']['environment'].append(
+                {'name': name, 'value': value}
             )
         return self
 
     def timeout_in_secs(self, timeout_in_secs):
-        self.payload["timeout"]["attemptDurationSeconds"] = timeout_in_secs
+        self.payload['timeout']['attemptDurationSeconds'] = timeout_in_secs
         return self
 
     def tag(self, key, value):
-        self.payload["tags"][key] = str(value)
+        self.payload['tags'][key] = str(value)
         return self
 
     def parameter(self, key, value):
-        self.payload["parameters"][key] = str(value)
+        self.payload['parameters'][key] = str(value)
         return self
 
     def attempts(self, attempts):
-        self.payload["retryStrategy"]["attempts"] = attempts
+        self.payload['retryStrategy']['attempts'] = attempts
         return self
 
-
-
-class TriableException(Exception):
-    def __init__(self, ex):
-        self.ex = ex
 
 
 class RunningJob(object):
@@ -477,8 +436,8 @@ class RunningJob(object):
         # will ensure that we poll `batch.describe_jobs` until we get a
         # satisfactory response at least once through out the lifecycle of
         # the job.
-        if len(data["jobs"]) == 1:
-            self._apply(data["jobs"][0])
+        if len(data['jobs']) == 1:
+            self._apply(data['jobs'][0])
 
     def update(self):
         self._update()
@@ -498,29 +457,29 @@ class RunningJob(object):
 
     @property
     def job_name(self):
-        return self.info["jobName"]
+        return self.info['jobName']
 
     @property
     def job_queue(self):
-        return self.info["jobQueue"]
+        return self.info['jobQueue']
 
     @property
     def status(self):
         if not self.is_done:
             self.update()
-        return self.info["status"]
+        return self.info['status']
 
     @property
     def status_reason(self):
-        return self.info.get("statusReason")
+        return self.info.get('statusReason')
 
     @property
     def created_at(self):
-        return self.info["createdAt"]
+        return self.info['createdAt']
 
     @property
     def stopped_at(self):
-        return self.info.get("stoppedAt", 0)
+        return self.info.get('stoppedAt', 0)
 
     @property
     def is_done(self):
@@ -530,31 +489,31 @@ class RunningJob(object):
 
     @property
     def is_running(self):
-        return self.status == "RUNNING"
+        return self.status == 'RUNNING'
 
     @property
     def is_successful(self):
-        return self.status == "SUCCEEDED"
+        return self.status == 'SUCCEEDED'
 
     @property
     def is_crashed(self):
         # TODO: Check statusmessage to find if the job crashed instead of failing
-        return self.status == "FAILED"
+        return self.status == 'FAILED'
 
     @property
     def reason(self):
-        return self.info["container"].get("reason")
+        return self.info['container'].get('reason')
 
     @property
     def status_code(self):
         if not self.is_done:
             self.update()
-        return self.info["container"].get("exitCode")
+        return self.info['container'].get('exitCode')
 
     def kill(self):
         if not self.is_done:
             self._client.terminate_job(
-                jobId=self._id, reason="Metaflow initiated job termination."
+                jobId=self._id, reason='Metaflow initiated job termination.'
             )
         return self.update()
 
@@ -575,38 +534,38 @@ class BatchWaiter(object):
     def wait_for_running(self, job_id):
         model = self._waiter.WaiterModel(
             {
-                "version": 2,
-                "waiters": {
-                    "JobRunning": {
-                        "delay": 1,
-                        "operation": "DescribeJobs",
-                        "description": "Wait until job starts running",
-                        "maxAttempts": 1000000,
-                        "acceptors": [
+                'version': 2,
+                'waiters': {
+                    'JobRunning': {
+                        'delay': 1,
+                        'operation': 'DescribeJobs',
+                        'description': 'Wait until job starts running',
+                        'maxAttempts': 1000000,
+                        'acceptors': [
                             {
-                                "argument": "jobs[].status",
-                                "expected": "SUCCEEDED",
-                                "matcher": "pathAll",
-                                "state": "success",
+                                'argument': 'jobs[].status',
+                                'expected': 'SUCCEEDED',
+                                'matcher': 'pathAll',
+                                'state': 'success',
                             },
                             {
-                                "argument": "jobs[].status",
-                                "expected": "FAILED",
-                                "matcher": "pathAny",
-                                "state": "success",
+                                'argument': 'jobs[].status',
+                                'expected': 'FAILED',
+                                'matcher': 'pathAny',
+                                'state': 'success',
                             },
                             {
-                                "argument": "jobs[].status",
-                                "expected": "RUNNING",
-                                "matcher": "pathAny",
-                                "state": "success",
+                                'argument': 'jobs[].status',
+                                'expected': 'RUNNING',
+                                'matcher': 'pathAny',
+                                'state': 'success',
                             },
                         ],
                     }
                 },
             }
         )
-        self._waiter.create_waiter_with_client("JobRunning", model, self._client).wait(
+        self._waiter.create_waiter_with_client('JobRunning', model, self._client).wait(
             jobs=[job_id]
         )
 
@@ -615,7 +574,7 @@ class BatchLogs(object):
     def __init__(self, group, stream, pos=0, sleep_on_no_data=0):
         from ..aws_client import get_aws_client
 
-        self._client = get_aws_client("logs")
+        self._client = get_aws_client('logs')
         self._group = group
         self._stream = stream
         self._pos = pos
@@ -640,8 +599,8 @@ class BatchLogs(object):
                     startTime=self._pos,
                     startFromHead=True,
                 )
-            self._token = response["nextForwardToken"]
-            return response["events"]
+            self._token = response['nextForwardToken']
+            return response['events']
         except self._client.exceptions.ResourceNotFoundException as e:
             # The logs might be delayed by a bit, so we can simply try
             # again next time.
@@ -651,7 +610,7 @@ class BatchLogs(object):
         while True:
             self._fill_buf()
             if len(self._buf) == 0:
-                yield ""
+                yield ''
                 if self._sleep_on_no_data > 0:
                     select.poll().poll(self._sleep_on_no_data * 1000)
             else:
@@ -661,5 +620,5 @@ class BatchLogs(object):
     def _fill_buf(self):
         events = self._get_events()
         for event in events:
-            self._buf.append(event["message"])
-            self._pos = event["timestamp"]
+            self._buf.append(event['message'])
+            self._pos = event['timestamp']
