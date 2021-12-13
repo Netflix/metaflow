@@ -3,7 +3,7 @@
   import type { DagStep } from "../../types";
   import { getContext, onMount } from "svelte";
   import { isOverflown } from "../../utils";
-  import { currentStepContext } from "./dag.svelte";
+  import { currentStepContext } from "./constants.svelte";
 
   export let name: string;
   export let step: DagStep;
