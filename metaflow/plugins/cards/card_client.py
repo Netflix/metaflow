@@ -138,6 +138,17 @@ class CardIterator:
 
 
 def get_cards(task, type=None, follow_resumed=True):
+    """
+    Get cards related to a Metaflow `Task`
+
+    Args:
+        task (`Task`): A metaflow `Task` object.
+        type (str, optional): The type of card to retrieve. Defaults to None.
+        follow_resumed (bool, optional): If a Task has been resumed and cloned, then setting this flag will resolve the card for the origin task. Defaults to True.
+
+    Returns:
+        `CardIterator` : A `list` like object that holds `Card` objects.
+    """
     from metaflow.client import Task
 
     if follow_resumed:
