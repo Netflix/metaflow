@@ -1,12 +1,8 @@
 <!-- this creates a section wrapper to hold multiple components inside it -->
 <script lang="ts">
   import type * as types from "../types";
-  import CardComponentRenderer from "./card-component-renderer.svelte";
-
   export let componentData: types.SectionComponent;
-
-  const { title, subtitle, columns, contents } = componentData;
-
+  const { title, subtitle, columns } = componentData;
   let style: string;
 
   if (columns) {
@@ -24,13 +20,7 @@
     {/if}
   </div>
   <div class="sectionItems" {style}>
-    {#if contents}
-      {#each contents || [] as componentData}
-        <CardComponentRenderer {componentData} />
-      {/each}
-    {:else}
-      <slot />
-    {/if}
+    <slot />
   </div>
   <hr />
 </section>

@@ -6,9 +6,10 @@
     "build": "cross-env OUTPUT_DIR=../card_modules rollup -c",
     "dev": "rollup -c -w",
     "start": "sirv public --no-clear",
-    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "check": "svelte-check --workspace src",
     "lint": "eslint src --ext .ts,.svelte",
-    "lint:fix": "yarn run lint --fix"
+    "lint:fix": "yarn run lint --fix",
+    "prebuild": "yarn run check && yarn run lint"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^21.0.1",
