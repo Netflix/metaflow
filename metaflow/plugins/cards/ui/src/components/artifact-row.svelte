@@ -30,6 +30,8 @@
     font-weight: bold;
     text-align: right;
     background: var(--lt-grey);
+    /* note, if you are going to change the default width, please do the same in vertical-table */
+    width: 12%;
   }
 
   .codeCell {

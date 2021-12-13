@@ -34,6 +34,7 @@
     text-align: right;
     background-color: var(--lt-grey);
     font-weight: 700;
+    /* note, if you are going to change the default width, please do the same in artifacts */
     width: 12%;
     white-space: nowrap;
   }
