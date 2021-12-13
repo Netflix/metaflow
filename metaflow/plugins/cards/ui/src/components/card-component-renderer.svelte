@@ -35,11 +35,13 @@
     };
 </script>
 
-<svelte:component this={typesMap?.[componentData.type]} {componentData}>
-  <!-- if the component is a page or a section, we'll recursively add children to the slot -->
-  {#if (componentData.type === "page" || componentData.type === "section") && componentData?.contents}
+{#if (componentData.type === "page" || componentData.type === "section") && componentData?.contents}
+  <svelte:component this={typesMap?.[componentData.type]} {componentData}>
+    <!-- if the component is a page or a section, we'll recursively add children to the slot -->
     {#each componentData.contents as child}
-      <svelte:self this={typesMap?.[child.type]} componentData={child} />
+      <svelte:self componentData={child} />
     {/each}
-  {/if}
-</svelte:component>
+  </svelte:component>
+{:else}
+  <svelte:component this={typesMap?.[componentData.type]} {componentData} />
+{/if}
