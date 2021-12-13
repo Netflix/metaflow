@@ -37,6 +37,16 @@ def path_spec_resolver(pathspec):
         return splits[0], splits[1], splits[2], splits[3]
 
 
+def is_file_present(path):
+    try:
+        os.stat(path)
+        return True
+    except FileNotFoundError:
+        return False
+    except:
+        raise
+
+
 class CardDatastore(object):
     @classmethod
     def get_storage_root(cls, storage_type):
@@ -73,7 +83,6 @@ class CardDatastore(object):
         self._task_id = task_id
         self._pathspec = path_spec
         self._temp_card_save_path = self._get_card_path(base_pth=TEMP_DIR_NAME)
-        LocalStorage._makedirs(self._temp_card_save_path)
 
     @classmethod
     def get_card_location(cls, base_path, card_name, card_html):
@@ -184,6 +193,9 @@ class CardDatastore(object):
                         return f.read()
 
     def cache_locally(self, path):
+        # todo : replace this function with the FileCache
+        if not is_file_present(self._temp_card_save_path):
+            LocalStorage._makedirs(self._temp_card_save_path)
         with self._backend.load_bytes([path]) as get_results:
             for key, path, meta in get_results:
                 if path is not None:
