@@ -32,6 +32,10 @@
     }
   }
 
+  :global(.embed aside) {
+    display: none;
+  }
+
   :global(aside ul) {
     list-style-type: none;
   }
