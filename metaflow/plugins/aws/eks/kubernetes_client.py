@@ -25,13 +25,13 @@ def k8s_retry(deadline_seconds=60, max_backoff=32):
 
     def exception_handler(e):
         """Retry on this condition only"""
-        return (e.status == 500)
+        return e.status == 500
 
     return retry(
         exceptions=client.rest.ApiException,
         exception_hander=exception_handler,
         deadline_seconds=deadline_seconds,
-        max_backoff=max_backoff
+        max_backoff=max_backoff,
     )
 
 

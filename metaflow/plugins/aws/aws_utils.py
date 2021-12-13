@@ -1,4 +1,7 @@
+import math
+import random
 import re
+import time
 
 
 def get_docker_registry(image_uri):
@@ -50,3 +53,49 @@ def get_docker_registry(image_uri):
     if registry is not None:
         registry = registry.rstrip("/")
     return registry
+
+
+def retry(
+    function=None,
+    exceptions=[],
+    exception_handler=lambda x: True,
+    deadline_seconds=None,
+    max_backoff=None,
+):
+    """
+    Implements truncated exponential backoff from
+    https://cloud.google.com/storage/docs/retry-strategy#exponential-backoff
+    """
+
+    def decorator(f):
+        from functools import wraps
+
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            deadline = time.time() + deadline_seconds
+            retry_number = 0
+
+            while True:
+                try:
+                    result = f(*args, **kwargs)
+                    return result
+                except exceptions as e:
+                    if exception_handler(e):
+                        current_t = time.time()
+                        backoff_delay = min(
+                            math.pow(2, retry_number) + random.random(), max_backoff
+                        )
+                        if current_t + backoff_delay < deadline:
+                            time.sleep(backoff_delay)
+                            retry_number += 1
+                            continue  # retry again
+                        else:
+                            raise
+                    else:
+                        raise
+
+        return wrapper
+
+    if function:
+        return decorator(function)
+    return decorator
