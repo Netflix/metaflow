@@ -21,4 +21,9 @@
       margin-left: var(--aside-width);
     }
   }
+
+  /* if the embed class is present, we hide the aside, and we should center the main */
+  :global(.embed main) {
+    margin: 0 auto;
+  }
 </style>
