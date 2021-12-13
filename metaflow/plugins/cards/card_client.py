@@ -180,13 +180,19 @@ def _get_flow_datastore(task):
     ds_type = None
     # We need to set the correct datastore root here so that
     # we can ensure the the card client picks up the correct path to the cards
-    ds_root = CardDatastore.get_storage_root(ds_type)
 
     for meta in task.metadata:
         if meta.name == "ds-type":
             ds_type = meta.value
-        if ds_root is None and meta.name == "ds-root":
-            ds_root = meta.value
+            break
+
+    ds_root = CardDatastore.get_storage_root(ds_type)
+
+    if ds_root is None:
+        for meta in task.metadata:
+            if meta.name == "ds-root":
+                ds_root = meta.value
+                break
 
     if ds_type is None:
         raise UnresolvableDatastoreException(task)
