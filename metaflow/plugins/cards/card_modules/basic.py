@@ -441,7 +441,7 @@ class ErrorCard(MetaflowCard):
             contents=[
                 SectionComponent(
                     title="Card Render Failed With Error",
-                    contents=[TextComponent(text=trace)],
+                    contents=[LogComponent(data=trace)],
                 )
             ],
         ).render()
