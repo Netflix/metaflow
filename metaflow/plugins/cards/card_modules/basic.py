@@ -299,7 +299,7 @@ class TaskInfoComponent(MetaflowCardComponent):
             "pathspec",
         ]
         tags = self._task.parent.parent.tags
-        user_info = [t for t in tags if "user" in t]
+        user_info = [t for t in tags if t.startswith("user:")]
         task_metadata_dict = {
             "Task Created On": task_data_dict["created_at"],
             "Task Finished On": task_data_dict["finished_at"],
