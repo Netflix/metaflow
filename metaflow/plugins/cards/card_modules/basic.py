@@ -5,6 +5,8 @@ from .convert_to_native_type import TaskToDict
 
 ABS_DIR_PATH = os.path.dirname(os.path.abspath(__file__))
 RENDER_TEMPLATE_PATH = os.path.join(ABS_DIR_PATH, "base.html")
+JS_PATH = os.path.join(ABS_DIR_PATH, "main.js")
+CSS_PATH = os.path.join(ABS_DIR_PATH, "bundle.css")
 
 
 def read_file(path):
@@ -432,6 +434,8 @@ class ErrorCard(MetaflowCard):
 
     def render(self, task, stack_trace=None):
         RENDER_TEMPLATE = read_file(RENDER_TEMPLATE_PATH)
+        JS_DATA = read_file(JS_PATH)
+        CSS_DATA = read_file(CSS_PATH)
         trace = "None"
         if stack_trace is not None:
             trace = stack_trace
@@ -453,7 +457,10 @@ class ErrorCard(MetaflowCard):
         )
         pt = self._get_mustache()
         data_dict = dict(
-            title=task.pathspec, task_data=json.dumps(json.dumps(final_component_dict))
+            task_data=json.dumps(json.dumps(final_component_dict)),
+            javascript=JS_DATA,
+            css=CSS_DATA,
+            title=task.pathspec,
         )
         return pt.render(RENDER_TEMPLATE, data_dict)
 
@@ -471,6 +478,8 @@ class DefaultCard(MetaflowCard):
 
     def render(self, task):
         RENDER_TEMPLATE = read_file(RENDER_TEMPLATE_PATH)
+        JS_DATA = read_file(JS_PATH)
+        CSS_DATA = read_file(CSS_PATH)
         final_component_dict = TaskInfoComponent(
             task,
             only_repr=self._only_repr,
@@ -479,8 +488,10 @@ class DefaultCard(MetaflowCard):
         ).render()
         pt = self._get_mustache()
         data_dict = dict(
-            title=task.pathspec,
             task_data=json.dumps(json.dumps(final_component_dict)),
+            javascript=JS_DATA,
+            title=task.pathspec,
+            css=CSS_DATA,
         )
         return pt.render(RENDER_TEMPLATE, data_dict)
 
