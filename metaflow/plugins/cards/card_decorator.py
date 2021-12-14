@@ -192,7 +192,7 @@ class CardDecorator(StepDecorator):
         )
         if fail:
             self._logger(
-                "Card Render failed with Error : \n\n %s" % response.decode("utf-8"),
+                "Card render failed with error : \n\n %s" % response.decode("utf-8"),
                 timestamp=False,
                 bad=True,
             )
