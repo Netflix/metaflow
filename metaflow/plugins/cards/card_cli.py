@@ -242,7 +242,7 @@ def render_card(mf_card, task, timeout_value=None):
 @click.argument("pathspec", type=str)
 @click.option(
     "--type",
-    default=None,
+    default="default",
     show_default=True,
     type=str,
     help="Type of card being created",
@@ -353,7 +353,12 @@ def create(
         save_type = "error"
 
     if rendered_info is not None:
-        card_datastore.save_card(save_type, rendered_info)
+        card_info = card_datastore.save_card(save_type, rendered_info)
+        ctx.obj.echo(
+            "Card created with type: %s and hash: %s"
+            % (card_info.type, card_info.hash[:NUM_SHORT_HASH_CHARS]),
+            fg="green",
+        )
 
 
 @card.command()

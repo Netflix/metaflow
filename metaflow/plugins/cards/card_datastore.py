@@ -151,6 +151,7 @@ class CardDatastore(object):
         self._backend.save_bytes(
             [(card_path, BytesIO(bytes(card_html, "utf-8")))], overwrite=overwrite
         )
+        return self.card_info_from_path(card_path)
 
     def _list_card_paths(self, card_type=None, card_hash=None):
         card_path = self._get_card_path()
