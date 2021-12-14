@@ -47,7 +47,7 @@ def batch_retry(function=None, *, deadline_seconds=60, max_backoff=32):
 
 
 @batch_retry
-def describe_job_definitions(batch_client, **payload):
+def _describe_job_definitions(batch_client, **payload):
     return batch_client.describe_job_definitions(**payload)
 
 
