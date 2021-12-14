@@ -277,12 +277,20 @@ class TaskToDict:
     def _parse_pandas_dataframe(self, data_object):
         headers = list(data_object.columns)
         data = data_object.head()
+        index_column = data.index
+
+        if index_column.dtype == "datetime64[ns]":
+            index_column = index_column.dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
         for col in data.columns:
             # we convert datetime columns to strings
             if data[col].dtype == "datetime64[ns]":
                 data[col] = data[col].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        return dict(headers=headers, data=data.values.tolist())
+        data_vals = data.values.tolist()
+        for row, idx in zip(data_vals, index_column.values.tolist()):
+            row.insert(0, idx)
+        return dict(headers=[""] + headers, data=data_vals)
 
     def _parse_numpy_ndarray(self, data_object):
         return data_object.tolist()

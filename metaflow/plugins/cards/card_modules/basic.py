@@ -299,7 +299,7 @@ class TaskInfoComponent(MetaflowCardComponent):
             "pathspec",
         ]
         tags = self._task.parent.parent.tags
-        user_info = [t for t in tags if "user" in t]
+        user_info = [t for t in tags if t.startswith("user:")]
         task_metadata_dict = {
             "Task Created On": task_data_dict["created_at"],
             "Task Finished On": task_data_dict["finished_at"],
@@ -441,7 +441,7 @@ class ErrorCard(MetaflowCard):
             contents=[
                 SectionComponent(
                     title="Card Render Failed With Error",
-                    contents=[TextComponent(text=trace)],
+                    contents=[LogComponent(data=trace)],
                 )
             ],
         ).render()
@@ -452,7 +452,9 @@ class ErrorCard(MetaflowCard):
             components=[page],
         )
         pt = self._get_mustache()
-        data_dict = dict(task_data=json.dumps(json.dumps(final_component_dict)))
+        data_dict = dict(
+            title=task.pathspec, task_data=json.dumps(json.dumps(final_component_dict))
+        )
         return pt.render(RENDER_TEMPLATE, data_dict)
 
 
@@ -477,6 +479,7 @@ class DefaultCard(MetaflowCard):
         ).render()
         pt = self._get_mustache()
         data_dict = dict(
+            title=task.pathspec,
             task_data=json.dumps(json.dumps(final_component_dict)),
         )
         return pt.render(RENDER_TEMPLATE, data_dict)
