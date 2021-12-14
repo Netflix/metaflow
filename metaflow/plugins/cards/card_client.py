@@ -31,8 +31,7 @@ class Card:
         # Tempfile to open stuff in browser
         self._temp_file = None
 
-    @property
-    def html(self):
+    def get(self):
         if self._html is not None:
             return self._html
         self._html = self._card_ds.get_card_html(self.path)
@@ -42,23 +41,26 @@ class Card:
     def path(self):
         return self._path
 
-    def browser(self):
+    def view(self):
         import webbrowser
 
         self._temp_file = tempfile.NamedTemporaryFile(suffix=".html")
-        html = self.html
+        html = self.get()
         self._temp_file.write(html.encode())
         self._temp_file.seek(0)
         url = "file://" + os.path.abspath(self._temp_file.name)
         webbrowser.open(url)
 
+    def _repr_html_(self):
+        return self.get()
+
     def nb(self):
         from IPython.core.display import HTML, display
 
-        display(HTML(self.html))
+        display(HTML(self.get()))
 
 
-class CardIterator:
+class CardContainer:
     def __init__(self, card_paths, card_ds, from_resumed=False, origin_pathspec=None):
         self._card_paths = card_paths
         self._card_ds = card_ds
@@ -94,19 +96,6 @@ class CardIterator:
     def _make_heading(self, type):
         return "<h1>Displaying Card Of Type : %s</h1>" % type.title()
 
-    def _wrap_html(self, html):
-        return (
-            """
-        <html>
-            <head></head>
-            <body>
-                %s
-            </body>
-        </html>
-        """
-            % html
-        )
-
     def nb(self):
         from IPython.core.display import HTML
         from IPython.display import display_html
@@ -115,19 +104,15 @@ class CardIterator:
         for idx, _ in enumerate(self._card_paths):
             card = self._get_card(idx)
             main_html.append(HTML(data=self._make_heading(card.type)))
-            main_html.append(HTML(data=card.html))
+            main_html.append(HTML(data=card.get()))
         display_html(*main_html)
 
     def _repr_html_(self):
-        from IPython.core.display import HTML
-        from IPython.display import display_html
-
         main_html = []
         for idx, _ in enumerate(self._card_paths):
             card = self._get_card(idx)
             main_html.append(self._make_heading(card.type))
-            main_html.append(card.html)
-        # return self._wrap_html()
+            main_html.append(card.get())
         return "\n".join(main_html)
 
     def __next__(self):
@@ -147,7 +132,7 @@ def get_cards(task, type=None, follow_resumed=True):
         follow_resumed (bool, optional): If a Task has been resumed and cloned, then setting this flag will resolve the card for the origin task. Defaults to True.
 
     Returns:
-        `CardIterator` : A `list` like object that holds `Card` objects.
+        `CardContainer` : A `list` like object that holds `Card` objects.
     """
     from metaflow.client import Task
 
@@ -166,7 +151,7 @@ def get_cards(task, type=None, follow_resumed=True):
         pathspec=task.pathspec,
         type=type,
     )
-    return CardIterator(
+    return CardContainer(
         card_paths,
         card_ds,
         from_resumed=origin_taskpathspec is not None,

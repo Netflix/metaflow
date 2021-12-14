@@ -118,7 +118,7 @@ class MetadataCheck(MetaflowCheck):
         # This should change in the future when we support many decorator.
         if card_iter is not None:
             if len(card_iter) > 0:
-                card_data = card_iter[0].html
+                card_data = card_iter[0].get()
         if (exact_match and card_data != value) or (
             not exact_match and value not in card_data
         ):
