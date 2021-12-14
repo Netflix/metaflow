@@ -110,7 +110,7 @@ class CardContainer:
         for idx, _ in enumerate(self._card_paths):
             card = self._get_card(idx)
             main_html.append(HTML(data=self._make_heading(card.type)))
-            main_html.append(HTML(data=card.get()))
+            main_html.append(HTML(data="<div class='embed'>%s</div>" % card.get()))
         display_html(*main_html)
 
     def _repr_html_(self):
@@ -118,7 +118,7 @@ class CardContainer:
         for idx, _ in enumerate(self._card_paths):
             card = self._get_card(idx)
             main_html.append(self._make_heading(card.type))
-            main_html.append(card.get())
+            main_html.append("<div class='embed'>%s</div>" % card.get())
         return "\n".join(main_html)
 
     def __next__(self):
