@@ -1,9 +1,15 @@
 from metaflow.datastore import DATASTORES, FlowDataStore
 from .card_resolver import resolve_paths_from_task, resumed_info
 from .card_datastore import CardDatastore
-from .exception import UnresolvableDatastoreException
+from .exception import (
+    UnresolvableDatastoreException,
+    IncorrectArguementException,
+    IncorrectPathspecException,
+)
 import os
 import tempfile
+
+_TYPE = type
 
 
 class Card:
@@ -127,7 +133,7 @@ def get_cards(task, type=None, follow_resumed=True):
     Get cards related to a Metaflow `Task`
 
     Args:
-        task (`Task`): A metaflow `Task` object.
+        task (str or `Task`): A metaflow `Task` object or pathspec (flowname/runid/stepname/taskid)
         type (str, optional): The type of card to retrieve. Defaults to None.
         follow_resumed (bool, optional): If a Task has been resumed and cloned, then setting this flag will resolve the card for the origin task. Defaults to True.
 
@@ -135,6 +141,19 @@ def get_cards(task, type=None, follow_resumed=True):
         `CardContainer` : A `list` like object that holds `Card` objects.
     """
     from metaflow.client import Task
+    from metaflow import namespace
+
+    if isinstance(task, str):
+        task_str = task
+        if len(task_str.split("/")) != 4:
+            # Exception that pathspec is not of correct form
+            raise IncorrectPathspecException(task_str)
+        # set namepsace as None so that we don't face namespace mismatch error.
+        namespace(None)
+        task = Task(task_str)
+    elif not isinstance(task, Task):
+        # Exception that the task argument should of form `Task` or `str`
+        raise IncorrectArguementException(_TYPE(task))
 
     if follow_resumed:
         origin_taskpathspec = resumed_info(task)
