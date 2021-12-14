@@ -30,6 +30,7 @@ class CardDecorator(StepDecorator):
         self._task_datastore = None
         self._environment = None
         self._metadata = None
+        self._logger = None
         # todo : first allow multiple decorators with a step
 
     def add_to_package(self):
@@ -104,6 +105,7 @@ class CardDecorator(StepDecorator):
 
         self._flow_datastore = flow_datastore
         self._environment = environment
+        self._logger = logger
 
     def task_pre_step(
         self,
@@ -189,11 +191,11 @@ class CardDecorator(StepDecorator):
             cmd, os.environ, timeout=self.attributes["timeout"]
         )
         if fail:
-            print(
+            self._logger(
                 "Card Render failed with Error : \n\n %s" % response.decode("utf-8"),
-                file=sys.stderr,
+                timestamp=False,
+                bad=True,
             )
-        # do nothing on failure as we create an error card
 
     def _run_command(self, cmd, env, timeout=None):
         fail = False
