@@ -185,18 +185,29 @@ class CardDecorator(StepDecorator):
         if self.attributes["save_errors"]:
             cmd += ["--with-error-card"]
 
-        self._run_command(cmd, os.environ)
+        response, fail = self._run_command(
+            cmd, os.environ, timeout=self.attributes["timeout"]
+        )
+        if fail:
+            print(
+                "Card Render failed with Error : \n\n %s" % response.decode("utf-8"),
+                file=sys.stderr,
+            )
         # do nothing on failure as we create an error card
 
-    def _run_command(self, cmd, env):
+    def _run_command(self, cmd, env, timeout=None):
         fail = False
+        timeout_args = {}
+        if timeout is not None:
+            timeout_args = dict(timeout=int(timeout) + 10)
         try:
             rep = subprocess.check_output(
-                cmd,
-                env=env,
-                stderr=subprocess.STDOUT,
+                cmd, env=env, stderr=subprocess.STDOUT, **timeout_args
             )
         except subprocess.CalledProcessError as e:
+            rep = e.output
+            fail = True
+        except subprocess.TimeoutExpired as e:
             rep = e.output
             fail = True
         return rep, fail
