@@ -92,26 +92,21 @@ def retry(
 
             while True:
                 try:
-                    print("trying", f, args, kwargs)
                     result = f(*args, **kwargs)
                     return result
                 except exception() as e:
-                    print("got exception", e)
                     if exception_handler(e):
                         current_t = time.time()
                         backoff_delay = min(
                             math.pow(2, retry_number) + random.random(), max_backoff
                         )
                         if current_t + backoff_delay < deadline:
-                            print("retrying")
                             time.sleep(backoff_delay)
                             retry_number += 1
                             continue  # retry again
                         else:
-                            print("no more tries")
                             raise
                     else:
-                        print("no retrying")
                         raise
 
         return wrapper
