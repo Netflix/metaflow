@@ -30,6 +30,7 @@ class CardDecorator(StepDecorator):
         self._task_datastore = None
         self._environment = None
         self._metadata = None
+        self._logger = None
         # todo : first allow multiple decorators with a step
 
     def add_to_package(self):
@@ -104,6 +105,7 @@ class CardDecorator(StepDecorator):
 
         self._flow_datastore = flow_datastore
         self._environment = environment
+        self._logger = logger
 
     def task_pre_step(
         self,
@@ -185,18 +187,29 @@ class CardDecorator(StepDecorator):
         if self.attributes["save_errors"]:
             cmd += ["--with-error-card"]
 
-        self._run_command(cmd, os.environ)
-        # do nothing on failure as we create an error card
+        response, fail = self._run_command(
+            cmd, os.environ, timeout=self.attributes["timeout"]
+        )
+        if fail:
+            self._logger(
+                "Card render failed with error : \n\n %s" % response.decode("utf-8"),
+                timestamp=False,
+                bad=True,
+            )
 
-    def _run_command(self, cmd, env):
+    def _run_command(self, cmd, env, timeout=None):
         fail = False
+        timeout_args = {}
+        if timeout is not None:
+            timeout_args = dict(timeout=int(timeout) + 10)
         try:
             rep = subprocess.check_output(
-                cmd,
-                env=env,
-                stderr=subprocess.STDOUT,
+                cmd, env=env, stderr=subprocess.STDOUT, **timeout_args
             )
         except subprocess.CalledProcessError as e:
+            rep = e.output
+            fail = True
+        except subprocess.TimeoutExpired as e:
             rep = e.output
             fail = True
         return rep, fail
