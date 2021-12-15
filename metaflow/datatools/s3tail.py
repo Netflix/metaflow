@@ -18,6 +18,11 @@ class S3Tail(object):
         self._pos = 0
         self._tail = b""
 
+    def reset_client(self, hard_reset=False):
+        # This method is required by @aws_retry
+        if hard_reset or self.s3 is None:
+            self.s3, self.ClientError = get_s3_client()
+
     def clone(self, s3url):
         tail = S3Tail(s3url)
         tail._pos = self._pos

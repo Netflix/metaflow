@@ -107,9 +107,6 @@ class KubernetesJob(object):
         self._client_wrapper = client_wrapper
         self._kwargs = kwargs
 
-        # Kubernetes namespace defaults to `default`
-        self._kwargs["namespace"] = self._kwargs["namespace"] or "default"
-
     def create(self):
         # Check that job attributes are sensible.
 

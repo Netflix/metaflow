@@ -238,7 +238,7 @@ class DataStoreStorage(object):
         """
         raise NotImplementedError
 
-    def load_bytes(self, paths):
+    def load_bytes(self, keys):
         """
         Gets objects from the datastore
 
@@ -248,21 +248,24 @@ class DataStoreStorage(object):
 
         Parameters
         ----------
-        paths : List[string]
-            Paths to fetch
+        keys : List[string]
+            Keys to fetch
 
         Returns
         -------
         CloseAfterUse :
             A CloseAfterUse which should be used in a with statement. The data
-            in the CloseAfterUse will be an iterator over (key, path, metadata)
-            tuples. Path and metadata will be None if the key was missing.
+            in the CloseAfterUse will be an iterator over (key, file_path, metadata)
+            tuples. File_path and metadata will be None if the key was missing.
             Metadata will be None if no metadata is present; otherwise it is
             a dictionary of metadata associated with the object.
 
-            Note that the file at `path` may no longer be accessible outside of
+            Note that the file at `file_path` may no longer be accessible outside of
             the scope of the returned object.
 
-            Note that the order of the iterator will be the same as the input paths.
+            The order of items in the list is not to be relied on (ie: rely on the key
+            in the returned tuple and not on the order of the list). This function will,
+            however, return as many elements as passed in even in the presence of
+            duplicate keys.
         """
         raise NotImplementedError

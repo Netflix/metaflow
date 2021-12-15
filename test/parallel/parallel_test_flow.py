@@ -12,11 +12,9 @@ class ParallelTest(FlowSpec):
 
     @step
     def start(self):
-        print("Start")
         self.next(self.parallel_step, num_parallel=self.num_parallel)
 
     @parallel
-    # @batch
     @step
     def parallel_step(self):
         self.node_index = current.parallel.node_index

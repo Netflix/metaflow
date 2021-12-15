@@ -25,6 +25,8 @@ from .step_functions_client import StepFunctionsClient
 from .event_bridge_client import EventBridgeClient
 from ..batch.batch import Batch
 
+from metaflow.mflog import capture_output_to_mflog
+
 
 class StepFunctionsException(MetaflowException):
     headline = "AWS Step Functions error"
@@ -706,11 +708,16 @@ class StepFunctions(object):
             param_file = "".join(
                 random.choice(string.ascii_lowercase) for _ in range(10)
             )
-            export_params = (
-                "python -m "
-                "metaflow.plugins.aws.step_functions.set_batch_environment "
-                "parameters %s && . `pwd`/%s" % (param_file, param_file)
+            export_params = " && ".join(
+                [
+                    capture_output_to_mflog(
+                        "python -m metaflow.plugins.aws.step_functions.set_batch_environment parameters %s"
+                        % param_file
+                    ),
+                    ". `pwd`/%s" % param_file,
+                ]
             )
+
             params = (
                 entrypoint
                 + top_opts
@@ -742,7 +749,7 @@ class StepFunctions(object):
             cmd = "if ! %s >/dev/null 2>/dev/null; then %s && %s; fi" % (
                 " ".join(exists),
                 export_params,
-                " ".join(params),
+                capture_output_to_mflog(" ".join(params)),
             )
             cmds.append(cmd)
             paths = "sfn-${METAFLOW_RUN_ID}/_parameters/%s" % (task_id_params)
@@ -751,7 +758,7 @@ class StepFunctions(object):
             parent_tasks_file = "".join(
                 random.choice(string.ascii_lowercase) for _ in range(10)
             )
-            export_parent_tasks = (
+            export_parent_tasks = capture_output_to_mflog(
                 "python -m "
                 "metaflow.plugins.aws.step_functions.set_batch_environment "
                 "parent_tasks %s && . `pwd`/%s" % (parent_tasks_file, parent_tasks_file)
@@ -792,7 +799,7 @@ class StepFunctions(object):
             step.extend("--tag %s" % tag for tag in self.tags)
         if self.namespace is not None:
             step.append("--namespace=%s" % self.namespace)
-        cmds.append(" ".join(entrypoint + top_level + step))
+        cmds.append(capture_output_to_mflog(" ".join(entrypoint + top_level + step)))
         return " && ".join(cmds)
 
 

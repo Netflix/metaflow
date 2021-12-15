@@ -31,7 +31,7 @@ except:
     # python3
     from urllib.parse import urlparse
 
-from .s3util import get_s3_client, read_in_chunks
+from .s3util import get_s3_client, read_in_chunks, get_timestamp
 
 try:
     import boto3
@@ -97,6 +97,7 @@ class S3Object(object):
         content_type=None,
         metadata=None,
         range_info=None,
+        last_modified=None,
     ):
 
         # all fields of S3Object should return a unicode object
@@ -107,6 +108,7 @@ class S3Object(object):
         self._path = path
         self._key = None
         self._content_type = content_type
+        self._last_modified = last_modified
 
         self._metadata = None
         if metadata is not None and "metaflow-user-attributes" in metadata:
@@ -236,6 +238,14 @@ class S3Object(object):
             - request_length: the length in this S3Object
         """
         return self._range_info
+
+    @property
+    def last_modified(self):
+        """
+        Returns the last modified unix timestamp of the object, or None
+        if not fetched.
+        """
+        return self._last_modified
 
     def __str__(self):
         if self._path:
@@ -486,6 +496,7 @@ class S3(object):
                 "content_type": resp["ContentType"],
                 "metadata": resp["Metadata"],
                 "size": resp["ContentLength"],
+                "last_modified": get_timestamp(resp["LastModified"]),
             }
 
         info_results = None
@@ -504,6 +515,7 @@ class S3(object):
                 size=info_results["size"],
                 content_type=info_results["content_type"],
                 metadata=info_results["metadata"],
+                last_modified=info_results["last_modified"],
             )
         return S3Object(self._s3root, url, None)
 
@@ -547,7 +559,7 @@ class S3(object):
                     else:
                         yield self._s3root, s3url, None, info["size"], info[
                             "content_type"
-                        ], info["metadata"]
+                        ], info["metadata"], None, info["last_modified"]
                 else:
                     # This should not happen; we should always get a response
                     # even if it contains an error inside it
@@ -593,6 +605,7 @@ class S3(object):
                 return {
                     "content_type": resp["ContentType"],
                     "metadata": resp["Metadata"],
+                    "last_modified": get_timestamp(resp["LastModified"]),
                 }
             return None
 
@@ -611,6 +624,7 @@ class S3(object):
                 path,
                 content_type=addl_info["content_type"],
                 metadata=addl_info["metadata"],
+                last_modified=addl_info["last_modified"],
             )
         return S3Object(self._s3root, url, path)
 
@@ -652,7 +666,9 @@ class S3(object):
                             info = json.load(f)
                         yield self._s3root, s3url, os.path.join(
                             self._tmpdir, fname
-                        ), None, info["content_type"], info["metadata"]
+                        ), None, info["content_type"], info["metadata"], None, info[
+                            "last_modified"
+                        ]
                     else:
                         yield self._s3root, s3prefix, None
                 else:
@@ -694,7 +710,9 @@ class S3(object):
                         info = json.load(f)
                     yield self._s3root, s3url, os.path.join(
                         self._tmpdir, fname
-                    ), None, info["content_type"], info["metadata"]
+                    ), None, info["content_type"], info["metadata"], None, info[
+                        "last_modified"
+                    ]
                 else:
                     yield s3prefix, s3url, os.path.join(self._tmpdir, fname)
 
@@ -1023,6 +1041,7 @@ class S3(object):
                         raise MetaflowS3NotFound(err_out)
                     elif ex.returncode == s3op.ERROR_URL_ACCESS_DENIED:
                         raise MetaflowS3AccessDenied(err_out)
+                    print("Error with S3 operation:", err_out)
                     time.sleep(2 ** i + random.randint(0, 10))
 
         return None, err_out

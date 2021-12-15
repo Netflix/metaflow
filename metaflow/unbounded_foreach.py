@@ -1,5 +1,4 @@
 CONTROL_TASK_TAG = "control_task"
-CONTROL_AND_MAPPER_TAG = "control_and_mapper"
 UBF_CONTROL = "ubf_control"
 UBF_TASK = "ubf_task"
 

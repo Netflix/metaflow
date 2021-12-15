@@ -297,7 +297,7 @@ def check_parallel_step_after_next(graph):
 def check_parallel_foreach_calls_parallel_step(graph):
     msg = (
         "Step *{0.name}* has a @parallel decorator, but is not called "
-        " with self.next(num_parallel=...) from step  *{1.name}*."
+        "with self.next(num_parallel=...) from step *{1.name}*."
     )
     for node in graph:
         if node.parallel_step:

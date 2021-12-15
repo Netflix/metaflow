@@ -34,7 +34,6 @@ from .util import to_unicode, compress_list, unicode_type
 from .unbounded_foreach import (
     CONTROL_TASK_TAG,
     UBF_CONTROL,
-    CONTROL_AND_MAPPER_TAG,
     UBF_TASK,
 )
 
@@ -633,10 +632,6 @@ class Task(object):
             # task_id is preset only by persist_constants() or control tasks.
             if ubf_context == UBF_CONTROL:
                 tags = [CONTROL_TASK_TAG]
-                # for parallel steps, the control task is also a normal task, i.e "mapper"
-                # in the UBF vocabulary
-                if flow._graph[step].parallel_step:
-                    tags.append(CONTROL_AND_MAPPER_TAG)
                 metadata.register_task_id(
                     run_id,
                     step,
@@ -936,17 +931,22 @@ class CLIArgs(object):
         # TODO: Make one with dict_to_cli_options; see cli_args.py for more detail
         def _options(mapping):
             for k, v in mapping.items():
-                if v:
-                    # we need special handling for 'with' since it is a reserved
-                    # keyword in Python, so we call it 'decospecs' in click args
-                    if k == "decospecs":
-                        k = "with"
-                    k = k.replace("_", "-")
-                    v = v if isinstance(v, (list, tuple, set)) else [v]
-                    for value in v:
-                        yield "--%s" % k
-                        if not isinstance(value, bool):
-                            yield to_unicode(value)
+
+                # None or False arguments are ignored
+                # v needs to be explicitly False, not falsy, eg. 0 is an acceptable value
+                if v is None or v is False:
+                    continue
+
+                # we need special handling for 'with' since it is a reserved
+                # keyword in Python, so we call it 'decospecs' in click args
+                if k == "decospecs":
+                    k = "with"
+                k = k.replace("_", "-")
+                v = v if isinstance(v, (list, tuple, set)) else [v]
+                for value in v:
+                    yield "--%s" % k
+                    if not isinstance(value, bool):
+                        yield to_unicode(value)
 
         args = list(self.entrypoint)
         args.extend(_options(self.top_level_options))
