@@ -20,7 +20,7 @@ from .exception import (
 
 from .card_resolver import resolve_paths_from_task, resumed_info
 
-
+# FIXME :  Import the changes from Netflix/metaflow#833 for Graph
 def serialize_flowgraph(flowgraph):
     graph_dict = {}
     for node in flowgraph:
@@ -39,19 +39,25 @@ def open_in_browser(card_path):
     webbrowser.open(url)
 
 
-def resolve_card(ctx, pathspec, hash=None, type=None, follow_resumed=True):
+def resolve_card(
+    ctx,
+    pathspec,
+    follow_resumed=True,
+    hash=None,
+    type=None,
+):
     """Resolves the card path based on the arguments provided. We allow identifier to be a pathspec or a id of card.
 
     Args:
-        ctx : click context object
-        pathspec : pathspec
+        ctx: click context object
+        pathspec: pathspec
         hash (optional): This is to specifically resolve the card via the hash. This is useful when there may be many card with same id or type for a pathspec.
         type : type of card
     Raises:
         CardNotPresentException: No card could be found for the pathspec
 
     Returns:
-        (card_paths, card_datastore, taskpathspec) : Tuple[List[str],CardDatastore,str]
+        (card_paths, card_datastore, taskpathspec) : Tuple[List[str], CardDatastore, str]
     """
     if len(pathspec.split("/")) != 3:
         raise CommandException(
@@ -62,7 +68,7 @@ def resolve_card(ctx, pathspec, hash=None, type=None, follow_resumed=True):
     run_id, step_name, task_id = None, None, None
     # what should be the args we expose
     run_id, step_name, task_id = pathspec.split("/")
-    pathspec = "/".join([flow_name, run_id, step_name, task_id])
+    pathspec = "/".join([flow_name, pathspec])
     # we set namespace to be none to avoid namespace mismatch error.
     namespace(None)
     task = Task(pathspec)
@@ -83,9 +89,6 @@ def resolve_card(ctx, pathspec, hash=None, type=None, follow_resumed=True):
     # todo : Fix this with `coalesce function`
     card_paths_found, card_datastore = resolve_paths_from_task(
         ctx.obj.flow_datastore,
-        run_id,
-        step_name,
-        task_id,
         pathspec=pathspec,
         type=type,
         hash=hash,
@@ -272,9 +275,8 @@ def create(
         raise CommandException(
             msg="Expecting pathspec of form <runid>/<stepname>/<taskid>"
         )
-    runid, step_name, task_id = pathspec.split("/")
     flowname = ctx.obj.flow.name
-    full_pathspec = "/".join([flowname, runid, step_name, task_id])
+    full_pathspec = "/".join([flowname, pathspec])
 
     # todo : Import the changes from Netflix/metaflow#833 for Graph
     graph_dict = serialize_flowgraph(ctx.obj.graph)
@@ -284,9 +286,7 @@ def create(
     from metaflow.plugins.cards.exception import CARD_ID_PATTERN
 
     filtered_cards = [CardClass for CardClass in CARDS if CardClass.type == type]
-    card_datastore = CardDatastore(
-        ctx.obj.flow_datastore, runid, step_name, task_id, path_spec=full_pathspec
-    )
+    card_datastore = CardDatastore(ctx.obj.flow_datastore, pathspec=full_pathspec)
 
     if len(filtered_cards) == 0 or type is None:
         raise CardClassFoundException(type)
@@ -294,7 +294,7 @@ def create(
     if len(filtered_cards) > 0:
         filtered_card = filtered_cards[0]
         ctx.obj.echo(
-            "Creating new card of type %s With timeout %s"
+            "Creating new card of type %s with timeout %s"
             % (filtered_card.type, timeout),
             fg="green",
         )
