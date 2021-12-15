@@ -25,16 +25,8 @@ CardInfo = namedtuple("CardInfo", ["type", "hash"])
 
 
 def path_spec_resolver(pathspec):
-    run_id, step_name, task_id = None, None, None
     splits = pathspec.split("/")
-    if len(splits) == 1:  # only flowname mentioned
-        return splits[0], run_id, step_name, task_id
-    elif len(splits) == 2:  # flowname , runid mentioned
-        return splits[0], splits[1], step_name, task_id
-    elif len(splits) == 3:  # flowname , runid , stepname
-        return splits[0], splits[1], splits[2], task_id
-    elif len(splits) == 4:  # flowname ,runid ,stepname , taskid
-        return splits[0], splits[1], splits[2], splits[3]
+    return (*splits, *[None] * (4 - len(splits)))
 
 
 def is_file_present(path):
@@ -63,7 +55,6 @@ class CardDatastore(object):
                 check_dir = os.path.realpath(check_dir)
                 orig_path = check_dir
                 while not os.path.isdir(check_dir):
-                    print(check_dir)
                     new_path = os.path.dirname(current_path)
                     if new_path == current_path:
                         break  # We are no longer making upward progress
@@ -75,13 +66,13 @@ class CardDatastore(object):
 
             return result
 
-    def __init__(self, flow_datastore, run_id, step_name, task_id, path_spec=None):
+    def __init__(self, flow_datastore, pathspec=None):
         self._backend = flow_datastore._storage_impl
         self._flow_name = flow_datastore.flow_name
+        _, run_id, step_name, _ = pathspec.split("/")
         self._run_id = run_id
         self._step_name = step_name
-        self._task_id = task_id
-        self._pathspec = path_spec
+        self._pathspec = pathspec
         self._temp_card_save_path = self._get_card_path(base_pth=TEMP_DIR_NAME)
 
     @classmethod
