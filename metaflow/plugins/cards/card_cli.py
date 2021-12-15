@@ -216,10 +216,10 @@ def card_read_options_and_arguments(func):
         help="Type of card being created",
     )
     @click.option(
-        "--dont-follow-resumed",
-        default=False,
-        is_flag=True,
-        help="Doesn't follow the origin-task-id of resumed tasks to seek cards stored for resumed tasks.",
+        "--follow-resumed/--no-follow-resumed",
+        default=True,
+        show_default=True,
+        help="Follow the origin-task-id of resumed tasks to seek cards stored for resumed tasks.",
     )
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -265,7 +265,7 @@ def render_card(mf_card, task, timeout_value=None):
     "--with-error-card",
     default=False,
     is_flag=True,
-    help="Upon failing to render a card render a card holding the stack trace",
+    help="Upon failing to render a card, render a card holding the stack trace",
 )
 @click.pass_context
 def create(
@@ -370,7 +370,7 @@ def view(
     pathspec,
     hash=None,
     type=None,
-    dont_follow_resumed=False,
+    follow_resumed=False,
 ):
     """
     View the HTML card in browser based on the pathspec.\n
@@ -382,7 +382,7 @@ def view(
         pathspec,
         type=type,
         hash=hash,
-        follow_resumed=not dont_follow_resumed,
+        follow_resumed=follow_resumed,
     )
     if len(available_card_paths) == 1:
         open_in_browser(card_datastore.cache_locally(available_card_paths[0]))
@@ -401,7 +401,7 @@ def get(
     pathspec,
     hash=None,
     type=None,
-    dont_follow_resumed=False,
+    follow_resumed=False,
 ):
     """
     Get the HTML string of the card based on pathspec.\n
@@ -413,7 +413,7 @@ def get(
         pathspec,
         type=type,
         hash=hash,
-        follow_resumed=not dont_follow_resumed,
+        follow_resumed=follow_resumed,
     )
     if len(available_card_paths) == 1:
         print(card_datastore.get_card_html(available_card_paths[0]))
