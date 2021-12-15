@@ -540,7 +540,7 @@ def step(
         ubf_context,
     )
     if clone_only:
-        task.clone_only(step_name, run_id, task_id, clone_only)
+        task.clone_only(step_name, run_id, task_id, clone_only, retry_count)
     else:
         task.run_step(
             step_name,

@@ -11,6 +11,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_CONTAINER_IMAGE,
     KUBERNETES_CONTAINER_REGISTRY,
     DATASTORE_LOCAL_DIR,
+    KUBERNETES_NAMESPACE,
 )
 from metaflow.plugins import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
@@ -78,6 +79,8 @@ class KubernetesDecorator(StepDecorator):
     def __init__(self, attributes=None, statically_defined=False):
         super(KubernetesDecorator, self).__init__(attributes, statically_defined)
 
+        if not self.attributes["namespace"]:
+            self.attributes["namespace"] = KUBERNETES_NAMESPACE
         # TODO: Unify the logic with AWS Batch
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:

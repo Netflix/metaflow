@@ -32,7 +32,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 # multiprocessing.Pool because https://bugs.python.org/issue31886
 from metaflow.util import TempDir, url_quote, url_unquote
 from metaflow.multicore_utils import parallel_map
-from metaflow.datatools.s3util import aws_retry, read_in_chunks
+from metaflow.datatools.s3util import aws_retry, read_in_chunks, get_timestamp
 
 NUM_WORKERS_DEFAULT = 64
 
@@ -89,7 +89,7 @@ def normalize_client_error(err):
     try:
         return int(error_code)
     except ValueError:
-        if error_code == "AccessDenied":
+        if error_code in ("AccessDenied", "AllAccessDisabled"):
             return 403
         if error_code == "NoSuchKey":
             return 404
@@ -120,6 +120,7 @@ def worker(result_file_name, queue, mode):
                 "size": head["ContentLength"],
                 "content_type": head["ContentType"],
                 "metadata": head["Metadata"],
+                "last_modified": get_timestamp(head["LastModified"]),
             }
         except client_error as err:
             error_code = normalize_client_error(err)
@@ -183,12 +184,17 @@ def worker(result_file_name, queue, mode):
                         # TODO specific error message for out of disk space
                     # If we need the metadata, get it and write it out
                     if pre_op_info:
+
                         with open("%s_meta" % url.local, mode="w") as f:
                             args = {"size": resp["ContentLength"]}
                             if resp["ContentType"]:
                                 args["content_type"] = resp["ContentType"]
                             if resp["Metadata"] is not None:
                                 args["metadata"] = resp["Metadata"]
+                            if resp["LastModified"]:
+                                args["last_modified"] = get_timestamp(
+                                    resp["LastModified"]
+                                )
                             json.dump(args, f)
                         # Finally, we push out the size to the result_pipe since
                         # the size is used for verification and other purposes and
@@ -396,7 +402,7 @@ class S3Ops(object):
         except self.s3.exceptions.NoSuchBucket:
             return False, prefix_url, ERROR_URL_NOT_FOUND
         except self.client_error as err:
-            if err.response["Error"]["Code"] == "AccessDenied":
+            if err.response["Error"]["Code"] in ("AccessDenied", "AllAccessDisabled"):
                 return False, prefix_url, ERROR_URL_ACCESS_DENIED
             else:
                 raise

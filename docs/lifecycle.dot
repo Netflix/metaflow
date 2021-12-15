@@ -41,6 +41,7 @@ digraph Metaflow {
         validate_dag     [label="{graph|validate}", fillcolor=lightpink2]
         init_environment [label="{environment|init_environment}", fillcolor=palegreen2]
         package_init     [label="{decorator|package_init}", fillcolor=lightblue2]
+        add_custom_package [label="{decorator|add_to_package}", fillcolor=lightblue2]
         add_to_package   [label="{environment|add_to_package}", fillcolor=palegreen2]
         package          [label="{package|create}", fillcolor=lightpink2]
     }
@@ -148,7 +149,8 @@ digraph Metaflow {
     /* package */
     validate_dag -> init_environment
     init_environment -> package_init
-    package_init -> add_to_package
+    package_init -> add_custom_package
+    add_custom_package -> add_to_package
     add_to_package -> package
     package -> command_run
     package -> stepfunctions_create
