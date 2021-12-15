@@ -171,13 +171,8 @@ def get_cards(task, type=None, follow_resumed=True):
         if origin_taskpathspec:
             task = Task(origin_taskpathspec)
 
-    _, run_id, step_name, task_id = task.pathspec.split("/")
-
     card_paths, card_ds = resolve_paths_from_task(
         _get_flow_datastore(task),
-        run_id,
-        step_name,
-        task_id,
         pathspec=task.pathspec,
         type=type,
     )

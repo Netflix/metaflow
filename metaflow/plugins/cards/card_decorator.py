@@ -2,7 +2,6 @@ import subprocess
 import os
 import sys
 import json
-import tempfile
 from metaflow.decorators import StepDecorator, flow_decorators
 from metaflow.current import current
 from metaflow.util import to_unicode
@@ -78,15 +77,6 @@ class CardDecorator(StepDecorator):
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
     ):
-        # We do this because of Py3 support JSONDecodeError and
-        # Py2 raises ValueError
-        # https://stackoverflow.com/questions/53355389/python-2-3-compatibility-issue-with-exception
-        try:
-            import json
-
-            RaisingError = json.decoder.JSONDecodeError
-        except AttributeError:  # Python 2
-            RaisingError = ValueError
 
         self.card_options = None
 
@@ -95,10 +85,12 @@ class CardDecorator(StepDecorator):
         for k in missing_keys:
             self.attributes[k] = self.defaults[k]
 
+        # when instantiation happens from the CLI we sometimes get stringified JSON and sometimes a dict for the
+        # `options` attributes. Hence we need to check for both and serialized.
         if type(self.attributes["options"]) is str:
             try:
                 self.card_options = json.loads(self.attributes["options"])
-            except RaisingError:
+            except json.decoder.JSONDecodeError:
                 self.card_options = self.defaults["options"]
         else:
             self.card_options = self.attributes["options"]
