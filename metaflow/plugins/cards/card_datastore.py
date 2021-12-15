@@ -55,7 +55,6 @@ class CardDatastore(object):
                 check_dir = os.path.realpath(check_dir)
                 orig_path = check_dir
                 while not os.path.isdir(check_dir):
-                    print(check_dir)
                     new_path = os.path.dirname(current_path)
                     if new_path == current_path:
                         break  # We are no longer making upward progress

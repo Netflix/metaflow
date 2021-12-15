@@ -1,8 +1,8 @@
-from metaflow.cards import MetaflowCard
+from .card import MetaflowCard, MetaflowCardComponent
 
 
-class MockCard(MetaflowCard):
-    type = "mock_card"
+class TestMockCard(MetaflowCard):
+    type = "test_mock_card"
 
     def __init__(self, options={"key": "dummy_key"}, **kwargs):
         self._key = options["key"]
@@ -12,16 +12,16 @@ class MockCard(MetaflowCard):
         return "%s" % task_data
 
 
-class ErrorCard(MetaflowCard):
-    type = "error_card"
+class TestErrorCard(MetaflowCard):
+    type = "test_error_card"
 
     # the render function will raise Exception
     def render(self, task):
         raise Exception("Unknown Things Happened")
 
 
-class TimeoutCard(MetaflowCard):
-    type = "timeout_card"
+class TestTimeoutCard(MetaflowCard):
+    type = "test_timeout_card"
 
     def __init__(self, options={"timeout": 50}, **kwargs):
         super().__init__()
@@ -35,6 +35,3 @@ class TimeoutCard(MetaflowCard):
 
         time.sleep(self._timeout)
         return "%s" % task.pathspec
-
-
-CARDS = [ErrorCard, TimeoutCard, MockCard]
