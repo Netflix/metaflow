@@ -13,6 +13,23 @@ _TYPE = type
 
 
 class Card:
+    """
+    The object which holds the html of a Metaflow card.
+
+    ### Usage
+    ```python
+    card_container = get_cards(task)
+    # This retrieves a `Card` instance
+    card = card_container[0]
+    # View the HTML in browser
+    card.view()
+    # Get the HTML of the card
+    html = card.get()
+    # calling the instance of `Card` inside a notebook cell will render the card as the output of a cell
+    card
+    ```
+    """
+
     def __init__(
         self,
         card_ds,
@@ -47,6 +64,9 @@ class Card:
     def path(self):
         return self._path
 
+    def __str__(self):
+        return "<Card at '%s'>" % self._path
+
     def view(self):
         import webbrowser
 
@@ -60,13 +80,21 @@ class Card:
     def _repr_html_(self):
         return self.get()
 
-    def nb(self):
-        from IPython.core.display import HTML, display
-
-        display(HTML(self.get()))
-
 
 class CardContainer:
+    """
+    A `list` like object that helps iterate through all the stored `Card`s.
+
+    ### Usage:
+    ```python
+    card_container = get_cards(task)
+    # Get all stored cards
+    cards = list(card_container)
+    # calling the instance of `CardContainer` inside a notebook will render all cards as the output of a cell
+    card_container
+    ```
+    """
+
     def __init__(self, card_paths, card_ds, from_resumed=False, origin_pathspec=None):
         self._card_paths = card_paths
         self._card_ds = card_ds
@@ -102,17 +130,6 @@ class CardContainer:
     def _make_heading(self, type):
         return "<h1>Displaying Card Of Type : %s</h1>" % type.title()
 
-    def nb(self):
-        from IPython.core.display import HTML
-        from IPython.display import display_html
-
-        main_html = []
-        for idx, _ in enumerate(self._card_paths):
-            card = self._get_card(idx)
-            main_html.append(HTML(data=self._make_heading(card.type)))
-            main_html.append(HTML(data="<div class='embed'>%s</div>" % card.get()))
-        display_html(*main_html)
-
     def _repr_html_(self):
         main_html = []
         for idx, _ in enumerate(self._card_paths):
@@ -120,12 +137,6 @@ class CardContainer:
             main_html.append(self._make_heading(card.type))
             main_html.append("<div class='embed'>%s</div>" % card.get())
         return "\n".join(main_html)
-
-    def __next__(self):
-        self._current += 1
-        if self._current >= self._high:
-            raise StopIteration
-        return self._get_card(self._current)
 
 
 def get_cards(task, type=None, follow_resumed=True):
