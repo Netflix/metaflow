@@ -16,7 +16,7 @@ from metaflow.exception import (
 
 from metaflow.metaflow_config import DEFAULT_METADATA, MAX_ATTEMPTS
 from metaflow.plugins import ENVIRONMENTS, METADATA_PROVIDERS
-from metaflow.unbounded_foreach import CONTROL_TASK_TAG, CONTROL_AND_MAPPER_TAG
+from metaflow.unbounded_foreach import CONTROL_TASK_TAG
 from metaflow.util import cached_property, resolve_identity, to_unicode
 
 from .filecache import FileCache
@@ -1406,8 +1406,7 @@ class Step(MetaflowObject):
             A task in the step
         """
         for t in self:
-            if CONTROL_TASK_TAG not in t.tags or CONTROL_AND_MAPPER_TAG in t.tags:
-                return t
+            return t
 
     def tasks(self, *tags):
         """
@@ -1469,8 +1468,7 @@ class Step(MetaflowObject):
     def __iter__(self):
         children = super(Step, self).__iter__()
         for t in children:
-            if CONTROL_TASK_TAG not in t.tags or CONTROL_AND_MAPPER_TAG in t.tags:
-                yield t
+            yield t
 
     @property
     def finished_at(self):

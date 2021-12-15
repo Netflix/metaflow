@@ -34,7 +34,6 @@ from .util import to_unicode, compress_list, unicode_type
 from .unbounded_foreach import (
     CONTROL_TASK_TAG,
     UBF_CONTROL,
-    CONTROL_AND_MAPPER_TAG,
     UBF_TASK,
 )
 
@@ -633,10 +632,6 @@ class Task(object):
             # task_id is preset only by persist_constants() or control tasks.
             if ubf_context == UBF_CONTROL:
                 tags = [CONTROL_TASK_TAG]
-                # for parallel steps, the control task is also a normal task, i.e "mapper"
-                # in the UBF vocabulary
-                if flow._graph[step].parallel_step:
-                    tags.append(CONTROL_AND_MAPPER_TAG)
                 metadata.register_task_id(
                     run_id,
                     step,
