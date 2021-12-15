@@ -167,8 +167,9 @@ class CardDecorator(StepDecorator):
             cmd, os.environ, timeout=self.attributes["timeout"]
         )
         if fail:
+            resp = "" if response is None else response.decode("utf-8")
             self._logger(
-                "Card render failed with error : \n\n %s" % response.decode("utf-8"),
+                "Card render failed with error : \n\n %s" % resp,
                 timestamp=False,
                 bad=True,
             )
