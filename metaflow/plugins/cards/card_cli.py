@@ -63,13 +63,9 @@ def resolve_card(ctx, pathspec, hash=None, type=None, follow_resumed=True):
     # what should be the args we expose
     run_id, step_name, task_id = pathspec.split("/")
     pathspec = "/".join([flow_name, run_id, step_name, task_id])
-    try:
-        task = Task(pathspec)
-    except MetaflowNamespaceMismatch as e:
-        # todo : What to do in such cases where there is a namespace mismatch
-        namespace(None)
-        task = Task(pathspec)
-
+    # we set namespace to be none to avoid namespace mismatch error.
+    namespace(None)
+    task = Task(pathspec)
     print_str = "Resolving card: %s" % pathspec
     if follow_resumed:
         origin_taskpathspec = resumed_info(task)
@@ -216,10 +212,10 @@ def card_read_options_and_arguments(func):
         help="Type of card being created",
     )
     @click.option(
-        "--dont-follow-resumed",
-        default=False,
-        is_flag=True,
-        help="Doesn't follow the origin-task-id of resumed tasks to seek cards stored for resumed tasks.",
+        "--follow-resumed/--no-follow-resumed",
+        default=True,
+        show_default=True,
+        help="Follow the origin-task-id of resumed tasks to seek cards stored for resumed tasks.",
     )
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -335,7 +331,7 @@ def view(
     pathspec,
     hash=None,
     type=None,
-    dont_follow_resumed=False,
+    follow_resumed=False,
 ):
     """
     View the HTML card in browser based on the pathspec.\n
@@ -347,7 +343,7 @@ def view(
         pathspec,
         type=type,
         hash=hash,
-        follow_resumed=not dont_follow_resumed,
+        follow_resumed=follow_resumed,
     )
     if len(available_card_paths) == 1:
         open_in_browser(card_datastore.cache_locally(available_card_paths[0]))
@@ -366,7 +362,7 @@ def get(
     pathspec,
     hash=None,
     type=None,
-    dont_follow_resumed=False,
+    follow_resumed=False,
 ):
     """
     Get the HTML string of the card based on pathspec.\n
@@ -378,7 +374,7 @@ def get(
         pathspec,
         type=type,
         hash=hash,
-        follow_resumed=not dont_follow_resumed,
+        follow_resumed=follow_resumed,
     )
     if len(available_card_paths) == 1:
         print(card_datastore.get_card_html(available_card_paths[0]))
