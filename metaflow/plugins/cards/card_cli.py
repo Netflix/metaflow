@@ -261,7 +261,7 @@ def render_card(mf_card, task, timeout_value=None):
     help="Maximum amount of time allowed to create card.",
 )
 @click.option(
-    "--with-error-card",
+    "--render-error-card",
     default=False,
     is_flag=True,
     help="Upon failing to render a card, render a card holding the stack trace",
@@ -273,7 +273,7 @@ def create(
     type=None,
     options=None,
     timeout=None,
-    with_error_card=False,
+    render_error_card=False,
 ):
 
     rendered_info = None  # Variable holding all the information which will be rendered
@@ -299,7 +299,7 @@ def create(
     card_datastore = CardDatastore(ctx.obj.flow_datastore, pathspec=full_pathspec)
 
     if len(filtered_cards) == 0 or type is None:
-        if with_error_card:
+        if render_error_card:
             error_stack_trace = str(CardClassFoundException(type))
         else:
             raise CardClassFoundException(type)
@@ -318,7 +318,7 @@ def create(
         try:
             mf_card = filtered_card(options=options, components=[], graph=graph_dict)
         except TypeError as e:
-            if with_error_card:
+            if render_error_card:
                 mf_card = None
                 error_stack_trace = str(IncorrectCardArgsException(type, options))
             else:
@@ -328,7 +328,7 @@ def create(
             try:
                 rendered_info = render_card(mf_card, task, timeout_value=timeout)
             except:
-                if with_error_card:
+                if render_error_card:
                     error_stack_trace = str(UnrenderableCardException(type, options))
                 else:
                     raise UnrenderableCardException(type, options)
@@ -337,7 +337,7 @@ def create(
     if error_stack_trace is not None:
         rendered_info = error_card().render(task, stack_trace=error_stack_trace)
 
-    if rendered_info is None and with_error_card:
+    if rendered_info is None and render_error_card:
         rendered_info = error_card().render(
             task, stack_trace="No information rendered From card of type %s" % type
         )
