@@ -20,15 +20,10 @@ def resumed_info(task):
 
 def resolve_paths_from_task(
     flow_datastore,
-    run_id,
-    step_name,
-    task_id,
     pathspec=None,
     type=None,
     hash=None,
 ):
-    card_datastore = CardDatastore(
-        flow_datastore, run_id, step_name, task_id, path_spec=pathspec
-    )
+    card_datastore = CardDatastore(flow_datastore, pathspec=pathspec)
     card_paths_found = card_datastore.extract_card_paths(card_type=type, card_hash=hash)
     return card_paths_found, card_datastore

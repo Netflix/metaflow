@@ -1,4 +1,5 @@
 from metaflow.datastore import DATASTORES, FlowDataStore
+from metaflow.metaflow_config import DATASTORE_CARD_SUFFIX
 from .card_resolver import resolve_paths_from_task, resumed_info
 from .card_datastore import CardDatastore
 from .exception import (
@@ -171,13 +172,8 @@ def get_cards(task, type=None, follow_resumed=True):
         if origin_taskpathspec:
             task = Task(origin_taskpathspec)
 
-    _, run_id, step_name, task_id = task.pathspec.split("/")
-
     card_paths, card_ds = resolve_paths_from_task(
         _get_flow_datastore(task),
-        run_id,
-        step_name,
-        task_id,
         pathspec=task.pathspec,
         type=type,
     )
@@ -205,8 +201,10 @@ def _get_flow_datastore(task):
 
     if ds_root is None:
         for meta in task.metadata:
+            # Incase METAFLOW_CARD_S3ROOT and METAFLOW_DATASTORE_SYSROOT_S3 are absent
+            # then construct the default path for METAFLOW_CARD_S3ROOT from ds-root metadata
             if meta.name == "ds-root":
-                ds_root = meta.value
+                ds_root = os.path.join(meta.value, DATASTORE_CARD_SUFFIX)
                 break
 
     if ds_type is None:
