@@ -13,7 +13,7 @@
   import Nav from "./components/aside-nav.svelte";
 </script>
 
-<div class="container card">
+<div class="container mf-card">
   <Aside>
     <Nav pageHierarchy={utils.getPageHierarchy($cardData?.components)} />
   </Aside>

@@ -1,8 +1,8 @@
-.card * {
+.mf-card * {
   box-sizing: border-box;
 }
 
-.card {
+.mf-card {
     background: var(--bg);
     color: var(--black);
     font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
@@ -23,14 +23,14 @@
   }
 
 
-  .card :is(.mono,
+.mf-card :is(.mono,
 code.mono,
 pre.mono) {
   font-family: var(--mono-font);
   font-weight: lighter;
 }
 
-.card :is(table,
+.mf-card :is(table,
 th,
 td) {
   border-collapse: collapse;
@@ -38,25 +38,25 @@ td) {
   color: var(--black);
 }
 
-.card table {
+.mf-card table {
   position: relative;
   min-width: 100%;
 }
 
-.card td {
+.mf-card td {
   padding: 0.66rem 1.25rem;
   background: var(--lt-lt-grey);
   border: 1px solid #fff;
 }
 
-.card th {
+.mf-card th {
   border: none;
   color: var(--dk-grey);
   font-weight: normal;
   padding: 0.5rem;
 }
 
-.card :is(h1,
+.mf-card :is(h1,
 h2,
 h3,
 h4,
@@ -65,24 +65,24 @@ h5) {
   margin: 0.5rem 0;
 }
 
-.card ul {
+.mf-card ul {
   margin: 0;
   padding: 0;
 }
 
-.card p {
+.mf-card p {
   margin: 0 0 1rem;
 }
 
-.card p:last-of-type {
+.mf-card p:last-of-type {
   margin: 0;
 }
 
-.card button {
+.mf-card button {
   font-size: 1rem;
 }
 
-.card .textButton {
+.mf-card .textButton {
   cursor: pointer;
   text-align: left;
   background: none;
@@ -91,19 +91,19 @@ h5) {
   padding: 0;
 }
 
-.card :is(button.textButton:focus,
+.mf-card :is(button.textButton:focus,
 a:focus,
 button.textButton:active) {
   border: 1px dashed var(--grey);
   background: transparent;
 }
 
-.card button.textButton:hover {
+.mf-card button.textButton:hover {
   color: var(--blue);
   text-decoration: none;
 }
 
-.card :is(:not(pre) > code[class*="language-"],
+.mf-card :is(:not(pre) > code[class*="language-"],
 pre[class*="language-"]) {
   background: transparent !important;
   text-shadow: none;
