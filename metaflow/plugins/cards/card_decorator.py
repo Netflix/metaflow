@@ -2,7 +2,6 @@ import subprocess
 import os
 import sys
 import json
-import tempfile
 from metaflow.decorators import StepDecorator, flow_decorators
 from metaflow.current import current
 from metaflow.util import to_unicode
@@ -33,26 +32,7 @@ class CardDecorator(StepDecorator):
         # todo : first allow multiple decorators with a step
 
     def add_to_package(self):
-        return list(self._load_card_package())
-
-    def _load_card_package(self):
-        try:
-            import metaflow_cards
-        except ImportError:
-            metaflow_cards_root = None
-        else:
-            if len(metaflow_cards.__path__._path) > 0:
-                metaflow_cards_root = metaflow_cards.__path__._path[0]
-
-        if metaflow_cards_root:
-            # What if a file is too large and
-            # gets tagged along the metaflow_cards
-            # path; In such cases we can have huge tarballs
-            # that get created;
-            # Should we have package suffixes added over here?
-            for path_tuple in self._walk(metaflow_cards_root):
-                # print(path_tuple)
-                yield path_tuple
+        return []
 
     def _walk(self, root):
         root = to_unicode(root)  # handle files/folder with non ascii chars
@@ -70,15 +50,6 @@ class CardDecorator(StepDecorator):
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
     ):
-        # We do this because of Py3 support JSONDecodeError and
-        # Py2 raises ValueError
-        # https://stackoverflow.com/questions/53355389/python-2-3-compatibility-issue-with-exception
-        try:
-            import json
-
-            RaisingError = json.decoder.JSONDecodeError
-        except AttributeError:  # Python 2
-            RaisingError = ValueError
 
         self.card_options = None
 
@@ -87,16 +58,19 @@ class CardDecorator(StepDecorator):
         for k in missing_keys:
             self.attributes[k] = self.defaults[k]
 
+        # when instantiation happens from the CLI we sometimes get stringified JSON and sometimes a dict for the
+        # `options` attributes. Hence we need to check for both and serialized.
         if type(self.attributes["options"]) is str:
             try:
                 self.card_options = json.loads(self.attributes["options"])
-            except RaisingError:
+            except json.decoder.JSONDecodeError:
                 self.card_options = self.defaults["options"]
         else:
             self.card_options = self.attributes["options"]
 
         self._flow_datastore = flow_datastore
         self._environment = environment
+        self._logger = logger
 
     def task_pre_step(
         self,
