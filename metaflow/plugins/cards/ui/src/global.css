@@ -1,0 +1,149 @@
+@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap");
+
+:root {
+  --bg: #ffffff;
+  --black: #333;
+  --blue: #0c66de;
+  --dk-grey: #767676;
+  --dk-primary: #ef863b;
+  --dk-secondary: #13172d;
+  --dk-tertiary: #0f426e;
+  --error: #cf483e;
+  --grey: rgba(0, 0, 0, 0.125);
+  --highlight: #f8d9d8;
+  --lt-blue: #4fa7ff;
+  --lt-grey: #f3f3f3;
+  --lt-lt-grey: #f9f9f9;
+  --lt-primary: #ffcb8b;
+  --lt-secondary: #434d81;
+  --lt-tertiary: #4189c9;
+  --primary: #faab4a;
+  --quadrary: #f8d9d8;
+  --secondary: #2e3454;
+  --tertiary: #2a679d;
+  --white: #ffffff;
+
+  --component-spacer: 3rem;
+  --aside-width: 20rem;
+
+  --mono-font: ui-monospace, Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono",
+    "Roboto Mono", "Oxygen Mono", "Ubuntu Monospace", "Source Code Pro",
+    "Fira Mono", "Droid Sans Mono", "Courier New", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--black);
+  font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+    "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
+    sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  text-size-adjust: 100%;
+  margin: 0;
+  min-height: 100vh;
+  overflow-y: visible;
+  padding: 0;
+  text-align: left;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-font-smoothing: antialiased;
+  width: 100%;
+}
+
+#app {
+  width: 100%;
+  min-height: 100vh;
+}
+
+.mono,
+code.mono,
+pre.mono {
+  font-family: var(--mono-font);
+  font-weight: lighter;
+}
+
+table,
+th,
+td {
+  border-collapse: collapse;
+  text-align: center;
+  color: var(--black);
+}
+
+table {
+  position: relative;
+  min-width: 100%;
+}
+
+td {
+  padding: 0.66rem 1.25rem;
+  background: var(--lt-lt-grey);
+  border: 1px solid #fff;
+}
+
+th {
+  border: none;
+  color: var(--dk-grey);
+  font-weight: normal;
+  padding: 0.5rem;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5 {
+  font-weight: 700;
+  margin: 0.5rem 0;
+}
+
+ul {
+  margin: 0;
+  padding: 0;
+}
+
+p {
+  margin: 0 0 1rem;
+}
+
+p:last-of-type {
+  margin: 0;
+}
+
+button {
+  font-size: 1rem;
+}
+
+.textButton {
+  cursor: pointer;
+  text-align: left;
+  background: none;
+  border: 1px solid transparent;
+  outline: none;
+  padding: 0;
+}
+
+button.textButton:focus,
+a:focus,
+button.textButton:active {
+  border: 1px dashed var(--grey);
+  background: transparent;
+}
+
+button.textButton:hover {
+  color: var(--blue);
+  text-decoration: none;
+}
+
+:not(pre) > code[class*="language-"],
+pre[class*="language-"] {
+  background: transparent !important;
+  text-shadow: none;
+  user-select: auto;
+}
