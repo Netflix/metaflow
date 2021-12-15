@@ -66,7 +66,7 @@ class PytorchParallelTest(FlowSpec):
             assert input.num_nodes == self.num_parallel
             assert input.reduced_tensor_value == sum(range(1, input.num_nodes + 1))
             j += 1
-        assert j == self.num_parallel
+        assert j == self.num_nodes
         self.next(self.end)
 
     @step

@@ -55,9 +55,9 @@ class PyTorchHelper:
         if "logger_url" in sig.parameters:
             kwargs["logger_url"] = paths.get_s3_logger_url(run=run)
         else:
-            print("NOTE: logger_url not an argument to the pytorch target '{}").format(
+            print("NOTE: logger_url not an argument to the pytorch target '{}".format(
                 target.__name__
-            )
+            ))
 
         # SETUP DISTRIBUTED ENV FOR METAFLOW & TORCH
         setup_torch_distributed(num_local_workers)
