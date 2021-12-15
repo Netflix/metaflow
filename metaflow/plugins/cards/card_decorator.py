@@ -161,7 +161,7 @@ class CardDecorator(StepDecorator):
             cmd += ["--timeout", str(self.attributes["timeout"])]
 
         if self.attributes["save_errors"]:
-            cmd += ["--with-error-card"]
+            cmd += ["--render-error-card"]
 
         response, fail = self._run_command(
             cmd, os.environ, timeout=self.attributes["timeout"]
