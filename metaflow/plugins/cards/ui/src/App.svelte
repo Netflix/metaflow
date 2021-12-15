@@ -3,6 +3,7 @@
   import "./prism";
   import "./global.css";
   import "./prism.css";
+  import "./app.css"
   import { cardData, modal } from "./store";
   import * as utils from "./utils";
   import Aside from "./components/aside.svelte";
@@ -12,7 +13,7 @@
   import Nav from "./components/aside-nav.svelte";
 </script>
 
-<div class="container">
+<div class="container mf-card">
   <Aside>
     <Nav pageHierarchy={utils.getPageHierarchy($cardData?.components)} />
   </Aside>

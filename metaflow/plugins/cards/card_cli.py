@@ -264,7 +264,7 @@ def render_card(mf_card, task, timeout_value=None):
     "--with-error-card",
     default=False,
     is_flag=True,
-    help="Upon failing to render a card render a card holding the stack trace",
+    help="Upon failing to render a card, render a card holding the stack trace",
 )
 @click.pass_context
 def create(
