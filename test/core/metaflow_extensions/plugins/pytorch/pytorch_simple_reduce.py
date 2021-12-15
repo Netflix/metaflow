@@ -7,6 +7,7 @@ import torch.nn.functional as F
 import torch.distributed as dist
 import torch.optim as optim
 
+
 class LearnToSum(pl.LightningModule):
     def __init__(self):
         super().__init__()
@@ -28,7 +29,6 @@ class LearnToSum(pl.LightningModule):
         dist.all_reduce(rank, op=dist.ReduceOp.SUM)
         self.rank_reduction = rank
 
-
     def configure_optimizers(self):
         return {"optimizer": optim.SGD(self.parameters(), lr=0.01)}
 
@@ -49,11 +49,12 @@ def train(num_local_processes):
     dataset = torch.utils.data.TensorDataset(inps, targets)
     trainer.fit(model, torch.utils.data.DataLoader(dataset, batch_size=1))
     print("result")
-    print(model(torch.arange(10, dtype=torch.float32)), "expect close to", sum(range(10)))
+    print(
+        model(torch.arange(10, dtype=torch.float32)), "expect close to", sum(range(10))
+    )
     assert model.rank_reduction == sum(range(1, 1 + num_local_processes * num_nodes))
     return model.rank_reduction
 
 
 if __name__ == "__main__":
     train(3)
-
