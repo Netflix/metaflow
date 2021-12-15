@@ -55,17 +55,22 @@ class CLIArgs(object):
     @staticmethod
     def _options(mapping):
         for k, v in mapping.items():
-            if v:
-                # we need special handling for 'with' since it is a reserved
-                # keyword in Python, so we call it 'decospecs' in click args
-                if k == "decospecs":
-                    k = "with"
-                k = k.replace("_", "-")
-                v = v if isinstance(v, (list, tuple, set)) else [v]
-                for value in v:
-                    yield "--%s" % k
-                    if not isinstance(value, bool):
-                        yield to_unicode(value)
+
+            # None or False arguments are ignored
+            # v needs to be explicitly False, not falsy, eg. 0 is an acceptable value
+            if v is None or v is False:
+                continue
+
+            # we need special handling for 'with' since it is a reserved
+            # keyword in Python, so we call it 'decospecs' in click args
+            if k == "decospecs":
+                k = "with"
+            k = k.replace("_", "-")
+            v = v if isinstance(v, (list, tuple, set)) else [v]
+            for value in v:
+                yield "--%s" % k
+                if not isinstance(value, bool):
+                    yield to_unicode(value)
 
 
 cli_args = CLIArgs()

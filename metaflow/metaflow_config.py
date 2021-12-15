@@ -57,9 +57,6 @@ DEFAULT_AWS_CLIENT_PROVIDER = from_conf("METAFLOW_DEFAULT_AWS_CLIENT_PROVIDER", 
 ###
 # Path to the local directory to store artifacts for 'local' datastore.
 DATASTORE_LOCAL_DIR = ".metaflow"
-DATASTORE_CARDS_LOCAL_DIR = ".metaflow_cards"
-DATASTORE_SYSROOT_LOCAL = from_conf("METAFLOW_DATASTORE_SYSROOT_LOCAL")
-DATASTORE_LOCAL_DIR = ".metaflow"
 DATASTORE_SYSROOT_LOCAL = from_conf("METAFLOW_DATASTORE_SYSROOT_LOCAL")
 # S3 bucket and prefix to store artifacts for 's3' datastore.
 DATASTORE_SYSROOT_S3 = from_conf("METAFLOW_DATASTORE_SYSROOT_S3")
@@ -79,24 +76,14 @@ DATATOOLS_LOCALROOT = from_conf(
     else None,
 )
 
-DATASTORE_CARD_SUFFIX = from_conf("METAFLOW_CARD_SUFFIX", "cards")
+DATASTORE_CARD_SUFFIX = "mf.cards"
+DATASTORE_CARD_LOCALROOT = from_conf("METAFLOW_CARD_LOCALROOT")
 DATASTORE_CARD_S3ROOT = from_conf(
     "METAFLOW_CARD_S3ROOT",
     "%s/%s" % (from_conf("METAFLOW_DATASTORE_SYSROOT_S3"), DATASTORE_CARD_SUFFIX)
     if from_conf("METAFLOW_DATASTORE_SYSROOT_S3")
     else None,
 )
-
-DATASTORE_CARD_LOCALROOT = from_conf(
-    "METAFLOW_CARD_LOCALROOT",
-    "%s" % DATASTORE_CARDS_LOCAL_DIR
-    if from_conf("METAFLOW_DATASTORE_SYSROOT_LOCAL")
-    else None,
-)
-
-# S3 endpoint url
-S3_ENDPOINT_URL = from_conf("METAFLOW_S3_ENDPOINT_URL", None)
-S3_VERIFY_CERTIFICATE = from_conf("METAFLOW_S3_VERIFY_CERTIFICATE", None)
 # S3 endpoint url
 S3_ENDPOINT_URL = from_conf("METAFLOW_S3_ENDPOINT_URL", None)
 S3_VERIFY_CERTIFICATE = from_conf("METAFLOW_S3_VERIFY_CERTIFICATE", None)

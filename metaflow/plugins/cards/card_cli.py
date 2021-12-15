@@ -1,5 +1,5 @@
 from metaflow.client import Task
-from metaflow import Flow, JSONType, Step
+from metaflow import JSONType, namespace
 from metaflow.exception import CommandException
 import webbrowser
 import re
@@ -9,8 +9,8 @@ import signal
 import random
 from contextlib import contextmanager
 from functools import wraps
-from metaflow.exception import MetaflowNotFound
-from .card_datastore import CardDatastore, stepname_from_card_id, NUM_SHORT_HASH_CHARS
+from metaflow.exception import MetaflowNamespaceMismatch
+from .card_datastore import CardDatastore, NUM_SHORT_HASH_CHARS
 from .exception import (
     CardClassFoundException,
     IncorrectCardArgsException,
@@ -63,14 +63,20 @@ def resolve_card(ctx, pathspec, hash=None, type=None, follow_resumed=True):
     # what should be the args we expose
     run_id, step_name, task_id = pathspec.split("/")
     pathspec = "/".join([flow_name, run_id, step_name, task_id])
-    task = Task(pathspec)
+    try:
+        task = Task(pathspec)
+    except MetaflowNamespaceMismatch as e:
+        # todo : What to do in such cases where there is a namespace mismatch
+        namespace(None)
+        task = Task(pathspec)
+
     print_str = "Resolving card: %s" % pathspec
     if follow_resumed:
-        resume_status = resumed_info(task)
-        if resume_status.task_resumed:
-            pathspec = resume_status.origin_task_pathspec
+        origin_taskpathspec = resumed_info(task)
+        if origin_taskpathspec:
+            pathspec = origin_taskpathspec
             ctx.obj.echo(
-                "Resolving card resumed from: %s" % resume_status.origin_task_pathspec,
+                "Resolving card resumed from: %s" % origin_taskpathspec,
                 fg="green",
             )
         else:
@@ -177,8 +183,21 @@ def cli():
 
 
 @cli.group(help="Commands related to @card decorator.")
-def card():
-    pass
+@click.pass_context
+def card(ctx):
+    # We set the metadata values here so that top level arguments to --datastore and --metadata
+    # Can work with the Metaflow client.
+    # If we don't set the metadata here than the metaflow client picks the defaults when calling the `Task`/`Run` objects. These defaults can come from the `config.json` file or based on the `METAFLOW_PROFILE`
+    from metaflow import metadata
+
+    setting_metadata = "@".join(
+        [ctx.obj.metadata.TYPE, ctx.obj.metadata.default_info()]
+    )
+    metadata(setting_metadata)
+    # set the card root to the datastore according to the configuration.
+    root_pth = CardDatastore.get_storage_root(ctx.obj.flow_datastore._storage_impl.TYPE)
+    if root_pth is not None:
+        ctx.obj.flow_datastore._storage_impl.datastore_root = root_pth
 
 
 def card_read_options_and_arguments(func):
@@ -223,7 +242,7 @@ def render_card(mf_card, task, timeout_value=None):
 @click.argument("pathspec", type=str)
 @click.option(
     "--type",
-    default=None,
+    default="default",
     show_default=True,
     type=str,
     help="Type of card being created",
@@ -334,7 +353,12 @@ def create(
         save_type = "error"
 
     if rendered_info is not None:
-        card_datastore.save_card(save_type, rendered_info)
+        card_info = card_datastore.save_card(save_type, rendered_info)
+        ctx.obj.echo(
+            "Card created with type: %s and hash: %s"
+            % (card_info.type, card_info.hash[:NUM_SHORT_HASH_CHARS]),
+            fg="green",
+        )
 
 
 @card.command()

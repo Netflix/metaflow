@@ -118,3 +118,27 @@ class IncorrectCardModuleAttributeTypeException(MetaflowException):
             "is not a `list`." % (module_name)
         )
         super().__init__(msg=msg, lineno=None)
+
+
+class IncorrectArguementException(MetaflowException):
+    headline = (
+        "`get_cards` function requires a `Task` object or pathspec as an argument"
+    )
+
+    def __init__(self, obj_type):
+        msg = (
+            "`get_cards` function requires a `Task` object or pathspec as an argument. `task` argument cannot be of type %s."
+            % str(obj_type)
+        )
+        super().__init__(msg=msg, lineno=None)
+
+
+class IncorrectPathspecException(MetaflowException):
+    headline = "Pathspec is required of form `flowname/runid/stepname/taskid`"
+
+    def __init__(self, pthspec):
+        msg = (
+            "Pathspec %s is invalid. Pathspec is required of form `flowname/runid/stepname/taskid`"
+            % pthspec
+        )
+        super().__init__(msg=msg, lineno=None)

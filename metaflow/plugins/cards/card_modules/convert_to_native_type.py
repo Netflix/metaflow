@@ -108,10 +108,11 @@ class TaskToDict:
                 data_object = data.data
                 task_data_dict[data.id] = self._convert_to_native_type(data_object)
             except ModuleNotFoundError as e:
+                data_object = "<unable to unpickle>"
                 # this means pickle couldn't find the module.
                 task_data_dict[data.id] = dict(
                     type=e.name,
-                    data="<unable to unpickle>",
+                    data=data_object,
                     large_object=False,
                     supported_type=False,
                     only_repr=self._only_repr,
@@ -276,12 +277,20 @@ class TaskToDict:
     def _parse_pandas_dataframe(self, data_object):
         headers = list(data_object.columns)
         data = data_object.head()
+        index_column = data.index
+
+        if index_column.dtype == "datetime64[ns]":
+            index_column = index_column.dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
         for col in data.columns:
             # we convert datetime columns to strings
             if data[col].dtype == "datetime64[ns]":
                 data[col] = data[col].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        return dict(headers=headers, data=data.values.tolist())
+        data_vals = data.values.tolist()
+        for row, idx in zip(data_vals, index_column.values.tolist()):
+            row.insert(0, idx)
+        return dict(headers=[""] + headers, data=data_vals)
 
     def _parse_numpy_ndarray(self, data_object):
         return data_object.tolist()

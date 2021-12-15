@@ -2,8 +2,6 @@ from collections import namedtuple
 
 from .card_datastore import CardDatastore
 
-ResumedInfo = namedtuple("ResumedInfo", ["task_resumed", "origin_task_pathspec"])
-
 
 def _chase_origin(task):
     from metaflow.client import Task
@@ -17,8 +15,7 @@ def _chase_origin(task):
 
 
 def resumed_info(task):
-    origin_pathspec = _chase_origin(task)
-    return ResumedInfo(origin_pathspec is not None, origin_pathspec)
+    return _chase_origin(task)
 
 
 def resolve_paths_from_task(
