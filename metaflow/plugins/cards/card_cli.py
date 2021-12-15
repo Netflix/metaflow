@@ -63,13 +63,9 @@ def resolve_card(ctx, pathspec, hash=None, type=None, follow_resumed=True):
     # what should be the args we expose
     run_id, step_name, task_id = pathspec.split("/")
     pathspec = "/".join([flow_name, run_id, step_name, task_id])
-    try:
-        task = Task(pathspec)
-    except MetaflowNamespaceMismatch as e:
-        # todo : What to do in such cases where there is a namespace mismatch
-        namespace(None)
-        task = Task(pathspec)
-
+    # we set namespace to be none to avoid namespace mismatch error.
+    namespace(None)
+    task = Task(pathspec)
     print_str = "Resolving card: %s" % pathspec
     if follow_resumed:
         origin_taskpathspec = resumed_info(task)
