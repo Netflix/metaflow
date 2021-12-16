@@ -90,6 +90,11 @@ class MetadataCheck(MetaflowCheck):
     def artifact_dict(self, step, name):
         return {task.id: {name: task[name].data} for task in self.run[step]}
 
+    def artifact_dict_if_exists(self, step, name):
+        return {
+            task.id: {name: task[name].data} for task in self.run[step] if name in task
+        }
+
     def assert_log(self, step, logtype, value, exact_match=True):
         log_value = self.get_log(step, logtype)
         if log_value == value:

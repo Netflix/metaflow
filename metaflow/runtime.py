@@ -31,7 +31,11 @@ from .debug import debug
 from .decorators import flow_decorators
 from .mflog import mflog, RUNTIME_LOG_SOURCE
 from .util import to_unicode, compress_list, unicode_type
-from .unbounded_foreach import CONTROL_TASK_TAG, UBF_CONTROL, UBF_TASK
+from .unbounded_foreach import (
+    CONTROL_TASK_TAG,
+    UBF_CONTROL,
+    UBF_TASK,
+)
 
 MAX_WORKERS = 16
 MAX_NUM_SPLITS = 100
@@ -364,6 +368,11 @@ class NativeRuntime(object):
             top = foreach_stack[-1]
             bottom = list(foreach_stack[:-1])
             s = tuple(bottom + [top._replace(index=None)])
+
+            # UBF control can also be the first task of the list. Then
+            # it will have index=0 instead of index=None.
+            if task.results.get("_control_task_is_mapper_zero", False):
+                s = tuple(bottom + [top._replace(index=0)])
             control_path = self._finished.get((task.step, s))
             if control_path:
                 # Control task was successful.
@@ -374,7 +383,6 @@ class NativeRuntime(object):
                 for i in range(num_splits):
                     s = tuple(bottom + [top._replace(index=i)])
                     required_tasks.append(self._finished.get((task.step, s)))
-                required_tasks.append(control_path)
 
                 if all(required_tasks):
                     # all tasks to be joined are ready. Schedule the next join step.
@@ -431,11 +439,17 @@ class NativeRuntime(object):
             next_step = next_steps[0]
 
         unbounded_foreach = not task.results.is_none("_unbounded_foreach")
-
         if unbounded_foreach:
             # Need to push control process related task.
+            ubf_iter_name = task.results.get("_foreach_var")
+            ubf_iter = task.results.get(ubf_iter_name)
             self._queue_push(
-                next_step, {"input_paths": [task.path], "ubf_context": UBF_CONTROL}
+                next_step,
+                {
+                    "input_paths": [task.path],
+                    "ubf_context": UBF_CONTROL,
+                    "ubf_iter": ubf_iter,
+                },
             )
         else:
             num_splits = task.results["_foreach_num_splits"]
@@ -592,6 +606,7 @@ class Task(object):
         input_paths=None,
         split_index=None,
         ubf_context=None,
+        ubf_iter=None,
         clone_run_id=None,
         origin_ds_set=None,
         may_clone=False,
@@ -616,8 +631,13 @@ class Task(object):
         else:
             # task_id is preset only by persist_constants() or control tasks.
             if ubf_context == UBF_CONTROL:
+                tags = [CONTROL_TASK_TAG]
                 metadata.register_task_id(
-                    run_id, step, task_id, 0, sys_tags=[CONTROL_TASK_TAG]
+                    run_id,
+                    step,
+                    task_id,
+                    0,
+                    sys_tags=tags,
                 )
             else:
                 metadata.register_task_id(run_id, step, task_id, 0)
@@ -629,6 +649,7 @@ class Task(object):
         self.input_paths = input_paths
         self.split_index = split_index
         self.ubf_context = ubf_context
+        self.ubf_iter = ubf_iter
         self.decos = decos
         self.entrypoint = entrypoint
         self.environment = environment

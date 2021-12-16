@@ -89,6 +89,9 @@ class CliCheck(MetaflowCheck):
                 # if the step had multiple tasks, this will fail
                 return pickle.load(f)
 
+    def artifact_dict_if_exists(self, step, name):
+        return self.artifact_dict(step, name)
+
     def assert_log(self, step, logtype, value, exact_match=True):
         log = self.get_log(step, logtype)
         if (exact_match and log != value) or (not exact_match and value not in log):

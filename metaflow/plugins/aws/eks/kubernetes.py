@@ -246,6 +246,7 @@ class Kubernetes(object):
             .environment_variable("METAFLOW_DEFAULT_DATASTORE", "s3")
             .environment_variable("METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA)
             .environment_variable("METAFLOW_KUBERNETES_WORKLOAD", 1)
+            .environment_variable("METAFLOW_RUNTIME_ENVIRONMENT", "eks")
             .label("app", "metaflow")
             .label("metaflow/flow_name", sanitize_label_value(self._flow_name))
             .label("metaflow/run_id", sanitize_label_value(self._run_id))

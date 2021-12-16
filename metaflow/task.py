@@ -385,14 +385,6 @@ class MetaflowTask(object):
         output.init_task()
 
         if input_paths:
-            control_paths = [
-                path
-                for path in input_paths
-                if path.split("/")[-1].startswith("control-")
-            ]
-            if control_paths:
-                [control_path] = control_paths
-                input_paths.remove(control_path)
             # 2. initialize input datastores
             inputs = self._init_data(run_id, join_type, input_paths)
 

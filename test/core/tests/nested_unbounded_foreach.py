@@ -44,10 +44,10 @@ class NestedUnboundedForeachTest(MetaflowTest):
         else:
             assert run is not None
             foreach_inner_tasks = {t.pathspec for t in run["foreach_inner"].tasks()}
-            assert_equals(36, len(foreach_inner_tasks))
+            assert_equals(42, len(foreach_inner_tasks))
             assert_equals(6, len(list(run["foreach_inner"].control_tasks())))
 
-            artifacts = checker.artifact_dict("foreach_inner", "combo")
+            artifacts = checker.artifact_dict_if_exists("foreach_inner", "combo")
             # Explicitly only consider UBF tasks since the CLIChecker isn't aware of them.
             step_prefix = run["foreach_inner"].pathspec
             import os

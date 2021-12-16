@@ -62,6 +62,7 @@
         {
             "name": "python3-batch",
             "disabled": true,
+            "disable_parallel": true,
             "python": "python3",
             "top_options": [
                 "--event-logger=nullSidecarLogger",
@@ -96,6 +97,7 @@
         {
             "name": "python3-k8s",
             "disabled": true,
+            "disable_parallel": true,
             "python": "python3",
             "top_options": [
                 "--event-logger=nullSidecarLogger",
