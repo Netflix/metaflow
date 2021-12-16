@@ -323,6 +323,7 @@ class BatchDecorator(StepDecorator):
         to terminate immediately, and possibly prematurely.
         """
         from metaflow import Step  # avoid circular dependency
+
         TIMEOUT = 600
         last_completion_timeout = time.time() + TIMEOUT
         print("Waiting for batch secondary tasks to finish")
