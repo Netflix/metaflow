@@ -11,7 +11,6 @@ _expected_extensions = {
     "MONITOR_SIDECARS": {},
     "AWS_CLIENT_PROVIDERS": [],
     "get_plugin_cli": lambda: [],
-    "CARDS": [],
 }
 
 try:
