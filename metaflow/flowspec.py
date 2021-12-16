@@ -42,7 +42,7 @@ class ParallelUBF(UnboundedForeachInput):
         self.num_parallel = num_parallel
 
     def __getitem__(self, item):
-        return item
+        return item or 0  # item is None for the control task, but it is also split 0
 
 
 class FlowSpec(object):

@@ -14,6 +14,7 @@ class BasicParallelTest(MetaflowTest):
 
         assert_equals(4, current.parallel.num_nodes)
         self.my_node_index = current.parallel.node_index
+        assert_equals(self.my_node_index, self.input)
 
     @steps(0, ["join"], required=True)
     def join(self, inputs):
