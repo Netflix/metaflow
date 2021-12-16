@@ -324,7 +324,7 @@ class BatchDecorator(StepDecorator):
         """
         from metaflow import Step  # avoid circular dependency
         TIMEOUT = 600
-        last_completion_timeout = time.time() + 600  # wait for 10 minutes
+        last_completion_timeout = time.time() + TIMEOUT
         print("Waiting for batch secondary tasks to finish")
         while last_completion_timeout > time.time():
             time.sleep(2)
