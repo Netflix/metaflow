@@ -55,8 +55,12 @@ class CardDecorator(StepDecorator):
                 if fname[0] == ".":
                     continue
 
-                p = os.path.join(path, fname)
-                yield p, p[prefixlen:]
+                # TODO: This prevents redundant packaging of .py files for the
+                # default card. We should fix this logic to allow .py files to
+                # be included for custom cards.
+                if any(fname.endswith(s) for s in [".html", ".js", ".css"]):
+                    p = os.path.join(path, fname)
+                    yield p, p[prefixlen:]
 
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
