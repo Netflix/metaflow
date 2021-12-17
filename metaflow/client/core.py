@@ -1406,8 +1406,7 @@ class Step(MetaflowObject):
             A task in the step
         """
         for t in self:
-            if CONTROL_TASK_TAG not in t.tags:
-                return t
+            return t
 
     def tasks(self, *tags):
         """
@@ -1469,8 +1468,7 @@ class Step(MetaflowObject):
     def __iter__(self):
         children = super(Step, self).__iter__()
         for t in children:
-            if CONTROL_TASK_TAG not in t.tags:
-                yield t
+            yield t
 
     @property
     def finished_at(self):

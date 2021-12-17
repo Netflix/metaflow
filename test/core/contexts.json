@@ -1,37 +1,6 @@
 {
     "contexts": [
         {
-            "name": "python2-all-local",
-            "disabled": false,
-            "env": {
-                "METAFLOW_USER": "tester",
-                "METAFLOW_RUN_BOOL_PARAM": "False",
-                "METAFLOW_RUN_NO_DEFAULT_PARAM": "test_str",
-                "METAFLOW_DEFAULT_METADATA": "local"
-            },
-            "python": "python2",
-            "top_options": [
-                "--metadata=local",
-                "--datastore=local",
-                "--environment=local",
-                "--event-logger=nullSidecarLogger",
-                "--no-pylint",
-                "--quiet"
-            ],
-            "run_options": [
-                "--max-workers", "50",
-                "--max-num-splits", "10000",
-                "--tag", "\u523a\u8eab means sashimi",
-                "--tag", "multiple tags should be ok"
-            ],
-            "checks": ["python2-cli", "python3-cli",
-                        "python2-metadata", "python3-metadata"],
-            "disabled_tests": [
-                "LargeArtifactTest",
-                "S3FailureTest"
-            ]
-        },
-        {
             "name": "python3-all-local",
             "disabled": false,
             "env": {
@@ -55,8 +24,7 @@
                 "--tag", "\u523a\u8eab means sashimi",
                 "--tag", "multiple tags should be ok"
             ],
-            "checks": ["python2-cli", "python3-cli",
-                        "python2-metadata", "python3-metadata"],
+            "checks": [ "python3-cli", "python3-metadata"],
             "disabled_tests": [
                 "LargeArtifactTest",
                 "S3FailureTest"
@@ -86,8 +54,7 @@
                 "--tag", "\u523a\u8eab means sashimi",
                 "--tag", "multiple tags should be ok"
             ],
-            "checks": ["python2-cli", "python3-cli",
-                        "python2-metadata", "python3-metadata"],
+            "checks": ["python3-cli", "python3-metadata"],
             "disabled_tests": [
                 "S3FailureTest"
             ]
@@ -95,6 +62,7 @@
         {
             "name": "python3-batch",
             "disabled": true,
+            "disable_parallel": true,
             "python": "python3",
             "top_options": [
                 "--event-logger=nullSidecarLogger",
@@ -129,6 +97,7 @@
         {
             "name": "python3-k8s",
             "disabled": true,
+            "disable_parallel": true,
             "python": "python3",
             "top_options": [
                 "--event-logger=nullSidecarLogger",
@@ -162,9 +131,7 @@
         }
     ],
     "checks": {
-        "python2-cli": {"python": "python2", "class": "CliCheck"},
         "python3-cli": {"python": "python3", "class": "CliCheck"},
-        "python2-metadata": {"python": "python2", "class": "MetadataCheck"},
         "python3-metadata": {"python": "python3", "class": "MetadataCheck"}
     }
 }

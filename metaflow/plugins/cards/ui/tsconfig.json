@@ -1,0 +1,9 @@
+{
+  "extends": "@tsconfig/svelte/tsconfig.json",
+  "compilerOptions": {
+    "strictNullChecks": true,
+    "noImplicitAny": true
+  },
+  "include": ["src/**/*", "cypress/**/*"],
+  "exclude": ["node_modules/*", "__sapper__/*", "public/*", "src/**/*.js"]
+}

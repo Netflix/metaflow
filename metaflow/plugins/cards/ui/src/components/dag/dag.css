@@ -1,0 +1,12 @@
+:root {
+  --dag-border: #282828;
+  --dag-bg-static: var(--lt-grey);
+  --dag-bg-success: #a5d46a;
+  --dag-bg-running: #ffdf80;
+  --dag-bg-error: #ffa080;
+  --dag-connector: #cccccc;
+  --dag-gap: 5rem;
+  --dag-step-height: 6.25rem;
+  --dag-step-width: 11.25rem;
+  --dag-selected: #ffd700;
+}
