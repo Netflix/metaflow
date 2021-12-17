@@ -98,10 +98,12 @@ def get_plugin_cli():
     from .aws.batch import batch_cli
     from .aws.eks import kubernetes_cli
     from .aws.step_functions import step_functions_cli
+    from .cards import card_cli
 
     return _ext_plugins.get_plugin_cli() + [
         package_cli.cli,
         batch_cli.cli,
+        card_cli.cli,
         kubernetes_cli.cli,
         step_functions_cli.cli,
     ]
@@ -133,6 +135,8 @@ from .test_unbounded_foreach_decorator import (
     InternalTestUnboundedForeachInput,
 )
 from .conda.conda_step_decorator import CondaStepDecorator
+from .cards.card_decorator import CardDecorator
+
 
 STEP_DECORATORS = _merge_lists(
     [
@@ -142,6 +146,7 @@ STEP_DECORATORS = _merge_lists(
         ResourcesDecorator,
         RetryDecorator,
         BatchDecorator,
+        CardDecorator,
         KubernetesDecorator,
         StepFunctionsInternalDecorator,
         CondaStepDecorator,
@@ -180,7 +185,18 @@ FLOW_DECORATORS = _merge_lists(
     "name",
 )
 
+# Cards
+from .cards.card_modules.basic import DefaultCard, TaskSpecCard, ErrorCard
+from .cards.card_modules.test_cards import TestErrorCard, TestTimeoutCard, TestMockCard
 
+CARDS = [
+    DefaultCard,
+    TaskSpecCard,
+    ErrorCard,
+    TestErrorCard,
+    TestTimeoutCard,
+    TestMockCard,
+]
 # Sidecars
 from ..mflog.save_logs_periodically import SaveLogsPeriodicallySidecar
 from metaflow.metadata.heartbeat import MetadataHeartBeat

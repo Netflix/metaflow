@@ -39,6 +39,10 @@ class AssertLogFailed(Exception):
     pass
 
 
+class AssertCardFailed(Exception):
+    pass
+
+
 class ExpectationFailed(Exception):
     def __init__(self, expected, got):
         super(ExpectationFailed, self).__init__(
@@ -119,6 +123,9 @@ class MetaflowCheck(object):
         raise NotImplementedError()
 
     def assert_log(self, step, logtype, value, exact_match=True):
+        raise NotImplementedError()
+
+    def get_card(self, step, task, card_type):
         raise NotImplementedError()
 
 
