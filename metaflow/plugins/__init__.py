@@ -184,8 +184,17 @@ FLOW_DECORATORS = _merge_lists(
 )
 
 # Cards
-CARDS = []
+from .cards.card_modules.basic import DefaultCard, TaskSpecCard, ErrorCard
+from .cards.card_modules.test_cards import TestErrorCard, TestTimeoutCard, TestMockCard
 
+CARDS = [
+    DefaultCard,
+    TaskSpecCard,
+    ErrorCard,
+    TestErrorCard,
+    TestTimeoutCard,
+    TestMockCard,
+]
 # Sidecars
 from ..mflog.save_logs_periodically import SaveLogsPeriodicallySidecar
 from metaflow.metadata.heartbeat import MetadataHeartBeat

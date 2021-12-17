@@ -3,6 +3,7 @@ from setuptools import setup, find_packages
 version = "2.4.5"
 
 setup(
+    include_package_data=True,
     name="metaflow",
     version=version,
     description="Metaflow: More Data Science, Less Engineering",
