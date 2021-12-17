@@ -17,7 +17,7 @@ CARD_ID_PATTERN = re.compile(
 class CardDecorator(StepDecorator):
     name = "card"
     defaults = {
-        "type": None,
+        "type": "default",
         "options": {},
         "scope": "task",
         "timeout": 45,
@@ -29,10 +29,21 @@ class CardDecorator(StepDecorator):
         self._task_datastore = None
         self._environment = None
         self._metadata = None
+        self._logger = None
         # todo : first allow multiple decorators with a step
 
     def add_to_package(self):
-        return []
+        return list(self._load_card_package())
+
+    def _load_card_package(self):
+
+        from . import card_modules
+
+        card_modules_root = os.path.dirname(card_modules.__file__)
+
+        for path_tuple in self._walk(card_modules_root):
+            file_path, arcname = path_tuple
+            yield (file_path, os.path.join("metaflow", "plugins", "cards", arcname))
 
     def _walk(self, root):
         root = to_unicode(root)  # handle files/folder with non ascii chars
@@ -44,8 +55,12 @@ class CardDecorator(StepDecorator):
                 if fname[0] == ".":
                     continue
 
-                p = os.path.join(path, fname)
-                yield p, p[prefixlen:]
+                # TODO: This prevents redundant packaging of .py files for the
+                # default card. We should fix this logic to allow .py files to
+                # be included for custom cards.
+                if any(fname.endswith(s) for s in [".html", ".js", ".css"]):
+                    p = os.path.join(path, fname)
+                    yield p, p[prefixlen:]
 
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
@@ -149,18 +164,33 @@ class CardDecorator(StepDecorator):
         if self.attributes["timeout"] is not None:
             cmd += ["--timeout", str(self.attributes["timeout"])]
 
-        self._run_command(cmd, os.environ)
-        # do nothing on failure as we create an error card
+        if self.attributes["save_errors"]:
+            cmd += ["--render-error-card"]
 
-    def _run_command(self, cmd, env):
+        response, fail = self._run_command(
+            cmd, os.environ, timeout=self.attributes["timeout"]
+        )
+        if fail:
+            resp = "" if response is None else response.decode("utf-8")
+            self._logger(
+                "Card render failed with error : \n\n %s" % resp,
+                timestamp=False,
+                bad=True,
+            )
+
+    def _run_command(self, cmd, env, timeout=None):
         fail = False
+        timeout_args = {}
+        if timeout is not None:
+            timeout_args = dict(timeout=int(timeout) + 10)
         try:
             rep = subprocess.check_output(
-                cmd,
-                env=env,
-                stderr=subprocess.STDOUT,
+                cmd, env=env, stderr=subprocess.STDOUT, **timeout_args
             )
         except subprocess.CalledProcessError as e:
+            rep = e.output
+            fail = True
+        except subprocess.TimeoutExpired as e:
             rep = e.output
             fail = True
         return rep, fail
