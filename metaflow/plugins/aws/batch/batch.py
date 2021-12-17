@@ -1,4 +1,5 @@
 import atexit
+import copy
 import json
 import os
 import select
@@ -180,6 +181,7 @@ class Batch(object):
         env={},
         attrs={},
         host_volumes=None,
+        num_parallel=1,
     ):
         job_name = self._job_name(
             attrs.get("metaflow.user"),
@@ -210,6 +212,7 @@ class Batch(object):
                 max_swap,
                 swappiness,
                 host_volumes=host_volumes,
+                num_parallel=num_parallel,
             )
             .cpu(cpu)
             .gpu(gpu)
@@ -218,6 +221,7 @@ class Batch(object):
             .max_swap(max_swap)
             .swappiness(swappiness)
             .timeout_in_secs(run_time_limit)
+            .task_id(attrs.get("metaflow.task_id"))
             .environment_variable("AWS_DEFAULT_REGION", self._client.region())
             .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
             .environment_variable("METAFLOW_CODE_URL", code_package_url)
@@ -232,6 +236,7 @@ class Batch(object):
             .environment_variable("METAFLOW_DEFAULT_DATASTORE", "s3")
             .environment_variable("METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA)
             .environment_variable("METAFLOW_CARD_S3ROOT", DATASTORE_CARD_S3ROOT)
+            .environment_variable("METAFLOW_RUNTIME_ENVIRONMENT", "aws-batch")
         )
         # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync between the local user
         # instance and the remote AWS Batch instance assumes metadata is stored in DATASTORE_LOCAL_DIR
@@ -278,6 +283,7 @@ class Batch(object):
         max_swap=None,
         swappiness=None,
         host_volumes=None,
+        num_parallel=1,
         env={},
         attrs={},
     ):
@@ -309,11 +315,13 @@ class Batch(object):
             env=env,
             attrs=attrs,
             host_volumes=host_volumes,
+            num_parallel=num_parallel,
         )
+        self.num_parallel = num_parallel
         self.job = job.execute()
 
     def wait(self, stdout_location, stderr_location, echo=None):
-        def wait_for_launch(job):
+        def wait_for_launch(job, child_jobs):
             status = job.status
             echo(
                 "Task is starting (status %s)..." % status,
@@ -323,9 +331,15 @@ class Batch(object):
             t = time.time()
             while True:
                 if status != job.status or (time.time() - t) > 30:
+                    if not child_jobs:
+                        child_statuses = ""
+                    else:
+                        child_statuses = " (child nodes: [{}])".format(
+                            ", ".join([child_job.status for child_job in child_jobs])
+                        )
                     status = job.status
                     echo(
-                        "Task is starting (status %s)..." % status,
+                        "Task is starting (status %s)... %s" % (status, child_statuses),
                         "stderr",
                         batch_id=job.id,
                     )
@@ -338,8 +352,15 @@ class Batch(object):
         stdout_tail = S3Tail(stdout_location)
         stderr_tail = S3Tail(stderr_location)
 
+        child_jobs = []
+        if self.num_parallel > 1:
+            for node in range(1, self.num_parallel):
+                child_job = copy.copy(self.job)
+                child_job._id = child_job._id + "#{}".format(node)
+                child_jobs.append(child_job)
+
         # 1) Loop until the job has started
-        wait_for_launch(self.job)
+        wait_for_launch(self.job, child_jobs)
 
         # 2) Tail logs until the job has finished
         tail_logs(

@@ -16,8 +16,8 @@ class FlowFormatter(object):
         self.steps = self._index_steps(test)
         self.flow_code = self._pretty_print(self._flow_lines())
         self.check_code = self._pretty_print(self._check_lines())
-
         self.valid = True
+
         for step in self.steps:
             if step.required and not step in self.used:
                 self.valid = False
@@ -57,6 +57,8 @@ class FlowFormatter(object):
             quals.add(name)
         if "join" in node:
             quals.add("join")
+        if "parallel_step" in node:
+            quals.add("parallel-step")
         if "linear" in node:
             quals.add("linear")
         for qual in node.get("quals", []):
@@ -80,7 +82,7 @@ class FlowFormatter(object):
             tags.extend(tag.split("(")[0] for tag in step.tags)
 
         yield 0, "# -*- coding: utf-8 -*-"
-        yield 0, "from metaflow import FlowSpec, step, Parameter, project, IncludeFile, JSONType, current"
+        yield 0, "from metaflow import FlowSpec, step, Parameter, project, IncludeFile, JSONType, current, parallel"
         yield 0, "from metaflow_test import assert_equals, " "assert_exception, " "ExpectationFailed, " "is_resumed, " "ResumeFromHere, " "TestRetry"
         if tags:
             yield 0, "from metaflow import %s" % ",".join(tags)
@@ -105,6 +107,10 @@ class FlowFormatter(object):
 
             for tagspec in step.tags:
                 yield 1, "@%s" % tagspec
+
+            if "parallel_step" in node:
+                yield 1, "@parallel"
+
             yield 1, "@step"
 
             if "join" in node:
@@ -130,6 +136,11 @@ class FlowFormatter(object):
                 yield 2, 'self.next(self.%s, foreach="%s")' % (
                     node["foreach"],
                     node["foreach_var"],
+                )
+            elif "num_parallel" in node:
+                yield 2, "self.next(self.%s, num_parallel=%d)" % (
+                    node["parallel"],
+                    node["num_parallel"],
                 )
 
         yield 0, "if __name__ == '__main__':"

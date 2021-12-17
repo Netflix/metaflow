@@ -130,6 +130,11 @@ class KubernetesDecorator(StepDecorator):
                     if not (my_val is None and v is None):
                         self.attributes[k] = str(max(int(my_val or 0), int(v or 0)))
 
+            if getattr(deco, "IS_PARALLEL", False):
+                raise KubernetesException(
+                    "Kubernetes decorator does not support parallel execution yet."
+                )
+
         # Set run time limit for the Kubernetes job.
         self.run_time_limit = get_run_time_limit_for_task(decos)
         if self.run_time_limit < 60:
