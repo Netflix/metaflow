@@ -17,6 +17,7 @@ from metaflow.metaflow_config import (
     DEFAULT_METADATA,
     BATCH_METADATA_SERVICE_HEADERS,
     BATCH_EMIT_TAGS,
+    DATASTORE_CARD_S3ROOT,
 )
 from metaflow.mflog.mflog import refine, set_should_persist
 from metaflow.mflog import (
@@ -234,6 +235,7 @@ class Batch(object):
             .environment_variable("METAFLOW_DATATOOLS_S3ROOT", DATATOOLS_S3ROOT)
             .environment_variable("METAFLOW_DEFAULT_DATASTORE", "s3")
             .environment_variable("METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA)
+            .environment_variable("METAFLOW_CARD_S3ROOT", DATASTORE_CARD_S3ROOT)
             .environment_variable("METAFLOW_RUNTIME_ENVIRONMENT", "aws-batch")
         )
         # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync between the local user

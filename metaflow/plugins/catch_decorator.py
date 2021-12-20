@@ -87,9 +87,10 @@ class CatchDecorator(StepDecorator):
 
         # If this task is a UBF control task, it will return itself as the singleton
         # list of tasks.
-        flow._control_mapper_tasks = [
-            "/".join((current.run_id, current.step_name, current.task_id))
-        ]
+        if hasattr(flow, "_parallel_ubf_iter"):
+            flow._control_mapper_tasks = [
+                "/".join((current.run_id, current.step_name, current.task_id))
+            ]
         # store the exception
         picklable = MetaflowExceptionWrapper(exception)
         flow._catch_exception = picklable
