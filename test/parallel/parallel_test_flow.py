@@ -1,4 +1,4 @@
-from metaflow import FlowSpec, step, batch, current, parallel, Parameter
+from metaflow import FlowSpec, step, batch, kubernetes, current, parallel, Parameter
 
 
 class ParallelTest(FlowSpec):
@@ -15,6 +15,7 @@ class ParallelTest(FlowSpec):
         self.next(self.parallel_step, num_parallel=self.num_parallel)
 
     @parallel
+    @kubernetes
     @step
     def parallel_step(self):
         self.node_index = current.parallel.node_index

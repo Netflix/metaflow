@@ -402,7 +402,6 @@ class KubernetesJob(object):
             #               achieve the guarantees that we are seeking.
             #               Hopefully, we will be able to get creative soon.
             if isinstance(self._job, dict):
-
                 response = client.CustomObjectsApi().create_namespaced_custom_object(
                     group="batch.volcano.sh",
                     version="v1alpha1",
@@ -410,7 +409,6 @@ class KubernetesJob(object):
                     body=self._job,
                     namespace=self._kwargs["namespace"],
                 )
-                print(response)
             else:
                 response = (
                     client.BatchV1Api()
@@ -620,6 +618,16 @@ class RunningJob(object):
         # 3. If the pod object hasn't shown up yet, we set the parallelism to 0
         #    to preempt it.
         client = self._client_wrapper.get()
+
+        if self._num_parallel:
+            return client.CustomObjectsApi().delete_namespaced_custom_object(
+                group="batch.volcano.sh",
+                version="v1alpha1",
+                plural="jobs",
+                name=self._name,
+                namespace=self._namespace,
+            )
+
         if not self._check_is_done():
             if self._check_is_running():
 
@@ -720,7 +728,6 @@ class RunningJob(object):
         # Success!
 
         if self._num_parallel:
-            print(self._job["status"]["state"])
             if self._job["status"]["state"]["phase"] == "Pending":
                 return "Job:Pending"
             elif self._job["status"]["state"]["phase"] == "Running":
