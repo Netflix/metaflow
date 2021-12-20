@@ -15,7 +15,8 @@ class ParallelTest(FlowSpec):
         self.next(self.parallel_step, num_parallel=self.num_parallel)
 
     @parallel
-    @kubernetes
+    # @kubernetes
+    # @batch
     @step
     def parallel_step(self):
         self.node_index = current.parallel.node_index
