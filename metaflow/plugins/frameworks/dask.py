@@ -35,29 +35,29 @@ class DaskDistributed(ParallelDecorator):
                     num_workers = len(client.scheduler_info()["workers"])
                     while num_workers < current.parallel.num_nodes:
                         if scheduler_process.poll() is not None:
-                            print("Scheduler process failed! Bail out.")
+                            print("Dask: Scheduler process failed! Bail out.")
                             raise AssertionError(
                                 "Dask scheduler process failed. Return code={}".format(
                                     scheduler_process.returncode
                                 )
                             )
                         if worker_process.poll() is not None:
-                            print("Worker process  failed! Bail out.")
+                            print("Dask: Worker process failed! Bail out.")
                             raise AssertionError(
                                 "Dask worker process failed, return code={}".format(
                                     worker_process.returncode
                                 )
                             )
                         print(
-                            "Waiting until all workers ready. Currently {}/{} workers registered".format(
+                            "Dask: Waiting until all workers ready. Currently {}/{} workers registered".format(
                                 num_workers, current.parallel.num_nodes
                             )
                         )
                         time.sleep(1.0)
                         num_workers = len(client.scheduler_info()["workers"])
-                    print("Starting step function")
+                    print("Dask: Starting step function")
                     step_func()
-                    print("Finished step function, stop scheduler.")
+                    print("Dask:  Finished step function, stop scheduler.")
                     client.shutdown()
 
                 scheduler_process.wait(timeout=30)
