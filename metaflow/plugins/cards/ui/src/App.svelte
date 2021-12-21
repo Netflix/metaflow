@@ -13,7 +13,7 @@
   import Nav from "./components/aside-nav.svelte";
 
   // Set the `embed` class to hide the `aside` if specified in the URL
-  const urlParams = new URLSearchParams(window.location.search);
+  const urlParams = new URLSearchParams(window?.location.search);
   let embed = Boolean(urlParams.get('embed'))
 </script>
 
