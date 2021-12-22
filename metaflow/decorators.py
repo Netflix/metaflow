@@ -227,7 +227,7 @@ class StepDecorator(Decorator):
                   pass them around with every lifecycle call.
     """
 
-    # `allow_multiple` helps map many decorator of the same type to a step.
+    # `allow_multiple` allows setting many decorator of the same type to a step.
     allow_multiple = False
 
     def step_init(
