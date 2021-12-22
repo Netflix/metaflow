@@ -23,6 +23,7 @@ class CardDecorator(StepDecorator):
         "timeout": 45,
         "save_errors": True,
     }
+    allow_multiple = True
 
     def __init__(self, *args, **kwargs):
         super(CardDecorator, self).__init__(*args, **kwargs)

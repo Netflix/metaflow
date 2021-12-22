@@ -227,6 +227,10 @@ class StepDecorator(Decorator):
                   pass them around with every lifecycle call.
     """
 
+    # `allow_multiple` helps map many decorators of the same decorators to a step.
+    # Currently metaflow only allows one decorator per step
+    allow_multiple = False
+
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
     ):
@@ -404,7 +408,10 @@ def _base_step_decorator(decotype, *args, **kwargs):
             raise BadStepDecoratorException(decotype.name, func)
 
         # Only the first decorator applies
-        if decotype.name in [deco.name for deco in func.decorators]:
+        if (
+            decotype.name in [deco.name for deco in func.decorators]
+            and not decotype.allow_multiple
+        ):
             raise DuplicateStepDecoratorException(decotype.name, func)
         else:
             func.decorators.append(decotype(attributes=kwargs, statically_defined=True))
