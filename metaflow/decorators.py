@@ -227,7 +227,7 @@ class StepDecorator(Decorator):
                   pass them around with every lifecycle call.
     """
 
-    # `allow_multiple` allows setting many decorator of the same type to a step.
+    # `allow_multiple` allows setting many decorators of the same type to a step.
     allow_multiple = False
 
     def step_init(
@@ -406,7 +406,7 @@ def _base_step_decorator(decotype, *args, **kwargs):
         if not hasattr(func, "is_step"):
             raise BadStepDecoratorException(decotype.name, func)
 
-        # if `allow_multiple` is not `True` the only one decorator type is allowed per step
+        # if `allow_multiple` is not `True` then only one decorator type is allowed per step
         if (
             decotype.name in [deco.name for deco in func.decorators]
             and not decotype.allow_multiple
