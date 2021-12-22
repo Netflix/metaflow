@@ -227,8 +227,7 @@ class StepDecorator(Decorator):
                   pass them around with every lifecycle call.
     """
 
-    # `allow_multiple` helps map many decorators of the same decorators to a step.
-    # Currently metaflow only allows one decorator per step
+    # `allow_multiple` helps map many decorator of the same type to a step.
     allow_multiple = False
 
     def step_init(
@@ -407,7 +406,7 @@ def _base_step_decorator(decotype, *args, **kwargs):
         if not hasattr(func, "is_step"):
             raise BadStepDecoratorException(decotype.name, func)
 
-        # Only the first decorator applies
+        # if `allow_multiple` is not `True` the only one decorator type is allowed per step
         if (
             decotype.name in [deco.name for deco in func.decorators]
             and not decotype.allow_multiple
