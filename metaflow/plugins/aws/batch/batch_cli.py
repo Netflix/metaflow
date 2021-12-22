@@ -141,8 +141,14 @@ def kill(ctx, run_id, user, my_runs):
 @click.option("--max-swap", help="Max Swap requirement for AWS Batch.")
 @click.option("--swappiness", help="Swappiness requirement for AWS Batch.")
 # TODO: Maybe remove it altogether since it's not used here
-@click.option("--ubf-context", default=None, type=click.Choice([None]))
+@click.option("--ubf-context", default=None, type=click.Choice([None, "ubf_control"]))
 @click.option("--host-volumes", multiple=True)
+@click.option(
+    "--num-parallel",
+    default=0,
+    type=int,
+    help="Number of parallel nodes to run as a multi-node job.",
+)
 @click.pass_context
 def step(
     ctx,
@@ -162,6 +168,7 @@ def step(
     max_swap=None,
     swappiness=None,
     host_volumes=None,
+    num_parallel=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", batch_id=None):
@@ -190,6 +197,10 @@ def step(
         kwargs["input_paths"] = "".join("${%s}" % s for s in split_vars.keys())
 
     step_args = " ".join(util.dict_to_cli_options(kwargs))
+    num_parallel = num_parallel or 0
+    if num_parallel and num_parallel > 1:
+        # For multinode, we need to add a placeholder that can be mutated by the caller
+        step_args += " [multinode-args]"
     step_cli = u"{entrypoint} {top_args} step {step} {step_args}".format(
         entrypoint=entrypoint,
         top_args=top_args,
@@ -282,6 +293,7 @@ def step(
                 env=env,
                 attrs=attrs,
                 host_volumes=host_volumes,
+                num_parallel=num_parallel,
             )
     except Exception as e:
         traceback.print_exc()
