@@ -5,6 +5,7 @@ import webbrowser
 import re
 import click
 import os
+import json
 import signal
 import random
 from contextlib import contextmanager
@@ -266,6 +267,13 @@ def render_card(mf_card, task, timeout_value=None):
     is_flag=True,
     help="Upon failing to render a card, render a card holding the stack trace",
 )
+@click.option(
+    "--component-file",
+    default=None,
+    show_default=True,
+    type=str,
+    help="JSON File with Pre-rendered components.(internal)",
+)
 @click.pass_context
 def create(
     ctx,
@@ -273,6 +281,7 @@ def create(
     type=None,
     options=None,
     timeout=None,
+    component_file=None,
     render_error_card=False,
 ):
 
@@ -288,6 +297,12 @@ def create(
 
     # todo : Import the changes from Netflix/metaflow#833 for Graph
     graph_dict = serialize_flowgraph(ctx.obj.graph)
+
+    # Components are rendered in a Step and added via `current.card.append` are added here.
+    component_arr = []
+    if component_file is not None:
+        with open(component_file, "r") as f:
+            component_arr = json.load(f)
 
     task = Task(full_pathspec)
     from metaflow.plugins import CARDS
@@ -316,7 +331,9 @@ def create(
         # then check for render_error_card and accordingly
         # store the exception as a string or raise the exception
         try:
-            mf_card = filtered_card(options=options, components=[], graph=graph_dict)
+            mf_card = filtered_card(
+                options=options, components=component_arr, graph=graph_dict
+            )
         except TypeError as e:
             if render_error_card:
                 mf_card = None

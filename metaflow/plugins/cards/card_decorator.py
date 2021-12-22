@@ -1,10 +1,12 @@
 import subprocess
 import os
+import tempfile
 import sys
 import json
 from metaflow.decorators import StepDecorator, flow_decorators
 from metaflow.current import current
 from metaflow.util import to_unicode
+from .component_serializer import CardComponentCollector
 
 # from metaflow import get_metadata
 import re
@@ -24,6 +26,8 @@ class CardDecorator(StepDecorator):
         "save_errors": True,
     }
     allow_multiple = True
+
+    called_once = False
 
     def __init__(self, *args, **kwargs):
         super(CardDecorator, self).__init__(*args, **kwargs)
@@ -62,6 +66,10 @@ class CardDecorator(StepDecorator):
                 if any(fname.endswith(s) for s in [".html", ".js", ".css"]):
                     p = os.path.join(path, fname)
                     yield p, p[prefixlen:]
+
+    @classmethod
+    def first_decorator_called(cls):
+        cls.called_once = True
 
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
@@ -102,6 +110,16 @@ class CardDecorator(StepDecorator):
         ubf_context,
         inputs,
     ):
+        # As we have multiple decorators,
+        # we need to ensure that `current.cards` has `CardComponentCollector` instantiated only once.
+        if not self.called_once:
+            self.first_decorator_called()
+            current._update_env(
+                {"cards": CardComponentCollector(types=[self.attributes["type"]])}
+            )
+        else:
+            current.cards._add_type(self.attributes["type"])
+
         self._task_datastore = task_datastore
         self._metadata = metadata
 
@@ -110,8 +128,10 @@ class CardDecorator(StepDecorator):
     ):
         if not is_task_ok:
             return
+
+        component_strings = current.cards.serialize_components(self.attributes["type"])
         runspec = "/".join([current.run_id, current.step_name, current.task_id])
-        self._run_cards_subprocess(runspec)
+        self._run_cards_subprocess(runspec, component_strings)
 
     @staticmethod
     def _options(mapping):
@@ -143,7 +163,12 @@ class CardDecorator(StepDecorator):
             top_level_options.update(deco.get_top_level_options())
         return list(self._options(top_level_options))
 
-    def _run_cards_subprocess(self, runspec):
+    def _run_cards_subprocess(self, runspec, component_strings):
+        temp_file = None
+        if len(component_strings) > 0:
+            temp_file = tempfile.NamedTemporaryFile("w", suffix=".json")
+            json.dump(component_strings, temp_file)
+            temp_file.seek(0)
         executable = sys.executable
         cmd = [
             executable,
@@ -167,6 +192,9 @@ class CardDecorator(StepDecorator):
 
         if self.attributes["save_errors"]:
             cmd += ["--render-error-card"]
+
+        if temp_file is not None:
+            cmd += ["--component-file", temp_file.name]
 
         response, fail = self._run_command(
             cmd, os.environ, timeout=self.attributes["timeout"]

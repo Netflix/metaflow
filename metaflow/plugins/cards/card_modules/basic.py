@@ -240,6 +240,18 @@ class PageComponent(DefaultComponent):
         return datadict
 
 
+class ErrorComponent(MetaflowCardComponent):
+    def __init__(self, headline, error_message):
+        self._headline = headline
+        self._error_message = error_message
+
+    def render(self):
+        return SectionComponent(
+            title=self._headline,
+            contents=[LogComponent(data=self._error_message)],
+        ).render()
+
+
 class ArtifactsComponent(DefaultComponent):
     type = "artifacts"
 
