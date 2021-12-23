@@ -128,6 +128,22 @@ class TaskToDict:
 
         return task_data_dict, type_infered_objects
 
+    def object_type(self, object):
+        return self._get_object_type(object)
+
+    def parse_image(self, data_object):
+        obj_type_name = self._get_object_type(data_object)
+        if obj_type_name == "bytes":
+            # Works for python 3.1+
+            import imghdr
+
+            resp = imghdr.what(None, h=data_object)
+            # Only accept types suppored on the web
+            # https://developer.mozilla.org/en-US/docs/Web/Media/Formats/Image_types
+            if resp is not None and resp in ["gif", "png", "jpeg", "webp"]:
+                return self._parse_image(data_object, resp)
+        return None
+
     def _extract_type_infered_object(self, data_object):
         # check images
         obj_type_name = self._get_object_type(data_object)
@@ -163,6 +179,9 @@ class TaskToDict:
             pass
 
         return None
+
+    def infer_object(self, artifact_object):
+        return self._convert_to_native_type(artifact_object)
 
     def _convert_to_native_type(
         self,

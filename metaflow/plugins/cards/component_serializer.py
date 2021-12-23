@@ -1,11 +1,5 @@
 from .card_modules import MetaflowCardComponent
-from .card_modules.basic import ErrorComponent
-
-
-class SerializationErrorComponent(ErrorComponent):
-    def __init__(self, component_name, error_message):
-        headline = "Component %s [RENDER FAIL]" % component_name
-        super().__init__(headline, error_message)
+from .card_modules.basic import ErrorComponent, SerializationErrorComponent
 
 
 class CardComponentCollector:
@@ -64,7 +58,7 @@ class CardComponentCollector:
                 serialized_components.append(
                     SerializationErrorComponent(
                         component.__class__.__name__,
-                        "Component render didn't return a string",
+                        "Component render didn't return a string or dict",
                     ).render()
                 )
             except:

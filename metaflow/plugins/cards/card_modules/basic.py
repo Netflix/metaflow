@@ -67,7 +67,16 @@ class SectionComponent(DefaultComponent):
         contents = []
         for content in self._contents:
             if issubclass(type(content), MetaflowCardComponent):
-                contents.append(content.render())
+                rendered_content = content.render()
+                if type(rendered_content) == str or type(rendered_content) == dict:
+                    contents.append(rendered_content)
+                else:
+                    contents.append(
+                        SerializationErrorComponent(
+                            content.__class__.__name__,
+                            "Component render didn't return a string or dict",
+                        ).render()
+                    )
             else:
                 contents.append(content)
         datadict["contents"] = contents
@@ -149,16 +158,28 @@ class TableComponent(DefaultComponent):
         if self._validate_row_type(data):
             self._data = data
 
-    def _validate_header_type(self, data):
+    @classmethod
+    def validate(cls, headers, data):
+        return (cls._validate_header_type(headers), cls._validate_row_type(data))
+
+    @staticmethod
+    def _validate_header_type(data):
         if type(data) != list:
             return False
         return True
 
-    def _validate_row_type(self, data):
+    @staticmethod
+    def _validate_row_type(data):
         if type(data) != list:
             return False
-        if type(data[0]) != list:
+        try:
+            if type(data[0]) != list:
+                return False
+        except IndexError:
             return False
+        except TypeError:
+            return False
+
         return True
 
     def render(self):
@@ -250,6 +271,12 @@ class ErrorComponent(MetaflowCardComponent):
             title=self._headline,
             contents=[LogComponent(data=self._error_message)],
         ).render()
+
+
+class SerializationErrorComponent(ErrorComponent):
+    def __init__(self, component_name, error_message):
+        headline = "Render failed of component named `%s`" % component_name
+        super().__init__(headline, error_message)
 
 
 class ArtifactsComponent(DefaultComponent):
