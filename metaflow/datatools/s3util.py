@@ -30,7 +30,7 @@ def get_s3_client():
 def aws_retry(f):
     def retry_wrapper(self, *args, **kwargs):
         last_exc = None
-        for i in range(S3_RETRY_COUNT):
+        for i in range(S3_RETRY_COUNT + 1):
             try:
                 ret = f(self, *args, **kwargs)
                 if TEST_S3_RETRY and i == 0:
