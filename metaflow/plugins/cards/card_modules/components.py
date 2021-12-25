@@ -75,7 +75,7 @@ class Table(MetaflowCardComponent):
 
 class Image(MetaflowCardComponent):
 
-    headline = lambda msg: "[IMAGE_RENDER FAIL]: %s" % msg
+    render_fail_headline = lambda msg: "[IMAGE_RENDER FAIL]: %s" % msg
 
     def __init__(self, src=None, title=None, label=None, section_wrapped=True):
         self._src = src
@@ -91,18 +91,21 @@ class Image(MetaflowCardComponent):
             task_to_dict = TaskToDict()
             if task_to_dict.object_type(bytes_arr) != "bytes":
                 return ErrorComponent(
-                    cls.headline("first argument should be of type `bytes`"),
+                    cls.render_fail_headline(
+                        "first argument should be of type `bytes`"
+                    ),
                     "Type of %s is invalid" % (task_to_dict.object_type(bytes_arr)),
                 )
             parsed_image = task_to_dict.parse_image(bytes_arr)
             if parsed_image is not None:
                 return cls(src=parsed_image, title=title, label=label)
-            return ErrorComponent(cls.headline(" Bytes not parsable"), "")
+            return ErrorComponent(cls.render_fail_headline(" Bytes not parsable"), "")
         except:
             import traceback
 
             return ErrorComponent(
-                cls.headline("Bytes not parsable"), "%s" % traceback.format_exc()
+                cls.render_fail_headline("Bytes not parsable"),
+                "%s" % traceback.format_exc(),
             )
 
     @classmethod
@@ -114,7 +117,7 @@ class Image(MetaflowCardComponent):
             task_to_dict = TaskToDict()
             if task_to_dict.object_type(pilimage) != PIL_IMAGE_PATH:
                 return ErrorComponent(
-                    cls.headline(
+                    cls.render_fail_headline(
                         "first argument for `Image` should be of type %s"
                         % PIL_IMAGE_PATH
                     ),
@@ -126,18 +129,21 @@ class Image(MetaflowCardComponent):
                 pilimage.save(img_byte_arr, format="PNG")
             except OSError as e:
                 return ErrorComponent(
-                    cls.headline("PIL Image Not Parsable"), "%s" % repr(e)
+                    cls.render_fail_headline("PIL Image Not Parsable"), "%s" % repr(e)
                 )
             img_byte_arr = img_byte_arr.getvalue()
             parsed_image = task_to_dict.parse_image(img_byte_arr)
             if parsed_image is not None:
                 return cls(src=parsed_image, title=title, label=label)
-            return ErrorComponent(cls.headline("PIL Image Not Parsable"), "")
+            return ErrorComponent(
+                cls.render_fail_headline("PIL Image Not Parsable"), ""
+            )
         except:
             import traceback
 
             return ErrorComponent(
-                cls.headline("PIL Image Not Parsable"), "%s" % traceback.format_exc()
+                cls.render_fail_headline("PIL Image Not Parsable"),
+                "%s" % traceback.format_exc(),
             )
 
     @classmethod
@@ -148,7 +154,7 @@ class Image(MetaflowCardComponent):
             plt = getattr(plot, "get_figure", None)
             if plt is None:
                 return ErrorComponent(
-                    cls.headline(
+                    cls.render_fail_headline(
                         "Invalid Type. Object %s is not from `matlplotlib`" % type(plot)
                     ),
                     "",
@@ -163,13 +169,13 @@ class Image(MetaflowCardComponent):
             if parsed_image is not None:
                 return cls(src=parsed_image, title=title, label=label)
             return ErrorComponent(
-                cls.headline("Matplotlib plot's image is not parsable"), ""
+                cls.render_fail_headline("Matplotlib plot's image is not parsable"), ""
             )
         except:
             import traceback
 
             return ErrorComponent(
-                cls.headline("Matplotlib plot's image is not parsable"),
+                cls.render_fail_headline("Matplotlib plot's image is not parsable"),
                 "%s" % traceback.format_exc(),
             )
 
@@ -183,7 +189,7 @@ class Image(MetaflowCardComponent):
             else:
                 return ImageComponent(src=self._src, label=self._label).render()
         return ErrorComponent(
-            self.headline("`Image` Component `src` arguement is `None`"), ""
+            self.render_fail_headline("`Image` Component `src` arguement is `None`"), ""
         ).render()
 
 
