@@ -204,7 +204,7 @@ The [DefaultCard](../metaflow/plugins/cards/card_modules/basic.py) is a default 
 
 The [HTML](../metaflow/plugins/cards/card_modules/base.html) is a template which works with [JS](../metaflow/plugins/cards/card_modules/main.js) and [CSS](../metaflow/plugins/cards/card_modules/bundle.css). 
 
-The JS and CSS is are created after build the JS and CSS from the [cards-ui](../metaflow/plugins/cards/ui/README.md) directory. [cards-ui](../metaflow/plugins/cards/ui/README.md) consists of the JS app that generates the HTML view from a JSON object. 
+The JS and CSS is are created after building the JS and CSS from the [cards-ui](../metaflow/plugins/cards/ui/README.md) directory. [cards-ui](../metaflow/plugins/cards/ui/README.md) consists of the JS app that generates the HTML view from a JSON object. 
 
 ### Default `MetaflowCardComponent`
 
@@ -237,3 +237,5 @@ The JS and CSS is are created after build the JS and CSS from the [cards-ui](../
 - [x]  Default `MetaflowCardComponent`s
 - [x] `DefaultCard` (A default `MetaflowCard`) 
 - [ ] Adding Components to cards in runtime. 
+- [ ] Creating custom instable Metaflow cards
+- 
