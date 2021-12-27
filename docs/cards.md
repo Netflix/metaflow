@@ -200,7 +200,7 @@ The [DefaultCard](../metaflow/plugins/cards/card_modules/basic.py) is a default 
 
 The [HTML](../metaflow/plugins/cards/card_modules/base.html) is a template which works with [JS](../metaflow/plugins/cards/card_modules/main.js) and [CSS](../metaflow/plugins/cards/card_modules/bundle.css). 
 
-The JS and CSS is are created after building the JS and CSS from the [cards-ui](../metaflow/plugins/cards/ui/README.md) directory. [cards-ui](../metaflow/plugins/cards/ui/README.md) consists of the JS app that generates the HTML view from a JSON object. 
+The JS and CSS are created after building the JS and CSS from the [cards-ui](../metaflow/plugins/cards/ui/README.md) directory. [cards-ui](../metaflow/plugins/cards/ui/README.md) consists of the JS app that generates the HTML view from a JSON object. 
 
 ### Default `MetaflowCardComponent`
 
@@ -217,7 +217,7 @@ The JS and CSS is are created after building the JS and CSS from the [cards-ui](
     - `Image.from_pil_image(pilimage,"From PIL Image")` : to create an image from a `PIL.Image`
     - `Image.from_matplotlib_plot(plot,"My matplotlib plot")` : to create an image from a plot
 - `Error` : A wrapper subcomponent to display errors. Accepts an `exception` and a `title` as arguments. 
-- `Section` :  Create a seperate subsection with sub components. 
+- `Section` :  Create a separate subsection with sub components. 
     - Accepts `title`, `subtitle`, `columns:int`, `contents:List[MetaflowCardComponent]` as arguments.
     - Example usage : `Section(contents=[Title("Some new Title"),Artifact([1,2,3,],"Array artifact")])`
 - `Linechart` [TODO]
@@ -235,4 +235,3 @@ The JS and CSS is are created after building the JS and CSS from the [cards-ui](
 - [x] `DefaultCard` (A default `MetaflowCard`) 
 - [ ] Adding Components to cards in runtime. 
 - [ ] Creating custom instable Metaflow cards
-- 
