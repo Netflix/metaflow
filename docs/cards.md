@@ -1,27 +1,24 @@
 # Metaflow Cards
 
-Metaflow Cards makes it possible to produce human-readable report cards automatically from any Metaflow tasks. You can use the feature to observe results of Metaflow runs, visualize models, and share outcomes with non-technical stakeholders.
+Metaflow Cards make it possible to produce human-readable report cards automatically from any Metaflow tasks. You can use the feature to observe results of Metaflow runs, visualize models, and share outcomes with non-technical stakeholders.
 
 While Metaflow comes with a built-in default card that shows all outputs of a task without any changes in the code, most exciting use cases are enabled by custom cards: With a few additional lines of Python code, you can change the structure and the content of the report to highlight data that matters to you. For more flexible or advanced reports, you can create custom card templates that generate arbitrary HTML. 
 
-Card templates can be created by anyone and shared as standard Python packages, enabling a library of community-contributed cards grow over time. Cards can be accessed via the Metaflow CLI even without internet connection, making it possible to use them in security-conscious environments. 
-
-In addition, cards are integrated in the latest release of the Metaflow GUI, allowing you to enrich the existing task view with application-specific information.
+Anyone can create card templates and share them as standard Python packages. Cards can be accessed via the Metaflow CLI even without an internet connection, making it possible to use them in security-conscious environments. Cards are also integrated with the latest release of the Metaflow GUI, allowing you to enrich the existing task view with application-specific information.
 
 ## Key Components
 
-Metaflow cards can be created by placing an `@card` [decorator](../metaflow/plugins/cards/card_decorator.py) over a `@step`. Each decortor takes a `type` argument which defaults to the value `default`. The `type` argument corresponds the `MetaflowCard.type`. Cards are created after a Metaflow Task ( Instantiation of each `@step` ) completes execution. A seperate subprocess is launched to create a cards using the `create` method in the [card_cli](../metaflow/plugins/cards/card_cli.py). Once the card HTML is created it is stored in the datastore. 
+Metaflow cards can be created by placing an [`@card`](#@card-decorator) [decorator](../metaflow/plugins/cards/card_decorator.py) over a `@step`. Each decorator takes a `type` argument which defaults to the value `default`. The `type` argument corresponds the `MetaflowCard.type`. Cards are created after a Metaflow Task ( instantiation of each `@step` ) completes execution. A separate subprocess gets launched to create a card using the `create` command from the [card_cli](#card-cli). Once the card HTML gets created, it gets stored in the datastore. 
 
 Since the cards are stored in the datastore we can access them via the `view/get` methods in the [card_cli](../metaflow/plugins/cards/card_cli.py) or using the `get_cards` [function](../metaflow/plugins/cards/card_client.py) which accepts a `Task` object or a `pathspec` string. 
 
-`metaflow` ships with a `DefaultCard` which visualizes artifacts, images and `pandas.Dataframe`s. `metaflow` also ships custom components like `Barchart`s or `Linechart`s or `Image`s or `Table`s. These components can be added to a card `Task` runtime. Once added they will automatically show up in the generated card.These components are only compatible with the `DefaultCard` card class.
- off the shelf with the package)
+`metaflow` ships with a `DefaultCard` which visualizes artifacts, images, and `pandas.Dataframe`s. `metaflow` also ships custom components like `Barchart`s or `Linechart`s or `Image`s or `Table`s. Components can be added to a card at `Task` runtime such that they show up in the generated card. These components are only compatible with the `DefaultCard` card class.
 
-### `@card` decoartor
-The `@card` [decorator](../metaflow/plugins/cards/card_decorator.py) is implemented by inheriting the `StepDecorator`. The decorator can be placed over `@step` to create a HTML about a task.
+### `@card` decorator
+The `@card` [decorator](../metaflow/plugins/cards/card_decorator.py) is implemented by inheriting the `StepDecorator`. The decorator can be placed over `@step` to create an HTML file visualizing information from the task.
 
 #### Parameters
-- `type` `(str)` [Defaults to `default`]: The `type` of `MetaflowCard` to create. More details on `MetaflowCard`s is provided later in this document. 
+- `type` `(str)` [Defaults to `default`]: The `type` of `MetaflowCard` to create. More details on `MetaflowCard`s is provided [later in this document](#metaflowcard). 
 - `options` `(dict)` : options to instantiate a `MetaflowCard`. `MetaflowCard`s will be instantiated with the `options` keyword argument. The value of this argument is a dictionary. 
 - `timeout` `(int)` [Defaults to `45`]: Amount of time to wait before killing the card subprocess and 
 - `save_errors` `(bool)` [Defaults to `True`]: If set to `True` then the failure in rendering any `MetaflowCard` will generate `ErrorCard` instead with the full stack trace of the failure. 
@@ -76,7 +73,7 @@ if __name__ == "__main__":
 
 
 ### `CardDatastore`
-The [CardDatastore](../metaflow/plugins/cards/card_datastore.py) is used by the the `card_cli` and the metaflow card client (`get_cards`). It exposes methods to get metadata about a card and the paths to cards for a `pathspec`. 
+The [CardDatastore](../metaflow/plugins/cards/card_datastore.py) is used by the the [card_cli](#card-cli) and the [metaflow card client](#access-cards-in-notebooks) (`get_cards`). It exposes methods to get metadata about a card and the paths to cards for a `pathspec`. 
 
 ### Card CLI
 Methods exposed by the [card_cli](../metaflow/plugins/cards/.card_cli.py). :
@@ -93,8 +90,8 @@ python myflow.py card create 100/stepname/1000 --type default --timeout 10 --opt
 python myflow.py card view 100/stepname/1000 --hash ads34 --type default --follow-resumed 
 ```
 
-### Access cards in Notebooks
-Metaflow also exposes a `get_cards` client that helps resolve cards outside the CLI. Example usage is show below : 
+### Access cards in notebooks
+Metaflow also exposes a `get_cards` client that helps resolve cards outside the CLI. Example usage is shown below : 
 ```python
 from metaflow import Task
 from metaflow.cards import get_cards
@@ -112,8 +109,7 @@ html =  card_iterator[0].get()
 
 ### `MetaflowCard`
 
-The [MetaflowCard](../metaflow/plugins/cards/card_modules/card.py) class is the base class from which all custom cards are created. The class provides a `render` function which expects a string to be returned. Below is an example snippet of usage. 
-
+The [MetaflowCard](../metaflow/plugins/cards/card_modules/card.py) class is the base class from which all custom cards are created. The class provides a `render` function. The `render` function returns a string. Below is an example snippet of usage : 
 ```python
 from metaflow.cards import MetaflowCard
 # path to the custom html file which is a `mustache` template.
@@ -145,9 +141,9 @@ The class consists of the `_get_mustache` method that returns [chevron](https://
 
 #### Parameters
 - `components` `(List[MetaflowCardComponent])`: List of `MetaflowCardComponent` added at `Flow` runtime.
-- `graph` `(Dict[str,dict])`: The DAG associated to the flow. It is a dictionary of the form `stepname:step_attributes`. Where `step_attributes` is a dictionary of metadata about a step and `stepname` is the name of the step in the DAG.  
-- `options` `(dict)`: helps control the behaviour of individual cards. 
-    - For example, the `DefaultCard` supports `options` as dictionary of the form `{"only_repr":True}`. Here setting `only_repr` as `True` will ensure that all artifacts are passed to the `reprlib.repr` function instead of serializing the whole artifact.
+- `graph` `(Dict[str,dict])`: The DAG associated to the flow. It is a dictionary of the form `stepname:step_attributes`. `step_attributes` is a dictionary of metadata about a step , `stepname` is the name of the step in the DAG.  
+- `options` `(dict)`: helps control the behavior of individual cards. 
+    - For example, the `DefaultCard` supports `options` as dictionary of the form `{"only_repr":True}`. Here setting `only_repr` as `True` will ensure that all artifacts are serialized with `reprlib.repr` function instead of native object serialization. 
 
 
 ### `MetaflowCardComponent`
@@ -208,7 +204,7 @@ The JS and CSS is are created after building the JS and CSS from the [cards-ui](
 
 ### Default `MetaflowCardComponent`
 
-`metaflow` exposes default `MetaflowCardComponent`s that can be used with `DefaultCard`. These components can be added at runtime and return a `dict` object on calling their `render` function. 
+`metaflow` exposes default `MetaflowCardComponent`s that can be used with `DefaultCard`. These components can be added at runtime and return a `dict` object on calling their `render` function. The following are the main `MetaflowCardComponent`s which are can be imported from `metaflow.cards`. 
 
 - `Title` 
 - `Subtitle` 
@@ -223,6 +219,7 @@ The JS and CSS is are created after building the JS and CSS from the [cards-ui](
 - `Error` : A wrapper subcomponent to display errors. Accepts an `exception` and a `title` as arguments. 
 - `Section` :  Create a seperate subsection with sub components. 
     - Accepts `title`, `subtitle`, `columns:int`, `contents:List[MetaflowCardComponent]` as arguments.
+    - Example usage : `Section(contents=[Title("Some new Title"),Artifact([1,2,3,],"Array artifact")])`
 - `Linechart` [TODO]
 - `Barchart` [TODO]
     
