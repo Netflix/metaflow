@@ -2,7 +2,7 @@
 
 Metaflow Cards make it possible to produce human-readable report cards automatically from any Metaflow tasks. You can use the feature to observe results of Metaflow runs, visualize models, and share outcomes with non-technical stakeholders.
 
-While Metaflow comes with a built-in default card that shows all outputs of a task without any changes in the code, most exciting use cases are enabled by custom cards: With a few additional lines of Python code, you can change the structure and the content of the report to highlight data that matters to you. For more flexible or advanced reports, you can create custom card templates that generate arbitrary HTML. 
+While Metaflow comes with a built-in default card that shows all outputs of a task without any changes in the code, the most exciting use cases are enabled by custom cards: With a few additional lines of Python code, you can change the structure and the content of the report to highlight data that matters to you. For more flexible or advanced reports, you can create custom card templates that generate arbitrary HTML. 
 
 Anyone can create card templates and share them as standard Python packages. Cards can be accessed via the Metaflow CLI even without an internet connection, making it possible to use them in security-conscious environments. Cards are also integrated with the latest release of the Metaflow GUI, allowing you to enrich the existing task view with application-specific information.
 
