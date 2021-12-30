@@ -154,6 +154,11 @@ export interface LogComponent {
   data: string;
 }
 
+export interface MarkdownComponent {
+  type: "markdown";
+  data: string;
+}
+
 // wrap all component options into a Component type
 export type CardComponent =
   | ArtifactsComponent
@@ -163,6 +168,7 @@ export type CardComponent =
   | ImageComponent
   | LineChartComponent
   | LogComponent
+  | MarkdownComponent
   | PageComponent
   | SectionComponent
   | SubtitleComponent

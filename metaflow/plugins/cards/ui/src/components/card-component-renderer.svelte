@@ -8,6 +8,7 @@
   import Image from "./image.svelte";
   import LineChart from "./line-chart.svelte";
   import Log from "./log.svelte";
+  import Markdown from "./markdown.svelte";
   import Page from "./page.svelte";
   import Section from "./section.svelte";
   import Subtitle from "./subtitle.svelte";
@@ -26,6 +27,7 @@
       image: Image,
       lineChart: LineChart,
       log: Log,
+      markdown: Markdown,
       page: Page,
       section: Section,
       subtitle: Subtitle,
