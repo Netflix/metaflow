@@ -2,6 +2,7 @@
   count.  We basically pivot the table and style the first column to be headers -->
 <script lang="ts">
   import type * as types from "../types";
+  import DataRenderer from "./data-renderer.svelte";
 
   export let componentData: types.TableComponent;
   const { columns, data } = componentData;
@@ -16,7 +17,7 @@
           <tr>
             <td class="labelColumn">{column}</td>
             {#each data as row}
-              <td>{row[i]}</td>
+              <td><DataRenderer componentData={row[i]} /></td>
             {/each}
           </tr>
         {/each}
