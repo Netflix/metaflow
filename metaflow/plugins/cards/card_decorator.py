@@ -119,21 +119,22 @@ class CardDecorator(StepDecorator):
         else:
             self.card_options = self.attributes["options"]
 
-        other_card_decorators = [
-            deco for deco in decorators if isinstance(deco, self.__class__)
-        ]
-        # `other_card_decorators` includes `self` too
-        other_deco_cards = [
-            get_card_class(deco.attributes["type"]) for deco in other_card_decorators
-        ]
-        editable_cards = [
-            c for c in other_deco_cards if c is not None and c.ALLOW_USER_COMPONENTS
-        ]
-
         # We set the total count of decorators so that we can use it for
-        # reference in finalizing the CardComponentCollector's method resolutions
+        # when calling the finalize function of CardComponentCollector
+        # We only set this once so that we don't re-register counts.
         if not self._is_event_registered("step-init"):
             self._register_event("step-init")
+            other_card_decorators = [
+                deco for deco in decorators if isinstance(deco, self.__class__)
+            ]
+            # `other_card_decorators` includes `self` too
+            other_deco_cards = [
+                get_card_class(deco.attributes["type"])
+                for deco in other_card_decorators
+            ]
+            editable_cards = [
+                c for c in other_deco_cards if c is not None and c.ALLOW_USER_COMPONENTS
+            ]
             self._set_total_decorator_counts(
                 len(other_card_decorators), len(editable_cards)
             )
@@ -251,6 +252,9 @@ class CardDecorator(StepDecorator):
 
         if self.attributes["timeout"] is not None:
             cmd += ["--timeout", str(self.attributes["timeout"])]
+
+        if self.attributes["id"] is not None:
+            cmd += ["--id", str(self.attributes["id"])]
 
         if self.attributes["save_errors"]:
             cmd += ["--render-error-card"]

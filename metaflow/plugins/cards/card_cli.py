@@ -21,6 +21,8 @@ from .exception import (
 
 from .card_resolver import resolve_paths_from_task, resumed_info
 
+id_func = id
+
 # FIXME :  Import the changes from Netflix/metaflow#833 for Graph
 def serialize_flowgraph(flowgraph):
     graph_dict = {}
@@ -139,11 +141,10 @@ def list_available_cards(ctx, path_spec, card_paths, card_datastore, command="vi
     task_pathspec = "/".join(path_spec.split("/")[1:])
     card_list = []
     for path_tuple in path_tuples:
-        card_name = "%s-%s" % (path_tuple.type, path_tuple.hash)
-        card_list.append(card_name)
+        card_list.append(path_tuple.filename)
 
     random_idx = 0 if len(path_tuples) == 1 else random.randint(0, len(path_tuples) - 1)
-    _, randhash = path_tuples[random_idx]
+    _, randhash, _, file_name = path_tuples[random_idx]
     ctx.obj.echo("\n\t".join([""] + card_list), fg="blue")
     ctx.obj.echo(
         "\n\tExample access from CLI via: \n\t %s\n"
@@ -274,6 +275,13 @@ def render_card(mf_card, task, timeout_value=None):
     type=str,
     help="JSON File with Pre-rendered components.(internal)",
 )
+@click.option(
+    "--id",
+    default=None,
+    show_default=True,
+    type=str,
+    help="id of the card",
+)
 @click.pass_context
 def create(
     ctx,
@@ -283,8 +291,9 @@ def create(
     timeout=None,
     component_file=None,
     render_error_card=False,
+    id=None,
 ):
-
+    card_id = id
     rendered_info = None  # Variable holding all the information which will be rendered
     error_stack_trace = None  # Variable which will keep a track of error
 
@@ -366,7 +375,7 @@ def create(
         save_type = "error"
 
     if rendered_info is not None:
-        card_info = card_datastore.save_card(save_type, rendered_info)
+        card_info = card_datastore.save_card(save_type, rendered_info, card_id=card_id)
         ctx.obj.echo(
             "Card created with type: %s and hash: %s"
             % (card_info.type, card_info.hash[:NUM_SHORT_HASH_CHARS]),
