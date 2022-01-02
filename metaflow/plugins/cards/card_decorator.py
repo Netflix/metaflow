@@ -6,7 +6,7 @@ import json
 from metaflow.decorators import StepDecorator, flow_decorators
 from metaflow.current import current
 from metaflow.util import to_unicode
-from .component_serializer import CardComponentCollector
+from .component_serializer import CardComponentCollector, get_card_class
 
 # from metaflow import get_metadata
 import re
@@ -23,11 +23,20 @@ class CardDecorator(StepDecorator):
         "options": {},
         "scope": "task",
         "timeout": 45,
+        "id": None,
         "save_errors": True,
     }
     allow_multiple = True
 
-    called_once = False
+    total_decos_on_step = None
+
+    total_editable_cards = None
+
+    step_counter = 0
+
+    _called_once = {}
+
+    called_once_pre_step = False
 
     def __init__(self, *args, **kwargs):
         super(CardDecorator, self).__init__(*args, **kwargs)
@@ -35,7 +44,8 @@ class CardDecorator(StepDecorator):
         self._environment = None
         self._metadata = None
         self._logger = None
-        # todo : first allow multiple decorators with a step
+        self._is_editable = False
+        self._card_uuid = None
 
     def add_to_package(self):
         return list(self._load_card_package())
@@ -67,14 +77,31 @@ class CardDecorator(StepDecorator):
                     p = os.path.join(path, fname)
                     yield p, p[prefixlen:]
 
+    def _is_event_registered(self, evt_name):
+        if evt_name in self._called_once:
+            return True
+        return False
+
     @classmethod
-    def first_decorator_called(cls):
-        cls.called_once = True
+    def _register_event(cls, evt_name):
+        if evt_name not in cls._called_once:
+            cls._called_once[evt_name] = True
+
+    @classmethod
+    def _set_total_decorator_counts(cls, total_count, editable_count):
+        cls.total_decos_on_step = total_count
+        cls.total_editable_cards = editable_count
+
+    @classmethod
+    def _increment_step_counter(cls):
+        cls.step_counter += 1
 
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
     ):
-
+        self._flow_datastore = flow_datastore
+        self._environment = environment
+        self._logger = logger
         self.card_options = None
 
         # Populate the defaults which may be missing.
@@ -92,9 +119,34 @@ class CardDecorator(StepDecorator):
         else:
             self.card_options = self.attributes["options"]
 
-        self._flow_datastore = flow_datastore
-        self._environment = environment
-        self._logger = logger
+        other_card_decorators = [
+            deco for deco in decorators if isinstance(deco, self.__class__)
+        ]
+        # `other_card_decorators` includes `self` too
+        other_deco_cards = [
+            get_card_class(deco.attributes["type"]) for deco in other_card_decorators
+        ]
+        editable_cards = [
+            c for c in other_deco_cards if c is not None and c.ALLOW_USER_COMPONENTS
+        ]
+
+        # We set the total count of decorators so that we can use it for
+        # reference in finalizing the CardComponentCollector's method resolutions
+        if not self._is_event_registered("step-init"):
+            self._register_event("step-init")
+            self._set_total_decorator_counts(
+                len(other_card_decorators), len(editable_cards)
+            )
+
+        card_type = self.attributes["type"]
+        card_class = get_card_class(card_type)
+
+        if card_class is None:  # Card type was not ofund
+            # todo : issue a warning about this.
+            return
+
+        if card_class.ALLOW_USER_COMPONENTS:
+            self._is_editable = True
 
     def task_pre_step(
         self,
@@ -110,15 +162,26 @@ class CardDecorator(StepDecorator):
         ubf_context,
         inputs,
     ):
+        # We have a step counter to ensure that on calling the final card decorator's `task_pre_step`
+        # we call a `finalize` function in the `CardComponentCollector`.
+        # This can help ensure the behaviour of the `current.cards` object is according to specification.
+        self._increment_step_counter()
+
         # As we have multiple decorators,
         # we need to ensure that `current.cards` has `CardComponentCollector` instantiated only once.
-        if not self.called_once:
-            self.first_decorator_called()
-            current._update_env(
-                {"cards": CardComponentCollector(types=[self.attributes["type"]])}
-            )
-        else:
-            current.cards._add_type(self.attributes["type"])
+        if not self._is_event_registered("pre-step"):
+            self._register_event("pre-step")
+            current._update_env({"cards": CardComponentCollector(self._logger)})
+
+        card_metadata = current.cards._add_card(
+            self.attributes["type"], self.attributes["id"], self._is_editable
+        )
+        self._card_uuid = card_metadata["uuid"]
+
+        # This means that the we are calling `task_pre_step` on the last card decorator.
+        # We can now `finalize` method in the CardComponentCollector object. This
+        if self.step_counter == self.total_decos_on_step:
+            current.cards._finalize()
 
         self._task_datastore = task_datastore
         self._metadata = metadata
@@ -128,8 +191,7 @@ class CardDecorator(StepDecorator):
     ):
         if not is_task_ok:
             return
-
-        component_strings = current.cards.serialize_components(self.attributes["type"])
+        component_strings = current.cards._serialize_components(self._card_uuid)
         runspec = "/".join([current.run_id, current.step_name, current.task_id])
         self._run_cards_subprocess(runspec, component_strings)
 

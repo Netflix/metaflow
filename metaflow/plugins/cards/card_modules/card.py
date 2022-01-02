@@ -1,6 +1,8 @@
 class MetaflowCard(object):
     type = None
 
+    ALLOW_USER_COMPONENTS = False
+
     scope = "task"  # can be task | run
 
     def __init__(self, options={}, components=[], graph=None):
