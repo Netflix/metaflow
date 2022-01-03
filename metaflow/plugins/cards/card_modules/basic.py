@@ -506,6 +506,8 @@ class ErrorCard(MetaflowCard):
 
 class DefaultCard(MetaflowCard):
 
+    ALLOW_USER_COMPONENTS = True
+
     type = "default"
 
     def __init__(self, options=dict(only_repr=True), components=[], graph=None):

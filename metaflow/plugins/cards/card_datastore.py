@@ -21,7 +21,7 @@ from .exception import CardNotPresentException
 TEMP_DIR_NAME = "metaflow_card_cache"
 NUM_SHORT_HASH_CHARS = 5
 
-CardInfo = namedtuple("CardInfo", ["type", "hash"])
+CardInfo = namedtuple("CardInfo", ["type", "hash", "id", "filename"])
 
 
 def path_spec_resolver(pathspec):
@@ -76,11 +76,13 @@ class CardDatastore(object):
         self._temp_card_save_path = self._get_card_path(base_pth=TEMP_DIR_NAME)
 
     @classmethod
-    def get_card_location(cls, base_path, card_name, card_html):
-        return os.path.join(
-            base_path,
-            "%s-%s.html" % (card_name, sha1(bytes(card_html, "utf-8")).hexdigest()),
-        )
+    def get_card_location(cls, base_path, card_name, card_html, card_id=None):
+        chash = sha1(bytes(card_html, "utf-8")).hexdigest()
+        if card_id is None:
+            card_file_name = "%s-%s.html" % (card_name, chash)
+        else:
+            card_file_name = "%s-%s-%s.html" % (card_name, card_id, chash)
+        return os.path.join(base_path, card_file_name)
 
     def _make_path(self, base_pth, pathspec=None):
         sysroot = base_pth
@@ -124,20 +126,26 @@ class CardDatastore(object):
         """
         card_file_name = path.split("/")[-1]
         file_split = card_file_name.split("-")
-        if len(file_split) != 2:
+
+        if len(file_split) not in [2, 3]:
             raise Exception(
-                "Invalid card file name %s. Card file names should be of form TYPE-HASH.html"
+                "Invalid card file name %s. Card file names should be of form TYPE-HASH.html or TYPE-ID-HASH.html"
                 % card_file_name
             )
-        card_type, card_hash = None, None
-        card_type, card_hash = file_split
-        card_hash = card_hash.split(".html")[0]
-        return CardInfo(card_type, card_hash)
+        card_type, card_hash, card_id = None, None, None
 
-    def save_card(self, card_type, card_html, overwrite=True):
+        if len(file_split) == 2:
+            card_type, card_hash = file_split
+        else:
+            card_type, card_id, card_hash = file_split
+
+        card_hash = card_hash.split(".html")[0]
+        return CardInfo(card_type, card_hash, card_id, card_file_name)
+
+    def save_card(self, card_type, card_html, card_id=None, overwrite=True):
         card_file_name = card_type
         card_path = self.get_card_location(
-            self._get_card_path(), card_file_name, card_html
+            self._get_card_path(), card_file_name, card_html, card_id=card_id
         )
         self._backend.save_bytes(
             [(card_path, BytesIO(bytes(card_html, "utf-8")))], overwrite=overwrite
