@@ -537,6 +537,41 @@ class DefaultCard(MetaflowCard):
         return pt.render(RENDER_TEMPLATE, data_dict)
 
 
+class BlankCard(MetaflowCard):
+
+    ALLOW_USER_COMPONENTS = True
+
+    type = "blank"
+
+    def __init__(self, options={}, components=[], graph=None):
+        self._graph = graph
+        self._components = components
+
+    def render(self, task):
+        page_title = "Task Info"
+        RENDER_TEMPLATE = read_file(RENDER_TEMPLATE_PATH)
+        JS_DATA = read_file(JS_PATH)
+        CSS_DATA = read_file(CSS_PATH)
+        page_component = PageComponent(
+            title=page_title,
+            contents=self._components,
+        ).render()
+        final_component_dict = dict(
+            metadata={
+                "pathspec": task.pathspec,
+            },
+            components=[page_component],
+        )
+        pt = self._get_mustache()
+        data_dict = dict(
+            task_data=json.dumps(json.dumps(final_component_dict)),
+            javascript=JS_DATA,
+            title=task.pathspec,
+            css=CSS_DATA,
+        )
+        return pt.render(RENDER_TEMPLATE, data_dict)
+
+
 class TaskSpecCard(MetaflowCard):
     type = "taskspec_card"
 
