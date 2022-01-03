@@ -2,6 +2,7 @@ from .card_modules import MetaflowCardComponent
 from .card_modules.basic import ErrorComponent
 import random
 import string
+import json
 
 _TYPE = type
 
@@ -304,15 +305,6 @@ class CardComponentCollector:
                 continue
             try:
                 rendered_obj = component.render()
-                assert type(rendered_obj) == str or type(rendered_obj) == dict
-                serialized_components.append(rendered_obj)
-            except AssertionError:
-                serialized_components.append(
-                    SerializationErrorComponent(
-                        component.__class__.__name__,
-                        "Component render didn't return a string",
-                    ).render()
-                )
             except:
                 error_str = traceback.format_exc()
                 serialized_components.append(
@@ -320,4 +312,19 @@ class CardComponentCollector:
                         component.__class__.__name__, error_str
                     ).render()
                 )
+            else:
+                if not (type(rendered_obj) == str or type(rendered_obj) == dict):
+                    rendered_obj = SerializationErrorComponent(
+                        component.__class__.__name__,
+                        "Component render didn't return a `string` or `dict`",
+                    ).render()
+                else:
+                    try:  # check if rendered object is json serializable.
+                        json.dumps(rendered_obj)
+                    except (TypeError, OverflowError):
+                        rendered_obj = SerializationErrorComponent(
+                            component.__class__.__name__,
+                            "Rendered Component cannot be JSON serialized.",
+                        ).render()
+                serialized_components.append(rendered_obj)
         return serialized_components
