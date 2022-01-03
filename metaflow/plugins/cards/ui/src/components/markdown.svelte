@@ -2,7 +2,7 @@
 <script lang="ts">
     import SvelteMarkdown from 'svelte-markdown'
 
-    export let componentData: string;
+    export let componentData: {source: string};
 
 </script>
 
