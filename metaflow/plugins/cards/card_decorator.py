@@ -188,7 +188,8 @@ class CardDecorator(StepDecorator):
         self._card_uuid = card_metadata["uuid"]
 
         # This means that the we are calling `task_pre_step` on the last card decorator.
-        # We can now `finalize` method in the CardComponentCollector object. This
+        # We can now `finalize` method in the CardComponentCollector object.
+        # This will setup the `current.cards` object for usage inside `@step` code.
         if self.step_counter == self.total_decos_on_step:
             current.cards._finalize()
 
