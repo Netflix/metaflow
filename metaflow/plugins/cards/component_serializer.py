@@ -315,7 +315,10 @@ class CardComponentCollector:
                 else:
                     try:  # check if rendered object is json serializable.
                         json.dumps(rendered_obj)
-                    except (TypeError, OverflowError):
+                    except (
+                        TypeError,
+                        OverflowError,
+                    ):  # Overflow error maybe when a number is too large for JSON to encode.
                         rendered_obj = SerializationErrorComponent(
                             component.__class__.__name__,
                             "Rendered Component cannot be JSON serialized.",
