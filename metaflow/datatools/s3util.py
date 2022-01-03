@@ -1,4 +1,5 @@
 from __future__ import print_function
+from datetime import datetime
 import random
 import time
 import sys
@@ -29,7 +30,7 @@ def get_s3_client():
 def aws_retry(f):
     def retry_wrapper(self, *args, **kwargs):
         last_exc = None
-        for i in range(S3_RETRY_COUNT):
+        for i in range(S3_RETRY_COUNT + 1):
             try:
                 ret = f(self, *args, **kwargs)
                 if TEST_S3_RETRY and i == 0:
@@ -78,3 +79,10 @@ def read_in_chunks(dst, src, src_sz, max_chunk_size):
         # separately
         dst.write(buf)
         remaining -= len(buf)
+
+
+def get_timestamp(dt):
+    """
+    Python2 compatible way to compute the timestamp (seconds since 1/1/1970)
+    """
+    return (dt.replace(tzinfo=None) - datetime(1970, 1, 1)).total_seconds()

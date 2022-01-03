@@ -1,3 +1,4 @@
+from collections import defaultdict
 import json
 import pickle
 import sys
@@ -337,7 +338,7 @@ class TaskDataStore(object):
                 "Datastore for task '%s' does not have the required metadata to "
                 "load artifacts" % self._path
             )
-        to_load = []
+        to_load = defaultdict(list)
         for name in names:
             info = self._info.get(name)
             # We use gzip+pickle-v2 as this is the oldest/most compatible.
@@ -352,13 +353,18 @@ class TaskDataStore(object):
                     "Python 3.4 or later is required to load artifact '%s'" % name
                 )
             else:
-                to_load.append(self._objects[name])
+                to_load[self._objects[name]].append(name)
         # At this point, we load what we don't have from the CAS
         # We assume that if we have one "old" style artifact, all of them are
         # like that which is an easy assumption to make since artifacts are all
         # stored by the same implementation of the datastore for a given task.
-        for name, (_, blob) in zip(names, self._ca_store.load_blobs(to_load)):
-            yield name, pickle.loads(blob)
+        for (key, blob) in self._ca_store.load_blobs(to_load.keys()):
+            names = to_load[key]
+            for name in names:
+                # We unpickle everytime to have fully distinct objects (the user
+                # would not expect two artifacts with different names to actually
+                # be aliases of one another)
+                yield name, pickle.loads(blob)
 
     @require_mode("r")
     def get_artifact_sizes(self, names):

@@ -39,5 +39,5 @@ class BasicUnboundedForeachTest(MetaflowTest):
             assert run is not None
             tasks = run["foreach_inner"].tasks()
             task_list = list(tasks)
-            assert_equals(2, len(task_list))
+            assert_equals(3, len(task_list))
             assert_equals(1, len(list(run["foreach_inner"].control_tasks())))

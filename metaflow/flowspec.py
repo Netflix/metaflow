@@ -33,6 +33,18 @@ class InvalidNextException(MetaflowException):
         super(InvalidNextException, self).__init__(msg, line_no)
 
 
+class ParallelUBF(UnboundedForeachInput):
+    """
+    Unbounded-for-each placeholder for supporting parallel (multi-node) steps.
+    """
+
+    def __init__(self, num_parallel):
+        self.num_parallel = num_parallel
+
+    def __getitem__(self, item):
+        return item or 0  # item is None for the control task, but it is also split 0
+
+
 class FlowSpec(object):
     """
     Main class from which all Flows should inherit.
@@ -467,6 +479,7 @@ class FlowSpec(object):
         step = self._current_step
 
         foreach = kwargs.pop("foreach", None)
+        num_parallel = kwargs.pop("num_parallel", None)
         condition = kwargs.pop("condition", None)
         if kwargs:
             kw = next(iter(kwargs))
@@ -503,6 +516,14 @@ class FlowSpec(object):
                 )
                 raise InvalidNextException(msg)
             funcs.append(name)
+
+        if num_parallel is not None and num_parallel >= 1:
+            if len(dsts) > 1:
+                raise InvalidNextException(
+                    "Only one destination allowed when num_parallel used in self.next()"
+                )
+            foreach = "_parallel_ubf_iter"
+            self._parallel_ubf_iter = ParallelUBF(num_parallel)
 
         # check: foreach and condition are mutually exclusive
         if not (foreach is None or condition is None):
