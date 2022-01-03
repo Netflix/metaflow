@@ -80,14 +80,21 @@ class Server(object):
             {v: k for k, v in self._proxied_types.items()}
         )
 
+        # We will also proxy functions from objects as needed. This is useful
+        # for defaultdict for example since the `default_factory` function is a
+        # lambda that needs to be transferred.
+        self._class_types_to_names[type(lambda x: x)] = "function"
+
         # Update all alias information
         for base_name, aliases in itertools.chain(
-                a1.items(), a2.items(), a3.items(), a4.items()):
+            a1.items(), a2.items(), a3.items(), a4.items()
+        ):
             for alias in aliases:
                 a = self._aliases.setdefault(alias, base_name)
                 if a != base_name:
                     raise ValueError(
-                        "%s is an alias to both %s and %s" % (alias, base_name, a))
+                        "%s is an alias to both %s and %s" % (alias, base_name, a)
+                    )
 
         # Determine if we have any overrides
         self._overrides = {}
@@ -114,7 +121,7 @@ class Server(object):
                     for name in obj_funcs:
                         if name in override_dict:
                             raise ValueError(
-                                "%s was already overriden for %s" % (name, obj_name)
+                                "%s was already overridden for %s" % (name, obj_name)
                             )
                         override_dict[name] = override.func
             elif isinstance(override, RemoteExceptionSerializer):
@@ -249,7 +256,9 @@ class Server(object):
         extra_content = None
         if serializer is not None:
             extra_content = serializer(ex)
-        return dump_exception(self._datatransferer, ex_type, ex, trace_back, extra_content)
+        return dump_exception(
+            self._datatransferer, ex_type, ex, trace_back, extra_content
+        )
 
     def decode(self, json_obj):
         # This decodes an object that was transferred in

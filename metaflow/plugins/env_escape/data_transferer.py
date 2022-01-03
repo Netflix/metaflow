@@ -3,7 +3,8 @@ import functools
 import pickle
 import sys
 
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict, defaultdict, namedtuple
+from copy import copy
 from datetime import datetime
 
 ObjReference = namedtuple("ObjReference", "value_type class_name identifier")
@@ -34,11 +35,12 @@ _types = [
     set,
     frozenset,
     dict,
+    defaultdict,
     OrderedDict,
-    datetime
+    datetime,
 ]
 
-_container_types = (list, tuple, set, frozenset, dict, OrderedDict)
+_container_types = (list, tuple, set, frozenset, dict, defaultdict, OrderedDict)
 
 if sys.version_info[0] >= 3:
     _types.extend([InvalidLong, InvalidUnicode])
@@ -54,7 +56,7 @@ else:
         bytes,
         unicode,  # noqa F821
         long,  # noqa F821
-        datetime
+        datetime,
     )
 
 _types_to_encoding = {x: idx for idx, x in enumerate(_types)}
@@ -101,7 +103,10 @@ def _load_none(obj_type, transferer, json_annotation, json_obj):
 
 @_register_dumper(_simple_types)
 def _dump_simple(obj_type, transferer, obj):
-    return (None, base64.b64encode(pickle.dumps(obj, protocol=defaultProtocol)).decode("utf-8"))
+    return (
+        None,
+        base64.b64encode(pickle.dumps(obj, protocol=defaultProtocol)).decode("utf-8"),
+    )
 
 
 @_register_loader(_simple_types)
@@ -121,7 +126,7 @@ def _dump_container(obj_type, transferer, obj):
     if new_obj is None:
         return _dump_simple(obj_type, transferer, obj)
     else:
-        attr, dump = _dump_simple(obj_type, transferer, new_obj)
+        _, dump = _dump_simple(obj_type, transferer, new_obj)
         return True, dump
 
 
@@ -214,8 +219,9 @@ class DataTransferer(object):
             # This is primarily used to transfer a reference to an object
             try:
                 json_obj = base64.b64encode(
-                    pickle.dumps(self._connection.pickle_object(obj),
-                                 protocol=defaultProtocol)
+                    pickle.dumps(
+                        self._connection.pickle_object(obj), protocol=defaultProtocol
+                    )
                 ).decode("utf-8")
             except ValueError as e:
                 raise RuntimeError("Unable to dump non base type: %s" % e)
@@ -231,8 +237,9 @@ class DataTransferer(object):
             # This is something that the connection handles
             try:
                 return self._connection.unpickle_object(
-                    pickle.loads(base64.b64decode(json_obj[FIELD_INLINE_VALUE]),
-                                 encoding="utf-8")
+                    pickle.loads(
+                        base64.b64decode(json_obj[FIELD_INLINE_VALUE]), encoding="utf-8"
+                    )
                 )
             except ValueError as e:
                 raise RuntimeError("Unable to load non base type: %s" % e)
@@ -247,7 +254,7 @@ class DataTransferer(object):
         raise RuntimeError("Unable to find handler for type %s" % obj_type)
 
     # _container_types = (list, tuple, set, frozenset, dict, OrderedDict)
-    def _transform_container(self, checker, processor, recursor, obj):
+    def _transform_container(self, checker, processor, recursor, obj, in_place=True):
         def _sub_process(obj):
             obj_type = type(obj)
             if obj is None or obj_type in _simple_types or obj_type == str:
@@ -263,18 +270,38 @@ class DataTransferer(object):
 
         cast_to = None
         key_change_allowed = True
+        update_default_factory = False
         has_changes = False
         if isinstance(obj, (tuple, set, frozenset)):
             cast_to = type(obj)
             obj = list(obj)
+            in_place = True  # We can do in place since we copied the object
         if isinstance(obj, OrderedDict):
             key_change_allowed = False
+        if isinstance(obj, defaultdict):
+            # In this case, we use a hack to store the default_factory
+            # function inside the dictionary which will get it pickled by
+            # the server (as a reference). This is because if this is a lambda
+            # it won't pickle well.
+            if callable(obj.default_factory):
+                if not in_place:
+                    obj = copy(obj)
+                    in_place = True
+                obj["__default_factory"] = obj.default_factory
+                obj.default_factory = None
+            elif obj.get("__default_factory") is not None:
+                # This is in the unpickle path, we need to reset the factory properly
+                update_default_factory = True
+            has_changes = True
         # We now deal with list or dict
         if isinstance(obj, list):
             for idx in range(len(obj)):
                 sub_obj = _sub_process(obj[idx])
                 if sub_obj is not None:
                     has_changes = True
+                    if not in_place:
+                        obj = list(obj)
+                        in_place = True
                     obj[idx] = sub_obj
         elif isinstance(obj, dict):
             new_items = {}
@@ -291,6 +318,9 @@ class DataTransferer(object):
                 sub_val = _sub_process(v)
                 if sub_val is not None:
                     has_changes = True
+                if has_changes and not in_place:
+                    obj = copy(obj)
+                    in_place = True
                 if sub_key:
                     if sub_val:
                         new_items[sub_key] = sub_val
@@ -305,6 +335,11 @@ class DataTransferer(object):
             obj.update(new_items)
         else:
             raise RuntimeError("Unknown container type: %s" % type(obj))
+        if update_default_factory:
+            # We do this here because we now unpickled the reference
+            # to default_dict and can set it back up again.
+            obj.default_factory = obj["__default_factory"]
+            del obj["__default_factory"]
         if has_changes:
             if cast_to:
                 return cast_to(obj)
@@ -317,6 +352,7 @@ class DataTransferer(object):
             self._connection.pickle_object,
             self.pickle_container,
             obj,
+            in_place=False,
         )
 
     def unpickle_container(self, obj):

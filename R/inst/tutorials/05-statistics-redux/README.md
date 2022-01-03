@@ -32,5 +32,5 @@ If you are using RStudio, you can replace the last line `run()` with
 and run by `source("stats.R")`.
 
 ##### Inspect the results:
-Open the R markdown file ```02-statistics/stats.Rmd``` in your RStudio and re-run the cells. You can acccess
+Open the R markdown file ```02-statistics/stats.Rmd``` in your RStudio and re-run the cells. You can access
 the artifacts stored in AWS S3 from your local RStudio session. 

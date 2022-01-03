@@ -19,7 +19,9 @@ step(
 
 \item{...}{decorators}
 
-\item{step}{step name}
+\item{step}{character name for the step. Step names must be valid Python
+identifiers; they can contain letters, numbers, and underscores, although
+they cannot begin with a number.}
 
 \item{r_function}{R function to execute as part of this step}
 

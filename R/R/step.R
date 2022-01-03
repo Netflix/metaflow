@@ -3,7 +3,9 @@
 #'
 #' @param flow metaflow object
 #' @param ... decorators
-#' @param step step name
+#' @param step character name for the step. Step names must be valid Python
+#'   identifiers; they can contain letters, numbers, and underscores, although
+#'   they cannot begin with a number.
 #' @param r_function R function to execute as part of this step
 #' @param foreach optional input variable to iterate over as input to next step
 #' @param join optional logical (defaults to FALSE) denoting whether the step is
@@ -19,6 +21,11 @@
 #' }
 #' @export
 step <- function(flow, ..., step, r_function = NULL, foreach = NULL, join = FALSE, next_step = NULL) {
+  if (!is_valid_python_identifier(step)) {
+    stop(step, " is not a valid step name. Step names must be valid Python
+identifiers; they can contain letters, numbers, and underscores, although they
+cannot begin with a number.")
+  }
   decorators <- add_decorators(list(...))
   if (!is.null(decorators)) {
     decorators <- paste0(space(4), decorators)
@@ -34,7 +41,7 @@ step <- function(flow, ..., step, r_function = NULL, foreach = NULL, join = FALS
     # If r_function is anonymous then function_name will be a vector of its
     # components. In this case we give the function a pseudonym prefixed by the
     # step name and suffixed with a hash of the function.
-    if (length(function_name) > 1) { 
+    if (length(function_name) > 1) {
       function_hash <- digest::digest(deparse(r_function), algo = "sha256")
       trunc_function_hash <- substr(function_hash, 1, 16)
       function_name <- paste(step, "function", trunc_function_hash, sep = "_")

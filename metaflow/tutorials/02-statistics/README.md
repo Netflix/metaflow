@@ -6,8 +6,8 @@ later examples to improve our playlist generator. You can optionally use the
 Metaflow client to eyeball the results in a Notebook, and make some simple
 plots using the Matplotlib library.**
 
-Please note that Episode 04, a follow-on to this episode, requires Pandas version 0.24.2.
-Please make sure that you install or upgrade/downgrade to Pandas 0.24.2.
+Please note that Episode 04, a follow-on to this episode, requires Pandas version 1.3.3.
+Please make sure that you install or upgrade/downgrade to Pandas 1.3.3.
 
 #### Showcasing:
 - Fan-out over a set of parameters using Metaflow foreach.
@@ -15,7 +15,7 @@ Please make sure that you install or upgrade/downgrade to Pandas 0.24.2.
 - Plotting results in a Notebook.
 
 #### Before playing this episode:
-1. ```python -m pip install pandas==0.24.2```
+1. ```python -m pip install pandas==1.3.3```
 2. ```python -m pip install notebook```
 3. ```python -m pip install matplotlib```
 

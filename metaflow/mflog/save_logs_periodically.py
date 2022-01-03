@@ -8,16 +8,8 @@ from metaflow.metaflow_profile import profile
 from metaflow.sidecar import SidecarSubProcess
 from . import update_delay, BASH_SAVE_LOGS_ARGS
 
-class SaveLogsPeriodically(object):
-
-    def __init__(self):
-        self._sidecar = SidecarSubProcess("save_logs_periodically")
-
-    def shutdown(self):
-        self._sidecar.kill()
 
 class SaveLogsPeriodicallySidecar(object):
-
     def __init__(self):
         self._thread = Thread(target=self._update_loop)
         self.is_alive = True
@@ -37,7 +29,7 @@ class SaveLogsPeriodicallySidecar(object):
                 return 0
 
         # these env vars are set by mflog.mflog_env
-        FILES = [os.environ['MFLOG_STDOUT'], os.environ['MFLOG_STDERR']]
+        FILES = [os.environ["MFLOG_STDOUT"], os.environ["MFLOG_STDERR"]]
         start_time = time.time()
         sizes = [0 for _ in FILES]
         while self.is_alive:
@@ -49,4 +41,3 @@ class SaveLogsPeriodicallySidecar(object):
                 except:
                     pass
             time.sleep(update_delay(time.time() - start_time))
-

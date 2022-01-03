@@ -10,8 +10,8 @@ GAUGE_TYPE = "GAUGE"
 MEASURE_TYPE = "MEASURE"
 TIMER_TYPE = "TIMER"
 
-class NullMonitor(object):
 
+class NullMonitor(object):
     def __init__(self, *args, **kwargs):
         pass
 
@@ -32,8 +32,8 @@ class NullMonitor(object):
     def terminate(self):
         pass
 
-class Monitor(NullMonitor):
 
+class Monitor(NullMonitor):
     def __init__(self, monitor_type, env, flow_name):
         # type: (str) -> None
         self.sidecar_process = None
@@ -50,9 +50,7 @@ class Monitor(NullMonitor):
         if self.sidecar_process is not None:
             counter = Counter(name, self.env_info)
             counter.increment()
-            payload = {
-                'counter': counter.to_dict()
-            }
+            payload = {"counter": counter.to_dict()}
             msg = Message(MessageTypes.LOG_EVENT, payload)
             yield
             self.sidecar_process.msg_handler(msg)
@@ -68,10 +66,7 @@ class Monitor(NullMonitor):
             counter.increment()
             yield
             timer.end()
-            payload = {
-                'counter': counter.to_dict(),
-                'timer': timer.to_dict()
-            }
+            payload = {"counter": counter.to_dict(), "timer": timer.to_dict()}
             msg = Message(MessageTypes.LOG_EVENT, payload)
             self.sidecar_process.msg_handler(msg)
         else:
@@ -79,9 +74,7 @@ class Monitor(NullMonitor):
 
     def gauge(self, gauge):
         if self.sidecar_process is not None:
-            payload = {
-                'gauge': gauge.to_dict()
-            }
+            payload = {"gauge": gauge.to_dict()}
             msg = Message(MessageTypes.LOG_EVENT, payload)
             self.sidecar_process.msg_handler(msg)
 
@@ -92,7 +85,7 @@ class Monitor(NullMonitor):
 
 class Metric(object):
     """
-        Abstract base class
+    Abstract base class
     """
 
     def __init__(self, type, env):
@@ -105,7 +98,7 @@ class Metric(object):
 
     @property
     def flow_name(self):
-        return self._env['flow_name']
+        return self._env["flow_name"]
 
     @property
     def env(self):
@@ -120,8 +113,8 @@ class Metric(object):
 
     def to_dict(self):
         return {
-            '_env': self._env,
-            '_type': self._type,
+            "_env": self._env,
+            "_type": self._type,
         }
 
 
@@ -157,9 +150,9 @@ class Timer(Metric):
 
     def to_dict(self):
         parent_dict = super(Timer, self).to_dict()
-        parent_dict['_name'] = self.name
-        parent_dict['_start'] = self._start
-        parent_dict['_end'] = self._end
+        parent_dict["_name"] = self.name
+        parent_dict["_start"] = self._start
+        parent_dict["_end"] = self._end
         return parent_dict
 
 
@@ -185,8 +178,8 @@ class Counter(Metric):
 
     def to_dict(self):
         parent_dict = super(Counter, self).to_dict()
-        parent_dict['_name'] = self.name
-        parent_dict['_count'] = self._count
+        parent_dict["_name"] = self.name
+        parent_dict["_count"] = self._count
         return parent_dict
 
 
@@ -212,8 +205,8 @@ class Gauge(Metric):
 
     def to_dict(self):
         parent_dict = super(Gauge, self).to_dict()
-        parent_dict['_name'] = self.name
-        parent_dict['_value'] = self.value
+        parent_dict["_name"] = self.name
+        parent_dict["_value"] = self.value
         return parent_dict
 
 
@@ -221,36 +214,36 @@ def deserialize_metric(metrics_dict):
     if metrics_dict is None:
         return
 
-    type = metrics_dict.get('_type')
-    name = metrics_dict.get('_name')
+    type = metrics_dict.get("_type")
+    name = metrics_dict.get("_name")
     if type == COUNTER_TYPE:
         try:
             counter = Counter(name, None)
-            counter.set_env(metrics_dict.get('_env'))
+            counter.set_env(metrics_dict.get("_env"))
         except Exception as ex:
             return
 
-        counter.set_count(metrics_dict.get('_count'))
+        counter.set_count(metrics_dict.get("_count"))
         return counter
     elif type == TIMER_TYPE:
         timer = Timer(name, None)
-        timer.set_start(metrics_dict.get('_start'))
-        timer.set_end(metrics_dict.get('_end'))
-        timer.set_env(metrics_dict.get('_env'))
+        timer.set_start(metrics_dict.get("_start"))
+        timer.set_end(metrics_dict.get("_end"))
+        timer.set_env(metrics_dict.get("_env"))
         return timer
     elif type == GAUGE_TYPE:
         gauge = Gauge(name, None)
-        gauge.set_env(metrics_dict.get('_env'))
-        gauge.set_value(metrics_dict.get('_value'))
+        gauge.set_env(metrics_dict.get("_env"))
+        gauge.set_value(metrics_dict.get("_value"))
         return gauge
     else:
         raise NotImplementedError("UNSUPPORTED MESSAGE TYPE IN MONITOR")
 
 
 def get_monitor_msg_type(msg):
-    if msg.payload.get('gauge') is not None:
+    if msg.payload.get("gauge") is not None:
         return GAUGE_TYPE
-    if msg.payload.get('counter') is not None:
-        if msg.payload.get('timer') is not None:
+    if msg.payload.get("counter") is not None:
+        if msg.payload.get("timer") is not None:
             return MEASURE_TYPE
         return COUNTER_TYPE

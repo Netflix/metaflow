@@ -12,24 +12,32 @@ run(flow = NULL, ...)
 \item{...}{passed command line arguments}
 }
 \description{
-`run()` passes all command line arguments to metaflow.
-These are captured whether running from interactive session or via `Rscript`
+\code{run()} passes all command line arguments to metaflow.
+These are captured whether running from interactive session or via \code{Rscript}
 }
 \details{
 Command line arguments:
-* package_suffixes: any file suffixes to include in the run
-    * ex: c('.csv', '.R', '.py')
-* datastore: 'local' (default) or 's3'
-* metadata:  'local' (default) or 'service'
-* batch: request flow to run on batch (default FALSE)
-* resume: resume flow from last failed step
-    * logical (default FALSE)
-* with: any flow level decorators to include in the run
-    * ex: c('retry', 'batch', 'catch')
-* max_workers: limits the number of tasks run in parallel
-* max_num_splits: maximum number of parallel splits allowed
-* other_args: escape hatch to provide args not covered above
-* key=value: any parameters specified as part of the flow
+\itemize{
+\item package_suffixes: any file suffixes to include in the run
+\itemize{
+\item ex: c('.csv', '.R', '.py')
+}
+\item datastore: 'local' (default) or 's3'
+\item metadata:  'local' (default) or 'service'
+\item batch: request flow to run on batch (default FALSE)
+\item resume: resume flow from last failed step
+\itemize{
+\item logical (default FALSE)
+}
+\item with: any flow level decorators to include in the run
+\itemize{
+\item ex: c('retry', 'batch', 'catch')
+}
+\item max_workers: limits the number of tasks run in parallel
+\item max_num_splits: maximum number of parallel splits allowed
+\item other_args: escape hatch to provide args not covered above
+\item key=value: any parameters specified as part of the flow
+}
 }
 \section{Usage}{
 
