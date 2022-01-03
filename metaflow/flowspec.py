@@ -1,6 +1,5 @@
 from itertools import islice
 import os
-import sys
 import inspect
 import traceback
 from types import FunctionType, MethodType
@@ -9,7 +8,6 @@ from . import cmd_with_io
 from .parameters import Parameter
 from .exception import (
     MetaflowException,
-    MetaflowInternalError,
     MissingInMergeArtifactsException,
     UnhandledInMergeArtifactsException,
 )

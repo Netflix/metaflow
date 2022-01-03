@@ -4,7 +4,6 @@ import tarfile
 import time
 import json
 from io import BytesIO
-from itertools import chain
 
 from .metaflow_config import DEFAULT_PACKAGE_SUFFIXES
 from .exception import MetaflowException
