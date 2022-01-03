@@ -59,10 +59,14 @@ class CardComponentCollector:
         if self._logger:
             self._logger(*args, **kwargs)
 
-    def _add_card(self, card_type, card_id, editable=False):
+    def _add_card(self, card_type, card_id, editable=False, customize=False):
         card_uuid = self.create_uuid()
         card_metadata = dict(
-            type=card_type, uuid=card_uuid, card_id=card_id, editable=editable
+            type=card_type,
+            uuid=card_uuid,
+            card_id=card_id,
+            editable=editable,
+            customize=customize,
         )
 
         self._card_meta.append(card_metadata)
@@ -79,7 +83,9 @@ class CardComponentCollector:
         # - Ensure that id's are unique and not None if there are more than one editable cards.
         all_card_meta = self._card_meta
 
-        editable_cards_meta = [c for c in all_card_meta if c["editable"]]
+        editable_cards_meta = [
+            c for c in all_card_meta if c["editable"] or c["customize"]
+        ]
 
         if len(editable_cards_meta) == 0:
             return
@@ -102,7 +108,7 @@ class CardComponentCollector:
         # If there is only 1 card with id set to None then we can use that as the default card.
         if len(none_id_cards) == 1:
             self._default_editable_card = none_id_cards[0]["uuid"]
-        else:
+        elif len(none_id_cards) > 1:
             # throw a warning that more than one card which is editable has no id set to it.
             self._warning(
                 (
@@ -134,6 +140,18 @@ class CardComponentCollector:
             for idx in non_unique_ids:
                 del self._card_id_map[idx]
 
+        # if a @card has `customize=True` in the arguements then there should only be one @card with `customize=True`. This @card will be the _default_editable_card
+        customize_cards = [c for c in editable_cards_meta if c["customize"]]
+        if len(customize_cards) > 1:
+            self._warning(
+                (
+                    "More than one @card has `customize=True`. "
+                    "Only one @card per @step can have `customize=True`."
+                )
+            )
+        elif len(customize_cards) == 1:
+            self._default_editable_card = customize_cards[0]["uuid"]
+
     def __getitem__(self, key):
         if key in self._card_id_map:
             card_uuid = self._card_id_map[key]
@@ -158,7 +176,7 @@ class CardComponentCollector:
     def append(self, component):
         if self._default_editable_card is None:
             self._warning(
-                "`append` cannot disambiguate between multiple cards. Please add the `id` argument when adding multiple decorators."
+                "`current.cards.append` cannot disambiguate between multiple cards. Please add the `id` argument when adding multiple decorators."
             )
             return
         self._cards[self._default_editable_card].append(component)
@@ -166,7 +184,7 @@ class CardComponentCollector:
     def extend(self, components):
         if self._default_editable_card is None:
             self._warning(
-                "`extend` cannot disambiguate between multiple @card decorators. Please add an `id` argument when adding multiple editable cards."
+                "`current.cards.extend` cannot disambiguate between multiple @card decorators. Please add an `id` argument when adding multiple editable cards."
             )
             return
 

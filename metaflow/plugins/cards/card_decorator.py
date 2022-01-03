@@ -25,6 +25,7 @@ class CardDecorator(StepDecorator):
         "timeout": 45,
         "id": None,
         "save_errors": True,
+        "customize": False,
     }
     allow_multiple = True
 
@@ -128,12 +129,16 @@ class CardDecorator(StepDecorator):
                 deco for deco in decorators if isinstance(deco, self.__class__)
             ]
             # `other_card_decorators` includes `self` too
-            other_deco_cards = [
-                get_card_class(deco.attributes["type"])
+            other_deco_classes = [
+                get_card_class(
+                    None if "type" in deco.attributes else deco.attributes["type"]
+                )
                 for deco in other_card_decorators
             ]
             editable_cards = [
-                c for c in other_deco_cards if c is not None and c.ALLOW_USER_COMPONENTS
+                c
+                for c in other_deco_classes
+                if c is not None and c.ALLOW_USER_COMPONENTS
             ]
             self._set_total_decorator_counts(
                 len(other_card_decorators), len(editable_cards)
@@ -175,7 +180,10 @@ class CardDecorator(StepDecorator):
             current._update_env({"cards": CardComponentCollector(self._logger)})
 
         card_metadata = current.cards._add_card(
-            self.attributes["type"], self.attributes["id"], self._is_editable
+            self.attributes["type"],
+            self.attributes["id"],
+            self._is_editable,
+            self.attributes["customize"],
         )
         self._card_uuid = card_metadata["uuid"]
 
