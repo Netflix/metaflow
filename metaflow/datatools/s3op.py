@@ -32,7 +32,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 # multiprocessing.Pool because https://bugs.python.org/issue31886
 from metaflow.util import TempDir, url_quote, url_unquote
 from metaflow.multicore_utils import parallel_map
-from metaflow.datatools.s3util import aws_retry, read_in_chunks
+from metaflow.datatools.s3util import aws_retry, read_in_chunks, get_timestamp
 
 NUM_WORKERS_DEFAULT = 64
 
@@ -120,7 +120,7 @@ def worker(result_file_name, queue, mode):
                 "size": head["ContentLength"],
                 "content_type": head["ContentType"],
                 "metadata": head["Metadata"],
-                "last_modified": head["LastModified"].timestamp(),
+                "last_modified": get_timestamp(head["LastModified"]),
             }
         except client_error as err:
             error_code = normalize_client_error(err)
@@ -192,7 +192,9 @@ def worker(result_file_name, queue, mode):
                             if resp["Metadata"] is not None:
                                 args["metadata"] = resp["Metadata"]
                             if resp["LastModified"]:
-                                args["last_modified"] = resp["LastModified"].timestamp()
+                                args["last_modified"] = get_timestamp(
+                                    resp["LastModified"]
+                                )
                             json.dump(args, f)
                         # Finally, we push out the size to the result_pipe since
                         # the size is used for verification and other purposes and

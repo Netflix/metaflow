@@ -1,0 +1,22 @@
+{
+    "name": "small-parallel",
+    "graph": {
+        "start": {"linear": "parallel_split"},
+        "parallel_split": {
+            "num_parallel": 4,
+            "parallel": "parallel_inner",
+            "quals": ["parallel-split"]
+        },
+        "parallel_inner": {
+            "linear": "parallel_join",
+            "quals": ["parallel-step"],
+            "parallel_step": true
+        },
+        "parallel_join": {
+            "linear": "end",
+            "join": true,
+            "quals": ["parallel-join"]
+        },
+        "end": {}
+    }
+}

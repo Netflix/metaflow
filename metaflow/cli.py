@@ -475,6 +475,12 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
     type=click.Choice(["none", UBF_CONTROL, UBF_TASK]),
     help="Provides additional context if this task is of type " "unbounded foreach.",
 )
+@click.option(
+    "--num-parallel",
+    default=0,
+    type=int,
+    help="Number of parallel instances of a step. Ignored in local mode (see parallel decorator code).",
+)
 @click.pass_context
 def step(
     ctx,
@@ -491,6 +497,7 @@ def step(
     clone_run_id=None,
     decospecs=None,
     ubf_context="none",
+    num_parallel=None,
 ):
     if ubf_context == "none":
         ubf_context = None
@@ -532,7 +539,7 @@ def step(
         ubf_context,
     )
     if clone_only:
-        task.clone_only(step_name, run_id, task_id, clone_only)
+        task.clone_only(step_name, run_id, task_id, clone_only, retry_count)
     else:
         task.run_step(
             step_name,

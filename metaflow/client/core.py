@@ -311,6 +311,9 @@ class MetaflowObject(object):
         Pathspec of this object (for example: 'FlowName/RunID' for a `Run`)
     path_components : List[string]
         Components of the pathspec
+    origin_pathspec : str
+        Pathspec of the original object this object was cloned from (in the case of a resume).
+        None if not applicable.
     """
 
     _NAME = "base"
@@ -556,6 +559,43 @@ class MetaflowObject(object):
             Date time of this object's creation.
         """
         return self._created_at
+
+    @property
+    def origin_pathspec(self):
+        """
+        The pathspec of the object from which the current object was cloned.
+
+        Returns:
+            str
+                pathspec of the origin object from which current object was cloned.
+        """
+        origin_pathspec = None
+        if self._NAME == "run":
+            latest_step = next(self.steps())
+            if latest_step:
+                # If we had a step
+                task = latest_step.task
+                origin_run_id = [
+                    m.value for m in task.metadata if m.name == "origin-run-id"
+                ]
+                if origin_run_id:
+                    origin_pathspec = "%s/%s" % (self.parent.id, origin_run_id[0])
+        else:
+            parent_pathspec = self.parent.origin_pathspec if self.parent else None
+            if parent_pathspec:
+                my_id = self.id
+                origin_task_id = None
+                if self._NAME == "task":
+                    origin_task_id = [
+                        m.value for m in self.metadata if m.name == "origin-task-id"
+                    ]
+                    if origin_task_id:
+                        my_id = origin_task_id[0]
+                    else:
+                        my_id = None
+                if my_id is not None:
+                    origin_pathspec = "%s/%s" % (parent_pathspec, my_id)
+        return origin_pathspec
 
     @property
     def parent(self):
@@ -1366,8 +1406,7 @@ class Step(MetaflowObject):
             A task in the step
         """
         for t in self:
-            if CONTROL_TASK_TAG not in t.tags:
-                return t
+            return t
 
     def tasks(self, *tags):
         """
@@ -1429,8 +1468,7 @@ class Step(MetaflowObject):
     def __iter__(self):
         children = super(Step, self).__iter__()
         for t in children:
-            if CONTROL_TASK_TAG not in t.tags:
-                yield t
+            yield t
 
     @property
     def finished_at(self):

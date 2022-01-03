@@ -226,7 +226,10 @@ def run_test_cases(args):
         if formatter.valid:
 
             for context in contexts["contexts"]:
-
+                if context.get("disable_parallel", False) and any(
+                    "num_parallel" in node for node in graph["graph"].values()
+                ):
+                    continue
                 if ok_contexts:
                     if context["name"].lower() not in ok_contexts:
                         continue
