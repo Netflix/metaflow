@@ -62,10 +62,13 @@ class SectionComponent(DefaultComponent):
         self._contents = contents
         self._columns = columns
 
-    def render(self):
-        datadict = super().render()
+    @classmethod
+    def render_subcomponents(
+        cls, component_array, additional_allowed_types=[str, dict]
+    ):
         contents = []
-        for content in self._contents:
+        for content in component_array:
+            # Render objects of `MetaflowCardComponent` type
             if issubclass(type(content), MetaflowCardComponent):
                 rendered_content = content.render()
                 if type(rendered_content) == str or type(rendered_content) == dict:
@@ -77,8 +80,15 @@ class SectionComponent(DefaultComponent):
                             "Component render didn't return a string or dict",
                         ).render()
                     )
-            else:
+            # Objects of allowed types should be present.
+            elif type(content) in additional_allowed_types:
                 contents.append(content)
+
+        return contents
+
+    def render(self):
+        datadict = super().render()
+        contents = self.render_subcomponents(self._contents)
         datadict["contents"] = contents
         if self._columns is not None:
             datadict["columns"] = self._columns
@@ -289,6 +299,19 @@ class ArtifactsComponent(DefaultComponent):
     def render(self):
         datadict = super().render()
         datadict["data"] = self._data
+        return datadict
+
+
+class MarkdownComponent(DefaultComponent):
+    type = "markdown"
+
+    def __init__(self, text=None):
+        super().__init__(title=None, subtitle=None)
+        self._text = text
+
+    def render(self):
+        datadict = super().render()
+        datadict["source"] = self._text
         return datadict
 
 

@@ -10,6 +10,7 @@ from metaflow.plugins.cards.card_modules.components import (
     Subtitle,
     Error,
     Section,
+    Markdown,
 )
 from metaflow.plugins.cards.card_modules.basic import (
     DefaultCard,

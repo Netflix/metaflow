@@ -10,13 +10,14 @@ from .basic import (
     SectionComponent,
     SubTitleComponent,
     TitleComponent,
+    MarkdownComponent,
 )
 from .card import MetaflowCardComponent
 from .convert_to_native_type import TaskToDict
 
 
 class Artifact(MetaflowCardComponent):
-    def __init__(self, artifact, name, compressed=True, section_wrapped=True):
+    def __init__(self, artifact, name, compressed=True, section_wrapped=False):
         self._artifact = artifact
         self._name = name
         self._section_wrapped = section_wrapped
@@ -33,7 +34,7 @@ class Artifact(MetaflowCardComponent):
 
 
 class Table(MetaflowCardComponent):
-    def __init__(self, headers=[], data=[[]], title=None, section_wrapped=True):
+    def __init__(self, data=[[]], headers=[], title=None, section_wrapped=True):
         header_bool, data_bool = TableComponent.validate(headers, data)
         self._headers = []
         self._data = [[]]
@@ -61,16 +62,28 @@ class Table(MetaflowCardComponent):
                 section_wrapped=section_wrapped,
             )
 
+    def _render_subcomponents(self):
+        return [
+            SectionComponent.render_subcomponents(
+                row, additional_allowed_types=[str, dict, bool, int, tuple]
+            )
+            for row in self._data
+        ]
+
     def render(self):
         if self._section_wrapped:
             return SectionComponent(
                 title=self._title,
                 contents=[
-                    TableComponent(headers=self._headers, data=self._data).render()
+                    TableComponent(
+                        headers=self._headers, data=self._render_subcomponents()
+                    ).render()
                 ],
             ).render()
         else:
-            return TableComponent(headers=self._headers, data=self._data).render()
+            return TableComponent(
+                headers=self._headers, data=self._render_subcomponents()
+            ).render()
 
 
 class Image(MetaflowCardComponent):
@@ -267,3 +280,11 @@ class Section(MetaflowCardComponent):
         return SectionComponent(
             self._title, self._subtitle, self._columns, self._contents
         ).render()
+
+
+class Markdown(MetaflowCardComponent):
+    def __init__(self, text=None):
+        self._text = text
+
+    def render(self):
+        return MarkdownComponent(self._text).render()
