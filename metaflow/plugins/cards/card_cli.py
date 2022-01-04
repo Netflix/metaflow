@@ -374,6 +374,10 @@ def create(
     else:
         save_type = "error"
 
+    # If card_id is doesn't match regex pattern then we will set it as None
+    if re.match(CARD_ID_PATTERN, card_id) is not None:
+        card_id = None
+
     if rendered_info is not None:
         card_info = card_datastore.save_card(save_type, rendered_info, card_id=card_id)
         ctx.obj.echo(
