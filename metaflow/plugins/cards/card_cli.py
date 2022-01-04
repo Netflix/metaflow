@@ -43,11 +43,7 @@ def open_in_browser(card_path):
 
 
 def resolve_card(
-    ctx,
-    pathspec,
-    follow_resumed=True,
-    hash=None,
-    type=None,
+    ctx, pathspec, follow_resumed=True, hash=None, type=None, card_id=None
 ):
     """Resolves the card path based on the arguments provided. We allow identifier to be a pathspec or a id of card.
 
@@ -56,6 +52,7 @@ def resolve_card(
         pathspec: pathspec
         hash (optional): This is to specifically resolve the card via the hash. This is useful when there may be many card with same id or type for a pathspec.
         type : type of card
+        card_id : `id` given to card
     Raises:
         CardNotPresentException: No card could be found for the pathspec
 
@@ -91,20 +88,13 @@ def resolve_card(
     # to resolve card_id we first check if the identifier is a pathspec and if it is then we check if the `id` is set or not to resolve card_id
     # todo : Fix this with `coalesce function`
     card_paths_found, card_datastore = resolve_paths_from_task(
-        ctx.obj.flow_datastore,
-        pathspec=pathspec,
-        type=type,
-        hash=hash,
+        ctx.obj.flow_datastore, pathspec=pathspec, type=type, hash=hash, card_id=card_id
     )
 
     if len(card_paths_found) == 0:
         # If there are no files found on the Path then raise an error of
         raise CardNotPresentException(
-            flow_name,
-            run_id,
-            step_name,
-            card_hash=hash,
-            card_type=type,
+            pathspec, card_hash=hash, card_type=type, card_id=card_id
         )
 
     return card_paths_found, card_datastore, pathspec
@@ -214,7 +204,14 @@ def card_read_options_and_arguments(func):
         default=None,
         show_default=True,
         type=str,
-        help="Type of card being created",
+        help="Type of card",
+    )
+    @click.option(
+        "--id",
+        default=None,
+        show_default=True,
+        type=str,
+        help="Id of the card",
     )
     @click.option(
         "--follow-resumed/--no-follow-resumed",
@@ -401,6 +398,7 @@ def view(
     pathspec,
     hash=None,
     type=None,
+    id=None,
     follow_resumed=False,
 ):
     """
@@ -408,11 +406,13 @@ def view(
     The Task pathspec is of the form:\n
         <runid>/<stepname>/<taskid>\n
     """
+    card_id = id
     available_card_paths, card_datastore, pathspec = resolve_card(
         ctx,
         pathspec,
         type=type,
         hash=hash,
+        card_id=card_id,
         follow_resumed=follow_resumed,
     )
     if len(available_card_paths) == 1:
@@ -432,6 +432,7 @@ def get(
     pathspec,
     hash=None,
     type=None,
+    id=None,
     follow_resumed=False,
 ):
     """
@@ -439,11 +440,13 @@ def get(
     The Task pathspec is of the form:\n
         <runid>/<stepname>/<taskid>\n
     """
+    card_id = id
     available_card_paths, card_datastore, pathspec = resolve_card(
         ctx,
         pathspec,
         type=type,
         hash=hash,
+        card_id=card_id,
         follow_resumed=follow_resumed,
     )
     if len(available_card_paths) == 1:

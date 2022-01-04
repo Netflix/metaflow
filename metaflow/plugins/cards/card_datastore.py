@@ -152,15 +152,14 @@ class CardDatastore(object):
         )
         return self.card_info_from_path(card_path)
 
-    def _list_card_paths(self, card_type=None, card_hash=None):
+    def _list_card_paths(self, card_type=None, card_hash=None, card_id=None):
         card_path = self._get_card_path()
+
         card_paths = self._backend.list_content([card_path])
         if len(card_paths) == 0:
             # If there are no files found on the Path then raise an error of
             raise CardNotPresentException(
-                self._flow_name,
-                self._run_id,
-                self._step_name,
+                self._pathspec,
                 card_hash=card_hash,
                 card_type=card_type,
             )
@@ -176,6 +175,8 @@ class CardDatastore(object):
                     and card_hash != card_info.hash[:NUM_SHORT_HASH_CHARS]
                 ):
                     continue
+            elif card_id is not None and card_info.id != card_id:
+                continue
 
             if task_card_path.is_file:
                 cards_found.append(card_path)
@@ -205,8 +206,7 @@ class CardDatastore(object):
                     shutil.copy(path, main_path)
                     return main_path
 
-    def extract_card_paths(self, card_type=None, card_hash=None):
+    def extract_card_paths(self, card_type=None, card_hash=None, card_id=None):
         return self._list_card_paths(
-            card_type=card_type,
-            card_hash=card_hash,
+            card_type=card_type, card_hash=card_hash, card_id=card_id
         )
