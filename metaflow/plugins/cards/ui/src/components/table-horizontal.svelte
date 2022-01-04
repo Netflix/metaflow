@@ -2,7 +2,7 @@
       allow you to scroll -->
 <script lang="ts">
   import type * as types from "../types";
-  import DataRenderer from "./data-renderer.svelte";
+  import DataRenderer from "./table-data-renderer.svelte";
 
   export let componentData: types.TableComponent;
   const { columns, data } = componentData;
