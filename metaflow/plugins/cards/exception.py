@@ -61,6 +61,28 @@ class CardNotPresentException(MetaflowException):
         super(CardNotPresentException, self).__init__(main_message)
 
 
+class TaskNotFoundException(MetaflowException):
+
+    headline = "Cannot resolve task for pathspec"
+
+    def __init__(
+        self,
+        pathspec_query,
+        resolved_from,
+        run_id=None,
+    ):
+        message = "Cannot resolve task to find card."
+        if resolved_from == "task_pathspec":
+            message = "Task pathspec %s not found." % pathspec_query
+        elif resolved_from == "step_pathspec":
+            message = "Step pathspec %s not found." % pathspec_query
+        elif resolved_from == "stepname":
+            message = "Step %s not found" % pathspec_query
+            if run_id is not None:
+                message = "Step %s not found for Run('%s')." % (pathspec_query, run_id)
+        super().__init__(msg=message, lineno=None)
+
+
 class IncorrectCardArgsException(MetaflowException):
 
     headline = "Incorrect arguements to @card decorator"
