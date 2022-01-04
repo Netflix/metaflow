@@ -566,17 +566,19 @@ class BlankCard(MetaflowCard):
 
     type = "blank"
 
-    def __init__(self, options={}, components=[], graph=None):
+    def __init__(self, options=dict(title="Task Info"), components=[], graph=None):
         self._graph = graph
+        self._title = "Task Info"
+        if "title" in options:
+            self._title = options["title"]
         self._components = components
 
     def render(self, task):
-        page_title = "Task Info"
         RENDER_TEMPLATE = read_file(RENDER_TEMPLATE_PATH)
         JS_DATA = read_file(JS_PATH)
         CSS_DATA = read_file(CSS_PATH)
         page_component = PageComponent(
-            title=page_title,
+            title=self._title,
             contents=self._components,
         ).render()
         final_component_dict = dict(
