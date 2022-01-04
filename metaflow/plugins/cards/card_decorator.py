@@ -33,15 +33,11 @@ class CardDecorator(StepDecorator):
     }
     allow_multiple = True
 
-    total_decos_on_step = None
-
-    total_editable_cards = None
+    total_decos_on_step = {}
 
     step_counter = 0
 
     _called_once = {}
-
-    called_once_pre_step = False
 
     def __init__(self, *args, **kwargs):
         super(CardDecorator, self).__init__(*args, **kwargs)
@@ -94,9 +90,8 @@ class CardDecorator(StepDecorator):
             cls._called_once[evt_name] = True
 
     @classmethod
-    def _set_total_decorator_counts(cls, total_count, editable_count):
-        cls.total_decos_on_step = total_count
-        cls.total_editable_cards = editable_count
+    def _set_card_counts_per_step(cls, step_name, total_count):
+        cls.total_decos_on_step[step_name] = total_count
 
     @classmethod
     def _increment_step_counter(cls):
@@ -129,26 +124,10 @@ class CardDecorator(StepDecorator):
         # We set the total count of decorators so that we can use it for
         # when calling the finalize function of CardComponentCollector
         # We only set this once so that we don't re-register counts.
-        if not self._is_event_registered("step-init"):
-            self._register_event("step-init")
-            other_card_decorators = [
-                deco for deco in decorators if isinstance(deco, self.__class__)
-            ]
-            # `other_card_decorators` includes `self` too
-            other_deco_classes = [
-                get_card_class(
-                    None if "type" in deco.attributes else deco.attributes["type"]
-                )
-                for deco in other_card_decorators
-            ]
-            editable_cards = [
-                c
-                for c in other_deco_classes
-                if c is not None and c.ALLOW_USER_COMPONENTS
-            ]
-            self._set_total_decorator_counts(
-                len(other_card_decorators), len(editable_cards)
-            )
+        other_card_decorators = [
+            deco for deco in decorators if isinstance(deco, self.__class__)
+        ]
+        self._set_card_counts_per_step(step_name, len(other_card_decorators))
 
         card_type = self.attributes["type"]
         card_class = get_card_class(card_type)
@@ -211,7 +190,7 @@ class CardDecorator(StepDecorator):
         # This means that the we are calling `task_pre_step` on the last card decorator.
         # We can now `finalize` method in the CardComponentCollector object.
         # This will setup the `current.cards` object for usage inside `@step` code.
-        if self.step_counter == self.total_decos_on_step:
+        if self.step_counter == self.total_decos_on_step[step_name]:
             current.cards._finalize()
 
         self._task_datastore = task_datastore
