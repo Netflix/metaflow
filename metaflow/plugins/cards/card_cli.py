@@ -17,6 +17,7 @@ from .exception import (
     IncorrectCardArgsException,
     UnrenderableCardException,
     CardNotPresentException,
+    TaskNotFoundException,
 )
 
 from .card_resolver import resolve_paths_from_task, resumed_info
@@ -42,12 +43,62 @@ def open_in_browser(card_path):
     webbrowser.open(url)
 
 
+def resolve_task_from_pathspec(flow_name, pathspec):
+    """
+    resolves a task object for the pathspec query on the CLI.
+    Args:
+        flow_name : (str) : name of flow
+        pathspec (str) : can be `stepname` / `runid/stepname` / `runid/stepname/taskid`
+
+    Returns:
+        metaflow.Task | None
+    """
+    from metaflow import Flow, Step, Task
+    from metaflow.exception import MetaflowNotFound
+
+    # since pathspec can have many variations.
+    pthsplits = pathspec.split("/")
+    namespace(None)
+    task = None
+    run_id = None
+    resolving_from = "task_pathspec"
+    if len(pthsplits) == 1:
+        # This means stepname
+        resolving_from = "stepname"
+        latest_run = Flow(flow_name).latest_run
+        if latest_run is not None:
+            run_id = latest_run.pathspec
+            try:
+                task = latest_run[pathspec].task
+            except KeyError:
+                pass
+    elif len(pthsplits) == 2:
+        # This means runid/stepname
+        resolving_from = "step_pathspec"
+        try:
+            task = Step("/".join([flow_name, pathspec])).task
+            run_id = task.parent.parent.pathspec
+        except MetaflowNotFound as e:
+            pass
+    elif len(pthsplits) == 3:
+        # this means runid/stepname/taskid
+        resolving_from = "task_pathspec"
+        try:
+            task = Task("/".join([flow_name, pathspec]))
+            run_id = task.parent.parent.pathspec
+        except MetaflowNotFound as e:
+            pass
+    else:
+        # raise exception for invalid pathspec format
+        raise CommandException(
+            msg="The PATHSPEC argument should be of the form 'stepname' Or '<runid>/<stepname>' Or '<runid>/<stepname>/<taskid>'"
+        )
+
+    return task, run_id, resolving_from
+
+
 def resolve_card(
-    ctx,
-    pathspec,
-    follow_resumed=True,
-    hash=None,
-    type=None,
+    ctx, pathspec, follow_resumed=True, hash=None, type=None, card_id=None
 ):
     """Resolves the card path based on the arguments provided. We allow identifier to be a pathspec or a id of card.
 
@@ -56,30 +107,28 @@ def resolve_card(
         pathspec: pathspec
         hash (optional): This is to specifically resolve the card via the hash. This is useful when there may be many card with same id or type for a pathspec.
         type : type of card
+        card_id : `id` given to card
     Raises:
         CardNotPresentException: No card could be found for the pathspec
 
     Returns:
         (card_paths, card_datastore, taskpathspec) : Tuple[List[str], CardDatastore, str]
     """
-    if len(pathspec.split("/")) != 3:
-        raise CommandException(
-            msg="Expecting pathspec of form <runid>/<stepname>/<taskid>"
-        )
-
     flow_name = ctx.obj.flow.name
-    run_id, step_name, task_id = None, None, None
-    # what should be the args we expose
-    run_id, step_name, task_id = pathspec.split("/")
-    pathspec = "/".join([flow_name, pathspec])
-    # we set namespace to be none to avoid namespace mismatch error.
-    namespace(None)
-    task = Task(pathspec)
-    print_str = "Resolving card: %s" % pathspec
+    (
+        task,
+        run_id,
+        resolved_from,
+    ) = resolve_task_from_pathspec(flow_name, pathspec)
+    if task is None:
+        # raise Exception that task could not be resolved for the query.
+        raise TaskNotFoundException(pathspec, resolved_from, run_id=run_id)
+    card_pathspec = task.pathspec
+    print_str = "Resolving card: %s" % card_pathspec
     if follow_resumed:
         origin_taskpathspec = resumed_info(task)
         if origin_taskpathspec:
-            pathspec = origin_taskpathspec
+            card_pathspec = origin_taskpathspec
             ctx.obj.echo(
                 "Resolving card resumed from: %s" % origin_taskpathspec,
                 fg="green",
@@ -92,22 +141,19 @@ def resolve_card(
     # todo : Fix this with `coalesce function`
     card_paths_found, card_datastore = resolve_paths_from_task(
         ctx.obj.flow_datastore,
-        pathspec=pathspec,
+        pathspec=card_pathspec,
         type=type,
         hash=hash,
+        card_id=card_id,
     )
 
     if len(card_paths_found) == 0:
         # If there are no files found on the Path then raise an error of
         raise CardNotPresentException(
-            flow_name,
-            run_id,
-            step_name,
-            card_hash=hash,
-            card_type=type,
+            card_pathspec, card_hash=hash, card_type=type, card_id=card_id
         )
 
-    return card_paths_found, card_datastore, pathspec
+    return card_paths_found, card_datastore, card_pathspec
 
 
 @contextmanager
@@ -214,7 +260,14 @@ def card_read_options_and_arguments(func):
         default=None,
         show_default=True,
         type=str,
-        help="Type of card being created",
+        help="Type of card",
+    )
+    @click.option(
+        "--id",
+        default=None,
+        show_default=True,
+        type=str,
+        help="Id of the card",
     )
     @click.option(
         "--follow-resumed/--no-follow-resumed",
@@ -401,18 +454,23 @@ def view(
     pathspec,
     hash=None,
     type=None,
+    id=None,
     follow_resumed=False,
 ):
     """
     View the HTML card in browser based on the pathspec.\n
-    The Task pathspec is of the form:\n
-        <runid>/<stepname>/<taskid>\n
+    The pathspec can be of the form:\n
+        - <stepname>\n
+        - <runid>/<stepname>\n
+        - <runid>/<stepname>/<taskid>\n
     """
+    card_id = id
     available_card_paths, card_datastore, pathspec = resolve_card(
         ctx,
         pathspec,
         type=type,
         hash=hash,
+        card_id=card_id,
         follow_resumed=follow_resumed,
     )
     if len(available_card_paths) == 1:
@@ -432,18 +490,23 @@ def get(
     pathspec,
     hash=None,
     type=None,
+    id=None,
     follow_resumed=False,
 ):
     """
     Get the HTML string of the card based on pathspec.\n
-    The Task pathspec is of the form:\n
-        <runid>/<stepname>/<taskid>\n
+    The pathspec can be of the form:\n
+        - <stepname>\n
+        - <runid>/<stepname>\n
+        - <runid>/<stepname>/<taskid>\n
     """
+    card_id = id
     available_card_paths, card_datastore, pathspec = resolve_card(
         ctx,
         pathspec,
         type=type,
         hash=hash,
+        card_id=card_id,
         follow_resumed=follow_resumed,
     )
     if len(available_card_paths) == 1:
