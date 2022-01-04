@@ -123,7 +123,7 @@ class CardDecorator(StepDecorator):
 
         # We set the total count of decorators so that we can use it for
         # when calling the finalize function of CardComponentCollector
-        # We only set this once so that we don't re-register counts.
+        # We set the total @card per step via calling `_set_card_counts_per_step`.
         other_card_decorators = [
             deco for deco in decorators if isinstance(deco, self.__class__)
         ]
