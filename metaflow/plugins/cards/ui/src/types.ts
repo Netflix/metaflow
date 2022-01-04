@@ -19,8 +19,10 @@ export interface Artifact {
 
 export type Artifacts = Record<string, Artifact>;
 
+export type TableDataCell = boolean | string | number | ArtifactsComponent | BarChartComponent | DagComponent | LineChartComponent | LogComponent | MarkdownComponent | TextComponent;
+
 export type TableColumns = string[];
-export type TableData = any[][];
+export type TableData = TableDataCell[][];
 
 /* ----------------------------------- DAG ---------------------------------- */
 
