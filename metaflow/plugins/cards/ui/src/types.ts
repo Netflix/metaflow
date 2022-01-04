@@ -156,7 +156,7 @@ export interface LogComponent {
 
 export interface MarkdownComponent {
   type: "markdown";
-  data: string;
+  source: string;
 }
 
 // wrap all component options into a Component type
