@@ -74,8 +74,8 @@ def _step_cli(
         # TODO: move to KFP plugin
         export_params = (
             "python -m "
-            "metaflow.plugins.aws.step_functions.set_batch_environment "
-            "parameters %s && . `pwd`/%s" % (param_file, param_file)
+            "metaflow.plugins.kfp.set_batch_environment "
+            "parameters --output_file %s && . `pwd`/%s" % (param_file, param_file)
         )
         params: List[str] = entrypoint + [
             "--quiet",

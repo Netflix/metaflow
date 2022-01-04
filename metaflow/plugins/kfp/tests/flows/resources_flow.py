@@ -1,4 +1,5 @@
 import os
+import click
 import pprint
 import subprocess
 import time
@@ -11,7 +12,14 @@ from kubernetes.client import (
     V1ResourceFieldSelector,
 )
 
-from metaflow import FlowSpec, step, environment, resources, current
+from metaflow import (
+    FlowSpec,
+    step,
+    environment,
+    resources,
+    current,
+    Parameter,
+)
 
 
 def get_env_vars(env_resources: Dict[str, str]) -> List[V1EnvVar]:
@@ -91,8 +99,32 @@ for label, env_name in labels.items():
         )
     )
 
+sub_dict = dict(x=1, y="hello")
+default_dict = dict(a=1, hello="world", sub=sub_dict)
+
+# introduce our own type to test that it works, because JSONType is special handled
+# and JSON serialized in kfp_cli.py
+class TestTypeClass(click.ParamType):
+    name = "TestType"
+
+    def convert(self, value, param, ctx):
+        if isinstance(value, str):
+            import json
+            return json.loads(value)
+        else:
+            return value
+
+    def __str__(self):
+        return repr(self)
+
+    def __repr__(self):
+        return "Dataset"
+
+
 
 class ResourcesFlow(FlowSpec):
+    json_param: Dict = Parameter("json_param", default=default_dict, type=TestTypeClass())
+
     @resources(
         local_storage="242",
         cpu="0.6",
@@ -103,6 +135,7 @@ class ResourcesFlow(FlowSpec):
     )
     @step
     def start(self):
+        assert self.json_param == default_dict
         pprint.pprint(dict(os.environ))
         print("=====")
 
