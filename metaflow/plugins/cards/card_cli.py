@@ -315,7 +315,7 @@ def create(
 
     task = Task(full_pathspec)
     from metaflow.plugins import CARDS
-    from metaflow.plugins.cards.exception import CARD_ID_PATTERN
+    from metaflow.plugins.cards.exception import CARD_ID_PATTERN, TYPE_CHECK_REGEX
     from metaflow.cards import ErrorCard
 
     error_card = ErrorCard
@@ -373,6 +373,15 @@ def create(
         save_type = type
     else:
         save_type = "error"
+
+    # If card_id is doesn't match regex pattern then we will set it as None
+    if card_id is not None and re.match(CARD_ID_PATTERN, card_id) is None:
+        ctx.obj.echo(
+            "`--id=%s` doesn't match REGEX pattern. `--id` will be set to `None`. Please create `--id` of pattern %s."
+            % (card_id, TYPE_CHECK_REGEX),
+            fg="red",
+        )
+        card_id = None
 
     if rendered_info is not None:
         card_info = card_datastore.save_card(save_type, rendered_info, card_id=card_id)
