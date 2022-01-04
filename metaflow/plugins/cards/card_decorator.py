@@ -11,9 +11,13 @@ from .component_serializer import CardComponentCollector, get_card_class
 # from metaflow import get_metadata
 import re
 
-CARD_ID_PATTERN = re.compile(
-    "^[a-zA-Z0-9_]+$",
-)
+from .exception import CARD_ID_PATTERN, TYPE_CHECK_REGEX
+
+
+def warning_message(message, logger=None):
+    msg = "[@card WARNING] %s" % message
+    if logger:
+        logger(msg, timestamp=False, bad=True)
 
 
 class CardDecorator(StepDecorator):
@@ -47,6 +51,7 @@ class CardDecorator(StepDecorator):
         self._logger = None
         self._is_editable = False
         self._card_uuid = None
+        self._user_set_card_id = None
 
     def add_to_package(self):
         return list(self._load_card_package())
@@ -100,6 +105,7 @@ class CardDecorator(StepDecorator):
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
     ):
+
         self._flow_datastore = flow_datastore
         self._environment = environment
         self._logger = logger
@@ -172,6 +178,21 @@ class CardDecorator(StepDecorator):
         # we call a `finalize` function in the `CardComponentCollector`.
         # This can help ensure the behaviour of the `current.cards` object is according to specification.
         self._increment_step_counter()
+        self._user_set_card_id = self.attributes["id"]
+        if (
+            self.attributes["id"] is not None
+            and re.match(CARD_ID_PATTERN, self.attributes["id"]) is None
+        ):
+            # There should be a warning issued to the user that `id` doesn't match regex pattern
+            # Since it is doesn't match pattern, we need to ensure that `id` is not accepted by `current`
+            # and warn users that they cannot use id for thier arguements.
+            wrn_msg = (
+                "@card with id '%s' doesn't match REGEX pattern. "
+                "Adding custom components to cards will not be accessible via `current.cards['%s']`. "
+                "Please create `id` of pattern %s. "
+            ) % (self.attributes["id"], self.attributes["id"], TYPE_CHECK_REGEX)
+            warning_message(wrn_msg, self._logger)
+            self._user_set_card_id = None
 
         # As we have multiple decorators,
         # we need to ensure that `current.cards` has `CardComponentCollector` instantiated only once.
@@ -181,7 +202,7 @@ class CardDecorator(StepDecorator):
 
         card_metadata = current.cards._add_card(
             self.attributes["type"],
-            self.attributes["id"],
+            self._user_set_card_id,
             self._is_editable,
             self.attributes["customize"],
         )
@@ -262,8 +283,8 @@ class CardDecorator(StepDecorator):
         if self.attributes["timeout"] is not None:
             cmd += ["--timeout", str(self.attributes["timeout"])]
 
-        if self.attributes["id"] is not None:
-            cmd += ["--id", str(self.attributes["id"])]
+        if self._user_set_card_id is not None:
+            cmd += ["--id", str(self._user_set_card_id)]
 
         if self.attributes["save_errors"]:
             cmd += ["--render-error-card"]
