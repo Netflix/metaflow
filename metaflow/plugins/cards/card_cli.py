@@ -191,7 +191,7 @@ def list_available_cards(
             dict(id=tup.id, hash=tup.hash, type=tup.type, filename=tup.filename)
             for tup in path_tuples
         ]
-        ctx.obj.echo(json.dumps(json_arr, indent=4))
+        print(json.dumps(json_arr, indent=4))
         return
 
     ctx.obj.echo(
