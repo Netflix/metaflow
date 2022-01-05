@@ -64,7 +64,9 @@ class SectionComponent(DefaultComponent):
 
     @classmethod
     def render_subcomponents(
-        cls, component_array, additional_allowed_types=[str, dict]
+        cls,
+        component_array,
+        additional_allowed_types=[str, dict],
     ):
         contents = []
         for content in component_array:

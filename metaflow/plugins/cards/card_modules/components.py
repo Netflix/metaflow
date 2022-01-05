@@ -65,7 +65,7 @@ class Table(MetaflowCardComponent):
     def _render_subcomponents(self):
         return [
             SectionComponent.render_subcomponents(
-                row, additional_allowed_types=[str, dict, bool, int, tuple]
+                row, additional_allowed_types=[str, bool, int, float, dict, list, tuple]
             )
             for row in self._data
         ]
