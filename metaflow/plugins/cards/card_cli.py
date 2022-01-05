@@ -98,7 +98,13 @@ def resolve_task_from_pathspec(flow_name, pathspec):
 
 
 def resolve_card(
-    ctx, pathspec, follow_resumed=True, hash=None, type=None, card_id=None
+    ctx,
+    pathspec,
+    follow_resumed=True,
+    hash=None,
+    type=None,
+    card_id=None,
+    no_echo=False,
 ):
     """Resolves the card path based on the arguments provided. We allow identifier to be a pathspec or a id of card.
 
@@ -108,6 +114,7 @@ def resolve_card(
         hash (optional): This is to specifically resolve the card via the hash. This is useful when there may be many card with same id or type for a pathspec.
         type : type of card
         card_id : `id` given to card
+        no_echo : if set to `True` then supress logs about pathspec resolution.
     Raises:
         CardNotPresentException: No card could be found for the pathspec
 
@@ -129,13 +136,9 @@ def resolve_card(
         origin_taskpathspec = resumed_info(task)
         if origin_taskpathspec:
             card_pathspec = origin_taskpathspec
-            ctx.obj.echo(
-                "Resolving card resumed from: %s" % origin_taskpathspec,
-                fg="green",
-            )
-        else:
-            ctx.obj.echo(print_str, fg="green")
-    else:
+            print_str = ("Resolving card resumed from: %s" % origin_taskpathspec,)
+
+    if not no_echo:
         ctx.obj.echo(print_str, fg="green")
     # to resolve card_id we first check if the identifier is a pathspec and if it is then we check if the `id` is set or not to resolve card_id
     # todo : Fix this with `coalesce function`
@@ -177,14 +180,25 @@ def raise_timeout(signum, frame):
     raise TimeoutError
 
 
-def list_available_cards(ctx, path_spec, card_paths, card_datastore, command="view"):
+def list_available_cards(
+    ctx, pathspec, card_paths, card_datastore, command="view", show_list_as_json=False
+):
+    # pathspec is full pathspec.
     # todo : create nice response messages on the CLI for cards which were found.
     scriptname = ctx.obj.flow.script_name
     path_tuples = card_datastore.get_card_names(card_paths)
+    if show_list_as_json:
+        json_arr = [
+            dict(id=tup.id, hash=tup.hash, type=tup.type, filename=tup.filename)
+            for tup in path_tuples
+        ]
+        print(json.dumps(dict(pathspec=pathspec, cards=json_arr), indent=4))
+        return
+
     ctx.obj.echo(
         "\nFound %d card matching for your query..." % len(path_tuples), fg="green"
     )
-    task_pathspec = "/".join(path_spec.split("/")[1:])
+    task_pathspec = "/".join(pathspec.split("/")[1:])
     card_list = []
     for path_tuple in path_tuples:
         card_list.append(path_tuple.filename)
@@ -192,16 +206,18 @@ def list_available_cards(ctx, path_spec, card_paths, card_datastore, command="vi
     random_idx = 0 if len(path_tuples) == 1 else random.randint(0, len(path_tuples) - 1)
     _, randhash, _, file_name = path_tuples[random_idx]
     ctx.obj.echo("\n\t".join([""] + card_list), fg="blue")
-    ctx.obj.echo(
-        "\n\tExample access from CLI via: \n\t %s\n"
-        % make_command(
-            scriptname,
-            task_pathspec,
-            command=command,
-            hash=randhash[:NUM_SHORT_HASH_CHARS],
-        ),
-        fg="yellow",
-    )
+
+    if command is not None:
+        ctx.obj.echo(
+            "\n\tExample access from CLI via: \n\t %s\n"
+            % make_command(
+                scriptname,
+                task_pathspec,
+                command=command,
+                hash=randhash[:NUM_SHORT_HASH_CHARS],
+            ),
+            fg="yellow",
+        )
 
 
 def make_command(
@@ -477,7 +493,11 @@ def view(
         open_in_browser(card_datastore.cache_locally(available_card_paths[0]))
     else:
         list_available_cards(
-            ctx, pathspec, available_card_paths, card_datastore, command="view"
+            ctx,
+            pathspec,
+            available_card_paths,
+            card_datastore,
+            command="view",
         )
 
 
@@ -513,5 +533,48 @@ def get(
         print(card_datastore.get_card_html(available_card_paths[0]))
     else:
         list_available_cards(
-            ctx, pathspec, available_card_paths, card_datastore, command="get"
+            ctx,
+            pathspec,
+            available_card_paths,
+            card_datastore,
+            command="get",
         )
+
+
+@card.command()
+@click.argument("pathspec")
+@card_read_options_and_arguments
+@click.option(
+    "--as-json",
+    default=False,
+    is_flag=True,
+    help="Print all available cards as a JSON object",
+)
+@click.pass_context
+def list(
+    ctx,
+    pathspec,
+    hash=None,
+    type=None,
+    id=None,
+    follow_resumed=False,
+    as_json=False,
+):
+    card_id = id
+    available_card_paths, card_datastore, pathspec = resolve_card(
+        ctx,
+        pathspec,
+        type=type,
+        hash=hash,
+        card_id=card_id,
+        follow_resumed=follow_resumed,
+        no_echo=as_json,
+    )
+    list_available_cards(
+        ctx,
+        pathspec,
+        available_card_paths,
+        card_datastore,
+        command=None,
+        show_list_as_json=as_json,
+    )
