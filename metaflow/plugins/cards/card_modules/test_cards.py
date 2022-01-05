@@ -1,6 +1,14 @@
 from .card import MetaflowCard, MetaflowCardComponent
 
 
+class TestStringComponent(MetaflowCardComponent):
+    def __init__(self, text):
+        self._text = text
+
+    def render(self):
+        return str(self._text)
+
+
 class TestPathSpecCard(MetaflowCard):
     type = "test_pathspec_card"
 
@@ -8,6 +16,46 @@ class TestPathSpecCard(MetaflowCard):
         import random
 
         return "%s %d" % (task.pathspec, random.randint(0, 100))
+
+
+class TestEditableCard(MetaflowCard):
+    type = "test_editable_card"
+
+    seperator = "$&#!!@*"
+
+    ALLOW_USER_COMPONENTS = True
+
+    def __init__(self, options={}, components=[], graph=None):
+        self._components = components
+
+    def render(self, task):
+        return self.seperator.join([str(comp) for comp in self._components])
+
+
+class TestEditableCard2(MetaflowCard):
+    type = "test_editable_card_2"
+
+    seperator = "$&#!!@*"
+
+    ALLOW_USER_COMPONENTS = True
+
+    def __init__(self, options={}, components=[], graph=None):
+        self._components = components
+
+    def render(self, task):
+        return self.seperator.join([str(comp) for comp in self._components])
+
+
+class TestNonEditableCard(MetaflowCard):
+    type = "test_non_editable_card"
+
+    seperator = "$&#!!@*"
+
+    def __init__(self, options={}, components=[], graph=None):
+        self._components = components
+
+    def render(self, task):
+        return self.seperator.join([str(comp) for comp in self._components])
 
 
 class TestMockCard(MetaflowCard):

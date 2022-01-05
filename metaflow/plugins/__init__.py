@@ -192,17 +192,23 @@ from .cards.card_modules.test_cards import (
     TestTimeoutCard,
     TestMockCard,
     TestPathSpecCard,
+    TestEditableCard,
+    TestEditableCard2,
+    TestNonEditableCard,
 )
 
 CARDS = [
     DefaultCard,
     TaskSpecCard,
     ErrorCard,
+    BlankCard,
     TestErrorCard,
     TestTimeoutCard,
     TestMockCard,
     TestPathSpecCard,
-    BlankCard,
+    TestEditableCard,
+    TestEditableCard2,
+    TestNonEditableCard,
 ]
 # Sidecars
 from ..mflog.save_logs_periodically import SaveLogsPeriodicallySidecar
