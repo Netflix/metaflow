@@ -98,7 +98,13 @@ def resolve_task_from_pathspec(flow_name, pathspec):
 
 
 def resolve_card(
-    ctx, pathspec, follow_resumed=True, hash=None, type=None, card_id=None
+    ctx,
+    pathspec,
+    follow_resumed=True,
+    hash=None,
+    type=None,
+    card_id=None,
+    show_list_as_json=False,
 ):
     """Resolves the card path based on the arguments provided. We allow identifier to be a pathspec or a id of card.
 
@@ -108,6 +114,7 @@ def resolve_card(
         hash (optional): This is to specifically resolve the card via the hash. This is useful when there may be many card with same id or type for a pathspec.
         type : type of card
         card_id : `id` given to card
+        show_list_as_json : if set to `True` then supress logs about pathspec resolution.
     Raises:
         CardNotPresentException: No card could be found for the pathspec
 
@@ -129,13 +136,9 @@ def resolve_card(
         origin_taskpathspec = resumed_info(task)
         if origin_taskpathspec:
             card_pathspec = origin_taskpathspec
-            ctx.obj.echo(
-                "Resolving card resumed from: %s" % origin_taskpathspec,
-                fg="green",
-            )
-        else:
-            ctx.obj.echo(print_str, fg="green")
-    else:
+            print_str = ("Resolving card resumed from: %s" % origin_taskpathspec,)
+
+    if not show_list_as_json:
         ctx.obj.echo(print_str, fg="green")
     # to resolve card_id we first check if the identifier is a pathspec and if it is then we check if the `id` is set or not to resolve card_id
     # todo : Fix this with `coalesce function`
@@ -177,10 +180,20 @@ def raise_timeout(signum, frame):
     raise TimeoutError
 
 
-def list_available_cards(ctx, path_spec, card_paths, card_datastore, command="view"):
+def list_available_cards(
+    ctx, path_spec, card_paths, card_datastore, command="view", show_list_as_json=False
+):
     # todo : create nice response messages on the CLI for cards which were found.
     scriptname = ctx.obj.flow.script_name
     path_tuples = card_datastore.get_card_names(card_paths)
+    if show_list_as_json:
+        json_arr = [
+            dict(id=tup.id, hash=tup.hash, type=tup.type, filename=tup.filename)
+            for tup in path_tuples
+        ]
+        ctx.obj.echo(json.dumps(json_arr, indent=4))
+        return
+
     ctx.obj.echo(
         "\nFound %d card matching for your query..." % len(path_tuples), fg="green"
     )
@@ -274,6 +287,12 @@ def card_read_options_and_arguments(func):
         default=True,
         show_default=True,
         help="Follow the origin-task-id of resumed tasks to seek cards stored for resumed tasks.",
+    )
+    @click.option(
+        "--show-list-as-json",
+        default=False,
+        is_flag=True,
+        help="If multiple cards are found then print the list as a json array",
     )
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -456,6 +475,7 @@ def view(
     type=None,
     id=None,
     follow_resumed=False,
+    show_list_as_json=False,
 ):
     """
     View the HTML card in browser based on the pathspec.\n
@@ -472,12 +492,18 @@ def view(
         hash=hash,
         card_id=card_id,
         follow_resumed=follow_resumed,
+        show_list_as_json=show_list_as_json,
     )
     if len(available_card_paths) == 1:
         open_in_browser(card_datastore.cache_locally(available_card_paths[0]))
     else:
         list_available_cards(
-            ctx, pathspec, available_card_paths, card_datastore, command="view"
+            ctx,
+            pathspec,
+            available_card_paths,
+            card_datastore,
+            command="view",
+            show_list_as_json=show_list_as_json,
         )
 
 
@@ -492,6 +518,7 @@ def get(
     type=None,
     id=None,
     follow_resumed=False,
+    show_list_as_json=False,
 ):
     """
     Get the HTML string of the card based on pathspec.\n
@@ -508,10 +535,16 @@ def get(
         hash=hash,
         card_id=card_id,
         follow_resumed=follow_resumed,
+        show_list_as_json=show_list_as_json,
     )
     if len(available_card_paths) == 1:
         print(card_datastore.get_card_html(available_card_paths[0]))
     else:
         list_available_cards(
-            ctx, pathspec, available_card_paths, card_datastore, command="get"
+            ctx,
+            pathspec,
+            available_card_paths,
+            card_datastore,
+            command="get",
+            show_list_as_json=show_list_as_json,
         )
