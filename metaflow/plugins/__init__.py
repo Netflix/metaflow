@@ -187,7 +187,12 @@ FLOW_DECORATORS = _merge_lists(
 
 # Cards
 from .cards.card_modules.basic import DefaultCard, TaskSpecCard, ErrorCard, BlankCard
-from .cards.card_modules.test_cards import TestErrorCard, TestTimeoutCard, TestMockCard
+from .cards.card_modules.test_cards import (
+    TestErrorCard,
+    TestTimeoutCard,
+    TestMockCard,
+    TestPathSpecCard,
+)
 
 CARDS = [
     DefaultCard,
@@ -196,6 +201,7 @@ CARDS = [
     TestErrorCard,
     TestTimeoutCard,
     TestMockCard,
+    TestPathSpecCard,
     BlankCard,
 ]
 # Sidecars

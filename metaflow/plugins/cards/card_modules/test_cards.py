@@ -1,6 +1,15 @@
 from .card import MetaflowCard, MetaflowCardComponent
 
 
+class TestPathSpecCard(MetaflowCard):
+    type = "test_pathspec_card"
+
+    def render(self, task):
+        import random
+
+        return "%s %d" % (task.pathspec, random.randint(0, 100))
+
+
 class TestMockCard(MetaflowCard):
     type = "test_mock_card"
 

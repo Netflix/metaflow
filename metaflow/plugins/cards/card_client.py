@@ -37,6 +37,7 @@ class Card:
         card_ds,
         type,
         path,
+        hash,
         id=None,
         html=None,
         created_on=None,
@@ -51,6 +52,7 @@ class Card:
         self._card_id = id
 
         # public attributes
+        self.hash = hash
         self.type = type
         self.from_resumed = from_resumed
         self.origin_pathspec = origin_pathspec
@@ -131,6 +133,7 @@ class CardContainer:
             self._card_ds,
             card_info.type,
             path,
+            card_info.hash,
             id=card_info.id,
             html=None,
             created_on=None,
