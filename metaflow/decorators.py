@@ -457,7 +457,11 @@ def _attach_decorators_to_step(step, decospecs):
         # Attach the decorator to step if it doesn't have the decorator
         # already. This means that statically defined decorators are always
         # preferred over runtime decorators.
-        if deconame not in [deco.name for deco in step.decorators]:
+        if (
+            deconame not in [deco.name for deco in step.decorators]
+            or decos[deconame].allow_multiple
+        ):
+            # if the decorator is present in a step and is of type allow_mutliple then add the decorator to the step
             deco = decos[deconame]._parse_decorator_spec(decospec)
             step.decorators.append(deco)
 
