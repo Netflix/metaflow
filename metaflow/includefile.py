@@ -3,11 +3,8 @@ import gzip
 import io
 import json
 import os
-import pickle
-import tempfile
 
 from hashlib import sha1
-from shutil import move
 
 import click
 
