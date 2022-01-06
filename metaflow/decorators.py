@@ -119,10 +119,10 @@ class Decorator(object):
             return cls()
         else:
             name, attrspec = top
-            attrs = dict(
-                map(lambda x: x.strip(), a.split("="))
-                for a in re.split(""",(?=[\s\w]+=)""", attrspec.strip("\"'"))
-            )
+            quote_stripped = attrspec.strip("\"'")
+            kv_regex = r",(?=[\s\w]+=)"
+            kvs = re.split(kv_regex, quote_stripped)
+            attrs = dict([x.strip() for x in kv.split("=", 1)] for kv in kvs)
             return cls(attributes=attrs)
 
     def make_decorator_spec(self):
