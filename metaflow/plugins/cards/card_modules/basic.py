@@ -443,11 +443,17 @@ class TaskInfoComponent(MetaflowCardComponent):
             title="DAG", contents=[DagComponent(data=task_data_dict["graph"]).render()]
         ).render()
 
-        page_contents = [
-            metadata_table,
-            parameter_table,
-            artifact_section,
-        ]
+        page_contents = []
+        if len(self._components) > 0:
+            page_contents.extend(self._components)
+
+        page_contents.extend(
+            [
+                metadata_table,
+                parameter_table,
+                artifact_section,
+            ]
+        )
         if len(table_comps) > 0:
             table_section = SectionComponent(
                 title="Tabular Data", contents=table_comps
@@ -461,9 +467,6 @@ class TaskInfoComponent(MetaflowCardComponent):
                 contents=img_components,
             ).render()
             page_contents.append(img_section)
-
-        if len(self._components) > 0:
-            page_contents.extend(self._components)
 
         page_contents.append(dag_component)
 
