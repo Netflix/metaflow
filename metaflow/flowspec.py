@@ -192,7 +192,11 @@ class FlowSpec(object):
         else:
             raise AttributeError("Flow %s has no attribute '%s'" % (self.name, name))
 
-    def cmd(self, cmdline, input={}, output=[]):
+    def cmd(self, cmdline, input=None, output=None):
+        if input is None:
+            input = {}
+        if output is None:
+            output = []
         return cmd_with_io.cmd(cmdline, input=input, output=output)
 
     @property
@@ -317,7 +321,7 @@ class FlowSpec(object):
                     )
             return self._cached_input[stack_index]
 
-    def merge_artifacts(self, inputs, exclude=[], include=[]):
+    def merge_artifacts(self, inputs, exclude=None, include=None):
         """
         Merge the artifacts coming from each merge branch (from inputs)
 
@@ -369,6 +373,10 @@ class FlowSpec(object):
             be found
         """
         node = self._graph[self._current_step]
+        if include is None:
+            include = []
+        if exclude is None:
+            exclude = []
         if node.type != "join":
             msg = (
                 "merge_artifacts can only be called in a join and step *{step}* "
