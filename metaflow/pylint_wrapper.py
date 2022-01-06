@@ -38,7 +38,7 @@ class PyLint(object):
         try:
             pylint_is_happy = True
             pylint_exception_msg = ""
-            run = self._run(args, None, False)
+            self._run(args, None, False)
         except Exception as e:
             pylint_is_happy = False
             pylint_exception_msg = repr(e)
