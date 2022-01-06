@@ -14,6 +14,7 @@ from .exception import (
 from .graph import FlowGraph
 from .unbounded_foreach import UnboundedForeachInput
 
+
 # For Python 3 compatibility
 try:
     basestring
@@ -55,7 +56,7 @@ class FlowSpec(object):
     """
 
     # Attributes that are not saved in the datastore when checkpointing.
-    # Name starting with '__', methods, functions and Parameters do not need
+    # Names starting with '__', methods, functions and Parameters do not need
     # to be listed.
     _EPHEMERAL = {
         "_EPHEMERAL",

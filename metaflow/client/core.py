@@ -682,7 +682,7 @@ class MetaflowData(object):
 
 class MetaflowCode(object):
     """
-    Describes the code that is occasionally stored with a run.
+    Describes the code that is sometimes stored with a run.
 
     A code package will contain the version of Metaflow that was used (all the files comprising
     the Metaflow library) as well as selected files from the directory containing the Python
