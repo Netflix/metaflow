@@ -11,7 +11,7 @@ class DefaultEditableCardWithCustomizeTest(MetaflowTest):
 
     @tag('card(type="test_editable_card",customize=True)')
     @tag('card(type="test_editable_card",id="abc")')
-    @tag('card(type="test_editable_card_2")')
+    @tag('card(type="taskspec_card")')
     @tag('card(type="test_editable_card_2")')
     @steps(0, ["start"])
     def step_start(self):
@@ -28,6 +28,7 @@ class DefaultEditableCardWithCustomizeTest(MetaflowTest):
 
     def check_results(self, flow, checker):
         run = checker.get_run()
+        card_type = "test_editable_card"
         if run is None:
             # This means CliCheck is in context.
             for step in flow:
@@ -37,27 +38,26 @@ class DefaultEditableCardWithCustomizeTest(MetaflowTest):
                 cli_check_dict = checker.artifact_dict(step.name, "random_number")
                 for task_pathspec in cli_check_dict:
                     task_id = task_pathspec.split("/")[-1]
-                    cards_info = checker.list_cards(step.name, task_id)
+                    cards_info = checker.list_cards(step.name, task_id, card_type)
                     assert_equals(
                         cards_info is not None
                         and "cards" in cards_info
-                        and len(cards_info["cards"]) == 3,
+                        and len(cards_info["cards"]) == 2,
                         True,
                     )
                     # Find the card without the id
                     default_editable_cards = [
-                        c
-                        for c in cards_info["cards"]
-                        if c["id"] is None and c["type"] == "test_editable_card"
+                        c for c in cards_info["cards"] if c["id"] is None
                     ]
-                    # There should only be one card of and "test_editable_card" with no id. That is the default editable card
+                    # There should only be one card of type "test_editable_card" with no id.
+                    # That is the default editable card because it has `customize=True`
                     assert_equals(len(default_editable_cards) == 1, True)
                     card = default_editable_cards[0]
                     number = cli_check_dict[task_pathspec]["random_number"]
                     checker.assert_card(
                         step.name,
                         task_id,
-                        "test_editable_card",
+                        card_type,
                         "%d\n" % number,
                         card_hash=card["hash"],
                         exact_match=True,
@@ -69,26 +69,25 @@ class DefaultEditableCardWithCustomizeTest(MetaflowTest):
                     continue
                 meta_check_dict = checker.artifact_dict(step.name, "random_number")
                 for task_id in meta_check_dict:
-                    cards_info = checker.list_cards(step.name, task_id)
+                    cards_info = checker.list_cards(step.name, task_id, card_type)
                     assert_equals(
                         cards_info is not None
                         and "cards" in cards_info
-                        and len(cards_info["cards"]) == 3,
+                        and len(cards_info["cards"]) == 2,
                         True,
                     )
                     default_editable_cards = [
-                        c
-                        for c in cards_info["cards"]
-                        if c["id"] is None and c["type"] == "test_editable_card"
+                        c for c in cards_info["cards"] if c["id"] is None
                     ]
-                    # There should only be one card of and "test_editable_card" with no id. That is the default editable card
+                    # There should only be one card of type "test_editable_card" with no id.
+                    # That is the default editable card since it has `customize=True`
                     assert_equals(len(default_editable_cards) == 1, True)
                     card = default_editable_cards[0]
                     random_number = meta_check_dict[task_id]["random_number"]
                     checker.assert_card(
                         step.name,
                         task_id,
-                        "test_editable_card",
+                        card_type,
                         "%d" % random_number,
                         card_hash=card["hash"],
                         exact_match=True,
