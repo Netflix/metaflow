@@ -1,6 +1,6 @@
+import inspect
 from itertools import islice
 import os
-import inspect
 import traceback
 from types import FunctionType, MethodType
 

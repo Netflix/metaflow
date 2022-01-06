@@ -1,5 +1,4 @@
 import sys
-import os
 from metaflow.exception import MetaflowException
 from metaflow import current
 
