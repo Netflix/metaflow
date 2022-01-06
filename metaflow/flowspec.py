@@ -156,12 +156,13 @@ class FlowSpec(object):
                 continue
             setattr(self, var, val)
 
-    def _get_parameters(self):
-        for var in dir(self):
-            if var[0] == "_" or var in self._NON_PARAMETERS:
+    @classmethod
+    def _get_parameters(cls):
+        for var in dir(cls):
+            if var[0] == "_" or var in cls._NON_PARAMETERS:
                 continue
             try:
-                val = getattr(self, var)
+                val = getattr(cls, var)
             except:
                 continue
             if isinstance(val, Parameter):
