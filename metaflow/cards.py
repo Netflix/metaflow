@@ -7,7 +7,6 @@ from metaflow.plugins.cards.card_modules.components import (
     Linechart,
     Barchart,
     Title,
-    Subtitle,
     Error,
     Section,
     Markdown,

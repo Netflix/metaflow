@@ -11,6 +11,7 @@ from .basic import (
     SubTitleComponent,
     TitleComponent,
     MarkdownComponent,
+    DefaultComponent,
 )
 from .card import MetaflowCardComponent
 from .convert_to_native_type import TaskToDict
@@ -208,7 +209,7 @@ class Image(MetaflowCardComponent):
 
 class Linechart(LineChartComponent):
     def __init__(
-        self, data=[[]], labels=[], title=None, chart_config=None, section_wrapped=True
+        self, data=[], labels=[], title=None, chart_config=None, section_wrapped=True
     ):
         super().__init__(chart_config=chart_config, data=data, labels=labels)
         self._title = title
@@ -225,7 +226,7 @@ class Linechart(LineChartComponent):
 
 class Barchart(BarChartComponent):
     def __init__(
-        self, data=[[]], labels=[], title=None, chart_config=None, section_wrapped=True
+        self, data=[], labels=[], title=None, chart_config=None, section_wrapped=True
     ):
         super().__init__(chart_config=chart_config, data=data, labels=labels)
         self._title = title
@@ -240,20 +241,14 @@ class Barchart(BarChartComponent):
         return rendered_super
 
 
-class Title(MetaflowCardComponent):
-    def __init__(self, text=None):
-        self._text = text
+class Title(DefaultComponent):
+    type = "heading"
+
+    def __init__(self, title_text=None, subtitle_text=None):
+        super().__init__(title_text, subtitle_text)
 
     def render(self):
-        return TitleComponent(text=self._text).render()
-
-
-class Subtitle(MetaflowCardComponent):
-    def __init__(self, text=None):
-        self._text = text
-
-    def render(self):
-        return SubTitleComponent(text=self._text).render()
+        return super().render()
 
 
 class Error(MetaflowCardComponent):
