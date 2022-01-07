@@ -253,6 +253,8 @@ class BatchJob(object):
         if host_volumes:
             job_definition["containerProperties"]["volumes"] = []
             job_definition["containerProperties"]["mountPoints"] = []
+            if isinstance(host_volumes, str):
+                host_volumes = [host_volumes]
             for host_path in host_volumes:
                 name = host_path.replace("/", "_").replace(".", "_")
                 job_definition["containerProperties"]["volumes"].append(
