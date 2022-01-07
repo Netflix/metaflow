@@ -68,37 +68,55 @@ class Table(MetaflowCardComponent):
 
 
 class Image(MetaflowCardComponent):
-
-    render_fail_headline = lambda msg: "[IMAGE_RENDER FAIL]: %s" % msg
+    @staticmethod
+    def render_fail_headline(msg):
+        return "[IMAGE_RENDER FAIL]: %s" % msg
 
     def __init__(self, src=None, label=None):
-        self._src = src
+        self._error_comp = None
         self._label = label
 
-    @classmethod
-    def from_bytes(cls, bytes_arr, label=None):
-        try:
-            import io
-
-            task_to_dict = TaskToDict()
-            if task_to_dict.object_type(bytes_arr) != "bytes":
-                return ErrorComponent(
-                    cls.render_fail_headline(
-                        "first argument should be of type `bytes`"
+        if type(src) is not str:
+            try:
+                self._src = self._bytes_to_base64(src)
+            except TypeError:
+                self._error_comp = ErrorComponent(
+                    self.render_fail_headline(
+                        "first argument should be of type `bytes` or vaild image base64 string"
                     ),
-                    "Type of %s is invalid" % (task_to_dict.object_type(bytes_arr)),
+                    "Type of %s is invalid" % (str(type(src))),
                 )
-            parsed_image = task_to_dict.parse_image(bytes_arr)
-            if parsed_image is not None:
-                return cls(src=parsed_image, label=label)
-            return ErrorComponent(cls.render_fail_headline(" Bytes not parsable"), "")
-        except:
-            import traceback
+            except ValueError:
+                self._error_comp = ErrorComponent(
+                    self.render_fail_headline("Bytes not parsable as image"), ""
+                )
+            except Exception as e:
+                import traceback
 
-            return ErrorComponent(
-                cls.render_fail_headline("Bytes not parsable"),
-                "%s" % traceback.format_exc(),
-            )
+                self._error_comp = ErrorComponent(
+                    self.render_fail_headline("Bytes not parsable as image"),
+                    "%s\n\n%s"(str(e), traceback.format_exc()),
+                )
+        else:
+            if "data:image/" in src:
+                self._src = src
+            else:
+                self._error_comp = ErrorComponent(
+                    self.render_fail_headline(
+                        "first argument should be of type `bytes` or vaild image base64 string"
+                    ),
+                    "String %s is invalid base64 string" % src,
+                )
+
+    @staticmethod
+    def _bytes_to_base64(bytes_arr):
+        task_to_dict = TaskToDict()
+        if task_to_dict.object_type(bytes_arr) != "bytes":
+            raise TypeError
+        parsed_image = task_to_dict.parse_image(bytes_arr)
+        if parsed_image is None:
+            raise ValueError
+        return parsed_image
 
     @classmethod
     def from_pil_image(cls, pilimage, label=None):
@@ -172,6 +190,9 @@ class Image(MetaflowCardComponent):
             )
 
     def render(self):
+        if self._error_comp is not None:
+            return self._error_comp.render()
+
         if self._src is not None:
             return ImageComponent(src=self._src, label=self._label).render()
         return ErrorComponent(
