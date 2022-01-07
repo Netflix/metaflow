@@ -14,8 +14,14 @@ class TestPathSpecCard(MetaflowCard):
 
     def render(self, task):
         import random
+        import string
 
-        return "%s %d" % (task.pathspec, random.randint(0, 100))
+        return "%s %s" % (
+            task.pathspec,
+            "".join(
+                random.choice(string.ascii_uppercase + string.digits) for _ in range(6)
+            ),
+        )
 
 
 class TestEditableCard(MetaflowCard):
