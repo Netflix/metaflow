@@ -170,10 +170,7 @@ class CardDatastore(object):
             if card_type is not None and card_info.type != card_type:
                 continue
             elif card_hash is not None:
-                if (
-                    card_info.hash != card_hash
-                    and card_hash != card_info.hash[:NUM_SHORT_HASH_CHARS]
-                ):
+                if not card_info.hash.startswith(card_hash):
                     continue
             elif card_id is not None and card_info.id != card_id:
                 continue
