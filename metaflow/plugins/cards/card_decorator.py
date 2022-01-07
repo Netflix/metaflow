@@ -179,11 +179,16 @@ class CardDecorator(StepDecorator):
             self._register_event("pre-step")
             current._update_env({"cards": CardComponentCollector(self._logger)})
 
+        # this line happens because of decospecs parsing.
+        customize = False
+        if str(self.attributes["customize"]) == "True":
+            customize = True
+
         card_metadata = current.cards._add_card(
             self.attributes["type"],
             self._user_set_card_id,
             self._is_editable,
-            self.attributes["customize"],
+            customize,
         )
         self._card_uuid = card_metadata["uuid"]
 
@@ -265,7 +270,8 @@ class CardDecorator(StepDecorator):
         if self._user_set_card_id is not None:
             cmd += ["--id", str(self._user_set_card_id)]
 
-        if self.attributes["save_errors"]:
+        # Doing this because decospecs parse information as str, since some non-runtime decorators pass it as bool we parse bool to str
+        if str(self.attributes["save_errors"]) == "True":
             cmd += ["--render-error-card"]
 
         if temp_file is not None:
