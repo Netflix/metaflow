@@ -33,7 +33,7 @@ pre.mono) {
 .mf-card :is(table,
 th,
 td) {
-  border-collapse: collapse;
+  border-spacing: 1px;
   text-align: center;
   color: var(--black);
 }
@@ -46,7 +46,7 @@ td) {
 .mf-card td {
   padding: 0.66rem 1.25rem;
   background: var(--lt-lt-grey);
-  border: 1px solid #fff;
+  border: none;
 }
 
 .mf-card th {
