@@ -105,6 +105,9 @@ def _load_external_cards():
 
 
 def _get_external_card_package_paths():
+    pkg_iter = _get_external_card_packages(with_paths=True)
+    if pkg_iter is None:
+        return None
     for (
         mf_extension_parent_path,
         relative_path_to_module,
