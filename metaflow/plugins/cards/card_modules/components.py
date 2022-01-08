@@ -95,7 +95,7 @@ class Image(MetaflowCardComponent):
 
                 self._error_comp = ErrorComponent(
                     self.render_fail_headline("Bytes not parsable as image"),
-                    "%s\n\n%s"(str(e), traceback.format_exc()),
+                    "%s\n\n%s" % (str(e), traceback.format_exc()),
                 )
         else:
             if "data:image/" in src:
