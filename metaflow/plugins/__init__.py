@@ -196,6 +196,7 @@ from .cards.card_modules.test_cards import (
     TestEditableCard2,
     TestNonEditableCard,
 )
+from .cards.card_modules import MF_EXTERNAL_CARDS
 
 CARDS = [
     DefaultCard,
@@ -209,7 +210,8 @@ CARDS = [
     TestEditableCard,
     TestEditableCard2,
     TestNonEditableCard,
-]
+    BlankCard,
+] + MF_EXTERNAL_CARDS
 # Sidecars
 from ..mflog.save_logs_periodically import SaveLogsPeriodicallySidecar
 from metaflow.metadata.heartbeat import MetadataHeartBeat

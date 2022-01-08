@@ -7,6 +7,8 @@ from metaflow.decorators import StepDecorator, flow_decorators
 from metaflow.current import current
 from metaflow.util import to_unicode
 from .component_serializer import CardComponentCollector, get_card_class
+from .card_modules import _get_external_card_package_paths
+
 
 # from metaflow import get_metadata
 import re
@@ -58,13 +60,22 @@ class CardDecorator(StepDecorator):
 
         card_modules_root = os.path.dirname(card_modules.__file__)
 
-        for path_tuple in self._walk(card_modules_root):
+        for path_tuple in self._walk(
+            card_modules_root, filter_extensions=[".html", ".js", ".css"]
+        ):
             file_path, arcname = path_tuple
             yield (file_path, os.path.join("metaflow", "plugins", "cards", arcname))
 
-    def _walk(self, root):
+        for module_pth, parent_arcname in _get_external_card_package_paths():
+            # `_get_card_package_paths` is a generator which yields
+            # path to the module and its relative arcname in the metaflow-extensions package.
+            for file_pth, rel_path in self._walk(module_pth, prefix_root=True):
+                arcname = os.path.join(parent_arcname, rel_path)
+                yield (file_pth, arcname)
+
+    def _walk(self, root, filter_extensions=[], prefix_root=False):
         root = to_unicode(root)  # handle files/folder with non ascii chars
-        prefixlen = len("%s/" % os.path.dirname(root))
+        prefixlen = len("%s/" % root if prefix_root else os.path.dirname(root))
         for path, dirs, files in os.walk(root):
             for fname in files:
                 # ignoring filesnames which are hidden;
@@ -72,12 +83,12 @@ class CardDecorator(StepDecorator):
                 if fname[0] == ".":
                     continue
 
-                # TODO: This prevents redundant packaging of .py files for the
-                # default card. We should fix this logic to allow .py files to
-                # be included for custom cards.
-                if any(fname.endswith(s) for s in [".html", ".js", ".css"]):
-                    p = os.path.join(path, fname)
-                    yield p, p[prefixlen:]
+                if len(filter_extensions) > 0 and not any(
+                    fname.endswith(s) for s in filter_extensions
+                ):
+                    continue
+                p = os.path.join(path, fname)
+                yield p, p[prefixlen:]
 
     def _is_event_registered(self, evt_name):
         if evt_name in self._called_once:
