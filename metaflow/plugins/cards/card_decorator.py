@@ -66,7 +66,10 @@ class CardDecorator(StepDecorator):
             file_path, arcname = path_tuple
             yield (file_path, os.path.join("metaflow", "plugins", "cards", arcname))
 
-        for module_pth, parent_arcname in _get_external_card_package_paths():
+        external_card_pth_generator = _get_external_card_package_paths()
+        if external_card_pth_generator is None:
+            return
+        for module_pth, parent_arcname in external_card_pth_generator:
             # `_get_card_package_paths` is a generator which yields
             # path to the module and its relative arcname in the metaflow-extensions package.
             for file_pth, rel_path in self._walk(module_pth, prefix_root=True):
