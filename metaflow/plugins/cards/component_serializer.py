@@ -187,8 +187,8 @@ class CardComponentCollector:
             self._warning(
                 (
                     "Multiple @card decorators have `customize=True`. "
-                    "Only one @card per @step can have `customize=True`."
-                    "All decorators marked `customize=True`"
+                    "Only one @card per @step can have `customize=True`. "
+                    "`current.card.append` will ignore all decorators marked `customize=True`."
                 )
             )
         elif len(customize_cards) == 1:
