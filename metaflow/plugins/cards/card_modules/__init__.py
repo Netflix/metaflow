@@ -90,7 +90,7 @@ def _load_external_cards():
             continue
         else:
             for c in cards:
-                if not isinstance(c, type) or MetaflowCard not in c.__bases__:
+                if not isinstance(c, type) or not issubclass(c, MetaflowCard):
                     # every card should only be inheriting a MetaflowCard
                     continue
                 if not getattr(c, "type", None):
