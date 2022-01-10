@@ -39,24 +39,34 @@ class Table(MetaflowCardComponent):
             self._data = data
 
     @classmethod
-    def from_dataframe(cls, dataframe=None, section_wrapped=True):
+    def from_dataframe(cls, dataframe=None, truncate=True):
         task_to_dict = TaskToDict()
         object_type = task_to_dict.object_type(dataframe)
         if object_type == "pandas.core.frame.DataFrame":
-            return cls(
-                **task_to_dict._parse_pandas_dataframe(dataframe),
-                section_wrapped=section_wrapped
+            table_data = task_to_dict._parse_pandas_dataframe(
+                dataframe, truncate=truncate
             )
+            return_val = cls(data=table_data["data"], headers=table_data["headers"])
+            return return_val
         else:
             return cls(
                 headers=["Object type %s not supported" % object_type],
-                section_wrapped=section_wrapped,
             )
 
     def _render_subcomponents(self):
         return [
             SectionComponent.render_subcomponents(
-                row, additional_allowed_types=[str, bool, int, float, dict, list, tuple]
+                row,
+                additional_allowed_types=[
+                    str,
+                    bool,
+                    int,
+                    float,
+                    dict,
+                    list,
+                    tuple,
+                    type(None),
+                ],
             )
             for row in self._data
         ]
