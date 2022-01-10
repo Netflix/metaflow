@@ -28,7 +28,7 @@
         text: Text,
     };
 
-    const type = (componentData as types.CardComponent).type
+    const type = (componentData as types.CardComponent)?.type
     if (type) {
         component = typesMap?.[type]
         if (!component) {
