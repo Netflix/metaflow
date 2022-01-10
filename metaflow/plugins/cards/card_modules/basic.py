@@ -402,10 +402,30 @@ class TaskInfoComponent(MetaflowCardComponent):
         table_comps = []
         for tabname in task_data_dict["tables"]:
             tab_dict = task_data_dict["tables"][tabname]
+            tab_title = "Artifact Name: %s" % tabname
+            sec_tab_comp = [
+                TableComponent(headers=tab_dict["headers"], data=tab_dict["data"])
+            ]
+            post_table_md = None
+
+            if tab_dict["truncated"]:
+                tab_title = "Artifact Name: %s (%d columns and %d rows)" % (
+                    tabname,
+                    tab_dict["full_size"][1],
+                    tab_dict["full_size"][0],
+                )
+                post_table_md = MarkdownComponent(
+                    "_Truncated - %d rows not shown_"
+                    % ((tab_dict["full_size"][0] - len(tab_dict["data"])))
+                )
+
+            if post_table_md:
+                sec_tab_comp.append(post_table_md)
+
             table_comps.append(
                 SectionComponent(
-                    title="Artifact Name: %s" % tabname,
-                    contents=[TableComponent(**tab_dict)],
+                    title=tab_title,
+                    contents=sec_tab_comp,
                 )
             )
 
