@@ -157,23 +157,6 @@ class CardComponentCollector:
         if len(none_id_cards) == 1:
             self._default_editable_card = none_id_cards[0]["uuid"]
 
-        # If more than one card doesn't have an `id` excluding `customize=True` card then throw warning
-        elif len(none_id_cards) > 1:
-            card_types = ", ".join([k["type"] for k in none_id_cards])
-            warning_message = (
-                "Cards of types : `%s` have `id` set to `None`. "
-                "Please set `id` to each card if you wish to disambiguate using `current.card['my_card_id']. "
-            ) % card_types
-
-            # Check if there are any cards with `customize=True`
-            if any([k["customize"] for k in none_id_cards]):
-                # if there is only one card left after removing ones with `customize=True` then we don't need to throw a warning as there .
-                if len(none_id_cards) - 1 > 1:
-                    self._warning(warning_message)
-            else:
-                # throw a warning that more than one card that is editable has no id set to it.
-                self._warning(warning_message)
-
         # If the size of the set of ids is not equal to total number of cards with ids then warn the user that we cannot disambiguate
         # so `current.card['my_card_id']` wont work.
         id_set = set(card_ids)
