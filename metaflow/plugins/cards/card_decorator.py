@@ -169,7 +169,7 @@ class CardDecorator(StepDecorator):
     ):
         # We have a step counter to ensure that on calling the final card decorator's `task_pre_step`
         # we call a `finalize` function in the `CardComponentCollector`.
-        # This can help ensure the behaviour of the `current.cards` object is according to specification.
+        # This can help ensure the behaviour of the `current.card` object is according to specification.
         self._increment_step_counter()
         self._user_set_card_id = self.attributes["id"]
         if (
@@ -181,24 +181,24 @@ class CardDecorator(StepDecorator):
             # and warn users that they cannot use id for thier arguements.
             wrn_msg = (
                 "@card with id '%s' doesn't match REGEX pattern. "
-                "Adding custom components to cards will not be accessible via `current.cards['%s']`. "
+                "Adding custom components to cards will not be accessible via `current.card['%s']`. "
                 "Please create `id` of pattern %s. "
             ) % (self.attributes["id"], self.attributes["id"], TYPE_CHECK_REGEX)
             warning_message(wrn_msg, self._logger)
             self._user_set_card_id = None
 
         # As we have multiple decorators,
-        # we need to ensure that `current.cards` has `CardComponentCollector` instantiated only once.
+        # we need to ensure that `current.card` has `CardComponentCollector` instantiated only once.
         if not self._is_event_registered("pre-step"):
             self._register_event("pre-step")
-            current._update_env({"cards": CardComponentCollector(self._logger)})
+            current._update_env({"card": CardComponentCollector(self._logger)})
 
         # this line happens because of decospecs parsing.
         customize = False
         if str(self.attributes["customize"]) == "True":
             customize = True
 
-        card_metadata = current.cards._add_card(
+        card_metadata = current.card._add_card(
             self.attributes["type"],
             self._user_set_card_id,
             self._is_editable,
@@ -208,9 +208,9 @@ class CardDecorator(StepDecorator):
 
         # This means that the we are calling `task_pre_step` on the last card decorator.
         # We can now `finalize` method in the CardComponentCollector object.
-        # This will setup the `current.cards` object for usage inside `@step` code.
+        # This will setup the `current.card` object for usage inside `@step` code.
         if self.step_counter == self.total_decos_on_step[step_name]:
-            current.cards._finalize()
+            current.card._finalize()
 
         self._task_datastore = task_datastore
         self._metadata = metadata
@@ -220,7 +220,7 @@ class CardDecorator(StepDecorator):
     ):
         if not is_task_ok:
             return
-        component_strings = current.cards._serialize_components(self._card_uuid)
+        component_strings = current.card._serialize_components(self._card_uuid)
         runspec = "/".join([current.run_id, current.step_name, current.task_id])
         self._run_cards_subprocess(runspec, component_strings)
 
