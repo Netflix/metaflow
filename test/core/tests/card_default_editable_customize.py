@@ -3,7 +3,7 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
 
 class DefaultEditableCardWithCustomizeTest(MetaflowTest):
     """
-    `current.cards.append` should be accessible to the card with `customize=True`.
+    `current.card.append` should be accessible to the card with `customize=True`.
         - Even if there are other editable cards without `id` and with `id`
     """
 
@@ -20,7 +20,7 @@ class DefaultEditableCardWithCustomizeTest(MetaflowTest):
         import random
 
         self.random_number = random.randint(0, 100)
-        current.cards.append(TestStringComponent(str(self.random_number)))
+        current.card.append(TestStringComponent(str(self.random_number)))
 
     @steps(1, ["all"])
     def step_all(self):

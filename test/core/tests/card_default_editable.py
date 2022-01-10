@@ -3,9 +3,9 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
 
 class DefaultEditableCardTest(MetaflowTest):
     """
-    `current.cards.append` works for one decorator as default editable cards
-        - adding arbitrary information to `current.cards.append` should not break user code.
-        - If a single @card decorator is present with `id` then it `current.cards.append` should still work
+    `current.card.append` works for one decorator as default editable cards
+        - adding arbitrary information to `current.card.append` should not break user code.
+        - If a single @card decorator is present with `id` then it `current.card.append` should still work
         - Only cards with `ALLOW_USER_COMPONENTS=True` are considered default editable.
     """
 
@@ -26,10 +26,10 @@ class MyNativeType:
         import random
 
         self.random_number = random.randint(0, 100)
-        current.cards.append(current.pathspec)
-        current.cards.append(TestStringComponent(str(self.random_number)))
-        empty_list = current.cards.get(type="nonexistingtype")
-        current.cards.append(MyNativeType())
+        current.card.append(current.pathspec)
+        current.card.append(TestStringComponent(str(self.random_number)))
+        empty_list = current.card.get(type="nonexistingtype")
+        current.card.append(MyNativeType())
 
     @tag('card(type="test_editable_card", id="xyz")')
     @steps(0, ["foreach-nested-inner"])
@@ -40,8 +40,8 @@ class MyNativeType:
         import random
 
         self.random_number = random.randint(0, 100)
-        current.cards.append(current.pathspec)
-        current.cards.append(TestStringComponent(str(self.random_number)))
+        current.card.append(current.pathspec)
+        current.card.append(TestStringComponent(str(self.random_number)))
 
     @tag('card(type="taskspec_card")')
     @tag('card(type="test_editable_card")')
@@ -53,8 +53,8 @@ class MyNativeType:
         import random
 
         self.random_number = random.randint(0, 100)
-        current.cards.append(current.pathspec)
-        current.cards.append(TestStringComponent(str(self.random_number)))
+        current.card.append(current.pathspec)
+        current.card.append(TestStringComponent(str(self.random_number)))
 
     @tag('card(type="test_editable_card")')
     @steps(1, ["all"])
@@ -64,8 +64,8 @@ class MyNativeType:
         import random
 
         self.random_number = random.randint(0, 100)
-        current.cards.append(current.pathspec)
-        current.cards.append(TestStringComponent(str(self.random_number)))
+        current.card.append(current.pathspec)
+        current.card.append(TestStringComponent(str(self.random_number)))
 
     def check_results(self, flow, checker):
         run = checker.get_run()

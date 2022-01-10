@@ -3,8 +3,8 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
 
 class DefaultEditableCardWithIdTest(MetaflowTest):
     """
-    `current.cards.append` should add to default editable card and not the one with `id` when a card with `id` and non id are present
-        - Access of `current.cards` with non existant id should not fail.
+    `current.card.append` should add to default editable card and not the one with `id` when a card with `id` and non id are present
+        - Access of `current.card` with non existant id should not fail.
     """
 
     PRIORITY = 3
@@ -18,10 +18,10 @@ class DefaultEditableCardWithIdTest(MetaflowTest):
         import random
 
         self.random_number = random.randint(0, 100)
-        current.cards.append(current.pathspec)
+        current.card.append(current.pathspec)
         # This should not fail user code.
-        current.cards["xyz"].append(TestStringComponent(str(self.random_number)))
-        current.cards.append(TestStringComponent(str(self.random_number)))
+        current.card["xyz"].append(TestStringComponent(str(self.random_number)))
+        current.card.append(TestStringComponent(str(self.random_number)))
 
     @steps(0, ["end"], required=True)
     def step_end(self):
@@ -37,7 +37,7 @@ class DefaultEditableCardWithIdTest(MetaflowTest):
             # This means CliCheck is in context.
             for step in flow:
                 if step.name == "end":
-                    # Ensure we reach the `end` even even when a wrong `id` is used with `current.cards`
+                    # Ensure we reach the `end` even even when a wrong `id` is used with `current.card`
                     checker.assert_artifact(step.name, "here", True)
                     continue
                 elif step.name != "start":
@@ -73,7 +73,7 @@ class DefaultEditableCardWithIdTest(MetaflowTest):
             # This means MetadataCheck is in context.
             for step in flow:
                 if step.name == "end":
-                    # Ensure we reach the `end` even even when a wrong `id` is used with `current.cards`
+                    # Ensure we reach the `end` even even when a wrong `id` is used with `current.card`
                     checker.assert_artifact(step.name, "here", True)
                     continue
                 elif step.name != "start":

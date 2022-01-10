@@ -3,8 +3,8 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
 
 class CardsWithIdTest(MetaflowTest):
     """
-    `current.cards['myid']` should be accessible when cards have an `id` argument in decorator
-    - `current.cards.append` should not work when there are no single default editable card.
+    `current.card['myid']` should be accessible when cards have an `id` argument in decorator
+    - `current.card.append` should not work when there are no single default editable card.
     - if a card has `ALLOW_USER_COMPONENTS=False` then it can still be edited via accessing it with `id` property.
     """
 
@@ -20,21 +20,21 @@ class CardsWithIdTest(MetaflowTest):
 
         self.random_number = random.randint(0, 100)
         self.random_number_2 = random.randint(0, 100)
-        current.cards["abc"].append(TestStringComponent(str(self.random_number)))
+        current.card["abc"].append(TestStringComponent(str(self.random_number)))
         # Below line should not work
-        current.cards.append(TestStringComponent(str(self.random_number_2)))
+        current.card.append(TestStringComponent(str(self.random_number_2)))
 
     @tag('card(type="test_non_editable_card",id="abc")')
     @steps(0, ["end"])
     def step_end(self):
-        # If the card is default non editable, we can still access it via `current.cards[id]`
+        # If the card is default non editable, we can still access it via `current.card[id]`
         from metaflow import current
         from metaflow.plugins.cards.card_modules.test_cards import TestStringComponent
         import random
 
         self.random_number = random.randint(0, 100)
         self.random_number_2 = random.randint(0, 100)
-        current.cards["abc"].append(TestStringComponent(str(self.random_number)))
+        current.card["abc"].append(TestStringComponent(str(self.random_number)))
 
     @steps(1, ["all"])
     def step_all(self):
