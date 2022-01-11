@@ -4,12 +4,12 @@
   import {
     CategoryScale,
     Chart,
-    ChartConfiguration,
     LinearScale,
     LineController,
     LineElement,
     PointElement,
   } from "chart.js";
+  import type { ChartConfiguration } from "chart.js";
   import { COLORS_LIST } from "../constants";
 
   Chart.register(
