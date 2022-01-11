@@ -435,7 +435,7 @@ class TaskInfoComponent(MetaflowCardComponent):
         ]
         if len(param_ids) > 0:
             param_component = ArtifactsComponent(
-                data={pid: task_data_dict["data"][pid] for pid in param_ids}
+                data=[task_data_dict["data"][pid] for pid in param_ids]
             )
         else:
             param_component = TitleComponent(text="No Parameters")
@@ -446,13 +446,13 @@ class TaskInfoComponent(MetaflowCardComponent):
         ).render()
 
         # Don't include parameter ids + "name" in the task artifacts
-        artifact_dict = {
-            k: task_data_dict["data"][k]
+        artifactlist = [
+            task_data_dict["data"][k]
             for k in task_data_dict["data"]
             if k not in param_ids
-        }
-        if len(artifact_dict) > 0:
-            artrifact_component = ArtifactsComponent(data=artifact_dict).render()
+        ]
+        if len(artifactlist) > 0:
+            artrifact_component = ArtifactsComponent(data=artifactlist).render()
         else:
             artrifact_component = TitleComponent(text="No Artifacts")
 
