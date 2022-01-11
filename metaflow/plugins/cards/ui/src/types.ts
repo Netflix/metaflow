@@ -12,12 +12,13 @@ export type Boxes = Record<string, HTMLElement>;
 /* ------------------------------- DATA TYPES ------------------------------- */
 
 export interface Artifact {
+  name: string|null;
   type: string;
   data: string;
   label?: string;
 }
 
-export type Artifacts = Record<string, Artifact>;
+export type Artifacts = Artifact[];
 
 export type TableDataCell = boolean | string | number | ArtifactsComponent | BarChartComponent | DagComponent | HeadingComponent | LineChartComponent | LogComponent | MarkdownComponent | TextComponent;
 

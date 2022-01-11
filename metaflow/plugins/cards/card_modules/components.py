@@ -18,14 +18,17 @@ from .convert_to_native_type import TaskToDict
 
 
 class Artifact(MetaflowCardComponent):
-    def __init__(self, artifact, name, compressed=True):
+    def __init__(self, artifact, name=None, compressed=True):
         self._artifact = artifact
         self._name = name
         self._task_to_dict = TaskToDict(only_repr=compressed)
 
     def render(self):
-        artifact = {self._name: self._task_to_dict.infer_object(self._artifact)}
-        return ArtifactsComponent(data=artifact).render()
+        artifact = self._task_to_dict.infer_object(self._artifact)
+        artifact["name"] = None
+        if self._name is not None:
+            artifact["name"] = str(self._name)
+        return ArtifactsComponent(data=[artifact]).render()
 
 
 class Table(MetaflowCardComponent):
