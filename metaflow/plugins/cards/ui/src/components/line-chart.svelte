@@ -49,7 +49,7 @@
   $: el && new Chart(el, chartConfiguration);
 </script>
 
-<div>
+<div data-component="line-chart">
   <canvas bind:this={el} />
 </div>
 

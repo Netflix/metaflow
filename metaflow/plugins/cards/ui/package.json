@@ -10,7 +10,7 @@
     "lint": "eslint src --ext .ts,.svelte",
     "lint:fix": "yarn run lint --fix",
     "prebuild": "yarn run check && yarn run lint",
-    "cypress:open": "cypress open"
+    "cypress:open": "wait-on http://localhost:5000 && cypress open"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^21.0.1",
@@ -35,7 +35,8 @@
     "svelte-check": "^2.2.9",
     "svelte-preprocess": "^4.9.8",
     "tslib": "^2.3.1",
-    "typescript": "^4.4.4"
+    "typescript": "^4.4.4",
+    "wait-on": "^6.0.0"
   },
   "license": "UNLICENSED",
   "dependencies": {

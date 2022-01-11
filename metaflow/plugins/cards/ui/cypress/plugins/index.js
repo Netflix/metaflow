@@ -16,10 +16,4 @@
  * @type {Cypress.PluginConfig}
  */
 // eslint-disable-next-line no-unused-vars
-module.exports = (on, config) => {
-  // `on` is used to hook into various events Cypress emits
-  // `config` is the resolved Cypress config
-  // @bahmutov/cy-rollup is already a dependency of cypress-svelte-unit-test
-  const filePreprocessor = require("@bahmutov/cy-rollup");
-  on("file:preprocessor", filePreprocessor());
-};
+module.exports = (on, config) => {};

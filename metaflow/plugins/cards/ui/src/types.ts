@@ -25,6 +25,14 @@ export type TableDataCell = boolean | string | number | ArtifactsComponent | Bar
 export type TableColumns = string[];
 export type TableData = TableDataCell[][];
 
+// flowname/runid/stepname/taskid
+export type PathSpecObject = {
+  flowname: string;
+  runid: string;
+  stepname?: string;
+  taskid?: string;
+};
+
 /* ----------------------------------- DAG ---------------------------------- */
 
 export type Dag = Record<string, DagStep>;
