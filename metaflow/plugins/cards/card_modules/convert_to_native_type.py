@@ -107,6 +107,7 @@ class TaskToDict:
             try:
                 data_object = data.data
                 task_data_dict[data.id] = self._convert_to_native_type(data_object)
+                task_data_dict[data.id]["name"] = data.id
             except ModuleNotFoundError as e:
                 data_object = "<unable to unpickle>"
                 # this means pickle couldn't find the module.

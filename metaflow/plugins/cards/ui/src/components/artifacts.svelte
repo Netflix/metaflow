@@ -7,11 +7,14 @@
   const { data } = componentData;
 
   // we can't guarantee the data is sorted from the source, so we sort before render
-  const sortedData = Object.entries(data).sort((a, b) => {
-    if (a[0] > b[0]) {
-      return 1;
-    } else if (a[0] < b[0]) {
-      return -1;
+  const sortedData = data.sort((a, b) => {
+    // nulls first
+    if (a.name && b.name) {
+      if (a.name > b.name) {
+        return 1;
+      } else if (a.name < b.name) {
+        return -1;
+      }
     }
     return 0;
   });
@@ -20,8 +23,8 @@
 <div class="tableContainer">
   <!-- language-python is a prism.js class -->
   <table class="language-python">
-    {#each sortedData as [k, v]}
-      <ArtifactRow id={k} artifact={v} />
+    {#each sortedData as artifact}
+      <ArtifactRow id={artifact.name} artifact={artifact} />
     {/each}
   </table>
 </div>
