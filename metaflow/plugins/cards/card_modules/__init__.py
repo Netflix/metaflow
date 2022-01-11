@@ -112,7 +112,7 @@ def _get_external_card_package_paths():
         mf_extension_parent_path,
         relative_path_to_module,
         _,
-    ) in _get_external_card_packages(with_paths=True):
+    ) in pkg_iter:
         module_pth = os.path.join(mf_extension_parent_path, relative_path_to_module)
         arcname = relative_path_to_module
         yield module_pth, arcname
