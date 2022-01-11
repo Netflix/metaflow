@@ -9,7 +9,8 @@
     "check": "svelte-check --workspace src",
     "lint": "eslint src --ext .ts,.svelte",
     "lint:fix": "yarn run lint --fix",
-    "prebuild": "yarn run check && yarn run lint"
+    "prebuild": "yarn run check && yarn run lint",
+    "cypress:open": "cypress open"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^21.0.1",
@@ -20,6 +21,8 @@
     "@typescript-eslint/eslint-plugin": "^5.6.0",
     "@typescript-eslint/parser": "^5.6.0",
     "cross-env": "^7.0.3",
+    "cypress": "^9.1.1",
+    "cypress-svelte-unit-test": "^3.3.4",
     "eslint": "^8.4.0",
     "eslint-plugin-svelte3": "^3.2.1",
     "rollup": "^2.60.0",
