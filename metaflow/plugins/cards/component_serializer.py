@@ -88,7 +88,7 @@ class CardComponentCollector:
             editable=editable,
             customize=customize,
         )
-
+        self._warned_once = {"__getitem__": {}, "append": False, "extend": False}
         self._card_meta.append(card_metadata)
         self._cards[card_uuid] = []
         return card_metadata
@@ -199,14 +199,15 @@ class CardComponentCollector:
         if key in self._card_id_map:
             card_uuid = self._card_id_map[key]
             return self._cards[card_uuid]
-
-        self._warning(
-            (
-                "`current.card['%s']` is not present. Please set the `id` argument in @card to '%s' to access `current.card['%s']`. "
-                "`current.card['%s']` will return an empty `list` which is not referenced to `current.card` object."
+        if key not in self._warned_once["__getitem__"]:
+            self._warning(
+                (
+                    "`current.card['%s']` is not present. Please set the `id` argument in @card to '%s' to access `current.card['%s']`. "
+                    "`current.card['%s']` will return an empty `list` which is not referenced to `current.card` object."
+                )
+                % (key, key, key, key)
             )
-            % (key, key, key, key)
-        )
+            self._warned_once["__getitem__"][key] = True
         return []
 
     def __setitem__(self, key, value):
@@ -232,47 +233,45 @@ class CardComponentCollector:
                 len(self._cards) == 1
             ):  # if there is one card which is not the _default_editable_card then the card is not editable
                 card_type = self._card_meta[0]["type"]
-                self._warning(
-                    (
-                        "Card of type `%s` is not an editable card. "
-                        "Component will not be appended. "
-                        "Please use an editable card. "  # todo : link to documentation
-                    )
-                    % card_type
-                )
+                _warning_msg = (
+                    "Card of type `%s` is not an editable card. "
+                    "Component will not be appended and `current.card.append` will not work for any call during this runtime execution. "
+                    "Please use an editable card. "  # todo : link to documentation
+                ) % card_type
             else:
-                self._warning(
-                    (
-                        "`current.card.append` cannot disambiguate between multiple editable cards. "
-                        "Component will not be appended. "
-                        "To fix this set the `id` argument in all @card's when using multiple @card decorators over a single @step. "  # todo : Add Link to documentation
-                    )
+                _warning_msg = (
+                    "`current.card.append` cannot disambiguate between multiple editable cards. "
+                    "Component will not be appended and `current.card.append` will not work for any call during this runtime execution. "
+                    "To fix this set the `id` argument in all @card's when using multiple @card decorators over a single @step. "  # todo : Add Link to documentation
                 )
+
+            if not self._warned_once["append"]:
+                self._warning(_warning_msg)
+                self._warned_once["append"] = True
+
             return
         self._cards[self._default_editable_card].append(component)
 
     def extend(self, components):
         if self._default_editable_card is None:
-            if (
-                len(self._cards) == 1
-            ):  # if there is one card which is not the _default_editable_card then the card is not editable
+            # if there is one card which is not the _default_editable_card then the card is not editable
+            if len(self._cards) == 1:
                 card_type = self._card_meta[0]["type"]
-                self._warning(
-                    (
-                        "Card of type `%s` is not an editable card."
-                        "Component will not be extended. "
-                        "Please use an editable card"  # todo : link to documentation
-                    )
-                    % card_type
-                )
+                _warning_msg = (
+                    "Card of type `%s` is not an editable card."
+                    "Components list will not be extended and `current.card.extend` will not work for any call during this runtime execution. "
+                    "Please use an editable card"  # todo : link to documentation
+                ) % card_type
             else:
-                self._warning(
-                    (
-                        "`current.card.extend` cannot disambiguate between multiple @card decorators. "
-                        "Component will not be extended. "
-                        "To fix this set the `id` argument in all @card when using multiple @card decorators over a single @step. "  # todo : Add Link to documentation
-                    )
+                _warning_msg = (
+                    "`current.card.extend` cannot disambiguate between multiple @card decorators. "
+                    "Components list will not be extended and `current.card.extend` will not work for any call during this runtime execution. "
+                    "To fix this set the `id` argument in all @card when using multiple @card decorators over a single @step. "  # todo : Add Link to documentation
                 )
+            if not self._warned_once["extend"]:
+                self._warning(_warning_msg)
+                self._warned_once["extend"] = True
+
             return
 
         self._cards[self._default_editable_card].extend(components)
