@@ -24,7 +24,7 @@ from .util import (
 from .task import MetaflowTask
 from .exception import CommandException, MetaflowException
 from .graph import FlowGraph
-from .datastore import DATASTORES, FlowDataStore, TaskDataStoreSet
+from .datastore import DATASTORES, FlowDataStore, TaskDataStoreSet, TaskDataStore
 
 from .runtime import NativeRuntime
 from .package import MetaflowPackage
@@ -338,13 +338,13 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
     )
     if task_id:
         ds_list = [
-            obj.datastore(
-                obj.flow.name,
+            TaskDataStore(
+                obj.flow_datastore,
                 run_id=run_id,
                 step_name=step_name,
                 task_id=task_id,
                 mode="r",
-                allow_unsuccessful=True,
+                allow_not_done=True,
             )
         ]
     else:
