@@ -2,16 +2,10 @@ from .basic import (
     LogComponent,
     ErrorComponent,
     ArtifactsComponent,
-    DagComponent,
     TableComponent,
-    BarChartComponent,
-    LineChartComponent,
     ImageComponent,
     SectionComponent,
-    SubTitleComponent,
-    TitleComponent,
     MarkdownComponent,
-    DefaultComponent,
 )
 from .card import MetaflowCardComponent
 from .convert_to_native_type import TaskToDict
@@ -213,39 +207,6 @@ class Image(MetaflowCardComponent):
         ).render()
 
 
-class Linechart(LineChartComponent):
-    def __init__(self, data=[], labels=[], chart_config=None):
-        super().__init__(chart_config=chart_config, data=data, labels=labels)
-
-    def render(self):
-        rendered_super = super().render()
-        return rendered_super
-
-
-class Barchart(BarChartComponent):
-    def __init__(
-        self,
-        data=[],
-        labels=[],
-        chart_config=None,
-    ):
-        super().__init__(chart_config=chart_config, data=data, labels=labels)
-
-    def render(self):
-        rendered_super = super().render()
-        return rendered_super
-
-
-class Title(DefaultComponent):
-    type = "heading"
-
-    def __init__(self, title_text=None, subtitle_text=None):
-        super().__init__(title_text, subtitle_text)
-
-    def render(self):
-        return super().render()
-
-
 class Error(MetaflowCardComponent):
     def __init__(self, exception, title=None):
         self._exception = exception
@@ -258,18 +219,11 @@ class Error(MetaflowCardComponent):
 
 
 class Section(MetaflowCardComponent):
-    def __init__(self, contents=[], title=None, subtitle=None, columns=None):
-        self._title, self._subtitle, self._columns, self._contents = (
-            title,
-            subtitle,
-            columns,
-            contents,
-        )
+    def __init__(self, title=None):
+        self._title = title
 
     def render(self):
-        return SectionComponent(
-            self._title, self._subtitle, self._columns, self._contents
-        ).render()
+        return SectionComponent(self._title, None, None, []).render()
 
 
 class Markdown(MetaflowCardComponent):
