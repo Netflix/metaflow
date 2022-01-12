@@ -8,20 +8,20 @@ Anyone can create card templates and share them as standard Python packages. Car
 
 ## Technical Details
 
-Metaflow cards can be created by placing an [`@card` decorator](#@card-decorator) over a `@step`. Each decorator takes a `type` argument which defaults to the value `default`. The `type` argument corresponds the [MetaflowCard.type](#metaflowcard). Cards are created after a metaflow task ( instantiation of each `@step` ) completes execution. A separate subprocess gets launched to create a card using the `create` command from the [card_cli](#card-cli). Once the card HTML gets created, it gets stored in the [datastore](#carddatastore). There can be multiple `@card` decorators over a `@step`. 
+Metaflow cards can be created by placing an [`@card` decorator](#@card-decorator) over a `@step`. Cards are created after a metaflow task ( instantiation of each `@step` ) completes execution. You can have multiple `@card` decorators for an individual `@step`. Each decorator takes a `type` argument which defaults to the value `default`. The `type` argument corresponds the [MetaflowCard.type](#metaflowcard). On task completion ,every `@card` decorator creates a separate subprocess to call the [card create cli command](#card-cli). This command will create and [store](#carddatastore) the HTML page for the card.
 
 Since the cards are stored in the datastore we can access them via the `view/get` commands in the [card_cli](#card-cli) or by using the `get_cards` [function](../metaflow/plugins/cards/card_client.py). 
 
-Metaflow ships with a [DefaultCard](#defaultcard) which visualizes artifacts, images, and `pandas.Dataframe`s. Metaflow also ships custom components like `Image`, `Table`, `Markdown` etc. These are subcomponents that are compatible with internal cards. These can be added to a card at `Task` runtime. Cards can also be edited from `@step` code using the [current.card](#editing-metaflowcard-from-@step-code) interface. `current.card` helps add `MetaflowCardComponent`s from `@step` code to a `MetaflowCard`. `current.card` offers methods like `current.card.append` or `current.card['myid']` to helps add components to a card. Since there can be many `@card`s over a `@step`, `@card` also comes with an `id` argument. The `id` argument helps disambigaute the card a component goes to when using `current.card`. For example, setting `@card(id='myid')` and calling `current.card['myid'].append(x)` will append `MetaflowCardComponent` `x` to the card with `id='myid'`.
+Metaflow ships with a [DefaultCard](#defaultcard) which visualizes artifacts, images, and `pandas.Dataframe`s. Metaflow also ships custom components like `Image`, `Table`, `Markdown` etc. These can be added to a card at `Task` runtime. Cards can also be edited from `@step` code using the [current.card](#editing-metaflowcard-from-@step-code) interface. `current.card` helps add `MetaflowCardComponent`s from `@step` code to a `MetaflowCard`. `current.card` offers methods like `current.card.append` or `current.card['myid']` to helps add components to a card. Since there can be many `@card`s over a `@step`, `@card` also comes with an `id` argument. The `id` argument helps disambigaute the card a component goes to when using `current.card`. For example, setting `@card(id='myid')` and calling `current.card['myid'].append(x)` will append `MetaflowCardComponent` `x` to the card with `id='myid'`.
 
 ### `@card` decorator
 The `@card` [decorator](../metaflow/plugins/cards/card_decorator.py) is implemented by inheriting the `StepDecorator`. The decorator can be placed over `@step` to create an HTML file visualizing information from the task.
 
 #### Parameters
 - `type` `(str)` [Defaults to `default`]: The `type` of `MetaflowCard` to create. More details on `MetaflowCard`s is provided [later in this document](#metaflowcard). 
-- `options` `(dict)` : options to instantiate a `MetaflowCard`. `MetaflowCard`s will be instantiated with the `options` keyword argument. The value of this argument is a dictionary. 
-- `timeout` `(int)` [Defaults to `45`]: Amount of time to wait before killing the card subprocess and 
-- `save_errors` `(bool)` [Defaults to `True`]: If set to `True` then the failure in rendering any `MetaflowCard` will generate `ErrorCard` instead with the full stack trace of the failure. 
+- `options` `(dict)` : options to instantiate a `MetaflowCard`. `MetaflowCard`s will be instantiated with the `options` keyword argument. The value of this argument will be this dictionary. 
+- `timeout` `(int)` [Defaults to `45`]: Amount of time to wait before killing the card subprocess 
+- `save_errors` `(bool)` [Defaults to `True`]: If set to `True` then any failure on rendering a `MetaflowCard` will generate an `ErrorCard` instead with the full stack trace of the failure. 
 
 #### Usage Semantics
 
@@ -139,16 +139,18 @@ class CustomCard(MetaflowCard):
 ```
 
 The class consists of the `_get_mustache` method that returns [chevron](https://github.com/noahmorrison/chevron) object ( a `mustache` based [templating engine](http://mustache.github.io/mustache.5.html) ). Using the `mustache` templating engine you can rewrite HTML template file. In the above example the `PATH_TO_CUSTOM_HTML` is the file that holds the `mustache` HTML template. 
+#### Attributes
+- `type (str)`  : The `type` of card. Needs to ensure correct resolution.  
+- `ALLOW_USER_COMPONENTS (bool)` : Setting this to `True` will make the a card be user editable. More information on user editable cards can be found [here](#editing-metaflowcard-from-@step-code). 
 
-#### Parameters
-- `components` `(List[MetaflowCardComponent])`: List of `MetaflowCardComponent` added at `Flow` runtime.
+#### `__init__` Parameters
+- `components` `(List[str])`: `components` is a list of `render`ed `MetaflowCardComponent`s added at `@step` runtime.
 - `graph` `(Dict[str,dict])`: The DAG associated to the flow. It is a dictionary of the form `stepname:step_attributes`. `step_attributes` is a dictionary of metadata about a step , `stepname` is the name of the step in the DAG.  
 - `options` `(dict)`: helps control the behavior of individual cards. 
     - For example, the `DefaultCard` supports `options` as dictionary of the form `{"only_repr":True}`. Here setting `only_repr` as `True` will ensure that all artifacts are serialized with `reprlib.repr` function instead of native object serialization. 
 
 
 ### `MetaflowCardComponent`
-`MetaflowCard` class accepts `components` as a keyword arguement. `components` is a list of  `render`ed `MetaflowCardComponent`.
 
 The `render` function of the `MetaflowCardComponent` class returns a `string` or `dict`. It can be called in the `MetaflowCard` class or passed during runtime execution. An example of using `MetaflowCardComponent` inside `MetaflowCard` can be seen below : 
 ```python
@@ -205,24 +207,19 @@ The JS and CSS are created after building the JS and CSS from the [cards-ui](../
 
 ### Default `MetaflowCardComponent`
 
-`metaflow` exposes default `MetaflowCardComponent`s that can be used with `DefaultCard`. These components can be added at runtime and return a `dict` object on calling their `render` function. The following are the main `MetaflowCardComponent`s available via `metaflow.cards`. 
-
+`DefaultCard`/`BlankCard` can be given `MetaflowCardComponent` from `@step` code. The following are the main `MetaflowCardComponent`s available via `metaflow.cards`. 
 - `Artifact` : A component to help log artifacts at task runtime. 
     - Example : `Artifact(some_variable,compress=True)`
 - `Table` :  A component to create a table in the card HTML. Consists of convenience methods : 
     - `Table.from_dataframe(df)` to make a table from a dataframe.
-- `Image` :  A component to create an image in the card HTML. Consists of convenience methods :  
+- `Image` :  A component to create an image in the card HTML:  
     - `Image(bytearr,"my Image from bytes")`: to directly from `bytes`
     - `Image.from_pil_image(pilimage,"From PIL Image")` : to create an image from a `PIL.Image`
     - `Image.from_matplotlib_plot(plot,"My matplotlib plot")` : to create an image from a plot
 - `Error` : A wrapper subcomponent to display errors. Accepts an `exception` and a `title` as arguments. 
 - `Section` :  Create a separate subsection with sub components. 
-    - Accepts `title`, `subtitle`, `columns:int`, `contents:List[MetaflowCardComponent]` as arguments.
-    - Example usage : `Section(contents=[Title("Some new Title"),Artifact([1,2,3,],"Array artifact")])`
-- `Title` 
-- `Subtitle` 
-- `Linechart` [TODO]
-- `Barchart` [TODO]
+    - Accepts `title` as argument.
+    - Example usage : `Section("Array artifact")`
     
 ### Editing `MetaflowCard` from `@step` code
 `MetaflowCard`s can be edited from `@step` code using the `current.card` interface. The `current.card` interface will only be active when a `@card` decorator is placed over a `@step`. To understand the workings of `current.card` consider the following snippet. 
