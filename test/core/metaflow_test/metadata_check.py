@@ -109,21 +109,56 @@ class MetadataCheck(MetaflowCheck):
                 % (step, logtype, repr(value), logtype, repr(log_value))
             )
 
-    def assert_card(self, step, task, card_type, value, exact_match=True):
+    def list_cards(self, step, task, card_type=None):
         from metaflow.plugins.cards.exception import CardNotPresentException
 
         try:
             card_iter = self.get_card(step, task, card_type)
         except CardNotPresentException:
             card_iter = None
+
+        if card_iter is None:
+            return
+        pathspec = self.run[step][task].pathspec
+        list_data = dict(pathspec=pathspec, cards=[])
+        if len(card_iter) > 0:
+            list_data["cards"] = [
+                dict(
+                    hash=card.hash,
+                    id=card.id,
+                    type=card.type,
+                    filename=card.path.split("/")[-1],
+                )
+                for card in card_iter
+            ]
+        return list_data
+
+    def assert_card(
+        self,
+        step,
+        task,
+        card_type,
+        value,
+        card_hash=None,
+        card_id=None,
+        exact_match=True,
+    ):
+        from metaflow.plugins.cards.exception import CardNotPresentException
+
+        try:
+            card_iter = self.get_card(step, task, card_type, card_id=card_id)
+        except CardNotPresentException:
+            card_iter = None
         card_data = None
-        # FUTURE FIXME:
-        # We are checking the first card here.
-        # Not all possible present cards
-        # This should change in the future when we support many decorator.
+        # Since there are many cards possible for a taskspec, we check for hash to assert a single card.
+        # If the id argument is present then there will be a single cards anyways.
         if card_iter is not None:
             if len(card_iter) > 0:
-                card_data = card_iter[0].get()
+                if card_hash is None:
+                    card_data = card_iter[0].get()
+                else:
+                    card_filter = [c for c in card_iter if card_hash in c.hash]
+                    card_data = None if len(card_filter) == 0 else card_filter[0].get()
         if (exact_match and card_data != value) or (
             not exact_match and value not in card_data
         ):
@@ -136,8 +171,8 @@ class MetadataCheck(MetaflowCheck):
     def get_log(self, step, logtype):
         return "".join(getattr(task, logtype) for task in self.run[step])
 
-    def get_card(self, step, task, card_type):
+    def get_card(self, step, task, card_type, card_id=None):
         from metaflow.cards import get_cards
 
-        iterator = get_cards(self.run[step][task], type=card_type)
+        iterator = get_cards(self.run[step][task], type=card_type, id=card_id)
         return iterator

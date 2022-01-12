@@ -7,9 +7,9 @@ from metaflow.plugins.cards.card_modules.components import (
     Linechart,
     Barchart,
     Title,
-    Subtitle,
     Error,
     Section,
+    Markdown,
 )
 from metaflow.plugins.cards.card_modules.basic import (
     DefaultCard,
@@ -19,4 +19,5 @@ from metaflow.plugins.cards.card_modules.basic import (
     DefaultComponent,
     TaskInfoComponent,
     ErrorCard,
+    BlankCard,
 )

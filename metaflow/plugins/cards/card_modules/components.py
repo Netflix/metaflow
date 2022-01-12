@@ -10,106 +10,129 @@ from .basic import (
     SectionComponent,
     SubTitleComponent,
     TitleComponent,
+    MarkdownComponent,
+    DefaultComponent,
 )
 from .card import MetaflowCardComponent
 from .convert_to_native_type import TaskToDict
 
 
 class Artifact(MetaflowCardComponent):
-    def __init__(self, artifact, name, compressed=True, section_wrapped=True):
+    def __init__(self, artifact, name=None, compressed=True):
         self._artifact = artifact
         self._name = name
-        self._section_wrapped = section_wrapped
         self._task_to_dict = TaskToDict(only_repr=compressed)
 
     def render(self):
-        artifact = {self._name: self._task_to_dict.infer_object(self._artifact)}
-        if self._section_wrapped:
-            return SectionComponent(
-                title="%s" % self._name, contents=[ArtifactsComponent(data=artifact)]
-            ).render()
-        else:
-            return ArtifactsComponent(data=artifact).render()
+        artifact = self._task_to_dict.infer_object(self._artifact)
+        artifact["name"] = None
+        if self._name is not None:
+            artifact["name"] = str(self._name)
+        return ArtifactsComponent(data=[artifact]).render()
 
 
 class Table(MetaflowCardComponent):
-    def __init__(self, headers=[], data=[[]], title=None, section_wrapped=True):
+    def __init__(self, data=[[]], headers=[]):
         header_bool, data_bool = TableComponent.validate(headers, data)
         self._headers = []
         self._data = [[]]
-        self._title = title
         if header_bool:
             self._headers = headers
         if data_bool:
             self._data = data
-        self._section_wrapped = section_wrapped
 
     @classmethod
-    def from_dataframe(cls, dataframe=None, title=None, section_wrapped=True):
+    def from_dataframe(cls, dataframe=None, truncate=True):
         task_to_dict = TaskToDict()
         object_type = task_to_dict.object_type(dataframe)
         if object_type == "pandas.core.frame.DataFrame":
-            return cls(
-                title=title,
-                **task_to_dict._parse_pandas_dataframe(dataframe),
-                section_wrapped=section_wrapped
+            table_data = task_to_dict._parse_pandas_dataframe(
+                dataframe, truncate=truncate
             )
+            return_val = cls(data=table_data["data"], headers=table_data["headers"])
+            return return_val
         else:
             return cls(
-                title=title,
                 headers=["Object type %s not supported" % object_type],
-                section_wrapped=section_wrapped,
             )
 
-    def render(self):
-        if self._section_wrapped:
-            return SectionComponent(
-                title=self._title,
-                contents=[
-                    TableComponent(headers=self._headers, data=self._data).render()
+    def _render_subcomponents(self):
+        return [
+            SectionComponent.render_subcomponents(
+                row,
+                additional_allowed_types=[
+                    str,
+                    bool,
+                    int,
+                    float,
+                    dict,
+                    list,
+                    tuple,
+                    type(None),
                 ],
-            ).render()
-        else:
-            return TableComponent(headers=self._headers, data=self._data).render()
+            )
+            for row in self._data
+        ]
+
+    def render(self):
+        return TableComponent(
+            headers=self._headers, data=self._render_subcomponents()
+        ).render()
 
 
 class Image(MetaflowCardComponent):
+    @staticmethod
+    def render_fail_headline(msg):
+        return "[IMAGE_RENDER FAIL]: %s" % msg
 
-    render_fail_headline = lambda msg: "[IMAGE_RENDER FAIL]: %s" % msg
-
-    def __init__(self, src=None, title=None, label=None, section_wrapped=True):
-        self._src = src
+    def __init__(self, src=None, label=None):
+        self._error_comp = None
         self._label = label
-        self._title = title
-        self._section_wrapped = section_wrapped
 
-    @classmethod
-    def from_bytes(cls, bytes_arr, title=None, label=None):
-        try:
-            import io
-
-            task_to_dict = TaskToDict()
-            if task_to_dict.object_type(bytes_arr) != "bytes":
-                return ErrorComponent(
-                    cls.render_fail_headline(
-                        "first argument should be of type `bytes`"
+        if type(src) is not str:
+            try:
+                self._src = self._bytes_to_base64(src)
+            except TypeError:
+                self._error_comp = ErrorComponent(
+                    self.render_fail_headline(
+                        "first argument should be of type `bytes` or vaild image base64 string"
                     ),
-                    "Type of %s is invalid" % (task_to_dict.object_type(bytes_arr)),
+                    "Type of %s is invalid" % (str(type(src))),
                 )
-            parsed_image = task_to_dict.parse_image(bytes_arr)
-            if parsed_image is not None:
-                return cls(src=parsed_image, title=title, label=label)
-            return ErrorComponent(cls.render_fail_headline(" Bytes not parsable"), "")
-        except:
-            import traceback
+            except ValueError:
+                self._error_comp = ErrorComponent(
+                    self.render_fail_headline("Bytes not parsable as image"), ""
+                )
+            except Exception as e:
+                import traceback
 
-            return ErrorComponent(
-                cls.render_fail_headline("Bytes not parsable"),
-                "%s" % traceback.format_exc(),
-            )
+                self._error_comp = ErrorComponent(
+                    self.render_fail_headline("Bytes not parsable as image"),
+                    "%s\n\n%s" % (str(e), traceback.format_exc()),
+                )
+        else:
+            if "data:image/" in src:
+                self._src = src
+            else:
+                self._error_comp = ErrorComponent(
+                    self.render_fail_headline(
+                        "first argument should be of type `bytes` or vaild image base64 string"
+                    ),
+                    "String %s is invalid base64 string" % src,
+                )
+
+    @staticmethod
+    def _bytes_to_base64(bytes_arr):
+        task_to_dict = TaskToDict()
+        if task_to_dict.object_type(bytes_arr) != "bytes":
+            raise TypeError
+        parsed_image = task_to_dict.parse_image(bytes_arr)
+        if parsed_image is None:
+            raise ValueError
+        return parsed_image
 
     @classmethod
-    def from_pil_image(cls, pilimage, title=None, label=None):
+    def from_pil_image(cls, pilimage, label=None):
         try:
             import io
 
@@ -134,7 +157,7 @@ class Image(MetaflowCardComponent):
             img_byte_arr = img_byte_arr.getvalue()
             parsed_image = task_to_dict.parse_image(img_byte_arr)
             if parsed_image is not None:
-                return cls(src=parsed_image, title=title, label=label)
+                return cls(src=parsed_image, label=label)
             return ErrorComponent(
                 cls.render_fail_headline("PIL Image Not Parsable"), ""
             )
@@ -147,7 +170,7 @@ class Image(MetaflowCardComponent):
             )
 
     @classmethod
-    def from_matplotlib_plot(cls, plot, title=None, label=None):
+    def from_matplotlib_plot(cls, plot, label=None):
         import io
 
         try:
@@ -167,7 +190,7 @@ class Image(MetaflowCardComponent):
             parsed_image = task_to_dict.parse_image(img_bytes_arr.getvalue())
 
             if parsed_image is not None:
-                return cls(src=parsed_image, title=title, label=label)
+                return cls(src=parsed_image, label=label)
             return ErrorComponent(
                 cls.render_fail_headline("Matplotlib plot's image is not parsable"), ""
             )
@@ -180,67 +203,47 @@ class Image(MetaflowCardComponent):
             )
 
     def render(self):
+        if self._error_comp is not None:
+            return self._error_comp.render()
+
         if self._src is not None:
-            if self._section_wrapped:
-                return SectionComponent(
-                    title=self._title,
-                    contents=[ImageComponent(src=self._src, label=self._label)],
-                ).render()
-            else:
-                return ImageComponent(src=self._src, label=self._label).render()
+            return ImageComponent(src=self._src, label=self._label).render()
         return ErrorComponent(
             self.render_fail_headline("`Image` Component `src` arguement is `None`"), ""
         ).render()
 
 
 class Linechart(LineChartComponent):
-    def __init__(
-        self, data=[[]], labels=[], title=None, chart_config=None, section_wrapped=True
-    ):
+    def __init__(self, data=[], labels=[], chart_config=None):
         super().__init__(chart_config=chart_config, data=data, labels=labels)
-        self._title = title
-        self._section_wrapped = section_wrapped
 
     def render(self):
         rendered_super = super().render()
-        if self._section_wrapped:
-            return SectionComponent(
-                title=self._title, contents=[rendered_super]
-            ).render()
         return rendered_super
 
 
 class Barchart(BarChartComponent):
     def __init__(
-        self, data=[[]], labels=[], title=None, chart_config=None, section_wrapped=True
+        self,
+        data=[],
+        labels=[],
+        chart_config=None,
     ):
         super().__init__(chart_config=chart_config, data=data, labels=labels)
-        self._title = title
-        self._section_wrapped = section_wrapped
 
     def render(self):
         rendered_super = super().render()
-        if self._section_wrapped:
-            return SectionComponent(
-                title=self._title, contents=[rendered_super]
-            ).render()
         return rendered_super
 
 
-class Title(MetaflowCardComponent):
-    def __init__(self, text=None):
-        self._text = text
+class Title(DefaultComponent):
+    type = "heading"
+
+    def __init__(self, title_text=None, subtitle_text=None):
+        super().__init__(title_text, subtitle_text)
 
     def render(self):
-        return TitleComponent(text=self._text).render()
-
-
-class Subtitle(MetaflowCardComponent):
-    def __init__(self, text=None):
-        self._text = text
-
-    def render(self):
-        return SubTitleComponent(text=self._text).render()
+        return super().render()
 
 
 class Error(MetaflowCardComponent):
@@ -267,3 +270,11 @@ class Section(MetaflowCardComponent):
         return SectionComponent(
             self._title, self._subtitle, self._columns, self._contents
         ).render()
+
+
+class Markdown(MetaflowCardComponent):
+    def __init__(self, text=None):
+        self._text = text
+
+    def render(self):
+        return MarkdownComponent(self._text).render()

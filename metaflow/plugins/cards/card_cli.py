@@ -17,9 +17,12 @@ from .exception import (
     IncorrectCardArgsException,
     UnrenderableCardException,
     CardNotPresentException,
+    TaskNotFoundException,
 )
 
 from .card_resolver import resolve_paths_from_task, resumed_info
+
+id_func = id
 
 # FIXME :  Import the changes from Netflix/metaflow#833 for Graph
 def serialize_flowgraph(flowgraph):
@@ -40,12 +43,68 @@ def open_in_browser(card_path):
     webbrowser.open(url)
 
 
+def resolve_task_from_pathspec(flow_name, pathspec):
+    """
+    resolves a task object for the pathspec query on the CLI.
+    Args:
+        flow_name : (str) : name of flow
+        pathspec (str) : can be `stepname` / `runid/stepname` / `runid/stepname/taskid`
+
+    Returns:
+        metaflow.Task | None
+    """
+    from metaflow import Flow, Step, Task
+    from metaflow.exception import MetaflowNotFound
+
+    # since pathspec can have many variations.
+    pthsplits = pathspec.split("/")
+    namespace(None)
+    task = None
+    run_id = None
+    resolving_from = "task_pathspec"
+    if len(pthsplits) == 1:
+        # This means stepname
+        resolving_from = "stepname"
+        latest_run = Flow(flow_name).latest_run
+        if latest_run is not None:
+            run_id = latest_run.pathspec
+            try:
+                task = latest_run[pathspec].task
+            except KeyError:
+                pass
+    elif len(pthsplits) == 2:
+        # This means runid/stepname
+        resolving_from = "step_pathspec"
+        try:
+            task = Step("/".join([flow_name, pathspec])).task
+            run_id = task.parent.parent.pathspec
+        except MetaflowNotFound as e:
+            pass
+    elif len(pthsplits) == 3:
+        # this means runid/stepname/taskid
+        resolving_from = "task_pathspec"
+        try:
+            task = Task("/".join([flow_name, pathspec]))
+            run_id = task.parent.parent.pathspec
+        except MetaflowNotFound as e:
+            pass
+    else:
+        # raise exception for invalid pathspec format
+        raise CommandException(
+            msg="The PATHSPEC argument should be of the form 'stepname' Or '<runid>/<stepname>' Or '<runid>/<stepname>/<taskid>'"
+        )
+
+    return task, run_id, resolving_from
+
+
 def resolve_card(
     ctx,
     pathspec,
     follow_resumed=True,
     hash=None,
     type=None,
+    card_id=None,
+    no_echo=False,
 ):
     """Resolves the card path based on the arguments provided. We allow identifier to be a pathspec or a id of card.
 
@@ -54,58 +113,50 @@ def resolve_card(
         pathspec: pathspec
         hash (optional): This is to specifically resolve the card via the hash. This is useful when there may be many card with same id or type for a pathspec.
         type : type of card
+        card_id : `id` given to card
+        no_echo : if set to `True` then supress logs about pathspec resolution.
     Raises:
         CardNotPresentException: No card could be found for the pathspec
 
     Returns:
         (card_paths, card_datastore, taskpathspec) : Tuple[List[str], CardDatastore, str]
     """
-    if len(pathspec.split("/")) != 3:
-        raise CommandException(
-            msg="Expecting pathspec of form <runid>/<stepname>/<taskid>"
-        )
-
     flow_name = ctx.obj.flow.name
-    run_id, step_name, task_id = None, None, None
-    # what should be the args we expose
-    run_id, step_name, task_id = pathspec.split("/")
-    pathspec = "/".join([flow_name, pathspec])
-    # we set namespace to be none to avoid namespace mismatch error.
-    namespace(None)
-    task = Task(pathspec)
-    print_str = "Resolving card: %s" % pathspec
+    (
+        task,
+        run_id,
+        resolved_from,
+    ) = resolve_task_from_pathspec(flow_name, pathspec)
+    if task is None:
+        # raise Exception that task could not be resolved for the query.
+        raise TaskNotFoundException(pathspec, resolved_from, run_id=run_id)
+    card_pathspec = task.pathspec
+    print_str = "Resolving card: %s" % card_pathspec
     if follow_resumed:
         origin_taskpathspec = resumed_info(task)
         if origin_taskpathspec:
-            pathspec = origin_taskpathspec
-            ctx.obj.echo(
-                "Resolving card resumed from: %s" % origin_taskpathspec,
-                fg="green",
-            )
-        else:
-            ctx.obj.echo(print_str, fg="green")
-    else:
+            card_pathspec = origin_taskpathspec
+            print_str = ("Resolving card resumed from: %s" % origin_taskpathspec,)
+
+    if not no_echo:
         ctx.obj.echo(print_str, fg="green")
     # to resolve card_id we first check if the identifier is a pathspec and if it is then we check if the `id` is set or not to resolve card_id
     # todo : Fix this with `coalesce function`
     card_paths_found, card_datastore = resolve_paths_from_task(
         ctx.obj.flow_datastore,
-        pathspec=pathspec,
+        pathspec=card_pathspec,
         type=type,
         hash=hash,
+        card_id=card_id,
     )
 
     if len(card_paths_found) == 0:
         # If there are no files found on the Path then raise an error of
         raise CardNotPresentException(
-            flow_name,
-            run_id,
-            step_name,
-            card_hash=hash,
-            card_type=type,
+            card_pathspec, card_hash=hash, card_type=type, card_id=card_id
         )
 
-    return card_paths_found, card_datastore, pathspec
+    return card_paths_found, card_datastore, card_pathspec
 
 
 @contextmanager
@@ -129,32 +180,58 @@ def raise_timeout(signum, frame):
     raise TimeoutError
 
 
-def list_available_cards(ctx, path_spec, card_paths, card_datastore, command="view"):
+def list_available_cards(
+    ctx, pathspec, card_paths, card_datastore, command="view", show_list_as_json=False
+):
+    # pathspec is full pathspec.
     # todo : create nice response messages on the CLI for cards which were found.
     scriptname = ctx.obj.flow.script_name
     path_tuples = card_datastore.get_card_names(card_paths)
+    if show_list_as_json:
+        json_arr = [
+            dict(id=tup.id, hash=tup.hash, type=tup.type, filename=tup.filename)
+            for tup in path_tuples
+        ]
+        print(json.dumps(dict(pathspec=pathspec, cards=json_arr), indent=4))
+        return
+
     ctx.obj.echo(
-        "\nFound %d card matching for your query..." % len(path_tuples), fg="green"
+        "Found %d card matching for your query..." % len(path_tuples), fg="green"
     )
-    task_pathspec = "/".join(path_spec.split("/")[1:])
+    task_pathspec = "/".join(pathspec.split("/")[1:])
     card_list = []
-    for path_tuple in path_tuples:
-        card_name = "%s-%s" % (path_tuple.type, path_tuple.hash)
-        card_list.append(card_name)
+    for path_tuple, file_path in zip(path_tuples, card_paths):
+        full_pth = card_datastore.create_full_path(file_path)
+        cpr = """
+        Card Id : %s
+        Card Type : %s
+        Card Filename : %s
+        Card Hash : %s 
+        Card Path : %s
+        """ % (
+            path_tuple.id,
+            path_tuple.type,
+            path_tuple.filename,
+            path_tuple.hash,
+            full_pth,
+        )
+        card_list.append(cpr)
 
     random_idx = 0 if len(path_tuples) == 1 else random.randint(0, len(path_tuples) - 1)
-    _, randhash = path_tuples[random_idx]
-    ctx.obj.echo("\n\t".join([""] + card_list), fg="blue")
-    ctx.obj.echo(
-        "\n\tExample access from CLI via: \n\t %s\n"
-        % make_command(
-            scriptname,
-            task_pathspec,
-            command=command,
-            hash=randhash[:NUM_SHORT_HASH_CHARS],
-        ),
-        fg="yellow",
-    )
+    _, randhash, _, file_name = path_tuples[random_idx]
+    ctx.obj.echo("\n\t".join([""] + card_list) + "\n", fg="blue")
+
+    if command is not None:
+        ctx.obj.echo(
+            "\n\tExample access from CLI via: \n\t %s\n"
+            % make_command(
+                scriptname,
+                task_pathspec,
+                command=command,
+                hash=randhash[:NUM_SHORT_HASH_CHARS],
+            ),
+            fg="yellow",
+        )
 
 
 def make_command(
@@ -175,6 +252,53 @@ def make_command(
         ]
         + calling_args
     )
+
+
+def list_many_cards(
+    ctx,
+    type=None,
+    hash=None,
+    card_id=None,
+    follow_resumed=None,
+    as_json=None,
+):
+    from metaflow import Flow
+
+    flow = Flow(ctx.obj.flow.name)
+    run = flow.latest_run
+    cards_found = 0
+    for step in run:
+        for task in step:
+            try:
+                available_card_paths, card_datastore, pathspec = resolve_card(
+                    ctx,
+                    "/".join(task.pathspec.split("/")[1:]),
+                    type=type,
+                    hash=hash,
+                    card_id=card_id,
+                    follow_resumed=follow_resumed,
+                    no_echo=True,
+                )
+                print_str = "Resolving card resumed from: %s" % pathspec
+                if pathspec != task.pathspec:
+                    print_str = "Resolving card  %s" % pathspec
+                if not as_json:
+                    ctx.obj.echo(print_str, fg="green")
+                list_available_cards(
+                    ctx,
+                    pathspec,
+                    available_card_paths,
+                    card_datastore,
+                    command=None,
+                    show_list_as_json=as_json,
+                )
+                cards_found += 1
+            except CardNotPresentException:
+                pass
+    if cards_found == 0:
+        raise CardNotPresentException(
+            run.pathspec, card_hash=hash, card_type=type, card_id=card_id
+        )
 
 
 @click.group()
@@ -213,7 +337,14 @@ def card_read_options_and_arguments(func):
         default=None,
         show_default=True,
         type=str,
-        help="Type of card being created",
+        help="Type of card",
+    )
+    @click.option(
+        "--id",
+        default=None,
+        show_default=True,
+        type=str,
+        help="Id of the card",
     )
     @click.option(
         "--follow-resumed/--no-follow-resumed",
@@ -274,6 +405,13 @@ def render_card(mf_card, task, timeout_value=None):
     type=str,
     help="JSON File with Pre-rendered components.(internal)",
 )
+@click.option(
+    "--id",
+    default=None,
+    show_default=True,
+    type=str,
+    help="id of the card",
+)
 @click.pass_context
 def create(
     ctx,
@@ -283,8 +421,9 @@ def create(
     timeout=None,
     component_file=None,
     render_error_card=False,
+    id=None,
 ):
-
+    card_id = id
     rendered_info = None  # Variable holding all the information which will be rendered
     error_stack_trace = None  # Variable which will keep a track of error
 
@@ -306,7 +445,7 @@ def create(
 
     task = Task(full_pathspec)
     from metaflow.plugins import CARDS
-    from metaflow.plugins.cards.exception import CARD_ID_PATTERN
+    from metaflow.plugins.cards.exception import CARD_ID_PATTERN, TYPE_CHECK_REGEX
     from metaflow.cards import ErrorCard
 
     error_card = ErrorCard
@@ -365,8 +504,17 @@ def create(
     else:
         save_type = "error"
 
+    # If card_id is doesn't match regex pattern then we will set it as None
+    if card_id is not None and re.match(CARD_ID_PATTERN, card_id) is None:
+        ctx.obj.echo(
+            "`--id=%s` doesn't match REGEX pattern. `--id` will be set to `None`. Please create `--id` of pattern %s."
+            % (card_id, TYPE_CHECK_REGEX),
+            fg="red",
+        )
+        card_id = None
+
     if rendered_info is not None:
-        card_info = card_datastore.save_card(save_type, rendered_info)
+        card_info = card_datastore.save_card(save_type, rendered_info, card_id=card_id)
         ctx.obj.echo(
             "Card created with type: %s and hash: %s"
             % (card_info.type, card_info.hash[:NUM_SHORT_HASH_CHARS]),
@@ -383,25 +531,34 @@ def view(
     pathspec,
     hash=None,
     type=None,
+    id=None,
     follow_resumed=False,
 ):
     """
     View the HTML card in browser based on the pathspec.\n
-    The Task pathspec is of the form:\n
-        <runid>/<stepname>/<taskid>\n
+    The pathspec can be of the form:\n
+        - <stepname>\n
+        - <runid>/<stepname>\n
+        - <runid>/<stepname>/<taskid>\n
     """
+    card_id = id
     available_card_paths, card_datastore, pathspec = resolve_card(
         ctx,
         pathspec,
         type=type,
         hash=hash,
+        card_id=card_id,
         follow_resumed=follow_resumed,
     )
     if len(available_card_paths) == 1:
         open_in_browser(card_datastore.cache_locally(available_card_paths[0]))
     else:
         list_available_cards(
-            ctx, pathspec, available_card_paths, card_datastore, command="view"
+            ctx,
+            pathspec,
+            available_card_paths,
+            card_datastore,
+            command="view",
         )
 
 
@@ -414,23 +571,82 @@ def get(
     pathspec,
     hash=None,
     type=None,
+    id=None,
     follow_resumed=False,
 ):
     """
     Get the HTML string of the card based on pathspec.\n
-    The Task pathspec is of the form:\n
-        <runid>/<stepname>/<taskid>\n
+    The pathspec can be of the form:\n
+        - <stepname>\n
+        - <runid>/<stepname>\n
+        - <runid>/<stepname>/<taskid>\n
     """
+    card_id = id
     available_card_paths, card_datastore, pathspec = resolve_card(
         ctx,
         pathspec,
         type=type,
         hash=hash,
+        card_id=card_id,
         follow_resumed=follow_resumed,
     )
     if len(available_card_paths) == 1:
         print(card_datastore.get_card_html(available_card_paths[0]))
     else:
         list_available_cards(
-            ctx, pathspec, available_card_paths, card_datastore, command="get"
+            ctx,
+            pathspec,
+            available_card_paths,
+            card_datastore,
+            command="get",
         )
+
+
+@card.command()
+@click.argument("pathspec", required=False)
+@card_read_options_and_arguments
+@click.option(
+    "--as-json",
+    default=False,
+    is_flag=True,
+    help="Print all available cards as a JSON object",
+)
+@click.pass_context
+def list(
+    ctx,
+    pathspec=None,
+    hash=None,
+    type=None,
+    id=None,
+    follow_resumed=False,
+    as_json=False,
+):
+    card_id = id
+    if pathspec is None:
+        list_many_cards(
+            ctx,
+            type=type,
+            hash=hash,
+            card_id=card_id,
+            follow_resumed=follow_resumed,
+            as_json=as_json,
+        )
+        return
+
+    available_card_paths, card_datastore, pathspec = resolve_card(
+        ctx,
+        pathspec,
+        type=type,
+        hash=hash,
+        card_id=card_id,
+        follow_resumed=follow_resumed,
+        no_echo=as_json,
+    )
+    list_available_cards(
+        ctx,
+        pathspec,
+        available_card_paths,
+        card_datastore,
+        command=None,
+        show_list_as_json=as_json,
+    )

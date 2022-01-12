@@ -23,7 +23,10 @@ def resolve_paths_from_task(
     pathspec=None,
     type=None,
     hash=None,
+    card_id=None,
 ):
     card_datastore = CardDatastore(flow_datastore, pathspec=pathspec)
-    card_paths_found = card_datastore.extract_card_paths(card_type=type, card_hash=hash)
+    card_paths_found = card_datastore.extract_card_paths(
+        card_type=type, card_hash=hash, card_id=card_id
+    )
     return card_paths_found, card_datastore

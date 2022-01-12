@@ -128,6 +128,9 @@ class MetaflowCheck(object):
     def get_card(self, step, task, card_type):
         raise NotImplementedError()
 
+    def list_cards(self, step, task, card_type=None):
+        raise NotImplementedError()
+
 
 def new_checker(flow):
     from . import cli_check, metadata_check

@@ -107,6 +107,7 @@ class TaskToDict:
             try:
                 data_object = data.data
                 task_data_dict[data.id] = self._convert_to_native_type(data_object)
+                task_data_dict[data.id]["name"] = data.id
             except ModuleNotFoundError as e:
                 data_object = "<unable to unpickle>"
                 # this means pickle couldn't find the module.
@@ -293,9 +294,11 @@ class TaskToDict:
     def _parse_range(self, data_object):
         return self._get_repr().repr(data_object)
 
-    def _parse_pandas_dataframe(self, data_object):
+    def _parse_pandas_dataframe(self, data_object, truncate=True):
         headers = list(data_object.columns)
-        data = data_object.head()
+        data = data_object
+        if truncate:
+            data = data_object.head()
         index_column = data.index
 
         if index_column.dtype == "datetime64[ns]":
@@ -309,7 +312,16 @@ class TaskToDict:
         data_vals = data.values.tolist()
         for row, idx in zip(data_vals, index_column.values.tolist()):
             row.insert(0, idx)
-        return dict(headers=[""] + headers, data=data_vals)
+        return dict(
+            full_size=(
+                # full_size is a tuple of (num_rows,num_columns)
+                len(data_object),
+                len(headers),
+            ),
+            headers=[""] + headers,
+            data=data_vals,
+            truncated=truncate,
+        )
 
     def _parse_numpy_ndarray(self, data_object):
         return data_object.tolist()

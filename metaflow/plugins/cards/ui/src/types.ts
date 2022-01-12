@@ -12,15 +12,18 @@ export type Boxes = Record<string, HTMLElement>;
 /* ------------------------------- DATA TYPES ------------------------------- */
 
 export interface Artifact {
+  name: string|null;
   type: string;
   data: string;
   label?: string;
 }
 
-export type Artifacts = Record<string, Artifact>;
+export type Artifacts = Artifact[];
+
+export type TableDataCell = boolean | string | number | ArtifactsComponent | BarChartComponent | DagComponent | HeadingComponent | LineChartComponent | LogComponent | MarkdownComponent | TextComponent;
 
 export type TableColumns = string[];
-export type TableData = any[][];
+export type TableData = TableDataCell[][];
 
 /* ----------------------------------- DAG ---------------------------------- */
 
@@ -154,6 +157,11 @@ export interface LogComponent {
   data: string;
 }
 
+export interface MarkdownComponent {
+  type: "markdown";
+  source: string;
+}
+
 // wrap all component options into a Component type
 export type CardComponent =
   | ArtifactsComponent
@@ -163,6 +171,7 @@ export type CardComponent =
   | ImageComponent
   | LineChartComponent
   | LogComponent
+  | MarkdownComponent
   | PageComponent
   | SectionComponent
   | SubtitleComponent

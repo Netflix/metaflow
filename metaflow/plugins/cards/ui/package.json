@@ -16,10 +16,10 @@
     "@rollup/plugin-node-resolve": "^13.0.6",
     "@rollup/plugin-typescript": "^8.3.0",
     "@tsconfig/svelte": "^2.0.1",
-    "cross-env": "^7.0.3",
     "@types/node": "^16.11.12",
     "@typescript-eslint/eslint-plugin": "^5.6.0",
     "@typescript-eslint/parser": "^5.6.0",
+    "cross-env": "^7.0.3",
     "eslint": "^8.4.0",
     "eslint-plugin-svelte3": "^3.2.1",
     "rollup": "^2.60.0",
@@ -37,6 +37,7 @@
   "license": "UNLICENSED",
   "dependencies": {
     "@iconify/svelte": "^2.1.0",
-    "chart.js": "^3.6.0"
+    "chart.js": "^3.6.0",
+    "svelte-markdown": "^0.2.1"
   }
 }
