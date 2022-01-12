@@ -186,6 +186,9 @@ class BatchDecorator(StepDecorator):
             cli_args.command_args.append(self.package_url)
             cli_args.command_options.update(self.attributes)
             cli_args.command_options["run-time-limit"] = self.run_time_limit
+            cli_args.command_options["parallel-task-prefix"] = (
+                "%s-node-" % cli_args.task.step
+            )
             if not R.use_r():
                 cli_args.entrypoint[0] = sys.executable
 
@@ -255,9 +258,8 @@ class BatchDecorator(StepDecorator):
         if num_parallel > 1 and ubf_context == UBF_CONTROL:
             # UBF handling for multinode case
             control_task_id = current.task_id
-            top_task_id = control_task_id.replace("control-", "")  # chop "-0"
             mapper_task_ids = [control_task_id] + [
-                "%s-node-%d" % (top_task_id, node_idx)
+                "%s-node-%d" % (step_name, node_idx)
                 for node_idx in range(1, num_parallel)
             ]
             flow._control_mapper_tasks = [
@@ -274,11 +276,20 @@ class BatchDecorator(StepDecorator):
     ):
         # task_post_step may run locally if fallback is activated for @catch
         # decorator.
+        if "AWS_BATCH_JOB_NUM_NODES" in os.environ:
+            if self.metadata.TYPE == "local":
+                # write a file in S3 to flag the finish of this task (if not the control task)
+                from metaflow import S3
+
+                s3 = S3(run=flow)
+                s3.put(current.task_id + "_finished", "1")
+
         if "AWS_BATCH_JOB_ID" in os.environ:
             # If `local` metadata is configured, we would need to copy task
             # execution metadata from the AWS Batch container to user's
             # local file system after the user code has finished execution.
             # This happens via datastore as a communication bridge.
+
             if self.metadata.TYPE == "local":
                 # Note that the datastore is *always* Amazon S3 (see
                 # runtime_task_created function).
@@ -313,9 +324,12 @@ class BatchDecorator(StepDecorator):
             pass
 
         if is_task_ok and getattr(flow, "_control_mapper_tasks", []):
-            self._wait_for_mapper_tasks(flow, step_name)
+            if self.metadata.TYPE == "local":
+                self._wait_for_mapper_tasks_local_metadata(flow)
+            else:
+                self._wait_for_mapper_tasks(flow, step_name)
 
-    def _wait_for_mapper_tasks(self, flow, step_name):
+    def _wait_for_mapper_tasks(self, flow):
         """
         When lauching multinode task with UBF, need to wait for the secondary
         tasks to finish cleanly and produce their output before exiting the
@@ -347,7 +361,46 @@ class BatchDecorator(StepDecorator):
             except Exception as e:
                 pass
         raise Exception(
-            "Batch secondary workers did not finish in %s seconds" % TIMEOUT
+            "Some batch secondary workers did not finish in %s seconds. Check logs in AWS Batch."
+            % TIMEOUT
+        )
+
+    def _wait_for_mapper_tasks_local_metadata(self, flow):
+        """
+        With local metadata, we cannot access artifacts of the other tasks. Instead, a special file
+        is written to S3.
+        """
+        from metaflow import S3
+
+        pending_task_ids = [
+            task_id.split("/")[-1] for task_id in flow._control_mapper_tasks
+        ]
+        TIMEOUT = 600
+        last_completion_timeout = time.time() + TIMEOUT
+        s3 = S3(run=flow)
+        while pending_task_ids and last_completion_timeout > time.time():
+            finished_files = s3.get_many(
+                [task_id + "_finished" for task_id in pending_task_ids],
+                return_missing=True,
+            )
+            pending_task_ids = [
+                file.key.replace("_finished", "")
+                for file in finished_files
+                if not file.exists
+            ]
+            if pending_task_ids:
+                print(
+                    "Waiting for all parallel tasks to finish. Finished: {}/{}".format(
+                        len(flow._control_mapper_tasks) - len(pending_task_ids),
+                        len(flow._control_mapper_tasks),
+                    )
+                )
+            else:
+                return
+            time.sleep(10)
+        raise Exception(
+            "Some batch secondary workers did not finish in %s seconds. Check logs in AWS Batch."
+            % TIMEOUT
         )
 
     @classmethod

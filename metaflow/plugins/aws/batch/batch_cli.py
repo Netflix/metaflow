@@ -149,6 +149,12 @@ def kill(ctx, run_id, user, my_runs):
     type=int,
     help="Number of parallel nodes to run as a multi-node job.",
 )
+@click.option(
+    "--parallel-task-prefix",
+    default=None,
+    type=str,
+    help="Task id prefix for non-main tasks in parallel mode.",
+)
 @click.pass_context
 def step(
     ctx,
@@ -169,6 +175,7 @@ def step(
     swappiness=None,
     host_volumes=None,
     num_parallel=None,
+    parallel_task_prefix=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", batch_id=None):
@@ -294,6 +301,7 @@ def step(
                 attrs=attrs,
                 host_volumes=host_volumes,
                 num_parallel=num_parallel,
+                parallel_task_prefix=parallel_task_prefix,
             )
     except Exception as e:
         traceback.print_exc()

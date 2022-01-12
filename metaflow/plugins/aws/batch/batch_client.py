@@ -112,11 +112,11 @@ class BatchJob(object):
                 self.payload["containerOverrides"]
             )
             secondary_commands = self.payload["containerOverrides"]["command"][-1]
-            # other tasks do not have control- prefix, and have the split id appended to the task -id
+            # Other tasks than the main task have their task id as the split id appended to the parallel task prefix.
+            # These tasks have been registered by the batch decorator.
             secondary_commands = secondary_commands.replace(
                 self._task_id,
-                self._task_id.replace("control-", "")
-                + "-node-$AWS_BATCH_JOB_NODE_INDEX",
+                self.parallel_task_prefix + "$AWS_BATCH_JOB_NODE_INDEX",
             )
             secondary_commands = secondary_commands.replace(
                 "ubf_control",
@@ -153,6 +153,7 @@ class BatchJob(object):
         swappiness,
         host_volumes,
         num_parallel,
+        parallel_task_prefix,
     ):
         # identify platform from any compute environment associated with the
         # queue
@@ -263,6 +264,7 @@ class BatchJob(object):
                 )
 
         self.num_parallel = num_parallel or 1
+        self.parallel_task_prefix = parallel_task_prefix
         if self.num_parallel > 1:
             job_definition["type"] = "multinode"
             job_definition["nodeProperties"] = {
@@ -321,6 +323,7 @@ class BatchJob(object):
         swappiness,
         host_volumes,
         num_parallel,
+        parallel_task_prefix,
     ):
         self.payload["jobDefinition"] = self._register_job_definition(
             image,
@@ -332,6 +335,7 @@ class BatchJob(object):
             swappiness,
             host_volumes,
             num_parallel,
+            parallel_task_prefix,
         )
         return self
 

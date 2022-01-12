@@ -182,6 +182,7 @@ class Batch(object):
         attrs={},
         host_volumes=None,
         num_parallel=1,
+        parallel_task_prefix=None,
     ):
         job_name = self._job_name(
             attrs.get("metaflow.user"),
@@ -213,6 +214,7 @@ class Batch(object):
                 swappiness,
                 host_volumes=host_volumes,
                 num_parallel=num_parallel,
+                parallel_task_prefix=parallel_task_prefix,
             )
             .cpu(cpu)
             .gpu(gpu)
@@ -284,6 +286,7 @@ class Batch(object):
         swappiness=None,
         host_volumes=None,
         num_parallel=1,
+        parallel_task_prefix=None,
         env={},
         attrs={},
     ):
@@ -316,6 +319,7 @@ class Batch(object):
             attrs=attrs,
             host_volumes=host_volumes,
             num_parallel=num_parallel,
+            parallel_task_prefix=parallel_task_prefix,
         )
         self.num_parallel = num_parallel
         self.job = job.execute()
