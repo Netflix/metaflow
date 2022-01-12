@@ -180,6 +180,9 @@ class CardDatastore(object):
 
         return cards_found
 
+    def create_full_path(self, card_path):
+        return os.path.join(self._backend.datastore_root, card_path)
+
     def get_card_names(self, card_paths):
         return [self.card_info_from_path(path) for path in card_paths]
 
