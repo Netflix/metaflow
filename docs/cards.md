@@ -144,7 +144,7 @@ The class consists of the `_get_mustache` method that returns [chevron](https://
 - `ALLOW_USER_COMPONENTS (bool)` : Setting this to `True` will make the a card be user editable. More information on user editable cards can be found [here](#editing-metaflowcard-from-@step-code). 
 
 #### `__init__` Parameters
-- `components` `(List[str])`: `components` is a list of `render`ed `MetaflowCardComponent`s added at `@step` runtime.
+- `components` `(List[str])`: `components` is a list of `render`ed `MetaflowCardComponent`s created at `@step` runtime. These are passed to the `card create` cli command via a tempfile path in the `--component-file` argument. 
 - `graph` `(Dict[str,dict])`: The DAG associated to the flow. It is a dictionary of the form `stepname:step_attributes`. `step_attributes` is a dictionary of metadata about a step , `stepname` is the name of the step in the DAG.  
 - `options` `(dict)`: helps control the behavior of individual cards. 
     - For example, the `DefaultCard` supports `options` as dictionary of the form `{"only_repr":True}`. Here setting `only_repr` as `True` will ensure that all artifacts are serialized with `reprlib.repr` function instead of native object serialization. 
