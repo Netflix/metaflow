@@ -8,6 +8,23 @@ Anyone can create card templates and share them as standard Python packages. Car
 
 ## Technical Details
 
+### Table Of Contents 
+* [@card decorator](#card-decorator)
+    * [Parameters](#parameters)
+    * [Usage Semantics](#usage-semantics)
+* [CardDatastore](#carddatastore)
+* [Card CLI](#card-cli)
+* [Access cards in notebooks](#access-cards-in-notebooks)
+* [MetaflowCard](#metaflowcard)
+    * [Attributes](#attributes)
+    * [__init__ Parameters](#__init__-parameters)
+* [MetaflowCardComponent](#metaflowcardcomponent)
+* [DefaultCard](#defaultcard)
+* [Default MetaflowCardComponent](#default-metaflowcardcomponent)
+* [Editing MetaflowCard from @step code](#editing-metaflowcard-from-step-code)
+    * [current.card (CardComponentCollector)](#currentcard-cardcomponentcollector)
+* [Creating Custom Installable Cards](#creating-custom-cards)
+
 Metaflow cards can be created by placing an [`@card` decorator](#@card-decorator) over a `@step`. Cards are created after a metaflow task ( instantiation of each `@step` ) completes execution. You can have multiple `@card` decorators for an individual `@step`. Each decorator takes a `type` argument which defaults to the value `default`. The `type` argument corresponds the [MetaflowCard.type](#metaflowcard). On task completion ,every `@card` decorator creates a separate subprocess to call the [card create cli command](#card-cli). This command will create and [store](#carddatastore) the HTML page for the card.
 
 Since the cards are stored in the datastore we can access them via the `view/get` commands in the [card_cli](#card-cli) or by using the `get_cards` [function](../metaflow/plugins/cards/card_client.py). 
@@ -252,7 +269,7 @@ One important feature of the `current.card` object is that it will not fail.  Ev
 
 Once the `@step` completes execution, every `@card` decorator will call `current.card._serialize` (`CardComponentCollector._serialize`) to get a JSON serializable list of `str`/`dict` objects. The `_serialize` function internally calls all [component's](#metaflowcardcomponent) `render` function. This list is `json.dump`ed to a `tempfile` and passed to the `card create` subprocess where the `MetaflowCard` can use them in the final output. 
 
-### Creating Custom Cards 
+### Creating Custom Installable Cards 
 Custom cards can be installed using the `metaflow_extensions` submodule. 
 ```
 your_package/ # the name of this dir doesn't matter
@@ -319,4 +336,4 @@ CARDS = [MyCustomCard]
 - [x]  Default `MetaflowCardComponent`s
 - [x] `DefaultCard` (A default `MetaflowCard`) 
 - [x] Adding Components to cards in runtime. 
-- [ ] Creating custom instable Metaflow cards
+- [x] Creating custom installable Metaflow cards
