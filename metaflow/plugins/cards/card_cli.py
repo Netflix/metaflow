@@ -181,7 +181,13 @@ def raise_timeout(signum, frame):
 
 
 def list_available_cards(
-    ctx, pathspec, card_paths, card_datastore, command="view", show_list_as_json=False
+    ctx,
+    pathspec,
+    card_paths,
+    card_datastore,
+    command="view",
+    show_list_as_json=False,
+    list_many=False,
 ):
     # pathspec is full pathspec.
     # todo : create nice response messages on the CLI for cards which were found.
@@ -192,12 +198,16 @@ def list_available_cards(
             dict(id=tup.id, hash=tup.hash, type=tup.type, filename=tup.filename)
             for tup in path_tuples
         ]
-        print(json.dumps(dict(pathspec=pathspec, cards=json_arr), indent=4))
-        return
+        if not list_many:
+            print(json.dumps(dict(pathspec=pathspec, cards=json_arr), indent=4))
+        return dict(pathspec=pathspec, cards=json_arr)
 
-    ctx.obj.echo(
-        "Found %d card matching for your query..." % len(path_tuples), fg="green"
-    )
+    if list_many:
+        ctx.obj.echo("\tTask: %s" % pathspec.split("/")[-1], fg="green")
+    else:
+        ctx.obj.echo(
+            "Found %d card matching for your query..." % len(path_tuples), fg="green"
+        )
     task_pathspec = "/".join(pathspec.split("/")[1:])
     card_list = []
     for path_tuple, file_path in zip(path_tuples, card_paths):
@@ -205,13 +215,11 @@ def list_available_cards(
         cpr = """
         Card Id : %s
         Card Type : %s
-        Card Filename : %s
         Card Hash : %s 
         Card Path : %s
         """ % (
             path_tuple.id,
             path_tuple.type,
-            path_tuple.filename,
             path_tuple.hash,
             full_pth,
         )
@@ -219,7 +227,8 @@ def list_available_cards(
 
     random_idx = 0 if len(path_tuples) == 1 else random.randint(0, len(path_tuples) - 1)
     _, randhash, _, file_name = path_tuples[random_idx]
-    ctx.obj.echo("\n\t".join([""] + card_list) + "\n", fg="blue")
+    join_char = "\n\t"
+    ctx.obj.echo(join_char.join([""] + card_list) + "\n", fg="blue")
 
     if command is not None:
         ctx.obj.echo(
@@ -267,7 +276,12 @@ def list_many_cards(
     flow = Flow(ctx.obj.flow.name)
     run = flow.latest_run
     cards_found = 0
+    if not as_json:
+        pass
+        ctx.obj.echo("Listing cards for run %s" % run.pathspec, fg="green")
+    js_list = []
     for step in run:
+        step_str_printed = False  # variable to control printing stepname once.
         for task in step:
             try:
                 available_card_paths, card_datastore, pathspec = resolve_card(
@@ -279,19 +293,21 @@ def list_many_cards(
                     follow_resumed=follow_resumed,
                     no_echo=True,
                 )
-                print_str = "Resolving card resumed from: %s" % pathspec
-                if pathspec != task.pathspec:
-                    print_str = "Resolving card  %s" % pathspec
-                if not as_json:
-                    ctx.obj.echo(print_str, fg="green")
-                list_available_cards(
+                if not step_str_printed and not as_json:
+                    ctx.obj.echo("Step : %s" % step.id, fg="green")
+                    step_str_printed = True
+
+                js_resp = list_available_cards(
                     ctx,
                     pathspec,
                     available_card_paths,
                     card_datastore,
                     command=None,
                     show_list_as_json=as_json,
+                    list_many=True,
                 )
+                if as_json:
+                    js_list.append(js_resp)
                 cards_found += 1
             except CardNotPresentException:
                 pass
@@ -299,6 +315,8 @@ def list_many_cards(
         raise CardNotPresentException(
             run.pathspec, card_hash=hash, card_type=type, card_id=card_id
         )
+    if as_json:
+        print(json.dumps(js_list, indent=4))
 
 
 @click.group()
