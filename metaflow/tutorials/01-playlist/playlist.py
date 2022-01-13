@@ -1,3 +1,4 @@
+import csv, io
 from metaflow import FlowSpec, step, IncludeFile, Parameter
 
 
@@ -54,21 +55,9 @@ class PlayListFlow(FlowSpec):
         columns = ["movie_title", "genres"]
 
         # Create a simple data frame as a dictionary of lists.
-        self.dataframe = dict((column, list()) for column in columns)
-
-        # Parse the CSV header.
-        lines = self.movie_data.split("\n")
-        header = lines[0].split(",")
-        idx = {column: header.index(column) for column in columns}
-
-        # Populate our dataframe from the lines of the CSV file.
-        for line in lines[1:]:
-            if not line:
-                continue
-
-            fields = line.rsplit(",", 4)
-            for column in columns:
-                self.dataframe[column].append(fields[idx[column]])
+        reader = csv.DictReader(io.StringIO(self.movie_data))
+        data = list(zip(*[(row['movie_title'], row['genres']) for row in reader]))
+        self.dataframe = {'movie_title': data[0], 'genres': data[1]}
 
         # Compute genre specific movies and a bonus movie in parallel.
         self.next(self.bonus_movie, self.genre_movies)
