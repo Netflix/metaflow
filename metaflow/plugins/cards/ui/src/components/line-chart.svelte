@@ -4,12 +4,12 @@
   import {
     CategoryScale,
     Chart,
-    ChartConfiguration,
     LinearScale,
     LineController,
     LineElement,
     PointElement,
   } from "chart.js";
+  import type { ChartConfiguration } from "chart.js";
   import { COLORS_LIST } from "../constants";
 
   Chart.register(
@@ -49,7 +49,7 @@
   $: el && new Chart(el, chartConfiguration);
 </script>
 
-<div>
+<div data-component="line-chart">
   <canvas bind:this={el} />
 </div>
 
