@@ -20,7 +20,7 @@
   });
 </script>
 
-<div class="tableContainer">
+<div class="container" data-component="artifacts">
   <!-- language-python is a prism.js class -->
   <table class="language-python">
     {#each sortedData as artifact}
@@ -30,7 +30,7 @@
 </div>
 
 <style>
-  .tableContainer {
+  .container {
     width: 100%;
     overflow: auto;
   }

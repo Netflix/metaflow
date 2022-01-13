@@ -8,7 +8,7 @@
   const { title, subtitle } = componentData;
 </script>
 
-<header class="container">
+<header class="container" data-component="heading">
   {#if title}
     <Title componentData={{ type: "title", text: title }} />
   {/if}
