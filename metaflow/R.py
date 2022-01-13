@@ -38,10 +38,14 @@ def package_paths():
 
 
 def entrypoint():
-    return (
-        "PYTHONPATH=/root/metaflow R_LIBS_SITE=`Rscript -e 'cat(paste(.libPaths(), collapse=\\\":\\\"))'`:metaflow/ Rscript metaflow-r/run_batch.R --flowRDS=%s"
-        % RDS_FILE_PATH
-    )
+    return "Rscript metaflow-r/run_batch.R --flowRDS=%s" % RDS_FILE_PATH
+
+
+def env_vars():
+    return {
+        "PYTHONPATH": "/root/metaflow",
+        "R_LIBS_SITE": "`Rscript -e 'cat(paste(.libPaths(), collapse=\\\":\\\"))'`:metaflow/",
+    }
 
 
 def use_r():

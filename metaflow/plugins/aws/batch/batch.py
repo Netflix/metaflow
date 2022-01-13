@@ -52,13 +52,23 @@ class Batch(object):
         self._client = BatchClient()
         atexit.register(lambda: self.job.kill() if hasattr(self, "job") else None)
 
-    def _command(self, environment, code_package_url, step_name, step_cmds, task_spec):
+    def _command(
+        self, environment, code_package_url, step_name, step_cmds, step_env, task_spec
+    ):
         mflog_expr = export_mflog_env_vars(
             datastore_type="s3",
             stdout_path=STDOUT_PATH,
             stderr_path=STDERR_PATH,
             **task_spec
         )
+
+        if step_env:
+            step_env_expr = "export " + " ".join(
+                ["%s=%s" % (k, v) for k, v in step_env.items()]
+            )
+        else:
+            step_env_expr = "true"
+
         init_cmds = environment.get_package_commands(code_package_url)
         init_expr = " && ".join(init_cmds)
         step_expr = " && ".join(
@@ -77,9 +87,10 @@ class Batch(object):
         # the `true` command is to make sure that the generated command
         # plays well with docker containers which have entrypoint set as
         # eval $@
-        cmd_str = "true && mkdir -p %s && %s && %s && %s; " % (
+        cmd_str = "true && mkdir -p %s && %s && %s && %s && %s; " % (
             LOGS_DIR,
             mflog_expr,
+            step_env_expr,
             init_expr,
             step_expr,
         )
@@ -163,6 +174,7 @@ class Batch(object):
         self,
         step_name,
         step_cli,
+        step_env,
         task_spec,
         code_package_sha,
         code_package_url,
@@ -197,7 +209,12 @@ class Batch(object):
             .job_queue(queue)
             .command(
                 self._command(
-                    self.environment, code_package_url, step_name, [step_cli], task_spec
+                    self.environment,
+                    code_package_url,
+                    step_name,
+                    [step_cli],
+                    step_env,
+                    task_spec,
                 )
             )
             .image(image)
@@ -267,6 +284,7 @@ class Batch(object):
         self,
         step_name,
         step_cli,
+        step_env,
         task_spec,
         code_package_sha,
         code_package_url,
@@ -297,6 +315,7 @@ class Batch(object):
         job = self.create_job(
             step_name,
             capture_output_to_mflog(step_cli),
+            step_env,
             task_spec,
             code_package_sha,
             code_package_url,

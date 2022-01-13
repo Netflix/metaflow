@@ -179,10 +179,12 @@ def step(
 
     if R.use_r():
         entrypoint = R.entrypoint()
+        step_env = R.env_vars()
     else:
         if executable is None:
             executable = ctx.obj.environment.executable(step_name)
         entrypoint = "%s -u %s" % (executable, os.path.basename(sys.argv[0]))
+        step_env = {}
 
     top_args = " ".join(util.dict_to_cli_options(ctx.parent.parent.params))
 
@@ -275,6 +277,7 @@ def step(
             batch.launch_job(
                 step_name,
                 step_cli,
+                step_env,
                 task_spec,
                 code_package_sha,
                 code_package_url,

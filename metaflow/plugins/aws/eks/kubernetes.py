@@ -122,6 +122,7 @@ class Kubernetes(object):
         self,
         code_package_url,
         step_cmds,
+        step_env,
     ):
         mflog_expr = export_mflog_env_vars(
             flow_name=self._flow_name,
@@ -133,6 +134,14 @@ class Kubernetes(object):
             stdout_path=STDOUT_PATH,
             stderr_path=STDERR_PATH,
         )
+
+        if step_env:
+            step_env_expr = "export " + " ".join(
+                ["%s=%s" % (k, v) for k, v in step_env.items()]
+            )
+        else:
+            step_env_expr = "true"
+
         init_cmds = self._environment.get_package_commands(code_package_url)
         init_expr = " && ".join(init_cmds)
         step_expr = " && ".join(
@@ -152,9 +161,10 @@ class Kubernetes(object):
         # The `true` command is to make sure that the generated command
         # plays well with docker containers which have entrypoint set as
         # eval $@
-        cmd_str = "true && mkdir -p %s && %s && %s && %s; " % (
+        cmd_str = "true && mkdir -p %s && %s && %s && %s && %s; " % (
             LOGS_DIR,
             mflog_expr,
+            step_env_expr,
             init_expr,
             step_expr,
         )
@@ -179,6 +189,7 @@ class Kubernetes(object):
         code_package_url,
         code_package_ds,
         step_cli,
+        step_env,
         docker_image,
         service_account=None,
         secrets=None,
@@ -224,6 +235,7 @@ class Kubernetes(object):
                 command=self._command(
                     code_package_url=code_package_url,
                     step_cmds=[step_cli],
+                    step_env=step_env,
                 ),
                 image=docker_image,
                 cpu=cpu,
