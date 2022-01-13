@@ -2,7 +2,7 @@ import * as utils from "../../src/utils";
 import { components, metadata } from "../../public/card-example.json";
 import type * as types from "../../src/types";
 
-describe("utils unit tests", () => {
+describe("utils", () => {
   it("should getPageHierarchy", () => {
     const expected = {
       Run: ["Vertical Table", "Artifacts", "Images", "Horizontal Table"],
