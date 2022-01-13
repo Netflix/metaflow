@@ -10,7 +10,12 @@
   }
 </script>
 
-<section class="container" class:columns data-section-id={title}>
+<section
+  class="container"
+  class:columns
+  data-component="section"
+  data-section-id={title}
+>
   <div class="heading">
     {#if title}
       <h3>{title}</h3>

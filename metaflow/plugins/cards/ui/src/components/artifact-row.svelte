@@ -22,9 +22,12 @@ If the artifact has a nullish name then just show the data.-->
 
 <tr>
   {#if id !== null}
-    <td class="idCell"> {id} </td>
+    <td class="idCell" data-component="artifact-row"> {id} </td>
   {/if}
-  <td class="codeCell" colspan={id === null ? 2 : 1}
+  <td
+    class="codeCell"
+    colspan={id === null ? 2 : 1}
+    data-component="artifact-row"
     ><code class="mono" bind:this={el}>{artifact.data}</code></td
   >
 </tr>
