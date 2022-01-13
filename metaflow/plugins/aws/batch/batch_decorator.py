@@ -2,9 +2,10 @@ import os
 import sys
 import platform
 import requests
+import time
 
 from metaflow import util
-from metaflow import R
+from metaflow import R, current
 
 from metaflow.decorators import StepDecorator
 from metaflow.plugins import ResourcesDecorator
@@ -20,6 +21,7 @@ from metaflow.metaflow_config import (
     DATASTORE_LOCAL_DIR,
 )
 from metaflow.sidecar import SidecarSubProcess
+from metaflow.unbounded_foreach import UBF_CONTROL
 
 from .batch import BatchException
 from ..aws_utils import get_docker_registry
@@ -249,6 +251,24 @@ class BatchDecorator(StepDecorator):
 
             self._save_logs_sidecar = SidecarSubProcess("save_logs_periodically")
 
+        num_parallel = int(os.environ.get("AWS_BATCH_JOB_NUM_NODES", 1))
+        if num_parallel > 1 and ubf_context == UBF_CONTROL:
+            # UBF handling for multinode case
+            control_task_id = current.task_id
+            top_task_id = control_task_id.replace("control-", "")  # chop "-0"
+            mapper_task_ids = [control_task_id] + [
+                "%s-node-%d" % (top_task_id, node_idx)
+                for node_idx in range(1, num_parallel)
+            ]
+            flow._control_mapper_tasks = [
+                "%s/%s/%s" % (run_id, step_name, mapper_task_id)
+                for mapper_task_id in mapper_task_ids
+            ]
+            flow._control_task_is_mapper_zero = True
+
+        if num_parallel > 1:
+            _setup_multinode_environment()
+
     def task_post_step(
         self, step_name, flow, graph, retry_count, max_user_code_retries
     ):
@@ -292,9 +312,64 @@ class BatchDecorator(StepDecorator):
             # Best effort kill
             pass
 
+        if is_task_ok and getattr(flow, "_control_mapper_tasks", []):
+            self._wait_for_mapper_tasks(flow, step_name)
+
+    def _wait_for_mapper_tasks(self, flow, step_name):
+        """
+        When lauching multinode task with UBF, need to wait for the secondary
+        tasks to finish cleanly and produce their output before exiting the
+        main task. Otherwise main task finishing will cause secondary nodes
+        to terminate immediately, and possibly prematurely.
+        """
+        from metaflow import Step  # avoid circular dependency
+
+        TIMEOUT = 600
+        last_completion_timeout = time.time() + TIMEOUT
+        print("Waiting for batch secondary tasks to finish")
+        while last_completion_timeout > time.time():
+            time.sleep(2)
+            try:
+                step_path = "%s/%s/%s" % (flow.name, current.run_id, step_name)
+                tasks = [task for task in Step(step_path)]
+                if len(tasks) == len(flow._control_mapper_tasks):
+                    if all(
+                        task.finished_at is not None for task in tasks
+                    ):  # for some reason task.finished fails
+                        return True
+                else:
+                    print(
+                        "Waiting for all parallel tasks to finish. Finished: {}/{}".format(
+                            len(tasks),
+                            len(flow._control_mapper_tasks),
+                        )
+                    )
+            except Exception as e:
+                pass
+        raise Exception(
+            "Batch secondary workers did not finish in %s seconds" % TIMEOUT
+        )
+
     @classmethod
     def _save_package_once(cls, flow_datastore, package):
         if cls.package_url is None:
             cls.package_url, cls.package_sha = flow_datastore.save_data(
                 [package.blob], len_hint=1
             )[0]
+
+
+def _setup_multinode_environment():
+    # setup the multinode environment variables.
+    import socket
+
+    if "AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS" not in os.environ:
+        # we are the main node
+        local_ips = socket.gethostbyname_ex(socket.gethostname())[-1]
+        assert local_ips, "Could not find local ip address"
+        os.environ["MF_PARALLEL_MAIN_IP"] = local_ips[0]
+    else:
+        os.environ["MF_PARALLEL_MAIN_IP"] = os.environ[
+            "AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS"
+        ]
+    os.environ["MF_PARALLEL_NUM_NODES"] = os.environ["AWS_BATCH_JOB_NUM_NODES"]
+    os.environ["MF_PARALLEL_NODE_INDEX"] = os.environ["AWS_BATCH_JOB_NODE_INDEX"]

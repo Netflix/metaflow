@@ -1,6 +1,5 @@
 from itertools import islice
 import os
-import sys
 import inspect
 import traceback
 from types import FunctionType, MethodType
@@ -9,7 +8,6 @@ from . import cmd_with_io
 from .parameters import Parameter
 from .exception import (
     MetaflowException,
-    MetaflowInternalError,
     MissingInMergeArtifactsException,
     UnhandledInMergeArtifactsException,
 )
@@ -31,6 +29,18 @@ class InvalidNextException(MetaflowException):
         # at the top level of next()
         _, line_no, _, _ = traceback.extract_stack()[-3]
         super(InvalidNextException, self).__init__(msg, line_no)
+
+
+class ParallelUBF(UnboundedForeachInput):
+    """
+    Unbounded-for-each placeholder for supporting parallel (multi-node) steps.
+    """
+
+    def __init__(self, num_parallel):
+        self.num_parallel = num_parallel
+
+    def __getitem__(self, item):
+        return item or 0  # item is None for the control task, but it is also split 0
 
 
 class FlowSpec(object):
@@ -497,6 +507,7 @@ class FlowSpec(object):
         step = self._current_step
 
         foreach = kwargs.pop("foreach", None)
+        num_parallel = kwargs.pop("num_parallel", None)
         if kwargs:
             kw = next(iter(kwargs))
             msg = (
@@ -532,6 +543,14 @@ class FlowSpec(object):
                 )
                 raise InvalidNextException(msg)
             funcs.append(name)
+
+        if num_parallel is not None and num_parallel >= 1:
+            if len(dsts) > 1:
+                raise InvalidNextException(
+                    "Only one destination allowed when num_parallel used in self.next()"
+                )
+            foreach = "_parallel_ubf_iter"
+            self._parallel_ubf_iter = ParallelUBF(num_parallel)
 
         # check: foreach is valid
         if foreach:
