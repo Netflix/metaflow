@@ -6,4 +6,4 @@
   const { text } = componentData;
 </script>
 
-<p>{text}</p>
+<p data-component="text">{text}</p>
