@@ -20,7 +20,7 @@
 </script>
 
 {#if componentData && $modal}
-  <div class="modal" on:click={handleModalClick}>
+  <div class="modal" on:click={handleModalClick} data-component="modal">
     <span class="cancelButton">
       <Icon icon="mdi:close" />
     </span>
@@ -39,29 +39,29 @@
 
 <style>
   .modal {
-    background: rgba(0, 0, 0, 0.5);
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 100;
-    display: flex;
     align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
+    background: rgba(0, 0, 0, 0.5);
+    bottom: 0;
     cursor: pointer;
+    display: flex;
+    height: 100%;
+    justify-content: center;
+    left: 0;
+    overflow: hidden;
+    position: fixed;
+    right: 0;
+    top: 0;
+    width: 100%;
+    z-index: 100;
   }
 
   :global(.modalContainer > *) {
-    position: relative;
     background-color: white;
     border-radius: 5px;
-    flex: 0 1 auto;
     cursor: default;
+    flex: 0 1 auto;
     padding: 1rem;
+    position: relative;
   }
 
   :global(.modal img) {
@@ -69,12 +69,12 @@
   }
 
   .cancelButton {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
     color: white;
-    font-size: 2rem;
     cursor: pointer;
+    font-size: 2rem;
+    position: absolute;
+    right: 1rem;
+    top: 1rem;
   }
 
   .cancelButton:hover {
