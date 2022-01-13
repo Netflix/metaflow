@@ -145,12 +145,12 @@ class MissingInMergeArtifactsException(MetaflowException):
 
 # Import any exceptions defined by a Metaflow extensions packages
 try:
-    from metaflow.extension_support import get_modules, load_non_modules
+    from metaflow.extension_support import get_modules, multiload_globals
 
-    load_non_modules(get_modules("exceptions"), globals())
+    multiload_globals(get_modules("exceptions"), globals())
 finally:
     # Erase all temporary names to avoid leaking things
-    for _n in ["get_modules", "load_non_modules"]:
+    for _n in ["get_modules", "multiload_globals"]:
         try:
             del globals()[_n]
         except KeyError:

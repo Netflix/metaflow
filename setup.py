@@ -19,6 +19,12 @@ setup(
         [console_scripts]
         metaflow=metaflow.main_cli:main
       """,
-    install_requires=["click>=7.0", "requests", "boto3", "pylint"],
+    install_requires=[
+        "click>=7.0",
+        "requests",
+        "boto3",
+        "pylint",
+        "importlib_metadata;python_version>='3.4' and python_version<'3.8'",
+    ],
     tests_require=["coverage"],
 )

@@ -19,12 +19,12 @@ from .s3 import MetaflowS3Exception, S3
 
 # Import any additional datatools defined by a Metaflow extensions package
 try:
-    from metaflow.extension_support import get_modules, load_with_modules
+    from metaflow.extension_support import get_modules, multiload_all
 
-    load_with_modules(get_modules("datatools"), "datatools", globals())
+    multiload_all(get_modules("datatools"), "datatools", globals())
 finally:
     # Erase all temporary names to avoid leaking things
-    for _n in ["get_modules", "load_with_modules"]:
+    for _n in ["get_modules", "multiload_all"]:
         try:
             del globals()[_n]
         except KeyError:

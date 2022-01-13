@@ -1,3 +1,4 @@
+import importlib
 import os
 import sys
 from hashlib import sha1
@@ -12,8 +13,8 @@ try:
 except:
     from urllib.parse import urlparse
 
-
 from metaflow.decorators import StepDecorator
+from metaflow.extension_support import EXT_PKG
 from metaflow.metaflow_environment import InvalidEnvironmentException
 from metaflow.metadata import MetaDatum
 from metaflow.metaflow_config import get_pinned_conda_libs, CONDA_PACKAGE_S3ROOT
@@ -256,7 +257,7 @@ class CondaStepDecorator(StepDecorator):
 
         # Do the same for metaflow_extensions
         try:
-            import metaflow_extensions as m
+            m = importlib.import_module(EXT_PKG)
         except ImportError:
             # No additional check needed because if we are here, we already checked
             # for other issues when loading at the toplevel
@@ -267,7 +268,7 @@ class CondaStepDecorator(StepDecorator):
                 # Regular package
                 os.symlink(
                     custom_paths[0],
-                    os.path.join(self.metaflow_home, "metaflow_extensions"),
+                    os.path.join(self.metaflow_home, EXT_PKG),
                 )
             else:
                 # Namespace package; we don't symlink but add the additional paths

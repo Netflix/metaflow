@@ -1,17 +1,30 @@
 import importlib
+import json
 import os
+import re
 import sys
 import types
 
 from collections import defaultdict, namedtuple
 
+__all__ = (
+    "get_modules",
+    "dump_module_info",
+    "load_globals",
+    "alias_submodules",
+    "EXT_PKG",
+    "lazy_load_aliases",
+    "multiload_globals",
+    "multiload_all",
+)
+
 EXT_PKG = "metaflow_extensions"
-EXT_CONFIG = "mfext_init.py"
+EXT_CONFIG_REGEXP = re.compile(r"^mfextinit_[a-zA-Z0-9]+\.py$")
 
 METAFLOW_DEBUG_EXT_MECHANISM = os.environ.get("METAFLOW_DEBUG_EXT", False)
 
 
-MFExtPackage = namedtuple("MFExtPackage", "package_name tl_package config_file")
+MFExtPackage = namedtuple("MFExtPackage", "package_name tl_package config_module")
 MFExtModule = namedtuple("MFExtModule", "tl_package module")
 
 
@@ -29,68 +42,92 @@ def get_modules(extension_point):
     _ext_debug("Getting modules for extension point '%s'..." % extension_point)
     for pkg in _pkgs_per_extension_point[extension_point]:
         _ext_debug("\tFound TL '%s' from '%s'" % (pkg.tl_package, pkg.package_name))
-        modules_to_load.append(
-            _get_extension_config(
-                pkg.package_name, pkg.tl_package, extension_point, pkg.config_file
-            )
-        )
-    _ext_debug("Loaded %s" % str(modules_to_load))
+        m = _get_extension_config(pkg.tl_package, extension_point, pkg.config_module)
+        if m:
+            modules_to_load.append(m)
+    _ext_debug("\tLoaded %s" % str(modules_to_load))
     return modules_to_load
 
 
-def load_non_modules(modules, dst_globals):
-    for m in modules:
-        for n, o in m.module.__dict__.items():
-            if not n.startswith("__") and not isinstance(o, types.ModuleType):
-                dst_globals[n] = o
+def dump_module_info():
+    return "ext_info", [_all_packages, _pkgs_per_extension_point]
 
 
-def load_with_modules(modules, extension_point, dst_globals):
+def load_globals(module, dst_globals):
+    for n, o in module.__dict__.items():
+        if not n.startswith("__") and not isinstance(o, types.ModuleType):
+            dst_globals[n] = o
+
+
+def alias_submodules(module, tl_package, extension_point):
     lazy_load_custom_modules = {}
-    for m in modules:
-        addl_modules = m.module.__dict__.get("__mf_promote_submodules__")
-        if addl_modules:
-            # We make an alias for these modules which the extension author wants to
-            # expose but since it may not already be loaded, we don't load it either
+    addl_modules = module.__dict__.get("__mf_promote_submodules__")
+    if addl_modules:
+        # We make an alias for these modules which the extension author wants to
+        # expose but since it may not already be loaded, we don't load it either
 
-            # TODO: This does not properly work for multiple packages that overwrite
-            # their submodule for example if metaflow_extensions.X.datatools.Y is provided
-            # by two packages. For now, don't do this.
+        # TODO: This does not properly work for multiple packages that overwrite
+        # their submodule for example if metaflow_extensions.X.datatools.Y is provided
+        # by two packages. For now, don't do this.
+        if extension_point is not None:
             lazy_load_custom_modules.update(
                 {
                     "metaflow.%s.%s"
                     % (extension_point, k): "%s.%s.%s.%s"
-                    % (EXT_PKG, m.tl_package, extension_point, k)
+                    % (EXT_PKG, tl_package, extension_point, k)
                     for k in addl_modules
                 }
             )
-        for n, o in m.module.__dict__.items():
-            if not n.startswith("__") and not isinstance(o, types.ModuleType):
-                dst_globals[n] = o
-            elif (
-                isinstance(o, types.ModuleType)
-                and o.__package__
-                and o.__package__.startswith("%s.%s" % (EXT_PKG, m.tl_package))
-            ):
-                # NOTE: The condition above prohibits loading across tl_packages. We
-                # can relax if needed but may not be a great idea.
+        else:
+            lazy_load_custom_modules.update(
+                {
+                    "metaflow.%s" % k: "%s.%s.%s" % (EXT_PKG, tl_package, k)
+                    for k in addl_modules
+                }
+            )
+
+    for n, o in module.__dict__.items():
+        if (
+            isinstance(o, types.ModuleType)
+            and o.__package__
+            and o.__package__.startswith("%s.%s" % (EXT_PKG, tl_package))
+        ):
+            # NOTE: The condition above prohibits loading across tl_packages. We
+            # can relax if needed but may not be a great idea.
+            if extension_point is not None:
                 lazy_load_custom_modules["metaflow.%s.%s" % (extension_point, n)] = o
-    if lazy_load_custom_modules:
-        sys.meta_path = [_LazyLoader(lazy_load_custom_modules)] + sys.meta_path
+            else:
+                lazy_load_custom_modules["metaflow.%s" % n] = o
+    _ext_debug(
+        "\tWill create the following module aliases: %s" % str(lazy_load_custom_modules)
+    )
+    return lazy_load_custom_modules
 
 
-_extension_funcs = {
-    "config": None,
-    "datatools": None,
-    "exceptions": load_non_modules,
-    "plugins": None,
-    "toplevel": None,
-}
+def lazy_load_aliases(aliases):
+    if aliases:
+        sys.meta_path = [_LazyLoader(aliases)] + sys.meta_path
+
+
+def multiload_globals(modules, dst_globals):
+    for m in modules:
+        load_globals(m.module, dst_globals)
+
+
+def multiload_all(modules, extension_point, dst_globals):
+    lazy_load_custom_modules = {}
+    for m in modules:
+        lazy_load_custom_modules.update(
+            alias_submodules(m.module, m.tl_package, extension_point)
+        )
+        load_globals(m.module, dst_globals)
+    lazy_load_aliases(lazy_load_custom_modules)
+
 
 _py_ver = sys.version_info[0] * 10 + sys.version_info[1]
 _mfext_supported = False
 
-if _py_ver >= 35:
+if _py_ver >= 34:
     import importlib.util
     from importlib.machinery import ModuleSpec
 
@@ -105,7 +142,8 @@ else:
 
 # IMPORTANT: More specific paths must appear FIRST (before any less specific one)
 _extension_points = [
-    "plugins.cards.card_modules",
+    "plugins.env_escape",
+    "plugins.cards",
     "config",
     "datatools",
     "exceptions",
@@ -123,7 +161,23 @@ def _get_extension_packages():
     if not _mfext_supported:
         return []
 
+    # If we have an INFO file with the appropriate information (if running from a saved
+    # code package for example), we use that directly
     # Pre-compute on _extension_points
+    from metaflow import INFO_FILE
+
+    try:
+        with open(INFO_FILE, "r") as contents:
+            all_pkg, ext_to_pkg = json.load(contents).get("ext_info", (None, None))
+            if all_pkg is not None and ext_to_pkg is not None:
+                # We need to properly convert stuff in ext_to_pkg
+                for k, v in ext_to_pkg.items():
+                    v = [MFExtPackage(*d) for d in v]
+                    ext_to_pkg[k] = v
+                return all_pkg, ext_to_pkg
+    except IOError:
+        pass
+
     _list_ext_points = [x.split(".") for x in _extension_points]
     # TODO: This relies only on requirements to determine import order; we may want
     # other ways of specifying "load me after this if it exists" without depending on
@@ -135,13 +189,14 @@ def _get_extension_packages():
         if any(
             [pkg == EXT_PKG for pkg in (dist.read_text("top_level.txt") or "").split()]
         ):
+            _ext_debug("Found extension package '%s'..." % dist.metadata["Name"])
             mf_ext_packages.append(dist.metadata["Name"])
             # At this point, we check to see what extension points this package
             # contributes to. This is to enable multiple namespace packages to contribute
             # to the same extension point (for example, you may have multiple packages
             # that have plugins)
             for f in dist.files:
-                parts = f.parts
+                parts = list(f.parts)
                 if len(parts) > 3 and parts[0] == EXT_PKG:
                     # We go over _extension_points *in order* to make sure we get more
                     # specific paths first
@@ -150,19 +205,56 @@ def _get_extension_packages():
                             len(parts) > len(ext_list) + 2
                             and parts[2 : 2 + len(ext_list)] == ext_list
                         ):
-                            extension_points_to_pkg[_extension_points[idx]][
-                                dist.metadata["Name"]
-                            ] = MFExtPackage(
-                                package_name=dist.metadata["Name"],
-                                tl_package=parts[1],
-                                config_file=dist.locate_file(
-                                    os.path.join(
-                                        EXT_PKG,
-                                        *parts[: len(ext_list) + 2],
-                                        EXT_CONFIG,
+                            # Check if this is an "init" file
+                            config_module = None
+                            if (
+                                len(parts) == len(ext_list) + 3
+                                and EXT_CONFIG_REGEXP.match(parts[-1]) is not None
+                            ):
+                                parts[-1] = parts[-1][:-3]  # Remove the .py
+                                config_module = ".".join(parts)
+
+                            cur_pkg = extension_points_to_pkg[
+                                _extension_points[idx]
+                            ].get(dist.metadata["Name"], None)
+                            if cur_pkg is not None:
+                                if (
+                                    config_module is not None
+                                    and cur_pkg.config_module is not None
+                                ):
+                                    raise RuntimeError(
+                                        "Package '%s' defines more than one "
+                                        "configuration file for '%s': '%s' and '%s'"
+                                        % (
+                                            dist.metadata["Name"],
+                                            _extension_points[idx],
+                                            config_module,
+                                            cur_pkg.config_module,
+                                        )
                                     )
-                                ),
-                            )
+                                if config_module is not None:
+                                    _ext_debug(
+                                        "\tFound config file '%s'" % config_module
+                                    )
+                                    extension_points_to_pkg[_extension_points[idx]][
+                                        dist.metadata["Name"]
+                                    ] = MFExtPackage(
+                                        package_name=dist.metadata["Name"],
+                                        tl_package=parts[1],
+                                        config_module=config_module,
+                                    )
+                            else:
+                                _ext_debug(
+                                    "\tExtends '%s' with config '%s'"
+                                    % (_extension_points[idx], config_module)
+                                )
+                                extension_points_to_pkg[_extension_points[idx]][
+                                    dist.metadata["Name"]
+                                ] = MFExtPackage(
+                                    package_name=dist.metadata["Name"],
+                                    tl_package=parts[1],
+                                    config_module=config_module,
+                                )
                             break
     extension_points_to_pkg.default_factory = list
 
@@ -190,7 +282,8 @@ def _get_extension_packages():
             to_process.append(pkg_name)
 
     # Add them in alphabetical order
-    mf_pkg_list.extend(to_process.sort())
+    to_process.sort()
+    mf_pkg_list.extend(to_process)
     # Find rest topologically
     while to_process:
         next_round = []
@@ -203,7 +296,8 @@ def _get_extension_packages():
                 else:
                     pkg_to_reqs_count[dep] = cur_req_count - 1
         # Add those in alphabetical order
-        mf_pkg_list.extend(next_round.sort())
+        next_round.sort()
+        mf_pkg_list.extend(next_round)
         to_process = next_round
 
     # Check that we got them all
@@ -222,10 +316,15 @@ def _get_extension_packages():
 _all_packages, _pkgs_per_extension_point = _get_extension_packages()
 
 
-def _get_extension_config(pkg_name, tl_pkg, extension_point, config_file):
+def _get_extension_config(tl_pkg, extension_point, config_module):
     module_name = ".".join([EXT_PKG, tl_pkg, extension_point])
     try:
-        extension_module = importlib.import_module(module_name)
+        if config_module is not None:
+            _ext_debug("\tAttempting to load '%s'" % config_module)
+            extension_module = importlib.import_module(config_module)
+        else:
+            _ext_debug("\tAttempting to load '%s'" % module_name)
+            extension_module = importlib.import_module(module_name)
     except ImportError as e:
         if _py_ver >= 36:
             # e.name is set to the name of the package that fails to load
@@ -239,25 +338,10 @@ def _get_extension_config(pkg_name, tl_pkg, extension_point, config_file):
                     % (EXT_PKG, module_name, EXT_PKG)
                 )
                 raise
+            _ext_debug("\tError while loading '%s': %s" % (module_name, e))
+            return None
     else:
-        # Look for EXT_CONFIG
-        if os.path.isfile(config_file):
-            # We will load this file; we use the full path because if there are multiple
-            # modules supplying this extension_point for the tl_pkg, it will be
-            # ambiguous otherwise
-            temp_name = "_%s_%s_%s" % (pkg_name, tl_pkg, extension_point)
-            config_loader = importlib.machinery.SourceFileLoader(temp_name, config_file)
-            config_spec = importlib.util.spec_from_loader(temp_name, config_loader)
-            extension_module = importlib.util.module_from_spec(config_spec)
-            config_loader.exec_module(extension_module)
-        else:
-            if extension_module.__file__ is None:
-                raise RuntimeError(
-                    "Package '%s' provides neither a '%s' or __init__.py for '%s'"
-                    % (pkg_name, EXT_CONFIG, extension_point)
-                )
-
-    return MFExtModule(tl_package=tl_pkg, module=extension_module)
+        return MFExtModule(tl_package=tl_pkg, module=extension_module)
 
 
 class _LazyLoader(object):
