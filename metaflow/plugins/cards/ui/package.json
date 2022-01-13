@@ -10,7 +10,8 @@
     "lint": "eslint src --ext .ts,.svelte",
     "lint:fix": "yarn run lint --fix",
     "prebuild": "yarn run check && yarn run lint",
-    "cypress:open": "wait-on http://localhost:8080 && cypress open"
+    "cypress:open": "wait-on http://localhost:8080 && cypress open",
+    "cypress:run": "wait-on http://localhost:8080 && cypress run"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^21.0.1",
