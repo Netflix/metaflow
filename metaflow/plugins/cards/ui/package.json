@@ -12,7 +12,8 @@
     "prebuild": "yarn run check && yarn run lint",
     "cypress:open": "wait-on http://localhost:8080 && cypress open",
     "cypress:open-dev": "concurrently \"yarn:dev\" \"yarn:cypress:open\"",
-    "cypress:run": "wait-on http://localhost:8080 && cypress run"
+    "cypress:run": "wait-on http://localhost:8080 && cypress run",
+    "cypress:run-dev": "concurrently \"yarn:dev\" \"yarn:cypress:run\""
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^21.0.1",
