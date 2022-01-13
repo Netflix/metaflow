@@ -7,7 +7,7 @@
   const { src, label, description } = componentData;
 </script>
 
-<figure on:click={() => modal.set(componentData)}>
+<figure on:click={() => modal.set(componentData)} data-component="image">
   <div class="imageContainer">
     <img {src} alt={label || "image"} />
   </div>
