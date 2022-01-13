@@ -11,6 +11,7 @@
     "lint:fix": "yarn run lint --fix",
     "prebuild": "yarn run check && yarn run lint",
     "cypress:open": "wait-on http://localhost:8080 && cypress open",
+    "cypress:open-dev": "concurrently \"yarn:dev\" \"yarn:cypress:open\"",
     "cypress:run": "wait-on http://localhost:8080 && cypress run"
   },
   "devDependencies": {
@@ -21,6 +22,7 @@
     "@types/node": "^17.0.8",
     "@typescript-eslint/eslint-plugin": "^5.9.1",
     "@typescript-eslint/parser": "^5.9.1",
+    "concurrently": "^7.0.0",
     "cross-env": "^7.0.3",
     "cypress": "9.2.1",
     "cypress-svelte-unit-test": "^3.3.4",
