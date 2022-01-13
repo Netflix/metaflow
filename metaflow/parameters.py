@@ -165,12 +165,21 @@ class Parameter(object):
         self.kwargs = kwargs
         # TODO: check that the type is one of the supported types
         param_type = self.kwargs["type"] = self._get_type(kwargs)
+        reserved_params = [
+            "params",
+            "with",
+            "max-num-splits",
+            "max-workers",
+            "tag",
+            "run-id-file",
+            "namespace",
+        ]
 
-        if self.name == "params":
+        if self.name in reserved_params:
             raise MetaflowException(
-                "Parameter name 'params' is a reserved "
+                "Parameter name '%s' is a reserved "
                 "word. Please use a different "
-                "name for your parameter."
+                "name for your parameter." % (name)
             )
 
         # make sure the user is not trying to pass a function in one of the
