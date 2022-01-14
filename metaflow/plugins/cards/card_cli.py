@@ -136,7 +136,7 @@ def resolve_card(
         origin_taskpathspec = resumed_info(task)
         if origin_taskpathspec:
             card_pathspec = origin_taskpathspec
-            print_str = ("Resolving card resumed from: %s" % origin_taskpathspec,)
+            print_str = "Resolving card resumed from: %s" % origin_taskpathspec
 
     if not no_echo:
         ctx.obj.echo(print_str, fg="green")
