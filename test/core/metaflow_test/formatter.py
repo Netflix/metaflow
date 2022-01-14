@@ -26,12 +26,14 @@ class FlowFormatter(object):
         def lines():
             lines, lineno = inspect.getsourcelines(step)
             lines_iter = iter(lines)
+            is_next_line = False
             for line in lines_iter:
                 head = line.lstrip()
-                if head and (head[0] == "@" or head.startswith("def ")):
-                    continue
-                first_line = line
-                break
+                if is_next_line:
+                    first_line = line
+                    break
+                if head.startswith("def "):
+                    is_next_line = True
             indent = len(first_line) - len(first_line.lstrip())
             yield first_line[indent:].rstrip()
             for line in lines_iter:

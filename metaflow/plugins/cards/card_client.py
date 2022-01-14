@@ -9,6 +9,7 @@ from .exception import (
 )
 import os
 import tempfile
+import uuid
 
 _TYPE = type
 _ID_FUNC = id
@@ -86,7 +87,17 @@ class Card:
         webbrowser.open(url)
 
     def _repr_html_(self):
-        return self.get()
+        main_html = []
+        container_id = uuid.uuid4()
+        main_html.append(
+            "<script type='text/javascript'>var mfContainerId = '%s';</script>"
+            % container_id
+        )
+        main_html.append(
+            "<div class='embed' data-container='%s'>%s</div>"
+            % (container_id, self.get())
+        )
+        return "\n".join(main_html)
 
 
 class CardContainer:
@@ -144,7 +155,15 @@ class CardContainer:
         for idx, _ in enumerate(self._card_paths):
             card = self._get_card(idx)
             main_html.append(self._make_heading(card.type))
-            main_html.append("<div class='embed'>%s</div>" % card.get())
+            container_id = uuid.uuid4()
+            main_html.append(
+                "<script type='text/javascript'>var mfContainerId = '%s';</script>"
+                % container_id
+            )
+            main_html.append(
+                "<div class='embed' data-container='%s'>%s</div>"
+                % (container_id, card.get())
+            )
         return "\n".join(main_html)
 
 
