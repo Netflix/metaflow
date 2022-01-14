@@ -13,7 +13,9 @@
   <ul class="navList">
     {#each Object.entries(pageHierarchy) as [pageId, sections]}
       <li>
-        <span class="pageId">{pageId}</span>
+        {#if pageId}
+          <span class="pageId">{pageId}</span>
+        {/if}
         <ul class="navItem">
           {#each sections || [] as section}
             <li class="sectionLink">
