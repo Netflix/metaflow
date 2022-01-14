@@ -78,7 +78,8 @@ class CardDecorator(StepDecorator):
 
     def _walk(self, root, filter_extensions=[], prefix_root=False):
         root = to_unicode(root)  # handle files/folder with non ascii chars
-        prefixlen = len("%s/" % root if prefix_root else os.path.dirname(root))
+        prfx = "%s/" % (root if prefix_root else os.path.dirname(root))
+        prefixlen = len(prfx)
         for path, dirs, files in os.walk(root):
             for fname in files:
                 # ignoring filesnames which are hidden;
