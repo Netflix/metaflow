@@ -9,7 +9,10 @@ class CardTimeoutTest(MetaflowTest):
     """
 
     PRIORITY = 2
-    @tag('card(type="test_timeout_card",timeout=10,options=dict(timeout=20),save_errors=False)')  # fmt: skip
+
+    @tag(
+        'card(type="test_timeout_card",timeout=10,options=dict(timeout=20),save_errors=False)'
+    )
     @steps(0, ["start"])
     def step_start(self):
         from metaflow import current
