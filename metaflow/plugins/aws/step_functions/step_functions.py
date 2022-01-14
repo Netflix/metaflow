@@ -228,6 +228,11 @@ class StepFunctions(object):
 
         # Visit every node of the flow and recursively build the state machine.
         def _visit(node, workflow, exit_node=None):
+            if node.parallel_foreach:
+                raise StepFunctionsException(
+                    "Parallel steps are not supported for Step functions yet."
+                )
+
             # Assign an AWS Batch job to the AWS Step Functions state
             # and pass the intermediate state by exposing `JobId` and
             # `Parameters` to the child job(s) as outputs. `Index` and
