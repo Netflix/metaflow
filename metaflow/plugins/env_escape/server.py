@@ -63,7 +63,7 @@ class Server(object):
     def __init__(self, max_pickle_version, config_dir):
 
         self._max_pickle_version = data_transferer.defaultProtocol = max_pickle_version
-        sys.path.append(config_dir)
+        sys.path.insert(0, config_dir)
         mappings = importlib.import_module("server_mappings")
         override_module = importlib.import_module("overrides")
         sys.path = sys.path[1:]
