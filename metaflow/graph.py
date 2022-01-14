@@ -57,6 +57,7 @@ class DAGNode(object):
         self.invalid_tail_next = False
         self.num_args = 0
         self.foreach_param = None
+        self.num_parallel = 0
         self.parallel_foreach = False
         self._parse(func_ast)
 
@@ -108,6 +109,7 @@ class DAGNode(object):
                     self.type = "foreach"
                     self.parallel_foreach = True
                     if len(self.out_funcs) == 1:
+                        self.num_parallel = keywords["num_parallel"]
                         self.invalid_tail_next = False
             elif len(keywords) == 0:
                 if len(self.out_funcs) > 1:
@@ -262,12 +264,23 @@ class FlowGraph(object):
     def output_steps(self):
 
         steps_info = {}
-        steps_structure = []
+        graph_structure = []
+
+        def node_to_type(node):
+            if node.type in ["linear", "start", "end", "join"]:
+                return node.type
+            elif node.type == "split":
+                return "split-static"
+            elif node.type == "foreach":
+                if node.parallel_foreach:
+                    return "split-parallel"
+                return "split-foreach"
+            return "unknown"  # Should never happen
 
         def node_to_dict(name, node):
-            return {
+            d = {
                 "name": name,
-                "type": node.type,
+                "type": node_to_type(node),
                 "line": node.func_lineno,
                 "doc": node.doc,
                 "decorators": [
@@ -280,8 +293,12 @@ class FlowGraph(object):
                     if not deco.name.startswith("_")
                 ],
                 "next": node.out_funcs,
-                "foreach_artifact": node.foreach_param,
             }
+            if d["type"] == "split-foreach":
+                d["foreach_artifact"] = node.foreach_param
+            elif d["type"] == "split-parallel":
+                d["num_parallel"] = node.num_parallel
+            return d
 
         def populate_block(start_name, end_name):
             cur_name = start_name
@@ -306,9 +323,9 @@ class FlowGraph(object):
                     cur_name = cur_node.out_funcs[0]
             return resulting_list
 
-        steps_structure = populate_block("start", "end")
+        graph_structure = populate_block("start", "end")
 
         steps_info["end"] = node_to_dict("end", self.nodes["end"])
-        steps_structure.append("end")
+        graph_structure.append("end")
 
-        return steps_info, steps_structure
+        return steps_info, graph_structure

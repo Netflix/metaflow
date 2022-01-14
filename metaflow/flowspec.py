@@ -1,7 +1,9 @@
-from itertools import islice
-import os
 import inspect
+import os
+import sys
 import traceback
+
+from itertools import islice
 from types import FunctionType, MethodType
 
 from . import cmd_with_io
@@ -164,14 +166,14 @@ class FlowSpec(object):
             setattr(self, var, val)
 
         # We store the DAG information as an artifact called _graph_info
-        steps_info, steps_structure = graph.output_steps()
+        steps_info, graph_structure = graph.output_steps()
 
         graph_info = {
             "file": os.path.basename(os.path.abspath(sys.argv[0])),
             "parameters": parameters_info,
             "constants": constants_info,
-            "steps_info": steps_info,
-            "steps_structure": steps_structure,
+            "steps": steps_info,
+            "graph_structure": graph_structure,
             "doc": graph.doc,
             "decorators": [
                 {
