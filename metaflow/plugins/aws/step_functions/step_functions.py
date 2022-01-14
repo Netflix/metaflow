@@ -230,7 +230,7 @@ class StepFunctions(object):
         def _visit(node, workflow, exit_node=None):
             if node.parallel_foreach:
                 raise StepFunctionsException(
-                    "Parallel steps are not supported for Step functions yet."
+                    "@parallel is not yet supported for AWS Step Functions."
                 )
 
             # Assign an AWS Batch job to the AWS Step Functions state
