@@ -2,6 +2,7 @@ import json
 import os
 from .card import MetaflowCard, MetaflowCardComponent
 from .convert_to_native_type import TaskToDict
+import uuid
 
 ABS_DIR_PATH = os.path.dirname(os.path.abspath(__file__))
 RENDER_TEMPLATE_PATH = os.path.join(ABS_DIR_PATH, "base.html")
@@ -509,6 +510,7 @@ class ErrorCard(MetaflowCard):
             javascript=JS_DATA,
             css=CSS_DATA,
             title=task.pathspec,
+            card_data_id=uuid.uuid4(),
         )
         return pt.render(RENDER_TEMPLATE, data_dict)
 
@@ -542,6 +544,7 @@ class DefaultCard(MetaflowCard):
             javascript=JS_DATA,
             title=task.pathspec,
             css=CSS_DATA,
+            card_data_id=uuid.uuid4(),
         )
         return pt.render(RENDER_TEMPLATE, data_dict)
 
@@ -581,6 +584,7 @@ class BlankCard(MetaflowCard):
             javascript=JS_DATA,
             title=task.pathspec,
             css=CSS_DATA,
+            card_data_id=uuid.uuid4(),
         )
         return pt.render(RENDER_TEMPLATE, data_dict)
 
