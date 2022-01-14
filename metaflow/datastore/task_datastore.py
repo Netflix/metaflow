@@ -435,6 +435,37 @@ class TaskDataStore(object):
             add_attempt,
         )
 
+    @require_mode("w")
+    def _dangerous_save_metadata_post_done(
+        self, contents, allow_overwrite=True, add_attempt=True
+    ):
+        """
+        Method identical to save_metadata BUT BYPASSES THE CHECK ON DONE
+
+        @warning This method should not be used unless you know what you are doing. This
+        will write metadata to a datastore that has been marked as done.
+
+        Currently used to re-patriate metadata in the case of a remote run and no
+        metadata service
+
+        This method requires mode 'w'
+
+        Parameters
+        ----------
+        contents : Dict[string -> JSON-ifiable objects]
+            Dictionary of metadata to store
+        allow_overwrite : boolean, optional
+            If True, allows the overwriting of the metadata, defaults to True
+        add_attempt : boolean, optional
+            If True, adds the attempt identifier to the metadata. defaults to
+            True
+        """
+        return self._save_file(
+            {k: json.dumps(v).encode("utf-8") for k, v in contents.items()},
+            allow_overwrite,
+            add_attempt,
+        )
+
     @require_mode("r")
     def load_metadata(self, names, add_attempt=True):
         """
@@ -454,7 +485,8 @@ class TaskDataStore(object):
             Results indexed by the name of the metadata loaded
         """
         return {
-            k: json.loads(v) for k, v in self._load_file(names, add_attempt).items()
+            k: json.loads(v) if v is not None else None
+            for k, v in self._load_file(names, add_attempt).items()
         }
 
     @require_mode(None)
