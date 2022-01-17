@@ -158,6 +158,21 @@ BATCH_METADATA_SERVICE_HEADERS = METADATA_SERVICE_HEADERS
 # default to True.
 BATCH_EMIT_TAGS = from_conf("METAFLOW_BATCH_EMIT_TAGS", False)
 
+# To set the number of retries when throttling client.describe_jobs
+# in plugins.aws.batch.batch_client via batch_retry()
+BATCH_DESCRIBE_JOBS_DEADLINE_SECS = from_conf(
+    "BATCH_DESCRIBE_JOBS_DEADLINE_SECS", None  # default in aws.batch.batch_client
+)
+BATCH_DESCRIBE_JOBS_MAX_BACKOFF = from_conf(
+    "BATCH_DESCRIBE_JOBS_MAX_BACKOFF", None  # default in aws.batch.batch_client
+)
+# Convert to int if set, otherwise will fall back on defaults in aws.batch.batch_client
+if BATCH_DESCRIBE_JOBS_DEADLINE_SECS is not None:
+    BATCH_DESCRIBE_JOBS_DEADLINE_SECS = int(BATCH_DESCRIBE_JOBS_DEADLINE_SECS)
+if BATCH_DESCRIBE_JOBS_MAX_BACKOFF is not None:
+    BATCH_DESCRIBE_JOBS_MAX_BACKOFF = int(BATCH_DESCRIBE_JOBS_MAX_BACKOFF)
+
+
 ###
 # AWS Step Functions configuration
 ###

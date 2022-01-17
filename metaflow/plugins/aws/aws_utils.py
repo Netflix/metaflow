@@ -1,4 +1,7 @@
+import math
+import random
 import re
+import time
 
 
 def get_docker_registry(image_uri):
@@ -50,3 +53,64 @@ def get_docker_registry(image_uri):
     if registry is not None:
         registry = registry.rstrip("/")
     return registry
+
+
+def retry(
+    function=None,
+    *,
+    exception=None,
+    exception_handler=lambda x: True,
+    deadline_seconds=None,
+    max_backoff=None,
+):
+    """
+    A factory method which returns a truncated exponential backoff retry decorator.
+
+    For deadline_seconds and max_backoff see
+    https://cloud.google.com/storage/docs/retry-strategy#exponential-backoff.
+
+    Args:
+        function: Included in the design pattern to allow the decorator to run
+                  with and without parentheses (@deco and @deco(params))
+        exception: A function which returns an exception which triggers a retry.
+        exception_handler: A filter function, for which True indicates that a retry
+                           should take place, and False indicates that the exception
+                           should be raised.
+    """
+
+    def decorator(f):
+        """
+        Implements truncated exponential backoff from
+        https://cloud.google.com/storage/docs/retry-strategy#exponential-backoff
+        """
+        from functools import wraps
+
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            deadline = time.time() + deadline_seconds
+            retry_number = 0
+
+            while True:
+                try:
+                    result = f(*args, **kwargs)
+                    return result
+                except exception() as e:
+                    if exception_handler(e):
+                        current_t = time.time()
+                        backoff_delay = min(
+                            math.pow(2, retry_number) + random.random(), max_backoff
+                        )
+                        if current_t + backoff_delay < deadline:
+                            time.sleep(backoff_delay)
+                            retry_number += 1
+                            continue  # retry again
+                        else:
+                            raise
+                    else:
+                        raise
+
+        return wrapper
+
+    if function:
+        return decorator(function)
+    return decorator

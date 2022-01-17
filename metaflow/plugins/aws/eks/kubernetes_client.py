@@ -1,7 +1,7 @@
 import os
 import time
-import math
-import random
+
+from ..aws_utils import retry
 
 
 try:
@@ -19,40 +19,25 @@ class KubernetesJobException(MetaflowException):
     headline = "Kubernetes job error"
 
 
-# Implements truncated exponential backoff from https://cloud.google.com/storage/docs/retry-strategy#exponential-backoff
-def k8s_retry(deadline_seconds=60, max_backoff=32):
-    def decorator(function):
-        from functools import wraps
+def k8s_retry(function=None, *, deadline_seconds=60, max_backoff=32):
+    """Exponential backoff retrying on ApiException status 500"""
 
-        @wraps(function)
-        def wrapper(*args, **kwargs):
-            from kubernetes import client
+    def exception():
+        from kubernetes import client
 
-            deadline = time.time() + deadline_seconds
-            retry_number = 0
+        return client.rest.ApiException
 
-            while True:
-                try:
-                    result = function(*args, **kwargs)
-                    return result
-                except client.rest.ApiException as e:
-                    if e.status == 500:
-                        current_t = time.time()
-                        backoff_delay = min(
-                            math.pow(2, retry_number) + random.random(), max_backoff
-                        )
-                        if current_t + backoff_delay < deadline:
-                            time.sleep(backoff_delay)
-                            retry_number += 1
-                            continue  # retry again
-                        else:
-                            raise
-                    else:
-                        raise
+    def exception_handler(e):
+        """Retry on this condition only"""
+        return e.status == 500
 
-        return wrapper
-
-    return decorator
+    return retry(
+        function=function,
+        exception=exception,
+        exception_handler=exception_handler,
+        deadline_seconds=deadline_seconds,
+        max_backoff=max_backoff,
+    )
 
 
 class KubernetesClient(object):

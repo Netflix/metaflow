@@ -3,8 +3,6 @@ from collections import defaultdict, deque
 import copy
 import random
 import select
-import sys
-import time
 import hashlib
 
 try:
@@ -15,6 +13,60 @@ except NameError:
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import AWS_SANDBOX_ENABLED
+
+from ..aws_utils import retry
+
+
+def batch_retry(function=None, *, deadline_seconds=60, max_backoff=32):
+    """Exponential backoff retrying on batch_client.exceptions.ClientError"""
+    from metaflow.metaflow_config import BATCH_DESCRIBE_JOBS_DEADLINE_SECS as DEADLINE
+    from metaflow.metaflow_config import BATCH_DESCRIBE_JOBS_MAX_BACKOFF as BACKOFF
+
+    # Overide defaults if the user has specified backoff in env or config.
+    # This is done here rather than metaflow_config to speed up development
+    # turnaround when debugging failures.
+    deadline_seconds = deadline_seconds if DEADLINE is None else DEADLINE
+    max_backoff = max_backoff if BACKOFF is None else BACKOFF
+
+    def exception():
+        from ..aws_client import get_aws_client
+
+        batch_client = get_aws_client("batch")
+        return batch_client.exceptions.ClientError
+
+    def exception_handler(e):
+        """Retry only is the HTTP status code ==429 or >=500"""
+        code = e.response["ResponseMetadata"]["HTTPStatusCode"]
+        return code == 429 or code >= 500
+
+    return retry(
+        function=function,
+        exception=exception,
+        exception_handler=exception_handler,
+        deadline_seconds=deadline_seconds,
+        max_backoff=max_backoff,
+    )
+
+
+@batch_retry
+def _describe_job_definitions(batch_client, **payload):
+    return batch_client.describe_job_definitions(**payload)
+
+
+@batch_retry
+def _describe_jobs(batch_client, jobs):
+    return batch_client.describe_jobs(jobs=jobs)
+
+
+def describe_jobs(batch_client, jobs):
+    # There have been sporadic reports of empty responses to the
+    # batch.describe_jobs API call, which can potentially happen if the
+    # batch.submit_job API call is not strongly consistent(¯\_(ツ)_/¯).
+    # We poll here to guard against that.
+    data = {"jobs": []}
+    while not data["jobs"]:
+        data = _describe_jobs(batch_client, jobs)  # NB: retry enabled
+    return data
 
 
 class BatchClient(object):
@@ -46,7 +98,7 @@ class BatchClient(object):
 
     def describe_jobs(self, job_ids):
         for jobIds in [job_ids[i : i + 100] for i in range(0, len(job_ids), 100)]:
-            for jobs in self._client.describe_jobs(jobs=jobIds)["jobs"]:
+            for jobs in describe_jobs(self._client, jobIds)["jobs"]:
                 yield jobs
 
     def describe_job_queue(self, job_queue):
@@ -281,7 +333,7 @@ class BatchJob(object):
             % hashlib.sha224(str(job_definition).encode("utf-8")).hexdigest()
         )
         payload = {"jobDefinitionName": def_name, "status": "ACTIVE"}
-        response = self._client.describe_job_definitions(**payload)
+        response = _describe_job_definitions(self._client, **payload)
         if len(response["jobDefinitions"]) > 0:
             return response["jobDefinitions"][0]["jobDefinitionArn"]
 
@@ -439,41 +491,6 @@ class BatchJob(object):
         return self
 
 
-class Throttle(object):
-    def __init__(self, delta_in_secs=1, num_tries=20):
-        self.delta_in_secs = delta_in_secs
-        self.num_tries = num_tries
-        self._now = None
-        self._reset()
-
-    def _reset(self):
-        self._tries_left = self.num_tries
-        self._wait = self.delta_in_secs
-
-    def __call__(self, func):
-        def wrapped(*args, **kwargs):
-            now = time.time()
-            if self._now is None or (now - self._now > self._wait):
-                self._now = now
-                try:
-                    func(*args, **kwargs)
-                    self._reset()
-                except TriableException as ex:
-                    self._tries_left -= 1
-                    if self._tries_left == 0:
-                        raise ex.ex
-                    self._wait = (self.delta_in_secs * 1.2) ** (
-                        self.num_tries - self._tries_left
-                    ) + random.randint(0, 3 * self.delta_in_secs)
-
-        return wrapped
-
-
-class TriableException(Exception):
-    def __init__(self, ex):
-        self.ex = ex
-
-
 class RunningJob(object):
 
     NUM_RETRIES = 8
@@ -489,15 +506,8 @@ class RunningJob(object):
     def _apply(self, data):
         self._data = data
 
-    @Throttle()
     def _update(self):
-        try:
-            data = self._client.describe_jobs(jobs=[self._id])
-        except self._client.exceptions.ClientError as err:
-            code = err.response["ResponseMetadata"]["HTTPStatusCode"]
-            if code == 429 or code >= 500:
-                raise TriableException(err)
-            raise err
+        data = describe_jobs(self._client, jobs=[self._id])
         # There have been sporadic reports of empty responses to the
         # batch.describe_jobs API call, which can potentially happen if the
         # batch.submit_job API call is not strongly consistent(¯\_(ツ)_/¯).
