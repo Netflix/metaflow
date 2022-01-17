@@ -137,6 +137,7 @@ from .test_unbounded_foreach_decorator import (
 from .conda.conda_step_decorator import CondaStepDecorator
 from .frameworks.pytorch import PytorchParallelDecorator
 from .cards.card_decorator import CardDecorator
+from .frameworks.pytorch import PytorchParallelDecorator
 
 
 STEP_DECORATORS = _merge_lists(

@@ -29,7 +29,7 @@ class ParallelDecorator(StepDecorator):
     def task_decorate(
         self, step_func, flow, graph, retry_count, max_user_code_retries, ubf_context
     ):
-        def step_func_with_setup():
+        def _step_func_with_setup():
             self.setup_distributed_env(flow)
             step_func()
 
@@ -44,11 +44,11 @@ class ParallelDecorator(StepDecorator):
                 _local_multinode_control_task_step_func,
                 flow,
                 env_to_use,
-                step_func_with_setup,
+                _step_func_with_setup,
                 retry_count,
             )
         else:
-            return step_func_with_setup
+            return _step_func_with_setup
 
     def setup_distributed_env(self, flow):
         # Overridden by subclasses to setup particular framework's environment.

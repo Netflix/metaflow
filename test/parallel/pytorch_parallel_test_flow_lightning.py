@@ -35,7 +35,6 @@ class PytorchLightningParallelTest(FlowSpec):
             target=pytorch_simple_reduce.train,
             num_local_processes=self.num_local_processes,
         )
-        print("FINISH", self.reduced_tensor_value)
         self.next(self.multinode_end)
 
     @step
@@ -49,7 +48,7 @@ class PytorchLightningParallelTest(FlowSpec):
                 range(1, self.num_nodes * self.num_local_processes + 1)
             )
             j += 1
-        assert j == self.num_parallel
+        assert j == self.num_nodes
         self.next(self.end)
 
     @step

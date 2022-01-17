@@ -20,7 +20,6 @@ from .util import (
     decompress_list,
     write_latest_run_id,
     get_latest_run_id,
-    to_unicode,
 )
 from .task import MetaflowTask
 from .exception import CommandException, MetaflowException
@@ -554,33 +553,6 @@ def step(
         )
 
     echo("Success", fg="green", bold=True, indent=True)
-
-
-@cli.command(help="Internal command by metaflow to spawn workers")
-@click.argument("target_module")
-@click.argument("target_function")
-@click.argument("pickled_argument_file")
-@click.pass_context
-def spawn(ctx, target_module, target_function, pickled_argument_file):
-    """
-    Used ot spawn a python function in a separate process, passing arguments
-    as pickled objects. Return values are passed as pickled object in
-    the file pickled_argument_file + '.out'
-    """
-    try:
-        import importlib
-
-        with open(pickled_argument_file, "rb") as args_f:
-            kwargs = pickle.load(args_f)
-        module = importlib.import_module(target_module)
-        fun = getattr(module, target_function)
-        results = fun(**kwargs)
-        if results:
-            with open(pickled_argument_file + ".out", "wb") as output_f:
-                pickle.dump(results, file=output_f)
-    except Exception as ex:
-        print(ex)
-        raise
 
 
 @parameters.add_custom_parameters(deploy_mode=False)

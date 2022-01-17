@@ -2,10 +2,10 @@ import os
 import platform
 import sys
 
-from .util import get_username, to_unicode
+from .util import get_username
 from . import metaflow_version
 from metaflow.exception import MetaflowException
-from metaflow.mflog import BASH_MFLOG, BASH_SAVE_LOGS
+from metaflow.mflog import BASH_MFLOG
 from . import R
 
 version_cache = None

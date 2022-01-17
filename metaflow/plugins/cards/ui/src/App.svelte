@@ -11,9 +11,13 @@
   import Main from "./components/main.svelte";
   import Modal from "./components/modal.svelte";
   import Nav from "./components/aside-nav.svelte";
+
+  // Set the `embed` class to hide the `aside` if specified in the URL
+  const urlParams = new URLSearchParams(window?.location.search);
+  let embed = Boolean(urlParams.get('embed'))
 </script>
 
-<div class="container mf-card">
+<div class="container mf-card" class:embed>
   <Aside>
     <Nav pageHierarchy={utils.getPageHierarchy($cardData?.components)} />
   </Aside>

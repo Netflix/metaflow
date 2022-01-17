@@ -244,9 +244,16 @@ class CondaStepDecorator(StepDecorator):
     def runtime_init(self, flow, graph, package, run_id):
         # Create a symlink to installed version of metaflow to execute user code against
         path_to_metaflow = os.path.join(get_metaflow_root(), "metaflow")
+        path_to_info = os.path.join(get_metaflow_root(), "INFO")
         self.metaflow_home = tempfile.mkdtemp(dir="/tmp")
         self.addl_paths = None
         os.symlink(path_to_metaflow, os.path.join(self.metaflow_home, "metaflow"))
+
+        # Also symlink the INFO version to properly propagate down version information
+        # from, for example, a step-function execution
+        if os.path.isfile(path_to_info):
+            os.symlink(path_to_info, os.path.join(self.metaflow_home, "INFO"))
+
         # Do the same for metaflow_extensions
         try:
             import metaflow_extensions as m

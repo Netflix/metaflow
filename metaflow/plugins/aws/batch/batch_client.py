@@ -85,16 +85,6 @@ class BatchJob(object):
             raise BatchJobException(
                 "Unable to launch AWS Batch job. No IAM role specified."
             )
-        if "jobDefinition" not in self.payload:
-            self.payload["jobDefinition"] = self._register_job_definition(
-                self._image,
-                self._iam_role,
-                self.payload["job_queue"],
-                self._execution_role,
-                self._shared_memory,
-                self._max_swap,
-                self._swappiness,
-            )
 
         # Multinode
         if getattr(self, "num_parallel", 0) > 1:
@@ -253,6 +243,8 @@ class BatchJob(object):
         if host_volumes:
             job_definition["containerProperties"]["volumes"] = []
             job_definition["containerProperties"]["mountPoints"] = []
+            if isinstance(host_volumes, str):
+                host_volumes = [host_volumes]
             for host_path in host_volumes:
                 name = host_path.replace("/", "_").replace(".", "_")
                 job_definition["containerProperties"]["volumes"].append(
