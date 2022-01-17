@@ -443,10 +443,15 @@ class TaskDataStore(object):
         Method identical to save_metadata BUT BYPASSES THE CHECK ON DONE
 
         @warning This method should not be used unless you know what you are doing. This
-        will write metadata to a datastore that has been marked as done.
+        will write metadata to a datastore that has been marked as done which is an
+        assumption that other parts of metaflow rely on (ie: when a datastore is marked
+        as done, it is considered to be read-only).
 
-        Currently used to re-patriate metadata in the case of a remote run and no
-        metadata service
+        Currently only used in the case when the task is executed remotely but there is
+        no (remote) metadata service configured. We therefore use the datastore to share
+        metadata between the task and the Metaflow local scheduler. Due to some other
+        constraints and the current plugin API, we could not use the regular method
+        to save metadata.
 
         This method requires mode 'w'
 
