@@ -65,9 +65,7 @@ class SectionComponent(DefaultComponent):
 
     @classmethod
     def render_subcomponents(
-        cls,
-        component_array,
-        additional_allowed_types=[str, dict],
+        cls, component_array, additional_allowed_types=[str, dict], allow_unknowns=False
     ):
         contents = []
         for content in component_array:
@@ -86,6 +84,8 @@ class SectionComponent(DefaultComponent):
             # Objects of allowed types should be present.
             elif type(content) in additional_allowed_types:
                 contents.append(content)
+            elif allow_unknowns:
+                contents.append("<object>")
 
         return contents
 
