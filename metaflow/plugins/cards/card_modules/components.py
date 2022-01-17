@@ -64,6 +64,7 @@ class Table(MetaflowCardComponent):
                     tuple,
                     type(None),
                 ],
+                allow_unknowns=True,
             )
             for row in self._data
         ]
