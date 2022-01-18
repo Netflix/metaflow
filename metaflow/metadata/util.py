@@ -16,7 +16,7 @@ def sync_local_metadata_to_datastore(metadata_local_dir, task_ds):
             tar.add(metadata_local_dir)
         blob = buf.getvalue()
         _, key = task_ds.parent_datastore.save_data([blob], len_hint=1)[0]
-        task_ds.save_metadata({"local_metadata": key})
+        task_ds._dangerous_save_metadata_post_done({"local_metadata": key})
 
 
 def sync_local_metadata_from_datastore(metadata_local_dir, task_ds):
