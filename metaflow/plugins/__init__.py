@@ -106,6 +106,7 @@ from .test_unbounded_foreach_decorator import (
 )
 from .conda.conda_step_decorator import CondaStepDecorator
 from .cards.card_decorator import CardDecorator
+from .frameworks.pytorch import PytorchParallelDecorator
 
 
 STEP_DECORATORS = [
@@ -120,6 +121,7 @@ STEP_DECORATORS = [
     StepFunctionsInternalDecorator,
     CondaStepDecorator,
     ParallelDecorator,
+    PytorchParallelDecorator,
     InternalTestUnboundedForeachDecorator,
 ]
 _merge_lists(STEP_DECORATORS, _ext_plugins["STEP_DECORATORS"], "name")
