@@ -24,7 +24,7 @@ from .util import (
 from .task import MetaflowTask
 from .exception import CommandException, MetaflowException
 from .graph import FlowGraph
-from .datastore import DATASTORES, FlowDataStore, TaskDataStoreSet
+from .datastore import DATASTORES, FlowDataStore, TaskDataStoreSet, TaskDataStore
 
 from .runtime import NativeRuntime
 from .package import MetaflowPackage
@@ -338,13 +338,13 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
     )
     if task_id:
         ds_list = [
-            obj.datastore(
-                obj.flow.name,
+            TaskDataStore(
+                obj.flow_datastore,
                 run_id=run_id,
                 step_name=step_name,
                 task_id=task_id,
                 mode="r",
-                allow_unsuccessful=True,
+                allow_not_done=True,
             )
         ]
     else:
@@ -598,7 +598,7 @@ def init(obj, run_id=None, task_id=None, tags=None, **kwargs):
         obj.monitor,
         run_id=run_id,
     )
-    obj.flow._set_constants(kwargs)
+    obj.flow._set_constants(obj.graph, kwargs)
     runtime.persist_constants(task_id=task_id)
 
 
@@ -772,7 +772,7 @@ def run(
     write_latest_run_id(obj, runtime.run_id)
     write_run_id(run_id_file, runtime.run_id)
 
-    obj.flow._set_constants(kwargs)
+    obj.flow._set_constants(obj.graph, kwargs)
     runtime.persist_constants()
     runtime.execute()
 
@@ -1000,7 +1000,7 @@ def start(
         decorators._attach_decorators(ctx.obj.flow, decospecs)
 
     # initialize current and parameter context for deploy-time parameters
-    current._set_env(flow_name=ctx.obj.flow.name, is_running=False)
+    current._set_env(flow=ctx.obj.flow, is_running=False)
     parameters.set_parameter_context(
         ctx.obj.flow.name, ctx.obj.echo, ctx.obj.flow_datastore
     )
