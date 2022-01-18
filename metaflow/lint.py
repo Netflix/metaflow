@@ -222,18 +222,18 @@ def check_split_join_balance(graph):
     )
 
     def traverse(node, split_stack):
-        if node.type == "linear":
+        if node.type in ("start", "linear"):
             new_stack = split_stack
-        elif node.type in ("split-or", "split-and", "foreach"):
+        elif node.type in ("split", "foreach"):
             new_stack = split_stack + [("split", node.out_funcs)]
         elif node.type == "end":
             if split_stack:
-                split_type, split_roots = split_stack.pop()
+                _, split_roots = split_stack.pop()
                 roots = ", ".join(split_roots)
                 raise LintWarn(msg0.format(roots=roots))
         elif node.type == "join":
             if split_stack:
-                split_type, split_roots = split_stack[-1]
+                _, split_roots = split_stack[-1]
                 new_stack = split_stack[:-1]
                 if len(node.in_funcs) != len(split_roots):
                     paths = ", ".join(node.in_funcs)

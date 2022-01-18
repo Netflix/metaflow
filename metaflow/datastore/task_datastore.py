@@ -435,6 +435,42 @@ class TaskDataStore(object):
             add_attempt,
         )
 
+    @require_mode("w")
+    def _dangerous_save_metadata_post_done(
+        self, contents, allow_overwrite=True, add_attempt=True
+    ):
+        """
+        Method identical to save_metadata BUT BYPASSES THE CHECK ON DONE
+
+        @warning This method should not be used unless you know what you are doing. This
+        will write metadata to a datastore that has been marked as done which is an
+        assumption that other parts of metaflow rely on (ie: when a datastore is marked
+        as done, it is considered to be read-only).
+
+        Currently only used in the case when the task is executed remotely but there is
+        no (remote) metadata service configured. We therefore use the datastore to share
+        metadata between the task and the Metaflow local scheduler. Due to some other
+        constraints and the current plugin API, we could not use the regular method
+        to save metadata.
+
+        This method requires mode 'w'
+
+        Parameters
+        ----------
+        contents : Dict[string -> JSON-ifiable objects]
+            Dictionary of metadata to store
+        allow_overwrite : boolean, optional
+            If True, allows the overwriting of the metadata, defaults to True
+        add_attempt : boolean, optional
+            If True, adds the attempt identifier to the metadata. defaults to
+            True
+        """
+        return self._save_file(
+            {k: json.dumps(v).encode("utf-8") for k, v in contents.items()},
+            allow_overwrite,
+            add_attempt,
+        )
+
     @require_mode("r")
     def load_metadata(self, names, add_attempt=True):
         """
@@ -454,7 +490,8 @@ class TaskDataStore(object):
             Results indexed by the name of the metadata loaded
         """
         return {
-            k: json.loads(v) for k, v in self._load_file(names, add_attempt).items()
+            k: json.loads(v) if v is not None else None
+            for k, v in self._load_file(names, add_attempt).items()
         }
 
     @require_mode(None)
