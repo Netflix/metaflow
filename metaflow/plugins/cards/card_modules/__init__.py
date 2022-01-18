@@ -1,5 +1,6 @@
 import os
 from .card import MetaflowCard, MetaflowCardComponent
+from metaflow.extension_support import get_modules, EXT_PKG
 
 
 def iter_namespace(ns_pkg):
@@ -23,50 +24,36 @@ def _get_external_card_packages(with_paths=False):
     """
     import importlib
 
-    try:
-        # Todo : Change this later to metaflow_extensions
-        import metaflow_ext as _ext_mf
-    except ImportError as e:
-        return None
-
     available_card_modules = []
-    for finder, module_name, ispkg in iter_namespace(_ext_mf):
-        mf_ext_path = finder.path
-        if not ispkg:
-            continue
-        # below line is equivalent to `import the metaflow_extensions.X` ; Here `X` can be some developer
-        top_level_developer_module = importlib.import_module(module_name)
-        # top_level_dev_mod_path = top_level_developer_module.__path__[0]
-        try:
-            # below line is equivalent to `import the metaflow_extensions.X.plugins.cards` ;
-            card_module = importlib.import_module(
-                top_level_developer_module.__name__ + ".plugins.cards"
-            )
-        except ModuleNotFoundError:
-            # This means that `metaflow_extensions.X.plugins.cards` is not present
-            # This package didn't have cards in it.
-            continue
-
+    for m in get_modules("plugins.cards"):
         # Iterate submodules of metaflow_extensions.X.plugins.cards
         # For example metaflow_extensions.X.plugins.cards.monitoring
-        card_packages = [
-            importlib.import_module(card_mod)
-            for _, card_mod, ispkg_c in iter_namespace(card_module)
-            if ispkg_c
-        ]
+        card_packages = []
+        for fndx, card_mod, ispkg_c in iter_namespace(m.module):
+            try:
+                if not ispkg_c:
+                    continue
+                cm = importlib.import_module(card_mod)
+                if with_paths:
+                    card_packages.append((fndx.path, cm))
+                else:
+                    card_packages.append(cm)
+            except:
+                # todo : how to tell the user that a module will not be imported
+                pass
         if with_paths:
             card_packages = [
                 (
                     os.path.abspath(
-                        os.path.join(mf_ext_path, "..")
+                        os.path.join(pth, "../../../../")
                     ),  # parent path to metaflow_extensions
                     os.path.join(
-                        _ext_mf.__name__,
-                        os.path.relpath(m.__path__[0], mf_ext_path),
+                        EXT_PKG,
+                        os.path.relpath(m.__path__[0], os.path.join(pth, "../../../")),
                     ),  # construct relative path to parent.
                     m,
                 )
-                for m in card_packages
+                for pth, m in card_packages
             ]
         available_card_modules.extend(card_packages)
     return available_card_modules
