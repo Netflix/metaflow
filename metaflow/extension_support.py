@@ -7,6 +7,8 @@ import types
 
 from collections import defaultdict, namedtuple
 
+from itertools import chain
+
 __all__ = (
     "get_modules",
     "dump_module_info",
@@ -224,6 +226,10 @@ def _get_extension_packages():
     # the package. One way would be to rely on the description and have that info there.
     # Not sure of the use though so maybe we can skip for now.
     mf_ext_packages = []
+    # Key: distribution name/full path to package
+    # Value:
+    #  Key: TL package name
+    #  Value: MFExtPackage
     extension_points_to_pkg = defaultdict(dict)
     config_to_pkg = defaultdict(list)
     for dist in metadata.distributions():
@@ -267,6 +273,9 @@ def _get_extension_packages():
                 if len(parts) > 3 and parts[0] == EXT_PKG:
                     # We go over _extension_points *in order* to make sure we get more
                     # specific paths first
+
+                    # To give useful errors in case multiple TL packages in one package
+                    dist_full_name = "%s[%s]" % (dist.metadata["Name"], parts[1])
                     for idx, ext_list in enumerate(list_ext_points):
                         if (
                             len(parts) > len(ext_list) + 2
@@ -282,12 +291,12 @@ def _get_extension_packages():
                                 parts[-1] = parts[-1][:-3]  # Remove the .py
                                 config_module = ".".join(parts)
 
-                                config_to_pkg[config_module].append(
-                                    dist.metadata["Name"]
-                                )
-                            cur_pkg = extension_points_to_pkg[
-                                _extension_points[idx]
-                            ].get(dist.metadata["Name"], None)
+                                config_to_pkg[config_module].append(dist_full_name)
+                            cur_pkg = (
+                                extension_points_to_pkg[_extension_points[idx]]
+                                .setdefault(dist.metadata["Name"], {})
+                                .get(parts[1])
+                            )
                             if cur_pkg is not None:
                                 if (
                                     config_module is not None
@@ -297,7 +306,7 @@ def _get_extension_packages():
                                         "Package '%s' defines more than one "
                                         "configuration file for '%s': '%s' and '%s'"
                                         % (
-                                            dist.metadata["Name"],
+                                            dist_full_name,
                                             _extension_points[idx],
                                             config_module,
                                             cur_pkg.config_module,
@@ -305,24 +314,25 @@ def _get_extension_packages():
                                     )
                                 if config_module is not None:
                                     _ext_debug(
-                                        "\tFound config file '%s'" % config_module
+                                        "\tTL %s found config file '%s'"
+                                        % (parts[1], config_module)
                                     )
                                     extension_points_to_pkg[_extension_points[idx]][
                                         dist.metadata["Name"]
-                                    ] = MFExtPackage(
-                                        package_name=dist.metadata["Name"],
+                                    ][parts[1]] = MFExtPackage(
+                                        package_name=dist_full_name,
                                         tl_package=parts[1],
                                         config_module=config_module,
                                     )
                             else:
                                 _ext_debug(
-                                    "\tExtends '%s' with config '%s'"
-                                    % (_extension_points[idx], config_module)
+                                    "\tTL %s extends '%s' with config '%s'"
+                                    % (parts[1], _extension_points[idx], config_module)
                                 )
                                 extension_points_to_pkg[_extension_points[idx]][
                                     dist.metadata["Name"]
-                                ] = MFExtPackage(
-                                    package_name=dist.metadata["Name"],
+                                ][parts[1]] = MFExtPackage(
+                                    package_name=dist_full_name,
                                     tl_package=parts[1],
                                     config_module=config_module,
                                 )
@@ -337,7 +347,7 @@ def _get_extension_packages():
     mf_ext_packages_set = set(mf_ext_packages)
     for pkg_name in mf_ext_packages:
         req_count = 0
-        req_pkgs = [x.split()[0] for x in metadata.requires(pkg_name)]
+        req_pkgs = [x.split()[0] for x in metadata.requires(pkg_name) or []]
         for req_pkg in req_pkgs:
             if req_pkg in mf_ext_packages_set:
                 req_count += 1
@@ -433,9 +443,10 @@ def _get_extension_packages():
                                     + [init_files[0].group(0)[:-3]]
                                 )
                                 config_to_pkg[config_module].append(tl_fullname)
-                            extension_points_to_pkg[_extension_points[idx]][
+                            d = extension_points_to_pkg[_extension_points[idx]][
                                 tl_fullname
-                            ] = MFExtPackage(
+                            ] = dict()
+                            d[tl_name] = MFExtPackage(
                                 package_name=tl_fullname,
                                 tl_package=tl_name,
                                 config_module=config_module,
@@ -475,8 +486,8 @@ def _get_extension_packages():
     extension_points_to_pkg.default_factory = list
     # Figure out the per extension point order
     for k, v in extension_points_to_pkg.items():
-        l = [v[pkg] for pkg in mf_pkg_list if pkg in v]
-        extension_points_to_pkg[k] = l
+        l = [v[pkg].values() for pkg in mf_pkg_list if pkg in v]
+        extension_points_to_pkg[k] = list(chain(*l))
     return mf_pkg_list, extension_points_to_pkg
 
 
