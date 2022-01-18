@@ -288,39 +288,33 @@ def get_pinned_conda_libs(python_version):
         }
 
 
-# Check if there is a an extension to Metaflow to load and override everything
+METAFLOW_EXTENSIONS_ADDL_SUFFIXES = set([])
+
+# Check if there are extensions to Metaflow to load and override everything
 try:
-    import metaflow_extensions.config.metaflow_config as extension_module
-except ImportError as e:
-    ver = sys.version_info[0] * 10 + sys.version_info[1]
-    if ver >= 36:
-        # e.name is set to the name of the package that fails to load
-        # so don't error ONLY IF the error is importing this module (but do
-        # error if there is a transitive import error)
-        if not (
-            isinstance(e, ModuleNotFoundError)
-            and e.name in ["metaflow_extensions", "metaflow_extensions.config"]
-        ):
-            print(
-                "Cannot load metaflow_extensions configuration -- "
-                "if you want to ignore, uninstall metaflow_extensions package"
-            )
-            raise
-else:
-    # We load into globals whatever we have in extension_module
-    # We specifically exclude any modules that may be included (like sys, os, etc)
-    for n, o in extension_module.__dict__.items():
-        if n == "DEBUG_OPTIONS":
-            DEBUG_OPTIONS.extend(o)
-            for typ in o:
-                vars()["METAFLOW_DEBUG_%s" % typ.upper()] = from_conf(
-                    "METAFLOW_DEBUG_%s" % typ.upper()
-                )
-        elif not n.startswith("__") and not isinstance(o, types.ModuleType):
-            globals()[n] = o
+    from metaflow.extension_support import get_modules
+
+    ext_modules = get_modules("config")
+    for m in ext_modules:
+        # We load into globals whatever we have in extension_module
+        # We specifically exclude any modules that may be included (like sys, os, etc)
+        for n, o in m.module.__dict__.items():
+            if n == "DEBUG_OPTIONS":
+                DEBUG_OPTIONS.extend(o)
+                for typ in o:
+                    vars()["METAFLOW_DEBUG_%s" % typ.upper()] = from_conf(
+                        "METAFLOW_DEBUG_%s" % typ.upper()
+                    )
+            elif n == "METAFLOW_EXTENSIONS_ADDL_SUFFIXES":
+                METAFLOW_EXTENSIONS_ADDL_SUFFIXES.update(o)
+            elif not n.startswith("__") and not isinstance(o, types.ModuleType):
+                globals()[n] = o
+    METAFLOW_EXTENSIONS_ADDL_SUFFIXES = list(METAFLOW_EXTENSIONS_ADDL_SUFFIXES)
+    if len(METAFLOW_EXTENSIONS_ADDL_SUFFIXES) == 0:
+        METAFLOW_EXTENSIONS_ADDL_SUFFIXES = None
 finally:
     # Erase all temporary names to avoid leaking things
-    for _n in ["ver", "n", "o", "e", "extension_module"]:
+    for _n in ["m", "n", "o", "ext_modules", "get_modules"]:
         try:
             del globals()[_n]
         except KeyError:
