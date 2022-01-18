@@ -1,4 +1,4 @@
-# Run very simple parallel pytorch program that reduces a vector.
+# Run very simple parallel pytorch program that learns to sum a tensor.
 import pytorch_lightning as pl
 import os
 import torch
@@ -56,5 +56,6 @@ def train(num_local_processes):
     return model.rank_reduction
 
 
+# This allows running the script manually without metaflow
 if __name__ == "__main__":
-    train(3)
+    train(1)

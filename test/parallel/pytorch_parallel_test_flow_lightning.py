@@ -28,8 +28,6 @@ class PytorchLightningParallelTest(FlowSpec):
         Run a simple torch parallel program which learns to sum a vector and also
         includes a simple parallel reduction to validate the parallel environment setup.
         """
-
-        self.node_index = current.parallel.node_index
         self.reduced_tensor_value = PyTorchHelper.run_trainer(
             self,
             target=pytorch_simple_reduce.train,
