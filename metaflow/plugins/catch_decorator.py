@@ -83,7 +83,7 @@ class CatchDecorator(StepDecorator):
             self._print_exception(step, flow)
 
         # pretend that self.next() was called as usual
-        flow._transition = (graph[step].out_funcs, None, None)
+        flow._transition = (graph[step].out_funcs, None)
 
         # If this task is a UBF control task, it will return itself as the singleton
         # list of tasks.

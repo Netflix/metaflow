@@ -55,45 +55,66 @@ class MetaflowTask(object):
             step_function(input_obj)
 
     def _init_parameters(self, parameter_ds, passdown=True):
-        def set_cls_var(_, __):
-            raise AttributeError("Flow level attributes are not modifiable")
 
         cls = self.flow.__class__
+
+        def _set_cls_var(_, __):
+            raise AttributeError(
+                "Flow level attributes and Parameters are not modifiable"
+            )
+
+        def set_as_parameter(name, value):
+            if callable(value):
+                setattr(cls, name, property(fget=value, fset=_set_cls_var))
+            else:
+                setattr(
+                    cls,
+                    name,
+                    property(fget=lambda _, val=value: val, fset=_set_cls_var),
+                )
+
         # overwrite Parameters in the flow object
-        vars = []
+        all_vars = []
         for var, param in self.flow._get_parameters():
             # make the parameter a read-only property
             # note x=x binds the current value of x to the closure
             def property_setter(
                 _,
-                cls=cls,
                 param=param,
                 var=var,
                 parameter_ds=parameter_ds,
             ):
                 v = param.load_parameter(parameter_ds[var])
-                setattr(cls, var, property(fget=lambda _, val=v: val))
+                # Reset the parameter to just return the value now that we have loaded it
+                set_as_parameter(var, v)
                 return v
 
-            setattr(cls, var, property(fget=property_setter))
-            vars.append(var)
+            set_as_parameter(var, property_setter)
+            all_vars.append(var)
 
-        param_only_vars = list(vars)
+        param_only_vars = list(all_vars)
         # make class-level values read-only to be more consistent across steps in a flow
         # they are also only persisted once and so we similarly pass them down if
         # required
         for var in dir(cls):
-            if var[0] == "_" or var in cls._NON_PARAMETERS or var in vars:
+            if var[0] == "_" or var in cls._NON_PARAMETERS or var in all_vars:
                 continue
             val = getattr(cls, var)
             # Exclude methods, properties and other classes
             if isinstance(val, (MethodType, FunctionType, property, type)):
                 continue
-            setattr(cls, var, property(fget=lambda _, val=val: val, fset=set_cls_var))
-            vars.append(var)
+            set_as_parameter(var, val)
+            all_vars.append(var)
+
+        # We also passdown _graph_info through the entire graph
+        set_as_parameter(
+            "_graph_info",
+            lambda _, parameter_ds=parameter_ds: parameter_ds["_graph_info"],
+        )
+        all_vars.append("_graph_info")
 
         if passdown:
-            self.flow._datastore.passdown_partial(parameter_ds, vars)
+            self.flow._datastore.passdown_partial(parameter_ds, all_vars)
         return param_only_vars
 
     def _init_data(self, run_id, join_type, input_paths):
@@ -279,7 +300,7 @@ class MetaflowTask(object):
         # Update `_transition` which is expected by the NativeRuntime.
         step_name = self.flow._current_step
         next_steps = self.flow._graph[step_name].out_funcs
-        self.flow._transition = (next_steps, None, None)
+        self.flow._transition = (next_steps, None)
         if self.flow._task_ok:
             # Throw an error if `_control_mapper_tasks` isn't populated.
             mapper_tasks = self.flow._control_mapper_tasks
@@ -372,6 +393,8 @@ class MetaflowTask(object):
         )
 
         step_func = getattr(self.flow, step_name)
+        decorators = step_func.decorators
+
         node = self.flow._graph[step_name]
         join_type = None
         if node.type == "join":
@@ -393,7 +416,7 @@ class MetaflowTask(object):
 
         # 4. initialize the current singleton
         current._set_env(
-            flow_name=self.flow.name,
+            flow=self.flow,
             run_id=run_id,
             step_name=step_name,
             task_id=task_id,
@@ -488,7 +511,6 @@ class MetaflowTask(object):
                         }
                     )
 
-            decorators = step_func.decorators
             for deco in decorators:
 
                 deco.task_pre_step(
