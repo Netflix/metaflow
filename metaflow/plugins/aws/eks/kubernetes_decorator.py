@@ -223,43 +223,23 @@ class KubernetesDecorator(StepDecorator):
             # Start MFLog sidecar to collect task logs.
             self._save_logs_sidecar = SidecarSubProcess("save_logs_periodically")
 
-    def task_post_step(
-        self, step_name, flow, graph, retry_count, max_user_code_retries
-    ):
-        # task_post_step may run locally if fallback is activated for @catch
-        # decorator.
-        if "METAFLOW_KUBERNETES_WORKLOAD" in os.environ:
-            # If `local` metadata is configured, we would need to copy task
-            # execution metadata from the AWS Batch container to user's
-            # local file system after the user code has finished execution.
-            # This happens via datastore as a communication bridge.
-            if self.metadata.TYPE == "local":
-                # Note that the datastore is *always* Amazon S3 (see
-                # runtime_task_created function).
-                sync_local_metadata_to_datastore(
-                    DATASTORE_LOCAL_DIR, self.task_datastore
-                )
-
-    def task_exception(
-        self, exception, step_name, flow, graph, retry_count, max_user_code_retries
-    ):
-        # task_exception may run locally if fallback is activated for @catch
-        # decorator.
-        if "METAFLOW_KUBERNETES_WORKLOAD" in os.environ:
-            # If `local` metadata is configured, we would need to copy task
-            # execution metadata from the AWS Batch container to user's
-            # local file system after the user code has finished execution.
-            # This happens via datastore as a communication bridge.
-            if self.metadata.TYPE == "local":
-                # Note that the datastore is *always* Amazon S3 (see
-                # runtime_task_created function).
-                sync_local_metadata_to_datastore(
-                    DATASTORE_LOCAL_DIR, self.task_datastore
-                )
-
     def task_finished(
         self, step_name, flow, graph, is_task_ok, retry_count, max_retries
     ):
+        # task_finished may run locally if fallback is activated for @catch
+        # decorator.
+        if "METAFLOW_KUBERNETES_WORKLOAD" in os.environ:
+            # If `local` metadata is configured, we would need to copy task
+            # execution metadata from the AWS Batch container to user's
+            # local file system after the user code has finished execution.
+            # This happens via datastore as a communication bridge.
+            if self.metadata.TYPE == "local":
+                # Note that the datastore is *always* Amazon S3 (see
+                # runtime_task_created function).
+                sync_local_metadata_to_datastore(
+                    DATASTORE_LOCAL_DIR, self.task_datastore
+                )
+
         try:
             self._save_logs_sidecar.kill()
         except:
