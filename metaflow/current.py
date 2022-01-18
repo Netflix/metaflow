@@ -16,9 +16,16 @@ class Current(object):
         self._username = None
         self._is_running = False
 
+        def _raise(ex):
+            raise ex
+
+        self.__class__.graph = property(
+            fget=lambda _: _raise(RuntimeError("Graph is not available"))
+        )
+
     def _set_env(
         self,
-        flow_name=None,
+        flow=None,
         run_id=None,
         step_name=None,
         task_id=None,
@@ -28,8 +35,10 @@ class Current(object):
         username=None,
         is_running=True,
     ):
+        if flow is not None:
+            self._flow_name = flow.name
+            self.__class__.graph = property(fget=lambda _, flow=flow: flow._graph_info)
 
-        self._flow_name = flow_name
         self._run_id = run_id
         self._step_name = step_name
         self._task_id = task_id

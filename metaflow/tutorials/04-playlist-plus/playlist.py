@@ -44,7 +44,7 @@ class PlayListFlow(FlowSpec):
 
     recommendations = Parameter(
         "recommendations",
-        help="The number of movies recommended for " "the playlist.",
+        help="The number of movies recommended for the playlist.",
         default=5,
     )
 
@@ -144,7 +144,7 @@ class PlayListFlow(FlowSpec):
     @step
     def join(self, inputs):
         """
-        Join our parallel branches and merge results,
+        Join our parallel branches and merge results.
 
         """
         self.playlist = inputs.genre_movies.movies
