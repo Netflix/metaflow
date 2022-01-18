@@ -207,6 +207,7 @@ def step(
                 cpu=cpu,
                 gpu=gpu,
                 disk=disk,
+                step_env=None,
                 memory=memory,
                 run_time_limit=run_time_limit,
                 env=env,
