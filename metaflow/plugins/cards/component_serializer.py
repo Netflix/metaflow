@@ -54,6 +54,7 @@ class CardComponentCollector:
         self._logger = logger
         # `self._default_editable_card` holds the uuid of the card that is default editable. This card has access to `append`/`extend` methods of `self`
         self._default_editable_card = None
+        self._warned_once = {"__getitem__": {}, "append": False, "extend": False}
 
     @staticmethod
     def create_uuid():
@@ -95,7 +96,6 @@ class CardComponentCollector:
             customize=customize,
             suppress_warnings=suppress_warnings,
         )
-        self._warned_once = {"__getitem__": {}, "append": False, "extend": False}
         self._card_meta[card_uuid] = card_metadata
         self._cards[card_uuid] = []
         return card_metadata
@@ -138,6 +138,11 @@ class CardComponentCollector:
         3. Resolving the `self._default_editable_card` to the card with the`customize=True` argument.
         """
         all_card_meta = list(self._card_meta.values())
+        for c in all_card_meta:
+            ct = get_card_class(c["type"])
+            c["exists"] = False
+            if ct is not None:
+                c["exists"] = True
 
         editable_cards_meta = [
             c
@@ -245,11 +250,20 @@ class CardComponentCollector:
                 len(self._cards) == 1
             ):  # if there is one card which is not the _default_editable_card then the card is not editable
                 card_type = list(self._card_meta.values())[0]["type"]
+                if list(self._card_meta.values())[0]["exists"]:
+                    _crdwr = "Card of type `%s` is not an editable card. " % card_type
+                    _endwr = (
+                        "Please use an editable card. "  # todo : link to documentation
+                    )
+                else:
+                    _crdwr = "Card of type `%s` doesn't exist. " % card_type
+                    _endwr = "Please use a card `type` which exits. "  # todo : link to documentation
+
                 _warning_msg = (
-                    "Card of type `%s` is not an editable card. "
+                    "%s"
                     "Component will not be appended and `current.card.append` will not work for any call during this runtime execution. "
-                    "Please use an editable card. "  # todo : link to documentation
-                ) % card_type
+                    "%s"
+                ) % (_crdwr, _endwr)
             else:
                 _warning_msg = (
                     "`current.card.append` cannot disambiguate between multiple editable cards. "
