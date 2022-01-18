@@ -298,6 +298,8 @@ class FlowGraph(object):
                 d["foreach_artifact"] = node.foreach_param
             elif d["type"] == "split-parallel":
                 d["num_parallel"] = node.num_parallel
+            if node.matching_join:
+                d["matching_join"] = node.matching_join
             return d
 
         def populate_block(start_name, end_name):
