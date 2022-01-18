@@ -62,10 +62,10 @@ try:
             if module_override is not None:
                 v[1](_ext_plugins[k], module_override)
 except Exception as e:
-    _ext_debug("GOT ERROR %s" % e)
+    _ext_debug("\tWARNING: ignoring all plugins due to error during import: %s" % e)
     _ext_plugins = {k: v[0] for k, v in _expected_extensions.items()}
 
-_ext_debug("\tPlugins imported are: %s" % str(_ext_plugins))
+_ext_debug("\tWill import the following plugins: %s" % str(_ext_plugins))
 
 
 def get_plugin_cli():
