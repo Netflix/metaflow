@@ -165,7 +165,7 @@ class Image(MetaflowCardComponent):
             )
 
     @classmethod
-    def from_matplotlib_plot(cls, plot, label=None):
+    def from_matplotlib(cls, plot, label=None):
         import io
 
         try:
