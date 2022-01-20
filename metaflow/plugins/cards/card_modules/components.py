@@ -9,14 +9,37 @@ from .basic import (
 )
 from .card import MetaflowCardComponent
 from .convert_to_native_type import TaskToDict
+from .renderer_tools import render_safely
 
 
-class Artifact(MetaflowCardComponent):
+class UserComponent(MetaflowCardComponent):
+    pass
+
+
+class Artifact(UserComponent):
+    """
+    This class helps visualize any variable on the `MetaflowCard`.
+    The variable will be truncated using `reprlib.Repr.repr()`.
+
+    ### Usage :
+    ```python
+    @card
+    @step
+    def my_step(self):
+        from metaflow.cards import Artifact
+        from metaflow import current
+        x = dict(a=2,b=2..)
+        current.card.append(Artifact(x)) # Adds a name to the artifact
+        current.card.append(Artifact(x,'my artifact name'))
+    ```
+    """
+
     def __init__(self, artifact, name=None, compressed=True):
         self._artifact = artifact
         self._name = name
         self._task_to_dict = TaskToDict(only_repr=compressed)
 
+    @render_safely
     def render(self):
         artifact = self._task_to_dict.infer_object(self._artifact)
         artifact["name"] = None
@@ -25,7 +48,53 @@ class Artifact(MetaflowCardComponent):
         return ArtifactsComponent(data=[artifact]).render()
 
 
-class Table(MetaflowCardComponent):
+class Table(UserComponent):
+    """
+    This class helps visualize information in the form of a table in a `MetaflowCard`.
+    `Table` can take other `MetaflowCardComponent`s like `Artifact`, `Image`, `Markdown` and `Error` as sub elements.
+
+    ### Parameters
+    - `data` (List[List[Any]]) : The data to see in the table. Input is a 2d list that contains native types or `MetaflowCardComponent`s like `Artifact`, `Image`, `Markdown` and `Error`. Doesn't play friendly with `dict` as a sub-element. If passing a `dict`, pass it via `Artifact`. Example : `Table([[Artifact(my_dictionary)]])`. If a non serializable object is passed as a sub-element then the table cell on the `MetaflowCard` will show up as `<object>`. columns.  Defaults to [[]].
+    - `headers` (List[str]) : The names of the columns.  Defaults to [].
+
+    ### Usage with other components:
+    ```python
+    @card
+    @step
+    def my_step(self):
+        from metaflow.cards import Table, Artifact
+        from metaflow import current
+        x = dict(a=2,b=2..)
+        y = dict(b=3,c=2..)
+        # Can take other components as arguments
+        current.card.append(
+            Table([[
+                Artifact(x), # Adds a name to the artifact
+                Artifact(y), # Adds a name to the artifact
+            ]])
+        current.card.append(Artifact(x,'my artifact name'))
+    ```
+    ### Usage with dataframes:
+    ```python
+    @card
+    @step
+    def my_step(self):
+        from metaflow.cards import Table
+        from metaflow import current
+        # Can be created from a dataframe
+        import pandas as pd
+        import numpy as np
+        current.card.append(
+            Table.from_dataframe(
+                pandas.DataFrame(
+                    np.random.randint(0, 100, size=(15, 4)),
+                    columns=list("ABCD"),
+                )
+            )
+        )
+    ```
+    """
+
     def __init__(self, data=[[]], headers=[]):
         header_bool, data_bool = TableComponent.validate(headers, data)
         self._headers = []
@@ -69,13 +138,72 @@ class Table(MetaflowCardComponent):
             for row in self._data
         ]
 
+    @render_safely
     def render(self):
         return TableComponent(
             headers=self._headers, data=self._render_subcomponents()
         ).render()
 
 
-class Image(MetaflowCardComponent):
+class Image(UserComponent):
+    """
+    This class helps visualize an image in a `MetaflowCard`. `Image`s can be created direcly from `bytes` or `PIL.Image`s or Matplotib figures.
+
+    ### Parameters
+    - `src` (bytes) : The image source in `bytes`.
+    - `label` (str) : Label to the image show on the `MetaflowCard`.
+
+    ### Usage
+    ```python
+    @card
+    @step
+    def my_step(self):
+        from metaflow.cards import Image
+        from metaflow import current
+        import requests
+        current.card.append(
+            Image(
+                requests.get("https://www.gif-vif.com/hacker-cat.gif").content,
+                "Image From Bytes",
+            ),
+        )
+    ```
+
+    #### `Image.from_matplotlib` :
+    ```python
+    @card
+    @step
+    def my_step(self):
+        from metaflow.cards import Image
+        from metaflow import current
+        import pandas as pd
+        import numpy as np
+        current.card.append(
+            Image.from_matplotlib(
+                pandas.DataFrame(
+                    np.random.randint(0, 100, size=(15, 4)),
+                    columns=list("ABCD"),
+                ).plot()
+            )
+        )
+    ```
+    #### `Image.from_pil_image` :
+    ```python
+    @card
+    @step
+    def my_step(self):
+        from metaflow.cards import Image
+        from metaflow import current
+        from PIL import Image as PILImage
+        current.card.append(
+            Image.from_pil_image(
+                PILImage.fromarray(np.random.randn(1024, 768), "RGB"),
+                "From PIL Image",
+            ),
+        )
+    ```
+    """
+
     @staticmethod
     def render_fail_headline(msg):
         return "[IMAGE_RENDER FAIL]: %s" % msg
@@ -165,7 +293,7 @@ class Image(MetaflowCardComponent):
             )
 
     @classmethod
-    def from_matplotlib_plot(cls, plot, label=None):
+    def from_matplotlib(cls, plot, label=None):
         import io
 
         try:
@@ -203,6 +331,7 @@ class Image(MetaflowCardComponent):
                 "%s" % traceback.format_exc(),
             )
 
+    @render_safely
     def render(self):
         if self._error_comp is not None:
             return self._error_comp.render()
@@ -214,28 +343,66 @@ class Image(MetaflowCardComponent):
         ).render()
 
 
-class Error(MetaflowCardComponent):
+class Error(UserComponent):
+    """
+    This class helps visualize Error's on the `MetaflowCard`. It can help catch and print stack traces to errors that happen in `@step` code.
+
+    ### Parameters
+    - `exception` (Exception) : The `Exception` to visualize. This value will be `repr`'d before passed down to `MetaflowCard`
+    - `title` (str) : The title that will appear over the visualized  `Exception`.
+
+    ### Usage
+    ```python
+    @card
+    @step
+    def my_step(self):
+        from metaflow.cards import Error
+        from metaflow import current
+        try:
+            ...
+            ...
+        except Exception as e:
+            current.card.append(
+                Error(e,"Something misbehaved")
+            )
+        ...
+    ```
+    """
+
     def __init__(self, exception, title=None):
         self._exception = exception
         self._title = title
 
+    @render_safely
     def render(self):
-        return SectionComponent(
-            title=self._title, contents=[LogComponent(repr(self._exception))]
-        ).render()
+        return LogComponent("%s\n\n%s" % (self._title, repr(self._exception))).render()
 
 
-class Section(MetaflowCardComponent):
-    def __init__(self, title=None):
-        self._title = title
+class Markdown(UserComponent):
+    """
+    This class helps visualize Markdown on the `MetaflowCard`
 
-    def render(self):
-        return SectionComponent(self._title, None, None, []).render()
+    ### Parameters
+    - `text` (str) : A markdown string
 
+    ### Usage
+    ```python
+    @card
+    @step
+    def my_step(self):
+        from metaflow.cards import Markdown
+        from metaflow import current
+        current.card.append(
+            Markdown("# This is a header appended from @step code")
+        )
+        ...
+    ```
 
-class Markdown(MetaflowCardComponent):
+    """
+
     def __init__(self, text=None):
         self._text = text
 
+    @render_safely
     def render(self):
         return MarkdownComponent(self._text).render()
