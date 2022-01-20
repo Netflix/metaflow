@@ -71,10 +71,10 @@ class MetadataCheck(MetaflowCheck):
                                     task,
                                     name,
                                     field,
-                                    truncate(value),
+                                    truncate(v),
                                     name,
                                     field,
-                                    truncate(data[field]),
+                                    truncate(data.get(field, None)),
                                 )
                             )
                 elif artifact != value:

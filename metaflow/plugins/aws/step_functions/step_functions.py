@@ -24,6 +24,7 @@ from metaflow import R
 from .step_functions_client import StepFunctionsClient
 from .event_bridge_client import EventBridgeClient
 from ..batch.batch import Batch
+from ..aws_utils import compute_resource_attributes
 
 from metaflow.mflog import capture_output_to_mflog
 
@@ -228,6 +229,12 @@ class StepFunctions(object):
 
         # Visit every node of the flow and recursively build the state machine.
         def _visit(node, workflow, exit_node=None):
+            if node.parallel_foreach:
+                raise StepFunctionsException(
+                    "Deploying flows with @parallel decorator(s) "
+                    "to AWS Step Functions is not supported currently."
+                )
+
             # Assign an AWS Batch job to the AWS Step Functions state
             # and pass the intermediate state by exposing `JobId` and
             # `Parameters` to the child job(s) as outputs. `Index` and
@@ -250,12 +257,12 @@ class StepFunctions(object):
                 workflow.add_state(state.end())
             # Continue linear assignment within the (sub)workflow if the node
             # doesn't branch or fork.
-            elif node.type in ("linear", "join"):
+            elif node.type in ("start", "linear", "join"):
                 workflow.add_state(state.next(node.out_funcs[0]))
                 _visit(self.graph[node.out_funcs[0]], workflow, exit_node)
             # Create a `Parallel` state and assign sub workflows if the node
             # branches out.
-            elif node.type == "split-and":
+            elif node.type == "split":
                 branch_name = hashlib.sha224(
                     "&".join(node.out_funcs).encode("utf-8")
                 ).hexdigest()
@@ -516,7 +523,7 @@ class StepFunctions(object):
                         # splits infinitely scalable because otherwise we would
                         # be bounded by the 32K state limit for the outputs. So,
                         # instead of referencing `Parameters` fields by index
-                        # (like in `split-and`), we can just reference them
+                        # (like in `split`), we can just reference them
                         # directly.
                         attrs["split_parent_task_id_%s.$" % node.split_parents[-1]] = (
                             "$.Parameters.split_parent_task_id_%s"
@@ -621,8 +628,13 @@ class StepFunctions(object):
 
         # Resolve AWS Batch resource requirements.
         batch_deco = [deco for deco in node.decorators if deco.name == "batch"][0]
-        resources = batch_deco.attributes
-
+        resources = {}
+        resources.update(batch_deco.attributes)
+        resources.update(
+            compute_resource_attributes(
+                node.decorators, batch_deco, batch_deco.resource_defaults
+            )
+        )
         # Resolve retry strategy.
         user_code_retries, total_retries = self._get_retries(node)
 

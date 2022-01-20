@@ -18,7 +18,7 @@ from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.sidecar import SidecarSubProcess
 
 from .kubernetes import KubernetesException
-from ..aws_utils import get_docker_registry
+from ..aws_utils import get_docker_registry, compute_resource_attributes
 
 
 class KubernetesDecorator(StepDecorator):
@@ -61,9 +61,10 @@ class KubernetesDecorator(StepDecorator):
 
     name = "kubernetes"
     defaults = {
-        "cpu": "1",
-        "memory": "4096",
-        "disk": "10240",
+        "cpu": None,
+        "memory": None,
+        "disk": None,
+        "gpu": None,
         "image": None,
         "service_account": None,
         "secrets": None,  # e.g., mysecret
@@ -71,6 +72,12 @@ class KubernetesDecorator(StepDecorator):
         "gpu": "0",
         # "shared_memory": None,
         "namespace": None,
+    }
+    resource_defaults = {
+        "cpu": "1",
+        "memory": "4096",
+        "disk": "10240",
+        "gpu": "0",
     }
     package_url = None
     package_sha = None
@@ -121,15 +128,11 @@ class KubernetesDecorator(StepDecorator):
         self.environment = environment
         self.step = step
         self.flow_datastore = flow_datastore
-        for deco in decos:
-            if isinstance(deco, ResourcesDecorator):
-                for k, v in deco.attributes.items():
-                    # We use the larger of @resources and @k8s attributes
-                    # TODO: Fix https://github.com/Netflix/metaflow/issues/467
-                    my_val = self.attributes.get(k)
-                    if not (my_val is None and v is None):
-                        self.attributes[k] = str(max(int(my_val or 0), int(v or 0)))
+        self.attributes.update(
+            compute_resource_attributes(decos, self, self.resource_defaults)
+        )
 
+        for deco in decos:
             if getattr(deco, "IS_PARALLEL", False):
                 raise KubernetesException(
                     "Kubernetes decorator does not support parallel execution yet."
@@ -223,43 +226,23 @@ class KubernetesDecorator(StepDecorator):
             # Start MFLog sidecar to collect task logs.
             self._save_logs_sidecar = SidecarSubProcess("save_logs_periodically")
 
-    def task_post_step(
-        self, step_name, flow, graph, retry_count, max_user_code_retries
-    ):
-        # task_post_step may run locally if fallback is activated for @catch
-        # decorator.
-        if "METAFLOW_KUBERNETES_WORKLOAD" in os.environ:
-            # If `local` metadata is configured, we would need to copy task
-            # execution metadata from the AWS Batch container to user's
-            # local file system after the user code has finished execution.
-            # This happens via datastore as a communication bridge.
-            if self.metadata.TYPE == "local":
-                # Note that the datastore is *always* Amazon S3 (see
-                # runtime_task_created function).
-                sync_local_metadata_to_datastore(
-                    DATASTORE_LOCAL_DIR, self.task_datastore
-                )
-
-    def task_exception(
-        self, exception, step_name, flow, graph, retry_count, max_user_code_retries
-    ):
-        # task_exception may run locally if fallback is activated for @catch
-        # decorator.
-        if "METAFLOW_KUBERNETES_WORKLOAD" in os.environ:
-            # If `local` metadata is configured, we would need to copy task
-            # execution metadata from the AWS Batch container to user's
-            # local file system after the user code has finished execution.
-            # This happens via datastore as a communication bridge.
-            if self.metadata.TYPE == "local":
-                # Note that the datastore is *always* Amazon S3 (see
-                # runtime_task_created function).
-                sync_local_metadata_to_datastore(
-                    DATASTORE_LOCAL_DIR, self.task_datastore
-                )
-
     def task_finished(
         self, step_name, flow, graph, is_task_ok, retry_count, max_retries
     ):
+        # task_finished may run locally if fallback is activated for @catch
+        # decorator.
+        if "METAFLOW_KUBERNETES_WORKLOAD" in os.environ:
+            # If `local` metadata is configured, we would need to copy task
+            # execution metadata from the AWS Batch container to user's
+            # local file system after the user code has finished execution.
+            # This happens via datastore as a communication bridge.
+            if self.metadata.TYPE == "local":
+                # Note that the datastore is *always* Amazon S3 (see
+                # runtime_task_created function).
+                sync_local_metadata_to_datastore(
+                    DATASTORE_LOCAL_DIR, self.task_datastore
+                )
+
         try:
             self._save_logs_sidecar.kill()
         except:
