@@ -10,30 +10,6 @@ JS_PATH = os.path.join(ABS_DIR_PATH, "main.js")
 CSS_PATH = os.path.join(ABS_DIR_PATH, "bundle.css")
 
 
-def transform_flow_graph(step_info):
-    def node_to_type(node_type):
-        if node_type in ["linear", "start", "end", "join"]:
-            return node_type
-        elif node_type == "split":
-            return "split"
-        elif node_type == "split-parallel" or node_type == "split-foreach":
-            return "foreach"
-        return "unknown"  # Should never happen
-
-    graph_dict = {}
-    for stepname in step_info:
-        graph_dict[stepname] = {
-            "type": node_to_type(step_info[stepname]["type"]),
-            "box_next": step_info[stepname]["type"] not in ("linear", "join"),
-            "box_ends": None
-            if "matching_join" not in step_info[stepname]
-            else step_info[stepname]["matching_join"],
-            "next": step_info[stepname]["next"],
-            "doc": step_info[stepname]["doc"],
-        }
-    return graph_dict
-
-
 def read_file(path):
     with open(path, "r") as f:
         return f.read()
@@ -505,8 +481,8 @@ class ErrorCard(MetaflowCard):
     type = "error"
 
     def __init__(self, options={}, components=[], graph=None):
+        self._graph = graph
         self._only_repr = True
-        self._graph = None if graph is None else transform_flow_graph(graph)
         self._components = components
 
     def render(self, task, stack_trace=None):
@@ -550,8 +526,8 @@ class DefaultCard(MetaflowCard):
     type = "default"
 
     def __init__(self, options=dict(only_repr=True), components=[], graph=None):
+        self._graph = graph
         self._only_repr = True
-        self._graph = None if graph is None else transform_flow_graph(graph)
         if "only_repr" in options:
             self._only_repr = options["only_repr"]
         self._components = components
@@ -584,7 +560,7 @@ class BlankCard(MetaflowCard):
     type = "blank"
 
     def __init__(self, options=dict(title=""), components=[], graph=None):
-        self._graph = None if graph is None else transform_flow_graph(graph)
+        self._graph = graph
         self._title = ""
         if "title" in options:
             self._title = options["title"]
