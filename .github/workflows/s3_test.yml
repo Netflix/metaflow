@@ -1,6 +1,9 @@
 name: pr-datastore-tests
 
 on:
+  push:
+    branches:
+    - master
   pull_request_target:
     types:
       - opened
