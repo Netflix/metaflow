@@ -40,6 +40,11 @@ def read_file(path):
 
 
 class DefaultComponent(MetaflowCardComponent):
+    """
+    The `DefaultCard` and the `BlankCard` use a JS framework that build the HTML dynamically from JSON. The `DefaultComponent` is the base component that helps build the JSON when `render` is called.
+
+    The underlying JS framewok consists of various types of objects. These can be found in: "metaflow/plugins/cards/ui/types.ts". The `type` attribute in a `DefaultComponent` corresponds to the type of component in the Javascript framework.
+    """
 
     type = None
 
@@ -265,9 +270,8 @@ class ErrorComponent(MetaflowCardComponent):
         self._error_message = error_message
 
     def render(self):
-        return SectionComponent(
-            title=self._headline,
-            contents=[LogComponent(data=self._error_message)],
+        return LogComponent(
+            data="%s\n\n%s" % (self._headline, self._error_message)
         ).render()
 
 

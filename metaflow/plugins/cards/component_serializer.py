@@ -1,5 +1,6 @@
 from .card_modules import MetaflowCardComponent
-from .card_modules.basic import ErrorComponent, SerializationErrorComponent
+from .card_modules.basic import ErrorComponent, SectionComponent
+from .card_modules.components import UserComponent
 import random
 import string
 import json
@@ -54,6 +55,7 @@ class CardComponentCollector:
         self._logger = logger
         # `self._default_editable_card` holds the uuid of the card that is default editable. This card has access to `append`/`extend` methods of `self`
         self._default_editable_card = None
+        self._warned_once = {"__getitem__": {}, "append": False, "extend": False}
 
     @staticmethod
     def create_uuid():
@@ -95,7 +97,6 @@ class CardComponentCollector:
             customize=customize,
             suppress_warnings=suppress_warnings,
         )
-        self._warned_once = {"__getitem__": {}, "append": False, "extend": False}
         self._card_meta[card_uuid] = card_metadata
         self._cards[card_uuid] = []
         return card_metadata
@@ -138,6 +139,11 @@ class CardComponentCollector:
         3. Resolving the `self._default_editable_card` to the card with the`customize=True` argument.
         """
         all_card_meta = list(self._card_meta.values())
+        for c in all_card_meta:
+            ct = get_card_class(c["type"])
+            c["exists"] = False
+            if ct is not None:
+                c["exists"] = True
 
         editable_cards_meta = [
             c
@@ -245,11 +251,20 @@ class CardComponentCollector:
                 len(self._cards) == 1
             ):  # if there is one card which is not the _default_editable_card then the card is not editable
                 card_type = list(self._card_meta.values())[0]["type"]
+                if list(self._card_meta.values())[0]["exists"]:
+                    _crdwr = "Card of type `%s` is not an editable card. " % card_type
+                    _endwr = (
+                        "Please use an editable card. "  # todo : link to documentation
+                    )
+                else:
+                    _crdwr = "Card of type `%s` doesn't exist. " % card_type
+                    _endwr = "Please use a card `type` which exits. "  # todo : link to documentation
+
                 _warning_msg = (
-                    "Card of type `%s` is not an editable card. "
+                    "%s"
                     "Component will not be appended and `current.card.append` will not work for any call during this runtime execution. "
-                    "Please use an editable card. "  # todo : link to documentation
-                ) % card_type
+                    "%s"
+                ) % (_crdwr, _endwr)
             else:
                 _warning_msg = (
                     "`current.card.append` cannot disambiguate between multiple editable cards. "
@@ -291,37 +306,42 @@ class CardComponentCollector:
         self._cards[self._default_editable_card].extend(components)
 
     def _serialize_components(self, card_uuid):
-        import traceback
-
+        """
+        This method renders components present in a card to strings/json.
+        Components exposed by metaflow ensure that they render safely. If components
+        don't render safely then we don't add them to the final list of serialized functions
+        """
         serialized_components = []
         if card_uuid not in self._cards:
             return []
+        has_user_components = any(
+            [
+                issubclass(type(component), UserComponent)
+                for component in self._cards[card_uuid]
+            ]
+        )
         for component in self._cards[card_uuid]:
             if not issubclass(type(component), MetaflowCardComponent):
                 continue
             try:
                 rendered_obj = component.render()
             except:
-                error_str = traceback.format_exc()
-                serialized_components.append(
-                    SerializationErrorComponent(
-                        component.__class__.__name__, error_str
-                    ).render()
-                )
+                continue
             else:
                 if not (type(rendered_obj) == str or type(rendered_obj) == dict):
-                    rendered_obj = SerializationErrorComponent(
-                        component.__class__.__name__,
-                        "Component render didn't return a `string` or `dict`",
-                    ).render()
+                    continue
                 else:
-                    try:  # check if rendered object is json serializable.
-                        json.dumps(rendered_obj)
-                    except (TypeError, OverflowError) as e:
-                        rendered_obj = SerializationErrorComponent(
-                            component.__class__.__name__,
-                            "Rendered Component cannot be JSON serialized. \n\n %s"
-                            % str(e),
-                        ).render()
+                    # Since `UserComponent`s are safely_rendered using render_tools.py
+                    # we don't need to check JSON serialization as @render_tools.render_safely
+                    # decorator ensures this check so there is no need to re-serialize
+                    if not issubclass(type(component), UserComponent):
+                        try:  # check if rendered object is json serializable.
+                            json.dumps(rendered_obj)
+                        except (TypeError, OverflowError) as e:
+                            continue
                 serialized_components.append(rendered_obj)
+        if has_user_components and len(serialized_components) > 0:
+            serialized_components = [
+                SectionComponent(contents=serialized_components).render()
+            ]
         return serialized_components
