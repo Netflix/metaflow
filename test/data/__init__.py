@@ -13,4 +13,5 @@ from metaflow import FlowSpec
 # ast parsing in metaflow.graph doesn't like this class
 # to be defined in test_s3.py. Defining it here works.
 class FakeFlow(FlowSpec):
-    pass
+    def __init__(self, name="FakeFlow", use_cli=False):
+        self.name = name
