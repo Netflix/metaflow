@@ -24,6 +24,7 @@ from metaflow import R
 from .step_functions_client import StepFunctionsClient
 from .event_bridge_client import EventBridgeClient
 from ..batch.batch import Batch
+from ..aws_utils import compute_resource_attributes
 
 from metaflow.mflog import capture_output_to_mflog
 
@@ -627,8 +628,13 @@ class StepFunctions(object):
 
         # Resolve AWS Batch resource requirements.
         batch_deco = [deco for deco in node.decorators if deco.name == "batch"][0]
-        resources = batch_deco.attributes
-
+        resources = {}
+        resources.update(batch_deco.attributes)
+        resources.update(
+            compute_resource_attributes(
+                node.decorators, batch_deco, batch_deco.resource_defaults
+            )
+        )
         # Resolve retry strategy.
         user_code_retries, total_retries = self._get_retries(node)
 
