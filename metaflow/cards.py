@@ -5,7 +5,6 @@ from metaflow.plugins.cards.card_modules.components import (
     Table,
     Image,
     Error,
-    Section,
     Markdown,
 )
 from metaflow.plugins.cards.card_modules.basic import (
