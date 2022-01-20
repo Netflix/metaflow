@@ -40,7 +40,7 @@ def get_modules(extension_point):
             "Metaflow extension point '%s' not supported" % extension_point
         )
     _ext_debug("Getting modules for extension point '%s'..." % extension_point)
-    for pkg in _pkgs_per_extension_point[extension_point]:
+    for pkg in _pkgs_per_extension_point.get(extension_point, []):
         _ext_debug("\tFound TL '%s' from '%s'" % (pkg.tl_package, pkg.package_name))
         m = _get_extension_config(pkg.tl_package, extension_point, pkg.config_module)
         if m:
@@ -180,7 +180,7 @@ def _ext_debug(*args, **kwargs):
 def _get_extension_packages():
     if not _mfext_supported:
         _ext_debug("Not supported for your Python version -- 3.4+ is needed")
-        return []
+        return [], {}
 
     # If we have an INFO file with the appropriate information (if running from a saved
     # code package for example), we use that directly
@@ -210,7 +210,7 @@ def _get_extension_packages():
             # error if there is a transitive import error)
             if not (isinstance(e, ModuleNotFoundError) and e.name == EXT_PKG):
                 raise
-            return [], []
+            return [], {}
 
     # At this point, we look at all the paths and create a set. As we find distributions
     # that match it, we will remove from the set and then will be left with any
@@ -483,7 +483,7 @@ def _get_extension_packages():
             "Conflicts in %s configuration files:\n%s" % (EXT_PKG, "\n".join(errors))
         )
 
-    extension_points_to_pkg.default_factory = list
+    extension_points_to_pkg.default_factory = None
     # Figure out the per extension point order
     for k, v in extension_points_to_pkg.items():
         l = [v[pkg].values() for pkg in mf_pkg_list if pkg in v]
