@@ -56,7 +56,9 @@ from metaflow.extension_support import (
     get_modules,
     lazy_load_aliases,
     load_globals,
+    load_module,
     EXT_PKG,
+    _ext_debug,
 )
 
 
@@ -78,38 +80,18 @@ try:
         tl_module = m.module.__dict__.get("toplevel", None)
         if tl_module is not None:
             _tl_modules.append(".".join([EXT_PKG, m.tl_package, "toplevel", tl_module]))
-except:
-    pass
+    _ext_debug("Got overrides to load: %s" % _override_modules)
+    _ext_debug("Got top-level imports: %s" % _tl_modules)
+except Exception as e:
+    _ext_debug("Error in importing toplevel/overrides: %s" % e)
 
 # Load overrides now that we have them (in the proper order)
-lazy_load_custom_modules = {}
 for m in _override_modules:
-    try:
-        extension_module = importlib.import_module(m)
-    except ImportError as e:
-        ver = sys.version_info[0] * 10 + sys.version_info[1]
-        if ver >= 36:
-            # e.name is set to the name of the package that fails to load
-            # so don't error ONLY IF the error is importing this module (but do
-            # error if there is a transitive import error)
-            errored_names = [EXT_PKG]
-            parts = m.split(".")
-            for p in parts[1:]:
-                errored_names.append("%s.%s" % (errored_names[-1], p))
-            if not (isinstance(e, ModuleNotFoundError) and e.name in errored_names):
-                print(
-                    "Cannot load %s top-level configuration for '%s' -- "
-                    "if you want to ignore, uninstall %s package"
-                    % (EXT_PKG, m, EXT_PKG)
-                )
-                raise
-    else:
+    extension_module = load_module(m)
+    if extension_module:
         # We load only modules
         tl_package = m.split(".")[1]
-        lazy_load_custom_modules.update(
-            alias_submodules(extension_module, tl_package, None)
-        )
-lazy_load_aliases(lazy_load_custom_modules)
+        lazy_load_aliases(alias_submodules(extension_module, tl_package, None))
 
 from .event_logger import EventLogger
 
@@ -157,43 +139,19 @@ from .multicore_utils import parallel_imap_unordered, parallel_map
 from .metaflow_profile import profile
 
 __version_addl__ = []
-lazy_load_custom_modules = {}
+_ext_debug("Loading top-level modules")
 for m in _tl_modules:
-    try:
-        extension_module = importlib.import_module(m)
-    except ImportError as e:
-        ver = sys.version_info[0] * 10 + sys.version_info[1]
-        if ver >= 36:
-            # e.name is set to the name of the package that fails to load
-            # so don't error ONLY IF the error is importing this module (but do
-            # error if there is a transitive import error)
-            errored_names = [EXT_PKG]
-            parts = m.split(".")
-            for p in parts[1:]:
-                errored_names.append("%s.%s" % (errored_names[-1], p))
-            if not (isinstance(e, ModuleNotFoundError) and e.name in errored_names):
-                print(
-                    "Cannot load %s top-level configuration for '%s' -- "
-                    "if you want to ignore, uninstall %s package"
-                    % (EXT_PKG, m, EXT_PKG)
-                )
-                raise
-    else:
+    extension_module = load_module(m)
+    if extension_module:
         tl_package = m.split(".")[1]
-        # We load into globals whatever we have in extension_module
-        # We specifically exclude any modules that may be included (like sys, os, etc)
-        # *except* for ones that are part of EXT_PKG (basically providing
-        # an aliasing mechanism)
-        load_globals(extension_module, globals())
-        lazy_load_custom_modules.update(
-            alias_submodules(extension_module, tl_package, None)
+        load_globals(extension_module, globals(), extra_indent=True)
+        lazy_load_aliases(
+            alias_submodules(extension_module, tl_package, None, extra_indent=True)
         )
         version_info = getattr(extension_module, "__mf_extensions__", "<unk>")
         if extension_module.__version__:
             version_info = "%s(%s)" % (version_info, extension_module.__version__)
         __version_addl__.append(version_info)
-
-lazy_load_aliases(lazy_load_custom_modules)
 
 if __version_addl__:
     __version_addl__ = ";".join(__version_addl__)
@@ -202,10 +160,12 @@ else:
 
 # Erase all temporary names to avoid leaking things
 for _n in [
+    "_ext_debug",
     "alias_submodules",
     "get_modules",
     "lazy_load_aliases",
     "load_globals",
+    "load_module",
     EXT_PKG,
     "_override_modules",
     "_tl_modules",
@@ -213,11 +173,7 @@ for _n in [
     "m",
     "override_module",
     "tl_module",
-    "lazy_load_custom_modules",
     "extension_module",
-    "ver",
-    "errored_names",
-    "p",
     "tl_package",
     "version_info",
 ]:
