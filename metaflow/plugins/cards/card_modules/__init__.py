@@ -1,6 +1,7 @@
 import os
+import traceback
 from .card import MetaflowCard, MetaflowCardComponent
-from metaflow.extension_support import get_modules, EXT_PKG
+from metaflow.extension_support import get_modules, EXT_PKG, _ext_debug
 
 
 def iter_namespace(ns_pkg):
@@ -34,13 +35,16 @@ def _get_external_card_packages(with_paths=False):
                 if not ispkg_c:
                     continue
                 cm = importlib.import_module(card_mod)
+                _ext_debug("Importing card package %s" % card_mod)
                 if with_paths:
                     card_packages.append((fndx.path, cm))
                 else:
                     card_packages.append(cm)
-            except:
-                # todo : how to tell the user that a module will not be imported
-                pass
+            except Exception as e:
+                _ext_debug(
+                    "External Card Module Import Exception \n\n %s \n\n %s"
+                    % (str(e), traceback.format_exc())
+                )
         if with_paths:
             card_packages = [
                 (
