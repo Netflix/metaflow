@@ -10,6 +10,7 @@ from collections import defaultdict, namedtuple
 from itertools import chain
 
 __all__ = (
+    "load_module",
     "get_modules",
     "dump_module_info",
     "load_globals",
@@ -30,6 +31,11 @@ MFExtPackage = namedtuple("MFExtPackage", "package_name tl_package config_module
 MFExtModule = namedtuple("MFExtModule", "tl_package module")
 
 
+def load_module(module_name):
+    _ext_debug("Loading module '%s'..." % module_name)
+    return _attempt_load_module(module_name)
+
+
 def get_modules(extension_point):
     modules_to_load = []
     if not _mfext_supported:
@@ -40,7 +46,7 @@ def get_modules(extension_point):
             "Metaflow extension point '%s' not supported" % extension_point
         )
     _ext_debug("Getting modules for extension point '%s'..." % extension_point)
-    for pkg in _pkgs_per_extension_point[extension_point]:
+    for pkg in _pkgs_per_extension_point.get(extension_point, []):
         _ext_debug("\tFound TL '%s' from '%s'" % (pkg.tl_package, pkg.package_name))
         m = _get_extension_config(pkg.tl_package, extension_point, pkg.config_module)
         if m:
@@ -180,7 +186,7 @@ def _ext_debug(*args, **kwargs):
 def _get_extension_packages():
     if not _mfext_supported:
         _ext_debug("Not supported for your Python version -- 3.4+ is needed")
-        return []
+        return [], {}
 
     # If we have an INFO file with the appropriate information (if running from a saved
     # code package for example), we use that directly
@@ -210,7 +216,7 @@ def _get_extension_packages():
             # error if there is a transitive import error)
             if not (isinstance(e, ModuleNotFoundError) and e.name == EXT_PKG):
                 raise
-            return [], []
+            return [], {}
 
     # At this point, we look at all the paths and create a set. As we find distributions
     # that match it, we will remove from the set and then will be left with any
@@ -483,7 +489,7 @@ def _get_extension_packages():
             "Conflicts in %s configuration files:\n%s" % (EXT_PKG, "\n".join(errors))
         )
 
-    extension_points_to_pkg.default_factory = list
+    extension_points_to_pkg.default_factory = None
     # Figure out the per extension point order
     for k, v in extension_points_to_pkg.items():
         l = [v[pkg].values() for pkg in mf_pkg_list if pkg in v]
@@ -494,31 +500,42 @@ def _get_extension_packages():
 _all_packages, _pkgs_per_extension_point = _get_extension_packages()
 
 
-def _get_extension_config(tl_pkg, extension_point, config_module):
-    module_name = ".".join([EXT_PKG, tl_pkg, extension_point])
+def _attempt_load_module(module_name):
     try:
-        if config_module is not None:
-            _ext_debug("\t\tAttempting to load '%s'" % config_module)
-            extension_module = importlib.import_module(config_module)
-        else:
-            _ext_debug("\t\tAttempting to load '%s'" % module_name)
-            extension_module = importlib.import_module(module_name)
+        extension_module = importlib.import_module(module_name)
     except ImportError as e:
         if _py_ver >= 36:
             # e.name is set to the name of the package that fails to load
             # so don't error ONLY IF the error is importing this module (but do
             # error if there is a transitive import error)
-            errored_names = [EXT_PKG, module_name]
+            errored_names = [EXT_PKG]
+            parts = module_name.split(".")
+            for p in parts[1:]:
+                errored_names.append("%s.%s" % (errored_names[-1], p))
             if not (isinstance(e, ModuleNotFoundError) and e.name in errored_names):
                 print(
-                    "The following exception ocurred while loading a %s module (%s)"
+                    "The following exception occured while trying to load %s ('%s')"
                     % (EXT_PKG, module_name)
                 )
                 raise
-            _ext_debug("\t\tUnknown error when loading '%s': %s" % (module_name, e))
-            return None
+            else:
+                _ext_debug("\t\tUnknown error when loading '%s': %s" % (module_name, e))
+                return None
     else:
+        return extension_module
+
+
+def _get_extension_config(tl_pkg, extension_point, config_module):
+    module_name = ".".join([EXT_PKG, tl_pkg, extension_point])
+    if config_module is not None:
+        _ext_debug("\t\tAttempting to load '%s'" % config_module)
+        extension_module = _attempt_load_module(config_module)
+    else:
+        _ext_debug("\t\tAttempting to load '%s'" % module_name)
+        extension_module = _attempt_load_module(module_name)
+    if extension_module:
         return MFExtModule(tl_package=tl_pkg, module=extension_module)
+    return None
 
 
 class _LazyLoader(object):
