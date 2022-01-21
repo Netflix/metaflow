@@ -10,7 +10,7 @@ Getting up and running with Metaflow is easy. Install Metaflow from [github](htt
 
 >```R
 >devtools::install_github("Netflix/metaflow", subdir="R")
->metaflow::install()
+>metaflow::install_metaflow()
 >```
 
 and access tutorials by typing:
