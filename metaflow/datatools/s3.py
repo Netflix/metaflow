@@ -283,7 +283,12 @@ class S3Client(object):
 class S3(object):
     @classmethod
     def get_root_from_config(cls, echo, create_on_absent=True):
-        return DATATOOLS_S3ROOT
+        if DATATOOLS_S3ROOT is None:
+            raise MetaflowS3URLException(
+                "No config or correct S3 root path provided when trying to use S3 storage"
+            )
+        else:
+            return DATATOOLS_S3ROOT
 
     def __init__(
         self, tmproot=".", bucket=None, prefix=None, run=None, s3root=None, **kwargs
