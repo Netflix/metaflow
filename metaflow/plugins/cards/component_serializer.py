@@ -1,7 +1,6 @@
 from .card_modules import MetaflowCardComponent
 from .card_modules.basic import ErrorComponent
-import random
-import string
+import uuid
 import json
 
 _TYPE = type
@@ -50,10 +49,10 @@ class CardComponentCollector:
     """
 
     def __init__(self, logger=None):
-        self._cards = (
+        self._cards_components = (
             {}
         )  # a dict with key as uuid and value as a list of MetaflowCardComponent.
-        self._card_meta = (
+        self._cards_meta = (
             {}
         )  # a `dict` of (card_uuid, `dict)` holding all metadata about all @card decorators on the `current` @step.
         self._card_id_map = {}  # card_id to uuid map for all cards with ids
@@ -64,9 +63,7 @@ class CardComponentCollector:
 
     @staticmethod
     def create_uuid():
-        return "".join(
-            random.choice(string.ascii_uppercase + string.digits) for _ in range(6)
-        )
+        return str(uuid.uuid4())
 
     def _log(self, *args, **kwargs):
         if self._logger:
@@ -102,8 +99,8 @@ class CardComponentCollector:
             customize=customize,
             suppress_warnings=suppress_warnings,
         )
-        self._card_meta[card_uuid] = card_metadata
-        self._cards[card_uuid] = []
+        self._cards_meta[card_uuid] = card_metadata
+        self._cards_components[card_uuid] = []
         return card_metadata
 
     def _warning(self, message):
@@ -111,9 +108,9 @@ class CardComponentCollector:
         self._log(msg, timestamp=False, bad=True)
 
     def _add_warning_to_cards(self, warn_msg):
-        for card_id in self._cards:
-            if not self._card_meta[card_id]["suppress_warnings"]:
-                self._cards[card_id].append(WarningComponent(warn_msg))
+        for card_id in self._cards_components:
+            if not self._cards_meta[card_id]["suppress_warnings"]:
+                self._cards_components[card_id].append(WarningComponent(warn_msg))
 
     def get(self, type=None):
         """`get`
@@ -129,10 +126,10 @@ class CardComponentCollector:
         card_type = type
         card_uuids = [
             card_meta["uuid"]
-            for card_meta in self._card_meta.values()
+            for card_meta in self._cards_meta.values()
             if card_meta["type"] == card_type
         ]
-        return [self._cards[uuid] for uuid in card_uuids]
+        return [self._cards_components[uuid] for uuid in card_uuids]
 
     def _finalize(self):
         """
@@ -143,18 +140,15 @@ class CardComponentCollector:
         2. Resolving edge cases where @card `id` argument may be `None` or have a duplicate `id` when there are more than one editable cards.
         3. Resolving the `self._default_editable_card` to the card with the`customize=True` argument.
         """
-        all_card_meta = list(self._card_meta.values())
+        all_card_meta = list(self._cards_meta.values())
         for c in all_card_meta:
             ct = get_card_class(c["type"])
             c["exists"] = False
             if ct is not None:
                 c["exists"] = True
 
-        editable_cards_meta = [
-            c
-            for c in all_card_meta
-            if c["editable"] or (c["customize"] and c["editable"])
-        ]
+        # If a card has customize=True and is not editable then it will not be considered default editable.
+        editable_cards_meta = [c for c in all_card_meta if c["editable"]]
 
         if len(editable_cards_meta) == 0:
             return
@@ -204,7 +198,7 @@ class CardComponentCollector:
             for idx in non_unique_ids:
                 del self._card_id_map[idx]
 
-        # if a @card has `customize=True` in the arguements then there should only be one @card with `customize=True`. This @card will be the _default_editable_card
+        # if a @card has `customize=True` in the arguments then there should only be one @card with `customize=True`. This @card will be the _default_editable_card
         customize_cards = [c for c in editable_cards_meta if c["customize"]]
         if len(customize_cards) > 1:
             self._warning(
@@ -221,7 +215,7 @@ class CardComponentCollector:
     def __getitem__(self, key):
         if key in self._card_id_map:
             card_uuid = self._card_id_map[key]
-            return self._cards[card_uuid]
+            return self._cards_components[card_uuid]
         if key not in self._warned_once["__getitem__"]:
             _warn_msg = (
                 "`current.card['%s']` is not present. Please set the `id` argument in @card to '%s' to access `current.card['%s']`. "
@@ -242,7 +236,7 @@ class CardComponentCollector:
                 )
                 self._warning(_warning_msg)
                 return
-            self._cards[card_uuid] = value
+            self._cards_components[card_uuid] = value
             return
 
         self._warning(
@@ -253,10 +247,10 @@ class CardComponentCollector:
     def append(self, component):
         if self._default_editable_card is None:
             if (
-                len(self._cards) == 1
+                len(self._cards_components) == 1
             ):  # if there is one card which is not the _default_editable_card then the card is not editable
-                card_type = list(self._card_meta.values())[0]["type"]
-                if list(self._card_meta.values())[0]["exists"]:
+                card_type = list(self._cards_meta.values())[0]["type"]
+                if list(self._cards_meta.values())[0]["exists"]:
                     _crdwr = "Card of type `%s` is not an editable card. " % card_type
                     _endwr = (
                         "Please use an editable card. "  # todo : link to documentation
@@ -283,13 +277,13 @@ class CardComponentCollector:
                 self._warned_once["append"] = True
 
             return
-        self._cards[self._default_editable_card].append(component)
+        self._cards_components[self._default_editable_card].append(component)
 
     def extend(self, components):
         if self._default_editable_card is None:
             # if there is one card which is not the _default_editable_card then the card is not editable
-            if len(self._cards) == 1:
-                card_type = list(self._card_meta.values())[0]["type"]
+            if len(self._cards_components) == 1:
+                card_type = list(self._cards_meta.values())[0]["type"]
                 _warning_msg = (
                     "Card of type `%s` is not an editable card."
                     "Components list will not be extended and `current.card.extend` will not work for any call during this runtime execution. "
@@ -308,15 +302,15 @@ class CardComponentCollector:
 
             return
 
-        self._cards[self._default_editable_card].extend(components)
+        self._cards_components[self._default_editable_card].extend(components)
 
     def _serialize_components(self, card_uuid):
         import traceback
 
         serialized_components = []
-        if card_uuid not in self._cards:
+        if card_uuid not in self._cards_components:
             return []
-        for component in self._cards[card_uuid]:
+        for component in self._cards_components[card_uuid]:
             if not issubclass(type(component), MetaflowCardComponent):
                 continue
             try:
