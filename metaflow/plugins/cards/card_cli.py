@@ -568,11 +568,13 @@ def view(
 
 @card.command()
 @click.argument("pathspec")
+@click.argument("path", required=False)
 @card_read_options_and_arguments
 @click.pass_context
 def get(
     ctx,
     pathspec,
+    path,
     hash=None,
     type=None,
     id=None,
@@ -584,6 +586,11 @@ def get(
         - <stepname>\n
         - <runid>/<stepname>\n
         - <runid>/<stepname>/<taskid>\n
+
+    Save the card by adding the `path` argument.
+    ```
+    python myflow.py card get start a.html --type default
+    ```
     """
     card_id = id
     available_card_paths, card_datastore, pathspec = resolve_card(
@@ -595,6 +602,9 @@ def get(
         follow_resumed=follow_resumed,
     )
     if len(available_card_paths) == 1:
+        if path is not None:
+            card_datastore.cache_locally(available_card_paths[0], path)
+            return
         print(card_datastore.get_card_html(available_card_paths[0]))
     else:
         list_available_cards(
