@@ -415,7 +415,7 @@ def render_card(mf_card, task, timeout_value=None):
     default=None,
     show_default=True,
     type=str,
-    help="id of the card",
+    help="ID of the card",
 )
 @click.pass_context
 def create(
