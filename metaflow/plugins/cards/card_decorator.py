@@ -95,9 +95,7 @@ class CardDecorator(StepDecorator):
                 yield p, p[prefixlen:]
 
     def _is_event_registered(self, evt_name):
-        if evt_name in self._called_once:
-            return True
-        return False
+        return evt_name in self._called_once
 
     @classmethod
     def _register_event(cls, evt_name):
@@ -136,13 +134,16 @@ class CardDecorator(StepDecorator):
         else:
             self.card_options = self.attributes["options"]
 
-        # We set the total count of decorators so that we can use it for
-        # when calling the finalize function of CardComponentCollector
-        # We set the total @card per step via calling `_set_card_counts_per_step`.
-        other_card_decorators = [
-            deco for deco in decorators if isinstance(deco, self.__class__)
-        ]
-        self._set_card_counts_per_step(step_name, len(other_card_decorators))
+        evt_name = "step-init"
+        if not self._is_event_registered(evt_name):
+            # We set the total count of decorators so that we can use it for
+            # when calling the finalize function of CardComponentCollector
+            # We set the total @card per step via calling `_set_card_counts_per_step`.
+            other_card_decorators = [
+                deco for deco in decorators if isinstance(deco, self.__class__)
+            ]
+            self._set_card_counts_per_step(step_name, len(other_card_decorators))
+            self._register_event(evt_name)
 
     def task_pre_step(
         self,
@@ -160,7 +161,7 @@ class CardDecorator(StepDecorator):
     ):
         card_type = self.attributes["type"]
         card_class = get_card_class(card_type)
-        if card_class is not None:  # Card type was not ofund
+        if card_class is not None:  # Card type was not found
             if card_class.ALLOW_USER_COMPONENTS:
                 self._is_editable = True
         # We have a step counter to ensure that on calling the final card decorator's `task_pre_step`
