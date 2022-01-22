@@ -73,7 +73,7 @@ class CardComponentCollector:
         card_id,
         editable=False,
         customize=False,
-        suppress_warnings=False,
+        suppress_warnings=True,
     ):
         """
         This function helps collect cards from all the card decorators.
