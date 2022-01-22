@@ -120,7 +120,10 @@ class CardDecorator(StepDecorator):
             self.card_options = self.attributes["options"]
 
         evt_name = "step-init"
-        if not self._is_event_registered(evt_name):
+        # `'%s-%s'%(evt_name,step_name)` ensures that we capture this once per @card per @step.
+        # Since there can be many steps checking if event is registered for `evt_name` will only make it check it once for all steps.
+        # Hence we have `_is_event_registered('%s-%s'%(evt_name,step_name))`
+        if not self._is_event_registered("%s-%s" % (evt_name, step_name)):
             # We set the total count of decorators so that we can use it for
             # when calling the finalize function of CardComponentCollector
             # We set the total @card per step via calling `_set_card_counts_per_step`.
