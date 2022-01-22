@@ -5,7 +5,12 @@ import livereload from "rollup-plugin-livereload";
 import { terser } from "rollup-plugin-terser";
 import sveltePreprocess from "svelte-preprocess";
 import typescript from "@rollup/plugin-typescript";
-import postcss from "rollup-plugin-postcss";
+/**
+ * @NOTE: we are currently commenting out postcss,
+ * it will be added back in a separate PR
+ * import postcss from "rollup-plugin-postcss";
+ */
+import css from "rollup-plugin-css-only";
 
 const production = !process.env.ROLLUP_WATCH;
 
@@ -50,12 +55,13 @@ export default {
         dev: !production,
       },
     }),
-    postcss({
-      extract: "bundle.css",
-      plugins: [],
-      minimize: true,
-      sourceMap: !production,
-    }),
+    css({ output: "bundle.css" }),
+    // postcss({
+    //   extract: "bundle.css",
+    //   plugins: [],
+    //   minimize: true,
+    //   sourceMap: !production,
+    // }),
 
     // If you have external dependencies installed from
     // npm, you'll most likely need these plugins. In
