@@ -193,16 +193,28 @@ class CardDatastore(object):
                     with open(path, "r") as f:
                         return f.read()
 
-    def cache_locally(self, path):
+    def cache_locally(self, path, save_path=None):
+        """
+        Saves the data present in the `path` the `metaflow_card_cache` directory or to the `save_path`.
+        """
         # todo : replace this function with the FileCache
-        if not is_file_present(self._temp_card_save_path):
-            LocalStorage._makedirs(self._temp_card_save_path)
+        if save_path is None:
+            if not is_file_present(self._temp_card_save_path):
+                LocalStorage._makedirs(self._temp_card_save_path)
+        else:
+            save_dir = os.path.dirname(save_path)
+            if save_dir != "" and not is_file_present(save_dir):
+                LocalStorage._makedirs(os.path.dirname(save_path))
+
         with self._backend.load_bytes([path]) as get_results:
             for key, path, meta in get_results:
                 if path is not None:
                     main_path = path
-                    file_name = key.split("/")[-1]
-                    main_path = os.path.join(self._temp_card_save_path, file_name)
+                    if save_path is None:
+                        file_name = key.split("/")[-1]
+                        main_path = os.path.join(self._temp_card_save_path, file_name)
+                    else:
+                        main_path = save_path
                     shutil.copy(path, main_path)
                     return main_path
 
