@@ -1,5 +1,6 @@
 from .card_modules import MetaflowCardComponent
 from .card_modules.basic import ErrorComponent
+from metaflow.metaflow_config import CARD_NO_WARNING
 import uuid
 import json
 
@@ -75,7 +76,7 @@ class CardComponentCollector:
         card_id,
         editable=False,
         customize=False,
-        suppress_warnings=True,
+        suppress_warnings=False,
     ):
         """
         This function helps collect cards from all the card decorators.
@@ -108,6 +109,8 @@ class CardComponentCollector:
         self._log(msg, timestamp=False, bad=True)
 
     def _add_warning_to_cards(self, warn_msg):
+        if CARD_NO_WARNING:
+            return
         for card_id in self._cards_components:
             if not self._cards_meta[card_id]["suppress_warnings"]:
                 self._cards_components[card_id].append(WarningComponent(warn_msg))
