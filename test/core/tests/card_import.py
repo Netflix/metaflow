@@ -9,6 +9,11 @@ class CardImportTest(MetaflowTest):
         - If the submodule has errors while importing then the rest of metaflow should not fail.
     """
 
+    HEADER = """
+import os
+os.environ['METAFLOW_CARD_NO_WARNING'] = 'True'
+    """
+
     PRIORITY = 4
 
     @tag('card(type="editable_import_test_card",save_errors=False)')
