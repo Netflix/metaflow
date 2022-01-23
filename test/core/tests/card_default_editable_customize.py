@@ -9,6 +9,11 @@ class DefaultEditableCardWithCustomizeTest(MetaflowTest):
 
     PRIORITY = 3
 
+    HEADER = """
+import os
+os.environ['METAFLOW_CARD_NO_WARNING'] = 'True'
+    """
+
     @tag('card(type="test_editable_card",customize=True)')
     @tag('card(type="test_editable_card",id="abc")')
     @tag('card(type="taskspec_card")')
