@@ -5,6 +5,7 @@ import sys
 from .util import get_username
 from . import metaflow_version
 from metaflow.exception import MetaflowException
+from metaflow.extension_support import dump_module_info
 from metaflow.mflog import BASH_MFLOG
 from . import R
 
@@ -126,6 +127,9 @@ class MetaflowEnvironment(object):
             env["metaflow_r_version"] = R.metaflow_r_version()
             env["r_version"] = R.r_version()
             env["r_version_code"] = R.r_version_code()
+        # Information about extension modules (to load them in the proper order)
+        ext_key, ext_val = dump_module_info()
+        env[ext_key] = ext_val
         return env
 
     def executable(self, step_name):
