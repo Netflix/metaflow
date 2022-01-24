@@ -220,12 +220,14 @@ class CardComponentCollector:
             card_uuid = self._card_id_map[key]
             return self._cards_components[card_uuid]
         if key not in self._warned_once["__getitem__"]:
-            _warn_msg = (
-                "`current.card['%s']` is not present. Please set the `id` argument in @card to '%s' to access `current.card['%s']`. "
+            _warn_msg = [
+                "`current.card['%s']` is not present. Please set the `id` argument in @card to '%s' to access `current.card['%s']`."
+                % (key, key, key),
                 "`current.card['%s']` will return an empty `list` which is not referenced to `current.card` object."
-            ) % (key, key, key, key)
-            self._warning(_warn_msg)
-            self._add_warning_to_cards(_warn_msg)
+                % (key),
+            ]
+            self._warning(" ".join(_warn_msg))
+            self._add_warning_to_cards("\n".join(_warn_msg))
             self._warned_once["__getitem__"][key] = True
         return []
 
@@ -254,29 +256,29 @@ class CardComponentCollector:
             ):  # if there is one card which is not the _default_editable_card then the card is not editable
                 card_type = list(self._cards_meta.values())[0]["type"]
                 if list(self._cards_meta.values())[0]["exists"]:
-                    _crdwr = "Card of type `%s` is not an editable card. " % card_type
+                    _crdwr = "Card of type `%s` is not an editable card." % card_type
                     _endwr = (
-                        "Please use an editable card. "  # todo : link to documentation
+                        "Please use an editable card."  # todo : link to documentation
                     )
                 else:
-                    _crdwr = "Card of type `%s` doesn't exist. " % card_type
-                    _endwr = "Please use a card `type` which exits. "  # todo : link to documentation
+                    _crdwr = "Card of type `%s` doesn't exist." % card_type
+                    _endwr = "Please use a card `type` which exits."  # todo : link to documentation
 
-                _warning_msg = (
-                    "%s"
-                    "Component will not be appended and `current.card.append` will not work for any call during this runtime execution. "
-                    "%s"
-                ) % (_crdwr, _endwr)
+                _warning_msg = [
+                    _crdwr,
+                    "Component will not be appended and `current.card.append` will not work for any call during this runtime execution.",
+                    _endwr,
+                ]
             else:
-                _warning_msg = (
-                    "`current.card.append` cannot disambiguate between multiple editable cards. "
-                    "Component will not be appended and `current.card.append` will not work for any call during this runtime execution. "
-                    "To fix this set the `id` argument in all @card's when using multiple @card decorators over a single @step. "  # todo : Add Link to documentation
-                )
+                _warning_msg = [
+                    "`current.card.append` cannot disambiguate between multiple editable cards.",
+                    "Component will not be appended and `current.card.append` will not work for any call during this runtime execution.",
+                    "To fix this set the `id` argument in all @card's when using multiple @card decorators over a single @step. ",  # todo : Add Link to documentation
+                ]
 
             if not self._warned_once["append"]:
-                self._warning(_warning_msg)
-                self._add_warning_to_cards(_warning_msg)
+                self._warning(" ".join(_warning_msg))
+                self._add_warning_to_cards("\n".join(_warning_msg))
                 self._warned_once["append"] = True
 
             return
@@ -287,20 +289,20 @@ class CardComponentCollector:
             # if there is one card which is not the _default_editable_card then the card is not editable
             if len(self._cards_components) == 1:
                 card_type = list(self._cards_meta.values())[0]["type"]
-                _warning_msg = (
-                    "Card of type `%s` is not an editable card."
-                    "Components list will not be extended and `current.card.extend` will not work for any call during this runtime execution. "
-                    "Please use an editable card"  # todo : link to documentation
-                ) % card_type
+                _warning_msg = [
+                    "Card of type `%s` is not an editable card." % card_type,
+                    "Components list will not be extended and `current.card.extend` will not work for any call during this runtime execution.",
+                    "Please use an editable card",  # todo : link to documentation
+                ]
             else:
-                _warning_msg = (
-                    "`current.card.extend` cannot disambiguate between multiple @card decorators. "
-                    "Components list will not be extended and `current.card.extend` will not work for any call during this runtime execution. "
-                    "To fix this set the `id` argument in all @card when using multiple @card decorators over a single @step. "  # todo : Add Link to documentation
-                )
+                _warning_msg = [
+                    "`current.card.extend` cannot disambiguate between multiple @card decorators.",
+                    "Components list will not be extended and `current.card.extend` will not work for any call during this runtime execution.",
+                    "To fix this set the `id` argument in all @card when using multiple @card decorators over a single @step.",  # todo : Add Link to documentation
+                ]
             if not self._warned_once["extend"]:
-                self._warning(_warning_msg)
-                self._add_warning_to_cards(_warning_msg)
+                self._warning(" ".join(_warning_msg))
+                self._add_warning_to_cards("\n".join(_warning_msg))
                 self._warned_once["extend"] = True
 
             return
