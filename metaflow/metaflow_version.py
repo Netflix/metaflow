@@ -11,10 +11,9 @@ from subprocess import check_output, CalledProcessError
 from os import path, name, devnull, environ, listdir
 import json
 
-__all__ = ("get_version",)
+from metaflow import CURRENT_DIRECTORY, INFO_FILE
 
-CURRENT_DIRECTORY = path.dirname(path.abspath(__file__))
-INFO_FILE = path.join(path.dirname(CURRENT_DIRECTORY), "INFO")
+__all__ = ("get_version",)
 
 GIT_COMMAND = "git"
 
