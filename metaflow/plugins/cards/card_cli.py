@@ -58,7 +58,6 @@ def resolve_task_from_pathspec(flow_name, pathspec):
 
     # since pathspec can have many variations.
     pthsplits = pathspec.split("/")
-    namespace(None)
     task = None
     run_id = None
     resolving_from = "task_pathspec"
@@ -74,19 +73,19 @@ def resolve_task_from_pathspec(flow_name, pathspec):
                 pass
     elif len(pthsplits) == 2:
         # This means runid/stepname
+        namespace(None)
         resolving_from = "step_pathspec"
         try:
             task = Step("/".join([flow_name, pathspec])).task
-            run_id = task.parent.parent.pathspec
-        except MetaflowNotFound as e:
+        except MetaflowNotFound:
             pass
     elif len(pthsplits) == 3:
         # this means runid/stepname/taskid
+        namespace(None)
         resolving_from = "task_pathspec"
         try:
             task = Task("/".join([flow_name, pathspec]))
-            run_id = task.parent.parent.pathspec
-        except MetaflowNotFound as e:
+        except MetaflowNotFound:
             pass
     else:
         # raise exception for invalid pathspec format
@@ -94,7 +93,11 @@ def resolve_task_from_pathspec(flow_name, pathspec):
             msg="The PATHSPEC argument should be of the form 'stepname' Or '<runid>/<stepname>' Or '<runid>/<stepname>/<taskid>'"
         )
 
-    return task, run_id, resolving_from
+    if task is None:
+        # raise Exception that task could not be resolved for the query.
+        raise TaskNotFoundException(pathspec, resolving_from, run_id=run_id)
+
+    return task
 
 
 def resolve_card(
@@ -122,14 +125,7 @@ def resolve_card(
         (card_paths, card_datastore, taskpathspec) : Tuple[List[str], CardDatastore, str]
     """
     flow_name = ctx.obj.flow.name
-    (
-        task,
-        run_id,
-        resolved_from,
-    ) = resolve_task_from_pathspec(flow_name, pathspec)
-    if task is None:
-        # raise Exception that task could not be resolved for the query.
-        raise TaskNotFoundException(pathspec, resolved_from, run_id=run_id)
+    task = resolve_task_from_pathspec(flow_name, pathspec)
     card_pathspec = task.pathspec
     print_str = "Resolving card: %s" % card_pathspec
     if follow_resumed:
@@ -213,10 +209,10 @@ def list_available_cards(
     for path_tuple, file_path in zip(path_tuples, card_paths):
         full_pth = card_datastore.create_full_path(file_path)
         cpr = """
-        Card Id : %s
-        Card Type : %s
-        Card Hash : %s 
-        Card Path : %s
+        Card Id: %s
+        Card Type: %s
+        Card Hash: %s 
+        Card Path: %s
         """ % (
             path_tuple.id,
             path_tuple.type,
