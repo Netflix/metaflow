@@ -553,25 +553,6 @@ class MetadataProvider(object):
 
         self.register_metadata(run_id, step_name, task_id, metadata)
 
-    def _register_code_package_metadata(self, run_id, step_name, task_id, attempt):
-        metadata = []
-        code_sha = os.environ.get("METAFLOW_CODE_SHA")
-        code_url = os.environ.get("METAFLOW_CODE_URL")
-        code_ds = os.environ.get("METAFLOW_CODE_DS")
-        if code_sha:
-            metadata.append(
-                MetaDatum(
-                    field="code-package",
-                    value=json.dumps(
-                        {"ds_type": code_ds, "sha": code_sha, "location": code_url}
-                    ),
-                    type="code-package",
-                    tags=["attempt_id:{0}".format(attempt)],
-                )
-            )
-        if metadata:
-            self.register_metadata(run_id, step_name, task_id, metadata)
-
     @staticmethod
     def _apply_filter(elts, filters):
         if filters is None:
