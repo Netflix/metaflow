@@ -117,7 +117,7 @@ class Conda(object):
         if explicit:
             cmd.append("--no-deps")
         cmd.extend(deps)
-        self._call_conda(cmd, architecture=architecture, disable_safety_checks=True)
+        self._call_conda(cmd, architecture=architecture, disable_safety_checks=False)
 
     def _remove(self, env_id):
         self._call_conda(["env", "remove", "--name", env_id, "--yes", "--quiet"])
