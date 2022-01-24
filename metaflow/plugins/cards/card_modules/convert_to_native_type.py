@@ -117,6 +117,7 @@ class TaskToDict:
                     large_object=False,
                     supported_type=False,
                     only_repr=self._only_repr,
+                    name=data.id,
                 )
 
             # Resolve special types.
