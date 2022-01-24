@@ -1,3 +1,4 @@
+import importlib
 import os
 import sys
 import tarfile
@@ -5,7 +6,8 @@ import time
 import json
 from io import BytesIO
 
-from .metaflow_config import DEFAULT_PACKAGE_SUFFIXES
+from .extension_support import EXT_PKG
+from .metaflow_config import DEFAULT_PACKAGE_SUFFIXES, METAFLOW_EXTENSIONS_ADDL_SUFFIXES
 from .exception import MetaflowException
 from .util import to_unicode
 from . import R
@@ -31,16 +33,12 @@ class MetaflowPackage(object):
         self.environment = environment
         self.metaflow_root = os.path.dirname(__file__)
         try:
-            import metaflow_extensions
-        except ImportError:
-            self.metaflow_extensions_root = None
+            ext_package = importlib.import_module(EXT_PKG)
+        except ImportError as e:
+            self.metaflow_extensions_root = []
         else:
-            self.metaflow_extensions_root = os.path.dirname(
-                metaflow_extensions.__file__
-            )
-            self.metaflow_extensions_addl_suffixes = getattr(
-                metaflow_extensions, "METAFLOW_EXTENSIONS_PACKAGE_SUFFIXES", None
-            )
+            self.metaflow_extensions_root = list(ext_package.__path__)
+            self.metaflow_extensions_addl_suffixes = METAFLOW_EXTENSIONS_ADDL_SUFFIXES
 
         self.flow_name = flow.name
         self._flow = flow
@@ -82,12 +80,13 @@ class MetaflowPackage(object):
             yield path_tuple
         # Metaflow customization if any
         if self.metaflow_extensions_root:
-            for path_tuple in self._walk(
-                self.metaflow_extensions_root,
-                exclude_hidden=False,
-                addl_suffixes=self.metaflow_extensions_addl_suffixes,
-            ):
-                yield path_tuple
+            for root in self.metaflow_extensions_root:
+                for path_tuple in self._walk(
+                    root,
+                    exclude_hidden=False,
+                    addl_suffixes=self.metaflow_extensions_addl_suffixes,
+                ):
+                    yield path_tuple
 
         # Any custom packages exposed via decorators
         deco_module_paths = {}
