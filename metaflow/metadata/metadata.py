@@ -525,16 +525,16 @@ class MetadataProvider(object):
             entries["metaflow_r_version"] = env["metaflow_r_version"]
         if "r_version_code" in env:
             entries["r_version"] = env["r_version_code"]
-        
+
         metadata = [
-                MetaDatum(
-                    field=k,
-                    value=v,
-                    type=k,
-                    tags=["attempt_id:{0}".format(attempt)],
-                )
-                for k, v in entries.items()
-            ]
+            MetaDatum(
+                field=k,
+                value=v,
+                type=k,
+                tags=["attempt_id:{0}".format(attempt)],
+            )
+            for k, v in entries.items()
+        ]
 
         code_sha = os.environ.get("METAFLOW_CODE_SHA")
         code_url = os.environ.get("METAFLOW_CODE_URL")

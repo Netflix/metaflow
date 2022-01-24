@@ -234,9 +234,7 @@ class ServiceMetadataProvider(MetadataProvider):
         task = self._get_or_create(
             "task", run_id, step_name, task_id, tags=tags, sys_tags=sys_tags
         )
-        self._register_system_metadata(
-            run_id, step_name, task["task_id"], attempt
-        )
+        self._register_system_metadata(run_id, step_name, task["task_id"], attempt)
         return task["task_id"]
 
     @staticmethod
