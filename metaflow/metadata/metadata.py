@@ -513,6 +513,46 @@ class MetadataProvider(object):
             tags.append("r_version:" + env["r_version_code"])
         return tags
 
+    def _register_system_metadata(self, run_id, step_name, task_id, attempt):
+        env = self._environment.get_environment_info()
+        entries = {}
+        entries["runtime"] = env["runtime"]
+        entries["python_version"] = env["python_version"]
+        entries["date"] = datetime.utcnow().strftime("%Y-%m-%d")
+        if env["metaflow_version"]:
+            entries["metaflow_version"] = env["metaflow_version"]
+        if "metaflow_r_version" in env:
+            entries["metaflow_r_version"] = env["metaflow_r_version"]
+        if "r_version_code" in env:
+            entries["r_version"] = env["r_version_code"]
+        
+        metadata = [
+                MetaDatum(
+                    field=k,
+                    value=v,
+                    type=k,
+                    tags=["attempt_id:{0}".format(attempt)],
+                )
+                for k, v in entries.items()
+            ]
+
+        code_sha = os.environ.get("METAFLOW_CODE_SHA")
+        code_url = os.environ.get("METAFLOW_CODE_URL")
+        code_ds = os.environ.get("METAFLOW_CODE_DS")
+        if code_sha:
+            metadata.append(
+                MetaDatum(
+                    field="code-package",
+                    value=json.dumps(
+                        {"ds_type": code_ds, "sha": code_sha, "location": code_url}
+                    ),
+                    type="code-package",
+                    tags=["attempt_id:{0}".format(attempt)],
+                )
+            )
+
+        self.register_metadata(run_id, step_name, task_id, metadata)
+
     def _register_code_package_metadata(self, run_id, step_name, task_id, attempt):
         metadata = []
         code_sha = os.environ.get("METAFLOW_CODE_SHA")
@@ -529,8 +569,6 @@ class MetadataProvider(object):
                     tags=["attempt_id:{0}".format(attempt)],
                 )
             )
-        # We don't tag with attempt_id here because not readily available; this
-        # is ok though as this doesn't change from attempt to attempt.
         if metadata:
             self.register_metadata(run_id, step_name, task_id, metadata)
 

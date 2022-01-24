@@ -80,7 +80,7 @@ class LocalMetadataProvider(MetadataProvider):
         except ValueError:
             self._new_task(run_id, step_name, task_id, attempt, tags, sys_tags)
         else:
-            self._register_code_package_metadata(run_id, step_name, task_id, attempt)
+            self._register_system_metadata(run_id, step_name, task_id, attempt)
 
     def register_data_artifacts(
         self, run_id, step_name, task_id, attempt_id, artifacts
@@ -236,7 +236,7 @@ class LocalMetadataProvider(MetadataProvider):
     ):
         self._ensure_meta("step", run_id, step_name, None)
         self._ensure_meta("task", run_id, step_name, task_id, tags, sys_tags)
-        self._register_code_package_metadata(run_id, step_name, task_id, attempt)
+        self._register_system_metadata(run_id, step_name, task_id, attempt)
 
     @staticmethod
     def _make_path(
