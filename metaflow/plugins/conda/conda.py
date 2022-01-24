@@ -6,7 +6,7 @@ import time
 from distutils.version import LooseVersion
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import CONDA_USE_MAMBA
+from metaflow.metaflow_config import CONDA_DEPENDENCY_RESOLVER
 from metaflow.metaflow_environment import InvalidEnvironmentException
 from metaflow.util import which
 
@@ -29,21 +29,27 @@ class CondaStepException(CondaException):
 
 class Conda(object):
     def __init__(self):
-        dependency_solver = "conda"
-        if CONDA_USE_MAMBA:
-            dependency_solver = "mamba"
+        dependency_solver = CONDA_DEPENDENCY_RESOLVER.lower()
         self._bin = which(dependency_solver)
+        # Check if the dependency solver exists.
         if self._bin is None:
             raise InvalidEnvironmentException(
-                "No %s installation found. Install %s first." % dependency_solver
+                "No %s installation found. Install %s first."
+                % (dependency_solver, dependency_solver)
             )
-        if LooseVersion(self._info()["conda_version"]) < LooseVersion("4.6.0"):
-            msg = "Conda version 4.6.0 or newer is required."
-            if dependency_solver == "mamba":
-                msg += " Visit https://mamba.readthedocs.io/en/latest/installation.html for installation instructions."
-            else:
-                msg += " Visit https://docs.conda.io/en/latest/miniconda.html for installation instructions."
-            raise InvalidEnvironmentException(msg)
+        # Check for a minimum version for conda when conda or mamba is used
+        # for dependency resolution.
+        if dependency_solver == "conda" or dependency_solver == "mamba":
+            if LooseVersion(self._info()["conda_version"]) < LooseVersion("4.6.0"):
+                msg = "Conda version 4.6.0 or newer is required."
+                if dependency_solver == "mamba":
+                    msg += " Visit https://mamba.readthedocs.io/en/latest/installation.html for installation instructions."
+                else:
+                    msg += " Visit https://docs.conda.io/en/latest/miniconda.html for installation instructions."
+                raise InvalidEnvironmentException(msg)
+        # Check if conda-forge is available as a channel to pick up Metaflow's
+        # dependencies. This check will go away once all of Metaflow's
+        # dependencies are vendored in.
         if "conda-forge" not in "\t".join(self._info()["channels"]):
             raise InvalidEnvironmentException(
                 "Conda channel 'conda-forge' is required. Specify it with CONDA_CHANNELS environment variable."
@@ -83,7 +89,7 @@ class Conda(object):
 
     def environments(self, flow):
         # List all conda environments associated with the flow
-        envs = self._info()["envs"]
+        envs = self._envs()["envs"]
         ret = {}
         for env in envs:
             if "/envs/" in env:
@@ -104,6 +110,9 @@ class Conda(object):
 
     def _info(self):
         return json.loads(self._call_conda(["info"]))
+
+    def _envs(self):
+        return json.loads(self._call_conda(["env", "list"]))
 
     def _create(
         self,
@@ -153,7 +162,7 @@ class Conda(object):
         return (exact_deps, urls, order)
 
     def _env_path(self, env_id):
-        envs = self._info()["envs"]
+        envs = self._envs()["envs"]
         for env in envs:
             if "/envs/" in env:
                 name = os.path.basename(env)
@@ -171,6 +180,7 @@ class Conda(object):
                 "CONDA_SUBDIR": (architecture if architecture else ""),
                 "CONDA_USE_ONLY_TAR_BZ2": "True",
                 "MAMBA_NO_BANNER": "1",
+                "MAMBA_JSON": "True",
             }
             if disable_safety_checks:
                 env["CONDA_SAFETY_CHECKS"] = "disabled"

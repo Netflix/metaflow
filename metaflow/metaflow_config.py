@@ -203,10 +203,10 @@ CONDA_PACKAGE_S3ROOT = from_conf(
     "%s/conda" % from_conf("METAFLOW_DATASTORE_SYSROOT_S3"),
 )
 
-# Use Mamba as a dependency resolver for conda packages instead of conda
-# Mamba promises faster package dependency resolution times, which should
-# result in an appreciable speedup in flow environment initialization.
-CONDA_USE_MAMBA = bool(from_conf("METAFLOW_CONDA_USE_MAMBA", False))
+# Use an alternate dependency resolver for conda packages instead of conda
+# Mamba/Micromamba promise faster package dependency resolution times, which
+# should result in an appreciable speedup in flow environment initialization.
+CONDA_DEPENDENCY_RESOLVER = from_conf("METAFLOW_CONDA_DEPENDENCY_RESOLVER", "conda")
 
 ###
 # Debug configuration
