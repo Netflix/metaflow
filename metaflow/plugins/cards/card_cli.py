@@ -109,11 +109,11 @@ def resolve_card(
     card_id=None,
     no_echo=False,
 ):
-    """Resolves the card path based on the arguments provided. We allow identifier to be a pathspec or a id of card.
+    """Resolves the card path for a query.
 
     Args:
         ctx: click context object
-        pathspec: pathspec
+        pathspec: pathspec can be `stepname` or `runid/stepname` or `runid/stepname/taskid`
         hash (optional): This is to specifically resolve the card via the hash. This is useful when there may be many card with same id or type for a pathspec.
         type : type of card
         card_id : `id` given to card
