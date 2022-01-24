@@ -252,8 +252,8 @@ class BatchDecorator(StepDecorator):
 
             self._save_logs_sidecar = SidecarSubProcess("save_logs_periodically")
 
-        num_parallel = int(os.environ.get("AWS_BATCH_JOB_NUM_NODES", 1))
-        if num_parallel > 1 and ubf_context == UBF_CONTROL:
+        num_parallel = int(os.environ.get("AWS_BATCH_JOB_NUM_NODES", 0))
+        if num_parallel >= 1 and ubf_context == UBF_CONTROL:
             # UBF handling for multinode case
             control_task_id = current.task_id
             top_task_id = control_task_id.replace("control-", "")  # chop "-0"
@@ -267,7 +267,7 @@ class BatchDecorator(StepDecorator):
             ]
             flow._control_task_is_mapper_zero = True
 
-        if num_parallel > 1:
+        if num_parallel >= 1:
             _setup_multinode_environment()
 
     def task_finished(
@@ -294,7 +294,7 @@ class BatchDecorator(StepDecorator):
             # Best effort kill
             pass
 
-        if is_task_ok and getattr(flow, "_control_mapper_tasks", []):
+        if is_task_ok and len(getattr(flow, "_control_mapper_tasks", [])) > 1:
             self._wait_for_mapper_tasks(flow, step_name)
 
     def _wait_for_mapper_tasks(self, flow, step_name):
