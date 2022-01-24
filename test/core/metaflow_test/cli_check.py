@@ -111,12 +111,23 @@ class CliCheck(MetaflowCheck):
             )
         return True
 
-    def assert_card(self, step, task, card_type, value, exact_match=True):
+    def assert_card(
+        self,
+        step,
+        task,
+        card_type,
+        value,
+        card_hash=None,
+        card_id=None,
+        exact_match=True,
+    ):
         from metaflow.plugins.cards.exception import CardNotPresentException
 
         no_card_found_message = CardNotPresentException.headline
         try:
-            card_data = self.get_card(step, task, card_type)
+            card_data = self.get_card(
+                step, task, card_type, card_hash=card_hash, card_id=card_id
+            )
         except subprocess.CalledProcessError as e:
             if no_card_found_message in e.output.decode("utf-8").strip():
                 card_data = None
@@ -131,7 +142,33 @@ class CliCheck(MetaflowCheck):
             )
         return True
 
-    def get_card(self, step, task, card_type):
+    def list_cards(self, step, task, card_type=None):
+        from metaflow.plugins.cards.exception import CardNotPresentException
+
+        no_card_found_message = CardNotPresentException.headline
+        try:
+            card_data = self._list_cards(step, task=task, card_type=card_type)
+            card_data = json.loads(card_data)
+        except subprocess.CalledProcessError as e:
+            if no_card_found_message in e.output.decode("utf-8").strip():
+                card_data = None
+            else:
+                raise e
+        return card_data
+
+    def _list_cards(self, step, task=None, card_type=None):
+        pathspec = "%s/%s" % (self.run_id, step)
+        if task is not None:
+            pathspec = "%s/%s/%s" % (self.run_id, step, task)
+        cmd = ["--quiet", "card", "list", pathspec, "--as-json"]
+        if card_type is not None:
+            cmd.extend(["--type", card_type])
+
+        return self.run_cli(cmd, capture_output=True, pipe_error_to_output=True).decode(
+            "utf-8"
+        )
+
+    def get_card(self, step, task, card_type, card_hash=None, card_id=None):
         cmd = [
             "--quiet",
             "card",
@@ -140,6 +177,12 @@ class CliCheck(MetaflowCheck):
             "--type",
             card_type,
         ]
+
+        if card_hash is not None:
+            cmd.extend(["--hash", card_hash])
+        if card_id is not None:
+            cmd.extend(["--id", card_id])
+
         return self.run_cli(cmd, capture_output=True, pipe_error_to_output=True).decode(
             "utf-8"
         )
