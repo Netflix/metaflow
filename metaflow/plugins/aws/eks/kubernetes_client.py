@@ -244,7 +244,14 @@ class KubernetesJob(object):
                                         "memory": "%sM" % str(self._kwargs["memory"]),
                                         "ephemeral-storage": "%sM"
                                         % str(self._kwargs["disk"]),
-                                    }
+                                    },
+                                    limits={
+                                        **(
+                                            {"nvidia.com/gpu": self._kwargs["gpu"]}
+                                            if "gpu" in self._kwargs
+                                            else {}
+                                        )
+                                    },
                                 ),
                             )
                         ],
@@ -331,6 +338,10 @@ class KubernetesJob(object):
 
     def cpu(self, cpu):
         self._kwargs["cpu"] = cpu
+        return self
+
+    def gpu(self, gpu):
+        self._kwargs["gpu"] = gpu
         return self
 
     def memory(self, mem):

@@ -228,6 +228,7 @@ class Kubernetes(object):
                 ),
                 image=docker_image,
                 cpu=cpu,
+                gpu=gpu,
                 memory=memory,
                 disk=disk,
                 timeout_in_seconds=run_time_limit,
