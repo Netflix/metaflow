@@ -43,24 +43,9 @@ The `@card` [decorator](../metaflow/plugins/cards/card_decorator.py) is implemen
 #### Usage Semantics
 
 ```python
-from metaflow import FlowSpec,step,batch,current,Parameter,card
+from metaflow import FlowSpec,step,card
 
 class ModelTrainingFlow(FlowSpec):
-    num_rows = Parameter('num-rows',default = 1000000,type=int,help='The number of rows from the dataset to use for Training.')
-
-    batch_size = Parameter('batch-size',default = 64,type=int,help='Batch size to use for training the model.')
-
-    max_epochs = Parameter(
-        'max-epochs',\
-        envvar="MAX_EPOCHS",\
-        default=1,type=int,help='Maximum number of epochs to train model.'
-    )
-
-    num_gpus = Parameter(
-        'num-gpus',
-        envvar="NUM_GPUS",\
-        default=0,type=int,help='Number of GPUs to use when training the model.'
-    )
 
     @step
     def start(self):
@@ -216,7 +201,7 @@ class CustomCard(MetaflowCard):
 ```
 
 ### `DefaultCard`
-The [DefaultCard](../metaflow/plugins/cards/card_modules/basic.py) is a default card exposed by metaflow. This will be used when the `@card` decorator is called without any `type` argument or called with `type='default'` argument. It will also be the default card used with cli. The card uses a [HTML template](../metaflow/plugins/cards/card_modules/base.html) along with these [JS](../metaflow/plugins/cards/card_modules/main.js) and [CSS](../metaflow/plugins/cards/card_modules/bundle.css) files. 
+The [DefaultCard](../metaflow/plugins/cards/card_modules/basic.py) is a default card exposed by metaflow. This will be used when the `@card` decorator is called without any `type` argument or called with `type='default'` argument. It will also be the default card used with cli. The card uses a [HTML template](../metaflow/plugins/cards/card_modules/base.html) along with a [JS](../metaflow/plugins/cards/card_modules/main.js) and a [CSS](../metaflow/plugins/cards/card_modules/bundle.css) files. 
 
 The [HTML](../metaflow/plugins/cards/card_modules/base.html) is a template which works with [JS](../metaflow/plugins/cards/card_modules/main.js) and [CSS](../metaflow/plugins/cards/card_modules/bundle.css). 
 
@@ -232,12 +217,9 @@ The JS and CSS are created after building the JS and CSS from the [cards-ui](../
 - `Image` :  A component to create an image in the card HTML:  
     - `Image(bytearr,"my Image from bytes")`: to directly from `bytes`
     - `Image.from_pil_image(pilimage,"From PIL Image")` : to create an image from a `PIL.Image`
-    - `Image.from_matplotlib_plot(plot,"My matplotlib plot")` : to create an image from a plot
+    - `Image.from_matplotlib(plot,"My matplotlib plot")` : to create an image from a plot
 - `Error` : A wrapper subcomponent to display errors. Accepts an `exception` and a `title` as arguments. 
-- `Section` :  Create a separate subsection with sub components. 
-    - Accepts `title` as argument.
-    - Example usage : `Section("Array artifact")`
-    
+- `Markdown` : A component that renders markdown in the HTML template
 ### Editing `MetaflowCard` from `@step` code
 `MetaflowCard`s can be edited from `@step` code using the `current.card` interface. The `current.card` interface will only be active when a `@card` decorator is placed over a `@step`. To understand the workings of `current.card` consider the following snippet. 
 ```python
@@ -270,15 +252,14 @@ One important feature of the `current.card` object is that it will not fail.  Ev
 Once the `@step` completes execution, every `@card` decorator will call `current.card._serialize` (`CardComponentCollector._serialize`) to get a JSON serializable list of `str`/`dict` objects. The `_serialize` function internally calls all [component's](#metaflowcardcomponent) `render` function. This list is `json.dump`ed to a `tempfile` and passed to the `card create` subprocess where the `MetaflowCard` can use them in the final output. 
 
 ### Creating Custom Installable Cards 
-Custom cards can be installed using the `metaflow_extensions` submodule. 
+Custom cards can be installed with the help of the `metaflow_extensions` namespace package. Every `metaflow_extensions` module having custom cards should follow the below directory structure. . You can see an example cookie-cutter card over [here](https://github.com/outerbounds/metaflow-card-html).
 ```
 your_package/ # the name of this dir doesn't matter
 ├ setup.py
 ├ metaflow_extensions/ 
-│  └ organizationA/      # package to keep org level extensions seperate ; # dir name must match the package name in `setup.py`
-│      ├__init__.py    # This will have an __init__.py file
-│      └ plugins/ # NO __init__.py file
-│        └ cards/ # NO __init__.py file # This is a namespace package. 
+│  └ organizationA/ # NO __init__.py file, This is a namespace package. 
+│      └ plugins/ # NO __init__.py file, This is a namespace package. 
+│        └ cards/ # NO __init__.py file, This is a namespace package. 
 │           └ my_card_module/  # Name of card_module
 │               └ __init__.py. # This is the __init__.py is required to recoginize `my_card_module` as a package
 │               └ somerandomfile.py. # Some file as a part of the package. 
@@ -307,33 +288,19 @@ CARDS = [YCard]
 Having this `metaflow_extensions` module present in the PYTHONPATH can also work. Custom cards can also be created by reusing components provided by metaflow. For Example : 
 ```python
 from metaflow.cards import BlankCard
-from metaflow.cards import Artifact,Table,Section
+from metaflow.cards import Artifact,Table
 
 class MyCustomCard(BlankCard):
 
     type = 'my_custom_card'
     
     def render(self, task):
-        art_com = Section(title='My Section Added From Card',
-            contents=[
-                Table(
-                    [[Artifact(k.data,k.id)] for k in task]
-                )
-            ]
-        ).render()
+        art_com [
+            Table(
+                [[Artifact(k.data,k.id)] for k in task]
+            ).render()
+        ]
         return super().render(task,components=[art_com])
 
 CARDS = [MyCustomCard]
 ```
-## TODOS
-
-- [x] `@card` decorator
-- [x] `CardDatastore`
-- [x] Card CLI 
-- [x] `get_cards` (Metaflow client for cards)
-- [x] `MetaflowCard` (Core class to implement custom cards)
-- [x] `MetaflowCardComponent` (Subcomponents appendable to `MetaflowCard`s during the runtime of a `Flow`)
-- [x]  Default `MetaflowCardComponent`s
-- [x] `DefaultCard` (A default `MetaflowCard`) 
-- [x] Adding Components to cards in runtime. 
-- [x] Creating custom installable Metaflow cards
