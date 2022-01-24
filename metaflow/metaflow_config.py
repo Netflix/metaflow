@@ -204,7 +204,7 @@ CONDA_PACKAGE_S3ROOT = from_conf(
 )
 
 # Use an alternate dependency resolver for conda packages instead of conda
-# Mamba/Micromamba promise faster package dependency resolution times, which
+# Mamba promises faster package dependency resolution times, which
 # should result in an appreciable speedup in flow environment initialization.
 CONDA_DEPENDENCY_RESOLVER = from_conf("METAFLOW_CONDA_DEPENDENCY_RESOLVER", "conda")
 

@@ -89,9 +89,10 @@ class Conda(object):
 
     def environments(self, flow):
         # List all conda environments associated with the flow
-        envs = self._envs()["envs"]
+        envs = self._info()["envs"]
         ret = {}
         for env in envs:
+            # Named environments are always $CONDA_PREFIX/envs/
             if "/envs/" in env:
                 name = os.path.basename(env)
                 if name.startswith("metaflow_%s" % flow):
@@ -110,9 +111,6 @@ class Conda(object):
 
     def _info(self):
         return json.loads(self._call_conda(["info"]))
-
-    def _envs(self):
-        return json.loads(self._call_conda(["env", "list"]))
 
     def _create(
         self,
@@ -162,7 +160,7 @@ class Conda(object):
         return (exact_deps, urls, order)
 
     def _env_path(self, env_id):
-        envs = self._envs()["envs"]
+        envs = self._info()["envs"]
         for env in envs:
             if "/envs/" in env:
                 name = os.path.basename(env)
