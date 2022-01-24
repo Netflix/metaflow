@@ -10,6 +10,7 @@ from metaflow.metaflow_config import CONDA_USE_MAMBA
 from metaflow.metaflow_environment import InvalidEnvironmentException
 from metaflow.util import which
 
+
 class CondaException(MetaflowException):
     headline = "Conda ran into an error while setting up environment."
 
@@ -43,7 +44,7 @@ class Conda(object):
             else:
                 msg += " Visit https://docs.conda.io/en/latest/miniconda.html for installation instructions."
             raise InvalidEnvironmentException(msg)
-        if "conda-forge" not in '\t'.join(self._info()["channels"]):
+        if "conda-forge" not in "\t".join(self._info()["channels"]):
             raise InvalidEnvironmentException(
                 "Conda channel 'conda-forge' is required. Specify it with CONDA_CHANNELS environment variable."
             )
@@ -116,9 +117,7 @@ class Conda(object):
         if explicit:
             cmd.append("--no-deps")
         cmd.extend(deps)
-        self._call_conda(
-            cmd, architecture=architecture, disable_safety_checks=True
-        )
+        self._call_conda(cmd, architecture=architecture, disable_safety_checks=True)
 
     def _remove(self, env_id):
         self._call_conda(["env", "remove", "--name", env_id, "--yes", "--quiet"])
@@ -171,7 +170,7 @@ class Conda(object):
                 "CONDA_JSON": "True",
                 "CONDA_SUBDIR": (architecture if architecture else ""),
                 "CONDA_USE_ONLY_TAR_BZ2": "True",
-                "MAMBA_NO_BANNER": "1"
+                "MAMBA_NO_BANNER": "1",
             }
             if disable_safety_checks:
                 env["CONDA_SAFETY_CHECKS"] = "disabled"
