@@ -10,17 +10,6 @@ from metaflow.metaflow_config import CONDA_USE_MAMBA
 from metaflow.metaflow_environment import InvalidEnvironmentException
 from metaflow.util import which
 
-MAMBA_SUPPORTED_COMMANDS = {
-    "install",
-    "create",
-    "list",
-    "search",
-    "run",
-    "info",
-    "clean",
-}
-
-
 class CondaException(MetaflowException):
     headline = "Conda ran into an error while setting up environment."
 
@@ -39,23 +28,24 @@ class CondaStepException(CondaException):
 
 class Conda(object):
     def __init__(self):
-        self._bin = which("conda")
+        dependency_solver = "conda"
+        if CONDA_USE_MAMBA:
+            dependency_solver = "mamba"
+        self._bin = which(dependency_solver)
         if self._bin is None:
             raise InvalidEnvironmentException(
-                "No conda installation found. " "Install conda first."
+                "No %s installation found. Install %s first." % dependency_solver
             )
         if LooseVersion(self._info()["conda_version"]) < LooseVersion("4.6.0"):
+            msg = "Conda version 4.6.0 or newer is required."
+            if dependency_solver == "mamba":
+                msg += " Visit https://mamba.readthedocs.io/en/latest/installation.html for installation instructions."
+            else:
+                msg += " Visit https://docs.conda.io/en/latest/miniconda.html for installation instructions."
+            raise InvalidEnvironmentException(msg)
+        if "conda-forge" not in '\t'.join(self._info()["channels"]):
             raise InvalidEnvironmentException(
-                "Conda version 4.6.0 or newer "
-                "is required. Visit "
-                "https://docs.conda.io/en/latest/miniconda.html "
-                "for installation instructions."
-            )
-        if "conda-forge" not in self.config()["channels"]:
-            raise InvalidEnvironmentException(
-                "Conda channel 'conda-forge' "
-                "is required. Specify it with CONDA_CHANNELS "
-                "environment variable."
+                "Conda channel 'conda-forge' is required. Specify it with CONDA_CHANNELS environment variable."
             )
 
     def create(
@@ -101,10 +91,6 @@ class Conda(object):
                     ret[name] = env
         return ret
 
-    def config(self):
-        # Show conda installation configuration
-        return json.loads(self._call_conda(["config", "--show"]))
-
     def package_info(self, env_id):
         # Show conda environment package configuration
         # Not every parameter is exposed via conda cli hence this ignominy
@@ -131,7 +117,7 @@ class Conda(object):
             cmd.append("--no-deps")
         cmd.extend(deps)
         self._call_conda(
-            cmd, architecture=architecture, disable_safety_checks=disable_safety_checks
+            cmd, architecture=architecture, disable_safety_checks=True
         )
 
     def _remove(self, env_id):
@@ -185,18 +171,12 @@ class Conda(object):
                 "CONDA_JSON": "True",
                 "CONDA_SUBDIR": (architecture if architecture else ""),
                 "CONDA_USE_ONLY_TAR_BZ2": "True",
+                "MAMBA_NO_BANNER": "1"
             }
-            if CONDA_USE_MAMBA:
-                # remove banner to get valid JSON output
-                env["MAMBA_NO_BANNER"] = "1"
             if disable_safety_checks:
                 env["CONDA_SAFETY_CHECKS"] = "disabled"
-            if CONDA_USE_MAMBA and args[0] in MAMBA_SUPPORTED_COMMANDS:
-                bin = which("mamba")
-            else:
-                bin = self._bin
             return subprocess.check_output(
-                [bin] + args, stderr=subprocess.PIPE, env=dict(os.environ, **env)
+                [self._bin] + args, stderr=subprocess.PIPE, env=dict(os.environ, **env)
             ).strip()
         except subprocess.CalledProcessError as e:
             try:
