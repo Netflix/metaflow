@@ -704,14 +704,32 @@ class StepFunctions(object):
 
         # Use AWS Batch job identifier as the globally unique task identifier.
         task_id = "${AWS_BATCH_JOB_ID}"
-
+        top_opts_dict = {
+            "with": [
+                decorator.make_decorator_spec()
+                for decorator in node.decorators
+                if not decorator.statically_defined
+            ]
+        }
         # FlowDecorators can define their own top-level options. They are
         # responsible for adding their own top-level options and values through
         # the get_top_level_options() hook. See similar logic in runtime.py.
-        top_opts_dict = {}
         for deco in flow_decorators():
             top_opts_dict.update(deco.get_top_level_options())
+
         top_opts = list(dict_to_cli_options(top_opts_dict))
+
+        top_level = top_opts + [
+            "--quiet",
+            "--metadata=%s" % self.metadata.TYPE,
+            "--environment=%s" % self.environment.TYPE,
+            "--datastore=%s" % self.flow_datastore.TYPE,
+            "--datastore-root=%s" % self.flow_datastore.datastore_root,
+            "--event-logger=%s" % self.event_logger.logger_type,
+            "--monitor=%s" % self.monitor.monitor_type,
+            "--no-pylint",
+            "--with=step_functions_internal",
+        ]
 
         if node.name == "start":
             # We need a separate unique ID for the special _parameters task
@@ -729,18 +747,10 @@ class StepFunctions(object):
                     ". `pwd`/%s" % param_file,
                 ]
             )
-
             params = (
                 entrypoint
-                + top_opts
+                + top_level
                 + [
-                    "--quiet",
-                    "--metadata=%s" % self.metadata.TYPE,
-                    "--environment=%s" % self.environment.TYPE,
-                    "--datastore=s3",
-                    "--event-logger=%s" % self.event_logger.logger_type,
-                    "--monitor=%s" % self.monitor.monitor_type,
-                    "--no-pylint",
                     "init",
                     "--run-id sfn-$METAFLOW_RUN_ID",
                     "--task-id %s" % task_id_params,
@@ -777,18 +787,6 @@ class StepFunctions(object):
             )
             cmds.append(export_parent_tasks)
 
-        top_level = top_opts + [
-            "--quiet",
-            "--metadata=%s" % self.metadata.TYPE,
-            "--environment=%s" % self.environment.TYPE,
-            "--datastore=%s" % self.flow_datastore.TYPE,
-            "--datastore-root=%s" % self.flow_datastore.datastore_root,
-            "--event-logger=%s" % self.event_logger.logger_type,
-            "--monitor=%s" % self.monitor.monitor_type,
-            "--no-pylint",
-            "--with=step_functions_internal",
-        ]
-
         step = [
             "step",
             node.name,
@@ -799,9 +797,6 @@ class StepFunctions(object):
             "--retry-count $((AWS_BATCH_JOB_ATTEMPT-1))",
             "--max-user-code-retries %d" % user_code_retries,
             "--input-paths %s" % paths,
-            # Set decorator to batch to execute `task_*` hooks for batch
-            # decorator.
-            "--with=batch",
         ]
         if any(self.graph[n].type == "foreach" for n in node.in_funcs):
             # We set the `METAFLOW_SPLIT_INDEX` through JSONPath-foo
