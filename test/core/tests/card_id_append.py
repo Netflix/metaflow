@@ -9,11 +9,8 @@ class CardsWithIdTest(MetaflowTest):
     """
 
     PRIORITY = 3
-    HEADER = """
-import os
-os.environ['METAFLOW_CARD_NO_WARNING'] = 'True'
-    """
 
+    @tag('environment(vars={"METAFLOW_CARD_NO_WARNING": "True"})')
     @tag('card(type="test_editable_card",id="xyz")')
     @tag('card(type="test_editable_card",id="abc")')
     @steps(0, ["start"])

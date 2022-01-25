@@ -10,8 +10,6 @@ class DefaultEditableCardTest(MetaflowTest):
     """
 
     HEADER = """
-import os
-os.environ['METAFLOW_CARD_NO_WARNING'] = 'True'
 class MyNativeType:
     at = 0
     def get(self):
