@@ -8,6 +8,7 @@ from pathlib import Path
 
 WHITELIST = {"README.txt", "__init__.py", "vendor.txt"}
 
+# Borrowed from https://github.com/pypa/pip/tree/main/src/pip/_vendor
 
 def delete_all(*paths, whitelist=frozenset()):
     for item in paths:
