@@ -61,7 +61,7 @@ class DuplicateStepDecoratorException(MetaflowException):
     def __init__(self, deco, func):
         msg = (
             "Step '{step}' already has a decorator '{deco}'. "
-            "You can specify each decorator only once.".format(
+            "You can specify this decorator only once.".format(
                 step=func.__name__, deco=deco
             )
         )
