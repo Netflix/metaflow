@@ -1,7 +1,6 @@
 from .card_modules import MetaflowCardComponent
 from .card_modules.basic import ErrorComponent, SectionComponent
 from .card_modules.components import UserComponent
-from metaflow.metaflow_config import CARD_NO_WARNING
 import uuid
 import json
 
@@ -45,6 +44,8 @@ class CardComponentCollector:
     """
 
     def __init__(self, logger=None):
+        from metaflow.metaflow_config import CARD_NO_WARNING
+
         self._cards_components = (
             {}
         )  # a dict with key as uuid and value as a list of MetaflowCardComponent.
@@ -56,6 +57,7 @@ class CardComponentCollector:
         # `self._default_editable_card` holds the uuid of the card that is default editable. This card has access to `append`/`extend` methods of `self`
         self._default_editable_card = None
         self._warned_once = {"__getitem__": {}, "append": False, "extend": False}
+        self._no_warnings = True if CARD_NO_WARNING else False
 
     @staticmethod
     def create_uuid():
@@ -104,7 +106,7 @@ class CardComponentCollector:
         self._log(msg, timestamp=False, bad=True)
 
     def _add_warning_to_cards(self, warn_msg):
-        if CARD_NO_WARNING:
+        if self._no_warnings:
             return
         for card_id in self._cards_components:
             if not self._cards_meta[card_id]["suppress_warnings"]:
