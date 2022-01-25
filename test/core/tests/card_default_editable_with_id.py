@@ -8,6 +8,7 @@ class DefaultEditableCardWithIdTest(MetaflowTest):
     """
 
     PRIORITY = 3
+
     HEADER = """
 import os
 os.environ['METAFLOW_CARD_NO_WARNING'] = 'True'
