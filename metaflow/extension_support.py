@@ -159,7 +159,7 @@ if _py_ver >= 34:
     if _py_ver >= 38:
         from importlib import metadata
     else:
-        import importlib_metadata as metadata
+        from metaflow._vendor import importlib_metadata as metadata
     _mfext_supported = True
 else:
     # Something random so there is no syntax error
