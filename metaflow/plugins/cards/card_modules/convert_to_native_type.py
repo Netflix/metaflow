@@ -107,6 +107,7 @@ class TaskToDict:
             try:
                 data_object = data.data
                 task_data_dict[data.id] = self._convert_to_native_type(data_object)
+                task_data_dict[data.id]["name"] = data.id
             except ModuleNotFoundError as e:
                 data_object = "<unable to unpickle>"
                 # this means pickle couldn't find the module.
@@ -116,6 +117,7 @@ class TaskToDict:
                     large_object=False,
                     supported_type=False,
                     only_repr=self._only_repr,
+                    name=data.id,
                 )
 
             # Resolve special types.
@@ -127,6 +129,22 @@ class TaskToDict:
                     type_infered_objects["tables"][data.id] = type_resolved_obj.data
 
         return task_data_dict, type_infered_objects
+
+    def object_type(self, object):
+        return self._get_object_type(object)
+
+    def parse_image(self, data_object):
+        obj_type_name = self._get_object_type(data_object)
+        if obj_type_name == "bytes":
+            # Works for python 3.1+
+            import imghdr
+
+            resp = imghdr.what(None, h=data_object)
+            # Only accept types suppored on the web
+            # https://developer.mozilla.org/en-US/docs/Web/Media/Formats/Image_types
+            if resp is not None and resp in ["gif", "png", "jpeg", "webp"]:
+                return self._parse_image(data_object, resp)
+        return None
 
     def _extract_type_infered_object(self, data_object):
         # check images
@@ -163,6 +181,9 @@ class TaskToDict:
             pass
 
         return None
+
+    def infer_object(self, artifact_object):
+        return self._convert_to_native_type(artifact_object)
 
     def _convert_to_native_type(
         self,
@@ -274,9 +295,11 @@ class TaskToDict:
     def _parse_range(self, data_object):
         return self._get_repr().repr(data_object)
 
-    def _parse_pandas_dataframe(self, data_object):
+    def _parse_pandas_dataframe(self, data_object, truncate=True):
         headers = list(data_object.columns)
-        data = data_object.head()
+        data = data_object
+        if truncate:
+            data = data_object.head()
         index_column = data.index
 
         if index_column.dtype == "datetime64[ns]":
@@ -290,7 +313,16 @@ class TaskToDict:
         data_vals = data.values.tolist()
         for row, idx in zip(data_vals, index_column.values.tolist()):
             row.insert(0, idx)
-        return dict(headers=[""] + headers, data=data_vals)
+        return dict(
+            full_size=(
+                # full_size is a tuple of (num_rows,num_columns)
+                len(data_object),
+                len(headers),
+            ),
+            headers=[""] + headers,
+            data=data_vals,
+            truncated=truncate,
+        )
 
     def _parse_numpy_ndarray(self, data_object):
         return data_object.tolist()

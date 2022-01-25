@@ -21,7 +21,7 @@ from .exception import CardNotPresentException
 TEMP_DIR_NAME = "metaflow_card_cache"
 NUM_SHORT_HASH_CHARS = 5
 
-CardInfo = namedtuple("CardInfo", ["type", "hash"])
+CardInfo = namedtuple("CardInfo", ["type", "hash", "id", "filename"])
 
 
 def path_spec_resolver(pathspec):
@@ -76,11 +76,13 @@ class CardDatastore(object):
         self._temp_card_save_path = self._get_card_path(base_pth=TEMP_DIR_NAME)
 
     @classmethod
-    def get_card_location(cls, base_path, card_name, card_html):
-        return os.path.join(
-            base_path,
-            "%s-%s.html" % (card_name, sha1(bytes(card_html, "utf-8")).hexdigest()),
-        )
+    def get_card_location(cls, base_path, card_name, card_html, card_id=None):
+        chash = sha1(bytes(card_html, "utf-8")).hexdigest()
+        if card_id is None:
+            card_file_name = "%s-%s.html" % (card_name, chash)
+        else:
+            card_file_name = "%s-%s-%s.html" % (card_name, card_id, chash)
+        return os.path.join(base_path, card_file_name)
 
     def _make_path(self, base_pth, pathspec=None):
         sysroot = base_pth
@@ -124,35 +126,40 @@ class CardDatastore(object):
         """
         card_file_name = path.split("/")[-1]
         file_split = card_file_name.split("-")
-        if len(file_split) != 2:
+
+        if len(file_split) not in [2, 3]:
             raise Exception(
-                "Invalid card file name %s. Card file names should be of form TYPE-HASH.html"
+                "Invalid card file name %s. Card file names should be of form TYPE-HASH.html or TYPE-ID-HASH.html"
                 % card_file_name
             )
-        card_type, card_hash = None, None
-        card_type, card_hash = file_split
-        card_hash = card_hash.split(".html")[0]
-        return CardInfo(card_type, card_hash)
+        card_type, card_hash, card_id = None, None, None
 
-    def save_card(self, card_type, card_html, overwrite=True):
+        if len(file_split) == 2:
+            card_type, card_hash = file_split
+        else:
+            card_type, card_id, card_hash = file_split
+
+        card_hash = card_hash.split(".html")[0]
+        return CardInfo(card_type, card_hash, card_id, card_file_name)
+
+    def save_card(self, card_type, card_html, card_id=None, overwrite=True):
         card_file_name = card_type
         card_path = self.get_card_location(
-            self._get_card_path(), card_file_name, card_html
+            self._get_card_path(), card_file_name, card_html, card_id=card_id
         )
         self._backend.save_bytes(
             [(card_path, BytesIO(bytes(card_html, "utf-8")))], overwrite=overwrite
         )
         return self.card_info_from_path(card_path)
 
-    def _list_card_paths(self, card_type=None, card_hash=None):
+    def _list_card_paths(self, card_type=None, card_hash=None, card_id=None):
         card_path = self._get_card_path()
+
         card_paths = self._backend.list_content([card_path])
         if len(card_paths) == 0:
             # If there are no files found on the Path then raise an error of
             raise CardNotPresentException(
-                self._flow_name,
-                self._run_id,
-                self._step_name,
+                self._pathspec,
                 card_hash=card_hash,
                 card_type=card_type,
             )
@@ -163,16 +170,18 @@ class CardDatastore(object):
             if card_type is not None and card_info.type != card_type:
                 continue
             elif card_hash is not None:
-                if (
-                    card_info.hash != card_hash
-                    and card_hash != card_info.hash[:NUM_SHORT_HASH_CHARS]
-                ):
+                if not card_info.hash.startswith(card_hash):
                     continue
+            elif card_id is not None and card_info.id != card_id:
+                continue
 
             if task_card_path.is_file:
                 cards_found.append(card_path)
 
         return cards_found
+
+    def create_full_path(self, card_path):
+        return os.path.join(self._backend.datastore_root, card_path)
 
     def get_card_names(self, card_paths):
         return [self.card_info_from_path(path) for path in card_paths]
@@ -184,21 +193,32 @@ class CardDatastore(object):
                     with open(path, "r") as f:
                         return f.read()
 
-    def cache_locally(self, path):
+    def cache_locally(self, path, save_path=None):
+        """
+        Saves the data present in the `path` the `metaflow_card_cache` directory or to the `save_path`.
+        """
         # todo : replace this function with the FileCache
-        if not is_file_present(self._temp_card_save_path):
-            LocalStorage._makedirs(self._temp_card_save_path)
+        if save_path is None:
+            if not is_file_present(self._temp_card_save_path):
+                LocalStorage._makedirs(self._temp_card_save_path)
+        else:
+            save_dir = os.path.dirname(save_path)
+            if save_dir != "" and not is_file_present(save_dir):
+                LocalStorage._makedirs(os.path.dirname(save_path))
+
         with self._backend.load_bytes([path]) as get_results:
             for key, path, meta in get_results:
                 if path is not None:
                     main_path = path
-                    file_name = key.split("/")[-1]
-                    main_path = os.path.join(self._temp_card_save_path, file_name)
+                    if save_path is None:
+                        file_name = key.split("/")[-1]
+                        main_path = os.path.join(self._temp_card_save_path, file_name)
+                    else:
+                        main_path = save_path
                     shutil.copy(path, main_path)
                     return main_path
 
-    def extract_card_paths(self, card_type=None, card_hash=None):
+    def extract_card_paths(self, card_type=None, card_hash=None, card_id=None):
         return self._list_card_paths(
-            card_type=card_type,
-            card_hash=card_hash,
+            card_type=card_type, card_hash=card_hash, card_id=card_id
         )

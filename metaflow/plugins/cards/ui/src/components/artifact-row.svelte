@@ -1,7 +1,9 @@
-<!-- This component assembles the data rows of the artifacts table -->
+<!-- This component assembles the data rows of the artifacts table.
+
+If the artifact has a nullish name then just show the data.-->
 <script lang="ts">
   import type * as types from "../types";
-  export let id: string;
+  export let id: string | null;
   export let artifact: types.Artifact;
 
   let el: HTMLElement;
@@ -19,8 +21,13 @@
 </script>
 
 <tr>
-  <td class="idCell"> {id} </td>
-  <td class="codeCell"
+  {#if id !== null}
+    <td class="idCell" data-component="artifact-row"> {id} </td>
+  {/if}
+  <td
+    class="codeCell"
+    colspan={id === null ? 2 : 1}
+    data-component="artifact-row"
     ><code class="mono" bind:this={el}>{artifact.data}</code></td
   >
 </tr>

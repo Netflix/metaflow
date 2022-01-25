@@ -9,8 +9,10 @@ from .exception import (
 )
 import os
 import tempfile
+import uuid
 
 _TYPE = type
+_ID_FUNC = id
 
 
 class Card:
@@ -36,6 +38,8 @@ class Card:
         card_ds,
         type,
         path,
+        hash,
+        id=None,
         html=None,
         created_on=None,
         from_resumed=False,
@@ -46,8 +50,10 @@ class Card:
         self._html = html
         self._created_on = created_on
         self._card_ds = card_ds
+        self._card_id = id
 
         # public attributes
+        self.hash = hash
         self.type = type
         self.from_resumed = from_resumed
         self.origin_pathspec = origin_pathspec
@@ -65,6 +71,10 @@ class Card:
     def path(self):
         return self._path
 
+    @property
+    def id(self):
+        return self._card_id
+
     def __str__(self):
         return "<Card at '%s'>" % self._path
 
@@ -79,7 +89,17 @@ class Card:
         webbrowser.open(url)
 
     def _repr_html_(self):
-        return self.get()
+        main_html = []
+        container_id = uuid.uuid4()
+        main_html.append(
+            "<script type='text/javascript'>var mfContainerId = '%s';</script>"
+            % container_id
+        )
+        main_html.append(
+            "<div class='embed' data-container='%s'>%s</div>"
+            % (container_id, self.get())
+        )
+        return "\n".join(main_html)
 
 
 class CardContainer:
@@ -124,6 +144,8 @@ class CardContainer:
             self._card_ds,
             card_info.type,
             path,
+            card_info.hash,
+            id=card_info.id,
             html=None,
             created_on=None,
         )
@@ -136,11 +158,19 @@ class CardContainer:
         for idx, _ in enumerate(self._card_paths):
             card = self._get_card(idx)
             main_html.append(self._make_heading(card.type))
-            main_html.append("<div class='embed'>%s</div>" % card.get())
+            container_id = uuid.uuid4()
+            main_html.append(
+                "<script type='text/javascript'>var mfContainerId = '%s';</script>"
+                % container_id
+            )
+            main_html.append(
+                "<div class='embed' data-container='%s'>%s</div>"
+                % (container_id, card.get())
+            )
         return "\n".join(main_html)
 
 
-def get_cards(task, type=None, follow_resumed=True):
+def get_cards(task, id=None, type=None, follow_resumed=True):
     """
     Get cards related to a Metaflow `Task`
 
@@ -155,6 +185,7 @@ def get_cards(task, type=None, follow_resumed=True):
     from metaflow.client import Task
     from metaflow import namespace
 
+    card_id = id
     if isinstance(task, str):
         task_str = task
         if len(task_str.split("/")) != 4:
@@ -173,9 +204,7 @@ def get_cards(task, type=None, follow_resumed=True):
             task = Task(origin_taskpathspec)
 
     card_paths, card_ds = resolve_paths_from_task(
-        _get_flow_datastore(task),
-        pathspec=task.pathspec,
-        type=type,
+        _get_flow_datastore(task), pathspec=task.pathspec, type=type, card_id=card_id
     )
     return CardContainer(
         card_paths,

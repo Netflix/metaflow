@@ -38,39 +38,49 @@ class CardNotPresentException(MetaflowException):
 
     headline = "Card not found in datastore"
 
-    def __init__(
-        self,
-        flow_name,
-        run_id,
-        step_name,
-        card_type=None,
-        card_hash=None,
-    ):
-        idx_msg = ""
-        hash_msg = ""
-        msg = ""
+    def __init__(self, pathspec, card_type=None, card_hash=None, card_id=None):
+        main_message = "Card not found for pathspec %s" % pathspec
+        if card_id is not None:
+            main_message = "Card with id '%s' not found for pathspec %s" % (
+                card_id,
+                pathspec,
+            )
+
+        if card_type is not None:
+            main_message = "Card with type '%s' not found for pathspec %s" % (
+                card_type,
+                pathspec,
+            )
 
         if card_hash is not None:
-            hash_msg = " and hash %s" % card_hash
-        if card_type is not None:
-            msg = "Card of type %s %s %s not present for path-spec" " %s/%s/%s" % (
-                card_type,
-                idx_msg,
-                hash_msg,
-                flow_name,
-                run_id,
-                step_name,
-            )
-        else:
-            msg = "Card not present for path-spec" " %s/%s/%s %s %s" % (
-                flow_name,
-                run_id,
-                step_name,
-                idx_msg,
-                hash_msg,
+            main_message = (
+                "Card with hash '%s' not found for pathspec %s. When using `--hash` always ensure you have full hash or first five characters of the hash."
+                % (card_hash, pathspec)
             )
 
-        super(CardNotPresentException, self).__init__(msg)
+        super(CardNotPresentException, self).__init__(main_message)
+
+
+class TaskNotFoundException(MetaflowException):
+
+    headline = "Cannot resolve task for pathspec"
+
+    def __init__(
+        self,
+        pathspec_query,
+        resolved_from,
+        run_id=None,
+    ):
+        message = "Cannot resolve task to find card."
+        if resolved_from == "task_pathspec":
+            message = "Task pathspec %s not found." % pathspec_query
+        elif resolved_from == "step_pathspec":
+            message = "Step pathspec %s not found." % pathspec_query
+        elif resolved_from == "stepname":
+            message = "Step %s not found" % pathspec_query
+            if run_id is not None:
+                message = "Step %s not found for Run('%s')." % (pathspec_query, run_id)
+        super().__init__(msg=message, lineno=None)
 
 
 class IncorrectCardArgsException(MetaflowException):
