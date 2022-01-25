@@ -9,6 +9,7 @@ from .exception import (
 )
 import os
 import tempfile
+import uuid
 
 _TYPE = type
 _ID_FUNC = id
@@ -37,6 +38,7 @@ class Card:
         card_ds,
         type,
         path,
+        hash,
         id=None,
         html=None,
         created_on=None,
@@ -51,6 +53,7 @@ class Card:
         self._card_id = id
 
         # public attributes
+        self.hash = hash
         self.type = type
         self.from_resumed = from_resumed
         self.origin_pathspec = origin_pathspec
@@ -86,7 +89,17 @@ class Card:
         webbrowser.open(url)
 
     def _repr_html_(self):
-        return self.get()
+        main_html = []
+        container_id = uuid.uuid4()
+        main_html.append(
+            "<script type='text/javascript'>var mfContainerId = '%s';</script>"
+            % container_id
+        )
+        main_html.append(
+            "<div class='embed' data-container='%s'>%s</div>"
+            % (container_id, self.get())
+        )
+        return "\n".join(main_html)
 
 
 class CardContainer:
@@ -131,6 +144,7 @@ class CardContainer:
             self._card_ds,
             card_info.type,
             path,
+            card_info.hash,
             id=card_info.id,
             html=None,
             created_on=None,
@@ -144,7 +158,15 @@ class CardContainer:
         for idx, _ in enumerate(self._card_paths):
             card = self._get_card(idx)
             main_html.append(self._make_heading(card.type))
-            main_html.append("<div class='embed'>%s</div>" % card.get())
+            container_id = uuid.uuid4()
+            main_html.append(
+                "<script type='text/javascript'>var mfContainerId = '%s';</script>"
+                % container_id
+            )
+            main_html.append(
+                "<div class='embed' data-container='%s'>%s</div>"
+                % (container_id, card.get())
+            )
         return "\n".join(main_html)
 
 

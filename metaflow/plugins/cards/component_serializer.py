@@ -1,16 +1,11 @@
 from .card_modules import MetaflowCardComponent
-from .card_modules.basic import ErrorComponent
+from .card_modules.basic import ErrorComponent, SectionComponent
+from .card_modules.components import UserComponent
 from metaflow.metaflow_config import CARD_NO_WARNING
 import uuid
 import json
 
 _TYPE = type
-
-
-class SerializationErrorComponent(ErrorComponent):
-    def __init__(self, component_name, error_message):
-        headline = "Component %s [RENDER FAIL]" % component_name
-        super().__init__(headline, error_message)
 
 
 def get_card_class(card_type):
@@ -310,37 +305,42 @@ class CardComponentCollector:
         self._cards_components[self._default_editable_card].extend(components)
 
     def _serialize_components(self, card_uuid):
-        import traceback
-
+        """
+        This method renders components present in a card to strings/json.
+        Components exposed by metaflow ensure that they render safely. If components
+        don't render safely then we don't add them to the final list of serialized functions
+        """
         serialized_components = []
         if card_uuid not in self._cards_components:
             return []
+        has_user_components = any(
+            [
+                issubclass(type(component), UserComponent)
+                for component in self._cards_components[card_uuid]
+            ]
+        )
         for component in self._cards_components[card_uuid]:
             if not issubclass(type(component), MetaflowCardComponent):
                 continue
             try:
                 rendered_obj = component.render()
             except:
-                error_str = traceback.format_exc()
-                serialized_components.append(
-                    SerializationErrorComponent(
-                        component.__class__.__name__, error_str
-                    ).render()
-                )
+                continue
             else:
                 if not (type(rendered_obj) == str or type(rendered_obj) == dict):
-                    rendered_obj = SerializationErrorComponent(
-                        component.__class__.__name__,
-                        "Component render didn't return a `string` or `dict`",
-                    ).render()
+                    continue
                 else:
-                    try:  # check if rendered object is json serializable.
-                        json.dumps(rendered_obj)
-                    except (TypeError, OverflowError) as e:
-                        rendered_obj = SerializationErrorComponent(
-                            component.__class__.__name__,
-                            "Rendered Component cannot be JSON serialized. \n\n %s"
-                            % str(e),
-                        ).render()
+                    # Since `UserComponent`s are safely_rendered using render_tools.py
+                    # we don't need to check JSON serialization as @render_tools.render_safely
+                    # decorator ensures this check so there is no need to re-serialize
+                    if not issubclass(type(component), UserComponent):
+                        try:  # check if rendered object is json serializable.
+                            json.dumps(rendered_obj)
+                        except (TypeError, OverflowError) as e:
+                            continue
                 serialized_components.append(rendered_obj)
+        if has_user_components and len(serialized_components) > 0:
+            serialized_components = [
+                SectionComponent(contents=serialized_components).render()
+            ]
         return serialized_components

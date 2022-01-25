@@ -17,9 +17,15 @@ class MetaflowCard(object):
             return None
 
     def render(self, task):
+        """
+        `render` returns a string.
+        """
         return NotImplementedError()
 
 
 class MetaflowCardComponent(object):
     def render(self):
+        """
+        `render` returns a string or dictionary. This class can be called on the client side to dynamically add components to the `MetaflowCard`
+        """
         raise NotImplementedError()
