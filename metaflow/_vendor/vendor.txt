@@ -1,3 +1,2 @@
 click==8.0.3
 importlib_metadata==4.10.1
-pylint==2.12.2

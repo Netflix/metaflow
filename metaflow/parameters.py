@@ -1,7 +1,7 @@
 import json
 from collections import namedtuple
 
-import click
+from metaflow._vendor import click
 
 from .util import get_username, is_stringish
 from .exception import (
