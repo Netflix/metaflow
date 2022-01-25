@@ -5,7 +5,7 @@
   const { title } = componentData;
 </script>
 
-<div id={`page-${title || "No Title"}`} class="page">
+<div id={`page-${title || "No Title"}`} class="page" data-component="page">
   <slot />
 </div>
 
