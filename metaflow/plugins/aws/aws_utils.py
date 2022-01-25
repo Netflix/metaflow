@@ -90,15 +90,15 @@ def compute_resource_attributes(decos, compute_deco, resource_defaults):
                                 "specify this resource constraint once" % k
                             )
                 elif my_val is not None:
-                    result[k] = my_val or "0"
+                    result[k] = str(my_val or "0")
                 else:
-                    result[k] = v or "0"
+                    result[k] = str(v or "0")
             return result
 
     # If there is no resources decorator, values from compute_deco override
     # the defaults.
     for k in resource_defaults:
         if compute_deco.attributes.get(k) is not None:
-            result[k] = compute_deco.attributes[k] or "0"
+            result[k] = str(compute_deco.attributes[k] or "0")
 
     return result
