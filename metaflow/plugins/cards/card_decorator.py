@@ -241,18 +241,12 @@ class CardDecorator(StepDecorator):
         top_level_options = {
             "quiet": True,
             "metadata": self._metadata.TYPE,
-            "coverage": "coverage" in sys.modules,
             "environment": self._environment.TYPE,
             "datastore": self._flow_datastore.TYPE,
             "datastore-root": self._flow_datastore.datastore_root,
             # We don't provide --with as all execution is taking place in
             # the context of the main processs
         }
-        # FlowDecorators can define their own top-level options. They are
-        # responsible for adding their own top-level options and values through
-        # the get_top_level_options() hook.
-        for deco in flow_decorators():
-            top_level_options.update(deco.get_top_level_options())
         return list(self._options(top_level_options))
 
     def _run_cards_subprocess(self, runspec, component_strings):
