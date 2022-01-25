@@ -24,19 +24,6 @@ from .card_resolver import resolve_paths_from_task, resumed_info
 
 id_func = id
 
-# FIXME :  Import the changes from Netflix/metaflow#833 for Graph
-def serialize_flowgraph(flowgraph):
-    graph_dict = {}
-    for node in flowgraph:
-        graph_dict[node.name] = {
-            "type": node.type,
-            "box_next": node.type not in ("linear", "join"),
-            "box_ends": node.matching_join,
-            "next": node.out_funcs,
-            "doc": node.doc,
-        }
-    return graph_dict
-
 
 def open_in_browser(card_path):
     url = "file://" + os.path.abspath(card_path)
@@ -448,8 +435,7 @@ def create(
     flowname = ctx.obj.flow.name
     full_pathspec = "/".join([flowname, pathspec])
 
-    # todo : Import the changes from Netflix/metaflow#833 for Graph
-    graph_dict = serialize_flowgraph(ctx.obj.graph)
+    graph_dict, _ = ctx.obj.graph.output_steps()
 
     # Components are rendered in a Step and added via `current.card.append` are added here.
     component_arr = []
