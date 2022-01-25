@@ -16,9 +16,14 @@
 </head>
 
 <body>
-  <div id="app"></div>
+  <div class="card_app"></div>
   <script>
-    window.__DATA__ = {{{task_data}}}
+    var mfCardDataId = "{{{card_data_id}}}";
+
+    if (!window.__MF_DATA__) {
+      window.__MF_DATA__ = {};
+    }
+    window.__MF_DATA__["{{{card_data_id}}}"] = {{{task_data}}}
   </script>
   <script>
     {{{javascript}}}
