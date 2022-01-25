@@ -20,7 +20,6 @@ setup(
         metaflow=metaflow.main_cli:main
       """,
     install_requires=[
-        "click>=7.0",
         "requests",
         "boto3",
         "pylint",
