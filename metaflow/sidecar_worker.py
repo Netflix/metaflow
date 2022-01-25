@@ -15,6 +15,7 @@ from metaflow.sidecar_messages import MessageTypes, deserialize
 from metaflow.plugins import SIDECARS
 from metaflow._vendor import click
 
+
 class WorkershutdownError(Exception):
     """raised when terminating sidecar"""
 
