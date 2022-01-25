@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-version = "2.4.9"
+version = "2.5.0"
 
 setup(
     include_package_data=True,
@@ -24,7 +24,6 @@ setup(
         "requests",
         "boto3",
         "pylint",
-        "importlib_metadata;python_version>='3.4' and python_version<'3.8'",
     ],
     tests_require=["coverage"],
 )
