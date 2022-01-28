@@ -150,7 +150,13 @@ FLOW_DECORATORS = [CondaFlowDecorator, ScheduleDecorator, ProjectDecorator]
 _merge_lists(FLOW_DECORATORS, _ext_plugins["FLOW_DECORATORS"], "name")
 
 # Cards
-from .cards.card_modules.basic import DefaultCard, TaskSpecCard, ErrorCard, BlankCard
+from .cards.card_modules.basic import (
+    DefaultCard,
+    TaskSpecCard,
+    ErrorCard,
+    BlankCard,
+    DefaultCardJSON,
+)
 from .cards.card_modules.test_cards import (
     TestErrorCard,
     TestTimeoutCard,
@@ -175,6 +181,7 @@ CARDS = [
     TestEditableCard2,
     TestNonEditableCard,
     BlankCard,
+    DefaultCardJSON,
 ] + MF_EXTERNAL_CARDS
 # Sidecars
 from ..mflog.save_logs_periodically import SaveLogsPeriodicallySidecar
