@@ -24,5 +24,4 @@ setup(
         "boto3",
         "pylint",
     ],
-    tests_require=["coverage"],
 )

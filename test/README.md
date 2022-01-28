@@ -228,15 +228,5 @@ PYTHONPATH=`pwd`/../../ python run_tests.py --debug --contexts dev-local --graph
 
 This chooses a single context, a single graph, and a single test. If you are developing a new test, this is the fastest way to test the test.
 
-### Coverage report
-
-The test harness uses the `coverage` package in Python to produce a test
-coverage report. By default, you can find a comprehensive test coverage
-report in the `coverage` directory after the test harness has finished.
-
-After you have developed a new feature in Metaflow, use the line-by-line
-coverage report to confirm that all lines related the new feature are
-touched by the tests.
-
 
 

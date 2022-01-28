@@ -128,7 +128,6 @@ class CardDecorator(StepDecorator):
         top_level_options = {
             "quiet": True,
             "metadata": self._metadata.TYPE,
-            "coverage": "coverage" in sys.modules,
             "environment": self._environment.TYPE,
             "datastore": self._flow_datastore.TYPE,
             "datastore-root": self._flow_datastore.datastore_root,

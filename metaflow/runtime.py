@@ -887,7 +887,6 @@ class CLIArgs(object):
         self.entrypoint = list(task.entrypoint)
         self.top_level_options = {
             "quiet": True,
-            "coverage": "coverage" in sys.modules,
             "metadata": self.task.metadata_type,
             "environment": self.task.environment_type,
             "datastore": self.task.datastore_type,
