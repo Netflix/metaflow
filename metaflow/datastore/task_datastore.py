@@ -147,6 +147,9 @@ class TaskDataStore(object):
                     )
                     if self.has_metadata(check_meta, add_attempt=False):
                         max_attempt = i
+                    else:
+                        # We can assume that if attempt i does not exist, i + 1 does not either
+                        break
                 if self._attempt is None:
                     self._attempt = max_attempt
                 elif max_attempt is None or self._attempt > max_attempt:
