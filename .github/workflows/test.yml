@@ -21,7 +21,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-        ver: ['2.x', '3.4', '3.5', '3.6', '3.7', '3.8', '3.9']            
+        ver: ['2.x', '3.5', '3.6', '3.7', '3.8', '3.9']            
 
     steps:
     - uses: actions/checkout@v2
