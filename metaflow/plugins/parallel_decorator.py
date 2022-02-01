@@ -109,8 +109,8 @@ def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_c
         kwargs["retry_count"] = str(retry_count)
 
         cmd = cli_args.step_command(executable, script, step_name, step_kwargs=kwargs)
-        p = subprocess.Popen(cmd)
-        subprocesses.append(p)
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocesses.append((task_id, p))
 
     flow._control_mapper_tasks = [
         "%s/%s/%s" % (run_id, step_name, mapper_task_id)
@@ -122,8 +122,24 @@ def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_c
     os.environ["MF_PARALLEL_NODE_INDEX"] = "0"
     step_func()
 
-    # join the subprocesses
-    for p in subprocesses:
-        p.wait()
+    # join the subprocesses and store logs
+    flow_datastore = flow._datastore.parent_datastore
+    errors = []
+    for task_id, p in subprocesses:
+        stdout, stderr = p.communicate()
+
+        print("--- Task {} stdout: ---".format(task_id))
+        print(stdout.decode("utf8"))
+        print("--- Task {} stderr: ---".format(task_id))
+        print(stderr.decode("utf8"))
+
+        task_datastore = flow_datastore.get_task_datastore(
+            run_id, step_name, task_id, 0, mode="w"
+        )
+        task_datastore.save_logs("task", {"stdout": stdout, "stderr": stderr})
+
         if p.returncode:
-            raise Exception("Subprocess failed, return code {}".format(p.returncode))
+            errors.append(p.returncode)
+
+    if errors:
+        raise Exception("Subprocess failed, return code(s): {}".format(errors))
