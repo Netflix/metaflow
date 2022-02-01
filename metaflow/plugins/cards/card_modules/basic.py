@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 from .card import MetaflowCard, MetaflowCardComponent
@@ -534,13 +535,36 @@ class ErrorCard(MetaflowCard):
         )
         pt = self._get_mustache()
         data_dict = dict(
-            task_data=json.dumps(json.dumps(final_component_dict)),
+            task_data=base64.b64encode(
+                json.dumps(final_component_dict).encode("utf-8")
+            ).decode("utf-8"),
             javascript=JS_DATA,
             css=CSS_DATA,
             title=task.pathspec,
             card_data_id=uuid.uuid4(),
         )
         return pt.render(RENDER_TEMPLATE, data_dict)
+
+
+class DefaultCardJSON(MetaflowCard):
+
+    type = "default_json"
+
+    def __init__(self, options=dict(only_repr=True), components=[], graph=None):
+        self._only_repr = True
+        self._graph = None if graph is None else transform_flow_graph(graph)
+        if "only_repr" in options:
+            self._only_repr = options["only_repr"]
+        self._components = components
+
+    def render(self, task):
+        final_component_dict = TaskInfoComponent(
+            task,
+            only_repr=self._only_repr,
+            graph=self._graph,
+            components=self._components,
+        ).render()
+        return json.dumps(final_component_dict)
 
 
 class DefaultCard(MetaflowCard):
@@ -568,7 +592,9 @@ class DefaultCard(MetaflowCard):
         ).render()
         pt = self._get_mustache()
         data_dict = dict(
-            task_data=json.dumps(json.dumps(final_component_dict)),
+            task_data=base64.b64encode(
+                json.dumps(final_component_dict).encode("utf-8")
+            ).decode("utf-8"),
             javascript=JS_DATA,
             title=task.pathspec,
             css=CSS_DATA,
@@ -608,7 +634,9 @@ class BlankCard(MetaflowCard):
         )
         pt = self._get_mustache()
         data_dict = dict(
-            task_data=json.dumps(json.dumps(final_component_dict)),
+            task_data=base64.b64encode(
+                json.dumps(final_component_dict).encode("utf-8")
+            ).decode("utf-8"),
             javascript=JS_DATA,
             title=task.pathspec,
             css=CSS_DATA,

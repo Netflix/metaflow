@@ -9,7 +9,7 @@ export const cardData: Writable<types.CardResponse | undefined> =
 export const setCardData: (cardDataId: string) => void = (cardDataId) => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-    const data = JSON.parse((window as any).__MF_DATA__[cardDataId]) as types.CardResponse;
+    const data = JSON.parse(atob((window as any).__MF_DATA__[cardDataId])) as types.CardResponse;
     cardData.set(data);
   } catch (error) {
     // for now we are loading an example card if there is no string
