@@ -34,8 +34,7 @@ class ContentAddressedStore(object):
         self._prefix = prefix
         self._storage_impl = storage_impl
         self.TYPE = self._storage_impl.TYPE
-        self._blob_cache = None
-
+        self._blob_cache = SmallObjectCache()
         # Map of very common short values. Store both v2 and v4 pickled versions...
         constants = [
             None,
@@ -94,7 +93,6 @@ class ContentAddressedStore(object):
         results = []
 
         def packing_iter():
-            processed_paths = set()
             for blob in blob_iter:
                 sha = sha1(blob).hexdigest()
                 path = self._storage_impl.path_join(self._prefix, sha[:2], sha)
@@ -107,8 +105,10 @@ class ContentAddressedStore(object):
 
                 if sha in self._constants:
                     continue
-                if path in processed_paths:  # avoid duplicate requests
-                    continue
+                if self._blob_cache:
+                    if self._blob_cache.load_key(sha):
+                        continue
+                    self._blob_cache.store_key(sha, blob)
 
                 if not self._storage_impl.is_file([path])[0]:
                     # only process blobs that don't exist already in the
@@ -118,7 +118,6 @@ class ContentAddressedStore(object):
                         yield path, (BytesIO(blob), meta)
                     else:
                         yield path, (self._pack_v1(blob), meta)
-                processed_paths.add(path)
 
         # We don't actually want to overwrite but by saying =True, we avoid
         # checking again saving some operations. We are already sure we are not
@@ -193,7 +192,6 @@ class ContentAddressedStore(object):
                             raise DataException(
                                 "Could not unpack artifact '%s': %s" % (path, e)
                             )
-
                 if self._blob_cache:
                     self._blob_cache.store_key(key, blob)
 
@@ -222,3 +220,21 @@ class BlobCache(object):
 
     def store_key(self, key, blob):
         pass
+
+
+class SmallObjectCache(BlobCache):
+    """
+    Default cache to only store small objects
+    """
+
+    def __init__(self):
+        self._cache = {}
+        self._total_size = 0
+
+    def load_key(self, key):
+        return self._cache.get(key)
+
+    def store_key(self, key, blob):
+        if len(blob) < 4096 and self._total_size < 1024 * 1024:
+            self._cache[key] = blob
+            self._total_size += len(blob)
