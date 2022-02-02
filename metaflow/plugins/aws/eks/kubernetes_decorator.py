@@ -12,6 +12,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_CONTAINER_REGISTRY,
     DATASTORE_LOCAL_DIR,
     KUBERNETES_NAMESPACE,
+    KUBERNETES_SERVICE_ACCOUNT
 )
 from metaflow.plugins import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
@@ -88,6 +89,8 @@ class KubernetesDecorator(StepDecorator):
 
         if not self.attributes["namespace"]:
             self.attributes["namespace"] = KUBERNETES_NAMESPACE
+        if not self.attributes["service_account"]:
+            self.attributes["service_account"] = KUBERNETES_SERVICE_ACCOUNT
         # TODO: Unify the logic with AWS Batch
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:
@@ -209,8 +212,6 @@ class KubernetesDecorator(StepDecorator):
 
         if "METAFLOW_KUBERNETES_WORKLOAD" in os.environ:
             meta = {}
-            # TODO: Get kubernetes job id and job name
-            meta["kubernetes-pod-id"] = os.environ["METAFLOW_KUBERNETES_POD_ID"]
             meta["kubernetes-pod-name"] = os.environ["METAFLOW_KUBERNETES_POD_NAME"]
             meta["kubernetes-pod-namespace"] = os.environ[
                 "METAFLOW_KUBERNETES_POD_NAMESPACE"
@@ -236,6 +237,11 @@ class KubernetesDecorator(StepDecorator):
             # execution metadata from the AWS Batch container to user's
             # local file system after the user code has finished execution.
             # This happens via datastore as a communication bridge.
+
+            # TODO (bug):  There is no guarantee that task_prestep executes before
+            #              task_finished is invoked. That will result in
+            #              AttributeError: 'KubernetesDecorator' object has no
+            #              attribute 'metadata' error.
             if self.metadata.TYPE == "local":
                 # Note that the datastore is *always* Amazon S3 (see
                 # runtime_task_created function).

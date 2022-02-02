@@ -239,7 +239,7 @@ class KubernetesJob(object):
                                 image=self._kwargs["image"],
                                 name=self._kwargs["name"],
                                 resources=client.V1ResourceRequirements(
-                                    requests={
+                                    limits={
                                         "cpu": str(self._kwargs["cpu"]),
                                         "memory": "%sM" % str(self._kwargs["memory"]),
                                         "ephemeral-storage": "%sM"

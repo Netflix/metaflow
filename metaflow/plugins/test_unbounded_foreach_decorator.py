@@ -111,11 +111,11 @@ class InternalTestUnboundedForeachDecorator(StepDecorator):
             cmd = cli_args.step_command(
                 executable, script, step_name, step_kwargs=kwargs
             )
-            step_cli = u" ".join(cmd)
+            step_cli = " ".join(cmd)
             # Print cmdline for execution. Doesn't work without the temporary
             # unicode object while using `print`.
             print(
-                u"[${cwd}] Starting split#{split} with cmd:{cmd}".format(
+                "[${cwd}] Starting split#{split} with cmd:{cmd}".format(
                     cwd=os.getcwd(), split=i, cmd=step_cli
                 )
             )
