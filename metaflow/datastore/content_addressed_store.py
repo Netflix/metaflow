@@ -37,13 +37,22 @@ class ContentAddressedStore(object):
         self._blob_cache = None
 
         # Map of very common short values. Store both v2 and v4 pickled versions...
-        constants = [None, True, False, [], {}, "", "start", "end"] + list(range(100))
+        constants = [
+            None,
+            True,
+            False,
+            [],
+            {},
+            "",
+            "start",
+            "end",
+            "_parallel_ubf_iter",
+        ] + list(range(100))
         self._constants = {}
         for value in constants:
             for version in [2, 4]:
                 pickled = pickle.dumps(value, protocol=version)
                 self._constants[sha1(pickled).hexdigest()] = pickled
-
 
     def set_blob_cache(self, blob_cache):
         self._blob_cache = blob_cache
