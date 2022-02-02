@@ -6,6 +6,7 @@ from io import BytesIO
 
 from ..exception import MetaflowInternalError
 from .exceptions import DataException
+import binascii
 
 
 class ContentAddressedStore(object):
@@ -76,6 +77,14 @@ class ContentAddressedStore(object):
 
         def packing_iter():
             for blob in blob_iter:
+                if len(blob) < 512:
+                    # direct storage for small objects
+                    results.append(
+                        self.save_blobs_result(
+                            uri=None, key="!" + binascii.hexlify(blob).decode("ascii")
+                        )
+                    )
+                    continue
                 sha = sha1(blob).hexdigest()
                 path = self._storage_impl.path_join(self._prefix, sha[:2], sha)
                 results.append(
@@ -123,6 +132,10 @@ class ContentAddressedStore(object):
         """
         load_paths = []
         for key in keys:
+            if key[0] == "!":
+                # Smaller objects are directly stored in the key
+                blob = binascii.unhexlify(key[1:])
+                yield key, blob
             blob = None
             if self._blob_cache:
                 blob = self._blob_cache.load_key(key)
