@@ -3,6 +3,7 @@ import gzip
 from collections import namedtuple
 from hashlib import sha1
 from io import BytesIO
+import pickle
 
 from ..exception import MetaflowInternalError
 from .exceptions import DataException
@@ -34,6 +35,15 @@ class ContentAddressedStore(object):
         self._storage_impl = storage_impl
         self.TYPE = self._storage_impl.TYPE
         self._blob_cache = None
+
+        # Map of very common short values. Store both v2 and v4 pickled versions...
+        constants = [None, True, False, [], {}, "", "start", "end"] + list(range(100))
+        self._constants = {}
+        for value in constants:
+            for version in [2, 4]:
+                pickled = pickle.dumps(value, protocol=version)
+                self._constants[sha1(pickled).hexdigest()] = pickled
+
 
     def set_blob_cache(self, blob_cache):
         self._blob_cache = blob_cache
@@ -75,6 +85,7 @@ class ContentAddressedStore(object):
         results = []
 
         def packing_iter():
+            processed_paths = set()
             for blob in blob_iter:
                 sha = sha1(blob).hexdigest()
                 path = self._storage_impl.path_join(self._prefix, sha[:2], sha)
@@ -85,6 +96,11 @@ class ContentAddressedStore(object):
                     )
                 )
 
+                if sha in self._constants:
+                    continue
+                if path in processed_paths:  # avoid duplicate requests
+                    continue
+
                 if not self._storage_impl.is_file([path])[0]:
                     # only process blobs that don't exist already in the
                     # backing datastore
@@ -93,6 +109,7 @@ class ContentAddressedStore(object):
                         yield path, (BytesIO(blob), meta)
                     else:
                         yield path, (self._pack_v1(blob), meta)
+                processed_paths.add(path)
 
         # We don't actually want to overwrite but by saying =True, we avoid
         # checking again saving some operations. We are already sure we are not
@@ -124,7 +141,9 @@ class ContentAddressedStore(object):
         load_paths = []
         for key in keys:
             blob = None
-            if self._blob_cache:
+            if key in self._constants:
+                blob = self._constants[key]
+            elif self._blob_cache:
                 blob = self._blob_cache.load_key(key)
             if blob is not None:
                 yield key, blob
