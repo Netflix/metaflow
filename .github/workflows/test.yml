@@ -31,7 +31,7 @@ jobs:
         python3 -m pip install tox numpy black
 
     - name: Python Code Format Check
-      run: black --target-version py27 --diff --check ./metaflow/plugins/kfp/*.py
+      run: black --target-version py39 --diff --check ./metaflow/plugins/kfp/*.py
 
     - name: Execute Python tests
       if: matrix.lang == 'python'
