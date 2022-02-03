@@ -167,9 +167,7 @@ def run_test(formatter, context, debug, checks, env_base):
             shutil.rmtree(tempdir)
 
 
-def run_all(
-    ok_tests, ok_contexts, ok_graphs, debug, num_parallel, inherit_env
-):
+def run_all(ok_tests, ok_contexts, ok_graphs, debug, num_parallel, inherit_env):
 
     tests = [
         test
@@ -186,15 +184,10 @@ def run_all(
     if debug or num_parallel is None:
         for test in tests:
             failed.extend(
-                run_test_cases(
-                    (test, ok_contexts, ok_graphs, debug, base_env)
-                )
+                run_test_cases((test, ok_contexts, ok_graphs, debug, base_env))
             )
     else:
-        args = [
-            (test, ok_contexts, ok_graphs, debug, base_env)
-            for test in tests
-        ]
+        args = [(test, ok_contexts, ok_graphs, debug, base_env) for test in tests]
         for fail in Pool(num_parallel).imap_unordered(run_test_cases, args):
             failed.extend(fail)
     return failed
@@ -302,12 +295,12 @@ def cli(
 
     failed = run_all(
         parse(tests),
-            parse(contexts),
-            parse(graphs),
-            debug,
-            num_parallel,
-            inherit_env,
-        )
+        parse(contexts),
+        parse(graphs),
+        debug,
+        num_parallel,
+        inherit_env,
+    )
 
     if failed:
         log("The following tests failed:")
@@ -320,7 +313,6 @@ def cli(
     else:
         log("All tests were successful!", real_good=True)
         sys.exit(0)
-
 
 
 if __name__ == "__main__":

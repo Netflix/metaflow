@@ -55,8 +55,8 @@ def find_vendored_libs(vendor_dir, whitelist):
 
 def fetch_licenses(*info_dir, vendor_dir):
     for file in chain.from_iterable(map(iter_subtree, info_dir)):
-        if 'LICENSE' in file.name:
-            library = file.parent.name.split('-')[0]
+        if "LICENSE" in file.name:
+            library = file.parent.name.split("-")[0]
             shutil.copy(file, vendor_dir / ("%s.LICENSE" % library))
         else:
             continue
