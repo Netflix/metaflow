@@ -16,7 +16,7 @@ jobs:
     - uses: pre-commit/action@v2.0.3
 
   Python:
-    name: core tests / Python ${{ matrix.ver }} on ${{ matrix.os }}
+    name: core / Python ${{ matrix.ver }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -48,13 +48,13 @@ jobs:
       run: tox
 
   R:
-    name: core tests / R ${{ matrix.ver }} on ${{ matrix.os }}
+    name: core / R ${{ matrix.ver }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        ver: ['3.5', '3.6', '4.0', '4.1.1']
+        ver: ['3.5', '3.6', '4.0', '4.1']
    
     steps:
     - uses: actions/checkout@v2
