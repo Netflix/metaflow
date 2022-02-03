@@ -518,7 +518,6 @@ class MetadataProvider(object):
         entries = {}
         entries["runtime"] = env["runtime"]
         entries["python_version"] = env["python_version"]
-        entries["date"] = datetime.utcnow().strftime("%Y-%m-%d")
         if env["metaflow_version"]:
             entries["metaflow_version"] = env["metaflow_version"]
         if "metaflow_r_version" in env:
