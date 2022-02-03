@@ -6,7 +6,6 @@ on:
   pull_request:
     branches:
     - master
-  workflow_dispatch:
   
 jobs:
   pre-commit:
@@ -15,8 +14,9 @@ jobs:
     - uses: actions/checkout@v2
     - uses: actions/setup-python@v2
     - uses: pre-commit/action@v2.0.3
-  pytest:
-    name: tests / Python ${{ matrix.ver }} on ${{ matrix.os }}
+
+  Python:
+    name: core tests / Python ${{ matrix.ver }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -32,13 +32,13 @@ jobs:
       with:
         python-version: ${{ matrix.ver }}
 
-    - name: Install Python 2.x dependencies
+    - name: Install Python2 dependencies
       if: matrix.ver == '2.x'
       run: |
         python2 -m pip install --upgrade pip
         python2 -m pip install tox
 
-    - name: Install Python 3.x dependencies
+    - name: Install Python3 dependencies
       if: matrix.ver != '2.x'
       run: |
         python3 -m pip install --upgrade pip
@@ -47,14 +47,14 @@ jobs:
     - name: Execute Python tests
       run: tox
 
-  rtest:
-    name: tests / R ${{ matrix.ver }} on ${{ matrix.os }}
+  R:
+    name: core tests / R ${{ matrix.ver }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        ver: ['3.8', '3.9', '4.0', '4.1.1']
+        ver: ['3.5', '3.6', '4.0', '4.1.1']
    
     steps:
     - uses: actions/checkout@v2
