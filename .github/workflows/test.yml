@@ -32,13 +32,13 @@ jobs:
       with:
         python-version: ${{ matrix.ver }}
 
-    - name: Install Python2 dependencies
+    - name: Install Python 2.x dependencies
       if: matrix.ver == '2.x'
       run: |
         python2 -m pip install --upgrade pip
         python2 -m pip install tox
 
-    - name: Install Python3 dependencies
+    - name: Install Python ${{ matrix.ver }} dependencies
       if: matrix.ver != '2.x'
       run: |
         python3 -m pip install --upgrade pip
