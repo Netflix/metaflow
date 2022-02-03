@@ -6,7 +6,7 @@ from functools import partial
 from itertools import chain
 from pathlib import Path
 
-WHITELIST = {"README.txt", "__init__.py", "vendor.txt"}
+WHITELIST = {"README.txt", "__init__.py", "vendor.txt", "pip.LICENSE"}
 
 # Borrowed from https://github.com/pypa/pip/tree/main/src/pip/_vendor
 
