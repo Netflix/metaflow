@@ -9,7 +9,7 @@ import shutil
 import subprocess
 from multiprocessing import Pool
 
-import click
+from metaflow._vendor import click
 
 from metaflow_test import MetaflowTest
 from metaflow_test.formatter import FlowFormatter
@@ -61,12 +61,7 @@ def log(msg, formatter=None, context=None, real_bad=False, real_good=False):
     click.echo("[pid %s] %s" % (pid, line))
 
 
-def copy_coverage_files(dstdir):
-    for fname in glob.glob(".coverage.*"):
-        shutil.copy(fname, dstdir)
-
-
-def run_test(formatter, context, coverage_dir, debug, checks, env_base):
+def run_test(formatter, context, debug, checks, env_base):
     def run_cmd(mode):
         cmd = [context["python"], "-B", "test_flow.py"]
         cmd.extend(context["top_options"])
@@ -84,8 +79,6 @@ def run_test(formatter, context, coverage_dir, debug, checks, env_base):
             f.write(formatter.flow_code)
         with open("check_flow.py", "w") as f:
             f.write(formatter.check_code)
-        with open(".coveragerc", "w") as f:
-            f.write("[run]\ndisable_warnings = module-not-measured\n")
 
         shutil.copytree(
             os.path.join(cwd, "metaflow_test"), os.path.join(tempdir, "metaflow_test")
@@ -167,9 +160,6 @@ def run_test(formatter, context, coverage_dir, debug, checks, env_base):
                     context,
                 )
 
-        # copy coverage files
-        if coverage_dir:
-            copy_coverage_files(coverage_dir)
         return ret, path
     finally:
         os.chdir(cwd)
@@ -177,9 +167,7 @@ def run_test(formatter, context, coverage_dir, debug, checks, env_base):
             shutil.rmtree(tempdir)
 
 
-def run_all(
-    ok_tests, ok_contexts, ok_graphs, coverage_dir, debug, num_parallel, inherit_env
-):
+def run_all(ok_tests, ok_contexts, ok_graphs, debug, num_parallel, inherit_env):
 
     tests = [
         test
@@ -196,22 +184,17 @@ def run_all(
     if debug or num_parallel is None:
         for test in tests:
             failed.extend(
-                run_test_cases(
-                    (test, ok_contexts, ok_graphs, coverage_dir, debug, base_env)
-                )
+                run_test_cases((test, ok_contexts, ok_graphs, debug, base_env))
             )
     else:
-        args = [
-            (test, ok_contexts, ok_graphs, coverage_dir, debug, base_env)
-            for test in tests
-        ]
+        args = [(test, ok_contexts, ok_graphs, debug, base_env) for test in tests]
         for fail in Pool(num_parallel).imap_unordered(run_test_cases, args):
             failed.extend(fail)
     return failed
 
 
 def run_test_cases(args):
-    test, ok_contexts, ok_graphs, coverage_dir, debug, base_env = args
+    test, ok_contexts, ok_graphs, debug, base_env = args
     contexts = json.load(open("contexts.json"))
     graphs = list(iter_graphs())
     test_name = test.__class__.__name__
@@ -246,7 +229,6 @@ def run_test_cases(args):
                 ret, path = run_test(
                     formatter,
                     context,
-                    coverage_dir,
                     debug,
                     contexts["checks"],
                     base_env,
@@ -263,24 +245,6 @@ def run_test_cases(args):
         else:
             log("not a valid combination. Skipped.", formatter)
     return failed
-
-
-def produce_coverage_report(coverage_dir, coverage_output):
-    COVERAGE = sys.executable + " -m coverage "
-    cwd = os.getcwd()
-    try:
-        os.chdir(coverage_dir)
-        if os.listdir("."):
-            subprocess.check_call(COVERAGE + "combine .coverage*", shell=True)
-            subprocess.check_call(
-                COVERAGE + "xml -o %s.xml" % coverage_output, shell=True
-            )
-            subprocess.check_call(COVERAGE + "html -d %s" % coverage_output, shell=True)
-            log("Coverage report written to %s" % coverage_output, real_good=True)
-        else:
-            log("No coverage data was produced", real_bad=True)
-    finally:
-        os.chdir(cwd)
 
 
 @click.command(help="Run tests")
@@ -303,13 +267,6 @@ def produce_coverage_report(coverage_dir, coverage_output):
     help="A comma-separate list of graphs to include (default: all).",
 )
 @click.option(
-    "--coverage-output",
-    default=None,
-    type=str,
-    show_default=True,
-    help="Output prefix for the coverage reports (default: None)",
-)
-@click.option(
     "--debug",
     is_flag=True,
     default=False,
@@ -329,44 +286,33 @@ def cli(
     tests=None,
     contexts=None,
     graphs=None,
-    coverage_output=None,
     num_parallel=None,
     debug=False,
     inherit_env=False,
 ):
 
     parse = lambda x: {t.lower() for t in x.split(",") if t}
-    coverage_dir = (
-        tempfile.mkdtemp("_metaflow_test_coverage") if coverage_output else None
+
+    failed = run_all(
+        parse(tests),
+        parse(contexts),
+        parse(graphs),
+        debug,
+        num_parallel,
+        inherit_env,
     )
-    try:
-        failed = run_all(
-            parse(tests),
-            parse(contexts),
-            parse(graphs),
-            coverage_dir,
-            debug,
-            num_parallel,
-            inherit_env,
-        )
 
-        if coverage_output and not debug:
-            produce_coverage_report(coverage_dir, os.path.abspath(coverage_output))
-
-        if failed:
-            log("The following tests failed:")
-            for fail, path in failed:
-                if debug:
-                    log("%s (path %s)" % (fail, path), real_bad=True)
-                else:
-                    log(fail, real_bad=True)
-            sys.exit(1)
-        else:
-            log("All tests were successful!", real_good=True)
-            sys.exit(0)
-    finally:
-        if coverage_dir:
-            shutil.rmtree(coverage_dir)
+    if failed:
+        log("The following tests failed:")
+        for fail, path in failed:
+            if debug:
+                log("%s (path %s)" % (fail, path), real_bad=True)
+            else:
+                log(fail, real_bad=True)
+        sys.exit(1)
+    else:
+        log("All tests were successful!", real_good=True)
+        sys.exit(0)
 
 
 if __name__ == "__main__":

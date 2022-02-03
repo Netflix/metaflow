@@ -3,7 +3,7 @@ from metaflow import JSONType, namespace
 from metaflow.exception import CommandException
 import webbrowser
 import re
-import click
+from metaflow._vendor import click
 import os
 import json
 import signal

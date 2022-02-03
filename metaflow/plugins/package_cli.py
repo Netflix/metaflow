@@ -1,4 +1,4 @@
-import click
+from metaflow._vendor import click
 from hashlib import sha1
 from metaflow.package import MetaflowPackage
 

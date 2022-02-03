@@ -5,7 +5,7 @@ import traceback
 from datetime import datetime
 from functools import wraps
 
-import click
+from metaflow._vendor import click
 
 from . import lint
 from . import plugins
@@ -872,13 +872,6 @@ def version(obj):
     help="Run Pylint on the flow if pylint is installed.",
 )
 @click.option(
-    "--coverage",
-    is_flag=True,
-    default=False,
-    show_default=True,
-    help="Measure code coverage using coverage.py.",
-)
-@click.option(
     "--event-logger",
     default=DEFAULT_EVENT_LOGGER,
     show_default=True,
@@ -903,7 +896,6 @@ def start(
     decospecs=None,
     package_suffixes=None,
     pylint=None,
-    coverage=None,
     event_logger=None,
     monitor=None,
     **deco_options
@@ -922,18 +914,6 @@ def start(
     echo("Metaflow %s" % version, fg="magenta", bold=True, nl=False)
     echo(" executing *%s*" % ctx.obj.flow.name, fg="magenta", nl=False)
     echo(" for *%s*" % resolve_identity(), fg="magenta")
-
-    if coverage:
-        from coverage import Coverage
-
-        no_covrc = "COVERAGE_RCFILE" not in os.environ
-        cov = Coverage(
-            data_suffix=True,
-            auto_data=True,
-            source=["metaflow"] if no_covrc else None,
-            branch=True if no_covrc else None,
-        )
-        cov.start()
 
     cli_args._set_top_kwargs(ctx.params)
     ctx.obj.echo = echo

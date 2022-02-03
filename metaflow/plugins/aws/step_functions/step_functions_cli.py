@@ -1,5 +1,5 @@
 import base64
-import click
+from metaflow._vendor import click
 from hashlib import sha1
 import json
 import re

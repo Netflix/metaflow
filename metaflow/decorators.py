@@ -10,7 +10,7 @@ from .exception import (
     InvalidDecoratorAttribute,
 )
 
-import click
+from metaflow._vendor import click
 
 
 class BadStepDecoratorException(MetaflowException):

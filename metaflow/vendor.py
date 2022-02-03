@@ -6,7 +6,7 @@ from functools import partial
 from itertools import chain
 from pathlib import Path
 
-WHITELIST = {"README.txt", "__init__.py", "vendor.txt"}
+WHITELIST = {"README.txt", "__init__.py", "vendor.txt", "pip.LICENSE"}
 
 # Borrowed from https://github.com/pypa/pip/tree/main/src/pip/_vendor
 
@@ -53,6 +53,15 @@ def find_vendored_libs(vendor_dir, whitelist):
     return vendored_libs, paths
 
 
+def fetch_licenses(*info_dir, vendor_dir):
+    for file in chain.from_iterable(map(iter_subtree, info_dir)):
+        if "LICENSE" in file.name:
+            library = file.parent.name.split("-")[0]
+            shutil.copy(file, vendor_dir / ("%s.LICENSE" % library))
+        else:
+            continue
+
+
 def vendor(vendor_dir):
     # target package is <parent>.<vendor_dir>; foo/_vendor -> foo._vendor
     pkgname = f"{vendor_dir.parent.name}.{vendor_dir.name}"
@@ -74,6 +83,9 @@ def vendor(vendor_dir):
             "--no-compile",
         ]
     )
+
+    # fetch licenses
+    fetch_licenses(*vendor_dir.glob("*.dist-info"), vendor_dir=vendor_dir)
 
     # delete stuff that's not needed
     delete_all(
