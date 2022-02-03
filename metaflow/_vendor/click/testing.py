@@ -1,117 +1,77 @@
 import contextlib
-import io
 import os
 import shlex
 import shutil
 import sys
 import tempfile
-import typing as t
-from types import TracebackType
 
 from . import formatting
 from . import termui
 from . import utils
-from ._compat import _find_binary_reader
+from ._compat import iteritems
+from ._compat import PY2
+from ._compat import string_types
 
-if t.TYPE_CHECKING:
-    from .core import BaseCommand
+
+if PY2:
+    from cStringIO import StringIO
+else:
+    import io
+    from ._compat import _find_binary_reader
 
 
-class EchoingStdin:
-    def __init__(self, input: t.BinaryIO, output: t.BinaryIO) -> None:
+class EchoingStdin(object):
+    def __init__(self, input, output):
         self._input = input
         self._output = output
-        self._paused = False
 
-    def __getattr__(self, x: str) -> t.Any:
+    def __getattr__(self, x):
         return getattr(self._input, x)
 
-    def _echo(self, rv: bytes) -> bytes:
-        if not self._paused:
-            self._output.write(rv)
-
+    def _echo(self, rv):
+        self._output.write(rv)
         return rv
 
-    def read(self, n: int = -1) -> bytes:
+    def read(self, n=-1):
         return self._echo(self._input.read(n))
 
-    def read1(self, n: int = -1) -> bytes:
-        return self._echo(self._input.read1(n))  # type: ignore
-
-    def readline(self, n: int = -1) -> bytes:
+    def readline(self, n=-1):
         return self._echo(self._input.readline(n))
 
-    def readlines(self) -> t.List[bytes]:
+    def readlines(self):
         return [self._echo(x) for x in self._input.readlines()]
 
-    def __iter__(self) -> t.Iterator[bytes]:
+    def __iter__(self):
         return iter(self._echo(x) for x in self._input)
 
-    def __repr__(self) -> str:
+    def __repr__(self):
         return repr(self._input)
 
 
-@contextlib.contextmanager
-def _pause_echo(stream: t.Optional[EchoingStdin]) -> t.Iterator[None]:
-    if stream is None:
-        yield
-    else:
-        stream._paused = True
-        yield
-        stream._paused = False
-
-
-class _NamedTextIOWrapper(io.TextIOWrapper):
-    def __init__(
-        self, buffer: t.BinaryIO, name: str, mode: str, **kwargs: t.Any
-    ) -> None:
-        super().__init__(buffer, **kwargs)
-        self._name = name
-        self._mode = mode
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def mode(self) -> str:
-        return self._mode
-
-
-def make_input_stream(
-    input: t.Optional[t.Union[str, bytes, t.IO]], charset: str
-) -> t.BinaryIO:
+def make_input_stream(input, charset):
     # Is already an input stream.
     if hasattr(input, "read"):
-        rv = _find_binary_reader(t.cast(t.IO, input))
-
+        if PY2:
+            return input
+        rv = _find_binary_reader(input)
         if rv is not None:
             return rv
-
         raise TypeError("Could not find binary reader for input stream.")
 
     if input is None:
         input = b""
-    elif isinstance(input, str):
+    elif not isinstance(input, bytes):
         input = input.encode(charset)
+    if PY2:
+        return StringIO(input)
+    return io.BytesIO(input)
 
-    return io.BytesIO(t.cast(bytes, input))
 
-
-class Result:
+class Result(object):
     """Holds the captured result of an invoked CLI script."""
 
     def __init__(
-        self,
-        runner: "CliRunner",
-        stdout_bytes: bytes,
-        stderr_bytes: t.Optional[bytes],
-        return_value: t.Any,
-        exit_code: int,
-        exception: t.Optional[BaseException],
-        exc_info: t.Optional[
-            t.Tuple[t.Type[BaseException], BaseException, TracebackType]
-        ] = None,
+        self, runner, stdout_bytes, stderr_bytes, exit_code, exception, exc_info=None
     ):
         #: The runner that created the result
         self.runner = runner
@@ -119,10 +79,6 @@ class Result:
         self.stdout_bytes = stdout_bytes
         #: The standard error as bytes, or None if not available
         self.stderr_bytes = stderr_bytes
-        #: The value returned from the invoked command.
-        #:
-        #: .. versionadded:: 8.0
-        self.return_value = return_value
         #: The exit code as integer.
         self.exit_code = exit_code
         #: The exception that happened if one did.
@@ -131,19 +87,19 @@ class Result:
         self.exc_info = exc_info
 
     @property
-    def output(self) -> str:
+    def output(self):
         """The (standard) output as unicode string."""
         return self.stdout
 
     @property
-    def stdout(self) -> str:
+    def stdout(self):
         """The standard output as unicode string."""
         return self.stdout_bytes.decode(self.runner.charset, "replace").replace(
             "\r\n", "\n"
         )
 
     @property
-    def stderr(self) -> str:
+    def stderr(self):
         """The standard error as unicode string."""
         if self.stderr_bytes is None:
             raise ValueError("stderr not separately captured")
@@ -151,18 +107,21 @@ class Result:
             "\r\n", "\n"
         )
 
-    def __repr__(self) -> str:
-        exc_str = repr(self.exception) if self.exception else "okay"
-        return f"<{type(self).__name__} {exc_str}>"
+    def __repr__(self):
+        return "<{} {}>".format(
+            type(self).__name__, repr(self.exception) if self.exception else "okay"
+        )
 
 
-class CliRunner:
+class CliRunner(object):
     """The CLI runner provides functionality to invoke a Click command line
     script for unittesting purposes in a isolated environment.  This only
     works in single-threaded systems without any concurrency as it changes the
     global interpreter state.
 
-    :param charset: the character set for the input and output data.
+    :param charset: the character set for the input and output data.  This is
+                    UTF-8 by default and should not be changed currently as
+                    the reporting to Click only works in Python 2 properly.
     :param env: a dictionary with environment variables for overriding.
     :param echo_stdin: if this is set to `True`, then reading from stdin writes
                        to stdout.  This is useful for showing examples in
@@ -175,28 +134,22 @@ class CliRunner:
                        independently
     """
 
-    def __init__(
-        self,
-        charset: str = "utf-8",
-        env: t.Optional[t.Mapping[str, t.Optional[str]]] = None,
-        echo_stdin: bool = False,
-        mix_stderr: bool = True,
-    ) -> None:
+    def __init__(self, charset=None, env=None, echo_stdin=False, mix_stderr=True):
+        if charset is None:
+            charset = "utf-8"
         self.charset = charset
         self.env = env or {}
         self.echo_stdin = echo_stdin
         self.mix_stderr = mix_stderr
 
-    def get_default_prog_name(self, cli: "BaseCommand") -> str:
+    def get_default_prog_name(self, cli):
         """Given a command object it will return the default program name
         for it.  The default is the `name` attribute or ``"root"`` if not
         set.
         """
         return cli.name or "root"
 
-    def make_env(
-        self, overrides: t.Optional[t.Mapping[str, t.Optional[str]]] = None
-    ) -> t.Mapping[str, t.Optional[str]]:
+    def make_env(self, overrides=None):
         """Returns the environment overrides for invoking a script."""
         rv = dict(self.env)
         if overrides:
@@ -204,12 +157,7 @@ class CliRunner:
         return rv
 
     @contextlib.contextmanager
-    def isolation(
-        self,
-        input: t.Optional[t.Union[str, bytes, t.IO]] = None,
-        env: t.Optional[t.Mapping[str, t.Optional[str]]] = None,
-        color: bool = False,
-    ) -> t.Iterator[t.Tuple[io.BytesIO, t.Optional[io.BytesIO]]]:
+    def isolation(self, input=None, env=None, color=False):
         """A context manager that sets up the isolation for invoking of a
         command line tool.  This sets up stdin with the given input data
         and `os.environ` with the overrides from the given dictionary.
@@ -218,20 +166,15 @@ class CliRunner:
 
         This is automatically done in the :meth:`invoke` method.
 
+        .. versionadded:: 4.0
+           The ``color`` parameter was added.
+
         :param input: the input stream to put into sys.stdin.
         :param env: the environment overrides as dictionary.
         :param color: whether the output should contain color codes. The
                       application can still override this explicitly.
-
-        .. versionchanged:: 8.0
-            ``stderr`` is opened with ``errors="backslashreplace"``
-            instead of the default ``"strict"``.
-
-        .. versionchanged:: 4.0
-            Added the ``color`` parameter.
         """
-        bytes_input = make_input_stream(input, self.charset)
-        echo_input = None
+        input = make_input_stream(input, self.charset)
 
         old_stdin = sys.stdin
         old_stdout = sys.stdout
@@ -241,68 +184,51 @@ class CliRunner:
 
         env = self.make_env(env)
 
-        bytes_output = io.BytesIO()
+        if PY2:
+            bytes_output = StringIO()
+            if self.echo_stdin:
+                input = EchoingStdin(input, bytes_output)
+            sys.stdout = bytes_output
+            if not self.mix_stderr:
+                bytes_error = StringIO()
+                sys.stderr = bytes_error
+        else:
+            bytes_output = io.BytesIO()
+            if self.echo_stdin:
+                input = EchoingStdin(input, bytes_output)
+            input = io.TextIOWrapper(input, encoding=self.charset)
+            sys.stdout = io.TextIOWrapper(bytes_output, encoding=self.charset)
+            if not self.mix_stderr:
+                bytes_error = io.BytesIO()
+                sys.stderr = io.TextIOWrapper(bytes_error, encoding=self.charset)
 
-        if self.echo_stdin:
-            bytes_input = echo_input = t.cast(
-                t.BinaryIO, EchoingStdin(bytes_input, bytes_output)
-            )
-
-        sys.stdin = text_input = _NamedTextIOWrapper(
-            bytes_input, encoding=self.charset, name="<stdin>", mode="r"
-        )
-
-        if self.echo_stdin:
-            # Force unbuffered reads, otherwise TextIOWrapper reads a
-            # large chunk which is echoed early.
-            text_input._CHUNK_SIZE = 1  # type: ignore
-
-        sys.stdout = _NamedTextIOWrapper(
-            bytes_output, encoding=self.charset, name="<stdout>", mode="w"
-        )
-
-        bytes_error = None
         if self.mix_stderr:
             sys.stderr = sys.stdout
-        else:
-            bytes_error = io.BytesIO()
-            sys.stderr = _NamedTextIOWrapper(
-                bytes_error,
-                encoding=self.charset,
-                name="<stderr>",
-                mode="w",
-                errors="backslashreplace",
-            )
 
-        @_pause_echo(echo_input)  # type: ignore
-        def visible_input(prompt: t.Optional[str] = None) -> str:
+        sys.stdin = input
+
+        def visible_input(prompt=None):
             sys.stdout.write(prompt or "")
-            val = text_input.readline().rstrip("\r\n")
-            sys.stdout.write(f"{val}\n")
+            val = input.readline().rstrip("\r\n")
+            sys.stdout.write("{}\n".format(val))
             sys.stdout.flush()
             return val
 
-        @_pause_echo(echo_input)  # type: ignore
-        def hidden_input(prompt: t.Optional[str] = None) -> str:
-            sys.stdout.write(f"{prompt or ''}\n")
+        def hidden_input(prompt=None):
+            sys.stdout.write("{}\n".format(prompt or ""))
             sys.stdout.flush()
-            return text_input.readline().rstrip("\r\n")
+            return input.readline().rstrip("\r\n")
 
-        @_pause_echo(echo_input)  # type: ignore
-        def _getchar(echo: bool) -> str:
+        def _getchar(echo):
             char = sys.stdin.read(1)
-
             if echo:
                 sys.stdout.write(char)
-
-            sys.stdout.flush()
+                sys.stdout.flush()
             return char
 
         default_color = color
 
-        def should_strip_ansi(
-            stream: t.Optional[t.IO] = None, color: t.Optional[bool] = None
-        ) -> bool:
+        def should_strip_ansi(stream=None, color=None):
             if color is None:
                 return not default_color
             return not color
@@ -310,15 +236,15 @@ class CliRunner:
         old_visible_prompt_func = termui.visible_prompt_func
         old_hidden_prompt_func = termui.hidden_prompt_func
         old__getchar_func = termui._getchar
-        old_should_strip_ansi = utils.should_strip_ansi  # type: ignore
+        old_should_strip_ansi = utils.should_strip_ansi
         termui.visible_prompt_func = visible_input
         termui.hidden_prompt_func = hidden_input
         termui._getchar = _getchar
-        utils.should_strip_ansi = should_strip_ansi  # type: ignore
+        utils.should_strip_ansi = should_strip_ansi
 
         old_env = {}
         try:
-            for key, value in env.items():
+            for key, value in iteritems(env):
                 old_env[key] = os.environ.get(key)
                 if value is None:
                     try:
@@ -327,9 +253,9 @@ class CliRunner:
                         pass
                 else:
                     os.environ[key] = value
-            yield (bytes_output, bytes_error)
+            yield (bytes_output, not self.mix_stderr and bytes_error)
         finally:
-            for key, value in old_env.items():
+            for key, value in iteritems(old_env):
                 if value is None:
                     try:
                         del os.environ[key]
@@ -343,25 +269,35 @@ class CliRunner:
             termui.visible_prompt_func = old_visible_prompt_func
             termui.hidden_prompt_func = old_hidden_prompt_func
             termui._getchar = old__getchar_func
-            utils.should_strip_ansi = old_should_strip_ansi  # type: ignore
+            utils.should_strip_ansi = old_should_strip_ansi
             formatting.FORCED_WIDTH = old_forced_width
 
     def invoke(
         self,
-        cli: "BaseCommand",
-        args: t.Optional[t.Union[str, t.Sequence[str]]] = None,
-        input: t.Optional[t.Union[str, bytes, t.IO]] = None,
-        env: t.Optional[t.Mapping[str, t.Optional[str]]] = None,
-        catch_exceptions: bool = True,
-        color: bool = False,
-        **extra: t.Any,
-    ) -> Result:
+        cli,
+        args=None,
+        input=None,
+        env=None,
+        catch_exceptions=True,
+        color=False,
+        **extra
+    ):
         """Invokes a command in an isolated environment.  The arguments are
         forwarded directly to the command line script, the `extra` keyword
         arguments are passed to the :meth:`~clickpkg.Command.main` function of
         the command.
 
         This returns a :class:`Result` object.
+
+        .. versionadded:: 3.0
+           The ``catch_exceptions`` parameter was added.
+
+        .. versionchanged:: 3.0
+           The result object now has an `exc_info` attribute with the
+           traceback if available.
+
+        .. versionadded:: 4.0
+           The ``color`` parameter was added.
 
         :param cli: the command to invoke
         :param args: the arguments to invoke. It may be given as an iterable
@@ -375,28 +311,13 @@ class CliRunner:
         :param extra: the keyword arguments to pass to :meth:`main`.
         :param color: whether the output should contain color codes. The
                       application can still override this explicitly.
-
-        .. versionchanged:: 8.0
-            The result object has the ``return_value`` attribute with
-            the value returned from the invoked command.
-
-        .. versionchanged:: 4.0
-            Added the ``color`` parameter.
-
-        .. versionchanged:: 3.0
-            Added the ``catch_exceptions`` parameter.
-
-        .. versionchanged:: 3.0
-            The result object has the ``exc_info`` attribute with the
-            traceback if available.
         """
         exc_info = None
         with self.isolation(input=input, env=env, color=color) as outstreams:
-            return_value = None
-            exception: t.Optional[BaseException] = None
+            exception = None
             exit_code = 0
 
-            if isinstance(args, str):
+            if isinstance(args, string_types):
                 args = shlex.split(args)
 
             try:
@@ -405,23 +326,20 @@ class CliRunner:
                 prog_name = self.get_default_prog_name(cli)
 
             try:
-                return_value = cli.main(args=args or (), prog_name=prog_name, **extra)
+                cli.main(args=args or (), prog_name=prog_name, **extra)
             except SystemExit as e:
                 exc_info = sys.exc_info()
-                e_code = t.cast(t.Optional[t.Union[int, t.Any]], e.code)
+                exit_code = e.code
+                if exit_code is None:
+                    exit_code = 0
 
-                if e_code is None:
-                    e_code = 0
-
-                if e_code != 0:
+                if exit_code != 0:
                     exception = e
 
-                if not isinstance(e_code, int):
-                    sys.stdout.write(str(e_code))
+                if not isinstance(exit_code, int):
+                    sys.stdout.write(str(exit_code))
                     sys.stdout.write("\n")
-                    e_code = 1
-
-                exit_code = e_code
+                    exit_code = 1
 
             except Exception as e:
                 if not catch_exceptions:
@@ -435,45 +353,30 @@ class CliRunner:
                 if self.mix_stderr:
                     stderr = None
                 else:
-                    stderr = outstreams[1].getvalue()  # type: ignore
+                    stderr = outstreams[1].getvalue()
 
         return Result(
             runner=self,
             stdout_bytes=stdout,
             stderr_bytes=stderr,
-            return_value=return_value,
             exit_code=exit_code,
             exception=exception,
-            exc_info=exc_info,  # type: ignore
+            exc_info=exc_info,
         )
 
     @contextlib.contextmanager
-    def isolated_filesystem(
-        self, temp_dir: t.Optional[t.Union[str, os.PathLike]] = None
-    ) -> t.Iterator[str]:
-        """A context manager that creates a temporary directory and
-        changes the current working directory to it. This isolates tests
-        that affect the contents of the CWD to prevent them from
-        interfering with each other.
-
-        :param temp_dir: Create the temporary directory under this
-            directory. If given, the created directory is not removed
-            when exiting.
-
-        .. versionchanged:: 8.0
-            Added the ``temp_dir`` parameter.
+    def isolated_filesystem(self):
+        """A context manager that creates a temporary folder and changes
+        the current working directory to it for isolated filesystem tests.
         """
         cwd = os.getcwd()
-        t = tempfile.mkdtemp(dir=temp_dir)
+        t = tempfile.mkdtemp()
         os.chdir(t)
-
         try:
             yield t
         finally:
             os.chdir(cwd)
-
-            if temp_dir is None:
-                try:
-                    shutil.rmtree(t)
-                except OSError:  # noqa: B014
-                    pass
+            try:
+                shutil.rmtree(t)
+            except (OSError, IOError):  # noqa: B014
+                pass

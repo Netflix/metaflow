@@ -1,2 +1,2 @@
-click==8.0.3
-importlib_metadata==4.10.1
+click==7.1.2
+importlib_metadata==2.1.3

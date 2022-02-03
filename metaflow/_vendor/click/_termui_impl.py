@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 This module contains implementations for the termui module. To keep the
 import time of Click down, some infrequently used functionality is
@@ -8,21 +9,19 @@ import math
 import os
 import sys
 import time
-import typing as t
-from gettext import gettext as _
 
 from ._compat import _default_text_stdout
 from ._compat import CYGWIN
 from ._compat import get_best_encoding
+from ._compat import int_types
 from ._compat import isatty
 from ._compat import open_stream
+from ._compat import range_type
 from ._compat import strip_ansi
 from ._compat import term_len
 from ._compat import WIN
 from .exceptions import ClickException
 from .utils import echo
-
-V = t.TypeVar("V")
 
 if os.name == "nt":
     BEFORE_BAR = "\r"
@@ -32,25 +31,42 @@ else:
     AFTER_BAR = "\033[?25h\n"
 
 
-class ProgressBar(t.Generic[V]):
+def _length_hint(obj):
+    """Returns the length hint of an object."""
+    try:
+        return len(obj)
+    except (AttributeError, TypeError):
+        try:
+            get_hint = type(obj).__length_hint__
+        except AttributeError:
+            return None
+        try:
+            hint = get_hint(obj)
+        except TypeError:
+            return None
+        if hint is NotImplemented or not isinstance(hint, int_types) or hint < 0:
+            return None
+        return hint
+
+
+class ProgressBar(object):
     def __init__(
         self,
-        iterable: t.Optional[t.Iterable[V]],
-        length: t.Optional[int] = None,
-        fill_char: str = "#",
-        empty_char: str = " ",
-        bar_template: str = "%(bar)s",
-        info_sep: str = "  ",
-        show_eta: bool = True,
-        show_percent: t.Optional[bool] = None,
-        show_pos: bool = False,
-        item_show_func: t.Optional[t.Callable[[t.Optional[V]], t.Optional[str]]] = None,
-        label: t.Optional[str] = None,
-        file: t.Optional[t.TextIO] = None,
-        color: t.Optional[bool] = None,
-        update_min_steps: int = 1,
-        width: int = 30,
-    ) -> None:
+        iterable,
+        length=None,
+        fill_char="#",
+        empty_char=" ",
+        bar_template="%(bar)s",
+        info_sep="  ",
+        show_eta=True,
+        show_percent=None,
+        show_pos=False,
+        item_show_func=None,
+        label=None,
+        file=None,
+        color=None,
+        width=30,
+    ):
         self.fill_char = fill_char
         self.empty_char = empty_char
         self.bar_template = bar_template
@@ -64,50 +80,45 @@ class ProgressBar(t.Generic[V]):
             file = _default_text_stdout()
         self.file = file
         self.color = color
-        self.update_min_steps = update_min_steps
-        self._completed_intervals = 0
         self.width = width
         self.autowidth = width == 0
 
         if length is None:
-            from operator import length_hint
-
-            length = length_hint(iterable, -1)
-
-            if length == -1:
-                length = None
+            length = _length_hint(iterable)
         if iterable is None:
             if length is None:
                 raise TypeError("iterable or length is required")
-            iterable = t.cast(t.Iterable[V], range(length))
+            iterable = range_type(length)
         self.iter = iter(iterable)
         self.length = length
+        self.length_known = length is not None
         self.pos = 0
-        self.avg: t.List[float] = []
+        self.avg = []
         self.start = self.last_eta = time.time()
         self.eta_known = False
         self.finished = False
-        self.max_width: t.Optional[int] = None
+        self.max_width = None
         self.entered = False
-        self.current_item: t.Optional[V] = None
+        self.current_item = None
         self.is_hidden = not isatty(self.file)
-        self._last_line: t.Optional[str] = None
+        self._last_line = None
+        self.short_limit = 0.5
 
-    def __enter__(self) -> "ProgressBar":
+    def __enter__(self):
         self.entered = True
         self.render_progress()
         return self
 
-    def __exit__(self, exc_type, exc_value, tb):  # type: ignore
+    def __exit__(self, exc_type, exc_value, tb):
         self.render_finish()
 
-    def __iter__(self) -> t.Iterator[V]:
+    def __iter__(self):
         if not self.entered:
             raise RuntimeError("You need to use progress bars in a with block.")
         self.render_progress()
         return self.generator()
 
-    def __next__(self) -> V:
+    def __next__(self):
         # Iteration is defined in terms of a generator function,
         # returned by iter(self); use that to define next(). This works
         # because `self.iter` is an iterable consumed by that generator,
@@ -115,31 +126,37 @@ class ProgressBar(t.Generic[V]):
         # twice works and does "what you want".
         return next(iter(self))
 
-    def render_finish(self) -> None:
-        if self.is_hidden:
+    # Python 2 compat
+    next = __next__
+
+    def is_fast(self):
+        return time.time() - self.start <= self.short_limit
+
+    def render_finish(self):
+        if self.is_hidden or self.is_fast():
             return
         self.file.write(AFTER_BAR)
         self.file.flush()
 
     @property
-    def pct(self) -> float:
+    def pct(self):
         if self.finished:
             return 1.0
-        return min(self.pos / (float(self.length or 1) or 1), 1.0)
+        return min(self.pos / (float(self.length) or 1), 1.0)
 
     @property
-    def time_per_iteration(self) -> float:
+    def time_per_iteration(self):
         if not self.avg:
             return 0.0
         return sum(self.avg) / float(len(self.avg))
 
     @property
-    def eta(self) -> float:
-        if self.length is not None and not self.finished:
+    def eta(self):
+        if self.length_known and not self.finished:
             return self.time_per_iteration * (self.length - self.pos)
         return 0.0
 
-    def format_eta(self) -> str:
+    def format_eta(self):
         if self.eta_known:
             t = int(self.eta)
             seconds = t % 60
@@ -149,44 +166,44 @@ class ProgressBar(t.Generic[V]):
             hours = t % 24
             t //= 24
             if t > 0:
-                return f"{t}d {hours:02}:{minutes:02}:{seconds:02}"
+                return "{}d {:02}:{:02}:{:02}".format(t, hours, minutes, seconds)
             else:
-                return f"{hours:02}:{minutes:02}:{seconds:02}"
+                return "{:02}:{:02}:{:02}".format(hours, minutes, seconds)
         return ""
 
-    def format_pos(self) -> str:
+    def format_pos(self):
         pos = str(self.pos)
-        if self.length is not None:
-            pos += f"/{self.length}"
+        if self.length_known:
+            pos += "/{}".format(self.length)
         return pos
 
-    def format_pct(self) -> str:
-        return f"{int(self.pct * 100): 4}%"[1:]
+    def format_pct(self):
+        return "{: 4}%".format(int(self.pct * 100))[1:]
 
-    def format_bar(self) -> str:
-        if self.length is not None:
+    def format_bar(self):
+        if self.length_known:
             bar_length = int(self.pct * self.width)
             bar = self.fill_char * bar_length
             bar += self.empty_char * (self.width - bar_length)
         elif self.finished:
             bar = self.fill_char * self.width
         else:
-            chars = list(self.empty_char * (self.width or 1))
+            bar = list(self.empty_char * (self.width or 1))
             if self.time_per_iteration != 0:
-                chars[
+                bar[
                     int(
                         (math.cos(self.pos * self.time_per_iteration) / 2.0 + 0.5)
                         * self.width
                     )
                 ] = self.fill_char
-            bar = "".join(chars)
+            bar = "".join(bar)
         return bar
 
-    def format_progress_line(self) -> str:
+    def format_progress_line(self):
         show_percent = self.show_percent
 
         info_bits = []
-        if self.length is not None and show_percent is None:
+        if self.length_known and show_percent is None:
             show_percent = not self.show_pos
 
         if self.show_pos:
@@ -209,16 +226,10 @@ class ProgressBar(t.Generic[V]):
             }
         ).rstrip()
 
-    def render_progress(self) -> None:
-        import shutil
+    def render_progress(self):
+        from .termui import get_terminal_size
 
         if self.is_hidden:
-            # Only output the label as it changes if the output is not a
-            # TTY. Use file=stderr if you expect to be piping stdout.
-            if self._last_line != self.label:
-                self._last_line = self.label
-                echo(self.label, file=self.file, color=self.color)
-
             return
 
         buf = []
@@ -227,10 +238,10 @@ class ProgressBar(t.Generic[V]):
             old_width = self.width
             self.width = 0
             clutter_length = term_len(self.format_progress_line())
-            new_width = max(0, shutil.get_terminal_size().columns - clutter_length)
+            new_width = max(0, get_terminal_size()[0] - clutter_length)
             if new_width < old_width:
                 buf.append(BEFORE_BAR)
-                buf.append(" " * self.max_width)  # type: ignore
+                buf.append(" " * self.max_width)
                 self.max_width = new_width
             self.width = new_width
 
@@ -249,14 +260,14 @@ class ProgressBar(t.Generic[V]):
         line = "".join(buf)
         # Render the line only if it changed.
 
-        if line != self._last_line:
+        if line != self._last_line and not self.is_fast():
             self._last_line = line
             echo(line, file=self.file, color=self.color, nl=False)
             self.file.flush()
 
-    def make_step(self, n_steps: int) -> None:
+    def make_step(self, n_steps):
         self.pos += n_steps
-        if self.length is not None and self.pos >= self.length:
+        if self.length_known and self.pos >= self.length:
             self.finished = True
 
         if (time.time() - self.last_eta) < 1.0:
@@ -274,40 +285,18 @@ class ProgressBar(t.Generic[V]):
 
         self.avg = self.avg[-6:] + [step]
 
-        self.eta_known = self.length is not None
+        self.eta_known = self.length_known
 
-    def update(self, n_steps: int, current_item: t.Optional[V] = None) -> None:
-        """Update the progress bar by advancing a specified number of
-        steps, and optionally set the ``current_item`` for this new
-        position.
+    def update(self, n_steps):
+        self.make_step(n_steps)
+        self.render_progress()
 
-        :param n_steps: Number of steps to advance.
-        :param current_item: Optional item to set as ``current_item``
-            for the updated position.
-
-        .. versionchanged:: 8.0
-            Added the ``current_item`` optional parameter.
-
-        .. versionchanged:: 8.0
-            Only render when the number of steps meets the
-            ``update_min_steps`` threshold.
-        """
-        if current_item is not None:
-            self.current_item = current_item
-
-        self._completed_intervals += n_steps
-
-        if self._completed_intervals >= self.update_min_steps:
-            self.make_step(self._completed_intervals)
-            self.render_progress()
-            self._completed_intervals = 0
-
-    def finish(self) -> None:
-        self.eta_known = False
+    def finish(self):
+        self.eta_known = 0
         self.current_item = None
         self.finished = True
 
-    def generator(self) -> t.Iterator[V]:
+    def generator(self):
         """Return a generator which yields the items added to the bar
         during construction, and updates the progress bar *after* the
         yielded block returns.
@@ -323,25 +312,18 @@ class ProgressBar(t.Generic[V]):
             raise RuntimeError("You need to use progress bars in a with block.")
 
         if self.is_hidden:
-            yield from self.iter
+            for rv in self.iter:
+                yield rv
         else:
             for rv in self.iter:
                 self.current_item = rv
-
-                # This allows show_item_func to be updated before the
-                # item is processed. Only trigger at the beginning of
-                # the update interval.
-                if self._completed_intervals == 0:
-                    self.render_progress()
-
                 yield rv
                 self.update(1)
-
             self.finish()
             self.render_progress()
 
 
-def pager(generator: t.Iterable[str], color: t.Optional[bool] = None) -> None:
+def pager(generator, color=None):
     """Decide what method to use for paging through text."""
     stdout = _default_text_stdout()
     if not isatty(sys.stdin) or not isatty(stdout):
@@ -363,14 +345,14 @@ def pager(generator: t.Iterable[str], color: t.Optional[bool] = None) -> None:
     fd, filename = tempfile.mkstemp()
     os.close(fd)
     try:
-        if hasattr(os, "system") and os.system(f'more "{filename}"') == 0:
+        if hasattr(os, "system") and os.system('more "{}"'.format(filename)) == 0:
             return _pipepager(generator, "more", color)
         return _nullpager(stdout, generator, color)
     finally:
         os.unlink(filename)
 
 
-def _pipepager(generator: t.Iterable[str], cmd: str, color: t.Optional[bool]) -> None:
+def _pipepager(generator, cmd, color):
     """Page through text by feeding it to another program.  Invoking a
     pager through this might support colors.
     """
@@ -382,7 +364,7 @@ def _pipepager(generator: t.Iterable[str], cmd: str, color: t.Optional[bool]) ->
     # condition that
     cmd_detail = cmd.rsplit("/", 1)[-1].split()
     if color is None and cmd_detail[0] == "less":
-        less_flags = f"{os.environ.get('LESS', '')}{' '.join(cmd_detail[1:])}"
+        less_flags = "{}{}".format(os.environ.get("LESS", ""), " ".join(cmd_detail[1:]))
         if not less_flags:
             env["LESS"] = "-R"
             color = True
@@ -390,18 +372,17 @@ def _pipepager(generator: t.Iterable[str], cmd: str, color: t.Optional[bool]) ->
             color = True
 
     c = subprocess.Popen(cmd, shell=True, stdin=subprocess.PIPE, env=env)
-    stdin = t.cast(t.BinaryIO, c.stdin)
-    encoding = get_best_encoding(stdin)
+    encoding = get_best_encoding(c.stdin)
     try:
         for text in generator:
             if not color:
                 text = strip_ansi(text)
 
-            stdin.write(text.encode(encoding, "replace"))
-    except (OSError, KeyboardInterrupt):
+            c.stdin.write(text.encode(encoding, "replace"))
+    except (IOError, KeyboardInterrupt):
         pass
     else:
-        stdin.close()
+        c.stdin.close()
 
     # Less doesn't respect ^C, but catches it for its own UI purposes (aborting
     # search or other commands inside less).
@@ -420,13 +401,11 @@ def _pipepager(generator: t.Iterable[str], cmd: str, color: t.Optional[bool]) ->
             break
 
 
-def _tempfilepager(
-    generator: t.Iterable[str], cmd: str, color: t.Optional[bool]
-) -> None:
+def _tempfilepager(generator, cmd, color):
     """Page through text by invoking a program on a temporary file."""
     import tempfile
 
-    fd, filename = tempfile.mkstemp()
+    filename = tempfile.mktemp()
     # TODO: This never terminates if the passed generator never terminates.
     text = "".join(generator)
     if not color:
@@ -435,15 +414,12 @@ def _tempfilepager(
     with open_stream(filename, "wb")[0] as f:
         f.write(text.encode(encoding))
     try:
-        os.system(f'{cmd} "{filename}"')
+        os.system('{} "{}"'.format(cmd, filename))
     finally:
-        os.close(fd)
         os.unlink(filename)
 
 
-def _nullpager(
-    stream: t.TextIO, generator: t.Iterable[str], color: t.Optional[bool]
-) -> None:
+def _nullpager(stream, generator, color):
     """Simply print unformatted text.  This is the ultimate fallback."""
     for text in generator:
         if not color:
@@ -451,20 +427,14 @@ def _nullpager(
         stream.write(text)
 
 
-class Editor:
-    def __init__(
-        self,
-        editor: t.Optional[str] = None,
-        env: t.Optional[t.Mapping[str, str]] = None,
-        require_save: bool = True,
-        extension: str = ".txt",
-    ) -> None:
+class Editor(object):
+    def __init__(self, editor=None, env=None, require_save=True, extension=".txt"):
         self.editor = editor
         self.env = env
         self.require_save = require_save
         self.extension = extension
 
-    def get_editor(self) -> str:
+    def get_editor(self):
         if self.editor is not None:
             return self.editor
         for key in "VISUAL", "EDITOR":
@@ -474,62 +444,48 @@ class Editor:
         if WIN:
             return "notepad"
         for editor in "sensible-editor", "vim", "nano":
-            if os.system(f"which {editor} >/dev/null 2>&1") == 0:
+            if os.system("which {} >/dev/null 2>&1".format(editor)) == 0:
                 return editor
         return "vi"
 
-    def edit_file(self, filename: str) -> None:
+    def edit_file(self, filename):
         import subprocess
 
         editor = self.get_editor()
-        environ: t.Optional[t.Dict[str, str]] = None
-
         if self.env:
             environ = os.environ.copy()
             environ.update(self.env)
-
+        else:
+            environ = None
         try:
-            c = subprocess.Popen(f'{editor} "{filename}"', env=environ, shell=True)
+            c = subprocess.Popen(
+                '{} "{}"'.format(editor, filename), env=environ, shell=True,
+            )
             exit_code = c.wait()
             if exit_code != 0:
-                raise ClickException(
-                    _("{editor}: Editing failed").format(editor=editor)
-                )
+                raise ClickException("{}: Editing failed!".format(editor))
         except OSError as e:
-            raise ClickException(
-                _("{editor}: Editing failed: {e}").format(editor=editor, e=e)
-            ) from e
+            raise ClickException("{}: Editing failed: {}".format(editor, e))
 
-    def edit(self, text: t.Optional[t.AnyStr]) -> t.Optional[t.AnyStr]:
+    def edit(self, text):
         import tempfile
 
-        if not text:
-            data = b""
-        elif isinstance(text, (bytes, bytearray)):
-            data = text
-        else:
-            if text and not text.endswith("\n"):
-                text += "\n"
-
-            if WIN:
-                data = text.replace("\n", "\r\n").encode("utf-8-sig")
-            else:
-                data = text.encode("utf-8")
+        text = text or ""
+        if text and not text.endswith("\n"):
+            text += "\n"
 
         fd, name = tempfile.mkstemp(prefix="editor-", suffix=self.extension)
-        f: t.BinaryIO
-
         try:
-            with os.fdopen(fd, "wb") as f:
-                f.write(data)
+            if WIN:
+                encoding = "utf-8-sig"
+                text = text.replace("\n", "\r\n")
+            else:
+                encoding = "utf-8"
+            text = text.encode(encoding)
 
-            # If the filesystem resolution is 1 second, like Mac OS
-            # 10.12 Extended, or 2 seconds, like FAT32, and the editor
-            # closes very fast, require_save can fail. Set the modified
-            # time to be 2 seconds in the past to work around this.
-            os.utime(name, (os.path.getatime(name), os.path.getmtime(name) - 2))
-            # Depending on the resolution, the exact value might not be
-            # recorded, so get the new recorded value.
+            f = os.fdopen(fd, "wb")
+            f.write(text)
+            f.close()
             timestamp = os.path.getmtime(name)
 
             self.edit_file(name)
@@ -537,26 +493,26 @@ class Editor:
             if self.require_save and os.path.getmtime(name) == timestamp:
                 return None
 
-            with open(name, "rb") as f:
+            f = open(name, "rb")
+            try:
                 rv = f.read()
-
-            if isinstance(text, (bytes, bytearray)):
-                return rv
-
-            return rv.decode("utf-8-sig").replace("\r\n", "\n")  # type: ignore
+            finally:
+                f.close()
+            return rv.decode("utf-8-sig").replace("\r\n", "\n")
         finally:
             os.unlink(name)
 
 
-def open_url(url: str, wait: bool = False, locate: bool = False) -> int:
+def open_url(url, wait=False, locate=False):
     import subprocess
 
-    def _unquote_file(url: str) -> str:
-        from urllib.parse import unquote
-
+    def _unquote_file(url):
+        try:
+            import urllib
+        except ImportError:
+            import urllib
         if url.startswith("file://"):
-            url = unquote(url[7:])
-
+            url = urllib.unquote(url[7:])
         return url
 
     if sys.platform == "darwin":
@@ -573,21 +529,19 @@ def open_url(url: str, wait: bool = False, locate: bool = False) -> int:
             null.close()
     elif WIN:
         if locate:
-            url = _unquote_file(url.replace('"', ""))
-            args = f'explorer /select,"{url}"'
+            url = _unquote_file(url)
+            args = 'explorer /select,"{}"'.format(_unquote_file(url.replace('"', "")))
         else:
-            url = url.replace('"', "")
-            wait_str = "/WAIT" if wait else ""
-            args = f'start {wait_str} "" "{url}"'
+            args = 'start {} "" "{}"'.format(
+                "/WAIT" if wait else "", url.replace('"', "")
+            )
         return os.system(args)
     elif CYGWIN:
         if locate:
-            url = os.path.dirname(_unquote_file(url).replace('"', ""))
-            args = f'cygstart "{url}"'
+            url = _unquote_file(url)
+            args = 'cygstart "{}"'.format(os.path.dirname(url).replace('"', ""))
         else:
-            url = url.replace('"', "")
-            wait_str = "-w" if wait else ""
-            args = f'cygstart {wait_str} "{url}"'
+            args = 'cygstart {} "{}"'.format("-w" if wait else "", url.replace('"', ""))
         return os.system(args)
 
     try:
@@ -608,27 +562,23 @@ def open_url(url: str, wait: bool = False, locate: bool = False) -> int:
         return 1
 
 
-def _translate_ch_to_exc(ch: str) -> t.Optional[BaseException]:
-    if ch == "\x03":
+def _translate_ch_to_exc(ch):
+    if ch == u"\x03":
         raise KeyboardInterrupt()
-
-    if ch == "\x04" and not WIN:  # Unix-like, Ctrl+D
+    if ch == u"\x04" and not WIN:  # Unix-like, Ctrl+D
         raise EOFError()
-
-    if ch == "\x1a" and WIN:  # Windows, Ctrl+Z
+    if ch == u"\x1a" and WIN:  # Windows, Ctrl+Z
         raise EOFError()
-
-    return None
 
 
 if WIN:
     import msvcrt
 
     @contextlib.contextmanager
-    def raw_terminal() -> t.Iterator[int]:
-        yield -1
+    def raw_terminal():
+        yield
 
-    def getchar(echo: bool) -> str:
+    def getchar(echo):
         # The function `getch` will return a bytes object corresponding to
         # the pressed character. Since Windows 10 build 1803, it will also
         # return \x00 when called a second time after pressing a regular key.
@@ -658,20 +608,16 @@ if WIN:
         #
         # Anyway, Click doesn't claim to do this Right(tm), and using `getwch`
         # is doing the right thing in more situations than with `getch`.
-        func: t.Callable[[], str]
-
         if echo:
-            func = msvcrt.getwche  # type: ignore
+            func = msvcrt.getwche
         else:
-            func = msvcrt.getwch  # type: ignore
+            func = msvcrt.getwch
 
         rv = func()
-
-        if rv in ("\x00", "\xe0"):
+        if rv in (u"\x00", u"\xe0"):
             # \x00 and \xe0 are control characters that indicate special key,
             # see above.
             rv += func()
-
         _translate_ch_to_exc(rv)
         return rv
 
@@ -681,38 +627,31 @@ else:
     import termios
 
     @contextlib.contextmanager
-    def raw_terminal() -> t.Iterator[int]:
-        f: t.Optional[t.TextIO]
-        fd: int
-
+    def raw_terminal():
         if not isatty(sys.stdin):
             f = open("/dev/tty")
             fd = f.fileno()
         else:
             fd = sys.stdin.fileno()
             f = None
-
         try:
             old_settings = termios.tcgetattr(fd)
-
             try:
                 tty.setraw(fd)
                 yield fd
             finally:
                 termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
                 sys.stdout.flush()
-
                 if f is not None:
                     f.close()
         except termios.error:
             pass
 
-    def getchar(echo: bool) -> str:
+    def getchar(echo):
         with raw_terminal() as fd:
-            ch = os.read(fd, 32).decode(get_best_encoding(sys.stdin), "replace")
-
+            ch = os.read(fd, 32)
+            ch = ch.decode(get_best_encoding(sys.stdin), "replace")
             if echo and isatty(sys.stdout):
                 sys.stdout.write(ch)
-
             _translate_ch_to_exc(ch)
             return ch
