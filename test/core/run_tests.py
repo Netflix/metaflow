@@ -109,8 +109,8 @@ def run_test(formatter, context, coverage_dir, debug, checks, env_base):
         pythonpath = os.environ.get("PYTHONPATH", ".")
         env.update(
             {
-                "LANG": "C.UTF-8",
-                "LC_ALL": "C.UTF-8",
+                #"LANG": "C.UTF-8",
+                #"LC_ALL": "C.UTF-8",
                 "PATH": os.environ.get("PATH", "."),
                 "PYTHONIOENCODING": "utf_8",
                 "PYTHONPATH": "%s:%s" % (package, pythonpath),
