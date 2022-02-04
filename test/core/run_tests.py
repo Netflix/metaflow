@@ -117,17 +117,6 @@ def run_test(formatter, context, coverage_dir, debug, checks, env_base):
             }
         )
 
-        if sys.version_info[0] == '3' and sys.version_info[1] <= 6:
-            env.update(
-                {
-                    "LANG": "en_US.UTF-8",
-                    "LC_ALL": "en_US.UTF-8",
-                    "PATH": os.environ.get("PATH", "."),
-                    "PYTHONIOENCODING": "utf_8",
-                    "PYTHONPATH": "%s:%s" % (package, pythonpath),
-                }
-            )
-
         if "pre_command" in context:
             if context["pre_command"].get("metaflow_command"):
                 cmd = [context["python"], "test_flow.py"]
