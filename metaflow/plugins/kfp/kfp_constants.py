@@ -3,7 +3,9 @@
 # Defaults for running MF on KFP
 import os
 
-BASE_IMAGE = "hsezhiyan/metaflow-zillow:2.1"
+# Link to package:
+# https://github.com/zillow/metaflow/pkgs/container/metaflow%2Fmetaflow-zillow
+BASE_IMAGE = "ghcr.io/zillow/metaflow/metaflow-zillow:2.1"
 
 KFP_METAFLOW_FOREACH_SPLITS_PATH = "/tmp/kfp_metaflow_foreach_splits_dict.json"
 PRECEDING_COMPONENT_INPUTS_PATH = "/tmp/preceding_component_inputs.json"

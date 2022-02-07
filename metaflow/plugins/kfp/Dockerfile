@@ -1,9 +1,16 @@
-# Used to create the hsezhiyan/metaflow-zillow:2.1 image.
+# Used to create the ghcr.io/zillow/metaflow/metaflow-zillow:2.1 image.
 # The image is used in two places:
 #   1. In metaflow/plugins/kfp/kfp_constants.py, where it is used as a base image
 #      when the user does not provide their own base image with python flow.py kfp run --base-image...
 #   2. In metaflow/plugins/kfp/kfp.py, where it is used as the base image of the 
 #      s3_sensor_op.
+# Steps to build and push new versions of this image:
+# 1. Go to Github and create a personal access token that allows you to write packages
+# link: https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token
+# 2. cd in this directory, and build the image: `docker build .`
+# 3. run `docker images` -> note the image ID of the image you just created
+# 4. run `docker tag [image_id] ghcr.io/zillow/metaflow/metaflow-zillow:[version]`
+# 5. push to Github: `docker push ghcr.io/zillow/metaflow/metaflow-zillow`
 
 FROM python:3.9.0
 
