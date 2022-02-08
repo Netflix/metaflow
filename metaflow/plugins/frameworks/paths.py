@@ -1,5 +1,5 @@
 import os
-from metaflow import S3
+from metaflow import S3, current
 
 
 def get_s3_logger_url(run):
@@ -22,8 +22,10 @@ def get_s3_latest_checkpoint_url(run):
     checkpoints/ prefix of the run's data.
     If there are no checkpoints, None is returned.
     """
-    # TODO: handle resume
-    s3 = S3(run=run)
+    if current.origin_run_id is None:
+        s3 = S3(run=run)
+    else:
+        s3 = S3(run=run, use_origin_run_id=True)
     checkpoints = s3.list_paths(["checkpoints/"])
     if not checkpoints:
         return None

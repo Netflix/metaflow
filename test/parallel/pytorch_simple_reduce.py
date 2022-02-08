@@ -6,6 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributed as dist
 import torch.optim as optim
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 
 class LearnToSum(pl.LightningModule):
@@ -33,7 +34,14 @@ class LearnToSum(pl.LightningModule):
         return {"optimizer": optim.SGD(self.parameters(), lr=0.01)}
 
 
-def train(num_local_processes):
+def train(num_local_processes, checkpoint_url=None, latest_checkpoint_url=None):
+    checkpoint_callback = ModelCheckpoint(
+        monitor="train_loss",
+        dirpath=checkpoint_url,
+        filename="test-{epoch:02d}",
+        save_top_k=1,
+        mode="min",
+    )
     num_nodes = int(os.environ.get("NUM_NODES", "1"))
     trainer = pl.Trainer(
         gpus=None,
@@ -41,7 +49,7 @@ def train(num_local_processes):
         accelerator="ddp",
         num_nodes=num_nodes,
         max_epochs=5,
-        callbacks=[],
+        callbacks=[checkpoint_callback],
     )
     model = LearnToSum()
     inps = torch.rand(1000, 10)

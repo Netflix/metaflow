@@ -286,7 +286,14 @@ class S3(object):
         return DATATOOLS_S3ROOT
 
     def __init__(
-        self, tmproot=".", bucket=None, prefix=None, run=None, s3root=None, **kwargs
+        self,
+        tmproot=".",
+        bucket=None,
+        prefix=None,
+        run=None,
+        s3root=None,
+        use_origin_run_id=None,
+        **kwargs
     ):
         """
         Initialize a new context for S3 operations. This object is used as
@@ -299,6 +306,7 @@ class S3(object):
                  are used to add a version suffix in the S3 path.
             bucket: (optional) S3 bucket.
             prefix: (optional) S3 prefix.
+            use_origin_run_id:  if True, use the origin_run_id instead of current run_id
         2. Without a run object:
             s3root: (optional) An S3 root URL for all operations. If this is
                     not specified, all operations require a full S3 URL.
@@ -318,7 +326,13 @@ class S3(object):
                 prefix = parsed.path
             if isinstance(run, FlowSpec):
                 if current.is_running_flow:
-                    prefix = os.path.join(prefix, current.flow_name, current.run_id)
+                    prefix = os.path.join(
+                        prefix,
+                        current.flow_name,
+                        current.run_id
+                        if not use_origin_run_id
+                        else current.origin_run_id,
+                    )
                 else:
                     raise MetaflowS3URLException(
                         "Initializing S3 with a FlowSpec outside of a running "
