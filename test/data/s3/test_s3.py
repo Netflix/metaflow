@@ -330,7 +330,13 @@ def test_init_options(s3root, pathspecs, expected):
             pass
 
     current._set_env(
-        flow_name, run_id, "no_step", "no_task", "no_origin_run_id", "no_ns", "no_user"
+        FakeFlow(name=flow_name),
+        run_id,
+        "no_step",
+        "no_task",
+        "no_origin_run_id",
+        "no_ns",
+        "no_user",
     )
 
     with S3(bucket=parsed.netloc, prefix=parsed.path, run=flow) as s3:

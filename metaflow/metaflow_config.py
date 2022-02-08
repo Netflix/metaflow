@@ -64,26 +64,29 @@ DATASTORE_SYSROOT_S3 = from_conf("METAFLOW_DATASTORE_SYSROOT_S3")
 DATATOOLS_SUFFIX = from_conf("METAFLOW_DATATOOLS_SUFFIX", "data")
 DATATOOLS_S3ROOT = from_conf(
     "METAFLOW_DATATOOLS_S3ROOT",
-    "%s/%s" % (from_conf("METAFLOW_DATASTORE_SYSROOT_S3"), DATATOOLS_SUFFIX)
+    os.path.join(from_conf("METAFLOW_DATASTORE_SYSROOT_S3"), DATATOOLS_SUFFIX)
     if from_conf("METAFLOW_DATASTORE_SYSROOT_S3")
     else None,
 )
 # Local datatools root location
 DATATOOLS_LOCALROOT = from_conf(
     "METAFLOW_DATATOOLS_LOCALROOT",
-    "%s/%s" % (from_conf("METAFLOW_DATASTORE_SYSROOT_LOCAL"), DATATOOLS_SUFFIX)
+    os.path.join(from_conf("METAFLOW_DATASTORE_SYSROOT_LOCAL"), DATATOOLS_SUFFIX)
     if from_conf("METAFLOW_DATASTORE_SYSROOT_LOCAL")
     else None,
 )
 
+# Cards related config variables
 DATASTORE_CARD_SUFFIX = "mf.cards"
 DATASTORE_CARD_LOCALROOT = from_conf("METAFLOW_CARD_LOCALROOT")
 DATASTORE_CARD_S3ROOT = from_conf(
     "METAFLOW_CARD_S3ROOT",
-    "%s/%s" % (from_conf("METAFLOW_DATASTORE_SYSROOT_S3"), DATASTORE_CARD_SUFFIX)
+    os.path.join(from_conf("METAFLOW_DATASTORE_SYSROOT_S3"), DATASTORE_CARD_SUFFIX)
     if from_conf("METAFLOW_DATASTORE_SYSROOT_S3")
     else None,
 )
+CARD_NO_WARNING = from_conf("METAFLOW_CARD_NO_WARNING", False)
+
 # S3 endpoint url
 S3_ENDPOINT_URL = from_conf("METAFLOW_S3_ENDPOINT_URL", None)
 S3_VERIFY_CERTIFICATE = from_conf("METAFLOW_S3_VERIFY_CERTIFICATE", None)
@@ -203,6 +206,11 @@ CONDA_PACKAGE_S3ROOT = from_conf(
     "%s/conda" % from_conf("METAFLOW_DATASTORE_SYSROOT_S3"),
 )
 
+# Use an alternate dependency resolver for conda packages instead of conda
+# Mamba promises faster package dependency resolution times, which
+# should result in an appreciable speedup in flow environment initialization.
+CONDA_DEPENDENCY_RESOLVER = from_conf("METAFLOW_CONDA_DEPENDENCY_RESOLVER", "conda")
+
 ###
 # Debug configuration
 ###
@@ -288,39 +296,33 @@ def get_pinned_conda_libs(python_version):
         }
 
 
-# Check if there is a an extension to Metaflow to load and override everything
+METAFLOW_EXTENSIONS_ADDL_SUFFIXES = set([])
+
+# Check if there are extensions to Metaflow to load and override everything
 try:
-    import metaflow_extensions.config.metaflow_config as extension_module
-except ImportError as e:
-    ver = sys.version_info[0] * 10 + sys.version_info[1]
-    if ver >= 36:
-        # e.name is set to the name of the package that fails to load
-        # so don't error ONLY IF the error is importing this module (but do
-        # error if there is a transitive import error)
-        if not (
-            isinstance(e, ModuleNotFoundError)
-            and e.name in ["metaflow_extensions", "metaflow_extensions.config"]
-        ):
-            print(
-                "Cannot load metaflow_extensions configuration -- "
-                "if you want to ignore, uninstall metaflow_extensions package"
-            )
-            raise
-else:
-    # We load into globals whatever we have in extension_module
-    # We specifically exclude any modules that may be included (like sys, os, etc)
-    for n, o in extension_module.__dict__.items():
-        if n == "DEBUG_OPTIONS":
-            DEBUG_OPTIONS.extend(o)
-            for typ in o:
-                vars()["METAFLOW_DEBUG_%s" % typ.upper()] = from_conf(
-                    "METAFLOW_DEBUG_%s" % typ.upper()
-                )
-        elif not n.startswith("__") and not isinstance(o, types.ModuleType):
-            globals()[n] = o
+    from metaflow.extension_support import get_modules
+
+    ext_modules = get_modules("config")
+    for m in ext_modules:
+        # We load into globals whatever we have in extension_module
+        # We specifically exclude any modules that may be included (like sys, os, etc)
+        for n, o in m.module.__dict__.items():
+            if n == "DEBUG_OPTIONS":
+                DEBUG_OPTIONS.extend(o)
+                for typ in o:
+                    vars()["METAFLOW_DEBUG_%s" % typ.upper()] = from_conf(
+                        "METAFLOW_DEBUG_%s" % typ.upper()
+                    )
+            elif n == "METAFLOW_EXTENSIONS_ADDL_SUFFIXES":
+                METAFLOW_EXTENSIONS_ADDL_SUFFIXES.update(o)
+            elif not n.startswith("__") and not isinstance(o, types.ModuleType):
+                globals()[n] = o
+    METAFLOW_EXTENSIONS_ADDL_SUFFIXES = list(METAFLOW_EXTENSIONS_ADDL_SUFFIXES)
+    if len(METAFLOW_EXTENSIONS_ADDL_SUFFIXES) == 0:
+        METAFLOW_EXTENSIONS_ADDL_SUFFIXES = None
 finally:
     # Erase all temporary names to avoid leaking things
-    for _n in ["ver", "n", "o", "e", "extension_module"]:
+    for _n in ["m", "n", "o", "ext_modules", "get_modules"]:
         try:
             del globals()[_n]
         except KeyError:

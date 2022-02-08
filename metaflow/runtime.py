@@ -406,7 +406,7 @@ class NativeRuntime(object):
                 ]
                 join_type = "foreach"
             else:
-                # next step is a split-and
+                # next step is a split
                 # required tasks are all branches joined by the next step
                 required_tasks = [
                     self._finished.get((step, foreach_stack))

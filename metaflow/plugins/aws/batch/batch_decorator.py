@@ -24,7 +24,7 @@ from metaflow.sidecar import SidecarSubProcess
 from metaflow.unbounded_foreach import UBF_CONTROL
 
 from .batch import BatchException
-from ..aws_utils import get_docker_registry
+from ..aws_utils import compute_resource_attributes, get_docker_registry
 
 
 class BatchDecorator(StepDecorator):
@@ -87,9 +87,9 @@ class BatchDecorator(StepDecorator):
 
     name = "batch"
     defaults = {
-        "cpu": "1",
-        "gpu": "0",
-        "memory": "4096",
+        "cpu": None,
+        "gpu": None,
+        "memory": None,
         "image": None,
         "queue": BATCH_JOB_QUEUE,
         "iam_role": ECS_S3_ACCESS_IAM_ROLE,
@@ -98,6 +98,11 @@ class BatchDecorator(StepDecorator):
         "max_swap": None,
         "swappiness": None,
         "host_volumes": None,
+    }
+    resource_defaults = {
+        "cpu": "1",
+        "gpu": "0",
+        "memory": "4096",
     }
     package_url = None
     package_sha = None
@@ -144,14 +149,10 @@ class BatchDecorator(StepDecorator):
         self.environment = environment
         self.step = step
         self.flow_datastore = flow_datastore
-        for deco in decos:
-            if isinstance(deco, ResourcesDecorator):
-                for k, v in deco.attributes.items():
-                    # We use the larger of @resources and @batch attributes
-                    # TODO: Fix https://github.com/Netflix/metaflow/issues/467
-                    my_val = self.attributes.get(k)
-                    if not (my_val is None and v is None):
-                        self.attributes[k] = str(max(int(my_val or 0), int(v or 0)))
+
+        self.attributes.update(
+            compute_resource_attributes(decos, self, self.resource_defaults)
+        )
 
         # Set run time limit for the AWS Batch job.
         self.run_time_limit = get_run_time_limit_for_task(decos)
@@ -251,8 +252,8 @@ class BatchDecorator(StepDecorator):
 
             self._save_logs_sidecar = SidecarSubProcess("save_logs_periodically")
 
-        num_parallel = int(os.environ.get("AWS_BATCH_JOB_NUM_NODES", 1))
-        if num_parallel > 1 and ubf_context == UBF_CONTROL:
+        num_parallel = int(os.environ.get("AWS_BATCH_JOB_NUM_NODES", 0))
+        if num_parallel >= 1 and ubf_context == UBF_CONTROL:
             # UBF handling for multinode case
             control_task_id = current.task_id
             top_task_id = control_task_id.replace("control-", "")  # chop "-0"
@@ -266,53 +267,34 @@ class BatchDecorator(StepDecorator):
             ]
             flow._control_task_is_mapper_zero = True
 
-        if num_parallel > 1:
+        if num_parallel >= 1:
             _setup_multinode_environment()
-
-    def task_post_step(
-        self, step_name, flow, graph, retry_count, max_user_code_retries
-    ):
-        # task_post_step may run locally if fallback is activated for @catch
-        # decorator.
-        if "AWS_BATCH_JOB_ID" in os.environ:
-            # If `local` metadata is configured, we would need to copy task
-            # execution metadata from the AWS Batch container to user's
-            # local file system after the user code has finished execution.
-            # This happens via datastore as a communication bridge.
-            if self.metadata.TYPE == "local":
-                # Note that the datastore is *always* Amazon S3 (see
-                # runtime_task_created function).
-                sync_local_metadata_to_datastore(
-                    DATASTORE_LOCAL_DIR, self.task_datastore
-                )
-
-    def task_exception(
-        self, exception, step_name, flow, graph, retry_count, max_user_code_retries
-    ):
-        # task_exception may run locally if fallback is activated for @catch
-        # decorator.
-        if "AWS_BATCH_JOB_ID" in os.environ:
-            # If `local` metadata is configured, we would need to copy task
-            # execution metadata from the AWS Batch container to user's
-            # local file system after the user code has finished execution.
-            # This happens via datastore as a communication bridge.
-            if self.metadata.TYPE == "local":
-                # Note that the datastore is *always* Amazon S3 (see
-                # runtime_task_created function).
-                sync_local_metadata_to_datastore(
-                    DATASTORE_LOCAL_DIR, self.task_datastore
-                )
 
     def task_finished(
         self, step_name, flow, graph, is_task_ok, retry_count, max_retries
     ):
+
+        # task_finished may run locally if fallback is activated for @catch
+        # decorator.
+        if "AWS_BATCH_JOB_ID" in os.environ:
+            # If `local` metadata is configured, we would need to copy task
+            # execution metadata from the AWS Batch container to user's
+            # local file system after the user code has finished execution.
+            # This happens via datastore as a communication bridge.
+            if self.metadata.TYPE == "local":
+                # Note that the datastore is *always* Amazon S3 (see
+                # runtime_task_created function).
+                sync_local_metadata_to_datastore(
+                    DATASTORE_LOCAL_DIR, self.task_datastore
+                )
+
         try:
             self._save_logs_sidecar.kill()
         except:
             # Best effort kill
             pass
 
-        if is_task_ok and getattr(flow, "_control_mapper_tasks", []):
+        if is_task_ok and len(getattr(flow, "_control_mapper_tasks", [])) > 1:
             self._wait_for_mapper_tasks(flow, step_name)
 
     def _wait_for_mapper_tasks(self, flow, step_name):

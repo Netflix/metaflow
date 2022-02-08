@@ -5,7 +5,7 @@
   const { text } = componentData;
 </script>
 
-<h2 class="title">
+<h2 class="title" data-component="title">
   {text}
 </h2>
 

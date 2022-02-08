@@ -24,6 +24,7 @@ from metaflow import R
 from .step_functions_client import StepFunctionsClient
 from .event_bridge_client import EventBridgeClient
 from ..batch.batch import Batch
+from ..aws_utils import compute_resource_attributes
 
 from metaflow.mflog import capture_output_to_mflog
 
@@ -256,12 +257,12 @@ class StepFunctions(object):
                 workflow.add_state(state.end())
             # Continue linear assignment within the (sub)workflow if the node
             # doesn't branch or fork.
-            elif node.type in ("linear", "join"):
+            elif node.type in ("start", "linear", "join"):
                 workflow.add_state(state.next(node.out_funcs[0]))
                 _visit(self.graph[node.out_funcs[0]], workflow, exit_node)
             # Create a `Parallel` state and assign sub workflows if the node
             # branches out.
-            elif node.type == "split-and":
+            elif node.type == "split":
                 branch_name = hashlib.sha224(
                     "&".join(node.out_funcs).encode("utf-8")
                 ).hexdigest()
@@ -522,7 +523,7 @@ class StepFunctions(object):
                         # splits infinitely scalable because otherwise we would
                         # be bounded by the 32K state limit for the outputs. So,
                         # instead of referencing `Parameters` fields by index
-                        # (like in `split-and`), we can just reference them
+                        # (like in `split`), we can just reference them
                         # directly.
                         attrs["split_parent_task_id_%s.$" % node.split_parents[-1]] = (
                             "$.Parameters.split_parent_task_id_%s"
@@ -627,8 +628,13 @@ class StepFunctions(object):
 
         # Resolve AWS Batch resource requirements.
         batch_deco = [deco for deco in node.decorators if deco.name == "batch"][0]
-        resources = batch_deco.attributes
-
+        resources = {}
+        resources.update(batch_deco.attributes)
+        resources.update(
+            compute_resource_attributes(
+                node.decorators, batch_deco, batch_deco.resource_defaults
+            )
+        )
         # Resolve retry strategy.
         user_code_retries, total_retries = self._get_retries(node)
 
@@ -698,14 +704,32 @@ class StepFunctions(object):
 
         # Use AWS Batch job identifier as the globally unique task identifier.
         task_id = "${AWS_BATCH_JOB_ID}"
-
+        top_opts_dict = {
+            "with": [
+                decorator.make_decorator_spec()
+                for decorator in node.decorators
+                if not decorator.statically_defined
+            ]
+        }
         # FlowDecorators can define their own top-level options. They are
         # responsible for adding their own top-level options and values through
         # the get_top_level_options() hook. See similar logic in runtime.py.
-        top_opts_dict = {}
         for deco in flow_decorators():
             top_opts_dict.update(deco.get_top_level_options())
+
         top_opts = list(dict_to_cli_options(top_opts_dict))
+
+        top_level = top_opts + [
+            "--quiet",
+            "--metadata=%s" % self.metadata.TYPE,
+            "--environment=%s" % self.environment.TYPE,
+            "--datastore=%s" % self.flow_datastore.TYPE,
+            "--datastore-root=%s" % self.flow_datastore.datastore_root,
+            "--event-logger=%s" % self.event_logger.logger_type,
+            "--monitor=%s" % self.monitor.monitor_type,
+            "--no-pylint",
+            "--with=step_functions_internal",
+        ]
 
         if node.name == "start":
             # We need a separate unique ID for the special _parameters task
@@ -723,18 +747,10 @@ class StepFunctions(object):
                     ". `pwd`/%s" % param_file,
                 ]
             )
-
             params = (
                 entrypoint
-                + top_opts
+                + top_level
                 + [
-                    "--quiet",
-                    "--metadata=%s" % self.metadata.TYPE,
-                    "--environment=%s" % self.environment.TYPE,
-                    "--datastore=s3",
-                    "--event-logger=%s" % self.event_logger.logger_type,
-                    "--monitor=%s" % self.monitor.monitor_type,
-                    "--no-pylint",
                     "init",
                     "--run-id sfn-$METAFLOW_RUN_ID",
                     "--task-id %s" % task_id_params,
@@ -771,18 +787,6 @@ class StepFunctions(object):
             )
             cmds.append(export_parent_tasks)
 
-        top_level = top_opts + [
-            "--quiet",
-            "--metadata=%s" % self.metadata.TYPE,
-            "--environment=%s" % self.environment.TYPE,
-            "--datastore=%s" % self.flow_datastore.TYPE,
-            "--datastore-root=%s" % self.flow_datastore.datastore_root,
-            "--event-logger=%s" % self.event_logger.logger_type,
-            "--monitor=%s" % self.monitor.monitor_type,
-            "--no-pylint",
-            "--with=step_functions_internal",
-        ]
-
         step = [
             "step",
             node.name,
@@ -793,9 +797,6 @@ class StepFunctions(object):
             "--retry-count $((AWS_BATCH_JOB_ATTEMPT-1))",
             "--max-user-code-retries %d" % user_code_retries,
             "--input-paths %s" % paths,
-            # Set decorator to batch to execute `task_*` hooks for batch
-            # decorator.
-            "--with=batch",
         ]
         if any(self.graph[n].type == "foreach" for n in node.in_funcs):
             # We set the `METAFLOW_SPLIT_INDEX` through JSONPath-foo

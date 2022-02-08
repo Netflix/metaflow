@@ -1,5 +1,7 @@
 import re
 
+from metaflow.exception import MetaflowException
+
 
 def get_docker_registry(image_uri):
     """
@@ -50,3 +52,53 @@ def get_docker_registry(image_uri):
     if registry is not None:
         registry = registry.rstrip("/")
     return registry
+
+
+def compute_resource_attributes(decos, compute_deco, resource_defaults):
+    """
+    Compute resource values taking into account defaults, the values specified
+    in the compute decorator (like @batch or @kubernetes) directly, and
+    resources specified via @resources decorator.
+
+    Returns a dictionary of resource attr -> value (str).
+    """
+    assert compute_deco is not None
+
+    # Use the value from resource_defaults by default (don't use None)
+    result = {k: v for k, v in resource_defaults.items() if v is not None}
+
+    for deco in decos:
+        # If resource decorator is used
+        if deco.name == "resources":
+            for k, v in deco.attributes.items():
+                my_val = compute_deco.attributes.get(k)
+                # We use the non None value if there is only one or the larger value
+                # if they are both non None. Note this considers "" to be equivalent to
+                # the value zero.
+                if my_val is None and v is None:
+                    continue
+                if my_val is not None and v is not None:
+                    try:
+                        result[k] = str(max(int(my_val or 0), int(v or 0)))
+                    except ValueError:
+                        # Here, we don't have ints so we compare the value and raise
+                        # an exception if not equal
+                        if my_val != v:
+                            raise MetaflowException(
+                                "'resources' and compute decorator have conflicting "
+                                "values for '%s'. Please use consistent values or "
+                                "specify this resource constraint once" % k
+                            )
+                elif my_val is not None:
+                    result[k] = str(my_val or "0")
+                else:
+                    result[k] = str(v or "0")
+            return result
+
+    # If there is no resources decorator, values from compute_deco override
+    # the defaults.
+    for k in resource_defaults:
+        if compute_deco.attributes.get(k) is not None:
+            result[k] = str(compute_deco.attributes[k] or "0")
+
+    return result

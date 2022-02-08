@@ -11,8 +11,7 @@
   $: el ? highlightCode() : null;
 </script>
 
-<pre
-  class="log"> 
+<pre class="log" data-component="log"> 
   <code class="mono language-log" bind:this={el}>
     {componentData.data}
   </code>

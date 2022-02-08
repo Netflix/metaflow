@@ -61,7 +61,7 @@ class DuplicateStepDecoratorException(MetaflowException):
     def __init__(self, deco, func):
         msg = (
             "Step '{step}' already has a decorator '{deco}'. "
-            "You can specify each decorator only once.".format(
+            "You can specify this decorator only once.".format(
                 step=func.__name__, deco=deco
             )
         )
@@ -225,6 +225,9 @@ class StepDecorator(Decorator):
                   step.__name__ etc., so that we don't have to
                   pass them around with every lifecycle call.
     """
+
+    # `allow_multiple` allows setting many decorators of the same type to a step.
+    allow_multiple = False
 
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
@@ -402,8 +405,11 @@ def _base_step_decorator(decotype, *args, **kwargs):
         if not hasattr(func, "is_step"):
             raise BadStepDecoratorException(decotype.name, func)
 
-        # Only the first decorator applies
-        if decotype.name in [deco.name for deco in func.decorators]:
+        # if `allow_multiple` is not `True` then only one decorator type is allowed per step
+        if (
+            decotype.name in [deco.name for deco in func.decorators]
+            and not decotype.allow_multiple
+        ):
             raise DuplicateStepDecoratorException(decotype.name, func)
         else:
             func.decorators.append(decotype(attributes=kwargs, statically_defined=True))
@@ -451,7 +457,11 @@ def _attach_decorators_to_step(step, decospecs):
         # Attach the decorator to step if it doesn't have the decorator
         # already. This means that statically defined decorators are always
         # preferred over runtime decorators.
-        if deconame not in [deco.name for deco in step.decorators]:
+        if (
+            deconame not in [deco.name for deco in step.decorators]
+            or decos[deconame].allow_multiple
+        ):
+            # if the decorator is present in a step and is of type allow_mutliple then add the decorator to the step
             deco = decos[deconame]._parse_decorator_spec(decospec)
             step.decorators.append(deco)
 

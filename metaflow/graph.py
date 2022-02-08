@@ -56,8 +56,8 @@ class DAGNode(object):
         self.has_tail_next = False
         self.invalid_tail_next = False
         self.num_args = 0
-        self.condition = None
         self.foreach_param = None
+        self.num_parallel = 0
         self.parallel_foreach = False
         self._parse(func_ast)
 
@@ -109,21 +109,18 @@ class DAGNode(object):
                     self.type = "foreach"
                     self.parallel_foreach = True
                     if len(self.out_funcs) == 1:
-                        self.invalid_tail_next = False
-                elif "condition" in keywords:
-                    # TYPE: split-or
-                    self.type = "split-or"
-                    if len(self.out_funcs) == 2:
-                        self.condition = keywords["condition"]
+                        self.num_parallel = keywords["num_parallel"]
                         self.invalid_tail_next = False
             elif len(keywords) == 0:
                 if len(self.out_funcs) > 1:
-                    # TYPE: split-and
-                    self.type = "split-and"
+                    # TYPE: split
+                    self.type = "split"
                     self.invalid_tail_next = False
                 elif len(self.out_funcs) == 1:
                     # TYPE: linear
-                    if self.num_args > 1:
+                    if self.name == "start":
+                        self.type = "start"
+                    elif self.num_args > 1:
                         self.type = "join"
                     else:
                         self.type = "linear"
@@ -142,7 +139,6 @@ class DAGNode(object):
     num_args={0.num_args}
     has_tail_next={0.has_tail_next} (line {0.tail_next_lineno})
     invalid_tail_next={0.invalid_tail_next}
-    condition={0.condition}
     foreach_param={0.foreach_param}
     parallel_step={0.parallel_step}
     parallel_foreach={0.parallel_foreach}
@@ -201,7 +197,7 @@ class FlowGraph(object):
 
     def _traverse_graph(self):
         def traverse(node, seen, split_parents):
-            if node.type in ("split-or", "split-and", "foreach"):
+            if node.type in ("split", "foreach"):
                 node.split_parents = split_parents
                 split_parents = split_parents + [node.name]
             elif node.type == "join":
@@ -264,3 +260,74 @@ class FlowGraph(object):
                 self, nodes="\n".join(node_specs()), edges="\n".join(edge_specs())
             )
         )
+
+    def output_steps(self):
+
+        steps_info = {}
+        graph_structure = []
+
+        def node_to_type(node):
+            if node.type in ["linear", "start", "end", "join"]:
+                return node.type
+            elif node.type == "split":
+                return "split-static"
+            elif node.type == "foreach":
+                if node.parallel_foreach:
+                    return "split-parallel"
+                return "split-foreach"
+            return "unknown"  # Should never happen
+
+        def node_to_dict(name, node):
+            d = {
+                "name": name,
+                "type": node_to_type(node),
+                "line": node.func_lineno,
+                "doc": node.doc,
+                "decorators": [
+                    {
+                        "name": deco.name,
+                        "attributes": deco.attributes,
+                        "statically_defined": deco.statically_defined,
+                    }
+                    for deco in node.decorators
+                    if not deco.name.startswith("_")
+                ],
+                "next": node.out_funcs,
+            }
+            if d["type"] == "split-foreach":
+                d["foreach_artifact"] = node.foreach_param
+            elif d["type"] == "split-parallel":
+                d["num_parallel"] = node.num_parallel
+            if node.matching_join:
+                d["matching_join"] = node.matching_join
+            return d
+
+        def populate_block(start_name, end_name):
+            cur_name = start_name
+            resulting_list = []
+            while cur_name != end_name:
+                cur_node = self.nodes[cur_name]
+                node_dict = node_to_dict(cur_name, cur_node)
+
+                steps_info[cur_name] = node_dict
+                resulting_list.append(cur_name)
+
+                if cur_node.type not in ("start", "linear", "join"):
+                    # We need to look at the different branches for this
+                    resulting_list.append(
+                        [
+                            populate_block(s, cur_node.matching_join)
+                            for s in cur_node.out_funcs
+                        ]
+                    )
+                    cur_name = cur_node.matching_join
+                else:
+                    cur_name = cur_node.out_funcs[0]
+            return resulting_list
+
+        graph_structure = populate_block("start", "end")
+
+        steps_info["end"] = node_to_dict("end", self.nodes["end"])
+        graph_structure.append("end")
+
+        return steps_info, graph_structure
