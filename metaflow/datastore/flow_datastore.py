@@ -159,9 +159,7 @@ class FlowDataStore(object):
                     elif fname == TaskDataStore.METADATA_DATA_SUFFIX:
                         # This somewhat breaks the abstraction since we are using
                         # load_bytes directly instead of load_metadata
-                        with open(path, "rb") as f:
-                            if sys.version_info < (3, 6):
-                                f = f.decode("utf-8")
+                        with open(path, encoding="utf-8") as f:
                             data_objs[(run, step, task, attempt)] = json.load(f)
         # We now figure out the latest attempt that started *and* finished.
         # Note that if an attempt started but didn't finish, we do *NOT* return
