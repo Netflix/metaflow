@@ -489,10 +489,14 @@ class TaskDataStore(object):
         Dict: string -> JSON decoded object
             Results indexed by the name of the metadata loaded
         """
-        return {
-            k: json.loads(v) if v is not None else None
-            for k, v in self._load_file(names, add_attempt).items()
-        }
+        ret_dict = {}
+        for k, v in self._load_file(names, add_attempt).items():
+            if sys.version_info < (3, 6):
+                value = v.decode("utf-8")
+            else:
+                value = v
+            ret_dict[k] = json.loads(value) if v is not None else None
+        return ret_dict
 
     @require_mode(None)
     def has_metadata(self, name, add_attempt=True):
