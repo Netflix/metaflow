@@ -1,5 +1,6 @@
 import itertools
 import json
+import sys
 
 from .. import metaflow_config
 
@@ -159,6 +160,8 @@ class FlowDataStore(object):
                         # This somewhat breaks the abstraction since we are using
                         # load_bytes directly instead of load_metadata
                         with open(path, "rb") as f:
+                            if sys.version_info < (3, 6):
+                                f = f.decode("utf-8")
                             data_objs[(run, step, task, attempt)] = json.load(f)
         # We now figure out the latest attempt that started *and* finished.
         # Note that if an attempt started but didn't finish, we do *NOT* return
