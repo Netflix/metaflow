@@ -7,7 +7,6 @@ from metaflow.decorators import StepDecorator, flow_decorators
 from metaflow.current import current
 from metaflow.util import to_unicode
 from .component_serializer import CardComponentCollector, get_card_class
-from .card_modules import _get_external_card_package_paths
 
 
 # from metaflow import get_metadata
@@ -65,16 +64,6 @@ class CardDecorator(StepDecorator):
         ):
             file_path, arcname = path_tuple
             yield (file_path, os.path.join("metaflow", "plugins", "cards", arcname))
-
-        external_card_pth_generator = _get_external_card_package_paths()
-        if external_card_pth_generator is None:
-            return
-        for module_pth, parent_arcname in external_card_pth_generator:
-            # `_get_card_package_paths` is a generator which yields
-            # path to the module and its relative arcname in the metaflow-extensions package.
-            for file_pth, rel_path in self._walk(module_pth, prefix_root=True):
-                arcname = os.path.join(parent_arcname, rel_path)
-                yield (file_pth, arcname)
 
     def _walk(self, root, filter_extensions=[], prefix_root=False):
         root = to_unicode(root)  # handle files/folder with non ascii chars
