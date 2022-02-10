@@ -22,7 +22,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        ver: ['3.5', '3.6', '3.7', '3.8', '3.9']            
+        ver: ['3.5', '3.6', '3.7', '3.8', '3.9','3.10','3.11']
 
     steps:
     - uses: actions/checkout@v2
@@ -47,7 +47,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        ver: ['3.5', '3.6', '4.0', '4.1']
+        ver: ['4.0', '4.1']
    
     steps:
     - uses: actions/checkout@v2

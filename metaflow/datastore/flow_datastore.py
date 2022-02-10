@@ -1,6 +1,5 @@
 import itertools
 import json
-import sys
 
 from .. import metaflow_config
 
