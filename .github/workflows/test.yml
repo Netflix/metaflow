@@ -22,7 +22,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        ver: ['2.x', '3.5', '3.6', '3.7', '3.8', '3.9']            
+        ver: ['3.5', '3.6', '3.7', '3.8', '3.9']            
 
     steps:
     - uses: actions/checkout@v2
@@ -32,14 +32,7 @@ jobs:
       with:
         python-version: ${{ matrix.ver }}
 
-    - name: Install Python 2.x dependencies
-      if: matrix.ver == '2.x'
-      run: |
-        python2 -m pip install --upgrade pip
-        python2 -m pip install tox
-
     - name: Install Python ${{ matrix.ver }} dependencies
-      if: matrix.ver != '2.x'
       run: |
         python3 -m pip install --upgrade pip
         python3 -m pip install tox numpy
