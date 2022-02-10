@@ -134,7 +134,7 @@ def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_c
         print(stderr.decode("utf8"))
 
         task_datastore = flow_datastore.get_task_datastore(
-            run_id, step_name, task_id, 0, mode="w"
+            run_id, step_name, task_id, current.retry_count or 0, mode="w"
         )
         task_datastore.save_logs("task", {"stdout": stdout, "stderr": stderr})
 
