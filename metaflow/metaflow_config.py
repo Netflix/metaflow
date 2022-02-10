@@ -131,6 +131,8 @@ DEFAULT_CONTAINER_IMAGE = from_conf("METAFLOW_DEFAULT_CONTAINER_IMAGE")
 # Default container registry
 DEFAULT_CONTAINER_REGISTRY = from_conf("METAFLOW_DEFAULT_CONTAINER_REGISTRY")
 
+MFGUI_URL = from_conf("METAFLOW_UI_URL")
+
 ###
 # AWS Batch configuration
 ###
