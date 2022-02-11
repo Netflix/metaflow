@@ -14,7 +14,10 @@ def _merge_lists(base, overrides, attr):
 
 
 def _merge_funcs(base_func, override_func):
-    r = base_func() + override_func()
+    # IMPORTANT: This is a `get_plugin_cli` type of function and we need to *delay*
+    # evaluation of it until after the flowspec is loaded.
+    old_default = base_func.__defaults__[0]
+    r = lambda: base_func(old_default) + override_func()
 
     base_func.__defaults__ = (r,)
 
@@ -43,7 +46,7 @@ _expected_extensions = {
         [],
         lambda base, overrides: _merge_lists(base, overrides, "name"),
     ),
-    "get_plugin_cli": (lambda l=None: [] if l is None else l, _merge_funcs),
+    "get_plugin_cli": (lambda l=None: [] if l is None else l(), _merge_funcs),
 }
 
 

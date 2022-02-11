@@ -231,7 +231,7 @@ def _get_extension_packages():
     # other ways of specifying "load me after this if it exists" without depending on
     # the package. One way would be to rely on the description and have that info there.
     # Not sure of the use though so maybe we can skip for now.
-    mf_ext_packages = []
+    mf_ext_packages = set([])
     # Key: distribution name/full path to package
     # Value:
     #  Key: TL package name
@@ -242,6 +242,12 @@ def _get_extension_packages():
         if any(
             [pkg == EXT_PKG for pkg in (dist.read_text("top_level.txt") or "").split()]
         ):
+            if dist.metadata["Name"] in mf_ext_packages:
+                _ext_debug(
+                    "Ignoring duplicate package '%s' (duplicate paths in sys.path? (%s))"
+                    % (dist.metadata["Name"], str(sys.path))
+                )
+                continue
             _ext_debug("Found extension package '%s'..." % dist.metadata["Name"])
 
             # Remove the path from the paths to search. This is not 100% accurate because
@@ -249,7 +255,7 @@ def _get_extension_packages():
             # package but it is exceedingly unlikely so we are going to ignore this.
             all_paths.discard(dist.locate_file(EXT_PKG).as_posix())
 
-            mf_ext_packages.append(dist.metadata["Name"])
+            mf_ext_packages.add(dist.metadata["Name"])
 
             # At this point, we check to see what extension points this package
             # contributes to. This is to enable multiple namespace packages to contribute
@@ -350,12 +356,11 @@ def _get_extension_packages():
     # case of ties. We do not do any checks because we rely on pip to have done those.
     pkg_to_reqs_count = {}
     req_to_dep = {}
-    mf_ext_packages_set = set(mf_ext_packages)
     for pkg_name in mf_ext_packages:
         req_count = 0
         req_pkgs = [x.split()[0] for x in metadata.requires(pkg_name) or []]
         for req_pkg in req_pkgs:
-            if req_pkg in mf_ext_packages_set:
+            if req_pkg in mf_ext_packages:
                 req_count += 1
                 req_to_dep.setdefault(req_pkg, []).append(pkg_name)
         pkg_to_reqs_count[pkg_name] = req_count
