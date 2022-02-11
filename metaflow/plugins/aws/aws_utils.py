@@ -2,6 +2,7 @@ import re
 import requests
 
 from metaflow.exception import MetaflowException
+from metaflow.metaflow_config import MAX_MEMORY_PER_TASK, MAX_CPU_PER_TASK
 
 
 def get_ec2_instance_metadata():
@@ -88,7 +89,7 @@ def get_docker_registry(image_uri):
     return registry
 
 
-def compute_resource_attributes(decos, compute_deco, resource_defaults):
+def compute_resource_attributes(decos, compute_deco, step_name, resource_defaults):
     """
     Compute resource values taking into account defaults, the values specified
     in the compute decorator (like @batch or @kubernetes) directly, and
@@ -143,6 +144,19 @@ def compute_resource_attributes(decos, compute_deco, resource_defaults):
     for k in resource_defaults:
         if compute_deco.attributes.get(k) is not None:
             result[k] = str(compute_deco.attributes[k] or "0")
+
+    if "cpu" in result and MAX_CPU_PER_TASK:
+        if float(result["cpu"]) > float(MAX_CPU_PER_TASK):
+            raise MetaflowException(
+                "Step %s requires %s CPU units, but you cannot use more than %s per step in this environment"
+                % (step_name, result["cpu"], MAX_CPU_PER_TASK)
+            )
+    if "memory" in result and MAX_MEMORY_PER_TASK:
+        if float(result["memory"]) > float(MAX_MEMORY_PER_TASK):
+            raise MetaflowException(
+                "Step %s requires %s memory, but you cannot use more than %s per step in this environment"
+                % (step_name, result["memory"], MAX_MEMORY_PER_TASK)
+            )
 
     return result
 
