@@ -27,6 +27,8 @@ from ..aws.aws_utils import get_docker_registry
 
 from .kubernetes import KubernetesException
 
+from metaflow.metaflow_config import MAX_MEMORY_PER_TASK, MAX_CPU_PER_TASK
+
 try:
     unicode
 except NameError:
@@ -222,6 +224,19 @@ class KubernetesDecorator(StepDecorator):
                     "Invalid {} value *{}* for step *{step}*; it should be greater than 0".format(
                         attr, self.attributes[attr], step=step
                     )
+                )
+
+        if "cpu" in self.attributes and MAX_CPU_PER_TASK:
+            if float(self.attributes["cpu"]) > float(MAX_CPU_PER_TASK):
+                raise MetaflowException(
+                    "Step %s requires %s CPU units, but you cannot use more than %s per step in this environment"
+                    % (step, self.attributes["cpu"], MAX_CPU_PER_TASK)
+                )
+        if "memory" in self.attributes and MAX_MEMORY_PER_TASK:
+            if float(self.attributes["memory"]) > float(MAX_MEMORY_PER_TASK):
+                raise MetaflowException(
+                    "Step %s requires %s CPU units, but you cannot use more than %s per step in this environment"
+                    % (step, self.attributes["memory"], MAX_MEMORY_PER_TASK)
                 )
 
         if self.attributes["gpu"] is not None and not (
