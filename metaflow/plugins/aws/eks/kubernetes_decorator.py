@@ -129,7 +129,7 @@ class KubernetesDecorator(StepDecorator):
         self.step = step
         self.flow_datastore = flow_datastore
         self.attributes.update(
-            compute_resource_attributes(decos, self, self.resource_defaults)
+            compute_resource_attributes(decos, self, step, self.resource_defaults)
         )
 
         for deco in decos:

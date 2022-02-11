@@ -245,6 +245,8 @@ if AWS_SANDBOX_ENABLED:
     METADATA_SERVICE_HEADERS["x-api-key"] = AWS_SANDBOX_API_KEY
     SFN_STATE_MACHINE_PREFIX = from_conf("METAFLOW_AWS_SANDBOX_STACK_NAME")
 
+MAX_MEMORY_PER_TASK = from_conf("METAFLOW_MAX_MEMORY_PER_TASK")
+MAX_CPU_PER_TASK = from_conf("METAFLOW_MAX_CPU_PER_TASK")
 
 # MAX_ATTEMPTS is the maximum number of attempts, including the first
 # task, retries, and the final fallback task and its retries.

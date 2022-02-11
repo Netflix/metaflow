@@ -632,7 +632,7 @@ class StepFunctions(object):
         resources.update(batch_deco.attributes)
         resources.update(
             compute_resource_attributes(
-                node.decorators, batch_deco, batch_deco.resource_defaults
+                node.decorators, batch_deco, node.name, batch_deco.resource_defaults
             )
         )
         # Resolve retry strategy.

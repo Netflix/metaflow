@@ -151,7 +151,7 @@ class BatchDecorator(StepDecorator):
         self.flow_datastore = flow_datastore
 
         self.attributes.update(
-            compute_resource_attributes(decos, self, self.resource_defaults)
+            compute_resource_attributes(decos, self, step, self.resource_defaults)
         )
 
         # Set run time limit for the AWS Batch job.
