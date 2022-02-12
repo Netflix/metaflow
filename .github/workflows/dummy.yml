@@ -1,0 +1,8 @@
+name: Dummy-Test
+on:
+  pull_request:
+    branches:
+    - master
+jobs:
+  test: 
+    uses: '.github/workflows/test.yml'
