@@ -5,4 +5,4 @@ on:
     - master
 jobs:
   test: 
-    uses: '.github/workflows/test.yml'
+    uses: './.github/workflows/test.yml'
