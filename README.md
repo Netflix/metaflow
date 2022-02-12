@@ -8,7 +8,7 @@ For more information, see [Metaflow's website](https://metaflow.org) and [docume
 
 ## Getting Started
 
-Getting up and running with Metaflow is easy. 
+Getting up and running with Metaflow is easy! 
 
 ### Python
 Install metaflow from [pypi](https://pypi.org/project/metaflow/):
