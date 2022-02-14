@@ -194,7 +194,7 @@ def _get_extension_packages():
     from metaflow import INFO_FILE
 
     try:
-        with open(INFO_FILE, "r") as contents:
+        with open(INFO_FILE, encoding="utf-8") as contents:
             all_pkg, ext_to_pkg = json.load(contents).get("ext_info", (None, None))
             if all_pkg is not None and ext_to_pkg is not None:
                 _ext_debug("Loading pre-computed information from INFO file")
@@ -296,9 +296,9 @@ def _get_extension_packages():
                             # Check if this is an "init" file
                             config_module = None
 
-                            if (
-                                len(parts) == len(ext_list) + 3
-                                and EXT_CONFIG_REGEXP.match(parts[-1]) is not None
+                            if len(parts) == len(ext_list) + 3 and (
+                                EXT_CONFIG_REGEXP.match(parts[-1]) is not None
+                                or parts[-1] == "__init__.py"
                             ):
                                 parts[-1] = parts[-1][:-3]  # Remove the .py
                                 config_module = ".".join(parts)
@@ -435,6 +435,8 @@ def _get_extension_packages():
                                 for x in map(EXT_CONFIG_REGEXP.match, files)
                                 if x is not None
                             ]
+                            if "__init__.py" in files:
+                                init_files.append("__init__.py")
                             config_module = None
                             if len(init_files) > 1:
                                 raise RuntimeError(
@@ -498,7 +500,27 @@ def _get_extension_packages():
     # Figure out the per extension point order
     for k, v in extension_points_to_pkg.items():
         l = [v[pkg].values() for pkg in mf_pkg_list if pkg in v]
-        extension_points_to_pkg[k] = list(chain(*l))
+        # In the case of the plugins.cards extension, we allow those packages
+        # to be ns packages so we only list the package once (in its last position).
+        # In all other cases, we error out if we don't have a configuration file for the
+        # package (either a __init__.py of an explicit mfextinit_*.py)
+        final_list = []
+        have_null_config = False
+        for pkg in chain(*l):
+            if pkg.config_module is None:
+                if k == "plugins.cards":
+                    # This is allowed here but we only keep one
+                    if have_null_config:
+                        continue
+                    have_null_config = True
+                else:
+                    raise RuntimeError(
+                        "Package '%s' does not define a configuration file for '%s'"
+                        % (pkg.package_name, k)
+                    )
+                final_list.append(pkg)
+
+        extension_points_to_pkg[k] = final_list
     return mf_pkg_list, extension_points_to_pkg
 
 
@@ -519,7 +541,7 @@ def _attempt_load_module(module_name):
                 errored_names.append("%s.%s" % (errored_names[-1], p))
             if not (isinstance(e, ModuleNotFoundError) and e.name in errored_names):
                 print(
-                    "The following exception occured while trying to load %s ('%s')"
+                    "The following exception ocurred while trying to load %s ('%s')"
                     % (EXT_PKG, module_name)
                 )
                 raise
@@ -532,7 +554,7 @@ def _attempt_load_module(module_name):
 
 def _get_extension_config(tl_pkg, extension_point, config_module):
     module_name = ".".join([EXT_PKG, tl_pkg, extension_point])
-    if config_module is not None:
+    if config_module is not None and not config_module.endswith("__init__"):
         _ext_debug("\t\tAttempting to load '%s'" % config_module)
         extension_module = _attempt_load_module(config_module)
     else:
