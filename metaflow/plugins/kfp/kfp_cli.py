@@ -1,5 +1,4 @@
 import json
-import posixpath
 import shutil
 import subprocess
 
@@ -9,7 +8,6 @@ from metaflow import current, decorators, parameters, JSONType
 from metaflow.datastore.datastore import TransformableObject
 from metaflow.exception import CommandException, MetaflowException
 from metaflow.metaflow_config import (
-    KFP_RUN_URL_PREFIX,
     KFP_SDK_API_NAMESPACE,
     KFP_SDK_NAMESPACE,
     KFP_MAX_PARALLELISM,
@@ -21,6 +19,7 @@ from metaflow.plugins.aws.step_functions.step_functions_cli import (
 )
 from metaflow.plugins.kfp.kfp_constants import BASE_IMAGE
 from metaflow.plugins.kfp.kfp_step_init import save_step_environment_variables
+from metaflow.plugins.kfp.kfp_utils import run_id_to_url
 from metaflow.util import get_username
 
 
@@ -308,11 +307,7 @@ def run(
         run_id = f"kfp-{run_pipeline_result.run_id}"
         obj.echo(f"Metaflow run_id=*{run_id}* \n", fg="magenta")
 
-        kfp_run_url = posixpath.join(
-            KFP_RUN_URL_PREFIX,
-            "_/pipeline/#/runs/details",
-            run_pipeline_result.run_id,
-        )
+        kfp_run_url = run_id_to_url(run_pipeline_result.run_id)
 
         obj.echo(
             "*Run link:* {kfp_run_url}\n".format(kfp_run_url=kfp_run_url),

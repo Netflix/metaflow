@@ -110,6 +110,7 @@ class TestTypeClass(click.ParamType):
     def convert(self, value, param, ctx):
         if isinstance(value, str):
             import json
+
             return json.loads(value)
         else:
             return value
@@ -121,9 +122,10 @@ class TestTypeClass(click.ParamType):
         return "Dataset"
 
 
-
 class ResourcesFlow(FlowSpec):
-    json_param: Dict = Parameter("json_param", default=default_dict, type=TestTypeClass())
+    json_param: Dict = Parameter(
+        "json_param", default=default_dict, type=TestTypeClass()
+    )
 
     @resources(
         local_storage="242",

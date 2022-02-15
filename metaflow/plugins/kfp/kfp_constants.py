@@ -26,3 +26,5 @@ STDOUT_FILE = "mflog_stdout"
 STDERR_FILE = "mflog_stderr"
 STDOUT_PATH = os.path.join(LOGS_DIR, STDOUT_FILE)
 STDERR_PATH = os.path.join(LOGS_DIR, STDERR_FILE)
+
+KFP_CLI_DEFAULT_RETRY = 3
