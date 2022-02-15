@@ -2,11 +2,14 @@ from setuptools import setup, find_packages
 
 version = "2.5.1"
 
+long_description = open('README.md').read()
+
 setup(
     include_package_data=True,
     name="metaflow",
     version=version,
     description="Metaflow: More Data Science, Less Engineering",
+    long_description=long_description,
     author="Machine Learning Infrastructure Team at Netflix",
     author_email="help@metaflow.org",
     license="Apache License 2.0",
