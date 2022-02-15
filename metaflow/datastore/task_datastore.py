@@ -489,8 +489,11 @@ class TaskDataStore(object):
         Dict: string -> JSON decoded object
             Results indexed by the name of the metadata loaded
         """
+        transformer = lambda x: x
+        if sys.version_info < (3, 6):
+            transformer = lambda x: x.decode("utf-8")
         return {
-            k: json.loads(v) if v is not None else None
+            k: json.loads(transformer(v)) if v is not None else None
             for k, v in self._load_file(names, add_attempt).items()
         }
 
