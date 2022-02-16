@@ -7,6 +7,7 @@ import types
 
 from collections import defaultdict, namedtuple
 
+from importlib.abc import MetaPathFinder, Loader
 from itertools import chain
 
 __all__ = (
@@ -162,7 +163,7 @@ def alias_submodules(module, tl_package, extension_point, extra_indent=False):
 
 def lazy_load_aliases(aliases):
     if aliases:
-        sys.meta_path = [_LazyLoader(aliases)] + sys.meta_path
+        sys.meta_path = [_LazyFinder(aliases)] + sys.meta_path
 
 
 def multiload_globals(modules, dst_globals):
@@ -172,7 +173,7 @@ def multiload_globals(modules, dst_globals):
 
 def multiload_all(modules, extension_point, dst_globals):
     for m in modules:
-        # Note that we load aliases separately (as opposed to ine one fell swoop) so
+        # Note that we load aliases separately (as opposed to in one fell swoop) so
         # modules loaded later in `modules` can depend on them
         lazy_load_aliases(
             alias_submodules(m.module, m.tl_package, extension_point, extra_indent=True)
@@ -755,98 +756,154 @@ def _filter_files_all():
         _filter_files_package(p)
 
 
-class _LazyLoader(object):
-    # This _LazyLoader implements the Importer Protocol defined in PEP 302
-    # TODO: Need to move to find_spec, exec_module and create_module as
-    # find_module and load_module are deprecated
+class _AliasLoader(Loader):
+    def __init__(self, alias, orig):
+        self._alias = alias
+        self._orig = orig
+
+    def create_module(self, spec):
+        _ext_debug(
+            "Loading aliased module '%s' at '%s' " % (str(self._orig), spec.name)
+        )
+        if isinstance(self._orig, str):
+            try:
+                return importlib.import_module(self._orig)
+            except ImportError:
+                raise ImportError(
+                    "No module found '%s' (aliasing '%s')" % (spec.name, self._orig)
+                )
+        elif isinstance(self._orig, types.ModuleType):
+            # We are aliasing a module so we just return that one
+            return self._orig
+        else:
+            return super().create_module(spec)
+
+    def exec_module(self, module):
+        # Override the name to make it a bit nicer. We keep the old name so that
+        # we can refer to it when we load submodules
+        if not hasattr(module, "__orig_name__"):
+            module.__orig_name__ = module.__name__
+            module.__name__ = self._alias
+
+
+class _OrigLoader(Loader):
+    def __init__(self, fullname, orig_loader, previously_loaded_module=None):
+        self._fullname = fullname
+        self._orig_loader = orig_loader
+        self._previously_loaded_module = previously_loaded_module
+
+    def create_module(self, spec):
+        _ext_debug(
+            "Loading original module '%s' (will be loaded at '%s')"
+            % (spec.name, self._fullname)
+        )
+        self._orig_name = spec.name
+        return self._orig_loader.create_module(spec)
+
+    def exec_module(self, module):
+        try:
+            # Perform all actions of the original loader
+            self._orig_loader.exec_module(module)
+        except BaseException:
+            raise  # We re-raise it always; the finally clause will still restore things
+        else:
+            # It loaded, we move and rename appropriately
+            module.__spec__.name = self._fullname
+            module.__orig_name__ = module.__name__
+            module.__name__ = self._fullname
+            sys.modules[self._fullname] = module
+            del sys.modules[self._orig_name]
+
+        finally:
+            # At this point, the original module is loaded with the original name. We
+            # want to replace it with previously_loaded_module if it exists and, in both
+            # cases, change the name to fullname (which has _orig in it)
+            if self._previously_loaded_module:
+                sys.modules[self._orig_name] = self._previously_loaded_module
+
+
+class _LazyFinder(MetaPathFinder):
+    # This _LazyFinder implements the Importer Protocol defined in PEP 302
 
     def __init__(self, handled):
-        # Modules directly loaded (this is either new modules or overrides of existing ones)
+        # Dictionary:
+        # Key: name of the module to handle
+        # Value:
+        #   - A string: a pathspec to the module to load
+        #   - A module: the module to load
         self._handled = handled if handled else {}
 
         # This is used to revert back to regular loading when trying to load
         # the over-ridden module
-        self._tempexcluded = set()
+        self._temp_excluded_prefix = set()
 
-        # This is used when loading a module alias to load any submodule
-        self._alias_to_orig = {}
-
-    def find_module(self, fullname, path=None):
-        if fullname in self._tempexcluded:
+    def find_spec(self, fullname, path, target=None):
+        # If we are trying to load a shadowed module (ending in ._orig), we don't
+        # say we handle it
+        if any([fullname.startswith(e) for e in self._temp_excluded_prefix]):
             return None
-        if fullname in self._handled or (
-            fullname.endswith("._orig") and fullname[:-6] in self._handled
-        ):
-            return self
+
+        # If this is something we directly handle, return our loader
+        if fullname in self._handled:
+            return importlib.util.spec_from_loader(
+                fullname, _AliasLoader(fullname, self._handled[fullname])
+            )
+
+        # For the first pass when we try to load a shadowed module, we send it back
+        # without the ._orig and that will find the original spec of the module
+        # Note that we handle mymodule._orig.orig_submodule as well as mymodule._orig.
+        # Basically, the original module and any of the original submodules are
+        # available under _orig.
         name_parts = fullname.split(".")
-        if len(name_parts) > 1 and name_parts[-1] != "_orig":
-            # We check if we had an alias created for this module and if so,
-            # we are going to load it to properly fully create aliases all
-            # the way down.
-            parent_name = ".".join(name_parts[:-1])
-            if parent_name in self._alias_to_orig:
-                return self
+        try:
+            orig_idx = name_parts.index("_orig")
+        except ValueError:
+            orig_idx = -1
+        if orig_idx > -1 and ".".join(name_parts[:orig_idx]) in self._handled:
+            orig_name = ".".join(name_parts[:orig_idx] + name_parts[orig_idx + 1 :])
+            _ext_debug("Looking for original module '%s'" % orig_name)
+            prefix = ".".join(name_parts[:orig_idx])
+            self._temp_excluded_prefix.add(prefix)
+            # We also have to remove the module temporarily while we look for the
+            # new spec since otherwise it returns the spec of that loaded module.
+            # module is also restored *after* we call `create_module` in the loader
+            # otherwise it just returns None
+            loaded_module = sys.modules.get(orig_name)
+            if loaded_module:
+                del sys.modules[orig_name]
+
+            # This finds the spec that would have existed had we not added all our
+            # _LazyFinders
+            spec = importlib.util.find_spec(orig_name)
+
+            self._temp_excluded_prefix.remove(prefix)
+
+            if not spec:
+                return None
+
+            _ext_debug("Found original spec %s" % spec)
+
+            # Change the spec
+            spec.loader = _OrigLoader(fullname, spec.loader, loaded_module)
+
+            return spec
+
+        if len(name_parts) > 1:
+            # This checks for submodules of things we handle. We check for the most
+            # specific submodule match and use that
+            chop_idx = 1
+            while chop_idx < len(name_parts):
+                parent_name = ".".join(name_parts[:-chop_idx])
+                if parent_name in self._handled:
+                    orig = self._handled[parent_name]
+                    if isinstance(orig, types.ModuleType):
+                        orig_name = ".".join(
+                            [orig.__orig_name__] + name_parts[-chop_idx:]
+                        )
+                    else:
+                        orig_name = ".".join([orig] + name_parts[-chop_idx:])
+                    return importlib.util.spec_from_loader(
+                        fullname, _AliasLoader(fullname, orig_name)
+                    )
+                chop_idx += 1
         return None
-
-    def load_module(self, fullname):
-        if fullname in sys.modules:
-            return sys.modules[fullname]
-        if not self._can_handle_orig_module() and fullname.endswith("._orig"):
-            # We return a nicer error message
-            raise ImportError(
-                "Attempting to load '%s' -- loading shadowed modules in Metaflow "
-                "Extensions are only supported in Python 3.4+" % fullname
-            )
-        to_import = self._handled.get(fullname, None)
-
-        # If to_import is None, two cases:
-        #  - we are loading a ._orig module
-        #  - OR we are loading a submodule
-        if to_import is None:
-            if fullname.endswith("._orig"):
-                try:
-                    # We exclude this module temporarily from what we handle to
-                    # revert back to the non-shadowing mode of import
-                    self._tempexcluded.add(fullname)
-                    to_import = importlib.util.find_spec(fullname)
-                finally:
-                    self._tempexcluded.remove(fullname)
-            else:
-                name_parts = fullname.split(".")
-                submodule = name_parts[-1]
-                parent_name = ".".join(name_parts[:-1])
-                to_import = ".".join([self._alias_to_orig[parent_name], submodule])
-
-        if isinstance(to_import, str):
-            try:
-                to_import_mod = importlib.import_module(to_import)
-            except ImportError:
-                raise ImportError(
-                    "No module found '%s' (aliasing %s)" % (fullname, to_import)
-                )
-            sys.modules[fullname] = to_import_mod
-            self._alias_to_orig[fullname] = to_import_mod.__name__
-        elif isinstance(to_import, types.ModuleType):
-            sys.modules[fullname] = to_import
-            self._alias_to_orig[fullname] = to_import.__name__
-        elif self._can_handle_orig_module() and isinstance(to_import, ModuleSpec):
-            # This loads modules that end in _orig
-            m = importlib.util.module_from_spec(to_import)
-            to_import.loader.exec_module(m)
-            sys.modules[fullname] = m
-        elif to_import is None and fullname.endswith("._orig"):
-            # This happens when trying to access a shadowed ._orig module
-            # when actually, there is no shadowed module; print a nicer message
-            # Condition is a bit overkill and most likely only checking to_import
-            # would be OK. Being extra sure in case _LazyLoader is misused and
-            # a None value is passed in.
-            raise ImportError(
-                "Metaflow Extensions shadowed module '%s' does not exist" % fullname
-            )
-        else:
-            raise ImportError
-        return sys.modules[fullname]
-
-    @staticmethod
-    def _can_handle_orig_module():
-        return sys.version_info[0] >= 3 and sys.version_info[1] >= 4
