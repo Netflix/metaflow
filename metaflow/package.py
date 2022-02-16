@@ -27,6 +27,36 @@ class NonUniqueFileNameToFilePathMappingException(MetaflowException):
         super().__init__(msg=msg, lineno=lineno)
 
 
+# this is os.walk(follow_symlinks=True) with cycle detection
+def walk_without_cycles(top_root):
+    seen = set()
+
+    def _recurse(root):
+        for parent, dirs, files in os.walk(root):
+            for d in dirs:
+                path = os.path.join(parent, d)
+                if os.path.islink(path):
+                    # Breaking loops: never follow the same symlink twice
+                    #
+                    # NOTE: this also means that links to sibling links are
+                    # not followed. In this case:
+                    #
+                    #   x -> y
+                    #   y -> oo
+                    #   oo/real_file
+                    #
+                    # real_file is only included twice, not three times
+                    reallink = os.path.realpath(path)
+                    if reallink not in seen:
+                        seen.add(reallink)
+                        for x in _recurse(path):
+                            yield x
+            yield parent, files
+
+    for x in _recurse(top_root):
+        yield x
+
+
 class MetaflowPackage(object):
     def __init__(self, flow, environment, echo, suffixes=DEFAULT_SUFFIXES_LIST):
         self.suffixes = list(set().union(suffixes, DEFAULT_SUFFIXES_LIST))
@@ -54,7 +84,10 @@ class MetaflowPackage(object):
             addl_suffixes = []
         root = to_unicode(root)  # handle files/folder with non ascii chars
         prefixlen = len("%s/" % os.path.dirname(root))
-        for path, dirs, files in os.walk(root):
+        for (
+            path,
+            files,
+        ) in walk_without_cycles(root):
             if exclude_hidden and "/." in path:
                 continue
             # path = path[2:] # strip the ./ prefix
@@ -137,7 +170,9 @@ class MetaflowPackage(object):
             return tarinfo
 
         buf = BytesIO()
-        with tarfile.open(fileobj=buf, mode="w:gz", compresslevel=3) as tar:
+        with tarfile.open(
+            fileobj=buf, mode="w:gz", compresslevel=3, dereference=True
+        ) as tar:
             self._add_info(tar)
             for path, arcname in self.path_tuples():
                 tar.add(path, arcname=arcname, recursive=False, filter=no_mtime)
