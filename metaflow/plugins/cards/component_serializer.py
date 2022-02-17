@@ -39,7 +39,7 @@ class CardComponentCollector:
     - [x] If we can't resolve a single default editable card through the above rules, `current.card`.append calls show a warning but the call doesn't fail.
     - [x] A card that is not default editable can be still edited through:
         - [x] its `current.card['myid']`
-        - [x] by lookint it up by its type, e.g. `current.card.get(type='pytorch')`.
+        - [x] by looking it up by its type, e.g. `current.card.get(type='pytorch')`.
     """
 
     def __init__(self, logger=None):
