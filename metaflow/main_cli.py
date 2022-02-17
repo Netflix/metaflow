@@ -284,7 +284,7 @@ def get_config_path(profile):
     return path
 
 
-def overwrite_config(profile):
+def confirm_overwrite_config(profile):
     path = get_config_path(profile)
     if os.path.exists(path):
         if not click.confirm(
@@ -425,7 +425,7 @@ def import_from(profile, input_filename):
     echo('"%s"' % input_path, fg="cyan")
 
     # Persist configuration.
-    overwrite_config(profile)
+    confirm_overwrite_config(profile)
     persist_env(env_dict, profile)
 
 
@@ -437,8 +437,16 @@ def import_from(profile, input_filename):
     help="Configure a named profile. Activate the profile by setting "
     "`METAFLOW_PROFILE` environment variable.",
 )
-def sandbox(profile):
-    overwrite_config(profile)
+@click.option(
+    "--overwrite/--no-overwrite",
+    "-o/",
+    default=False,
+    show_default=True,
+    help="Overwrite profile configuration without asking",
+)
+def sandbox(profile, overwrite):
+    if not overwrite:
+        confirm_overwrite_config(profile)
     # Prompt for user input.
     encoded_str = click.prompt(
         "Following instructions from "
@@ -793,7 +801,7 @@ def aws(ctx, profile):
     )
 
     # Check for existing configuration.
-    if not overwrite_config(profile):
+    if not confirm_overwrite_config(profile):
         ctx.abort()
 
     verify_aws_credentials(ctx)
@@ -845,7 +853,7 @@ def kubernetes(ctx, profile):
     check_kubernetes_config(ctx)
 
     # Check for existing configuration.
-    if not overwrite_config(profile):
+    if not confirm_overwrite_config(profile):
         ctx.abort()
 
     verify_aws_credentials(ctx)
