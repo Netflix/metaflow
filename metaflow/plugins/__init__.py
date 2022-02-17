@@ -79,6 +79,7 @@ def get_plugin_cli():
     from .aws.batch import batch_cli
     from .aws.eks import kubernetes_cli
     from .aws.step_functions import step_functions_cli
+    from .airflow import airflow_cli
     from .cards import card_cli
 
     return _ext_plugins["get_plugin_cli"]() + [
@@ -87,6 +88,7 @@ def get_plugin_cli():
         card_cli.cli,
         kubernetes_cli.cli,
         step_functions_cli.cli,
+        airflow_cli.cli,
     ]
 
 
