@@ -92,7 +92,7 @@ class MetaflowEnvironment(object):
             "%s -m awscli %s s3 cp %s job.tar >/dev/null && \
                         mflog 'Code package downloaded.' && break; "
             "sleep 10; i=$((i+1)); "
-            "done" % (self._python(),"--url-endpoint "+s3_endpoint_url if s3_endpoint_url is not None else "" , code_package_url),
+            "done" % (self._python(),"--endpoint-url "+s3_endpoint_url if s3_endpoint_url is not None else "" , code_package_url),
             "if [ $i -gt 5 ]; then "
             "mflog 'Failed to download code package from %s "
             "after 6 tries. Exiting...' && exit 1; "
