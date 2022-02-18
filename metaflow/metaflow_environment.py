@@ -89,7 +89,7 @@ class MetaflowEnvironment(object):
             "mkdir .metaflow",  # mute local datastore creation log
             "i=0; while [ $i -le 5 ]; do "
             "mflog 'Downloading code package...'; "
-            "%s -m awscli %s s3 cp %s job.tar >/dev/null && \
+            "%s -m awscli %s s3 inject cp %s job.tar >/dev/null && \
                         mflog 'Code package downloaded.' && break; "
             "sleep 10; i=$((i+1)); "
             "done" % (self._python(),"--url-endpoint "+s3_endpoint_url if s3_endpoint_url is not None else "" , code_package_url),
