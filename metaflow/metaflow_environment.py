@@ -79,7 +79,7 @@ class MetaflowEnvironment(object):
         """
         return "Local environment"
 
-    def get_package_commands(self, code_package_url):
+    def get_package_commands(self, code_package_url, s3_endpoint_url):
         cmds = [
             BASH_MFLOG,
             "mflog 'Setting up task environment.'",
@@ -89,10 +89,10 @@ class MetaflowEnvironment(object):
             "mkdir .metaflow",  # mute local datastore creation log
             "i=0; while [ $i -le 5 ]; do "
             "mflog 'Downloading code package...'; "
-            "%s -m awscli s3 cp %s job.tar >/dev/null && \
+            "%s -m awscli %s s3 cp %s job.tar >/dev/null && \
                         mflog 'Code package downloaded.' && break; "
             "sleep 10; i=$((i+1)); "
-            "done" % (self._python(), code_package_url),
+            "done" % (self._python(),"--url-endpoint "+s3_endpoint_url if s3_endpoint_url is not None else "" , code_package_url),
             "if [ $i -gt 5 ]; then "
             "mflog 'Failed to download code package from %s "
             "after 6 tries. Exiting...' && exit 1; "
