@@ -83,9 +83,10 @@ def create(
 ):
     flow = make_flow(
         obj,
-        obj.state_machine_name,
+        obj.flow.name,
         tags,
         user_namespace,
         worker_pools,
-        obj.is_project,
+        False,
     )
+    flow.compile()

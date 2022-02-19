@@ -1,3 +1,9 @@
+from .exceptions import AirflowNotPresent
+import rich
+
+AIRFLOW_PREFIX = "arf"
+
+
 class Airflow(object):
     def __init__(
         self,
@@ -17,6 +23,10 @@ class Airflow(object):
         max_workers=None,
         is_project=False,
     ):
+        try:
+            import airflow
+        except ImportError:
+            raise AirflowNotPresent
         self.name = name
         self.graph = graph
         self.flow = flow
@@ -33,4 +43,7 @@ class Airflow(object):
         self.max_workers = max_workers
 
     def compile(self):
+        rich.inspect(self)
+
+    def _make_dag(self):
         pass
