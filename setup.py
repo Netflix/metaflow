@@ -7,6 +7,8 @@ setup(
     name="metaflow",
     version=version,
     description="Metaflow: More Data Science, Less Engineering",
+    long_description=open("README.md").read(),
+    long_description_content_type="text/markdown",
     author="Machine Learning Infrastructure Team at Netflix",
     author_email="help@metaflow.org",
     license="Apache License 2.0",
