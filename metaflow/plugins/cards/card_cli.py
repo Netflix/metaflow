@@ -171,6 +171,7 @@ def list_available_cards(
     command="view",
     show_list_as_json=False,
     list_many=False,
+    file=None,
 ):
     # pathspec is full pathspec.
     # todo : create nice response messages on the CLI for cards which were found.
@@ -182,7 +183,15 @@ def list_available_cards(
             for tup in path_tuples
         ]
         if not list_many:
-            print(json.dumps(dict(pathspec=pathspec, cards=json_arr), indent=4))
+            # This means that `list_available_cards` is being called once.
+            # So we can directly dump the file
+            dump_dict = dict(pathspec=pathspec, cards=json_arr)
+            if file:
+                with open(file, "w") as f:
+                    json.dump(dump_dict, f)
+            else:
+                ctx.obj.echo_always(json.dumps(dump_dict, indent=4))
+        # if you have to list many in json format then return
         return dict(pathspec=pathspec, cards=json_arr)
 
     if list_many:
@@ -253,6 +262,7 @@ def list_many_cards(
     card_id=None,
     follow_resumed=None,
     as_json=None,
+    file=None,
 ):
     from metaflow import Flow
 
@@ -288,6 +298,7 @@ def list_many_cards(
                     command=None,
                     show_list_as_json=as_json,
                     list_many=True,
+                    file=file,
                 )
                 if as_json:
                     js_list.append(js_resp)
@@ -299,7 +310,11 @@ def list_many_cards(
             run.pathspec, card_hash=hash, card_type=type, card_id=card_id
         )
     if as_json:
-        print(json.dumps(js_list, indent=4))
+        if file:
+            with open(file, "w") as f:
+                json.dump(js_list, f)
+        else:
+            ctx.obj.echo_always(json.dumps(js_list, indent=4))
 
 
 @click.group()
@@ -621,6 +636,11 @@ def get(
     is_flag=True,
     help="Print all available cards as a JSON object",
 )
+@click.option(
+    "--file",
+    default=None,
+    help="Save the avaliable card list to file.",
+)
 @click.pass_context
 def list(
     ctx,
@@ -630,7 +650,9 @@ def list(
     id=None,
     follow_resumed=False,
     as_json=False,
+    file=None,
 ):
+
     card_id = id
     if pathspec is None:
         list_many_cards(
@@ -640,6 +662,7 @@ def list(
             card_id=card_id,
             follow_resumed=follow_resumed,
             as_json=as_json,
+            file=file,
         )
         return
 
@@ -659,4 +682,5 @@ def list(
         card_datastore,
         command=None,
         show_list_as_json=as_json,
+        file=file,
     )
