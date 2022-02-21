@@ -18,7 +18,7 @@ from metaflow.metaflow_config import (
     DEFAULT_METADATA,
     BATCH_METADATA_SERVICE_HEADERS,
     DATASTORE_CARD_S3ROOT,
-    S3_ENDPOINT_URL
+    S3_ENDPOINT_URL,
 )
 from metaflow.mflog import (
     export_mflog_env_vars,
@@ -134,7 +134,9 @@ class Kubernetes(object):
             stdout_path=STDOUT_PATH,
             stderr_path=STDERR_PATH,
         )
-        init_cmds = self._environment.get_package_commands(code_package_url,S3_ENDPOINT_URL)
+        init_cmds = self._environment.get_package_commands(
+            code_package_url, S3_ENDPOINT_URL
+        )
         init_expr = " && ".join(init_cmds)
         step_expr = " && ".join(
             [
