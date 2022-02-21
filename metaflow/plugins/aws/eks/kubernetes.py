@@ -268,6 +268,10 @@ class Kubernetes(object):
         for name, value in env.items():
             job.environment_variable(name, value)
 
+        # add METAFLOW_S3_ENDPOINT_URL in env variable if specified for step execution
+        if S3_ENDPOINT_URL is not None:
+            job.environment_variable("METAFLOW_S3_ENDPOINT_URL", S3_ENDPOINT_URL)
+
         # Add labels to the Kubernetes job
         #
         # Apply recommended labels https://kubernetes.io/docs/concepts/overview/working-with-objects/common-labels/
