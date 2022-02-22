@@ -178,7 +178,7 @@ def create(
 
     params = {
         param.name: _convert_value(param)
-        for _, param in flow._get_parameters()
+        for _, param in obj.flow._get_parameters()
         if kwargs.get(param.name.replace("-", "_").lower()) is not None
     }
 
