@@ -130,7 +130,7 @@ class StepFunctions(object):
         except Exception as e:
             raise StepFunctionsException(repr(e))
 
-    def schedule(self):
+    def schedule(self, params={}):
         # Scheduling is currently enabled via AWS Event Bridge.
         if EVENTS_SFN_ACCESS_IAM_ROLE is None:
             raise StepFunctionsSchedulingException(
@@ -152,7 +152,7 @@ class StepFunctions(object):
                 .cron(self._cron)
                 .role_arn(EVENTS_SFN_ACCESS_IAM_ROLE)
                 .state_machine_arn(self._state_machine_arn)
-                .schedule()
+                .schedule(params)
             )
         except Exception as e:
             raise StepFunctionsSchedulingException(repr(e))
