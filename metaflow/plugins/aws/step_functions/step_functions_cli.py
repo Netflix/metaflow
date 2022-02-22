@@ -57,6 +57,7 @@ def step_functions(obj, name=None):
     ) = resolve_state_machine_name(obj, name)
 
 
+@parameters.add_custom_parameters(deploy_mode=False)
 @step_functions.command(
     help="Deploy a new version of this workflow to " "AWS Step Functions."
 )
@@ -132,6 +133,7 @@ def create(
     max_workers=None,
     workflow_timeout=None,
     log_execution_history=False,
+    **kwargs,
 ):
     validate_tags(tags)
 
@@ -163,6 +165,23 @@ def create(
         obj.is_project,
     )
 
+    def _convert_value(param):
+        # Swap `-` with `_` in parameter name to match click's behavior
+        val = kwargs.get(param.name.replace("-", "_").lower())
+        return (
+            json.dumps(val)
+            if param.kwargs.get("type") == JSONType
+            else val()
+            if callable(val)
+            else val
+        )
+
+    params = {
+        param.name: _convert_value(param)
+        for _, param in flow._get_parameters()
+        if kwargs.get(param.name.replace("-", "_").lower()) is not None
+    }
+
     if only_json:
         obj.echo_always(flow.to_json(), err=False, no_bold=True)
     else:
@@ -181,7 +200,7 @@ def create(
                 "due to a length limit on AWS Step Functions. The "
                 "original long name is stored in task metadata.\n"
             )
-        flow.schedule()
+        flow.schedule(params)
         obj.echo("What will trigger execution of the workflow:", bold=True)
         obj.echo(flow.trigger_explanation(), indent=True)
 

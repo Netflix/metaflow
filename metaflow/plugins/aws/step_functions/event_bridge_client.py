@@ -24,12 +24,12 @@ class EventBridgeClient(object):
         self.state_machine_arn = state_machine_arn
         return self
 
-    def schedule(self):
+    def schedule(self, params={}):
         if not self.cron:
             # reset the schedule
             self._disable()
         else:
-            self._set()
+            self._set(params)
         return self.name
 
     def _disable(self):
@@ -38,7 +38,7 @@ class EventBridgeClient(object):
         except self._client.exceptions.ResourceNotFoundException:
             pass
 
-    def _set(self):
+    def _set(self, params={}):
         # Generate a new rule or update existing rule.
         self._client.put_rule(
             Name=self.name,
@@ -54,7 +54,7 @@ class EventBridgeClient(object):
                     "Id": self.name,
                     "Arn": self.state_machine_arn,
                     # Set input parameters to empty.
-                    "Input": json.dumps({"Parameters": json.dumps({})}),
+                    "Input": json.dumps({"Parameters": json.dumps(params)}),
                     "RoleArn": self.role_arn,
                 }
             ],
