@@ -91,7 +91,7 @@ class MyNativeType:
                         step.name,
                         task_id,
                         card_type,
-                        "%d\n" % number,
+                        "%d" % number,
                         card_hash=card["hash"],
                         exact_match=True,
                     )

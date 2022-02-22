@@ -59,7 +59,7 @@ class CardsWithIdTest(MetaflowTest):
                         "test_editable_card"
                         if step.name == "start"
                         else "test_non_editable_card",
-                        "%d\n" % number,
+                        "%d" % number,
                         card_id="abc",
                         exact_match=True,
                     )

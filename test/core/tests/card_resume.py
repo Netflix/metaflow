@@ -45,5 +45,5 @@ class CardResumeTest(MetaflowTest):
                         step.name,
                         task_id,
                         "taskspec_card",
-                        "%s\n" % cli_check_dict[task_pathspec]["origin_pathspec"],
+                        "%s" % cli_check_dict[task_pathspec]["origin_pathspec"],
                     )
