@@ -2,7 +2,7 @@ from metaflow._vendor import click
 from metaflow import decorators
 from metaflow.util import get_username
 from metaflow.package import MetaflowPackage
-from .airflow import Airflow
+from .airflow_compiler import Airflow
 
 
 @click.group()
@@ -16,7 +16,7 @@ def airflow(ctx):
     pass
 
 
-def make_flow(obj, name, tags, namespace, worker_pools, is_project):
+def make_flow(obj, tags, namespace, worker_pools, is_project, file_path=None):
     # Attach AWS Batch decorator to the flow
     decorators._init_step_decorators(
         obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
@@ -29,7 +29,7 @@ def make_flow(obj, name, tags, namespace, worker_pools, is_project):
         [obj.package.blob], len_hint=1
     )[0]
     return Airflow(
-        name,
+        obj.flow.name,
         obj.graph,
         obj.flow,
         package_sha,
@@ -44,10 +44,13 @@ def make_flow(obj, name, tags, namespace, worker_pools, is_project):
         max_workers=worker_pools,
         username=get_username(),
         is_project=is_project,
+        description=obj.flow.__doc__,
+        file_path=file_path,
     )
 
 
 @airflow.command(help="Create an airflow workflow from this metaflow workflow")
+@click.argument("file_path", required=False)
 @click.option(
     "--tag",
     "tags",
@@ -76,17 +79,18 @@ def make_flow(obj, name, tags, namespace, worker_pools, is_project):
 @click.pass_obj
 def create(
     obj,
+    file_path,
     tags=None,
     user_namespace=None,
     only_json=False,
     worker_pools=None,
 ):
     flow = make_flow(
-        obj,
-        obj.flow.name,
-        tags,
-        user_namespace,
-        worker_pools,
-        False,
+        obj, tags, user_namespace, worker_pools, False, file_path=file_path
     )
-    flow.compile()
+    compiled_dag_file = flow.compile()
+    if file_path is None:
+        obj.echo_always(compiled_dag_file)
+    else:
+        with open(file_path, "w") as f:
+            f.write(compiled_dag_file)
