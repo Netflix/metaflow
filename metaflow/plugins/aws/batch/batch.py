@@ -249,6 +249,7 @@ class Batch(object):
                 job.parameter(key, value)
         # Tags for AWS Batch job (for say cost attribution)
         if BATCH_EMIT_TAGS:
+            job.tag("app", "metaflow")
             for key in [
                 "metaflow.flow_name",
                 "metaflow.run_id",
