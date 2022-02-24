@@ -107,9 +107,17 @@ class _WrappedModule(object):
 
 class ModuleImporter(object):
     # This ModuleImporter implements the Importer Protocol defined in PEP 302
-    def __init__(self, python_path, max_pickle_version, config_dir, module_prefixes):
+    def __init__(
+        self,
+        python_executable,
+        pythonpath,
+        max_pickle_version,
+        config_dir,
+        module_prefixes,
+    ):
         self._module_prefixes = module_prefixes
-        self._python_path = python_path
+        self._python_executable = python_executable
+        self._pythonpath = pythonpath
         self._config_dir = config_dir
         self._client = None
         self._max_pickle_version = max_pickle_version
@@ -142,7 +150,10 @@ class ModuleImporter(object):
             max_pickle_version = min(self._max_pickle_version, pickle.HIGHEST_PROTOCOL)
 
             self._client = Client(
-                self._python_path, max_pickle_version, self._config_dir
+                self._python_executable,
+                self._pythonpath,
+                max_pickle_version,
+                self._config_dir,
             )
             atexit.register(_clean_client, self._client)
 
@@ -241,7 +252,7 @@ class ModuleImporter(object):
         return name
 
 
-def create_modules(python_path, max_pickle_version, path, prefixes):
+def create_modules(python_executable, pythonpath, max_pickle_version, path, prefixes):
     # This is a extra verification to make sure we are not trying to use the
     # environment escape for something that is in the system
     for prefix in prefixes:
@@ -262,5 +273,7 @@ def create_modules(python_path, max_pickle_version, path, prefixes):
 
     # sys.meta_path.insert(0, ModuleImporter(python_path, path, prefixes))
     sys.meta_path.append(
-        ModuleImporter(python_path, max_pickle_version, path, prefixes)
+        ModuleImporter(
+            python_executable, pythonpath, max_pickle_version, path, prefixes
+        )
     )

@@ -218,7 +218,7 @@ def _get_extension_packages():
             # error if there is a transitive import error)
             if not (isinstance(e, ModuleNotFoundError) and e.name == EXT_PKG):
                 raise
-            return [], {}
+            return {}, {}
 
     # At this point, we look at all the paths and create a set. As we find distributions
     # that match it, we will remove from the set and then will be left with any
