@@ -280,7 +280,9 @@ def terminate_run(run_id: str, retry: int = KFP_CLI_DEFAULT_RETRY, **kwargs):
     )
 
 
-def _upload_pipeline(flow_file_path: str, pipeline_name: Optional[str] = None):
+def _upload_pipeline(
+    flow_file_path: str, pipeline_name: Optional[str] = None
+) -> (str, str):
     """Upload this flow to keep version consistency
 
     ** NOT OFFICIALLY SUPPORTED FOR USER - FOR TESTING ONLY **

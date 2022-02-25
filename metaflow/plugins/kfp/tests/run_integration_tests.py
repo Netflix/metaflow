@@ -48,7 +48,6 @@ non_standard_test_flows = [
     "s3_sensor_with_formatter_flow.py",
     "validate_s3_sensor_flows.py",
     "toleration_and_affinity_flow.py",
-    "flow_triggering_flow.py",  # TODO(yunw): This flow is a manual test - automate before merging
 ]
 
 
