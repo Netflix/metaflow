@@ -174,10 +174,22 @@ def help(ctx):
 
 
 @cli.command(help="Output internal state of the flow graph.")
+@click.option("--json", is_flag=True, help="Output the flow graph in JSON format.")
 @click.pass_obj
-def output_raw(obj):
-    echo("Internal representation of the flow:", fg="magenta", bold=False)
-    echo_always(str(obj.graph), err=False)
+def output_raw(obj, json):
+    if json:
+        import json as _json
+
+        _msg = "Internal representation of the flow in JSON format:"
+        _graph_dict, _graph_struct = obj.graph.output_steps()
+        _graph = _json.dumps(
+            dict(graph=_graph_dict, graph_structure=_graph_struct), indent=4
+        )
+    else:
+        _graph = str(obj.graph)
+        _msg = "Internal representation of the flow:"
+    echo(_msg, fg="magenta", bold=False)
+    echo_always(_graph, err=False)
 
 
 @cli.command(help="Visualize the flow with Graphviz.")

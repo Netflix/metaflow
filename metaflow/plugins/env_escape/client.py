@@ -41,7 +41,7 @@ BIND_RETRY = 0
 
 
 class Client(object):
-    def __init__(self, python_path, max_pickle_version, config_dir):
+    def __init__(self, python_executable, pythonpath, max_pickle_version, config_dir):
         # Make sure to init these variables (used in __del__) early on in case we
         # have an exception
         self._poller = None
@@ -58,10 +58,10 @@ class Client(object):
         if os.path.exists(self._socket_path):
             raise RuntimeError("Existing socket: %s" % self._socket_path)
         env = os.environ.copy()
-        # env["PYTHONPATH"] = ":".join(sys.path)
+        env["PYTHONPATH"] = pythonpath
         self._server_process = Popen(
             [
-                python_path,
+                python_executable,
                 "-u",
                 "-m",
                 server_module,

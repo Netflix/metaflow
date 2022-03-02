@@ -26,7 +26,8 @@ CardInfo = namedtuple("CardInfo", ["type", "hash", "id", "filename"])
 
 def path_spec_resolver(pathspec):
     splits = pathspec.split("/")
-    return (*splits, *[None] * (4 - len(splits)))
+    splits.extend([None] * (4 - len(splits)))
+    return tuple(splits)
 
 
 def is_file_present(path):

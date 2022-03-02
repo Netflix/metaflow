@@ -35,12 +35,11 @@ class CardComponentCollector:
         - [x] Classes with `ALLOW_USER_COMPONENTS=False` are never default editable.
     - [x] The user can specify an `id` argument to a card, in which case the card is editable through `current.card[id].append`.
         - [x] A card with an id can be also default editable, if there are no other cards that are eligible to be default editable.
-    - [x] If multiple default-editable cards exist but only one card doesn’t have an id, the card without an id is considered to be default editable.
-    - [x] If we can’t resolve a single default editable card through the above rules, `current.card`.append calls show a warning but the call doesn’t fail.
+    - [x] If multiple default-editable cards exist but only one card doesn't have an id, the card without an id is considered to be default editable.
+    - [x] If we can't resolve a single default editable card through the above rules, `current.card`.append calls show a warning but the call doesn't fail.
     - [x] A card that is not default editable can be still edited through:
         - [x] its `current.card['myid']`
-        - [x] by looking it up by its type, e.g. `current.card.get(type=’pytorch’)`.
-
+        - [x] by looking it up by its type, e.g. `current.card.get(type='pytorch')`.
     """
 
     def __init__(self, logger=None):

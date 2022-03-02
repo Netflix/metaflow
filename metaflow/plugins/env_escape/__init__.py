@@ -47,14 +47,18 @@ from .client_modules import create_modules
 # We also store the maximum protocol version that we support for pickle so that
 # we can determine what to use
 ENV_ESCAPE_PY = os.environ.get("METAFLOW_ENV_ESCAPE_PY", sys.executable)
+ENV_ESCAPE_PATHS = os.environ.get(
+    "METAFLOW_ENV_ESCAPE_PATHS", os.pathsep.join(sys.path)
+)
 ENV_ESCAPE_PICKLE_VERSION = os.environ.get(
     "METAFLOW_ENV_ESCAPE_PICKLE_VERSION", str(pickle.HIGHEST_PROTOCOL)
 )
 os.environ["METAFLOW_ENV_ESCAPE_PICKLE_VERSION"] = ENV_ESCAPE_PICKLE_VERSION
+os.environ["METAFLOW_ENV_ESCAPE_PATHS"] = ENV_ESCAPE_PATHS
 os.environ["METAFLOW_ENV_ESCAPE_PY"] = ENV_ESCAPE_PY
 
 
-def generate_trampolines(python_path):
+def generate_trampolines(out_dir):
     # This function will look in the configurations directory and create
     # files named <module>.py that will properly setup the environment escape when
     # called
@@ -63,9 +67,6 @@ def generate_trampolines(python_path):
     # functionality, in that case, set METAFLOW_ENV_ESCAPE_DISABLED
     if os.environ.get("METAFLOW_ENV_ESCAPE_DISABLED", False) in (True, "True"):
         return
-
-    python_interpreter_path = ENV_ESCAPE_PY
-    max_pickle_version = int(ENV_ESCAPE_PICKLE_VERSION)
 
     paths = [os.path.join(os.path.dirname(os.path.abspath(__file__)), "configurations")]
     for m in get_modules("plugins.env_escape"):
@@ -82,7 +83,9 @@ def generate_trampolines(python_path):
                     module_names = dir_name[8:].split("__")
                     for module_name in module_names:
                         with open(
-                            os.path.join(python_path, module_name + ".py"), mode="w"
+                            os.path.join(out_dir, module_name + ".py"),
+                            mode="w",
+                            encoding="utf-8",
                         ) as f:
                             f.write(
                                 """
@@ -119,29 +122,30 @@ def load():
             # in which case we are happy (since no module exists) OR we are being imported by the
             # server in which case we could not find the underlying module so we re-raise
             # this error.
-            # We distinguish these cases by checking if the executable is the python_path the
-            # server should be using
-            if sys.executable == "{python_path}":
+            # We distinguish these cases by checking if the executable is the
+            # python_executable the server should be using
+            if sys.executable == "{python_executable}":
                 raise
-            # print("Env escape using executable {python_path}")
+            # print("Env escape using executable {python_executable}")
         else:
             # Inverse logic as above here.
-            if sys.executable == "{python_path}":
+            if sys.executable == "{python_executable}":
                 return
             raise RuntimeError("Trying to override '%s' when module exists in system" % prefix)
     sys.path = old_paths
-    m = ModuleImporter("{python_path}", {max_pickle_version}, "{path}", {prefixes})
+    m = ModuleImporter("{python_executable}", "{pythonpath}", {max_pickle_version}, "{path}", {prefixes})
     sys.meta_path.insert(0, m)
     # Reload this module using the ModuleImporter
     importlib.import_module("{module_name}")
 
-if not "{python_path}":
+if not "{python_executable}":
     raise RuntimeError(
         "Trying to access an escaped module ({module_name}) without a valid interpreter")
 load()
 """.format(
-                                    python_path=python_interpreter_path,
-                                    max_pickle_version=max_pickle_version,
+                                    python_executable=ENV_ESCAPE_PY,
+                                    pythonpath=ENV_ESCAPE_PATHS,
+                                    max_pickle_version=int(ENV_ESCAPE_PICKLE_VERSION),
                                     path=path,
                                     prefixes=module_names,
                                     module_name=module_name,
@@ -149,7 +153,7 @@ load()
                             )
 
 
-def init(python_interpreter_path, max_pickle_version):
+def init(python_executable, pythonpath, max_pickle_version):
     # This function will look in the configurations directory and setup
     # the proper overrides
     config_dir = os.path.join(
@@ -163,5 +167,9 @@ def init(python_interpreter_path, max_pickle_version):
             if dir_name.startswith("emulate_"):
                 module_names = dir_name[8:].split("__")
                 create_modules(
-                    python_interpreter_path, max_pickle_version, path, module_names
+                    python_executable,
+                    pythonpath,
+                    max_pickle_version,
+                    path,
+                    module_names,
                 )
