@@ -1,7 +1,9 @@
-from metaflow.plugins.airflow.airflow_utils import Workflow
+import base64
 
 CONFIG = "{{{metaflow_workflow_compile_params}}}"
 
-dag = Workflow.from_json(CONFIG).compile()
+{{{AIRFLOW_UTILS}}}
+
+dag = Workflow.from_json(base64.b64decode(CONFIG).decode("utf-8")).compile()
 with dag:
     pass

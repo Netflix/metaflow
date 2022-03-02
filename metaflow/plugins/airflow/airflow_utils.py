@@ -87,6 +87,8 @@ class AirflowTask(object):
     def __init__(self, name):
         self.name = name
         self._next = None
+        self._operator = None
+        self._operator_args = None
 
     @property
     def next_state(self):

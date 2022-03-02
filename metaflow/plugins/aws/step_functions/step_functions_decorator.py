@@ -49,6 +49,7 @@ class StepFunctionsInternalDecorator(StepDecorator):
         # into AWS DynamoDb so that AWS Step Functions can properly configure
         # the Map job, in the absence of any better message passing feature
         # between the states.
+        # The foreach is it's own type of Node created for stepfunctions.
         if graph[step_name].type == "foreach":
             # Since we can't generate the full path spec within AWS Step
             # Function DynamoDb Get task, we will just key by task id for now.

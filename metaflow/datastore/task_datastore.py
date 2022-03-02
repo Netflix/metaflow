@@ -229,6 +229,38 @@ class TaskDataStore(object):
         """
         self.save_metadata({self.METADATA_ATTEMPT_SUFFIX: {"time": time.time()}})
 
+    def safely_pickle(self, obj, name, only_v4=False):
+        if only_v4:
+            encode_type = "gzip+pickle-v4"
+            if encode_type not in self._encodings:
+                raise DataException(
+                    "Artifact *%s* requires a serialization encoding that "
+                    "requires Python 3.4 or newer." % name
+                )
+            try:
+                blob = pickle.dumps(obj, protocol=4)
+            except TypeError as e:
+                raise UnpicklableArtifactException(name)
+        else:
+            try:
+                blob = pickle.dumps(obj, protocol=2)
+                encode_type = "gzip+pickle-v2"
+            except (SystemError, OverflowError):
+                encode_type = "gzip+pickle-v4"
+                if encode_type not in self._encodings:
+                    raise DataException(
+                        "Artifact *%s* is very large (over 2GB). "
+                        "You need to use Python 3.4 or newer if you want to "
+                        "serialize large objects." % name
+                    )
+                try:
+                    blob = pickle.dumps(obj, protocol=4)
+                except TypeError as e:
+                    raise UnpicklableArtifactException(name)
+            except TypeError as e:
+                raise UnpicklableArtifactException(name)
+        return blob, encode_type
+
     @only_if_not_done
     @require_mode("w")
     def save_artifacts(self, artifacts_iter, force_v4=False, len_hint=0):
@@ -264,36 +296,7 @@ class TaskDataStore(object):
                     if isinstance(force_v4, bool)
                     else force_v4.get(name, False)
                 )
-                if do_v4:
-                    encode_type = "gzip+pickle-v4"
-                    if encode_type not in self._encodings:
-                        raise DataException(
-                            "Artifact *%s* requires a serialization encoding that "
-                            "requires Python 3.4 or newer." % name
-                        )
-                    try:
-                        blob = pickle.dumps(obj, protocol=4)
-                    except TypeError as e:
-                        raise UnpicklableArtifactException(name)
-                else:
-                    try:
-                        blob = pickle.dumps(obj, protocol=2)
-                        encode_type = "gzip+pickle-v2"
-                    except (SystemError, OverflowError):
-                        encode_type = "gzip+pickle-v4"
-                        if encode_type not in self._encodings:
-                            raise DataException(
-                                "Artifact *%s* is very large (over 2GB). "
-                                "You need to use Python 3.4 or newer if you want to "
-                                "serialize large objects." % name
-                            )
-                        try:
-                            blob = pickle.dumps(obj, protocol=4)
-                        except TypeError as e:
-                            raise UnpicklableArtifactException(name)
-                    except TypeError as e:
-                        raise UnpicklableArtifactException(name)
-
+                blob, encode_type = self.safely_pickle(obj, name, only_v4=do_v4)
                 self._info[name] = {
                     "size": len(blob),
                     "type": str(type(obj)),
