@@ -671,14 +671,14 @@ def _get_extension_packages():
         # In all other cases, we error out if we don't have a configuration file for the
         # package (either a __init__.py of an explicit mfextinit_*.py)
         final_list = []
-        have_null_config = False
+        null_config_tl_package = set()
         for pkg in chain(*l):
             if pkg.config_module is None:
                 if k == "plugins.cards":
                     # This is allowed here but we only keep one
-                    if have_null_config:
+                    if pkg.tl_package in null_config_tl_package:
                         continue
-                    have_null_config = True
+                    null_config_tl_package.add(pkg.tl_package)
                 else:
                     package_path = package_name_to_path.get(pkg.package_name)
                     if package_path:
@@ -755,9 +755,7 @@ def _get_extension_config(distribution_name, tl_pkg, extension_point, config_mod
                     for p in extension_module.__path__
                 ]
 
-            _ext_debug(
-                "Package '%s' is rooted at '%s'" % (distribution_name, root_paths)
-            )
+            _ext_debug("Package '%s' is rooted at %s" % (distribution_name, root_paths))
             _all_packages[distribution_name]["root_paths"] = root_paths
 
         return MFExtModule(tl_package=tl_pkg, module=extension_module)
