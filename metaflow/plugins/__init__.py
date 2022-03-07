@@ -185,7 +185,8 @@ CARDS = [
     TestNonEditableCard,
     BlankCard,
     DefaultCardJSON,
-] + MF_EXTERNAL_CARDS
+]
+_merge_lists(CARDS, MF_EXTERNAL_CARDS, "type")
 # Sidecars
 from ..mflog.save_logs_periodically import SaveLogsPeriodicallySidecar
 from metaflow.metadata.heartbeat import MetadataHeartBeat
