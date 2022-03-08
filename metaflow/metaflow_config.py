@@ -301,11 +301,35 @@ try:
                     vars()["METAFLOW_DEBUG_%s" % typ.upper()] = from_conf(
                         "METAFLOW_DEBUG_%s" % typ.upper()
                     )
+            elif n == "get_pinned_conda_libs":
+
+                def _new_get_pinned_conda_libs(python_version, f1=globals()[n], f2=o):
+                    d1 = f1(python_version)
+                    d2 = f2(python_version)
+                    for k, v in d2.items():
+                        d1[k] = v if k not in d1 else ",".join([d1[k], v])
+                    return d1
+
+                globals()[n] = _new_get_pinned_conda_libs
             elif not n.startswith("__") and not isinstance(o, types.ModuleType):
                 globals()[n] = o
 finally:
     # Erase all temporary names to avoid leaking things
-    for _n in ["m", "n", "o", "ext_modules", "get_modules"]:
+    for _n in [
+        "m",
+        "n",
+        "o",
+        "type",
+        "ext_modules",
+        "get_modules",
+        "_new_get_pinned_conda_libs",
+        "d1",
+        "d2",
+        "k",
+        "v",
+        "f1",
+        "f2",
+    ]:
         try:
             del globals()[_n]
         except KeyError:
