@@ -688,7 +688,6 @@ def _get_extension_packages():
                         % (package_path, k)
                     )
             final_list.append(pkg)
-
         extension_points_to_pkg[k] = final_list
     return mf_ext_packages, extension_points_to_pkg
 
