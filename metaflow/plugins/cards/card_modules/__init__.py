@@ -31,9 +31,7 @@ def _get_external_card_packages():
     for m in get_modules("plugins.cards"):
         card_packages = []
         # condition checks if it is not a namespace package or is a regular package.
-        if not getattr(m.module, "__path__", None) or getattr(
-            m.module, "__file__", None
-        ):
+        if getattr(m.module, "__file__", None):
             # This supports the following cases
             # - a namespace package support with mfextinit_X.py
             # - a regular package support
