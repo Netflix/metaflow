@@ -30,7 +30,10 @@ def _get_external_card_packages():
         return _CARD_MODULES
     for m in get_modules("plugins.cards"):
         card_packages = []
-        if getattr(m.module, "__path__", None) or getattr(m.module, "__file__", None):
+        # condition checks if it is not a namespace package or is a regular package.
+        if not getattr(m.module, "__path__", None) or getattr(
+            m.module, "__file__", None
+        ):
             # This supports the following cases
             # - a namespace package support with mfextinit_X.py
             # - a regular package support
@@ -70,7 +73,8 @@ def _load_external_cards():
             # Ensure that types match.
             if not type(cards) == list:
                 continue
-        except AttributeError:
+        except AttributeError as e:
+            _ext_debug("Card import failed with error : %s" % str(e))
             continue
         else:
             for c in cards:
@@ -84,6 +88,7 @@ def _load_external_cards():
                     # todo Warn user of duplicate card
                     continue
                 # external_cards[c.type] = c
+                _ext_debug("Adding card of type: %s" % str(c.type))
                 card_arr.append(c)
     return card_arr
 
