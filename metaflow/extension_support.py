@@ -597,7 +597,7 @@ def _get_extension_packages():
 
                             # Check for any "init" files
                             init_files = [
-                                x
+                                x.group(0)
                                 for x in map(EXT_CONFIG_REGEXP.match, files)
                                 if x is not None
                             ]
@@ -612,14 +612,12 @@ def _get_extension_packages():
                                     % (
                                         tl_fullname,
                                         ".".join(prefix_match),
-                                        ", and ".join(
-                                            ["'%s'" % x.group(0) for x in init_files]
-                                        ),
+                                        ", and ".join(["'%s'" % x for x in init_files]),
                                     )
                                 )
                             elif len(init_files) == 1:
                                 config_module = ".".join(
-                                    [relative_module, init_files[0].group(0)[:-3]]
+                                    [relative_module, init_files[0][:-3]]
                                 )
                                 config_to_pkg[config_module].append(tl_fullname)
 
