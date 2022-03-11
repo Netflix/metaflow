@@ -5,7 +5,7 @@ class TestMockCard(MetaflowCard):
     type = "card_ext_init_a"
 
     def __init__(self, options={"key": "task"}, **kwargs):
-        self._key = options["key"]
+        self._key = options["key"] if "key" in options else "task"
 
     def render(self, task):
         task_data = task[self._key].data
