@@ -51,11 +51,15 @@ from itertools import chain
 #         in a Conda environment or a remote environment (it saves file paths, load order, etc)
 #       - package_mfext_package: allows the packaging of a single extension
 #       - package_mfext_all: packages all extensions
+#
+# The get_aliases_modules is used by Pylint to ignore some of the errors arrising from
+# aliasing packages
 
 __all__ = (
     "load_module",
     "get_modules",
     "dump_module_info",
+    "get_aliased_modules",
     "package_mfext_package",
     "package_mfext_all",
     "load_globals",
@@ -118,6 +122,10 @@ def dump_module_info():
             "files": v["files"],
         }
     return "ext_info", [sanitized_all_packages, _pkgs_per_extension_point]
+
+
+def get_aliased_modules():
+    return _aliased_modules
 
 
 def package_mfext_package(package_name):
@@ -211,6 +219,7 @@ def alias_submodules(module, tl_package, extension_point, extra_indent=False):
         "%s    Will create the following module aliases: %s"
         % (extra_indent, str(list(lazy_load_custom_modules.keys())))
     )
+    _aliased_modules.extend(lazy_load_custom_modules.keys())
     return lazy_load_custom_modules
 
 
@@ -236,6 +245,7 @@ def multiload_all(modules, extension_point, dst_globals):
 
 _py_ver = sys.version_info[:2]
 _mfext_supported = False
+_aliased_modules = []
 
 if _py_ver >= (3, 4):
     import importlib.util

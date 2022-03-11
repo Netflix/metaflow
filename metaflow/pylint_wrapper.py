@@ -1,3 +1,4 @@
+import re
 import sys
 
 try:
@@ -6,6 +7,7 @@ except:
     from io import StringIO
 
 from .exception import MetaflowException
+from .extension_support import get_aliased_modules
 
 
 class PyLintWarn(MetaflowException):
@@ -57,6 +59,8 @@ class PyLint(object):
         return pylint_is_happy, pylint_exception_msg
 
     def _filter_lines(self, output):
+        ext_aliases = get_aliased_modules()
+        import_error_line = re.compile(r"Unable to import '([^']+)'")
         for line in output.splitlines():
             # Ignore headers
             if "***" in line:
@@ -65,6 +69,11 @@ class PyLint(object):
             # Automatic generation of decorators confuses Pylint.
             if "(no-name-in-module)" in line:
                 continue
+            # Ignore things related to module aliasing in EXT_PKG
+            if "E0401" in line:
+                m = import_error_line.search(line)
+                if m and any([m.group(1).startswith(alias) for alias in ext_aliases]):
+                    continue
             # Ignore complaints related to dynamic and JSON-types parameters
             if "Instance of 'Parameter' has no" in line:
                 continue
