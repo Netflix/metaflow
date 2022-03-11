@@ -84,11 +84,11 @@ class AirflowDAGArgs(object):
 
 
 class AirflowTask(object):
-    def __init__(self, name):
+    def __init__(self, name, operator_args=None, operator_type="kubernetes"):
         self.name = name
+        self._operator_args = operator_args
+        self._operator_type = operator_type
         self._next = None
-        self._operator = None
-        self._operator_args = None
 
     @property
     def next_state(self):
@@ -102,21 +102,41 @@ class AirflowTask(object):
         return {
             "name": self.name,
             "next": self._next,
+            "operator_type": self._operator_type,
+            "operator_args": self._operator_args,
         }
 
     @classmethod
     def from_dict(cls, jsd):
-        return cls(jsd["name"]).next(jsd["next"])
+        return cls(
+            jsd["name"],
+            operator_type=jsd["operator_type"]
+            if "operator_type" in jsd
+            else "kubernetes",
+        ).next(jsd["next"])
+
+    def _kubenetes_task(self):
+        from airflow.contrib.operators.kubernetes_pod_operator import (
+            KubernetesPodOperator,
+        )
+
+        return KubernetesPodOperator(
+            namespace="airflow",
+            image="python",
+            cmds=["python", "-c"],
+            arguments=["print('{{ task }}')"],
+            labels={"foo": "bar"},
+            image_pull_policy="Always",
+            name=self.name,
+            task_id=self.name,
+            is_delete_operator_pod=True,
+            get_logs=True,
+        )
 
     def to_task(self):
         # todo fix
-        from airflow.operators.bash import BashOperator
-
-        return BashOperator(
-            task_id=self.name,
-            depends_on_past=True,
-            bash_command="sleep 1",
-        )
+        if self._operator_type == "kubernetes":
+            return self._kubenetes_task()
 
 
 class Workflow(object):
