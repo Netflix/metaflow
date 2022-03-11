@@ -9,7 +9,7 @@ The code is written in [svelte](https://svelte.dev/).
 - `yarn install`
 - `yarn dev`
 
-This will run a [server](http://localhost:5000) showing a single card, using example data from `public/card-example.json`.
+This will run a [server](http://localhost:8080) showing a single card, using example data from `public/card-example.json`.
 
 ## To make changes to be used by metaflow
 

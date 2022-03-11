@@ -3,68 +3,8 @@ on:
   release:
     types: [published]
 jobs:
-  test:
-    name: tests / ${{ matrix.lang }} tests on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        lang: [Python, R]
-
-    steps:
-    - uses: actions/checkout@v2
-
-    - name: Set up Python 2.x
-      if: matrix.lang == 'Python'
-      uses: actions/setup-python@v2
-      with:
-        python-version: '2.x'
-
-    - name: Install Python 2.x dependencies
-      if: matrix.lang == 'Python'
-      run: |
-        python2 -m pip install --upgrade pip
-        python2 -m pip install tox
-
-    - name: Set up Python 3.7
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.7'
-
-    - name: Install Python 3.x dependencies
-      run: |
-        python3 -m pip install --upgrade pip
-        python3 -m pip install tox numpy
-    
-    - name: Set up R 4.1
-      if: matrix.lang == 'R'
-      uses: r-lib/actions/setup-r@v1
-      with:
-        r-version: '4.1.1' 
-    
-    - name: Install R 4.1 system dependencies
-      if: matrix.lang == 'R' && matrix.os == 'ubuntu-latest'
-      run: sudo apt-get update; sudo apt-get install -y libcurl4-openssl-dev qpdf libgit2-dev
-
-    - name: Install R 4.1 Rlang dependencies
-      if: matrix.lang == 'R'
-      run: |
-        python3 -m pip install . 
-        Rscript -e 'install.packages("devtools", repos="https://cloud.r-project.org", Ncpus=8)'
-        Rscript -e 'devtools::install_deps("R", dependencies=TRUE, repos="https://cloud.r-project.org", upgrade="default")'
-        R CMD INSTALL R
-        Rscript -e 'install.packages(c("data.table", "caret", "glmnet", "Matrix", "rjson"), repos="https://cloud.r-project.org", Ncpus=8)'   
-
-    - name: Execute R tests
-      if: matrix.lang == 'R'
-      run: |
-        cd R/tests
-        Rscript run_tests.R
-
-    - name: Execute Python tests
-      if: matrix.lang == 'python'
-      run: tox
-
+  test: 
+    uses: './.github/workflows/test.yml'
   deploy:
     needs: test
     runs-on: ubuntu-latest

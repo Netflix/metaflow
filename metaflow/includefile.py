@@ -6,7 +6,7 @@ import os
 
 from hashlib import sha1
 
-import click
+from metaflow._vendor import click
 
 from . import parameters
 from .current import current

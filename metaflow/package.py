@@ -1,3 +1,4 @@
+import importlib
 import os
 import sys
 import tarfile
@@ -5,7 +6,8 @@ import time
 import json
 from io import BytesIO
 
-from .metaflow_config import DEFAULT_PACKAGE_SUFFIXES
+from .extension_support import EXT_PKG
+from .metaflow_config import DEFAULT_PACKAGE_SUFFIXES, METAFLOW_EXTENSIONS_ADDL_SUFFIXES
 from .exception import MetaflowException
 from .util import to_unicode
 from . import R
@@ -25,22 +27,48 @@ class NonUniqueFileNameToFilePathMappingException(MetaflowException):
         super().__init__(msg=msg, lineno=lineno)
 
 
+# this is os.walk(follow_symlinks=True) with cycle detection
+def walk_without_cycles(top_root):
+    seen = set()
+
+    def _recurse(root):
+        for parent, dirs, files in os.walk(root):
+            for d in dirs:
+                path = os.path.join(parent, d)
+                if os.path.islink(path):
+                    # Breaking loops: never follow the same symlink twice
+                    #
+                    # NOTE: this also means that links to sibling links are
+                    # not followed. In this case:
+                    #
+                    #   x -> y
+                    #   y -> oo
+                    #   oo/real_file
+                    #
+                    # real_file is only included twice, not three times
+                    reallink = os.path.realpath(path)
+                    if reallink not in seen:
+                        seen.add(reallink)
+                        for x in _recurse(path):
+                            yield x
+            yield parent, files
+
+    for x in _recurse(top_root):
+        yield x
+
+
 class MetaflowPackage(object):
     def __init__(self, flow, environment, echo, suffixes=DEFAULT_SUFFIXES_LIST):
         self.suffixes = list(set().union(suffixes, DEFAULT_SUFFIXES_LIST))
         self.environment = environment
         self.metaflow_root = os.path.dirname(__file__)
         try:
-            import metaflow_extensions
-        except ImportError:
-            self.metaflow_extensions_root = None
+            ext_package = importlib.import_module(EXT_PKG)
+        except ImportError as e:
+            self.metaflow_extensions_root = []
         else:
-            self.metaflow_extensions_root = os.path.dirname(
-                metaflow_extensions.__file__
-            )
-            self.metaflow_extensions_addl_suffixes = getattr(
-                metaflow_extensions, "METAFLOW_EXTENSIONS_PACKAGE_SUFFIXES", None
-            )
+            self.metaflow_extensions_root = list(ext_package.__path__)
+            self.metaflow_extensions_addl_suffixes = METAFLOW_EXTENSIONS_ADDL_SUFFIXES
 
         self.flow_name = flow.name
         self._flow = flow
@@ -56,7 +84,10 @@ class MetaflowPackage(object):
             addl_suffixes = []
         root = to_unicode(root)  # handle files/folder with non ascii chars
         prefixlen = len("%s/" % os.path.dirname(root))
-        for path, dirs, files in os.walk(root):
+        for (
+            path,
+            files,
+        ) in walk_without_cycles(root):
             if exclude_hidden and "/." in path:
                 continue
             # path = path[2:] # strip the ./ prefix
@@ -82,12 +113,13 @@ class MetaflowPackage(object):
             yield path_tuple
         # Metaflow customization if any
         if self.metaflow_extensions_root:
-            for path_tuple in self._walk(
-                self.metaflow_extensions_root,
-                exclude_hidden=False,
-                addl_suffixes=self.metaflow_extensions_addl_suffixes,
-            ):
-                yield path_tuple
+            for root in self.metaflow_extensions_root:
+                for path_tuple in self._walk(
+                    root,
+                    exclude_hidden=False,
+                    addl_suffixes=self.metaflow_extensions_addl_suffixes,
+                ):
+                    yield path_tuple
 
         # Any custom packages exposed via decorators
         deco_module_paths = {}
@@ -138,7 +170,9 @@ class MetaflowPackage(object):
             return tarinfo
 
         buf = BytesIO()
-        with tarfile.open(fileobj=buf, mode="w:gz", compresslevel=3) as tar:
+        with tarfile.open(
+            fileobj=buf, mode="w:gz", compresslevel=3, dereference=True
+        ) as tar:
             self._add_info(tar)
             for path, arcname in self.path_tuples():
                 tar.add(path, arcname=arcname, recursive=False, filter=no_mtime)

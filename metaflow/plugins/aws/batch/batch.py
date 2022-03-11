@@ -193,7 +193,7 @@ class Batch(object):
         env={},
         attrs={},
         host_volumes=None,
-        num_parallel=1,
+        num_parallel=0,
     ):
         job_name = self._job_name(
             attrs.get("metaflow.user"),
@@ -266,6 +266,7 @@ class Batch(object):
                 job.parameter(key, value)
         # Tags for AWS Batch job (for say cost attribution)
         if BATCH_EMIT_TAGS:
+            job.tag("app", "metaflow")
             for key in [
                 "metaflow.flow_name",
                 "metaflow.run_id",
@@ -301,7 +302,7 @@ class Batch(object):
         max_swap=None,
         swappiness=None,
         host_volumes=None,
-        num_parallel=1,
+        num_parallel=0,
         env={},
         attrs={},
     ):
@@ -353,8 +354,28 @@ class Batch(object):
                     if not child_jobs:
                         child_statuses = ""
                     else:
-                        child_statuses = " (child nodes: [{}])".format(
-                            ", ".join([child_job.status for child_job in child_jobs])
+                        status_keys = set(
+                            [child_job.status for child_job in child_jobs]
+                        )
+                        status_counts = [
+                            (
+                                status,
+                                len(
+                                    [
+                                        child_job.status == status
+                                        for child_job in child_jobs
+                                    ]
+                                ),
+                            )
+                            for status in status_keys
+                        ]
+                        child_statuses = " (parallel node status: [{}])".format(
+                            ", ".join(
+                                [
+                                    "{}:{}".format(status, num)
+                                    for (status, num) in sorted(status_counts)
+                                ]
+                            )
                         )
                     status = job.status
                     echo(

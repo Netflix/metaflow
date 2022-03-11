@@ -1,12 +1,14 @@
 from setuptools import setup, find_packages
 
-version = "2.4.9"
+version = "2.5.3"
 
 setup(
     include_package_data=True,
     name="metaflow",
     version=version,
     description="Metaflow: More Data Science, Less Engineering",
+    long_description=open("README.md").read(),
+    long_description_content_type="text/markdown",
     author="Machine Learning Infrastructure Team at Netflix",
     author_email="help@metaflow.org",
     license="Apache License 2.0",
@@ -19,6 +21,9 @@ setup(
         [console_scripts]
         metaflow=metaflow.main_cli:main
       """,
-    install_requires=["click>=7.0", "requests", "boto3", "pylint"],
-    tests_require=["coverage"],
+    install_requires=[
+        "requests",
+        "boto3",
+        "pylint",
+    ],
 )

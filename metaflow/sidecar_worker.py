@@ -2,7 +2,7 @@ from __future__ import print_function
 
 import os
 import sys
-import click
+
 import traceback
 
 
@@ -13,6 +13,7 @@ sys.path.insert(0, parentDir)
 
 from metaflow.sidecar_messages import MessageTypes, deserialize
 from metaflow.plugins import SIDECARS
+from metaflow._vendor import click
 
 
 class WorkershutdownError(Exception):

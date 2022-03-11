@@ -5,7 +5,7 @@ import traceback
 from datetime import datetime
 from functools import wraps
 
-import click
+from metaflow._vendor import click
 
 from . import lint
 from . import plugins
@@ -174,10 +174,22 @@ def help(ctx):
 
 
 @cli.command(help="Output internal state of the flow graph.")
+@click.option("--json", is_flag=True, help="Output the flow graph in JSON format.")
 @click.pass_obj
-def output_raw(obj):
-    echo("Internal representation of the flow:", fg="magenta", bold=False)
-    echo_always(str(obj.graph), err=False)
+def output_raw(obj, json):
+    if json:
+        import json as _json
+
+        _msg = "Internal representation of the flow in JSON format:"
+        _graph_dict, _graph_struct = obj.graph.output_steps()
+        _graph = _json.dumps(
+            dict(graph=_graph_dict, graph_structure=_graph_struct), indent=4
+        )
+    else:
+        _graph = str(obj.graph)
+        _msg = "Internal representation of the flow:"
+    echo(_msg, fg="magenta", bold=False)
+    echo_always(_graph, err=False)
 
 
 @cli.command(help="Visualize the flow with Graphviz.")
@@ -872,13 +884,6 @@ def version(obj):
     help="Run Pylint on the flow if pylint is installed.",
 )
 @click.option(
-    "--coverage",
-    is_flag=True,
-    default=False,
-    show_default=True,
-    help="Measure code coverage using coverage.py.",
-)
-@click.option(
     "--event-logger",
     default=DEFAULT_EVENT_LOGGER,
     show_default=True,
@@ -903,7 +908,6 @@ def start(
     decospecs=None,
     package_suffixes=None,
     pylint=None,
-    coverage=None,
     event_logger=None,
     monitor=None,
     **deco_options
@@ -922,18 +926,6 @@ def start(
     echo("Metaflow %s" % version, fg="magenta", bold=True, nl=False)
     echo(" executing *%s*" % ctx.obj.flow.name, fg="magenta", nl=False)
     echo(" for *%s*" % resolve_identity(), fg="magenta")
-
-    if coverage:
-        from coverage import Coverage
-
-        no_covrc = "COVERAGE_RCFILE" not in os.environ
-        cov = Coverage(
-            data_suffix=True,
-            auto_data=True,
-            source=["metaflow"] if no_covrc else None,
-            branch=True if no_covrc else None,
-        )
-        cov.start()
 
     cli_args._set_top_kwargs(ctx.params)
     ctx.obj.echo = echo
