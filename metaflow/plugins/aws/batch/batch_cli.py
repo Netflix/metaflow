@@ -149,6 +149,12 @@ def kill(ctx, run_id, user, my_runs):
     type=int,
     help="Number of parallel nodes to run as a multi-node job.",
 )
+@click.option(
+    "--secrets",
+    multiple=True,
+    default=None,
+    help="Secrets for AWS Batch job"
+)
 @click.pass_context
 def step(
     ctx,
@@ -169,6 +175,7 @@ def step(
     swappiness=None,
     host_volumes=None,
     num_parallel=None,
+    secrets=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", batch_id=None):
@@ -294,6 +301,7 @@ def step(
                 attrs=attrs,
                 host_volumes=host_volumes,
                 num_parallel=num_parallel,
+                secrets=secrets,
             )
     except Exception as e:
         traceback.print_exc()

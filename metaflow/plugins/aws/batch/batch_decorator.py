@@ -83,6 +83,9 @@ class BatchDecorator(StepDecorator):
         A swappiness value of 0 causes swapping not to happen unless absolutely
         necessary. A swappiness value of 100 causes pages to be swapped very
         aggressively. Accepted values are whole numbers between 0 and 100.
+    secrets : string
+        Inject secrets from AWS Secrets Manager into an AWS Batch job
+        "environment_variable_name=arn:aws::secret"
     """
 
     name = "batch"
@@ -98,6 +101,7 @@ class BatchDecorator(StepDecorator):
         "max_swap": None,
         "swappiness": None,
         "host_volumes": None,
+        "secrets": None,
     }
     resource_defaults = {
         "cpu": "1",

@@ -150,6 +150,7 @@ class BatchJob(object):
         swappiness,
         host_volumes,
         num_parallel,
+        secrets,
     ):
         # identify platform from any compute environment associated with the
         # queue
@@ -261,6 +262,17 @@ class BatchJob(object):
                     {"sourceVolume": name, "containerPath": host_path}
                 )
 
+        if secrets:
+            job_definition["containerProperties"]["secrets"] = []
+            if isinstance(secrets, str):
+                secrets = [secrets]
+            for secret in secrets:
+                name, value_from = secret.split("=")
+                job_definition["containerProperties"]["secrets"].append(
+                    {"name": name, "valueFrom": value_from}
+                )
+
+        # This block must be last evaluated to account for all updates to `containerProperties`
         self.num_parallel = num_parallel or 0
         if self.num_parallel >= 1:
             job_definition["type"] = "multinode"
@@ -323,6 +335,7 @@ class BatchJob(object):
         swappiness,
         host_volumes,
         num_parallel,
+        secrets,
     ):
         self.payload["jobDefinition"] = self._register_job_definition(
             image,
@@ -334,6 +347,7 @@ class BatchJob(object):
             swappiness,
             host_volumes,
             num_parallel,
+            secrets,
         )
         return self
 
