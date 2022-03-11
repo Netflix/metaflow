@@ -1,4 +1,3 @@
-echo $(pwd)
-pip install ./card_via_extinit
-pip install ./card_via_init
-pip install ./card_via_ns_subpackage
+pip install ./packages/card_via_extinit
+pip install ./packages/card_via_init
+pip install ./packages/card_via_ns_subpackage
