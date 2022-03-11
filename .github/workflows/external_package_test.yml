@@ -1,0 +1,43 @@
+name: Extensions Tests
+on:
+  push:
+    branches:
+    - ext-packaging-extension-testing # todo change this later. 
+  pull_request:
+    branches:
+    - master
+  workflow_call:
+  
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-python@v2
+    - uses: pre-commit/action@v2.0.3
+
+  Python:
+    name: core / Python ${{ matrix.ver }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        ver: ['3.5', '3.6', '3.7', '3.8', '3.9','3.10',]
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.ver }}
+
+    - name: Install Python ${{ matrix.ver }} dependencies
+      run: |
+        python3 -m pip install --upgrade pip setuptools
+        python3 -m pip install tox numpy
+
+    - name: Execute extensions related tests
+      run: |
+        sh run_extensions_test.sh
