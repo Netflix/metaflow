@@ -267,7 +267,13 @@ class BatchJob(object):
             if isinstance(secrets, str):
                 secrets = [secrets]
             for secret in secrets:
-                name, value_from = secret.split("=")
+                delimiter = ","
+                if delimiter not in secret:
+                    raise ValueError(
+                        "Secrets should be of the format `environment_key_name,value_from`\n"
+                        "got %s" % secret
+                    )
+                name, value_from = secret.split(delimiter)
                 job_definition["containerProperties"]["secrets"].append(
                     {"name": name, "valueFrom": value_from}
                 )

@@ -214,6 +214,7 @@ class Batch(object):
                 swappiness,
                 host_volumes=host_volumes,
                 num_parallel=num_parallel,
+                secrets=secrets,
             )
             .cpu(cpu)
             .gpu(gpu)
