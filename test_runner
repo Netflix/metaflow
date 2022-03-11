@@ -9,8 +9,19 @@ install_deps() {
   done
 }
 
-run_tests() {
-  cd test/core && PYTHONPATH=`pwd`/../../ python3 run_tests.py --num-parallel 8
+install_extensions() {
+    cd test/extensions
+    sh install_packages.sh
+    cd ../../
 }
 
-install_deps && run_tests
+run_extension_tests() {
+    cd test/core && PYTHONPATH=$(pwd)/../../ python3 run_tests.py --num-parallel 8 --tests CardExtensionsImportTest --contexts python3-extensions-all-local
+}
+
+run_tests() {
+  cd test/core && PYTHONPATH=`pwd`/../../ python3 run_tests.py --num-parallel 8
+  cd ../../
+}
+
+install_deps && run_tests && install_extensions && run_extension_tests
