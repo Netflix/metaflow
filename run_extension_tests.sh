@@ -18,3 +18,4 @@ run_tests() {
 }
 
 install_deps && install_extensions && run_tests
+

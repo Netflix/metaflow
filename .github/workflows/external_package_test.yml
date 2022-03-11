@@ -39,5 +39,4 @@ jobs:
         python3 -m pip install tox numpy
 
     - name: Execute extensions related tests
-      run: |
-        sh run_extensions_test.sh
+      run: tox -e testenv:extensions
