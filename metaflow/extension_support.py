@@ -610,7 +610,7 @@ def _get_extension_packages():
                 relative_module = ".".join(parts[base_depth - 1 :])
                 files_to_include.extend(
                     [
-                        "/".join([relative_root, f])
+                        "/".join([relative_root, f]) if relative_root else f
                         for f in files
                         if not any(
                             [f.endswith(suffix) for suffix in EXT_EXCLUDE_SUFFIXES]
