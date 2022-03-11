@@ -70,6 +70,7 @@ __all__ = (
 EXT_PKG = "metaflow_extensions"
 EXT_CONFIG_REGEXP = re.compile(r"^mfextinit_[a-zA-Z0-9_-]+\.py$")
 EXT_META_REGEXP = re.compile(r"^mfextmeta_[a-zA-Z0-9_-]+\.py$")
+REQ_NAME = re.compile(r"^(([a-zA-Z0-9][a-zA-Z0-9._-]*[a-zA-Z0-9])|[a-zA-Z0-9]).*$")
 EXT_EXCLUDE_SUFFIXES = [".pyc"]
 
 # To get verbose messages, set METAFLOW_DEBUG_EXT to 1
@@ -519,7 +520,9 @@ def _get_extension_packages():
     req_to_dep = {}
     for pkg_name in mf_ext_packages:
         req_count = 0
-        req_pkgs = [x.split()[0] for x in metadata.requires(pkg_name) or []]
+        req_pkgs = [
+            REQ_NAME.match(x).group(1) for x in metadata.requires(pkg_name) or []
+        ]
         for req_pkg in req_pkgs:
             if req_pkg in mf_ext_packages:
                 req_count += 1
