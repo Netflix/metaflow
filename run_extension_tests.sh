@@ -15,7 +15,7 @@ install_extensions() {
 }
 
 run_tests() {
-    cd test/core && PYTHONPATH=$(pwd)/../../ python3 run_tests.py --num-parallel 8 --tests CardExtensionsImportTest --contexts python3-all-local
+    cd test/core && PYTHONPATH=$(pwd)/../../ python3 run_tests.py --num-parallel 8 --tests CardExtensionsImportTest --contexts python3-extensions-all-local
 }
 
 install_deps && install_extensions && run_tests
