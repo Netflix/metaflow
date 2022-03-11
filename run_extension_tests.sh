@@ -11,6 +11,7 @@ install_deps() {
 install_extensions() {
     cd test/extensions
     sh install_packages.sh
+    cd ../../
 }
 
 run_tests() {
