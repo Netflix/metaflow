@@ -252,13 +252,16 @@ class CondaStepDecorator(StepDecorator):
         os.symlink(path_to_metaflow, os.path.join(self.metaflow_home, "metaflow"))
 
         # Symlink the INFO file as well to properly propagate down the Metaflow version
-        # if launching Titus from a meson run for example
+        # if launching on AWS Batch for example
         if os.path.isfile(path_to_info):
             os.symlink(path_to_info, os.path.join(self.metaflow_home, "INFO"))
         else:
             # If there is no "INFO" file, we will actually create one in this new
-            # place because we won't be able to properly resolve the EXT_PKG extension
-            # since they may all be linked
+            # place because we won't be able to properly resolve the EXT_PKG extensions
+            # the same way as outside conda (looking at distributions, etc). In a
+            # Conda environment, as shown below (where we set self.addl_paths), all
+            # EXT_PKG extensions are PYTHONPATH extensions. Instead of re-resolving,
+            # we use the resolved information that is written out to the INFO file.
             with open(
                 os.path.join(self.metaflow_home, "INFO"), mode="wt", encoding="utf-8"
             ) as f:

@@ -12,16 +12,59 @@ from collections import defaultdict, namedtuple
 from importlib.abc import MetaPathFinder, Loader
 from itertools import chain
 
+#
+# This file provides the support for Metaflow's extension mechanism which allows
+# a Metaflow developer to extend metaflow by providing a package `metaflow_extensions`.
+# Multiple such packages can be provided and they will all be loaded into Metaflow in a
+# way that is transparent to the user.
+#
+# NOTE: The conventions used here may change over time and this is an advanced feature.
+#
+# The general functionality provided here can be divided into three phases:
+#   - Package discovery: in this part, packages that provide metaflow extensions
+#     are discovered. This is contained in the `_get_extension_packages` function
+#   - Integration with Metaflow: throughout the Metaflow code, extension points
+#     are provided (they are given below in `_extension_points`). At those points,
+#     the core Metaflow code will invoke functions to load the packages discovered
+#     in the first phase. These functions are:
+#       - get_modules: Returns all modules that are contributing to the extension
+#         point; this is typically done first.
+#       - load_module: Simple loading of a specific module
+#       - load_globals: Utility function to load the globals from a module into
+#         another globals()-like object
+#       - alias_submodules: Determines the aliases for modules allowing metaflow.Z to alias
+#         metaflow_extensions.X.Y.Z for example. This supports the __mf_promote_submodules__
+#         construct as well as aliasing any modules present in the extension. This is
+#         typically used in conjunction with lazy_load_aliases which takes care of actually
+#         making the aliasing work lazily (ie: modules that are not already loaded are only
+#         loaded on use).
+#       - lazy_load_aliases: Adds loaders for all the module aliases produced by
+#         alias_submodules for example
+#       - multiload_globals: Convenience function to `load_globals` on all modules returned
+#         by `get_modules`
+#       - multiload_all: Convenience function to `load_globals` and
+#         `lazy_load_aliases(alias_submodules()) on all modules returned by `get_modules`
+#   - Packaging the extensions: when extensions need to be included in the code package,
+#     this allows the extensions to be properly included (including potentially non .py
+#     files). To support this:
+#       - dump_module_info dumps information in the INFO file allowing packaging to work
+#         in a Conda environment or a remote environment (it saves file paths, load order, etc)
+#       - package_mfext_package: allows the packaging of a single extension
+#       - package_mfext_all: packages all extensions
+
 __all__ = (
     "load_module",
     "get_modules",
     "dump_module_info",
+    "package_mfext_package",
+    "package_mfext_all",
     "load_globals",
     "alias_submodules",
     "EXT_PKG",
     "lazy_load_aliases",
     "multiload_globals",
     "multiload_all",
+    "_ext_debug",
 )
 
 EXT_PKG = "metaflow_extensions"
@@ -29,6 +72,7 @@ EXT_CONFIG_REGEXP = re.compile(r"^mfextinit_[a-zA-Z0-9_-]+\.py$")
 EXT_META_REGEXP = re.compile(r"^mfextmeta_[a-zA-Z0-9_-]+\.py$")
 EXT_EXCLUDE_SUFFIXES = [".pyc"]
 
+# To get verbose messages, set METAFLOW_DEBUG_EXT to 1
 METAFLOW_DEBUG_EXT_MECHANISM = os.environ.get("METAFLOW_DEBUG_EXT", False)
 
 
@@ -52,13 +96,13 @@ def get_modules(extension_point):
         )
     _ext_debug("Getting modules for extension point '%s'..." % extension_point)
     for pkg in _pkgs_per_extension_point.get(extension_point, []):
-        _ext_debug("\tFound TL '%s' from '%s'" % (pkg.tl_package, pkg.package_name))
+        _ext_debug("    Found TL '%s' from '%s'" % (pkg.tl_package, pkg.package_name))
         m = _get_extension_config(
             pkg.package_name, pkg.tl_package, extension_point, pkg.config_module
         )
         if m:
             modules_to_load.append(m)
-    _ext_debug("\tLoaded %s" % str(modules_to_load))
+    _ext_debug("    Loaded %s" % str(modules_to_load))
     return modules_to_load
 
 
@@ -89,7 +133,7 @@ def package_mfext_package(package_name):
                 f_unicode = to_unicode(f)
                 fp = os.path.join(root_path, f_unicode)
                 if single_path or os.path.isfile(fp):
-                    _ext_debug("\tAdding '%s'" % fp)
+                    _ext_debug("    Adding '%s'" % fp)
                     yield fp, os.path.join(EXT_PKG, f_unicode)
 
 
@@ -101,19 +145,19 @@ def package_mfext_all():
 
 def load_globals(module, dst_globals, extra_indent=False):
     if extra_indent:
-        extra_indent = "\t"
+        extra_indent = "    "
     else:
         extra_indent = ""
     _ext_debug("%sLoading globals from '%s'" % (extra_indent, module.__name__))
     for n, o in module.__dict__.items():
         if not n.startswith("__") and not isinstance(o, types.ModuleType):
-            _ext_debug("%s\tImporting '%s'" % (extra_indent, n))
+            _ext_debug("%s    Importing '%s'" % (extra_indent, n))
             dst_globals[n] = o
 
 
 def alias_submodules(module, tl_package, extension_point, extra_indent=False):
     if extra_indent:
-        extra_indent = "\t"
+        extra_indent = "    "
     else:
         extra_indent = ""
     lazy_load_custom_modules = {}
@@ -147,7 +191,7 @@ def alias_submodules(module, tl_package, extension_point, extra_indent=False):
             )
         if lazy_load_custom_modules:
             _ext_debug(
-                "%s\tFound explicit promotions in __mf_promote_submodules__: %s"
+                "%s    Found explicit promotions in __mf_promote_submodules__: %s"
                 % (extra_indent, str(list(lazy_load_custom_modules.keys())))
             )
     for n, o in module.__dict__.items():
@@ -163,7 +207,7 @@ def alias_submodules(module, tl_package, extension_point, extra_indent=False):
             else:
                 lazy_load_custom_modules["metaflow.%s" % n] = o
     _ext_debug(
-        "%s\tWill create the following module aliases: %s"
+        "%s    Will create the following module aliases: %s"
         % (extra_indent, str(list(lazy_load_custom_modules.keys())))
     )
     return lazy_load_custom_modules
@@ -205,6 +249,10 @@ else:
     # Something random so there is no syntax error
     ModuleSpec = None
 
+# Extension points are the directories that can be present in a EXT_PKG to
+# contribute to that extension point. For example, if you have
+# metaflow_extensions/X/plugins, your extension contributes to the plugins
+# extension point.
 # IMPORTANT: More specific paths must appear FIRST (before any less specific one). For
 # efficiency, put the less specific ones directly under more specific ones.
 _extension_points = [
@@ -260,6 +308,15 @@ def _get_extension_packages():
                 raise
             return {}, {}
 
+    # There are two "types" of packages:
+    #   - those installed on the system (distributions)
+    #   - those present in the PYTHONPATH
+    # We have more information on distributions (including dependencies) and more
+    # effective ways to get file information from them (they include the full list of
+    # files installed) so we treat them separately from packages purely in PYTHONPATH.
+    # They are also the more likely way that users will have extensions present so
+    # we optimize for that case.
+
     # At this point, we look at all the paths and create a set. As we find distributions
     # that match it, we will remove from the set and then will be left with any
     # PYTHONPATH "packages"
@@ -269,7 +326,10 @@ def _get_extension_packages():
     list_ext_points = [x.split(".") for x in _extension_points]
     init_ext_points = [x[0] for x in list_ext_points]
 
-    # TODO: This relies only on requirements to determine import order; we may want
+    # NOTE: For distribution packages, we will rely on requirements to determine the
+    # load order of extensions: if distribution A and B both provide EXT_PKG and
+    # distribution A depends on B then when returning modules in `get_modules`, we will
+    # first return B and THEN A. We may want
     # other ways of specifying "load me after this if it exists" without depending on
     # the package. One way would be to rely on the description and have that info there.
     # Not sure of the use though so maybe we can skip for now.
@@ -279,7 +339,7 @@ def _get_extension_packages():
     #   root_paths: The root path for all the files in this package. Can be a list in
     #               some rare cases
     #   meta_module: The module to the meta file (if any) that contains information about
-    #     how to package this extension
+    #     how to package this extension (suffixes to include/exclude)
     #   files: The list of files to be included (or considered for inclusion) when
     #     packaging this extension
     mf_ext_packages = dict()
@@ -291,8 +351,14 @@ def _get_extension_packages():
     #    Key: TL package name (so in metaflow_extensions.X...., the X)
     #    Value: MFExtPackage
     extension_points_to_pkg = defaultdict(dict)
+
+    # Key: string: configuration file for a package
+    # Value: list: packages that this configuration file is present in
     config_to_pkg = defaultdict(list)
+    # Same as config_to_pkg for meta files
     meta_to_pkg = defaultdict(list)
+
+    # 1st step: look for distributions (the common case)
     for dist in metadata.distributions():
         if any(
             [pkg == EXT_PKG for pkg in (dist.read_text("top_level.txt") or "").split()]
@@ -416,7 +482,7 @@ def _get_extension_packages():
                                     )
                                 if config_module is not None:
                                     _ext_debug(
-                                        "\tTL '%s' found config file '%s'"
+                                        "    TL '%s' found config file '%s'"
                                         % (parts[1], config_module)
                                     )
                                     extension_points_to_pkg[_extension_points[idx]][
@@ -428,7 +494,7 @@ def _get_extension_packages():
                                     )
                             else:
                                 _ext_debug(
-                                    "\tTL '%s' extends '%s' with config '%s'"
+                                    "    TL '%s' extends '%s' with config '%s'"
                                     % (parts[1], _extension_points[idx], config_module)
                                 )
                                 extension_points_to_pkg[_extension_points[idx]][
@@ -448,6 +514,7 @@ def _get_extension_packages():
     # we now check to see if there is an order to respect based on dependencies. We will
     # return an ordered list that respects that order and is ordered alphabetically in
     # case of ties. We do not do any checks because we rely on pip to have done those.
+    # Basically topological sort based on dependencies.
     pkg_to_reqs_count = {}
     req_to_dep = {}
     for pkg_name in mf_ext_packages:
@@ -495,10 +562,15 @@ def _get_extension_packages():
     _ext_debug("'%s' distributions order is %s" % (EXT_PKG, str(mf_pkg_list)))
 
     # We check if we have any additional packages that were not yet installed that
-    # we need to use. We always put them *last*.
+    # we need to use. We always put them *last* in the load order and we put them
+    # alphabetically.
     all_paths_list = list(all_paths)
     all_paths_list.sort()
 
+    # This block of code is the equivalent of the one above for distributions except
+    # for PYTHONPATH packages. The functionality is identical but it looks a little
+    # different because we construct the file list instead of having it nicely provided
+    # to us.
     package_name_to_path = dict()
     if len(all_paths_list) > 0:
         _ext_debug("Non installed packages present at %s" % str(all_paths))
@@ -590,7 +662,7 @@ def _get_extension_packages():
 
                             if skip_extension:
                                 _ext_debug(
-                                    "\tSkipping '%s' as no files/directory of interest"
+                                    "    Skipping '%s' as no files/directory of interest"
                                     % _extension_points[idx]
                                 )
                                 continue
@@ -630,7 +702,7 @@ def _get_extension_packages():
                                 config_module=config_module,
                             )
                             _ext_debug(
-                                "\tExtends '%s' with config '%s'"
+                                "    Extends '%s' with config '%s'"
                                 % (_extension_points[idx], config_module)
                             )
             mf_pkg_list.append(package_name)
@@ -640,18 +712,20 @@ def _get_extension_packages():
                 "files": files_to_include,
             }
 
-    # Sanity check that we only have one package per configuration file
+    # Sanity check that we only have one package per configuration file.
+    # This prevents multiple packages from providing the same named configuration
+    # file which would result in one overwriting the other if they are both installed.
     errors = []
     for m, packages in config_to_pkg.items():
         if len(packages) > 1:
             errors.append(
-                "\tPackages %s define the same configuration module '%s'"
+                "    Packages %s define the same configuration module '%s'"
                 % (", and ".join(["'%s'" % p for p in packages]), m)
             )
     for m, packages in meta_to_pkg.items():
         if len(packages) > 1:
             errors.append(
-                "\tPackages %s define the same meta module '%s'"
+                "    Packages %s define the same meta module '%s'"
                 % (", and ".join(["'%s'" % p for p in packages]), m)
             )
     if errors:
@@ -660,8 +734,10 @@ def _get_extension_packages():
         )
 
     extension_points_to_pkg.default_factory = None
-    # Figure out the per extension point order
+
+    # We have the load order globally; we now figure it out per extension point.
     for k, v in extension_points_to_pkg.items():
+
         # v is a dict distributionName/packagePath -> (dict tl_name -> MFPackage)
         l = [v[pkg].values() for pkg in mf_pkg_list if pkg in v]
         # In the case of the plugins.cards extension, we allow those packages
@@ -714,7 +790,9 @@ def _attempt_load_module(module_name):
                 )
                 raise
             else:
-                _ext_debug("\t\tUnknown error when loading '%s': %s" % (module_name, e))
+                _ext_debug(
+                    "        Unknown error when loading '%s': %s" % (module_name, e)
+                )
                 return None
     else:
         return extension_module
@@ -726,7 +804,7 @@ def _get_extension_config(distribution_name, tl_pkg, extension_point, config_mod
     else:
         module_name = ".".join([EXT_PKG, tl_pkg, extension_point])
 
-    _ext_debug("\t\tAttempting to load '%s'" % module_name)
+    _ext_debug("        Attempting to load '%s'" % module_name)
 
     extension_module = _attempt_load_module(module_name)
 
