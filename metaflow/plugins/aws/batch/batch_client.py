@@ -263,20 +263,11 @@ class BatchJob(object):
                 )
 
         if secrets:
-            job_definition["containerProperties"]["secrets"] = []
-            if isinstance(secrets, str):
-                secrets = [secrets]
-            for secret in secrets:
-                delimiter = ","
-                if delimiter not in secret:
-                    raise ValueError(
-                        "Secrets should be of the format `environment_key_name,value_from`\n"
-                        "got %s" % secret
-                    )
-                name, value_from = secret.split(delimiter)
-                job_definition["containerProperties"]["secrets"].append(
-                    {"name": name, "valueFrom": value_from}
-                )
+            if not isinstance(secrets, dict):
+                raise TypeError(secrets)
+            job_definition["containerProperties"]["secrets"] = [
+                {"name": k, "valueFrom": v} for k, v in secrets.items()
+            ]
 
         # This block must be last evaluated to account for all updates to `containerProperties`
         self.num_parallel = num_parallel or 0

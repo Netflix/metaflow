@@ -83,10 +83,10 @@ class BatchDecorator(StepDecorator):
         A swappiness value of 0 causes swapping not to happen unless absolutely
         necessary. A swappiness value of 100 causes pages to be swapped very
         aggressively. Accepted values are whole numbers between 0 and 100.
-    secrets : string
-        Inject secrets from AWS Secrets Manager into an AWS Batch job.
-        Secret should be formatted as "environment_variable_name,arn:aws:secretsmanager:region:aws_account_id:secret:secret_name"
-        See https://docs.aws.amazon.com/batch/latest/userguide/specifying-sensitive-data-secrets.html
+    secrets : dict
+        Inject secrets from AWS Secrets Manager into an AWS Batch job as environment variables.
+        Secrets should be a dictionary where the key is the environment variable name and the value is an AWS Secrets Manager Resource ARN
+        See the AWS documentation for more information: https://docs.aws.amazon.com/batch/latest/userguide/specifying-sensitive-data-secrets.html
     """
 
     name = "batch"

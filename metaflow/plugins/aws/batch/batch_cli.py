@@ -6,7 +6,7 @@ import traceback
 
 from distutils.dir_util import copy_tree
 
-from metaflow import util
+from metaflow import JSONType, util
 from metaflow import R
 from metaflow.exception import CommandException, METAFLOW_EXIT_DISALLOW_RETRY
 from metaflow.metadata.util import sync_local_metadata_from_datastore
@@ -151,9 +151,9 @@ def kill(ctx, run_id, user, my_runs):
 )
 @click.option(
     "--secrets",
-    multiple=True,
+    type=JSONType,
     default=None,
-    help="Secrets for AWS Batch job"
+    help="Secrets to inject into AWS Batch job",
 )
 @click.pass_context
 def step(
