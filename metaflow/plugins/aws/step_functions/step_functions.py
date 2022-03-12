@@ -675,6 +675,7 @@ class StepFunctions(object):
                 env=env,
                 attrs=attrs,
                 host_volumes=resources["host_volumes"],
+                secrets=resources["secrets"],
             )
             .attempts(total_retries + 1)
         )
