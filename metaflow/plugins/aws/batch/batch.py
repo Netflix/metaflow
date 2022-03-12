@@ -22,7 +22,7 @@ from metaflow.metaflow_config import (
 from metaflow.mflog.mflog import refine, set_should_persist
 from metaflow.mflog import (
     export_mflog_env_vars,
-    capture_output_to_mflog,
+    bash_capture_logs,
     tail_logs,
     BASH_SAVE_LOGS,
 )
@@ -61,12 +61,8 @@ class Batch(object):
         )
         init_cmds = environment.get_package_commands(code_package_url)
         init_expr = " && ".join(init_cmds)
-        step_expr = " && ".join(
-            [
-                capture_output_to_mflog(a)
-                for a in (environment.bootstrap_commands(step_name))
-            ]
-            + step_cmds
+        step_expr = bash_capture_logs(
+            " && ".join(environment.bootstrap_commands(step_name) + step_cmds)
         )
 
         # construct an entry point that
@@ -297,7 +293,7 @@ class Batch(object):
                 )
         job = self.create_job(
             step_name,
-            capture_output_to_mflog(step_cli),
+            step_cli,
             task_spec,
             code_package_sha,
             code_package_url,

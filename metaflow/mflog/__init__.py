@@ -44,17 +44,18 @@ BASH_SAVE_LOGS_ARGS = ["python", "-m", "metaflow.mflog.save_logs"]
 BASH_SAVE_LOGS = " ".join(BASH_SAVE_LOGS_ARGS)
 
 # this function returns a bash expression that redirects stdout
-# and stderr of the given command to mflog
-def capture_output_to_mflog(command_and_args, var_transform=None):
+# and stderr of the given bash expression to mflog.tee
+def bash_capture_logs(bash_expr, var_transform=None):
     if var_transform is None:
         var_transform = lambda s: "$%s" % s
 
-    return "python -m metaflow.mflog.redirect_streams %s %s %s %s" % (
-        TASK_LOG_SOURCE,
-        var_transform("MFLOG_STDOUT"),
-        var_transform("MFLOG_STDERR"),
-        command_and_args,
+    cmd = "python -m metaflow.mflog.tee %s %s"
+    parts = (
+        bash_expr,
+        cmd % (TASK_LOG_SOURCE, var_transform("MFLOG_STDOUT")),
+        cmd % (TASK_LOG_SOURCE, var_transform("MFLOG_STDERR")),
     )
+    return "(%s) 1>> >(%s) 2>> >(%s >&2)" % parts
 
 
 # update_delay determines how often logs should be uploaded to S3
@@ -76,8 +77,7 @@ def update_delay(secs_since_start):
 
 
 # this function is used to generate a Bash 'export' expression that
-# sets environment variables that are used by 'redirect_streams' and
-# 'save_logs'.
+# sets environment variables that are used by 'tee' and 'save_logs'.
 # Note that we can't set the env vars statically, as some of them
 # may need to be evaluated during runtime
 def export_mflog_env_vars(
