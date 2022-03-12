@@ -37,11 +37,13 @@ class DataStoreStorage(object):
     TYPE = None
     datastore_root = None
     path_rexp = None
+    datastore_tmproot = "/tmp/"
 
     list_content_result = namedtuple("list_content_result", "path is_file")
 
-    def __init__(self, root=None):
+    def __init__(self, root=None, tmproot=None):
         self.datastore_root = root if root else self.datastore_root
+        self.datastore_tmproot = tmproot if tmproot else self.datastore_tmproot
 
     @classmethod
     def get_datastore_root_from_config(cls, echo, create_on_absent=True):
