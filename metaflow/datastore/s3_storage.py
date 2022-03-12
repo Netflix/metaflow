@@ -29,7 +29,7 @@ class S3Storage(DataStoreStorage):
     def is_file(self, paths):
         with S3(
             s3root=self.datastore_root,
-            tmproot=self.tmproot,
+            tmproot=self.datastore_tmproot,
             external_client=self.s3_client,
         ) as s3:
             if len(paths) > 10:
@@ -44,7 +44,7 @@ class S3Storage(DataStoreStorage):
     def info_file(self, path):
         with S3(
             s3root=self.datastore_root,
-            tmproot=self.tmproot,
+            tmproot=self.datastore_tmproot,
             external_client=self.s3_client,
         ) as s3:
             s3obj = s3.info(path, return_missing=True)
@@ -53,7 +53,7 @@ class S3Storage(DataStoreStorage):
     def size_file(self, path):
         with S3(
             s3root=self.datastore_root,
-            tmproot=self.tmproot,
+            tmproot=self.datastore_tmproot,
             external_client=self.s3_client,
         ) as s3:
             s3obj = s3.info(path, return_missing=True)
@@ -63,7 +63,7 @@ class S3Storage(DataStoreStorage):
         strip_prefix_len = len(self.datastore_root.rstrip("/")) + 1
         with S3(
             s3root=self.datastore_root,
-            tmproot=self.tmproot,
+            tmproot=self.datastore_tmproot,
             external_client=self.s3_client,
         ) as s3:
             results = s3.list_paths(paths)
@@ -86,7 +86,7 @@ class S3Storage(DataStoreStorage):
 
         with S3(
             s3root=self.datastore_root,
-            tmproot=self.tmproot,
+            tmproot=self.datastore_tmproot,
             external_client=self.s3_client,
         ) as s3:
             # HACK: The S3 datatools we rely on does not currently do a good job
@@ -120,7 +120,7 @@ class S3Storage(DataStoreStorage):
 
         s3 = S3(
             s3root=self.datastore_root,
-            tmproot=self.tmproot,
+            tmproot=self.datastore_tmproot,
             external_client=self.s3_client,
         )
 
