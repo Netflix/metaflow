@@ -342,6 +342,7 @@ class S3(object):
 
         self._s3_client = kwargs.get("external_client", S3Client())
         self._tmpdir = mkdtemp(dir=tmproot, prefix="metaflow.s3.")
+        print(self._tmpdir)
 
     def __enter__(self):
         return self
