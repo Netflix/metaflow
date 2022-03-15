@@ -27,37 +27,6 @@
             "checks": [ "python3-cli", "python3-metadata"],
             "disabled_tests": [
                 "LargeArtifactTest",
-                "S3FailureTest",
-                "CardExtensionsImportTest"
-            ]
-        },
-        {
-            "name": "python3-extensions-all-local",
-            "disabled": false,
-            "env": {
-                "METAFLOW_USER": "tester",
-                "METAFLOW_RUN_BOOL_PARAM": "False",
-                "METAFLOW_RUN_NO_DEFAULT_PARAM": "test_str",
-                "METAFLOW_DEFAULT_METADATA": "local"
-            },
-            "python": "python3",
-            "top_options": [
-                "--metadata=local",
-                "--datastore=local",
-                "--environment=local",
-                "--event-logger=nullSidecarLogger",
-                "--no-pylint",
-                "--quiet"
-            ],
-            "run_options": [
-                "--max-workers", "50",
-                "--max-num-splits", "10000",
-                "--tag", "\u523a\u8eab means sashimi",
-                "--tag", "multiple tags should be ok"
-            ],
-            "checks": [ "python3-cli", "python3-metadata"],
-            "disabled_tests": [
-                "LargeArtifactTest",
                 "S3FailureTest"
             ]
         },
@@ -87,8 +56,7 @@
             ],
             "checks": ["python3-cli", "python3-metadata"],
             "disabled_tests": [
-                "S3FailureTest",
-                "CardExtensionsImportTest"
+                "S3FailureTest"
             ]
         },
         {
