@@ -1,5 +1,10 @@
 from collections import defaultdict
+import os
+import typing
 import json
+import time
+import random
+import hashlib
 from datetime import timedelta, datetime
 
 
@@ -11,6 +16,7 @@ class AirflowDAGArgs(object):
         "start_date": datetime.now(),
         "catchup": False,
         "tags": [],
+        "dagrun_timeout": timedelta(minutes=60 * 4),
         "default_args": {
             "owner": "some_username",
             "depends_on_past": False,
@@ -22,10 +28,9 @@ class AirflowDAGArgs(object):
             "queue": "bash_queue",
             "pool": "backfill",
             "priority_weight": 10,
-            "end_date": datetime(2016, 1, 1),
             "wait_for_downstream": False,
             "sla": timedelta(hours=2),
-            "execution_timeout": timedelta(seconds=300),
+            "execution_timeout": timedelta(minutes=10),
             "trigger_rule": "all_success"
             # 'dag': dag,
             # 'on_failure_callback': some_function,
@@ -83,12 +88,121 @@ class AirflowDAGArgs(object):
         return dd
 
 
+def generate_rfc1123_name(flow_name, step_name):
+    """
+    Generate RFC 1123 compatible name. Specifically, the format is:
+        <let-or-digit>[*[<let-or-digit-or-hyphen>]<let-or-digit>]
+
+    The generated name consists from a human-readable prefix, derived from
+    flow/step/task/attempt, and a hash suffux.
+    """
+    unique_str = "%s-%d" % (str(time.time()), random.randint(0, 1000))
+
+    long_name = "-".join([flow_name, step_name, unique_str])
+    hash = hashlib.sha256(long_name.encode("utf-8")).hexdigest()
+
+    if long_name.startswith("_"):
+        # RFC 1123 names can't start with hyphen so slap an extra prefix on it
+        sanitized_long_name = "u" + long_name.replace("_", "-").lower()
+    else:
+        sanitized_long_name = long_name.replace("_", "-").lower()
+
+    # the name has to be under 63 chars total
+    return sanitized_long_name[:57] + "-" + hash[:5]
+
+
+def set_k8s_operator_args(flow_name, step_name, operator_args):
+    from kubernetes import client
+
+    env_vars = [
+        client.V1EnvVar(name=v["name"], value=str(v["value"]))
+        for v in operator_args.get("env_vars", [])
+    ]
+    volume_mounts = [
+        client.V1VolumeMount(**v) for v in operator_args.get("volume_mounts", [])
+    ]
+    volumes = [client.V1Volume(**v) for v in operator_args.get("volumes", [])]
+
+    return {
+        "namespace": operator_args.get("namespace", "airflow"),
+        "image": operator_args.get("image", "python"),
+        "name": generate_rfc1123_name(flow_name, step_name),
+        "task_id": step_name,
+        "random_name_suffix": None,
+        "cmds": operator_args.get("cmds", []),
+        "arguments": operator_args.get("arguments", []),
+        "ports": operator_args.get("ports", []),
+        "volume_mounts": volume_mounts,
+        "volumes": volumes,
+        "env_vars": env_vars,
+        "env_from": operator_args.get("env_from", []),
+        "secrets": operator_args.get("secrets", []),
+        "in_cluster": operator_args.get(
+            "in_cluster", False
+        ),  # Todo : Document what is this ?
+        "cluster_context": None,  # Todo : Document what is this ?
+        "labels": operator_args.get("labels", {}),  # Todo : Document what is this ?
+        "reattach_on_restart": False,
+        "startup_timeout_seconds": 120,
+        "get_logs": True,  # This needs to be set to True to ensure that doesn't error out looking for xcom
+        "image_pull_policy": None,  # todo : document what is this ?
+        "annotations": {},  # todo : document what is this ?
+        "resources": client.V1ResourceRequirements(
+            requests={
+                "cpu": operator_args.get("cpu", 1),
+                "memory": operator_args.get("memory", "2000M"),
+            }
+        ),  # kubernetes.client.models.v1_resource_requirements.V1ResourceRequirements
+        "affinity": None,  # kubernetes.client.models.v1_affinity.V1Affinity
+        "config_file": None,
+        "node_selectors": {},  # todo : Find difference between "node_selectors" / "node_selector"
+        "node_selector": {},  # todo : Find difference between "node_selectors" / "node_selector"
+        # image_pull_secrets : typing.Union[typing.List[kubernetes.client.models.v1_local_object_reference.V1LocalObjectReference], NoneType],
+        "image_pull_secrets": operator_args.get(
+            "image_pull_secrets", []
+        ),  # todo : document what this is for ?
+        "service_account_name": operator_args.get(
+            "service_account_name", None
+        ),  # todo : document what this is for ? ,  # todo : document what this is for ?
+        "is_delete_operator_pod": operator_args.get(
+            "is_delete_operator_pod", False
+        ),  # todo : document what this is for ?
+        "hostnetwork": False,  # todo : document what this is for ?
+        "tolerations": None,  # typing.Union[typing.List[kubernetes.client.models.v1_toleration.V1Toleration], NoneType],
+        "security_context": {},
+        "dnspolicy": None,  # todo : document what this is for ?
+        "schedulername": None,  # todo : document what this is for ?
+        "full_pod_spec": None,  # typing.Union[kubernetes.client.models.v1_pod.V1Pod, NoneType]
+        "init_containers": None,  # typing.Union[typing.List[kubernetes.client.models.v1_container.V1Container], NoneType],
+        "log_events_on_failure": False,
+        "do_xcom_push": True,
+        "pod_template_file": None,  # todo : find out what this will do ?
+        "priority_class_name": None,  # todo : find out what this will do ?
+        "pod_runtime_info_envs": None,  # todo : find out what this will do ?
+        "termination_grace_period": None,  # todo : find out what this will do ?
+        "configmaps": None,  # todo : find out what this will do ?
+    }
+
+
+def get_k8s_operator():
+    from airflow.contrib.operators.kubernetes_pod_operator import (
+        KubernetesPodOperator,
+    )
+
+    return KubernetesPodOperator
+
+
 class AirflowTask(object):
-    def __init__(self, name, operator_args=None, operator_type="kubernetes"):
+    def __init__(self, name, operator_type="kubernetes", flow_name=None):
         self.name = name
-        self._operator_args = operator_args
+        self._operator_args = None
         self._operator_type = operator_type
         self._next = None
+        self._flow_name = flow_name
+
+    def set_operator_args(self, **kwargs):
+        self._operator_args = kwargs
+        return self
 
     @property
     def next_state(self):
@@ -107,31 +221,26 @@ class AirflowTask(object):
         }
 
     @classmethod
-    def from_dict(cls, jsd):
-        return cls(
-            jsd["name"],
-            operator_type=jsd["operator_type"]
-            if "operator_type" in jsd
-            else "kubernetes",
-        ).next(jsd["next"])
+    def from_dict(cls, jsd, flow_name=None):
+        op_args = {} if not "operator_args" in jsd else jsd["operator_args"]
+        return (
+            cls(
+                jsd["name"],
+                operator_type=jsd["operator_type"]
+                if "operator_type" in jsd
+                else "kubernetes",
+                flow_name=flow_name,
+            )
+            .next(jsd["next"])
+            .set_operator_args(**op_args)
+        )
 
     def _kubenetes_task(self):
-        from airflow.contrib.operators.kubernetes_pod_operator import (
-            KubernetesPodOperator,
+        KubernetesPodOperator = get_k8s_operator()
+        k8s_args = set_k8s_operator_args(
+            self._flow_name, self.name, self._operator_args
         )
-
-        return KubernetesPodOperator(
-            namespace="airflow",
-            image="python",
-            cmds=["python", "-c"],
-            arguments=["print('{{ task }}')"],
-            labels={"foo": "bar"},
-            image_pull_policy="Always",
-            name=self.name,
-            task_id=self.name,
-            is_delete_operator_pod=True,
-            get_logs=True,
-        )
+        return KubernetesPodOperator(**k8s_args)
 
     def to_task(self):
         # todo fix
@@ -149,27 +258,37 @@ class Workflow(object):
     def add_state(self, state):
         self.states[state.name] = state
 
-    def to_json(self):
-        return json.dumps(
-            dict(
-                states={s: v.to_dict() for s, v in self.states.items()},
-                dag_instantiation_params=self._dag_instantiation_params.to_dict(),
-                file_path=self._file_path,
-            )
+    def to_dict(self):
+        return dict(
+            states={s: v.to_dict() for s, v in self.states.items()},
+            dag_instantiation_params=self._dag_instantiation_params.to_dict(),
+            file_path=self._file_path,
         )
+
+    def to_json(self):
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_dict(cls, data_dict):
+        re_cls = cls(
+            file_path=data_dict["file_path"],
+        )
+        re_cls._dag_instantiation_params = AirflowDAGArgs.from_dict(
+            data_dict["dag_instantiation_params"]
+        )
+
+        for sd in data_dict["states"].values():
+            re_cls.add_state(
+                AirflowTask.from_dict(
+                    sd, flow_name=re_cls._dag_instantiation_params.arguements["dag_id"]
+                )
+            )
+        return re_cls
 
     @classmethod
     def from_json(cls, json_string):
         data = json.loads(json_string)
-        re_cls = cls(
-            file_path=data["file_path"],
-        )
-        for sd in data["states"].values():
-            re_cls.add_state(AirflowTask.from_dict(sd))
-        re_cls._dag_instantiation_params = AirflowDAGArgs.from_dict(
-            data["dag_instantiation_params"]
-        )
-        return re_cls
+        return cls.from_dict(data)
 
     def compile(self):
         from airflow import DAG

@@ -138,10 +138,10 @@ class Kubernetes(object):
         step_expr = " && ".join(
             [
                 capture_output_to_mflog(a)
-                for a in (
-                    self._environment.bootstrap_commands(self._step_name) + step_cmds
-                )
+                for a in (self._environment.bootstrap_commands(self._step_name))
+                # this is changed so that jobs get deployed properly on Airflow.
             ]
+            + step_cmds
         )
 
         # Construct an entry point that

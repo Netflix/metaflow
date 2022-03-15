@@ -2,6 +2,7 @@ from metaflow._vendor import click
 from metaflow import decorators
 from metaflow.util import get_username
 from metaflow.package import MetaflowPackage
+from metaflow.plugins import KubernetesDecorator
 from .airflow_compiler import Airflow
 
 
@@ -17,7 +18,8 @@ def airflow(ctx):
 
 
 def make_flow(obj, tags, namespace, worker_pools, is_project, file_path=None):
-    # Attach AWS Batch decorator to the flow
+    # Attach K8s decorator over here. This will be affected in the future based on how many compute providers are supported on Airflow.
+    decorators._attach_decorators(obj.flow, [KubernetesDecorator.name])
     decorators._init_step_decorators(
         obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
     )

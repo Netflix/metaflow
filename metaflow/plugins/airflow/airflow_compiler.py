@@ -1,10 +1,11 @@
 import base64
 from collections import defaultdict
 from datetime import datetime, timedelta
+from metaflow.exception import MetaflowException
+from metaflow.parameters import deploy_time_eval
 from metaflow.util import get_username
 
 from metaflow import R
-import rich
 import sys
 from metaflow.util import compress_list, dict_to_cli_options, to_pascalcase
 import os
@@ -19,6 +20,8 @@ from metaflow.plugins.aws.aws_utils import compute_resource_attributes
 from .exceptions import AirflowNotPresent, AirflowException
 from .airflow_utils import Workflow, AirflowTask, AirflowDAGArgs
 from . import airflow_utils as af_utils
+from .compute.k8s import create_k8s_args
+import metaflow.util as util
 
 # TODO : remove rich at the end.
 # Question : Does scheduling interval be a top level argument
@@ -28,8 +31,19 @@ AIRFLOW_DEPLOY_TEMPLATE_FILE = os.path.join(os.path.dirname(__file__), "af_deplo
 
 AIRFLOW_PREFIX = "arf"
 
+# Task instance attributes : https://airflow.apache.org/docs/apache-airflow/stable/_api/airflow/models/taskinstance/index.html
+
 
 class Airflow(object):
+
+    task_id = "arf-{{ ti.job_id }}"
+    task_id_arg = "--task-id %s" % task_id
+    # Airflow run_ids are of the form : "manual__2022-03-15T01:26:41.186781+00:00"
+    # Such run-ids break the `metaflow.util.decompress_list`; this is why we hash the runid
+    run_id = "%s-$(echo {{ run_id }} | md5sum | awk '{print $1}')" % AIRFLOW_PREFIX
+    run_id_arg = "--run-id %s" % run_id
+    attempt = "{{ task_instance.try_number - 1 }}"
+
     def __init__(
         self,
         name,
@@ -71,10 +85,44 @@ class Airflow(object):
         self.description = description
         self.start_date = start_date
         self.catchup = catchup
+        # todo : should we allow mix and match of compute providers
         # todo : fill information here.
         self.workflow_timeout = 10
         self.schedule_interval = "*/2 * * * *"
         self._file_path = file_path
+
+    def _k8s_job(self, node, input_paths, env):
+        # todo check if the Node has some
+        # todo : check for retry
+        # since we are attaching k8s at cli, there will be one for a step.
+        k8s_deco = [deco for deco in node.decorators if deco.name == "kubernetes"][0]
+
+        user_code_retries, total_retries = self._get_retries(node)
+        return create_k8s_args(
+            self.flow_datastore,
+            self.metadata,
+            self.environment,
+            self.flow.name,
+            self.run_id,
+            node.name,
+            self.task_id,
+            self.attempt,
+            self.code_package_url,
+            self.code_package_sha,
+            self._step_cli(node, input_paths, self.code_package_url, user_code_retries),
+            k8s_deco.attributes["image"],
+            service_account=k8s_deco.attributes["service_account"],  # todo set this
+            secrets=k8s_deco.attributes["secrets"],
+            node_selector=k8s_deco.attributes["node_selector"],
+            namespace=k8s_deco.attributes["namespace"],
+            cpu=k8s_deco.attributes["cpu"],
+            gpu=k8s_deco.attributes["gpu"],
+            disk=k8s_deco.attributes["disk"],
+            memory=k8s_deco.attributes["memory"],
+            run_time_limit=None,  # todo fix
+            env=env,
+            user=util.get_username(),
+        )
 
     def _get_retries(self, node):
         max_user_code_retries = 0
@@ -88,7 +136,38 @@ class Airflow(object):
 
         return max_user_code_retries, max_user_code_retries + max_error_retries
 
-    def _to_job(self, node):
+    def _process_parameters(self):
+        # Copied from metaflow.plugins.aws.step_functions.step_functions
+        parameters = []
+        seen = set()
+        for var, param in self.flow._get_parameters():
+            # Throw an exception if the parameter is specified twice.
+            norm = param.name.lower()
+            if norm in seen:
+                raise MetaflowException(
+                    "Parameter *%s* is specified twice. "
+                    "Note that parameter names are "
+                    "case-insensitive." % param.name
+                )
+            seen.add(norm)
+
+            is_required = param.kwargs.get("required", False)
+            # Throw an exception if a schedule is set for a flow with required
+            # parameters with no defaults. We currently don't have any notion
+            # of data triggers in AWS Event Bridge.
+            if "default" not in param.kwargs and is_required:
+                raise MetaflowException(
+                    "The parameter *%s* does not have a "
+                    "default and is required. Scheduling "
+                    "such parameters via AWS Event Bridge "
+                    "is not currently supported." % param.name
+                )
+            value = deploy_time_eval(param.kwargs.get("default"))
+            parameters.append(dict(name=param.name, value=value))
+        return parameters
+
+    def _to_job(self, node: DAGNode):
+        # supported compute : k8s (v1), local(v2), batch(v3)
         attrs = {
             "metaflow.owner": self.username,
             "metaflow.flow_name": self.flow.name,
@@ -106,19 +185,24 @@ class Airflow(object):
         if env_deco:
             env = env_deco[0].attributes["vars"]
 
+        # The Below If/Else Block handle "Input Paths".
+        # Input Paths help manage dataflow across the graph.
         if node.name == "start":
+            parameters = self._process_parameters()
+            if parameters:
+                env["METAFLOW_PARAMETERS"] = "{{ params }}"
+                default_parameters = {}
+                for parameter in parameters:
+                    if parameter["value"] is not None:
+                        default_parameters[parameter["name"]] = parameter["value"]
+                # Dump the default values specified in the flow.
+                env["METAFLOW_DEFAULT_PARAMETERS"] = json.dumps(default_parameters)
             # Initialize parameters for the flow in the `start` step.
             # todo : Handle parameters
             # `start` step has no upstream input dependencies aside from
             # parameters.
             input_paths = None
         else:
-            # We need to rely on the `InputPath` of the AWS Step Functions
-            # specification to grab task ids and the step names of the parent
-            # to properly construct input_paths at runtime. Thanks to the
-            # JsonPath-foo embedded in the parent states, we have this
-            # information easily available.
-
             if node.parallel_foreach:
                 raise AirflowException(
                     "Parallel steps are not supported yet with AWS step functions."
@@ -134,53 +218,41 @@ class Airflow(object):
             else:
                 # Set appropriate environment variables for runtime replacement.
                 if len(node.in_funcs) == 1:
-                    # todo : set input paths for a foreach join step
-                    pass
+                    # todo : set input paths where this is only one parent node
+                    # The parent-task-id is passed via the xcom;
+                    input_paths = (
+                        # This is set using the `airflow_internal` decorator.
+                        "%s/%s/{{ task_instance.xcom_pull('%s')['metaflow_task_id'] }}"
+                        % (self.run_id, node.in_funcs[0], node.in_funcs[0])
+                    )
                 else:
+                    # this is a split scenario where there can be more than one input paths.
                     # todo : set input paths for a split join step
                     pass
             env["METAFLOW_INPUT_PATHS"] = input_paths
 
             if node.is_inside_foreach:
-                if any(self.graph[n].type == "foreach" for n in node.in_funcs):
-                    # if node is inside foreach and it itself is a foreach
-                    # todo : set split_parent_task_id_ for all parents
-                    pass
-                elif node.type == "join":
-                    # if node is inside foreach and it itself is a join
-                    if self.graph[node.split_parents[-1]].type == "foreach":
-                        # todo : Handle passing task-ids for when immediate parent is a foreach
-                        pass
-                    else:
-                        # todo : Handle passing task-ids for when any of the parent is a foreach
-                        pass
-                else:
-                    # If the node is inside foreach and it's not a foreach or join type
-                    # todo : Handle passing task-ids for when immediate parent is a foreach
-                    pass
-
-                # Set `METAFLOW_SPLIT_PARENT_TASK_ID_FOR_FOREACH_JOIN` if the
-                # next transition is to a foreach join
-                if any(
-                    self.graph[n].type == "join"
-                    and self.graph[self.graph[n].split_parents[-1]].type == "foreach"
-                    for n in node.out_funcs
-                ):
-                    # todo : set METAFLOW_SPLIT_PARENT_TASK_ID_FOR_FOREACH_JOIN
-                    env["METAFLOW_SPLIT_PARENT_TASK_ID_FOR_FOREACH_JOIN"] = None
-
-                # todo : Check if timeout needs to be set explicitly
-
-            # todo : Handle split index for for-each.
-            if any(self.graph[n].type == "foreach" for n in node.in_funcs):
+                # Todo : Handle This case
                 pass
+
+            # todo : Check if timeout needs to be set explicitly
+
+            if any(self.graph[n].type == "foreach" for n in node.in_funcs):
+                # todo : Handle split index for for-each.
+                # step.append("--split-index $METAFLOW_SPLIT_INDEX")
+                pass
+
+        # ! HACK : Remove Below Line; Only here temporarily.
+        env.update({k: v for k, v in os.environ.items() if "AWS" in k})
 
         env["METAFLOW_CODE_URL"] = self.code_package_url
         env["METAFLOW_FLOW_NAME"] = attrs["metaflow.flow_name"]
         env["METAFLOW_STEP_NAME"] = attrs["metaflow.step_name"]
-        # todo : Find way to set runid
-        env["METAFLOW_RUN_ID"] = None
+        env["METAFLOW_RUN_ID"] = self.run_id
+        env["METAFLOW_AIRFLOW_TASK_ID"] = self.task_id
         env["METAFLOW_OWNER"] = attrs["metaflow.owner"]
+        env["METAFLOW_ATTEMPT_NUMBER"] = self.attempt
+
         metadata_env = self.metadata.get_runtime_environment("airflow")
         env.update(metadata_env)
 
@@ -188,20 +260,19 @@ class Airflow(object):
         metaflow_version["flow_name"] = self.graph.name
         env["METAFLOW_VERSION"] = json.dumps(metaflow_version)
 
+        is_a_foreach = node.type == "foreach"
+        successors_are_foreach_joins = any(
+            self.graph[n].type == "join"
+            and self.graph[self.graph[n].split_parents[-1]].type == "foreach"
+            for n in node.out_funcs
+        )
+        join_in_foreach = (
+            node.type == "join" and self.graph[node.split_parents[-1]].type == "foreach"
+        )
         if (
-            node.type == "foreach"
-            or (
-                node.is_inside_foreach
-                and any(
-                    self.graph[n].type == "join"
-                    and self.graph[self.graph[n].split_parents[-1]].type == "foreach"
-                    for n in node.out_funcs
-                )
-            )
-            or (
-                node.type == "join"
-                and self.graph[node.split_parents[-1]].type == "foreach"
-            )
+            is_a_foreach
+            or (node.is_inside_foreach and successors_are_foreach_joins)
+            or join_in_foreach
         ):
 
             # Todo : Find ways to pass state using for the below usecases:
@@ -213,11 +284,9 @@ class Airflow(object):
             pass
 
         # Todo : Find and set resource requirements for the decorator.
-        user_code_retries, total_retries = self._get_retries(node)
-        # Todo : Convert to batch / Kubernetes JOB
-        # Todo : - Set it's cli
-        # Todo : - env vars etc.
-        pass
+        compute_type = "k8s"  # todo : This will become more dynamic in the future.
+        if compute_type == "k8s":
+            return self._k8s_job(node, input_paths, env)
 
     def _step_cli(self, node, paths, code_package_url, user_code_retries):
         cmds = []
@@ -230,12 +299,12 @@ class Airflow(object):
         else:
             entrypoint = [executable, script_name]
 
-        task_id = ""
+        # Ignore compute decorators since this will already throw stuff there.
         top_opts_dict = {
             "with": [
                 decorator.make_decorator_spec()
                 for decorator in node.decorators
-                if not decorator.statically_defined
+                if not decorator.statically_defined and decorator.name != "kubernetes"
             ]
         }
         # FlowDecorators can define their own top-level options. They are
@@ -255,12 +324,12 @@ class Airflow(object):
             "--event-logger=%s" % self.event_logger.logger_type,
             "--monitor=%s" % self.monitor.monitor_type,
             "--no-pylint",
-            "--with=step_functions_internal",
+            "--with=airflow_internal",
         ]
 
         if node.name == "start":
             # We need a separate unique ID for the special _parameters task
-            task_id_params = "%s-params" % task_id
+            task_id_params = "%s-params" % self.task_id
             # TODO : Currently I am putting this boiler plate because we need to check if parameters are set or not.
             # Export user-defined parameters into runtime environment
             param_file = "".join(
@@ -270,21 +339,23 @@ class Airflow(object):
             export_params = " && ".join(
                 [
                     capture_output_to_mflog(
-                        "python -m metaflow.plugins.airflow.set_parameters  %s"
+                        "python -m metaflow.plugins.airflow.plumbing.set_parameters %s"
                         % param_file
                     ),
                     ". `pwd`/%s" % param_file,
                 ]
             )
+            # Setting parameters over here.
             params = (
                 entrypoint
                 + top_level
                 + [
                     "init",
-                    # todo : "--run-id sfn-$METAFLOW_RUN_ID",
-                    # todo : "--task-id %s" % task_id_params,
+                    self.run_id_arg,
+                    "--task-id %s" % task_id_params,
                 ]
             )
+
             # Assign tags to run objects.
             if self.tags:
                 params.extend("--tag %s" % tag for tag in self.tags)
@@ -297,7 +368,7 @@ class Airflow(object):
                 "dump",
                 "--max-value-size=0",
                 # todo : set task_id for parameters
-                # "sfn-${METAFLOW_RUN_ID}/_parameters/%s" % (task_id_params),
+                "%s/_parameters/%s" % (self.run_id, task_id_params),
             ]
             cmd = "if ! %s >/dev/null 2>/dev/null; then %s && %s; fi" % (
                 " ".join(exists),
@@ -305,7 +376,8 @@ class Airflow(object):
                 capture_output_to_mflog(" ".join(params)),
             )
             cmds.append(cmd)
-            # todo : set input paths for parameters = "sfn-${METAFLOW_RUN_ID}/_parameters/%s" % (task_id_params)
+            # set input paths for parameters
+            paths = "%s/_parameters/%s" % (self.run_id, task_id_params)
 
         if node.type == "join" and self.graph[node.split_parents[-1]].type == "foreach":
             # todo : handle join case
@@ -323,11 +395,11 @@ class Airflow(object):
         step = [
             "step",
             node.name,
-            # todo  "--run-id sfn-$METAFLOW_RUN_ID",
-            # todo "--task-id %s" % task_id,
-            # todo "--retry-count $((AWS_BATCH_JOB_ATTEMPT-1))",
-            # todo "--max-user-code-retries %d" % user_code_retries,
-            # todo "--input-paths %s" % paths,
+            self.run_id_arg,
+            self.task_id_arg,
+            "--retry-count %s" % self.attempt,
+            "--max-user-code-retries %d" % user_code_retries,
+            "--input-paths %s" % paths,
         ]
         if any(self.graph[n].type == "foreach" for n in node.in_funcs):
             # # todo step.append("--split-index $METAFLOW_SPLIT_INDEX")
@@ -339,6 +411,13 @@ class Airflow(object):
         cmds.append(capture_output_to_mflog(" ".join(entrypoint + top_level + step)))
         return " && ".join(cmds)
 
+    def _validate_workflow(self):
+        # todo : validate if this workflow is compatible with airflow's current parameters
+        # supported compute : k8s (v1), local(v2), batch(v3),
+        # supported datastore : s3 (v1)
+        # supported metadata : service
+        pass
+
     def compile(self):
 
         # Visit every node of the flow and recursively build the state machine.
@@ -349,7 +428,7 @@ class Airflow(object):
                     "to Airflow is not supported currently."
                 )
 
-            state = AirflowTask(node.name)
+            state = AirflowTask(node.name).set_operator_args(**self._to_job(node))
 
             if node.type == "end" or exit_node in node.out_funcs:
                 workflow.add_state(state)
@@ -387,7 +466,7 @@ class Airflow(object):
             tags=self.tags,
             file_path=self._file_path,
         )
-        json_dag = _visit(self.graph["start"], workflow).to_json()
+        json_dag = _visit(self.graph["start"], workflow).to_dict()
         return self._create_airflow_file(json_dag)
 
     def _create_airflow_file(self, json_dag):
@@ -400,9 +479,7 @@ class Airflow(object):
                 dict(
                     # Converting the configuration to base64 so that there can be no indentation related issues that can be caused because of
                     # malformed strings / json.
-                    metaflow_workflow_compile_params=base64.b64encode(
-                        json_dag.encode("utf-8")
-                    ).decode("utf-8"),
+                    metaflow_workflow_compile_params=json_dag,
                     AIRFLOW_UTILS=util_file,
                 ),
             )
