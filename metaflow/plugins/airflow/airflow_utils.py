@@ -5,7 +5,34 @@ import json
 import time
 import random
 import hashlib
+import re
 from datetime import timedelta, datetime
+import hashlib
+
+LABEL_VALUE_REGEX = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9\-\_\.]{0,61}[a-zA-Z0-9])?$")
+
+
+def sanitize_label_value(val):
+    # Label sanitization: if the value can be used as is, return it as is.
+    # If it can't, sanitize and add a suffix based on hash of the original
+    # value, replace invalid chars and truncate.
+    #
+    # The idea here is that even if there are non-allowed chars in the same
+    # position, this function will likely return distinct values, so you can
+    # still filter on those. For example, "alice$" and "alice&" will be
+    # sanitized into different values "alice_b3f201" and "alice_2a6f13".
+    if val == "" or LABEL_VALUE_REGEX.match(val):
+        return val
+    hash = hashlib.sha256(val.encode("utf-8")).hexdigest()
+
+    # Replace invalid chars with dots, and if the first char is
+    # non-alphahanumeric, replace it with 'u' to make it valid
+    sanitized_val = re.sub("^[^A-Z0-9a-z]", "u", re.sub(r"[^A-Za-z0-9.\-_]", "_", val))
+    return sanitized_val[:57] + "-" + hash[:5]
+
+
+def hasher(my_value):
+    return hashlib.md5(my_value.encode("utf-8")).hexdigest()
 
 
 class AirflowDAGArgs(object):
@@ -40,12 +67,17 @@ class AirflowDAGArgs(object):
         },
     }
 
+    metaflow_centric_args = {
+        # Reference for user_defined_filters : https://stackoverflow.com/a/70175317
+        "user_defined_filters": dict(hash=lambda my_value: hasher(my_value)),
+    }
+
     def __init__(self, **kwargs):
         self._args = kwargs
 
     @property
     def arguements(self):
-        return self._args
+        return dict(**self._args, **self.metaflow_centric_args)
 
     def _serialize_args(self):
         def parse_args(dd):
@@ -114,16 +146,32 @@ def generate_rfc1123_name(flow_name, step_name):
 def set_k8s_operator_args(flow_name, step_name, operator_args):
     from kubernetes import client
 
+    task_id = "arf-{{ ti.job_id }}"
+    run_id = "arf-{{ run_id | hash }}"  # hash is added via the `user_defined_filters`
+    attempt = "{{ task_instance.try_number - 1 }}"
+    # Set dynamic env variables like run-id, task-id etc from here.
     env_vars = [
         client.V1EnvVar(name=v["name"], value=str(v["value"]))
         for v in operator_args.get("env_vars", [])
+    ] + [
+        client.V1EnvVar(name=k, value=str(v))
+        for k, v in dict(
+            METAFLOW_RUN_ID=run_id,
+            METAFLOW_AIRFLOW_TASK_ID=task_id,
+            METAFLOW_ATTEMPT_NUMBER=attempt,
+        ).items()
     ]
+
+    labels = {
+        "metaflow/attempt": attempt,
+        "metaflow/run_id": run_id,
+        "metaflow/task_id": task_id,
+    }
     volume_mounts = [
         client.V1VolumeMount(**v) for v in operator_args.get("volume_mounts", [])
     ]
     volumes = [client.V1Volume(**v) for v in operator_args.get("volumes", [])]
-
-    return {
+    args = {
         "namespace": operator_args.get("namespace", "airflow"),
         "image": operator_args.get("image", "python"),
         "name": generate_rfc1123_name(flow_name, step_name),
@@ -182,6 +230,8 @@ def set_k8s_operator_args(flow_name, step_name, operator_args):
         "termination_grace_period": None,  # todo : find out what this will do ?
         "configmaps": None,  # todo : find out what this will do ?
     }
+    args["labels"].update(labels)
+    return args
 
 
 def get_k8s_operator():

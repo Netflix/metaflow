@@ -40,7 +40,8 @@ class Airflow(object):
     task_id_arg = "--task-id %s" % task_id
     # Airflow run_ids are of the form : "manual__2022-03-15T01:26:41.186781+00:00"
     # Such run-ids break the `metaflow.util.decompress_list`; this is why we hash the runid
-    run_id = "%s-$(echo {{ run_id }} | md5sum | awk '{print $1}')" % AIRFLOW_PREFIX
+    run_id = "%s-$(echo -n {{ run_id }} | md5sum | awk '{print $1}')" % AIRFLOW_PREFIX
+    # We do echo -n because emits line breaks and we dont want to consider that since it we want same hash value when retrieved in python.
     run_id_arg = "--run-id %s" % run_id
     attempt = "{{ task_instance.try_number - 1 }}"
 
@@ -172,12 +173,25 @@ class Airflow(object):
             "metaflow.owner": self.username,
             "metaflow.flow_name": self.flow.name,
             "metaflow.step_name": node.name,
-            "metaflow.run_id": "",  # todod
             "metaflow.version": self.environment.get_environment_info()[
                 "metaflow_version"
             ],
             "step_name": node.name,
         }
+        # Making the key conditions to check into human readable variables so
+        # if statements make sense when reading logic
+        is_a_foreach = node.type == "foreach"
+        successors_are_foreach_joins = any(
+            self.graph[n].type == "join"
+            and self.graph[self.graph[n].split_parents[-1]].type == "foreach"
+            for n in node.out_funcs
+        )
+        join_in_foreach = (
+            node.type == "join" and self.graph[node.split_parents[-1]].type == "foreach"
+        )
+        any_incoming_node_is_foreach = any(
+            self.graph[n].type == "foreach" for n in node.in_funcs
+        )
 
         # Add env vars from the optional @environment decorator.
         env_deco = [deco for deco in node.decorators if deco.name == "environment"]
@@ -209,10 +223,7 @@ class Airflow(object):
                 )
 
             # Handle foreach join.
-            if (
-                node.type == "join"
-                and self.graph[node.split_parents[-1]].type == "foreach"
-            ):
+            if join_in_foreach:
                 # todo : Handle split values + input_paths
                 pass
             else:
@@ -237,7 +248,7 @@ class Airflow(object):
 
             # todo : Check if timeout needs to be set explicitly
 
-            if any(self.graph[n].type == "foreach" for n in node.in_funcs):
+            if any_incoming_node_is_foreach:
                 # todo : Handle split index for for-each.
                 # step.append("--split-index $METAFLOW_SPLIT_INDEX")
                 pass
@@ -248,10 +259,7 @@ class Airflow(object):
         env["METAFLOW_CODE_URL"] = self.code_package_url
         env["METAFLOW_FLOW_NAME"] = attrs["metaflow.flow_name"]
         env["METAFLOW_STEP_NAME"] = attrs["metaflow.step_name"]
-        env["METAFLOW_RUN_ID"] = self.run_id
-        env["METAFLOW_AIRFLOW_TASK_ID"] = self.task_id
         env["METAFLOW_OWNER"] = attrs["metaflow.owner"]
-        env["METAFLOW_ATTEMPT_NUMBER"] = self.attempt
 
         metadata_env = self.metadata.get_runtime_environment("airflow")
         env.update(metadata_env)
@@ -260,15 +268,6 @@ class Airflow(object):
         metaflow_version["flow_name"] = self.graph.name
         env["METAFLOW_VERSION"] = json.dumps(metaflow_version)
 
-        is_a_foreach = node.type == "foreach"
-        successors_are_foreach_joins = any(
-            self.graph[n].type == "join"
-            and self.graph[self.graph[n].split_parents[-1]].type == "foreach"
-            for n in node.out_funcs
-        )
-        join_in_foreach = (
-            node.type == "join" and self.graph[node.split_parents[-1]].type == "foreach"
-        )
         if (
             is_a_foreach
             or (node.is_inside_foreach and successors_are_foreach_joins)

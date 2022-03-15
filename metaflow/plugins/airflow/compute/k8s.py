@@ -49,10 +49,7 @@ def create_k8s_args(
     labels = {
         "app": "metaflow",
         "metaflow/flow_name": sanitize_label_value(flow_name),
-        "metaflow/run_id": sanitize_label_value(run_id),
         "metaflow/step_name": sanitize_label_value(step_name),
-        "metaflow/task_id": sanitize_label_value(task_id),
-        "metaflow/attempt": sanitize_label_value(attempt),
         "app.kubernetes.io/name": "metaflow-task",
         "app.kubernetes.io/part-of": "metaflow",
         "app.kubernetes.io/created-by": sanitize_label_value(user),
