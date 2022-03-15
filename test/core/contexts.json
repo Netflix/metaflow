@@ -91,7 +91,8 @@
                 "BasicUnboundedForeachTest",
                 "NestedUnboundedForeachTest",
                 "DetectSegFaultTest",
-                "TimeoutDecoratorTest"
+                "TimeoutDecoratorTest",
+                "CardExtensionsImportTest"
             ]
         },
         {
@@ -126,7 +127,8 @@
                 "BasicUnboundedForeachTest",
                 "NestedUnboundedForeachTest",
                 "DetectSegFaultTest",
-                "TimeoutDecoratorTest"
+                "TimeoutDecoratorTest",
+                "CardExtensionsImportTest"
             ]
         }
     ],
