@@ -6,13 +6,14 @@ import time
 import json
 from io import BytesIO
 
-from .extension_support import EXT_PKG
-from .metaflow_config import DEFAULT_PACKAGE_SUFFIXES, METAFLOW_EXTENSIONS_ADDL_SUFFIXES
+from .extension_support import EXT_PKG, package_mfext_all
+from .metaflow_config import DEFAULT_PACKAGE_SUFFIXES
 from .exception import MetaflowException
 from .util import to_unicode
 from . import R
 
 DEFAULT_SUFFIXES_LIST = DEFAULT_PACKAGE_SUFFIXES.split(",")
+METAFLOW_SUFFIXES_LIST = [".py", ".html", ".css", ".js"]
 
 
 class NonUniqueFileNameToFilePathMappingException(MetaflowException):
@@ -62,13 +63,6 @@ class MetaflowPackage(object):
         self.suffixes = list(set().union(suffixes, DEFAULT_SUFFIXES_LIST))
         self.environment = environment
         self.metaflow_root = os.path.dirname(__file__)
-        try:
-            ext_package = importlib.import_module(EXT_PKG)
-        except ImportError as e:
-            self.metaflow_extensions_root = []
-        else:
-            self.metaflow_extensions_root = list(ext_package.__path__)
-            self.metaflow_extensions_addl_suffixes = METAFLOW_EXTENSIONS_ADDL_SUFFIXES
 
         self.flow_name = flow.name
         self._flow = flow
@@ -79,9 +73,9 @@ class MetaflowPackage(object):
                 deco.package_init(flow, step.__name__, environment)
         self.blob = self._make()
 
-    def _walk(self, root, exclude_hidden=True, addl_suffixes=None):
-        if addl_suffixes is None:
-            addl_suffixes = []
+    def _walk(self, root, exclude_hidden=True, suffixes=None):
+        if suffixes is None:
+            suffixes = []
         root = to_unicode(root)  # handle files/folder with non ascii chars
         prefixlen = len("%s/" % os.path.dirname(root))
         for (
@@ -96,9 +90,7 @@ class MetaflowPackage(object):
             for fname in files:
                 if fname[0] == ".":
                     continue
-                if any(
-                    fname.endswith(suffix) for suffix in self.suffixes + addl_suffixes
-                ):
+                if any(fname.endswith(suffix) for suffix in suffixes):
                     p = os.path.join(path, fname)
                     yield p, p[prefixlen:]
 
@@ -109,17 +101,16 @@ class MetaflowPackage(object):
         """
         # We want the following contents in the tarball
         # Metaflow package itself
-        for path_tuple in self._walk(self.metaflow_root, exclude_hidden=False):
+        for path_tuple in self._walk(
+            self.metaflow_root, exclude_hidden=False, suffixes=METAFLOW_SUFFIXES_LIST
+        ):
             yield path_tuple
-        # Metaflow customization if any
-        if self.metaflow_extensions_root:
-            for root in self.metaflow_extensions_root:
-                for path_tuple in self._walk(
-                    root,
-                    exclude_hidden=False,
-                    addl_suffixes=self.metaflow_extensions_addl_suffixes,
-                ):
-                    yield path_tuple
+
+        # Metaflow extensions; for now, we package *all* extensions but this may change
+        # at a later date; it is possible to call `package_mfext_package` instead of
+        # `package_mfext_all`
+        for path_tuple in package_mfext_all():
+            yield path_tuple
 
         # Any custom packages exposed via decorators
         deco_module_paths = {}
@@ -142,7 +133,9 @@ class MetaflowPackage(object):
             yield path_tuple
         if R.use_r():
             # the R working directory
-            for path_tuple in self._walk("%s/" % R.working_dir()):
+            for path_tuple in self._walk(
+                "%s/" % R.working_dir(), suffixes=self.suffixes
+            ):
                 yield path_tuple
             # the R package
             for path_tuple in R.package_paths():
@@ -150,7 +143,7 @@ class MetaflowPackage(object):
         else:
             # the user's working directory
             flowdir = os.path.dirname(os.path.abspath(sys.argv[0])) + "/"
-            for path_tuple in self._walk(flowdir):
+            for path_tuple in self._walk(flowdir, suffixes=self.suffixes):
                 yield path_tuple
 
     def _add_info(self, tar):
