@@ -79,6 +79,7 @@ def create_k8s_args(
     k8s_operator_args = dict(
         namespace=namespace,
         service_account=service_account,
+        # todo : pass secrets from metaflow to Kubernetes via airflow
         secrets=secrets,
         node_selector=node_selector,
         cmds=k8s._command(

@@ -1,16 +1,19 @@
 # Airflow Integration 
 
+## Compute Support : 
+- K8s
+
+## How does it work ? 
+The cli provides a `airflow create` command which helps convert a metaflow flow into an Airflow Workflow file. In the below example `a.py` will be an airflow workflow. 
 ```sh
 # create python file
 python section_exp.py airflow create a.py
 ```
+Once `a.py` is created it can be placed into the Airflow's dags folder. From there the tasks will be orchestrated onto kubernetes. 
 
-## How does it work : 
-1. Metaflow converts the flow into a intermediate JSON like format and then writes it to a python file template provided in `af_deploy.py`. 
-2. The JSON in the compiled airflow file will be used to compile the Airflow DAG at runtime. Even though airflow provides `airflow.serialization.serialized_objects.SerializedDAG`, we cannot use this to directly serialize the DAG. This class can only be used in the scope of scheduler and webserver
+## Details of workings. 
 
-## Some Pointers Before Running Scheduler
+The [airflow_utils.py](airflow_utils.py) contains the utility functions/classes to create the workflow and export the workflow into dictionary format. 
 
-Before running `airflow scheduler` ensure that metaflow is installed in the PYTHONPATH. 
+The [airflow_compiler.py](airflow_compiler.py) leverages `airflow_utils.py` to the compile the workflow into dictionary format and then using mustache we create the airflow file. The [af_deploy.py](af_deploy.py) file has the python template. The [airflow_utils.py](airflow_utils.py) is pasted as is into the template. The code in the compiled workflow reusese the [airflow_utils.py](airflow_utils.py) code convert the dictionary format into airflow `Operator`s and `DAG`.
 
-The DAG compiled from the flow will use API's exposed via metaflow to compile and interpret the DAG.  

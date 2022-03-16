@@ -89,11 +89,18 @@ class Airflow(object):
         # todo : should we allow mix and match of compute providers
         # todo : fill information here.
         self.workflow_timeout = 10
-        self.schedule_interval = "*/2 * * * *"
+        # todo : resolve schedule interval based on decorator.
+        self.schedule_interval = self._get_schedule()
         self._file_path = file_path
 
+    def _get_schedule(self):
+        schedule = self.flow._flow_decorators.get("schedule")
+        if schedule:
+            return schedule.schedule
+        # Airflow requires a scheduling arguement so keeping this
+        return "*/2 * * * *"
+
     def _k8s_job(self, node, input_paths, env):
-        # todo check if the Node has some
         # todo : check for retry
         # since we are attaching k8s at cli, there will be one for a step.
         k8s_deco = [deco for deco in node.decorators if deco.name == "kubernetes"][0]
