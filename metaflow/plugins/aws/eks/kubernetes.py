@@ -18,6 +18,7 @@ from metaflow.metaflow_config import (
     DEFAULT_METADATA,
     BATCH_METADATA_SERVICE_HEADERS,
     DATASTORE_CARD_S3ROOT,
+    DEFAULT_AWS_CLIENT_PROVIDER,
 )
 from metaflow.mflog import (
     export_mflog_env_vars,
@@ -249,6 +250,9 @@ class Kubernetes(object):
             .environment_variable("METAFLOW_KUBERNETES_WORKLOAD", 1)
             .environment_variable("METAFLOW_RUNTIME_ENVIRONMENT", "kubernetes")
             .environment_variable("METAFLOW_CARD_S3ROOT", DATASTORE_CARD_S3ROOT)
+            .environment_variable(
+                "METAFLOW_DEFAULT_AWS_CLIENT_PROVIDER", DEFAULT_AWS_CLIENT_PROVIDER
+            )
             .label("app", "metaflow")
             .label("metaflow/flow_name", sanitize_label_value(self._flow_name))
             .label("metaflow/run_id", sanitize_label_value(self._run_id))
