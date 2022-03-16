@@ -22,7 +22,7 @@ from metaflow.metaflow_config import (
 )
 from metaflow.mflog import (
     export_mflog_env_vars,
-    capture_output_to_mflog,
+    bash_capture_logs,
     tail_logs,
     BASH_SAVE_LOGS,
 )
@@ -136,13 +136,10 @@ class Kubernetes(object):
         )
         init_cmds = self._environment.get_package_commands(code_package_url)
         init_expr = " && ".join(init_cmds)
-        step_expr = " && ".join(
-            [
-                capture_output_to_mflog(a)
-                for a in (
-                    self._environment.bootstrap_commands(self._step_name) + step_cmds
-                )
-            ]
+        step_expr = bash_capture_logs(
+            " && ".join(
+                self._environment.bootstrap_commands(self._step_name) + step_cmds
+            )
         )
 
         # Construct an entry point that
