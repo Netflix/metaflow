@@ -66,7 +66,7 @@ class DefaultEditableCardWithIdTest(MetaflowTest):
                         step.name,
                         task_id,
                         "test_editable_card",
-                        "%d\n" % number,
+                        "%d" % number,
                         card_hash=card["hash"],
                         exact_match=True,
                     )
