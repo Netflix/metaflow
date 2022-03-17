@@ -36,6 +36,9 @@ AIRFLOW_PREFIX = "arf"
 
 class Airflow(object):
 
+    # todo : consistency gaurentee across retries. 
+    # IE task_id doesn't change when new retry is done. 
+    # Check if task_id also works 
     task_id = "arf-{{ ti.job_id }}"
     task_id_arg = "--task-id %s" % task_id
     # Airflow run_ids are of the form : "manual__2022-03-15T01:26:41.186781+00:00"
@@ -226,7 +229,7 @@ class Airflow(object):
         else:
             if node.parallel_foreach:
                 raise AirflowException(
-                    "Parallel steps are not supported yet with AWS step functions."
+                    "Parallel steps are not supported yet with Airflow."
                 )
 
             # Handle foreach join.
@@ -234,9 +237,8 @@ class Airflow(object):
                 # todo : Handle split values + input_paths
                 pass
             else:
-                # Set appropriate environment variables for runtime replacement.
                 if len(node.in_funcs) == 1:
-                    # todo : set input paths where this is only one parent node
+                    # set input paths where this is only one parent node
                     # The parent-task-id is passed via the xcom;
                     input_paths = (
                         # This is set using the `airflow_internal` decorator.
@@ -320,6 +322,8 @@ class Airflow(object):
             top_opts_dict.update(deco.get_top_level_options())
 
         top_opts = list(dict_to_cli_options(top_opts_dict))
+        join_in_foreach = node.type == "join" and self.graph[node.split_parents[-1]].type == "foreach"
+        any_previous_node_is_foreach = any(self.graph[n].type == "foreach" for n in node.in_funcs)
 
         top_level = top_opts + [
             "--quiet",
@@ -385,18 +389,9 @@ class Airflow(object):
             # set input paths for parameters
             paths = "%s/_parameters/%s" % (self.run_id, task_id_params)
 
-        if node.type == "join" and self.graph[node.split_parents[-1]].type == "foreach":
+        if join_in_foreach:
             # todo : handle join case
             pass
-            # parent_tasks_file = "".join(
-            #     random.choice(string.ascii_lowercase) for _ in range(10)
-            # )
-            # export_parent_tasks = capture_output_to_mflog(
-            #     "python -m "
-            #     "metaflow.plugins.aws.step_functions.set_batch_environment "
-            #     "parent_tasks %s && . `pwd`/%s" % (parent_tasks_file, parent_tasks_file)
-            # )
-            # cmds.append(export_parent_tasks)
 
         step = [
             "step",
@@ -407,8 +402,8 @@ class Airflow(object):
             "--max-user-code-retries %d" % user_code_retries,
             "--input-paths %s" % paths,
         ]
-        if any(self.graph[n].type == "foreach" for n in node.in_funcs):
-            # # todo step.append("--split-index $METAFLOW_SPLIT_INDEX")
+        if any_previous_node_is_foreach:
+            # todo step.append("--split-index $METAFLOW_SPLIT_INDEX")
             pass
         if self.tags:
             step.extend("--tag %s" % tag for tag in self.tags)
