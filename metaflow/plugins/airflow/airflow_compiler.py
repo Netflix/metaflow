@@ -10,7 +10,7 @@ import sys
 from metaflow.util import compress_list, dict_to_cli_options, to_pascalcase
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 import os
-from metaflow.mflog import capture_output_to_mflog
+from metaflow.mflog import bash_capture_logs
 import random
 import string
 import json
@@ -380,7 +380,7 @@ class Airflow(object):
             # Setup Parameters as environment variables which are stored in a dictionary.
             export_params = " && ".join(
                 [
-                    capture_output_to_mflog(
+                    bash_capture_logs(
                         "python -m metaflow.plugins.airflow.plumbing.set_parameters %s"
                         % param_file
                     ),
@@ -415,7 +415,7 @@ class Airflow(object):
             cmd = "if ! %s >/dev/null 2>/dev/null; then %s && %s; fi" % (
                 " ".join(exists),
                 export_params,
-                capture_output_to_mflog(" ".join(params)),
+                bash_capture_logs(" ".join(params)),
             )
             cmds.append(cmd)
             # set input paths for parameters
@@ -441,7 +441,7 @@ class Airflow(object):
             step.extend("--tag %s" % tag for tag in self.tags)
         if self.namespace is not None:
             step.append("--namespace=%s" % self.namespace)
-        cmds.append(capture_output_to_mflog(" ".join(entrypoint + top_level + step)))
+        cmds.append(bash_capture_logs(" ".join(entrypoint + top_level + step)))
         return " && ".join(cmds)
 
     def _validate_workflow(self):
