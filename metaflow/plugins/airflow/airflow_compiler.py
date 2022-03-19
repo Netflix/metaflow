@@ -19,7 +19,13 @@ from metaflow.graph import FlowGraph, DAGNode
 from metaflow.plugins.cards.card_modules import chevron
 from metaflow.plugins.aws.aws_utils import compute_resource_attributes
 from .exceptions import AirflowNotPresent, AirflowException
-from .airflow_utils import Workflow, AirflowTask, AirflowDAGArgs
+from .airflow_utils import (
+    TASK_ID_XCOM_KEY,
+    Workflow,
+    AirflowTask,
+    AirflowDAGArgs,
+    AIRFLOW_TASK_ID_TEMPLATE_VALUE,
+)
 from . import airflow_utils as af_utils
 from .compute.k8s import create_k8s_args
 import metaflow.util as util
@@ -37,11 +43,9 @@ AIRFLOW_PREFIX = "arf"
 
 class Airflow(object):
 
-    # {{ ti.job_id }} is doesn't provide the gaurentees we need for `Task` ids.
-    # {{ ti.job_id }} changes when retry is done.
-
-    task_id = "arf-{{ ti.job_id }}"
+    task_id = AIRFLOW_TASK_ID_TEMPLATE_VALUE
     task_id_arg = "--task-id %s" % task_id
+
     # Airflow run_ids are of the form : "manual__2022-03-15T01:26:41.186781+00:00"
     # Such run-ids break the `metaflow.util.decompress_list`; this is why we hash the runid
     run_id = "%s-$(echo -n {{ run_id }} | md5sum | awk '{print $1}')" % AIRFLOW_PREFIX
@@ -110,8 +114,9 @@ class Airflow(object):
         k8s_deco = [deco for deco in node.decorators if deco.name == "kubernetes"][0]
         user_code_retries, total_retries = self._get_retries(node)
         retry_delay = self._get_retry_delay(node)
+        # This sets timeouts for @timeout decorators.
+        # The timeout is set as "execution_timeout" for an airflow task.
         runtime_limit = get_run_time_limit_for_task(node.decorators)
-
         return create_k8s_args(
             self.flow_datastore,
             self.metadata,
@@ -155,8 +160,8 @@ class Airflow(object):
     def _get_retry_delay(self, node):
         retry_decos = [deco for deco in node.decorators if deco.name == "retry"]
         if len(retry_decos) > 0:
-            retry_mins = retry_decos[0]["attributes"]["minutes_between_retries"]
-            return timedelta(minutes=retry_mins)
+            retry_mins = retry_decos[0].attributes["minutes_between_retries"]
+            return timedelta(minutes=int(retry_mins))
         return None
 
     def _process_parameters(self):
@@ -251,11 +256,22 @@ class Airflow(object):
             else:
                 if len(node.in_funcs) == 1:
                     # set input paths where this is only one parent node
-                    # The parent-task-id is passed via the xcom;
+                    # The parent-task-id is passed via the xcom; There is no other way to get that.
+                    # One key thing about xcoms is that they are immutable and only accepted if the task
+                    # doesn't fail.
+                    # From airflow docs :
+                    # "Note: If the first task run is not succeeded then on every retry task XComs will be cleared to make the task run idempotent."
                     input_paths = (
                         # This is set using the `airflow_internal` decorator.
-                        "%s/%s/{{ task_instance.xcom_pull('%s')['metaflow_task_id'] }}"
-                        % (self.run_id, node.in_funcs[0], node.in_funcs[0])
+                        # This will pull the `return_value` xcom which holds a dictionary.
+                        # This helps pass state.
+                        "%s/%s/{{ task_instance.xcom_pull(task_ids='%s')['%s'] }}"
+                        % (
+                            self.run_id,
+                            node.in_funcs[0],
+                            node.in_funcs[0],
+                            TASK_ID_XCOM_KEY,
+                        )
                     )
                 else:
                     # this is a split scenario where there can be more than one input paths.

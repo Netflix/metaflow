@@ -7,9 +7,20 @@ import random
 import hashlib
 import re
 from datetime import timedelta, datetime
-import hashlib
 
 LABEL_VALUE_REGEX = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9\-\_\.]{0,61}[a-zA-Z0-9])?$")
+
+TASK_ID_XCOM_KEY = "metaflow_task_id"
+
+# AIRFLOW_TASK_ID_TEMPLATE_VALUE will work for linear/branched workflows.
+# ti.task_id is the stepname in metaflow code.
+# AIRFLOW_TASK_ID_TEMPLATE_VALUE uses a jinja filter called `task_id_creator` which helps
+# concatenate the string using a `/`. Since run-id will keep changing and stepname will be
+# the same task id will change. Since airflow doesn't encourage dynamic rewriting of dags
+# we can rename steps in a foreach with indexes (eg. `stepname-$index`) to create those steps.
+# Hence : Foreachs will require some special form of plumbing.
+# https://stackoverflow.com/questions/62962386/can-an-airflow-task-dynamically-generate-a-dag-at-runtime
+AIRFLOW_TASK_ID_TEMPLATE_VALUE = "arf-{{ [run_id, ti.task_id ] | task_id_creator  }}"
 
 
 def sanitize_label_value(val):
@@ -33,6 +44,13 @@ def sanitize_label_value(val):
 
 def hasher(my_value):
     return hashlib.md5(my_value.encode("utf-8")).hexdigest()
+
+
+def task_id_creator(lst):
+    # This is a filter which creates a hash of the run_id/step_name string.
+    # Since run_ids in airflow are constants, they don't create an issue with the
+    #
+    return hashlib.md5("/".join(lst).encode("utf-8")).hexdigest()
 
 
 class AirflowDAGArgs(object):
@@ -74,7 +92,10 @@ class AirflowDAGArgs(object):
 
     metaflow_centric_args = {
         # Reference for user_defined_filters : https://stackoverflow.com/a/70175317
-        "user_defined_filters": dict(hash=lambda my_value: hasher(my_value)),
+        "user_defined_filters": dict(
+            hash=lambda my_value: hasher(my_value),
+            task_id_creator=lambda v: task_id_creator(v),
+        ),
     }
 
     def __init__(self, **kwargs):
@@ -151,9 +172,7 @@ def generate_rfc1123_name(flow_name, step_name):
 def set_k8s_operator_args(flow_name, step_name, operator_args):
     from kubernetes import client
 
-    task_id = (
-        "arf-{{ ti.job_id }}"  # Todo : find a way to switch this with something else.
-    )
+    task_id = AIRFLOW_TASK_ID_TEMPLATE_VALUE
     run_id = "arf-{{ run_id | hash }}"  # hash is added via the `user_defined_filters`
     attempt = "{{ task_instance.try_number - 1 }}"
     # Set dynamic env variables like run-id, task-id etc from here.
@@ -165,6 +184,8 @@ def set_k8s_operator_args(flow_name, step_name, operator_args):
         for k, v in dict(
             METAFLOW_RUN_ID=run_id,
             METAFLOW_AIRFLOW_TASK_ID=task_id,
+            METAFLOW_AIRFLOW_DAG_RUN_ID="{{run_id}}",
+            METAFLOW_AIRFLOW_JOB_ID="{{ti.job_id}}",
             METAFLOW_ATTEMPT_NUMBER=attempt,
         ).items()
     ]
@@ -179,6 +200,7 @@ def set_k8s_operator_args(flow_name, step_name, operator_args):
     ]
     volumes = [client.V1Volume(**v) for v in operator_args.get("volumes", [])]
     args = {
+        # "on_retry_callback": retry_callback,
         "namespace": operator_args.get("namespace", "airflow"),
         "image": operator_args.get("image", "python"),
         "name": generate_rfc1123_name(flow_name, step_name),
@@ -241,12 +263,10 @@ def set_k8s_operator_args(flow_name, step_name, operator_args):
     }
     args["labels"].update(labels)
     if operator_args.get("execution_timeout", None):
-        args["execution_timeout"] = (
-            timedelta(
-                **operator_args.get(
-                    "execution_timeout",
-                )
-            ),
+        args["execution_timeout"] = timedelta(
+            **operator_args.get(
+                "execution_timeout",
+            )
         )
     if operator_args.get("retry_delay", None):
         args["retry_delay"] = timedelta(**operator_args.get("retry_delay"))
