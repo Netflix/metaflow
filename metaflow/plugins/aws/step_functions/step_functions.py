@@ -649,6 +649,7 @@ class StepFunctions(object):
             # AWS_BATCH_JOB_ATTEMPT as the job counter.
             "retry_count": "$((AWS_BATCH_JOB_ATTEMPT-1))",
         }
+
         return (
             Batch(self.metadata, self.environment)
             .create_job(
@@ -737,7 +738,6 @@ class StepFunctions(object):
             param_file = "".join(
                 random.choice(string.ascii_lowercase) for _ in range(10)
             )
-            # Setup Parameters as environment variables which are stored in a dictionary.
             export_params = " && ".join(
                 [
                     capture_output_to_mflog(
@@ -807,7 +807,6 @@ class StepFunctions(object):
         if self.namespace is not None:
             step.append("--namespace=%s" % self.namespace)
         cmds.append(capture_output_to_mflog(" ".join(entrypoint + top_level + step)))
-        print("\n\n\n", cmds, "\n\n\n")
         return " && ".join(cmds)
 
 
