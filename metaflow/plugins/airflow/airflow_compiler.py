@@ -112,7 +112,7 @@ class Airflow(object):
         # todo : check for retry
         # since we are attaching k8s at cli, there will be one for a step.
         k8s_deco = [deco for deco in node.decorators if deco.name == "kubernetes"][0]
-        user_code_retries, total_retries = self._get_retries(node)
+        user_code_retries, _ = self._get_retries(node)
         retry_delay = self._get_retry_delay(node)
         # This sets timeouts for @timeout decorators.
         # The timeout is set as "execution_timeout" for an airflow task.
@@ -138,7 +138,7 @@ class Airflow(object):
             gpu=k8s_deco.attributes["gpu"],
             disk=k8s_deco.attributes["disk"],
             memory=k8s_deco.attributes["memory"],
-            retries=total_retries,
+            retries=user_code_retries,
             run_time_limit=timedelta(seconds=runtime_limit),
             retry_delay=retry_delay,
             env=env,
