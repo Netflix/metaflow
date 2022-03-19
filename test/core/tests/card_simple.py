@@ -51,7 +51,7 @@ class CardDecoratorBasicTest(MetaflowTest):
                         step.name,
                         task_id,
                         "taskspec_card",
-                        "%s\n" % taskpathspec_artifact,
+                        "%s" % taskpathspec_artifact,
                     )
         else:
             # This means MetadataCheck is in context.

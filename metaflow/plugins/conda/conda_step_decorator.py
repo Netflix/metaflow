@@ -1,4 +1,5 @@
 import importlib
+import json
 import os
 import sys
 from hashlib import sha1
@@ -250,12 +251,23 @@ class CondaStepDecorator(StepDecorator):
         self.addl_paths = None
         os.symlink(path_to_metaflow, os.path.join(self.metaflow_home, "metaflow"))
 
-        # Also symlink the INFO version to properly propagate down version information
-        # from, for example, a step-function execution
+        # Symlink the INFO file as well to properly propagate down the Metaflow version
+        # if launching on AWS Batch for example
         if os.path.isfile(path_to_info):
             os.symlink(path_to_info, os.path.join(self.metaflow_home, "INFO"))
+        else:
+            # If there is no "INFO" file, we will actually create one in this new
+            # place because we won't be able to properly resolve the EXT_PKG extensions
+            # the same way as outside conda (looking at distributions, etc). In a
+            # Conda environment, as shown below (where we set self.addl_paths), all
+            # EXT_PKG extensions are PYTHONPATH extensions. Instead of re-resolving,
+            # we use the resolved information that is written out to the INFO file.
+            with open(
+                os.path.join(self.metaflow_home, "INFO"), mode="wt", encoding="utf-8"
+            ) as f:
+                f.write(json.dumps(self._cur_environment.get_environment_info()))
 
-        # Do the same for metaflow_extensions
+        # Do the same for EXT_PKG
         try:
             m = importlib.import_module(EXT_PKG)
         except ImportError:
@@ -263,17 +275,27 @@ class CondaStepDecorator(StepDecorator):
             # for other issues when loading at the toplevel
             pass
         else:
-            custom_paths = list(m.__path__)
+            custom_paths = list(set(m.__path__))  # For some reason, at times, unique
+            # paths appear multiple times. We simplify
+            # to avoid un-necessary links
+
             if len(custom_paths) == 1:
-                # Regular package
+                # Regular package; we take a quick shortcut here
                 os.symlink(
                     custom_paths[0],
                     os.path.join(self.metaflow_home, EXT_PKG),
                 )
             else:
-                # Namespace package; we don't symlink but add the additional paths
-                # for the conda interpreter
-                self.addl_paths = [os.path.split(p)[0] for p in custom_paths]
+                # This is a namespace package, we therefore create a bunch of directories
+                # so we can symlink in those separately and we will add those paths
+                # to the PYTHONPATH for the interpreter. Note that we don't symlink
+                # to the parent of the package because that could end up including
+                # more stuff we don't want
+                self.addl_paths = []
+                for p in custom_paths:
+                    temp_dir = tempfile.mkdtemp(dir=self.metaflow_home)
+                    os.symlink(p, os.path.join(temp_dir, EXT_PKG))
+                    self.addl_paths.append(temp_dir)
 
         # Also install any environment escape overrides directly here to enable
         # the escape to work even in non metaflow-created subprocesses
@@ -299,6 +321,7 @@ class CondaStepDecorator(StepDecorator):
         os.environ["PYTHONNOUSERSITE"] = "1"
 
     def package_init(self, flow, step, environment):
+        self._cur_environment = environment
         if self.is_enabled():
             self._prepare_step_environment(step, self.local_root)
 

@@ -9,8 +9,14 @@ install_deps() {
   done
 }
 
+install_extensions() {
+    cd test/extensions
+    sh install_packages.sh
+    cd ../../
+}
+
 run_tests() {
   cd test/core && PYTHONPATH=`pwd`/../../ python3 run_tests.py --num-parallel 8
 }
 
-install_deps && run_tests
+install_deps && install_extensions && run_tests 
