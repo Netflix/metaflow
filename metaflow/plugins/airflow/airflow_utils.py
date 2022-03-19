@@ -36,6 +36,9 @@ def hasher(my_value):
 
 
 class AirflowDAGArgs(object):
+    # _arg_types This object helps map types of
+    # different keys that need to be parsed. None of the values in this
+    # dictionary are being used.
     _arg_types = {
         "dag_id": "asdf",
         "description": "asdfasf",
@@ -43,6 +46,7 @@ class AirflowDAGArgs(object):
         "start_date": datetime.now(),
         "catchup": False,
         "tags": [],
+        "max_retry_delay": "",
         "dagrun_timeout": timedelta(minutes=60 * 4),
         "default_args": {
             "owner": "some_username",
@@ -51,9 +55,10 @@ class AirflowDAGArgs(object):
             "email_on_failure": False,
             "email_on_retry": False,
             "retries": 1,
-            "retry_delay": timedelta(minutes=5),
-            "queue": "bash_queue",
-            "pool": "backfill",
+            # Todo : find defaults
+            "retry_delay": timedelta(seconds=10),
+            "queue": "bash_queue",  #  which queue to target when running this job. Not all executors implement queue management, the CeleryExecutor does support targeting specific queues.
+            "pool": "backfill",  # the slot pool this task should run in, slot pools are a way to limit concurrency for certain tasks
             "priority_weight": 10,
             "wait_for_downstream": False,
             "sla": timedelta(hours=2),
@@ -146,7 +151,9 @@ def generate_rfc1123_name(flow_name, step_name):
 def set_k8s_operator_args(flow_name, step_name, operator_args):
     from kubernetes import client
 
-    task_id = "arf-{{ ti.job_id }}"
+    task_id = (
+        "arf-{{ ti.job_id }}"  # Todo : find a way to switch this with something else.
+    )
     run_id = "arf-{{ run_id | hash }}"  # hash is added via the `user_defined_filters`
     attempt = "{{ task_instance.try_number - 1 }}"
     # Set dynamic env variables like run-id, task-id etc from here.
@@ -201,6 +208,8 @@ def set_k8s_operator_args(flow_name, step_name, operator_args):
                 "memory": operator_args.get("memory", "2000M"),
             }
         ),  # kubernetes.client.models.v1_resource_requirements.V1ResourceRequirements
+        "retries": operator_args.get("retries", 0),  # Base operator command
+        "retry_exponential_backoff": False,  # todo : should this be a arg we allow on CLI.
         "affinity": None,  # kubernetes.client.models.v1_affinity.V1Affinity
         "config_file": None,
         "node_selectors": {},  # todo : Find difference between "node_selectors" / "node_selector"
@@ -231,6 +240,16 @@ def set_k8s_operator_args(flow_name, step_name, operator_args):
         "configmaps": None,  # todo : find out what this will do ?
     }
     args["labels"].update(labels)
+    if operator_args.get("execution_timeout", None):
+        args["execution_timeout"] = (
+            timedelta(
+                **operator_args.get(
+                    "execution_timeout",
+                )
+            ),
+        )
+    if operator_args.get("retry_delay", None):
+        args["retry_delay"] = timedelta(**operator_args.get("retry_delay"))
     return args
 
 

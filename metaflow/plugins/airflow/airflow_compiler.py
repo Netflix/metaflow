@@ -8,6 +8,7 @@ from metaflow.util import get_username
 from metaflow import R
 import sys
 from metaflow.util import compress_list, dict_to_cli_options, to_pascalcase
+from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 import os
 from metaflow.mflog import capture_output_to_mflog
 import random
@@ -36,9 +37,9 @@ AIRFLOW_PREFIX = "arf"
 
 class Airflow(object):
 
-    # todo : consistency gaurentee across retries. 
-    # IE task_id doesn't change when new retry is done. 
-    # Check if task_id also works 
+    # {{ ti.job_id }} is doesn't provide the gaurentees we need for `Task` ids.
+    # {{ ti.job_id }} changes when retry is done.
+
     task_id = "arf-{{ ti.job_id }}"
     task_id_arg = "--task-id %s" % task_id
     # Airflow run_ids are of the form : "manual__2022-03-15T01:26:41.186781+00:00"
@@ -107,8 +108,10 @@ class Airflow(object):
         # todo : check for retry
         # since we are attaching k8s at cli, there will be one for a step.
         k8s_deco = [deco for deco in node.decorators if deco.name == "kubernetes"][0]
-
         user_code_retries, total_retries = self._get_retries(node)
+        retry_delay = self._get_retry_delay(node)
+        runtime_limit = get_run_time_limit_for_task(node.decorators)
+
         return create_k8s_args(
             self.flow_datastore,
             self.metadata,
@@ -130,7 +133,9 @@ class Airflow(object):
             gpu=k8s_deco.attributes["gpu"],
             disk=k8s_deco.attributes["disk"],
             memory=k8s_deco.attributes["memory"],
-            run_time_limit=None,  # todo fix
+            retries=total_retries,
+            run_time_limit=timedelta(seconds=runtime_limit),
+            retry_delay=retry_delay,
             env=env,
             user=util.get_username(),
         )
@@ -146,6 +151,13 @@ class Airflow(object):
             max_error_retries = max(max_error_retries, error_retries)
 
         return max_user_code_retries, max_user_code_retries + max_error_retries
+
+    def _get_retry_delay(self, node):
+        retry_decos = [deco for deco in node.decorators if deco.name == "retry"]
+        if len(retry_decos) > 0:
+            retry_mins = retry_decos[0]["attributes"]["minutes_between_retries"]
+            return timedelta(minutes=retry_mins)
+        return None
 
     def _process_parameters(self):
         # Copied from metaflow.plugins.aws.step_functions.step_functions
@@ -322,8 +334,12 @@ class Airflow(object):
             top_opts_dict.update(deco.get_top_level_options())
 
         top_opts = list(dict_to_cli_options(top_opts_dict))
-        join_in_foreach = node.type == "join" and self.graph[node.split_parents[-1]].type == "foreach"
-        any_previous_node_is_foreach = any(self.graph[n].type == "foreach" for n in node.in_funcs)
+        join_in_foreach = (
+            node.type == "join" and self.graph[node.split_parents[-1]].type == "foreach"
+        )
+        any_previous_node_is_foreach = any(
+            self.graph[n].type == "foreach" for n in node.in_funcs
+        )
 
         top_level = top_opts + [
             "--quiet",
@@ -488,23 +504,13 @@ class Airflow(object):
     def _create_defaults(self):
         return {
             "owner": get_username(),
+            # If set on a task, doesn’t run the task in the current DAG run if the previous run of the task has failed.
             "depends_on_past": False,
             "email": [] if self.email is None else [self.email],
             "email_on_failure": False,
             "email_on_retry": False,
-            "retries": 1,
-            "retry_delay": timedelta(minutes=5),
-            # 'queue': 'bash_queue',
-            # 'pool': 'backfill',
-            # 'priority_weight': 10,
-            # 'end_date': datetime(2016, 1, 1),
-            # 'wait_for_downstream': False,
-            # 'dag': dag,
-            # 'sla': timedelta(hours=2),
-            # 'execution_timeout': timedelta(seconds=300),
-            # 'on_failure_callback': some_function,
-            # 'on_success_callback': some_other_function,
-            # 'on_retry_callback': another_function,
-            # 'sla_miss_callback': yet_another_function,
-            # 'trigger_rule': 'all_success'
+            "retries": 0,
+            "execution_timeout": timedelta(days=5),
+            # check https://airflow.apache.org/docs/apache-airflow/stable/_api/airflow/models/baseoperator/index.html?highlight=retry_delay#airflow.models.baseoperator.BaseOperatorMeta
+            "retry_delay": timedelta(seconds=5),
         }

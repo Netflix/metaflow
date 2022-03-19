@@ -1,3 +1,4 @@
+from datetime import timedelta
 import json
 from metaflow.plugins.aws.eks.kubernetes import (
     Kubernetes,
@@ -38,7 +39,9 @@ def create_k8s_args(
     gpu=None,
     disk=None,
     memory=None,
-    run_time_limit=None,
+    run_time_limit=timedelta(days=5),
+    retries=None,
+    retry_delay=None,
     env={},
     user=None,
 ):
@@ -91,7 +94,9 @@ def create_k8s_args(
         cpu=cpu,
         memory=memory,
         disk=disk,
-        timeout_in_seconds=run_time_limit,
+        execution_timeout=dict(seconds=run_time_limit.total_seconds()),
+        retry_delay=dict(seconds=retry_delay.total_seconds()) if retry_delay else None,
+        retries=retries,
         env_vars=[dict(name=k, value=v) for k, v in env.items()],
         labels=labels,
         is_delete_operator_pod=True,
