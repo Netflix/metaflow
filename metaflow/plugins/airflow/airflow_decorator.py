@@ -40,12 +40,11 @@ class AirflowInternalDecorator(StepDecorator):
         ]
         # Register book-keeping metadata for debugging.
         metadata.register_metadata(run_id, step_name, task_id, entries)
-        if retry_count == 0:
-            push_xcom_values(
-                {
-                    TASK_ID_XCOM_KEY: os.environ["METAFLOW_AIRFLOW_TASK_ID"],
-                }
-            )
+        push_xcom_values(
+            {
+                TASK_ID_XCOM_KEY: os.environ["METAFLOW_AIRFLOW_TASK_ID"],
+            }
+        )
 
     def task_finished(
         self, step_name, flow, graph, is_task_ok, retry_count, max_user_code_retries
