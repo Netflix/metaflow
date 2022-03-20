@@ -53,6 +53,10 @@ def task_id_creator(lst):
     return hashlib.md5("/".join(lst).encode("utf-8")).hexdigest()
 
 
+def json_dump(val):
+    return json.dumps(val)
+
+
 class AirflowDAGArgs(object):
     # _arg_types This object helps map types of
     # different keys that need to be parsed. None of the values in this
@@ -95,6 +99,7 @@ class AirflowDAGArgs(object):
         "user_defined_filters": dict(
             hash=lambda my_value: hasher(my_value),
             task_id_creator=lambda v: task_id_creator(v),
+            json_dump=lambda val: json_dump(val),
         ),
     }
 
@@ -343,6 +348,10 @@ class Workflow(object):
         self._file_path = file_path
         tree = lambda: defaultdict(tree)
         self.states = tree()
+        self.metaflow_params = None
+
+    def set_parameters(self, params):
+        self.metaflow_params = params
 
     def add_state(self, state):
         self.states[state.name] = state
@@ -352,6 +361,7 @@ class Workflow(object):
             states={s: v.to_dict() for s, v in self.states.items()},
             dag_instantiation_params=self._dag_instantiation_params.to_dict(),
             file_path=self._file_path,
+            metaflow_params=self.metaflow_params,
         )
 
     def to_json(self):
@@ -372,6 +382,7 @@ class Workflow(object):
                     sd, flow_name=re_cls._dag_instantiation_params.arguements["dag_id"]
                 )
             )
+        re_cls.set_parameters(data_dict["metaflow_params"])
         return re_cls
 
     @classmethod
@@ -379,10 +390,23 @@ class Workflow(object):
         data = json.loads(json_string)
         return cls.from_dict(data)
 
+    def _construct_params(self):
+        from airflow.models.param import Param
+
+        if self.metaflow_params is None:
+            return {}
+        param_dict = {}
+        for p in self.metaflow_params:
+            name = p["name"]
+            del p["name"]
+            param_dict[name] = Param(**p)
+        return param_dict
+
     def compile(self):
         from airflow import DAG
 
-        dag = DAG(**self._dag_instantiation_params.arguements)
+        params_dict = self._construct_params()
+        dag = DAG(params=params_dict, **self._dag_instantiation_params.arguements)
         curr_state = self.states["start"]
         curr_task = self.states["start"].to_task()
         prev_task = None

@@ -43,6 +43,8 @@ AIRFLOW_PREFIX = "arf"
 
 class Airflow(object):
 
+    parameter_macro = "{{ params | json_dump }}"
+
     task_id = AIRFLOW_TASK_ID_TEMPLATE_VALUE
     task_id_arg = "--task-id %s" % task_id
 
@@ -96,13 +98,15 @@ class Airflow(object):
         self.catchup = catchup
         self.schedule_interval = self._get_schedule()
         self._file_path = file_path
+        self.metaflow_parameters = None
 
     def _get_schedule(self):
         schedule = self.flow._flow_decorators.get("schedule")
         if schedule:
             return schedule.schedule
-        # Airflow requires a scheduling arguement so keeping this
-        return "*/2 * * * *"
+        # Schedule can be None.
+        # Especially if parameters are provided without defaults from toplevel.
+        return None
 
     def _k8s_job(self, node, input_paths, env):
         # since we are attaching k8s at cli, there will be one for a step.
@@ -163,6 +167,16 @@ class Airflow(object):
         # Copied from metaflow.plugins.aws.step_functions.step_functions
         parameters = []
         seen = set()
+        airflow_params = []
+        allowed_types = [int, str, bool, float]
+        type_transform_dict = {
+            int.__name__: "integer",
+            str.__name__: "string",
+            bool.__name__: "string",
+            float.__name__: "number",
+        }
+        type_parser = {bool.__name__: lambda v: str(v)}
+
         for var, param in self.flow._get_parameters():
             # Throw an exception if the parameter is specified twice.
             norm = param.name.lower()
@@ -181,12 +195,35 @@ class Airflow(object):
             if "default" not in param.kwargs and is_required:
                 raise MetaflowException(
                     "The parameter *%s* does not have a "
-                    "default and is required. Scheduling "
-                    "such parameters via AWS Event Bridge "
-                    "is not currently supported." % param.name
+                    "default while having 'required' set to 'True'. "
+                    "A default is required for such parameters when deploying on Airflow."
+                )
+            if "default" not in param.kwargs and self.schedule_interval:
+                raise MetaflowException(
+                    "When @schedule is set with Airflow, Parameters require default values. "
+                    "The parameter *%s* does not have a "
+                    "'default' set"
                 )
             value = deploy_time_eval(param.kwargs.get("default"))
             parameters.append(dict(name=param.name, value=value))
+            # Setting airflow related param args.
+            param_type = param.kwargs.get("type", None)
+            airflowparam = dict(
+                name=param.name,
+            )
+            phelp = param.kwargs.get("help", None)
+            if value is not None:
+                airflowparam["default"] = value
+            if phelp:
+                airflowparam["description"] = phelp
+            if param_type in allowed_types:
+                airflowparam["type"] = type_transform_dict[param_type.__name__]
+                if param_type.__name__ in type_parser and value is not None:
+                    airflowparam["default"] = type_parser[param_type.__name__](value)
+
+            airflow_params.append(airflowparam)
+        self.metaflow_parameters = airflow_params
+
         return parameters
 
     def _to_job(self, node: DAGNode):
@@ -226,7 +263,7 @@ class Airflow(object):
         if node.name == "start":
             parameters = self._process_parameters()
             if parameters:
-                env["METAFLOW_PARAMETERS"] = "{{ params }}"
+                env["METAFLOW_PARAMETERS"] = self.parameter_macro
                 default_parameters = {}
                 for parameter in parameters:
                     if parameter["value"] is not None:
@@ -495,8 +532,9 @@ class Airflow(object):
             tags=self.tags,
             file_path=self._file_path,
         )
-        json_dag = _visit(self.graph["start"], workflow).to_dict()
-        return self._create_airflow_file(json_dag)
+        workflow = _visit(self.graph["start"], workflow)
+        workflow.set_parameters(self.metaflow_parameters)
+        return self._create_airflow_file(workflow.to_dict())
 
     def _create_airflow_file(self, json_dag):
         util_file = None
