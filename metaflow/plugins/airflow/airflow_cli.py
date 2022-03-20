@@ -18,7 +18,8 @@ def airflow(ctx):
 
 
 def make_flow(obj, tags, namespace, worker_pools, is_project, file_path=None):
-    # Attach K8s decorator over here. This will be affected in the future based on how many compute providers are supported on Airflow.
+    # Attach K8s decorator over here.
+    # todo This will be affected in the future based on how many compute providers are supported on Airflow.
     decorators._attach_decorators(obj.flow, [KubernetesDecorator.name])
     decorators._init_step_decorators(
         obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger

@@ -94,10 +94,6 @@ class Airflow(object):
         self.description = description
         self.start_date = start_date
         self.catchup = catchup
-        # todo : should we allow mix and match of compute providers
-        # todo : fill information here.
-        self.workflow_timeout = 10
-        # todo : resolve schedule interval based on decorator.
         self.schedule_interval = self._get_schedule()
         self._file_path = file_path
 
@@ -109,7 +105,6 @@ class Airflow(object):
         return "*/2 * * * *"
 
     def _k8s_job(self, node, input_paths, env):
-        # todo : check for retry
         # since we are attaching k8s at cli, there will be one for a step.
         k8s_deco = [deco for deco in node.decorators if deco.name == "kubernetes"][0]
         user_code_retries, _ = self._get_retries(node)
@@ -283,8 +278,6 @@ class Airflow(object):
                 # Todo : Handle This case
                 pass
 
-            # todo : Check if timeout needs to be set explicitly
-
             if any_incoming_node_is_foreach:
                 # todo : Handle split index for for-each.
                 # step.append("--split-index $METAFLOW_SPLIT_INDEX")
@@ -409,7 +402,6 @@ class Airflow(object):
                 # Dump the parameters task
                 "dump",
                 "--max-value-size=0",
-                # todo : set task_id for parameters
                 "%s/_parameters/%s" % (self.run_id, task_id_params),
             ]
             cmd = "if ! %s >/dev/null 2>/dev/null; then %s && %s; fi" % (
@@ -445,8 +437,12 @@ class Airflow(object):
         return " && ".join(cmds)
 
     def _validate_workflow(self):
-        # todo : validate if this workflow is compatible with airflow's current parameters
+        # todo : check for batch/ other decorators.
         # supported compute : k8s (v1), local(v2), batch(v3),
+        if self.metadata.TYPE != "service":
+            raise AirflowException('Metadata of type "service" required with Airflow')
+        if self.flow_datastore.TYPE != "s3":
+            raise AirflowException('Datastore of type "s3" required with Airflow')
         # supported datastore : s3 (v1)
         # supported metadata : service
         pass
