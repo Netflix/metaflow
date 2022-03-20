@@ -99,9 +99,11 @@ class Airflow(object):
         self.schedule_interval = self._get_schedule()
         self._file_path = file_path
         self.metaflow_parameters = None
+        _, self.graph_structure = self.graph.output_steps()
 
     def _get_schedule(self):
         schedule = self.flow._flow_decorators.get("schedule")
+        # todo : Fix bug here in schedule. The regex pattern doesn't work as intended.
         if schedule:
             return schedule.schedule
         # Schedule can be None.
@@ -226,6 +228,29 @@ class Airflow(object):
 
         return parameters
 
+    def _make_parent_input_path_compressed(
+        self,
+        step_names,
+    ):
+        return "%s:" % (self.run_id) + ",".join(
+            self._make_parent_input_path(s, only_task_id=True) for s in step_names
+        )
+
+    def _make_parent_input_path(self, step_name, only_task_id=False):
+        # This is set using the `airflow_internal` decorator.
+        # This will pull the `return_value` xcom which holds a dictionary.
+        # This helps pass state.
+        task_id_string = "/%s/{{ task_instance.xcom_pull(task_ids='%s')['%s'] }}" % (
+            step_name,
+            step_name,
+            TASK_ID_XCOM_KEY,
+        )
+
+        if only_task_id:
+            return task_id_string
+
+        return "%s%s" % (self.run_id, task_id_string)
+
     def _to_job(self, node: DAGNode):
         # supported compute : k8s (v1), local(v2), batch(v3)
         attrs = {
@@ -261,6 +286,9 @@ class Airflow(object):
         # The Below If/Else Block handle "Input Paths".
         # Input Paths help manage dataflow across the graph.
         if node.name == "start":
+            # Initialize parameters for the flow in the `start` step.
+            # `start` step has no upstream input dependencies aside from
+            # parameters.
             parameters = self._process_parameters()
             if parameters:
                 env["METAFLOW_PARAMETERS"] = self.parameter_macro
@@ -270,10 +298,6 @@ class Airflow(object):
                         default_parameters[parameter["name"]] = parameter["value"]
                 # Dump the default values specified in the flow.
                 env["METAFLOW_DEFAULT_PARAMETERS"] = json.dumps(default_parameters)
-            # Initialize parameters for the flow in the `start` step.
-            # todo : Handle parameters
-            # `start` step has no upstream input dependencies aside from
-            # parameters.
             input_paths = None
         else:
             if node.parallel_foreach:
@@ -293,22 +317,11 @@ class Airflow(object):
                     # doesn't fail.
                     # From airflow docs :
                     # "Note: If the first task run is not succeeded then on every retry task XComs will be cleared to make the task run idempotent."
-                    input_paths = (
-                        # This is set using the `airflow_internal` decorator.
-                        # This will pull the `return_value` xcom which holds a dictionary.
-                        # This helps pass state.
-                        "%s/%s/{{ task_instance.xcom_pull(task_ids='%s')['%s'] }}"
-                        % (
-                            self.run_id,
-                            node.in_funcs[0],
-                            node.in_funcs[0],
-                            TASK_ID_XCOM_KEY,
-                        )
-                    )
+                    input_paths = self._make_parent_input_path(node.in_funcs[0])
                 else:
                     # this is a split scenario where there can be more than one input paths.
-                    # todo : set input paths for a split join step
-                    pass
+                    input_paths = self._make_parent_input_path_compressed(node.in_funcs)
+
             env["METAFLOW_INPUT_PATHS"] = input_paths
 
             if node.is_inside_foreach:
@@ -401,7 +414,6 @@ class Airflow(object):
         if node.name == "start":
             # We need a separate unique ID for the special _parameters task
             task_id_params = "%s-params" % self.task_id
-            # TODO : Currently I am putting this boiler plate because we need to check if parameters are set or not.
             # Export user-defined parameters into runtime environment
             param_file = "".join(
                 random.choice(string.ascii_lowercase) for _ in range(10)
@@ -495,23 +507,30 @@ class Airflow(object):
 
             state = AirflowTask(node.name).set_operator_args(**self._to_job(node))
 
-            if node.type == "end" or exit_node in node.out_funcs:
+            if node.type == "end":
                 workflow.add_state(state)
 
             # Continue linear assignment within the (sub)workflow if the node
             # doesn't branch or fork.
             elif node.type in ("start", "linear", "join"):
-                workflow.add_state(state.next(node.out_funcs[0]))
-                _visit(self.graph[node.out_funcs[0]], workflow, exit_node)
+                workflow.add_state(state)
+                _visit(
+                    self.graph[node.out_funcs[0]],
+                    workflow,
+                )
 
             elif node.type == "split":
-                # Todo : handle Taskgroup in this step cardinality in some way
-                pass
+                workflow.add_state(state)
+                for func in node.out_funcs:
+                    _visit(
+                        self.graph[func],
+                        workflow,
+                    )
 
             elif node.type == "foreach":
                 # Todo : handle foreach cardinality in some way
                 # Continue the traversal from the matching_join.
-                _visit(self.graph[node.matching_join], workflow, exit_node)
+                _visit(self.graph[node.matching_join], workflow)
             # We shouldn't ideally ever get here.
             else:
                 raise AirflowException(
@@ -530,6 +549,7 @@ class Airflow(object):
             catchup=self.catchup,
             tags=self.tags,
             file_path=self._file_path,
+            graph_structure=self.graph_structure,
         )
         workflow = _visit(self.graph["start"], workflow)
         workflow.set_parameters(self.metaflow_parameters)

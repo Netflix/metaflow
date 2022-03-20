@@ -291,25 +291,15 @@ class AirflowTask(object):
         self.name = name
         self._operator_args = None
         self._operator_type = operator_type
-        self._next = None
         self._flow_name = flow_name
 
     def set_operator_args(self, **kwargs):
         self._operator_args = kwargs
         return self
 
-    @property
-    def next_state(self):
-        return self._next
-
-    def next(self, out_func_name):
-        self._next = out_func_name
-        return self
-
     def to_dict(self):
         return {
             "name": self.name,
-            "next": self._next,
             "operator_type": self._operator_type,
             "operator_args": self._operator_args,
         }
@@ -317,17 +307,13 @@ class AirflowTask(object):
     @classmethod
     def from_dict(cls, jsd, flow_name=None):
         op_args = {} if not "operator_args" in jsd else jsd["operator_args"]
-        return (
-            cls(
-                jsd["name"],
-                operator_type=jsd["operator_type"]
-                if "operator_type" in jsd
-                else "kubernetes",
-                flow_name=flow_name,
-            )
-            .next(jsd["next"])
-            .set_operator_args(**op_args)
-        )
+        return cls(
+            jsd["name"],
+            operator_type=jsd["operator_type"]
+            if "operator_type" in jsd
+            else "kubernetes",
+            flow_name=flow_name,
+        ).set_operator_args(**op_args)
 
     def _kubenetes_task(self):
         KubernetesPodOperator = get_k8s_operator()
@@ -337,18 +323,18 @@ class AirflowTask(object):
         return KubernetesPodOperator(**k8s_args)
 
     def to_task(self):
-        # todo fix
         if self._operator_type == "kubernetes":
             return self._kubenetes_task()
 
 
 class Workflow(object):
-    def __init__(self, file_path=None, **kwargs):
+    def __init__(self, file_path=None, graph_structure=None, **kwargs):
         self._dag_instantiation_params = AirflowDAGArgs(**kwargs)
         self._file_path = file_path
         tree = lambda: defaultdict(tree)
         self.states = tree()
         self.metaflow_params = None
+        self.graph_structure = graph_structure
 
     def set_parameters(self, params):
         self.metaflow_params = params
@@ -358,6 +344,7 @@ class Workflow(object):
 
     def to_dict(self):
         return dict(
+            graph_structure=self.graph_structure,
             states={s: v.to_dict() for s, v in self.states.items()},
             dag_instantiation_params=self._dag_instantiation_params.to_dict(),
             file_path=self._file_path,
@@ -371,6 +358,7 @@ class Workflow(object):
     def from_dict(cls, data_dict):
         re_cls = cls(
             file_path=data_dict["file_path"],
+            graph_structure=data_dict["graph_structure"],
         )
         re_cls._dag_instantiation_params = AirflowDAGArgs.from_dict(
             data_dict["dag_instantiation_params"]
@@ -407,20 +395,40 @@ class Workflow(object):
 
         params_dict = self._construct_params()
         dag = DAG(params=params_dict, **self._dag_instantiation_params.arguements)
-        curr_state = self.states["start"]
-        curr_task = self.states["start"].to_task()
-        prev_task = None
-        # Todo : Assert that fileloc is required because the DAG export has that information.
         dag.fileloc = self._file_path if self._file_path is not None else dag.fileloc
-        with dag:
-            while curr_state is not None:
-                curr_task = curr_state.to_task()
-                if prev_task is not None:
-                    prev_task >> curr_task
 
-                if curr_state.next_state is None:
-                    curr_state = None
+        def add_node(node, parents, dag):
+            """
+            A recursive function to traverse the specialized
+            graph_structure datastructure.
+            """
+            if type(node) == str:
+                task = self.states[node].to_task()
+                if parents:
+                    for parent in parents:
+                        parent >> task
+                return [task]  # Return Parent
+
+            # this means a split from parent
+            if type(node) == list:
+                # this means branching since everything within the list is a list
+                if all(isinstance(n, list) for n in node):
+                    curr_parents = parents
+                    parent_list = []
+                    for node_list in node:
+                        last_parent = add_node(node_list, curr_parents, dag)
+                        parent_list.extend(last_parent)
+                    return parent_list
                 else:
-                    curr_state = self.states[curr_state.next_state]
-                prev_task = curr_task
+                    # this means no branching and everything within the list is not a list and can be actual nodes.
+                    curr_parents = parents
+                    for node_x in node:
+                        curr_parents = add_node(node_x, curr_parents, dag)
+                    return curr_parents
+
+        with dag:
+            parent = None
+            for node in self.graph_structure:
+                parent = add_node(node, parent, dag)
+
         return dag
