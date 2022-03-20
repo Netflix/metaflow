@@ -1,2 +1,1 @@
-click==7.1.2
 importlib_metadata==2.1.3

@@ -249,16 +249,14 @@ _aliased_modules = []
 
 if _py_ver >= (3, 4):
     import importlib.util
-    from importlib.machinery import ModuleSpec
 
     if _py_ver >= (3, 8):
         from importlib import metadata
+    elif _py_ver >= (3, 6):
+        from metaflow._vendor.v3_6 import importlib_metadata as metadata
     else:
-        from metaflow._vendor import importlib_metadata as metadata
+        from metaflow._vendor.v3_5 import importlib_metadata as metadata
     _mfext_supported = True
-else:
-    # Something random so there is no syntax error
-    ModuleSpec = None
 
 # Extension points are the directories that can be present in a EXT_PKG to
 # contribute to that extension point. For example, if you have
