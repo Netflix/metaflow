@@ -6,7 +6,7 @@ import re
 import abc
 import csv
 import sys
-from metaflow._vendor import zipp
+from metaflow._vendor.v3_5 import zipp
 import operator
 import functools
 import itertools
