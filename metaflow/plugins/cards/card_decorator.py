@@ -135,7 +135,7 @@ class CardDecorator(StepDecorator):
         ):
             # There should be a warning issued to the user that `id` doesn't match regex pattern
             # Since it is doesn't match pattern, we need to ensure that `id` is not accepted by `current`
-            # and warn users that they cannot use id for thier arguements.
+            # and warn users that they cannot use id for their arguments.
             wrn_msg = (
                 "@card with id '%s' doesn't match REGEX pattern. "
                 "Adding custom components to cards will not be accessible via `current.card['%s']`. "

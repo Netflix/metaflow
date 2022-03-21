@@ -4,7 +4,7 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
 class CardTimeoutTest(MetaflowTest):
     """
     Test that checks if the card decorator works as intended with the timeout decorator.
-    # This test set an artifact in the steps and also set an timeout to the card arguement.
+    # This test set an artifact in the steps and also set an timeout to the card argument.
     # It will assert the artifact to be None.
     """
 

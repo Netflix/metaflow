@@ -339,7 +339,7 @@ class Image(UserComponent):
         if self._src is not None:
             return ImageComponent(src=self._src, label=self._label).render()
         return ErrorComponent(
-            self.render_fail_headline("`Image` Component `src` arguement is `None`"), ""
+            self.render_fail_headline("`Image` Component `src` argument is `None`"), ""
         ).render()
 
 
