@@ -396,7 +396,7 @@ def render_card(mf_card, task, timeout_value=None):
 )
 @click.option(
     "--options",
-    default={},
+    default=None,
     show_default=True,
     type=JSONType,
     help="arguments of the card being created.",
@@ -485,9 +485,12 @@ def create(
         # then check for render_error_card and accordingly
         # store the exception as a string or raise the exception
         try:
-            mf_card = filtered_card(
-                options=options, components=component_arr, graph=graph_dict
-            )
+            if options is not None:
+                mf_card = filtered_card(
+                    options=options, components=component_arr, graph=graph_dict
+                )
+            else:
+                mf_card = filtered_card(components=component_arr, graph=graph_dict)
         except TypeError as e:
             if render_error_card:
                 mf_card = None
