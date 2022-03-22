@@ -6,6 +6,7 @@ import math
 import sys
 import os
 import traceback
+from functools import partial
 from hashlib import sha1
 from tempfile import NamedTemporaryFile
 from multiprocessing import Process, Queue
@@ -78,7 +79,7 @@ ERROR_LOCAL_FILE_NOT_FOUND = 10
 
 
 def format_triplet(prefix, url="", local=""):
-    return u" ".join(url_quote(x).decode("utf-8") for x in (prefix, url, local))
+    return " ".join(url_quote(x).decode("utf-8") for x in (prefix, url, local))
 
 
 # I can't understand what's the right way to deal
@@ -413,28 +414,19 @@ class S3Ops(object):
 # This is accomplished by op_ functions below.
 
 
-def op_get_info(s3role):
-    def internal_op(urls):
-        s3 = S3Ops(s3role)
-        return [s3.get_info(url) for url in urls]
-
-    return internal_op
+def op_get_info(s3role, urls):
+    s3 = S3Ops(s3role)
+    return [s3.get_info(url) for url in urls]
 
 
-def op_list_prefix(s3role):
-    def internal_op(prefix_urls):
-        s3 = S3Ops(s3role)
-        return [s3.list_prefix(prefix) for prefix in prefix_urls]
-
-    return internal_op
+def op_list_prefix(s3role, prefix_urls):
+    s3 = S3Ops(s3role)
+    return [s3.list_prefix(prefix) for prefix in prefix_urls]
 
 
-def op_list_prefix_nonrecursive(s3role):
-    def internal_op(prefix_urls):
-        s3 = S3Ops(s3role)
-        return [s3.list_prefix(prefix, delimiter="/") for prefix in prefix_urls]
-
-    return internal_op
+def op_list_prefix_nonrecursive(s3role, prefix_urls):
+    s3 = S3Ops(s3role)
+    return [s3.list_prefix(prefix, delimiter="/") for prefix in prefix_urls]
 
 
 def exit(exit_code, url):
@@ -486,8 +478,8 @@ def generate_local_path(url, suffix=None):
     fname = quoted.split(b"/")[-1].replace(b".", b"_").replace(b"-", b"_")
     sha = sha1(quoted).hexdigest()
     if suffix:
-        return u"-".join((sha, fname.decode("utf-8"), suffix))
-    return u"-".join((sha, fname.decode("utf-8")))
+        return "-".join((sha, fname.decode("utf-8"), suffix))
+    return "-".join((sha, fname.decode("utf-8")))
 
 
 def parallel_op(op, lst, num_workers):
@@ -569,7 +561,11 @@ def lst(prefixes, inputs=None, num_workers=None, recursive=None, s3role=None):
             exit(ERROR_INVALID_URL, url)
         urllist.append(url)
 
-    op = op_list_prefix(s3role) if recursive else op_list_prefix_nonrecursive(s3role)
+    op = (
+        partial(op_list_prefix, s3role)
+        if recursive
+        else partial(op_list_prefix_nonrecursive, s3role)
+    )
     urls = []
     for success, prefix_url, ret in parallel_op(op, urllist, num_workers):
         if success:
@@ -789,7 +785,7 @@ def get(
     op = None
     dl_op = "download"
     if recursive:
-        op = op_list_prefix
+        op = partial(op_list_prefix, s3role)
     if verify or verbose or info:
         dl_op = "info_download"
     if op:
