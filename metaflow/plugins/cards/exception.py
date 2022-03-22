@@ -85,10 +85,10 @@ class TaskNotFoundException(MetaflowException):
 
 class IncorrectCardArgsException(MetaflowException):
 
-    headline = "Incorrect arguements to @card decorator"
+    headline = "Incorrect arguments to @card decorator"
 
     def __init__(self, card_type, args):
-        msg = "Card of type %s cannot support arguements" " %s" % (card_type, args)
+        msg = "Card of type %s cannot support arguments" " %s" % (card_type, args)
         super(IncorrectCardArgsException, self).__init__(msg)
 
 
@@ -98,7 +98,7 @@ class UnrenderableCardException(MetaflowException):
 
     def __init__(self, card_type, args):
         msg = (
-            "Card of type %s is unable to be rendered with arguements %s.\nStack trace : "
+            "Card of type %s is unable to be rendered with arguments %s.\nStack trace : "
             " %s" % (card_type, args, traceback.format_exc())
         )
         super(UnrenderableCardException, self).__init__(msg)

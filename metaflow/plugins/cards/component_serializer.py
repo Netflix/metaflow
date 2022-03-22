@@ -83,8 +83,8 @@ class CardComponentCollector:
             - `card_type` (str) : value of the associated `MetaflowCard.type`
             - `card_id` (str) : `id` argument provided at top of decorator
             - `editable` (bool) : this corresponds to the value of `MetaflowCard.ALLOW_USER_COMPONENTS` for that `card_type`
-            - `customize` (bool) : This arguement is reserved for a single @card decorator per @step.
-                - An `editable` card with `customize=True` gets precidence to be set as default editable card.
+            - `customize` (bool) : This argument is reserved for a single @card decorator per @step.
+                - An `editable` card with `customize=True` gets precedence to be set as default editable card.
                 - A default editable card is the card which can be access via the `append` and `extend` methods.
         """
         card_uuid = self.create_uuid()

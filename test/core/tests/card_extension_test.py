@@ -27,7 +27,7 @@ class CardExtensionsImportTest(MetaflowTest):
         if run is None:
             # This means CliCheck is in context.
             for step in flow:
-                if step != "start":
+                if step.name != "start":
                     continue
                 cli_check_dict = checker.artifact_dict(step.name, "task")
                 for task_pathspec in cli_check_dict:
