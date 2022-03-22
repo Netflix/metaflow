@@ -6,7 +6,7 @@ class Boto3ClientProvider(object):
     name = "boto3"
 
     @staticmethod
-    def get_client(module, with_error=False, params={}, role=None):
+    def get_client(module, with_error=False, params={}, s3_role_arn=None):
         from metaflow.exception import MetaflowException
         from metaflow.metaflow_config import (
             AWS_SANDBOX_ENABLED,
@@ -48,11 +48,11 @@ class Boto3ClientProvider(object):
                 module, **params
             )
         session = boto3.session.Session()
-        if role:
+        if s3_role_arn:
             fetcher = botocore.credentials.AssumeRoleCredentialFetcher(
                 client_creator=session._session.create_client,
                 source_credentials=session._session.get_credentials(),
-                role_arn=role,
+                role_arn=s3_role_arn,
                 extra_args={},
             )
             creds = botocore.credentials.DeferredRefreshableCredentials(
@@ -66,7 +66,7 @@ class Boto3ClientProvider(object):
         return session.client(module, **params)
 
 
-def get_aws_client(module, with_error=False, params={}, role=None):
+def get_aws_client(module, with_error=False, params={}, s3_role_arn=None):
     global cached_provider_class
     if cached_provider_class is None:
         from metaflow.metaflow_config import DEFAULT_AWS_CLIENT_PROVIDER
@@ -80,4 +80,4 @@ def get_aws_client(module, with_error=False, params={}, role=None):
             raise ValueError(
                 "Cannot find AWS Client provider %s" % DEFAULT_AWS_CLIENT_PROVIDER
             )
-    return cached_provider_class.get_client(module, with_error, params, role)
+    return cached_provider_class.get_client(module, with_error, params, s3_role_arn)

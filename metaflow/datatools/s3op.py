@@ -137,7 +137,7 @@ def worker(result_file_name, queue, mode, s3role):
         try:
             from metaflow.datatools.s3util import get_s3_client
 
-            s3, client_error = get_s3_client(role=s3role)
+            s3, client_error = get_s3_client(s3_role_arn=s3role)
             while True:
                 url, idx = queue.get()
                 if url is None:
@@ -330,7 +330,7 @@ class S3Ops(object):
         from metaflow.datatools.s3util import get_s3_client
 
         if hard_reset or self.s3 is None:
-            self.s3, self.client_error = get_s3_client(role=self.s3role)
+            self.s3, self.client_error = get_s3_client(s3_role_arn=self.s3role)
 
     @aws_retry
     def get_info(self, url):

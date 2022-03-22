@@ -27,11 +27,9 @@ from ..debug import debug
 try:
     # python2
     from urlparse import urlparse
-    from pipes import quote as _quote
 except:
     # python3
     from urllib.parse import urlparse
-    from shlex import quote as _quote
 
 from .s3util import get_s3_client, read_in_chunks, get_timestamp
 
@@ -262,10 +260,10 @@ class S3Object(object):
 
 
 class S3Client(object):
-    def __init__(self, role=None):
+    def __init__(self, s3_role_arn=None):
         self._s3_client = None
         self._s3_error = None
-        self._s3_role = role
+        self._s3_role = s3_role_arn
 
     @property
     def client(self):
@@ -280,7 +278,7 @@ class S3Client(object):
         return self._s3_error
 
     def reset_client(self):
-        self._s3_client, self._s3_error = get_s3_client(role=self._s3_role)
+        self._s3_client, self._s3_error = get_s3_client(s3_role_arn=self._s3_role)
 
 
 class S3(object):
@@ -330,7 +328,7 @@ class S3(object):
             else:
                 prefix = os.path.join(prefix, run.parent.id, run.id)
 
-            self._s3root = u"s3://%s" % os.path.join(bucket, prefix.strip("/"))
+            self._s3root = "s3://%s" % os.path.join(bucket, prefix.strip("/"))
         elif s3root:
             # 2. use an explicit S3 prefix
             parsed = urlparse(to_unicode(s3root))
@@ -1026,7 +1024,7 @@ class S3(object):
             else:
                 cmdline.extend(("--%s" % key, value))
         if self._s3_role is not None:
-            cmdline.extend(("--s3role", _quote(self._s3_role)))
+            cmdline.extend(("--s3role", self._s3_role))
 
         for i in range(S3_RETRY_COUNT + 1):
             with NamedTemporaryFile(
