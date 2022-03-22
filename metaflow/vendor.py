@@ -85,11 +85,13 @@ def vendor(vendor_dir):
         exclude_subdirs.append(subdir)
 
     for subdir in exclude_subdirs:
+        create_init_file = False
         if subdir == "any":
             vendor_subdir = vendor_dir
             # target package is <parent>.<vendor_dir>; foo/_vendor -> foo._vendor
             pkgname = f"{vendor_dir.parent.name}.{vendor_dir.name}"
         else:
+            create_init_file = True
             vendor_subdir = vendor_dir / subdir
             # target package is <parent>.<vendor_dir>; foo/_vendor -> foo._vendor
             pkgname = f"{vendor_dir.parent.name}.{vendor_dir.name}.{vendor_subdir.name}"
@@ -118,6 +120,13 @@ def vendor(vendor_dir):
             *vendor_subdir.glob("*.egg-info"),
             vendor_subdir / "bin",
         )
+
+        # Touch a __init__.py file
+        if create_init_file:
+            with open(
+                "%s/__init__.py" % str(vendor_subdir), "w+", encoding="utf-8"
+            ) as f:
+                f.write("# Empty file")
 
         vendored_libs, paths = find_vendored_libs(
             vendor_subdir, WHITELIST, exclude_subdirs
