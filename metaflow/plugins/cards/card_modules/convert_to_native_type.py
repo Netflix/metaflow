@@ -303,8 +303,8 @@ class TaskToDict:
         index_column = data.index
         time_format = "%Y-%m-%dT%H:%M:%SZ"
         if index_column.dtype == "datetime64[ns]":
-            if index_column.__class__.__name__ == 'DatetimeIndex':
-                index_column = index_column.strftime(time_format)    
+            if index_column.__class__.__name__ == "DatetimeIndex":
+                index_column = index_column.strftime(time_format)
             else:
                 index_column = index_column.dt.strftime(time_format)
 
