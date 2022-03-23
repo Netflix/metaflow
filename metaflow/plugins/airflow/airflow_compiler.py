@@ -89,7 +89,7 @@ class Airflow(object):
         self.event_logger = event_logger
         self.monitor = monitor
         self.tags = tags
-        self.namespace = namespace
+        self.namespace = namespace  # this is the username space
         self.username = username
         self.max_workers = max_workers
         self.email = email
@@ -131,7 +131,7 @@ class Airflow(object):
             self.code_package_sha,
             self._step_cli(node, input_paths, self.code_package_url, user_code_retries),
             k8s_deco.attributes["image"],
-            service_account=k8s_deco.attributes["service_account"],  # todo set this
+            service_account=k8s_deco.attributes["service_account"],
             secrets=k8s_deco.attributes["secrets"],
             node_selector=k8s_deco.attributes["node_selector"],
             namespace=k8s_deco.attributes["namespace"],

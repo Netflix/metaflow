@@ -245,9 +245,9 @@ def set_k8s_operator_args(flow_name, step_name, operator_args):
         "image_pull_secrets": operator_args.get(
             "image_pull_secrets", []
         ),  # todo : document what this is for ?
-        "service_account_name": operator_args.get(
+        "service_account_name": operator_args.get(  # Service account names can be essential for passing reference to IAM roles etc.
             "service_account_name", None
-        ),  # todo : document what this is for ? ,  # todo : document what this is for ?
+        ),
         "is_delete_operator_pod": operator_args.get(
             "is_delete_operator_pod", False
         ),  # todo : document what this is for ?

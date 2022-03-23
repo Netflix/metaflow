@@ -15,6 +15,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_CONTAINER_IMAGE,
     BATCH_METADATA_SERVICE_HEADERS,
     DATASTORE_CARD_S3ROOT,
+    KUBERNETES_SERVICE_ACCOUNT,
 )
 
 
@@ -79,9 +80,12 @@ def create_k8s_args(
         "METAFLOW_CARD_S3ROOT": DATASTORE_CARD_S3ROOT,
     }
     env.update(additional_mf_variables)
+
     k8s_operator_args = dict(
         namespace=namespace,
-        service_account=service_account,
+        service_account_name=KUBERNETES_SERVICE_ACCOUNT
+        if service_account is None
+        else service_account,
         # todo : pass secrets from metaflow to Kubernetes via airflow
         secrets=secrets,
         node_selector=node_selector,
