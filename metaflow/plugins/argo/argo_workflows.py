@@ -44,12 +44,6 @@ class ArgoWorkflowsSchedulingException(MetaflowException):
 #     8. Support for workflow notifications.
 #     9. Support R lang.
 #     10.Ping @savin at slack.outerbounds.co for any feature request.
-#
-#
-# List of fixes before release -
-#     1. Stable task ids when tasks fail.
-#     2. Test for all Argo versions.
-#     3. All kubernetes resource names are compatible.
 
 
 class ArgoWorkflows(object):
