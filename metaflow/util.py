@@ -381,6 +381,7 @@ def which(cmd, mode=os.F_OK | os.X_OK, path=None):
 
         return None
 
+
 def to_camelcase(obj):
     """
     Convert all keys of a json to camel case from snake case.
@@ -391,13 +392,14 @@ def to_camelcase(obj):
         res = obj.__class__()
         for k in obj:
             res[
-                re.sub(r'(?!^)_([a-zA-Z])', lambda x: x.group(1).upper(), k)
+                re.sub(r"(?!^)_([a-zA-Z])", lambda x: x.group(1).upper(), k)
             ] = to_camelcase(obj[k])
     elif isinstance(obj, (list, set, tuple)):
         res = obj.__class__(to_camelcase(v) for v in obj)
     else:
         return obj
-    return res    
+    return res
+
 
 def to_pascalcase(obj):
     """
