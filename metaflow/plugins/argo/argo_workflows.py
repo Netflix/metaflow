@@ -134,7 +134,7 @@ class ArgoWorkflows(object):
             raise ArgoWorkflowsException(str(e))
         if workflow_template is None:
             raise ArgoWorkflowsException(
-                "The workflow *%s* doesn't exist on Argo Workflows in namespace %s. "
+                "The workflow *%s* doesn't exist on Argo Workflows in namespace *%s*. "
                 "Please deploy your flow first." % (name, KUBERNETES_NAMESPACE)
             )
         else:
@@ -557,9 +557,11 @@ class ArgoWorkflows(object):
                 task_str += "-{{inputs.parameters.input-paths}}"
             if any(self.graph[n].type == "foreach" for n in node.in_funcs):
                 task_str += "-{{inputs.parameters.split-index}}"
+            # Generated task_ids need to be non numeric - see register_task_id in
+            # service.py. We do so by prefixing `argo-`
             task_id_expr = (
                 "export METAFLOW_TASK_ID="
-                "($(echo %s | md5sum | cut -d ' ' -f 1 | tail -c 9))" % task_str
+                "(argo-$(echo %s | md5sum | cut -d ' ' -f 1 | tail -c 9))" % task_str
             )
             task_id = "$METAFLOW_TASK_ID"
 
