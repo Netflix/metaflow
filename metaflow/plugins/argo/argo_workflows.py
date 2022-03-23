@@ -307,11 +307,11 @@ class ArgoWorkflows(object):
                 .active_deadline_seconds(self.workflow_timeout)
                 # Allow Argo to archive all workflow execution logs
                 .archive_logs()
-                # Automount service tokens for now - https://github.com/kubernetes/kubernetes/issues/16779#issuecomment-159656641
+                # Don't automount service tokens for now - https://github.com/kubernetes/kubernetes/issues/16779#issuecomment-159656641
                 # TODO: Service account names are currently set in the templates. We
                 #       can specify the default service account name here to reduce
                 #       the size of the generated YAML by a tiny bit.
-                .automount_service_account_token()
+                #.automount_service_account_token()
                 # TODO: Support ImagePullSecrets for Argo & Kubernetes
                 # .image_pull_secrets(...)
                 # Limit workflow parallelism
