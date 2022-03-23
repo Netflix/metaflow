@@ -76,6 +76,9 @@ DATATOOLS_LOCALROOT = from_conf(
     else None,
 )
 
+# The root directory to save artifact pulls in, when using S3
+ARTIFACT_LOCALROOT = from_conf("METAFLOW_ARTIFACT_LOCALROOT", os.getcwd())
+
 # Cards related config variables
 DATASTORE_CARD_SUFFIX = "mf.cards"
 DATASTORE_CARD_LOCALROOT = from_conf("METAFLOW_CARD_LOCALROOT")
