@@ -184,7 +184,7 @@ def create(
             obj.echo(
                 "Note that the flow was deployed with a modified name "
                 "due to Kubernetes naming conventions on Argo Workflows. The "
-                "original long name is stored in task metadata.\n"
+                "original flow name is stored in the workflow annotation.\n"
             )
         flow.schedule()
         obj.echo("What will trigger execution of the workflow:", bold=True)

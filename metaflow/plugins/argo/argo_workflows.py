@@ -267,7 +267,7 @@ class ArgoWorkflows(object):
 
         labels = {
             "app": "metaflow",
-            "metaflow/argo_workflow_template_name": self.name,
+            # "metaflow/argo_workflow_template_name": self.name,
             # "metaflow/owner": self.username,
             "metaflow/user": "argo-workflows",
         }
