@@ -7,14 +7,17 @@ from collections import defaultdict
 from metaflow import current
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException, MetaflowInternalError
-from metaflow.metaflow_config import (BATCH_METADATA_SERVICE_HEADERS,
-                                      BATCH_METADATA_SERVICE_URL,
-                                      DATASTORE_CARD_S3ROOT,
-                                      DATASTORE_LOCAL_DIR,
-                                      DATASTORE_SYSROOT_S3, DATATOOLS_S3ROOT,
-                                      DEFAULT_METADATA, KUBERNETES_NAMESPACE)
-from metaflow.mflog import (BASH_SAVE_LOGS, bash_capture_logs,
-                            export_mflog_env_vars)
+from metaflow.metaflow_config import (
+    BATCH_METADATA_SERVICE_HEADERS,
+    BATCH_METADATA_SERVICE_URL,
+    DATASTORE_CARD_S3ROOT,
+    DATASTORE_LOCAL_DIR,
+    DATASTORE_SYSROOT_S3,
+    DATATOOLS_S3ROOT,
+    DEFAULT_METADATA,
+    KUBERNETES_NAMESPACE,
+)
+from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
 from metaflow.util import compress_list, dict_to_cli_options, to_camelcase
 

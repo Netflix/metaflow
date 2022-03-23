@@ -129,7 +129,7 @@ STEP_DECORATORS = [
     ParallelDecorator,
     PytorchParallelDecorator,
     InternalTestUnboundedForeachDecorator,
-    ArgoWorkflowsInternalDecorator
+    ArgoWorkflowsInternalDecorator,
 ]
 _merge_lists(STEP_DECORATORS, _ext_plugins["STEP_DECORATORS"], "name")
 

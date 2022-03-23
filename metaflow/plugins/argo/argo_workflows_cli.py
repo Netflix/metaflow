@@ -11,10 +11,13 @@ from metaflow._vendor import click
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.package import MetaflowPackage
 from metaflow.plugins import EnvironmentDecorator, KubernetesDecorator
+
 # TODO: Move production_token to utils
-from metaflow.plugins.aws.step_functions.production_token import (load_token,
-                                                                  new_token,
-                                                                  store_token)
+from metaflow.plugins.aws.step_functions.production_token import (
+    load_token,
+    new_token,
+    store_token,
+)
 from metaflow.util import get_username, to_bytes, to_unicode
 
 from .argo_workflows import ArgoWorkflows

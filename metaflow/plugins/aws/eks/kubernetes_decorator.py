@@ -12,7 +12,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_CONTAINER_REGISTRY,
     DATASTORE_LOCAL_DIR,
     KUBERNETES_NAMESPACE,
-    KUBERNETES_SERVICE_ACCOUNT
+    KUBERNETES_SERVICE_ACCOUNT,
 )
 from metaflow.plugins import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
