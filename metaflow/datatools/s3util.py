@@ -16,13 +16,14 @@ from metaflow.metaflow_config import (
 TEST_S3_RETRY = "TEST_S3_RETRY" in os.environ
 
 
-def get_s3_client():
+def get_s3_client(s3_role_arn=None):
     from metaflow.plugins.aws.aws_client import get_aws_client
 
     return get_aws_client(
         "s3",
         with_error=True,
         params={"endpoint_url": S3_ENDPOINT_URL, "verify": S3_VERIFY_CERTIFICATE},
+        s3_role_arn=s3_role_arn,
     )
 
 
