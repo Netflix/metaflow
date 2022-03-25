@@ -183,7 +183,7 @@ def create(
         if obj._is_workflow_name_modified:
             obj.echo(
                 "Note that the flow was deployed with a modified name "
-                "due to Kubernetes naming conventions on Argo Workflows. The "
+                "due to Kubernetes naming conventions\non Argo Workflows. The "
                 "original flow name is stored in the workflow annotation.\n"
             )
         flow.schedule()

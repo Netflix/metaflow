@@ -267,6 +267,7 @@ class ArgoWorkflows(object):
 
         labels = {
             "app": "metaflow",
+            # "workflows.argoproj.io/container-runtime-executor": "pns",
             # "metaflow/argo_workflow_template_name": self.name,
             # "metaflow/owner": self.username,
             "metaflow/user": "argo-workflows",
@@ -305,13 +306,17 @@ class ArgoWorkflows(object):
                 WorkflowSpec()
                 # Set overall workflow timeout.
                 .active_deadline_seconds(self.workflow_timeout)
-                # Allow Argo to archive all workflow execution logs
-                .archive_logs()
+                # TODO: Allow Argo to optionally archive all workflow execution logs
+                #       It's disabled for now since it requires all Argo installations
+                #       to enable an artifactory repository. If log archival is
+                #       enabled in workflow controller, the logs for this workflow will
+                #       automatically get archived.
+                # .archive_logs()
                 # Don't automount service tokens for now - https://github.com/kubernetes/kubernetes/issues/16779#issuecomment-159656641
                 # TODO: Service account names are currently set in the templates. We
                 #       can specify the default service account name here to reduce
                 #       the size of the generated YAML by a tiny bit.
-                #.automount_service_account_token()
+                # .automount_service_account_token()
                 # TODO: Support ImagePullSecrets for Argo & Kubernetes
                 # .image_pull_secrets(...)
                 # Limit workflow parallelism
@@ -552,16 +557,16 @@ class ArgoWorkflows(object):
             # Ideally, we would like these task ids to be the same as node name
             # (modulo retry suffix) on Argo Workflows but that doesn't seem feasible
             # right now.
-            task_str = node.name + "{{workflow.creationTimestamp}}"
+            task_str = node.name + "-{{workflow.creationTimestamp}}"
             if node.name != "start":
                 task_str += "-{{inputs.parameters.input-paths}}"
             if any(self.graph[n].type == "foreach" for n in node.in_funcs):
                 task_str += "-{{inputs.parameters.split-index}}"
             # Generated task_ids need to be non numeric - see register_task_id in
-            # service.py. We do so by prefixing `argo-`
+            # service.py. We do so by prefixing `t-`
             task_id_expr = (
                 "export METAFLOW_TASK_ID="
-                "(argo-$(echo %s | md5sum | cut -d ' ' -f 1 | tail -c 9))" % task_str
+                "(t-$(echo %s | md5sum | cut -d ' ' -f 1 | tail -c 9))" % task_str
             )
             task_id = "$METAFLOW_TASK_ID"
 
@@ -698,6 +703,17 @@ class ArgoWorkflows(object):
                     0
                 ].attributes
             )
+
+            if (
+                resources["namespace"]
+                and resources["namespace"] != KUBERNETES_NAMESPACE
+            ):
+                raise ArgoWorkflowsException(
+                    "Multi-namespace Kubernetes execution of flows in Argo Workflows "
+                    "is not currently supported. \nStep *%s* is trying to override the "
+                    "default Kubernetes namespace *%s*."
+                    % (node.name, KUBERNETES_NAMESPACE)
+                )
 
             run_time_limit = [
                 deco for deco in node.decorators if deco.name == "kubernetes"
