@@ -333,8 +333,6 @@ class Airflow(object):
                 # step.append("--split-index $METAFLOW_SPLIT_INDEX")
                 pass
 
-        # ! HACK : Remove Below Line; Only here temporarily.
-        env.update({k: v for k, v in os.environ.items() if "AWS" in k})
         env["METAFLOW_CODE_URL"] = self.code_package_url
         env["METAFLOW_FLOW_NAME"] = attrs["metaflow.flow_name"]
         env["METAFLOW_STEP_NAME"] = attrs["metaflow.step_name"]

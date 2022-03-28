@@ -4,6 +4,7 @@ from metaflow.util import get_username
 from metaflow.package import MetaflowPackage
 from metaflow.plugins import KubernetesDecorator
 from .airflow_compiler import Airflow
+from metaflow import S3
 
 
 @click.group()
@@ -95,5 +96,9 @@ def create(
     if file_path is None:
         obj.echo_always(compiled_dag_file)
     else:
-        with open(file_path, "w") as f:
-            f.write(compiled_dag_file)
+        if file_path.startswith('s3://'):
+            with S3() as s3:
+                s3.put(file_path,compiled_dag_file)
+        else:
+            with open(file_path, "w") as f:
+                f.write(compiled_dag_file)
