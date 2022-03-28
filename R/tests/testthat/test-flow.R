@@ -1,5 +1,7 @@
 context("test-flow.R")
 
+teardown(if ("sqrt" %in% names(.GlobalEnv)) rm("sqrt", envir = .GlobalEnv))
+
 test_that("header() formatted correctly", {
   skip_if_no_metaflow()
   actual <- header("TestFlow")
@@ -87,4 +89,12 @@ test_that("get_functions() works", {
     }
   )
   expect_equal(actual, expected)
+})
+
+test_that("flow names are assigned to global environment", {
+  expect_false("sqrt" %in% names(.GlobalEnv))
+  step(metaflow("sqrt"), step = "start")
+  expect_true("sqrt" %in% names(.GlobalEnv))
+  expect_s3_class(get("sqrt", envir = .GlobalEnv), "Flow")
+  expect_equal(base::sqrt(4), 2)
 })

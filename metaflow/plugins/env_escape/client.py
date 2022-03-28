@@ -41,7 +41,7 @@ BIND_RETRY = 0
 
 
 class Client(object):
-    def __init__(self, python_path, max_pickle_version, config_dir):
+    def __init__(self, python_executable, pythonpath, max_pickle_version, config_dir):
         # Make sure to init these variables (used in __del__) early on in case we
         # have an exception
         self._poller = None
@@ -58,10 +58,17 @@ class Client(object):
         if os.path.exists(self._socket_path):
             raise RuntimeError("Existing socket: %s" % self._socket_path)
         env = os.environ.copy()
-        #env["PYTHONPATH"] = ":".join(sys.path)
+        env["PYTHONPATH"] = pythonpath
         self._server_process = Popen(
-            [python_path, "-u", "-m", server_module, str(max_pickle_version),
-             config_dir, self._socket_path],
+            [
+                python_executable,
+                "-u",
+                "-m",
+                server_module,
+                str(max_pickle_version),
+                config_dir,
+                self._socket_path,
+            ],
             env=env,
             stdout=PIPE,
             stderr=PIPE,
@@ -92,7 +99,7 @@ class Client(object):
                     for name in obj_funcs:
                         if name in override_dict:
                             raise ValueError(
-                                "%s was already overriden for %s" % (name, obj_name)
+                                "%s was already overridden for %s" % (name, obj_name)
                             )
                         override_dict[name] = override.func
         self._proxied_objects = {}
@@ -146,12 +153,15 @@ class Client(object):
             "functions": response[FIELD_CONTENT]["functions"],
             "values": response[FIELD_CONTENT]["values"],
             "exceptions": response[FIELD_CONTENT]["exceptions"],
-            "aliases": response[FIELD_CONTENT]["aliases"]
+            "aliases": response[FIELD_CONTENT]["aliases"],
         }
 
         self._aliases = response[FIELD_CONTENT]["aliases"]
 
     def __del__(self):
+        self.cleanup()
+
+    def cleanup(self):
         # Clean up the server; we drain all messages if any
         if self._poller is not None:
             # If we have self._poller, we have self._server_process
@@ -166,6 +176,7 @@ class Client(object):
                     sys.stderr.write(self._server_process.stderr.readline())
             sys.stdout.flush()
             sys.stderr.flush()
+            self._poller = None
         if self._server_process is not None:
             # Attempt to send it a terminate signal and then wait and kill
             try:
@@ -173,12 +184,14 @@ class Client(object):
                     {FIELD_MSGTYPE: MSG_CONTROL, FIELD_OPTYPE: CONTROL_SHUTDOWN}
                 )
                 self._channel.recv(timeout=10)  # If we receive, we are sure we
-                                                # are good
+                # are good
             except:  # noqa E722
                 pass  # If there is any issue sending this message, just ignore it
             self._server_process.kill()
+            self._server_process = None
         if self._socket_path is not None and os.path.exists(self._socket_path):
             os.unlink(self._socket_path)
+            self._socket_path = None
 
     @property
     def name(self):
@@ -234,7 +247,7 @@ class Client(object):
         # Gets (and creates if needed), the class mapping to the remote
         # class of name 'name'.
         name = self._get_canonical_name(name)
-        if name == 'function':
+        if name == "function":
             # Special handling of pickled functions. We create a new class that
             # simply has a __call__ method that will forward things back to
             # the server side.
@@ -242,7 +255,8 @@ class Client(object):
                 raise RuntimeError("Local function unpickling without an object ID")
             if obj_id not in self._proxied_standalone_functions:
                 self._proxied_standalone_functions[obj_id] = create_class(
-                    self, '__function_%s' % obj_id, {}, {}, {}, {'__call__': ''})
+                    self, "__function_%s" % obj_id, {}, {}, {}, {"__call__": ""}
+                )
             return self._proxied_standalone_functions[obj_id]
 
         if name not in self._proxied_classes:
@@ -250,12 +264,15 @@ class Client(object):
         local_class = self._proxied_classes[name]
         if local_class is None:
             # We need to build up this class. To do so, we take everything that the
-            # remote class has and remove UNSUPPORTED things and overriden things
+            # remote class has and remove UNSUPPORTED things and overridden things
             remote_methods = self.stub_request(None, OP_GETMETHODS, name)
             local_class = create_class(
-                self, name, self._overrides.get(name, {}),
-                self._getattr_overrides.get(name, {}), self._setattr_overrides.get(name, {}),
-                remote_methods
+                self,
+                name,
+                self._overrides.get(name, {}),
+                self._getattr_overrides.get(name, {}),
+                self._setattr_overrides.get(name, {}),
+                remote_methods,
             )
             self._proxied_classes[name] = local_class
         return local_class
@@ -296,7 +313,7 @@ class Client(object):
         base_name = self._aliases.get(name)
         if base_name is not None:
             return base_name
-        for idx in reversed([pos for pos, char in enumerate(name) if char == '.']):
+        for idx in reversed([pos for pos, char in enumerate(name) if char == "."]):
             base_name = self._aliases.get(name[:idx])
             if base_name is not None:
                 return ".".join([base_name, name[idx + 1 :]])

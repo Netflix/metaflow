@@ -7,32 +7,95 @@ on:
   pull_request:
     branches:
     - master
+<<<<<<< HEAD
     - feature/kfp
+=======
+  workflow_call:
+  
+>>>>>>> 2.5.4
 jobs:
-  test:
-    name: ${{ matrix.lang }} tests on ${{ matrix.os }}
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-python@v2
+    - uses: pre-commit/action@v2.0.3
+
+  Python:
+    name: core / Python ${{ matrix.ver }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
+<<<<<<< HEAD
         lang: [Python]
+=======
+        ver: ['3.5', '3.6', '3.7', '3.8', '3.9','3.10',]
+>>>>>>> 2.5.4
 
     steps:
     - uses: actions/checkout@v2
 
+<<<<<<< HEAD
     - name: Set up Python 3.9
       uses: actions/setup-python@v2
       with:
         python-version: '3.9'
+=======
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.ver }}
+>>>>>>> 2.5.4
 
-    - name: Install Python 3.x dependencies
+    - name: Install Python ${{ matrix.ver }} dependencies
       run: |
+<<<<<<< HEAD
         python3 -m pip install --upgrade pip
         python3 -m pip install tox numpy black
 
     - name: Python Code Format Check
       run: black --target-version py39 --diff --check ./metaflow/plugins/kfp/*.py
+=======
+        python3 -m pip install --upgrade pip setuptools
+        python3 -m pip install tox numpy
 
     - name: Execute Python tests
-      if: matrix.lang == 'python'
       run: tox
+
+  R:
+    name: core / R ${{ matrix.ver }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        ver: ['4.0', '4.1']
+   
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up ${{ matrix.ver }}
+      uses: r-lib/actions/setup-r@v2
+      with:
+        r-version: ${{ matrix.ver }}
+    
+    - name: Install R ${{ matrix.ver }} system dependencies
+      if: matrix.os == 'ubuntu-latest'
+      run: sudo apt-get update; sudo apt-get install -y libcurl4-openssl-dev qpdf libgit2-dev
+
+    - name: Install R ${{ matrix.ver }} Rlang dependencies
+      run: |
+        python3 -m pip install . 
+        Rscript -e 'install.packages("devtools", repos="https://cloud.r-project.org", Ncpus=8)'
+        Rscript -e 'devtools::install_deps("R", dependencies=TRUE, repos="https://cloud.r-project.org", upgrade="default")'
+        R CMD INSTALL R
+        Rscript -e 'install.packages(c("data.table", "caret", "glmnet", "Matrix", "rjson"), repos="https://cloud.r-project.org", Ncpus=8)'   
+
+    - name: Execute R tests
+      run: |
+        cd R/tests
+        Rscript run_tests.R
+>>>>>>> 2.5.4
+
+

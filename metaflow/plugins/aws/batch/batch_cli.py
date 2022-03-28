@@ -1,34 +1,20 @@
+from metaflow._vendor import click
 import os
 import sys
-import tarfile
 import time
 import traceback
 
-import click
-
 from distutils.dir_util import copy_tree
 
-from .batch import Batch, BatchKilledException, STDOUT_PATH, STDERR_PATH
-
-from metaflow.datastore import MetaflowDataStore
-from metaflow.datastore.local import LocalDataStore
-from metaflow.datastore.util.s3util import get_s3_client
-from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow import util
 from metaflow import R
-from metaflow.exception import (
-    CommandException,
-    METAFLOW_EXIT_DISALLOW_RETRY,
-)
+from metaflow.exception import CommandException, METAFLOW_EXIT_DISALLOW_RETRY
+from metaflow.metadata.util import sync_local_metadata_from_datastore
+from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.mflog import TASK_LOG_SOURCE
 
+from .batch import Batch, BatchKilledException
 
-try:
-    # python2
-    from urlparse import urlparse
-except:  # noqa E722
-    # python3
-    from urllib.parse import urlparse
 
 @click.group()
 def cli():
@@ -63,41 +49,19 @@ def _execute_cmd(func, flow_name, run_id, user, my_runs, echo):
     func(flow_name, run_id, user, echo)
 
 
-def _sync_metadata(echo, metadata, datastore_root, attempt):
-    if metadata.TYPE == 'local':
-        def echo_none(*args, **kwargs):
-            pass
-        path = os.path.join(
-            datastore_root,
-            MetaflowDataStore.filename_with_attempt_prefix('metadata.tgz', attempt))
-        url = urlparse(path)
-        bucket = url.netloc
-        key = url.path.lstrip('/')
-        s3, err = get_s3_client()
-        try:
-            s3.head_object(Bucket=bucket, Key=key)
-            # If we are here, we can download the object
-            with util.TempDir() as td:
-                tar_file_path = os.path.join(td, 'metadata.tgz')
-                with open(tar_file_path, 'wb') as f:
-                    s3.download_fileobj(bucket, key, f)
-                with tarfile.open(tar_file_path, 'r:gz') as tar:
-                    tar.extractall(td)
-                copy_tree(
-                    os.path.join(td, DATASTORE_LOCAL_DIR),
-                    LocalDataStore.get_datastore_root_from_config(echo_none),
-                    update=True)
-        except err as e:  # noqa F841
-            pass
-
-
 @batch.command(help="List unfinished AWS Batch tasks of this flow")
-@click.option("--my-runs", default=False, is_flag=True,
-    help="List all my unfinished tasks.")
-@click.option("--user", default=None,
-    help="List unfinished tasks for the given user.")
-@click.option("--run-id", default=None,
-    help="List unfinished tasks corresponding to the run id.")
+@click.option(
+    "--my-runs",
+    default=False,
+    is_flag=True,
+    help="List all my unfinished tasks.",
+)
+@click.option("--user", default=None, help="List unfinished tasks for the given user.")
+@click.option(
+    "--run-id",
+    default=None,
+    help="List unfinished tasks corresponding to the run id.",
+)
 @click.pass_context
 def list(ctx, run_id, user, my_runs):
     batch = Batch(ctx.obj.metadata, ctx.obj.environment)
@@ -107,12 +71,22 @@ def list(ctx, run_id, user, my_runs):
 
 
 @batch.command(help="Terminate unfinished AWS Batch tasks of this flow.")
-@click.option("--my-runs", default=False, is_flag=True,
-    help="Kill all my unfinished tasks.")
-@click.option("--user", default=None,
-    help="Terminate unfinished tasks for the given user.")
-@click.option("--run-id", default=None,
-    help="Terminate unfinished tasks corresponding to the run id.")
+@click.option(
+    "--my-runs",
+    default=False,
+    is_flag=True,
+    help="Kill all my unfinished tasks.",
+)
+@click.option(
+    "--user",
+    default=None,
+    help="Terminate unfinished tasks for the given user.",
+)
+@click.option(
+    "--run-id",
+    default=None,
+    help="Terminate unfinished tasks corresponding to the run id.",
+)
 @click.pass_context
 def kill(ctx, run_id, user, my_runs):
     batch = Batch(ctx.obj.metadata, ctx.obj.environment)
@@ -122,24 +96,23 @@ def kill(ctx, run_id, user, my_runs):
 
 
 @batch.command(
-    help="Execute a single task using AWS Batch. This command "
-    "calls the top-level step command inside a AWS Batch "
-    "job with the given options. Typically you do not "
-    "call this command directly; it is used internally "
-    "by Metaflow."
+    help="Execute a single task using AWS Batch. This command calls the "
+    "top-level step command inside a AWS Batch job with the given options. "
+    "Typically you do not call this command directly; it is used internally by "
+    "Metaflow."
 )
 @click.argument("step-name")
 @click.argument("code-package-sha")
 @click.argument("code-package-url")
 @click.option("--executable", help="Executable requirement for AWS Batch.")
 @click.option(
-    "--image", help="Docker image requirement for AWS Batch. In name:version format."
+    "--image",
+    help="Docker image requirement for AWS Batch. In name:version format.",
 )
+@click.option("--iam-role", help="IAM role requirement for AWS Batch.")
 @click.option(
-    "--iam-role", help="IAM role requirement for AWS Batch."
-)
-@click.option(
-    "--execution-role", help="Execution role requirement for AWS Batch on Fargate."
+    "--execution-role",
+    help="Execution role requirement for AWS Batch on Fargate.",
 )
 @click.option("--cpu", help="CPU requirement for AWS Batch.")
 @click.option("--gpu", help="GPU requirement for AWS Batch.")
@@ -162,13 +135,20 @@ def kill(ctx, run_id, user, my_runs):
 @click.option(
     "--run-time-limit",
     default=5 * 24 * 60 * 60,
-    help="Run time limit in seconds for the AWS Batch job. " "Default is 5 days."
+    help="Run time limit in seconds for the AWS Batch job. Default is 5 days.",
 )
 @click.option("--shared-memory", help="Shared Memory requirement for AWS Batch.")
 @click.option("--max-swap", help="Max Swap requirement for AWS Batch.")
 @click.option("--swappiness", help="Swappiness requirement for AWS Batch.")
-#TODO: Maybe remove it altogether since it's not used here
-@click.option('--ubf-context', default=None, type=click.Choice([None]))
+# TODO: Maybe remove it altogether since it's not used here
+@click.option("--ubf-context", default=None, type=click.Choice([None, "ubf_control"]))
+@click.option("--host-volumes", multiple=True)
+@click.option(
+    "--num-parallel",
+    default=0,
+    type=int,
+    help="Number of parallel nodes to run as a multi-node job.",
+)
 @click.pass_context
 def step(
     ctx,
@@ -187,24 +167,22 @@ def step(
     shared_memory=None,
     max_swap=None,
     swappiness=None,
+    host_volumes=None,
+    num_parallel=None,
     **kwargs
 ):
-    def echo(msg, stream='stderr', batch_id=None):
+    def echo(msg, stream="stderr", batch_id=None):
         msg = util.to_unicode(msg)
         if batch_id:
-            msg = '[%s] %s' % (batch_id, msg)
+            msg = "[%s] %s" % (batch_id, msg)
         ctx.obj.echo_always(msg, err=(stream == sys.stderr))
-
-    if ctx.obj.datastore.datastore_root is None:
-        ctx.obj.datastore.datastore_root = ctx.obj.datastore.get_datastore_root_from_config(echo)
 
     if R.use_r():
         entrypoint = R.entrypoint()
     else:
         if executable is None:
             executable = ctx.obj.environment.executable(step_name)
-        entrypoint = '%s -u %s' % (executable,
-                                   os.path.basename(sys.argv[0]))
+        entrypoint = "%s -u %s" % (executable, os.path.basename(sys.argv[0]))
 
     top_args = " ".join(util.dict_to_cli_options(ctx.parent.parent.params))
 
@@ -219,8 +197,15 @@ def step(
         kwargs["input_paths"] = "".join("${%s}" % s for s in split_vars.keys())
 
     step_args = " ".join(util.dict_to_cli_options(kwargs))
+    num_parallel = num_parallel or 0
+    if num_parallel and num_parallel > 1:
+        # For multinode, we need to add a placeholder that can be mutated by the caller
+        step_args += " [multinode-args]"
     step_cli = u"{entrypoint} {top_args} step {step} {step_args}".format(
-        entrypoint=entrypoint, top_args=top_args, step=step_name, step_args=step_args
+        entrypoint=entrypoint,
+        top_args=top_args,
+        step=step_name,
+        step_args=step_args,
     )
     node = ctx.obj.graph[step_name]
 
@@ -235,17 +220,17 @@ def step(
 
     # Set batch attributes
     task_spec = {
-        'flow_name': ctx.obj.flow.name,
-        'step_name': step_name,
-        'run_id': kwargs['run_id'],
-        'task_id': kwargs['task_id'],
-        'retry_count': str(retry_count)
+        "flow_name": ctx.obj.flow.name,
+        "step_name": step_name,
+        "run_id": kwargs["run_id"],
+        "task_id": kwargs["task_id"],
+        "retry_count": str(retry_count),
     }
-    attrs = {'metaflow.%s' % k: v for k, v in task_spec.items()}
-    attrs['metaflow.user'] = util.get_username()
-    attrs['metaflow.version'] = ctx.obj.environment.get_environment_info()[
-            "metaflow_version"
-        ]
+    attrs = {"metaflow.%s" % k: v for k, v in task_spec.items()}
+    attrs["metaflow.user"] = util.get_username()
+    attrs["metaflow.version"] = ctx.obj.environment.get_environment_info()[
+        "metaflow_version"
+    ]
 
     env_deco = [deco for deco in node.decorators if deco.name == "environment"]
     if env_deco:
@@ -253,35 +238,47 @@ def step(
     else:
         env = {}
 
-    datastore_root = os.path.join(ctx.obj.datastore.make_path(
-        ctx.obj.flow.name, kwargs['run_id'], step_name, kwargs['task_id']))
     # Add the environment variables related to the input-paths argument
     if split_vars:
         env.update(split_vars)
 
     if retry_count:
         ctx.obj.echo_always(
-            "Sleeping %d minutes before the next AWS Batch retry" % minutes_between_retries
+            "Sleeping %d minutes before the next AWS Batch retry"
+            % minutes_between_retries
         )
         time.sleep(minutes_between_retries * 60)
 
     # this information is needed for log tailing
-    spec = task_spec.copy()
-    spec['attempt'] = int(spec.pop('retry_count'))
-    ds = ctx.obj.datastore(mode='w', **spec)
-    stdout_location = ds.get_log_location(TASK_LOG_SOURCE, 'stdout')
-    stderr_location = ds.get_log_location(TASK_LOG_SOURCE, 'stderr')
+    ds = ctx.obj.flow_datastore.get_task_datastore(
+        mode="w",
+        run_id=kwargs["run_id"],
+        step_name=step_name,
+        task_id=kwargs["task_id"],
+        attempt=int(retry_count),
+    )
+    stdout_location = ds.get_log_location(TASK_LOG_SOURCE, "stdout")
+    stderr_location = ds.get_log_location(TASK_LOG_SOURCE, "stderr")
+
+    def _sync_metadata():
+        if ctx.obj.metadata.TYPE == "local":
+            sync_local_metadata_from_datastore(
+                DATASTORE_LOCAL_DIR,
+                ctx.obj.flow_datastore.get_task_datastore(
+                    kwargs["run_id"], step_name, kwargs["task_id"]
+                ),
+            )
 
     batch = Batch(ctx.obj.metadata, ctx.obj.environment)
     try:
-        with ctx.obj.monitor.measure("metaflow.batch.launch"):
+        with ctx.obj.monitor.measure("metaflow.aws.batch.launch_job"):
             batch.launch_job(
                 step_name,
                 step_cli,
                 task_spec,
                 code_package_sha,
                 code_package_url,
-                ctx.obj.datastore.TYPE,
+                ctx.obj.flow_datastore.TYPE,
                 image=image,
                 queue=queue,
                 iam_role=iam_role,
@@ -294,17 +291,19 @@ def step(
                 max_swap=max_swap,
                 swappiness=swappiness,
                 env=env,
-                attrs=attrs
+                attrs=attrs,
+                host_volumes=host_volumes,
+                num_parallel=num_parallel,
             )
     except Exception as e:
-        print(e)
-        _sync_metadata(echo, ctx.obj.metadata, datastore_root, retry_count)
+        traceback.print_exc()
+        _sync_metadata()
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
     try:
         batch.wait(stdout_location, stderr_location, echo=echo)
     except BatchKilledException:
         # don't retry killed tasks
         traceback.print_exc()
-        _sync_metadata(echo, ctx.obj.metadata, datastore_root, retry_count)
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
-    _sync_metadata(echo, ctx.obj.metadata, datastore_root, retry_count)
+    finally:
+        _sync_metadata()
