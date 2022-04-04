@@ -83,6 +83,8 @@ class BatchDecorator(StepDecorator):
         A swappiness value of 0 causes swapping not to happen unless absolutely
         necessary. A swappiness value of 100 causes pages to be swapped very
         aggressively. Accepted values are whole numbers between 0 and 100.
+     inferentia : bool
+        This allows you to set the required ECS parameters to use allow you to use Inferentia instances on batch
     """
 
     name = "batch"
@@ -97,6 +99,7 @@ class BatchDecorator(StepDecorator):
         "shared_memory": None,
         "max_swap": None,
         "swappiness": None,
+        "inferentia": False,
         "host_volumes": None,
     }
     resource_defaults = {

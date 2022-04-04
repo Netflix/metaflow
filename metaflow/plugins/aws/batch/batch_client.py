@@ -148,6 +148,7 @@ class BatchJob(object):
         shared_memory,
         max_swap,
         swappiness,
+        inferentia,
         host_volumes,
         num_parallel,
     ):
@@ -247,6 +248,21 @@ class BatchJob(object):
                         "maxSwap"
                     ] = int(max_swap)
 
+        if inferentia:
+            if not (isinstance(inferentia, bool)):
+                raise BatchJobException(
+                    'Inferentia parameter can only be a boolean value')
+            else:
+                job_definition["containerProperties"]['linuxParameters']['devices'] = [
+                    {
+                        "containerPath": "/dev/neuron0",
+                        "hostPath": "/dev/neuron0",
+                        "permissions": [
+                            "read",
+                            "write"
+                        ]}
+                ]
+
         if host_volumes:
             job_definition["containerProperties"]["volumes"] = []
             job_definition["containerProperties"]["mountPoints"] = []
@@ -321,6 +337,7 @@ class BatchJob(object):
         shared_memory,
         max_swap,
         swappiness,
+        inferentia,
         host_volumes,
         num_parallel,
     ):
@@ -332,6 +349,7 @@ class BatchJob(object):
             shared_memory,
             max_swap,
             swappiness,
+            inferentia,
             host_volumes,
             num_parallel,
         )
@@ -371,6 +389,10 @@ class BatchJob(object):
 
     def swappiness(self, swappiness):
         self._swappiness = swappiness
+        return self
+
+    def inferentia(self, inferentia):
+        self._inferentia = inferentia
         return self
 
     def command(self, command):

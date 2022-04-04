@@ -140,6 +140,7 @@ def kill(ctx, run_id, user, my_runs):
 @click.option("--shared-memory", help="Shared Memory requirement for AWS Batch.")
 @click.option("--max-swap", help="Max Swap requirement for AWS Batch.")
 @click.option("--swappiness", help="Swappiness requirement for AWS Batch.")
+@click.option("--inferentia", is_flag=True, help="Inferentia requirement for AWS Batch.", default=False)
 # TODO: Maybe remove it altogether since it's not used here
 @click.option("--ubf-context", default=None, type=click.Choice([None, "ubf_control"]))
 @click.option("--host-volumes", multiple=True)

@@ -174,6 +174,7 @@ class Batch(object):
         shared_memory=None,
         max_swap=None,
         swappiness=None,
+        inferentia=False,
         env={},
         attrs={},
         host_volumes=None,
@@ -207,6 +208,7 @@ class Batch(object):
                 shared_memory,
                 max_swap,
                 swappiness,
+                inferentia,
                 host_volumes=host_volumes,
                 num_parallel=num_parallel,
             )
@@ -216,6 +218,7 @@ class Batch(object):
             .shared_memory(shared_memory)
             .max_swap(max_swap)
             .swappiness(swappiness)
+            .inferentia()
             .timeout_in_secs(run_time_limit)
             .task_id(attrs.get("metaflow.task_id"))
             .environment_variable("AWS_DEFAULT_REGION", self._client.region())
@@ -279,6 +282,7 @@ class Batch(object):
         shared_memory=None,
         max_swap=None,
         swappiness=None,
+        inferentia=False,
         host_volumes=None,
         num_parallel=0,
         env={},
@@ -309,6 +313,7 @@ class Batch(object):
             shared_memory,
             max_swap,
             swappiness,
+            inferentia,
             env=env,
             attrs=attrs,
             host_volumes=host_volumes,
