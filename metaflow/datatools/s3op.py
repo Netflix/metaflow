@@ -307,10 +307,10 @@ def process_urls(mode, urls, verbose, num_workers, s3role):
 
 
 def with_unit(x):
-    if x > 1024 ** 3:
-        return "%.1fGB" % (x / 1024.0 ** 3)
-    elif x > 1024 ** 2:
-        return "%.1fMB" % (x / 1024.0 ** 2)
+    if x > 1024**3:
+        return "%.1fGB" % (x / 1024.0**3)
+    elif x > 1024**2:
+        return "%.1fMB" % (x / 1024.0**2)
     elif x > 1024:
         return "%.1fKB" % (x / 1024.0)
     else:

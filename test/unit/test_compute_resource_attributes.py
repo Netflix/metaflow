@@ -33,14 +33,11 @@ def test_compute_resource_attributes():
     ) == {"cpu": "1", "memory": "100"}
 
     # take largest of @resources and @batch if both are present
-    assert (
-        compute_resource_attributes(
-            [MockDeco("resources", {"cpu": "2"})],
-            MockDeco("batch", {"cpu": 1}),
-            {"cpu": "3"},
-        )
-        == {"cpu": "2"}
-    )
+    assert compute_resource_attributes(
+        [MockDeco("resources", {"cpu": "2"})],
+        MockDeco("batch", {"cpu": 1}),
+        {"cpu": "3"},
+    ) == {"cpu": "2"}
 
 
 def test_compute_resource_attributes_string():
@@ -52,31 +49,22 @@ def test_compute_resource_attributes_string():
     ) == {"cpu": "1"}
 
     # use string value from deco if set (default is None)
-    assert (
-        compute_resource_attributes(
-            [],
-            MockDeco("batch", {"instance_type": "p3.xlarge"}),
-            {"cpu": "1", "instance_type": None},
-        )
-        == {"cpu": "1", "instance_type": "p3.xlarge"}
-    )
+    assert compute_resource_attributes(
+        [],
+        MockDeco("batch", {"instance_type": "p3.xlarge"}),
+        {"cpu": "1", "instance_type": None},
+    ) == {"cpu": "1", "instance_type": "p3.xlarge"}
 
     # use string value from deco if set (default is not None)
-    assert (
-        compute_resource_attributes(
-            [],
-            MockDeco("batch", {"instance_type": "p3.xlarge"}),
-            {"cpu": "1", "instance_type": "p4.xlarge"},
-        )
-        == {"cpu": "1", "instance_type": "p3.xlarge"}
-    )
+    assert compute_resource_attributes(
+        [],
+        MockDeco("batch", {"instance_type": "p3.xlarge"}),
+        {"cpu": "1", "instance_type": "p4.xlarge"},
+    ) == {"cpu": "1", "instance_type": "p3.xlarge"}
 
     # use string value from defaults if @batch has it set to None
-    assert (
-        compute_resource_attributes(
-            [],
-            MockDeco("batch", {"instance_type": None}),
-            {"cpu": "1", "instance_type": "p4.xlarge"},
-        )
-        == {"cpu": "1", "instance_type": "p4.xlarge"}
-    )
+    assert compute_resource_attributes(
+        [],
+        MockDeco("batch", {"instance_type": None}),
+        {"cpu": "1", "instance_type": "p4.xlarge"},
+    ) == {"cpu": "1", "instance_type": "p4.xlarge"}

@@ -126,9 +126,9 @@ class Local(object):
 
     def _path(self, key):
         key = to_unicode(key)
-        if key.startswith(u"local://"):
+        if key.startswith("local://"):
             return key[8:]
-        elif key[0] != u"/":
+        elif key[0] != "/":
             if current.is_running_flow:
                 raise MetaflowLocalURLException(
                     "Specify Local(run=self) when you use Local inside a running "
@@ -145,7 +145,7 @@ class Local(object):
 
     def get(self, key=None, return_missing=False):
         p = self._path(key)
-        url = u"local://%s" % p
+        url = "local://%s" % p
         if not os.path.isfile(p):
             if return_missing:
                 p = None
@@ -159,7 +159,7 @@ class Local(object):
             Local._makedirs(os.path.dirname(p))
             with open(p, "wb") as f:
                 f.write(obj)
-        return u"local://%s" % p
+        return "local://%s" % p
 
 
 # From here on out, this is the IncludeFile implementation.
@@ -190,7 +190,7 @@ class LocalFile:
                 )
             path = decoded_value["url"]
         for prefix, handler in DATACLIENTS.items():
-            if path.startswith(u"%s://" % prefix):
+            if path.startswith("%s://" % prefix):
                 return True, Uploader(handler), None
         try:
             with open(path, mode="r") as _:
