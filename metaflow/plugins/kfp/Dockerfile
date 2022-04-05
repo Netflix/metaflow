@@ -40,7 +40,9 @@ RUN apt-get update && apt-get install -yq --no-install-recommends \
 RUN pip install -U pip==20.0.2 poetry==1.0.10
 ENV POETRY_VIRTUALENVS_CREATE=False
 
-RUN pip install awscli click requests boto3 pytest pytest-xdist
+RUN pip install --upgrade --force-reinstall \
+    -i https://artifactory.zgtools.net/artifactory/api/pypi/analytics-python/simple \
+    awscli click requests boto3 pytest pytest-xdist zillow-kfp kfp-server-api
 
 # Create Z_USER with UID=1000 and in the 'users' group
 ARG Z_USER="zservice"
