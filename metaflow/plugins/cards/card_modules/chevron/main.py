@@ -3,12 +3,8 @@
 import io
 import sys
 
-try:
-    from .renderer import render
-    from .metadata import version
-except (ValueError, SystemError):  # python 2
-    from renderer import render
-    from metadata import version
+from .renderer import render
+from .metadata import version
 
 
 def main(template, data=None, **kwargs):

@@ -201,11 +201,11 @@ class CardDatastore(object):
         # todo : replace this function with the FileCache
         if save_path is None:
             if not is_file_present(self._temp_card_save_path):
-                LocalStorage._makedirs(self._temp_card_save_path)
+                os.makedirs(self._temp_card_save_path, exist_ok=True)
         else:
             save_dir = os.path.dirname(save_path)
             if save_dir != "" and not is_file_present(save_dir):
-                LocalStorage._makedirs(os.path.dirname(save_path))
+                os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
         with self._backend.load_bytes([path]) as get_results:
             for key, path, meta in get_results:

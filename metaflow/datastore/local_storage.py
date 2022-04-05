@@ -14,11 +14,7 @@ class LocalStorage(DataStoreStorage):
     def get_datastore_root_from_config(cls, echo, create_on_absent=True):
         result = DATASTORE_SYSROOT_LOCAL
         if result is None:
-            try:
-                # Python2
-                current_path = os.getcwdu()
-            except:  # noqa E722
-                current_path = os.getcwd()
+            current_path = os.getcwd()
             check_dir = os.path.join(current_path, DATASTORE_LOCAL_DIR)
             check_dir = os.path.realpath(check_dir)
             orig_path = check_dir
@@ -45,16 +41,6 @@ class LocalStorage(DataStoreStorage):
         else:
             result = os.path.join(result, DATASTORE_LOCAL_DIR)
         return result
-
-    @staticmethod
-    def _makedirs(path):
-        try:
-            os.makedirs(path)
-        except OSError as x:
-            if x.errno == 17:
-                return
-            else:
-                raise
 
     def is_file(self, paths):
         results = []
@@ -113,7 +99,7 @@ class LocalStorage(DataStoreStorage):
             full_path = self.full_uri(path)
             if not overwrite and os.path.exists(full_path):
                 continue
-            LocalStorage._makedirs(os.path.dirname(full_path))
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
             with open(full_path, mode="wb") as f:
                 f.write(byte_obj.read())
             if metadata:

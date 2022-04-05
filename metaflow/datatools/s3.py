@@ -5,9 +5,10 @@ import time
 import shutil
 import random
 import subprocess
-from io import RawIOBase, BytesIO, BufferedIOBase
+from io import RawIOBase, BufferedIOBase
 from itertools import chain, starmap
 from tempfile import mkdtemp, NamedTemporaryFile
+from urllib.parse import urlparse
 
 from .. import FlowSpec
 from ..current import current
@@ -24,12 +25,6 @@ from ..util import (
 from ..exception import MetaflowException
 from ..debug import debug
 
-try:
-    # python2
-    from urlparse import urlparse
-except:
-    # python3
-    from urllib.parse import urlparse
 
 from .s3util import get_s3_client, read_in_chunks, get_timestamp
 

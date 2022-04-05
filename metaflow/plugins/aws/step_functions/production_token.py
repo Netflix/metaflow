@@ -17,18 +17,6 @@ def _token_generator(token_prefix):
         yield prefix + "".join(random.sample(string.ascii_lowercase, 4))
 
 
-def _makedirs(path):
-    # this is for python2 compatibility.
-    # Python3 has os.makedirs(exist_ok=True).
-    try:
-        os.makedirs(path)
-    except OSError as x:
-        if x.errno == 17:
-            return
-        else:
-            raise
-
-
 def _load_config(path):
     if os.path.exists(path):
         with open(path) as f:
@@ -63,6 +51,6 @@ def store_token(token_prefix, token):
     path = _path(token_prefix)
     config = _load_config(path)
     config["production_token"] = token
-    _makedirs(os.path.dirname(path))
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as f:
         json.dump(config, f)

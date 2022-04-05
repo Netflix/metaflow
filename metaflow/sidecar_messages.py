@@ -3,6 +3,7 @@ import json
 # Define message enums
 # Unfortunately we can't use enums because they are not supported
 # officially in Python2
+# TODO: Update for python 3
 class MessageTypes(object):
     SHUTDOWN, LOG_EVENT = range(1, 3)
 

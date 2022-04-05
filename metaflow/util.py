@@ -1,54 +1,19 @@
 import os
+import re
 import shutil
 import sys
 import tempfile
 import zlib
 import base64
+
 from functools import wraps
 from io import BytesIO
 from itertools import takewhile
-import re
+from urllib.parse import quote, unquote
+from shlex import quote as _quote
 
 from metaflow.exception import MetaflowUnknownUser, MetaflowInternalError
 
-try:
-    # python2
-    unicode_type = unicode
-    bytes_type = str
-    from urllib import quote, unquote
-
-    # unquote_bytes should be a function that takes a urlencoded byte
-    # string, encoded in UTF-8, url-decodes it and returns it as a
-    # unicode object. Confusingly, how to accomplish this differs
-    # between Python2 and Python3.
-    #
-    # Test with this input URL:
-    # b'crazypath/%01%C3%B'
-    # it should produce
-    # u'crazypath/\x01\xff'
-    def unquote_bytes(x):
-        return to_unicode(unquote(to_bytes(x)))
-
-    # this is used e.g. by mflog/save_logs.py to identify paths
-    class Path(object):
-        def __init__(self, path):
-            self.path = path
-
-        def __str__(self):
-            return self.path
-
-    from pipes import quote as _quote
-except NameError:
-    # python3
-    unicode_type = str
-    bytes_type = bytes
-    from urllib.parse import quote, unquote
-    from pathlib import Path
-
-    def unquote_bytes(x):
-        return unquote(to_unicode(x))
-
-    from shlex import quote as _quote
 
 if sys.version_info >= (3, 7):
     from collections import namedtuple
@@ -67,6 +32,7 @@ else:
 
 class TempDir(object):
     # Provide a temporary directory since Python 2.7 does not have it inbuilt
+    # TODO: Update for python 3
     def __enter__(self):
         self.name = tempfile.mkdtemp()
         return self.name
@@ -119,14 +85,14 @@ def url_unquote(url_bytes):
     """
     Decode a byte string encoded with url_quote to a unicode URL
     """
-    return unquote_bytes(url_bytes)
+    return unquote(to_unicode(url_bytes))
 
 
 def is_stringish(x):
     """
     Returns true if the object is a unicode or a bytes object
     """
-    return isinstance(x, bytes_type) or isinstance(x, unicode_type)
+    return isinstance(x, bytes) or isinstance(x, str)
 
 
 def to_fileobj(x):
@@ -140,19 +106,19 @@ def to_unicode(x):
     """
     Convert any object to a unicode object
     """
-    if isinstance(x, bytes_type):
+    if isinstance(x, bytes):
         return x.decode("utf-8")
     else:
-        return unicode_type(x)
+        return str(x)
 
 
 def to_bytes(x):
     """
     Convert any object to a byte string
     """
-    if isinstance(x, unicode_type):
+    if isinstance(x, str):
         return x.encode("utf-8")
-    elif isinstance(x, bytes_type):
+    elif isinstance(x, bytes):
         return x
     elif isinstance(x, float):
         return repr(x).encode("utf-8")

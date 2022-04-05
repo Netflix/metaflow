@@ -185,19 +185,6 @@ class LocalMetadataProvider(MetadataProvider):
                 result.append(LocalMetadataProvider._read_json_file(self_file))
         return MetadataProvider._apply_filter(result, filters)
 
-    @staticmethod
-    def _makedirs(path):
-        # this is for python2 compatibility.
-        # Python3 has os.makedirs(exist_ok=True).
-        try:
-            os.makedirs(path)
-        except OSError as x:
-            if x.errno == 17:
-                # Error raised when directory exists
-                return
-            else:
-                raise
-
     def _ensure_meta(
         self, obj_type, run_id, step_name, task_id, tags=None, sys_tags=None
     ):
@@ -209,7 +196,7 @@ class LocalMetadataProvider(MetadataProvider):
             self._flow_name, run_id, step_name, task_id
         )
         selfname = os.path.join(subpath, "_self.json")
-        self._makedirs(subpath)
+        os.makedirs(subpath, exist_ok=True)
         if os.path.isfile(selfname):
             return
         # In this case, the metadata information does not exist so we create it
@@ -279,7 +266,7 @@ class LocalMetadataProvider(MetadataProvider):
             flow_name, run_id, step_name, task_id
         )
         subpath = os.path.join(root_path, LocalStorage.METADATA_DIR)
-        LocalMetadataProvider._makedirs(subpath)
+        os.makedirs(subpath, exist_ok=True)
         return subpath
 
     @staticmethod

@@ -1,16 +1,11 @@
-import sys
 import os
+import pickle
+import sys
 import traceback
 from itertools import islice
 from multiprocessing import cpu_count
 from tempfile import NamedTemporaryFile
 
-try:
-    # Python 2
-    import cPickle as pickle
-except:
-    # Python 3
-    import pickle
 
 # This module reimplements select functions from the standard
 # Python multiprocessing module.

@@ -42,21 +42,10 @@ if time.timezone == 0:
     # on conversions
     utc_to_local = lambda x: x
 else:
-    try:
-        # python3
-        from datetime import timezone
+    from datetime import timezone
 
-        def utc_to_local(utc_dt):
-            return utc_dt.replace(tzinfo=timezone.utc).astimezone(tz=None)
-
-    except ImportError:
-        # python2
-        import calendar
-
-        def utc_to_local(utc_dt):
-            timestamp = calendar.timegm(utc_dt.timetuple())
-            local_dt = datetime.fromtimestamp(timestamp)
-            return local_dt.replace(microsecond=utc_dt.microsecond)
+    def utc_to_local(utc_dt):
+        return utc_dt.replace(tzinfo=timezone.utc).astimezone(tz=None)
 
 
 def decorate(source, line, version=VERSION, now=None, lineid=None):

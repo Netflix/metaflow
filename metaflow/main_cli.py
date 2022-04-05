@@ -10,18 +10,6 @@ from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.util import to_unicode
 
 
-def makedirs(path):
-    # This is for python2 compatibility.
-    # Python3 has os.makedirs(exist_ok=True).
-    try:
-        os.makedirs(path)
-    except OSError as x:
-        if x.errno == 17:
-            return
-        else:
-            raise
-
-
 def echo_dev_null(*args, **kwargs):
     pass
 
@@ -218,7 +206,7 @@ def pull(episode):
             validate_episode(episode)
     # Create destination `metaflow-tutorials` dir.
     dst_parent = os.path.join(os.getcwd(), "metaflow-tutorials")
-    makedirs(dst_parent)
+    os.makedirs(dst_parent, exist_ok=True)
 
     # Pull specified episodes.
     for episode in episodes:
@@ -274,7 +262,7 @@ METAFLOW_CONFIGURATION_DIR = expanduser(
 
 @main.group(help="Configure Metaflow to access the cloud.")
 def configure():
-    makedirs(METAFLOW_CONFIGURATION_DIR)
+    os.makedirs(METAFLOW_CONFIGURATION_DIR, exist_ok=True)
 
 
 def get_config_path(profile):

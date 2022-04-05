@@ -496,12 +496,7 @@ def step(f):
     """
     f.is_step = True
     f.decorators = []
-    try:
-        # python 3
-        f.name = f.__name__
-    except:
-        # python 2
-        f.name = f.__func__.func_name
+    f.name = f.__name__
     return f
 
 

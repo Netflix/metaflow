@@ -257,7 +257,7 @@ class FileCache(object):
             self._index_objects()
         dirname = os.path.dirname(path)
         try:
-            FileCache._makedirs(dirname)
+            os.makedirs(dirname, exist_ok=True)
         except:  # noqa E722
             raise FileCacheException("Could not create directory: %s" % dirname)
         tmpfile = NamedTemporaryFile(dir=dirname, prefix="dlobj", delete=False)
@@ -329,18 +329,6 @@ class FileCache(object):
             except OSError:
                 # maybe another client had already GC'ed the file away
                 pass
-
-    @staticmethod
-    def _makedirs(path):
-        # this is for python2 compatibility.
-        # Python3 has os.makedirs(exist_ok=True).
-        try:
-            os.makedirs(path)
-        except OSError as x:
-            if x.errno == 17:
-                return
-            else:
-                raise
 
     @staticmethod
     def _get_datastore_storage_impl(ds_type):

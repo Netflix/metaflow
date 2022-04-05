@@ -1,32 +1,11 @@
 # -*- coding: utf-8 -*-
 
 import io
+import sys
 from os import linesep, path
 
-try:
-    from collections.abc import Sequence, Iterator, Callable
-except ImportError:  # python 2
-    from collections import Sequence, Iterator, Callable
-try:
-    from .tokenizer import tokenize
-except (ValueError, SystemError):  # python 2
-    from tokenizer import tokenize
-
-
-import sys
-
-if sys.version_info[0] == 3:
-    python3 = True
-    unicode_type = str
-    string_type = str
-
-    def unicode(x, y):
-        return x
-
-else:  # python 2
-    python3 = False
-    unicode_type = unicode
-    string_type = basestring  # noqa: F821 (This is defined in python2)
+from collections.abc import Sequence, Iterator, Callable
+from .tokenizer import tokenize
 
 
 #
@@ -199,7 +178,7 @@ def render(
     """
 
     # If the template is a seqeuence but not derived from a string
-    if isinstance(template, Sequence) and not isinstance(template, string_type):
+    if isinstance(template, Sequence) and not isinstance(template, str):
         # Then we don't need to tokenize it
         # But it does need to be a generator
         tokens = (token for token in template)
@@ -210,7 +189,7 @@ def render(
             # Otherwise make a generator
             tokens = tokenize(template, def_ldel, def_rdel)
 
-    output = unicode("", "utf-8")
+    output = ""
 
     if scopes is None:
         scopes = [data]
@@ -235,8 +214,6 @@ def render(
         # If we're a literal tag
         elif tag == "literal":
             # Add padding to the key and add it to the output
-            if not isinstance(key, unicode_type):  # python 2
-                key = unicode(key, "utf-8")
             output += key.replace("\n", "\n" + padding)
 
         # If we're a variable tag
@@ -250,19 +227,14 @@ def render(
                 # (inverted tags do this)
                 # then get the un-coerced object (next in the stack)
                 thing = scopes[1]
-            if not isinstance(thing, unicode_type):
-                thing = unicode(str(thing), "utf-8")
             output += _html_escape(thing)
 
         # If we're a no html escape tag
         elif tag == "no escape":
             # Just lookup the key and add it
-            thing = _get_key(
+            output += _get_key(
                 key, scopes, warn=warn, keep=keep, def_ldel=def_ldel, def_rdel=def_rdel
             )
-            if not isinstance(thing, unicode_type):
-                thing = unicode(str(thing), "utf-8")
-            output += thing
 
         # If we're a section tag
         elif tag == "section":
@@ -324,16 +296,11 @@ def render(
                     ),
                 )
 
-                if python3:
-                    output += rend
-                else:  # python 2
-                    output += rend.decode("utf-8")
+                output += rend
 
             # If the scope is a sequence, an iterator or generator but not
             # derived from a string
-            elif isinstance(scope, (Sequence, Iterator)) and not isinstance(
-                scope, string_type
-            ):
+            elif isinstance(scope, (Sequence, Iterator)) and not isinstance(scope, str):
                 # Then we need to do some looping
 
                 # Gather up all the tags inside the section
@@ -367,10 +334,7 @@ def render(
                         keep=keep,
                     )
 
-                    if python3:
-                        output += rend
-                    else:  # python 2
-                        output += rend.decode("utf-8")
+                    output += rend
 
             else:
                 # Otherwise we're just a scope section
@@ -415,12 +379,6 @@ def render(
                 part_out = part_out.rstrip(" \t")
 
             # Add the partials output to the ouput
-            if python3:
-                output += part_out
-            else:  # python 2
-                output += part_out.decode("utf-8")
+            output += part_out
 
-    if python3:
-        return output
-    else:  # python 2
-        return output.encode("utf-8")
+    return output

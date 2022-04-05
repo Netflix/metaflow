@@ -17,12 +17,6 @@ MESSAGE_WRITE_TIMEOUT_IN_MS = 1000
 
 NULL_SIDECAR_PREFIX = "nullSidecar"
 
-# for python 2 compatibility
-try:
-    blockingError = BlockingIOError
-except:
-    blockingError = OSError
-
 
 class PipeUnavailableError(Exception):
     """raised when unable to write to pipe given allotted time"""
@@ -105,7 +99,7 @@ class SidecarSubProcess(object):
                     stdout=open(os.devnull, "w"),
                     bufsize=0,
                 )
-            except blockingError as be:
+            except BlockingIOError as be:
                 self.logger("warning: sidecar popen failed: %s" % repr(be))
             except Exception as e:
                 self.logger(repr(e))

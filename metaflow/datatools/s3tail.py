@@ -1,12 +1,6 @@
 from io import BytesIO
+from urllib.parse import urlparse
 from .s3util import aws_retry, get_s3_client
-
-try:
-    # python2
-    from urlparse import urlparse
-except:
-    # python3
-    from urllib.parse import urlparse
 
 
 class S3Tail(object):

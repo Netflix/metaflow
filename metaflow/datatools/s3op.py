@@ -9,19 +9,12 @@ import traceback
 from functools import partial
 from hashlib import sha1
 from tempfile import NamedTemporaryFile
+from urllib.parse import urlparse
 from multiprocessing import Process, Queue
 from itertools import starmap, chain, islice
 
 from boto3.s3.transfer import TransferConfig
 
-try:
-    # python2
-    from urlparse import urlparse
-    from Queue import Full as QueueFull
-except:
-    # python3
-    from urllib.parse import urlparse
-    from queue import Full as QueueFull
 
 # s3op can be launched as a stand-alone script. We must set
 # PYTHONPATH for the parent Metaflow explicitly.

@@ -21,12 +21,6 @@ from metaflow.util import cached_property, resolve_identity, to_unicode
 
 from .filecache import FileCache
 
-try:
-    # python2
-    import cPickle as pickle
-except:  # noqa E722
-    # python3
-    import pickle
 
 # populated at the bottom of this file
 _CLASSES = {}

@@ -1,5 +1,5 @@
 import inspect
-import os
+import pickle
 import sys
 import traceback
 from datetime import datetime
@@ -58,13 +58,6 @@ INDENT = " " * 4
 LOGGER_TIMESTAMP = "magenta"
 LOGGER_COLOR = "green"
 LOGGER_BAD_COLOR = "red"
-
-try:
-    # Python 2
-    import cPickle as pickle
-except ImportError:
-    # Python 3
-    import pickle
 
 
 def echo_dev_null(*args, **kwargs):

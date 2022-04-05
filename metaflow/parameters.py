@@ -10,12 +10,6 @@ from .exception import (
     MetaflowException,
 )
 
-try:
-    # Python2
-    strtype = basestring
-except NameError:
-    # Python3
-    strtype = str
 
 # ParameterContext allows deploy-time functions modify their
 # behavior based on the context. We can add fields here without
@@ -37,7 +31,7 @@ class JSONTypeClass(click.ParamType):
     name = "JSON"
 
     def convert(self, value, param, ctx):
-        if not isinstance(value, strtype):
+        if not isinstance(value, str):
             # Already a correct type
             return value
         try:
@@ -238,7 +232,7 @@ class Parameter(object):
     @property
     def is_string_type(self):
         return self.kwargs.get("type", str) == str and isinstance(
-            self.kwargs.get("default", ""), strtype
+            self.kwargs.get("default", ""), str
         )
 
     # this is needed to appease Pylint for JSONType'd parameters,

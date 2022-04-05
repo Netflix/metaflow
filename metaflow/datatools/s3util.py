@@ -85,5 +85,7 @@ def read_in_chunks(dst, src, src_sz, max_chunk_size):
 def get_timestamp(dt):
     """
     Python2 compatible way to compute the timestamp (seconds since 1/1/1970)
+
+    TODO: Update for python 3
     """
     return (dt.replace(tzinfo=None) - datetime(1970, 1, 1)).total_seconds()

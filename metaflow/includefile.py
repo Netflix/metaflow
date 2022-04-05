@@ -5,6 +5,7 @@ import json
 import os
 
 from hashlib import sha1
+from urllib.parse import urlparse
 
 from metaflow._vendor import click
 
@@ -15,12 +16,6 @@ from .metaflow_config import DATATOOLS_LOCALROOT, DATATOOLS_SUFFIX
 from .parameters import DeployTimeField, Parameter
 from .util import to_unicode
 
-try:
-    # python2
-    from urlparse import urlparse
-except:
-    # python3
-    from urllib.parse import urlparse
 
 # TODO: This local "client" and the general notion of dataclients should probably
 # be moved somewhere else. Putting here to keep this change compact for now
@@ -89,16 +84,6 @@ class Local(object):
     In the future, we may want to allow it to be used in a way similar to the S3() client.
     """
 
-    @staticmethod
-    def _makedirs(path):
-        try:
-            os.makedirs(path)
-        except OSError as x:
-            if x.errno == 17:
-                return
-            else:
-                raise
-
     @classmethod
     def get_root_from_config(cls, echo, create_on_absent=True):
         result = DATATOOLS_LOCALROOT
@@ -156,7 +141,7 @@ class Local(object):
     def put(self, key, obj, overwrite=True):
         p = self._path(key)
         if overwrite or (not os.path.exists(p)):
-            Local._makedirs(os.path.dirname(p))
+            os.makedirs(os.path.dirname(p), exist_ok=True)
             with open(p, "wb") as f:
                 f.write(obj)
         return "local://%s" % p
@@ -365,6 +350,7 @@ class Uploader:
         except IOError:
             # If we get an error here, since we know that the file exists already,
             # it means that read failed which happens with Python 2.7 for large files
+            # TODO: Update for python 3
             raise MetaflowException(
                 "Cannot read file at %s -- this is likely because it is too "
                 "large to be properly handled by Python 2.7" % path

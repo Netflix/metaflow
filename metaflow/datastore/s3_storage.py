@@ -7,14 +7,6 @@ from ..metaflow_config import DATASTORE_SYSROOT_S3, ARTIFACT_LOCALROOT
 from .datastore_storage import CloseAfterUse, DataStoreStorage
 
 
-try:
-    # python2
-    from urlparse import urlparse
-except:
-    # python3
-    from urllib.parse import urlparse
-
-
 class S3Storage(DataStoreStorage):
     TYPE = "s3"
 
