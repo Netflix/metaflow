@@ -275,24 +275,63 @@ class MetaflowTask(object):
         )
         metadata_tags = ["attempt_id:{0}".format(retry_count)]
         output.clone(origin)
+        # Get original metadata and extract fields we care about
+        metadata_fields = [
+            "conda_env_id",
+            "code_package",
+            "ds-type",
+            "ds-root",
+            "attempt_ok",
+        ]
+        origin_metadata = self.metadata.get_object(
+            "task",
+            "metadata",
+            None,
+            None,
+            self.flow.name,
+            origin_run_id,
+            origin_step_name,
+            origin_task_id,
+        )
+        origin_metadata = {
+            m["field_name"]: MetaDatum(
+                field=m["field_name"],
+                value=m["value"],
+                type=m["type"],
+                tags=metadata_tags,
+            )
+            for m in sorted(
+                [m for m in origin_metadata if m["field_name"] in metadata_fields],
+                key=lambda m: m["ts_epoch"],
+            )
+        }
+
+        new_metadata = [
+            MetaDatum(
+                field="origin-task-id",
+                value=str(origin_task_id),
+                type="origin-task-id",
+                tags=metadata_tags,
+            ),
+            MetaDatum(
+                field="origin-run-id",
+                value=str(origin_run_id),
+                type="origin-run-id",
+                tags=metadata_tags,
+            ),
+            MetaDatum(
+                field="attempt",
+                value=str(retry_count),
+                type="attempt",
+                tags=metadata_tags,
+            ),
+        ]
+        new_metadata.extend(origin_metadata.values())
         self.metadata.register_metadata(
             run_id,
             step_name,
             task_id,
-            [
-                MetaDatum(
-                    field="origin-task-id",
-                    value=str(origin_task_id),
-                    type="origin-task-id",
-                    tags=metadata_tags,
-                ),
-                MetaDatum(
-                    field="origin-run-id",
-                    value=str(origin_run_id),
-                    type="origin-run-id",
-                    tags=metadata_tags,
-                ),
-            ],
+            new_metadata,
         )
         output.done()
 
