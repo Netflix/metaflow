@@ -249,19 +249,22 @@ class BatchJob(object):
                     ] = int(max_swap)
 
         if inferentia:
-            if not (isinstance(inferentia, bool)):
+            if not (isinstance(inferentia, (int, unicode, basestring))):
                 raise BatchJobException(
-                    'Inferentia parameter can only be a boolean value')
+                    "invalid inferentia value: ({}) (should be 0 or greater)".format(inferentia)
+                )
             else:
-                job_definition["containerProperties"]['linuxParameters']['devices'] = [
-                    {
-                        "containerPath": "/dev/neuron0",
-                        "hostPath": "/dev/neuron0",
-                        "permissions": [
-                            "read",
-                            "write"
-                        ]}
-                ]
+                job_definition["containerProperties"]['linuxParameters']['devices'] = []
+                for i in range(inferentia):
+                    job_definition["containerProperties"]['linuxParameters']['devices'].append(
+                        {
+                            "containerPath": f"/dev/neuron{i}",
+                            "hostPath": f"/dev/neuron{i}",
+                            "permissions": [
+                                "read",
+                                "write"
+                            ]}
+                    )
 
         if host_volumes:
             job_definition["containerProperties"]["volumes"] = []
