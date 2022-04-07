@@ -42,3 +42,10 @@ class ResumeStartStepTest(MetaflowTest):
             assert_equals(
                 run.data.expected_origin_run_id, run.data.actual_origin_run_id
             )
+            # We can also check the metadata for the start task
+            exclude_keys = ["origin-task-id", "origin-run-id"]
+            resumed_metadata = run["start"].task.metadata_dict
+            # Here we actually expect just origin-run-id but NOT origin-task-id because
+            # we didn't clone it
+            assert "origin-task-id" not in resumed_metadata, "Invalid clone"
+            assert "origin-run-id" in resumed_metadata, "Invalid resume"
