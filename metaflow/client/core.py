@@ -967,16 +967,61 @@ class Task(MetaflowObject):
             self._NAME, "metadata", None, self._attempt, *self.path_components
         )
         all_metadata = all_metadata if all_metadata else []
-        return [
-            Metadata(
-                name=obj.get("field_name"),
-                value=obj.get("value"),
-                created_at=obj.get("ts_epoch"),
-                type=obj.get("type"),
-                task=self,
+
+        # For "clones" (ie: they have an origin-run-id AND a origin-task-id), we
+        # copy a set of metadata from the original task. This is needed to make things
+        # like logs work (which rely on having proper values for ds-root for example)
+        origin_run_id = None
+        origin_task_id = None
+        result = []
+        for obj in all_metadata:
+            result.append(
+                Metadata(
+                    name=obj.get("field_name"),
+                    value=obj.get("value"),
+                    created_at=obj.get("ts_epoch"),
+                    type=obj.get("type"),
+                    task=self,
+                )
             )
-            for obj in all_metadata
-        ]
+            if obj.get("field_name") == "origin-run-id":
+                origin_run_id = obj.get("value")
+            elif obj.get("field_name") == "origin-task-id":
+                origin_task_id = obj.get("value")
+
+        if origin_task_id:
+            # If we have this metadata, it is highly likely the "clone" succeeded
+            # since writing the metadata happens towards the very end.
+            propagated_metadata = [
+                "conda_env_id",
+                "code_package",
+                "ds-type",
+                "ds-root",
+                "attempt_ok",
+            ]
+
+            origin_obj_pathcomponents = self.path_components
+            origin_obj_pathcomponents[1] = origin_run_id
+            origin_obj_pathcomponents[3] = origin_task_id
+            origin_task = Task("/".join(origin_obj_pathcomponents))
+            # Always use the latest attempt for this
+            latest_metadata = {
+                m.name: m
+                for m in sorted(origin_task.metadata, key=lambda m: m.created_at)
+            }
+            # We point to ourselves in the Metadata object
+            for v in latest_metadata.values():
+                result.append(
+                    Metadata(
+                        name=v.name,
+                        value=v.value,
+                        created_at=v.created_at,
+                        type=v.type,
+                        task=self,
+                    )
+                )
+
+        return result
 
     @property
     def metadata_dict(self):
