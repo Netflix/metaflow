@@ -17,7 +17,6 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: '3.9.x'
-    - uses: actions/setup-python@v2
     - uses: pre-commit/action@v2.0.3
 
   Python:
