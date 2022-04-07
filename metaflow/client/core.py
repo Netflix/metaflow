@@ -990,21 +990,13 @@ class Task(MetaflowObject):
                 origin_task_id = obj.get("value")
 
         if origin_task_id:
-            # If we have this metadata, it is highly likely the "clone" succeeded
-            # since writing the metadata happens towards the very end.
-            propagated_metadata = [
-                "conda_env_id",
-                "code_package",
-                "ds-type",
-                "ds-root",
-                "attempt_ok",
-            ]
+            # This is a "cloned" task. We consider that it has the same
+            # metadata as the last attempt of the cloned task.
 
             origin_obj_pathcomponents = self.path_components
             origin_obj_pathcomponents[1] = origin_run_id
             origin_obj_pathcomponents[3] = origin_task_id
             origin_task = Task("/".join(origin_obj_pathcomponents))
-            # Always use the latest attempt for this
             latest_metadata = {
                 m.name: m
                 for m in sorted(origin_task.metadata, key=lambda m: m.created_at)
@@ -1325,23 +1317,28 @@ class Task(MetaflowObject):
         if not env_type:
             return None
         env = [m for m in ENVIRONMENTS + [MetaflowEnvironment] if m.TYPE == env_type][0]
-        return env.get_client_info(self.path_components[0], self.metadata_dict)
+        meta_dict = self.metadata_dict
+        return env.get_client_info(self.path_components[0], meta_dict)
 
     def _load_log(self, stream):
-        log_location = self.metadata_dict.get("log_location_%s" % stream)
+        meta_dict = self.metadata_dict
+        log_location = meta_dict.get("log_location_%s" % stream)
         if log_location:
             return self._load_log_legacy(log_location, stream)
         else:
-            return "".join(line + "\n" for _, line in self.loglines(stream))
+            return "".join(
+                line + "\n" for _, line in self.loglines(stream, meta_dict=meta_dict)
+            )
 
     def _get_logsize(self, stream):
-        log_location = self.metadata_dict.get("log_location_%s" % stream)
+        meta_dict = self.metadata_dict
+        log_location = meta_dict.get("log_location_%s" % stream)
         if log_location:
             return self._legacy_log_size(log_location, stream)
         else:
-            return self._log_size(stream)
+            return self._log_size(stream, meta_dict)
 
-    def loglines(self, stream, as_unicode=True):
+    def loglines(self, stream, as_unicode=True, meta_dict=None):
         """
         Return an iterator over (utc_timestamp, logline) tuples.
 
@@ -1352,8 +1349,10 @@ class Task(MetaflowObject):
 
         global filecache
 
-        ds_type = self.metadata_dict.get("ds-type")
-        ds_root = self.metadata_dict.get("ds-root")
+        if meta_dict is None:
+            meta_dict = self.metadata_dict
+        ds_type = meta_dict.get("ds-type")
+        ds_root = meta_dict.get("ds-root")
         if ds_type is None or ds_root is None:
             yield None, ""
             return
@@ -1400,11 +1399,11 @@ class Task(MetaflowObject):
             ds_type, location, logtype, int(attempt), *self.path_components
         )
 
-    def _log_size(self, stream):
+    def _log_size(self, stream, meta_dict):
         global filecache
 
-        ds_type = self.metadata_dict.get("ds-type")
-        ds_root = self.metadata_dict.get("ds-root")
+        ds_type = meta_dict.get("ds-type")
+        ds_root = meta_dict.get("ds-root")
         if ds_type is None or ds_root is None:
             return 0
         if filecache is None:
