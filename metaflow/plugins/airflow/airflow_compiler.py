@@ -18,7 +18,7 @@ from metaflow.decorators import flow_decorators
 from metaflow.graph import FlowGraph, DAGNode
 from metaflow.plugins.cards.card_modules import chevron
 from metaflow.plugins.aws.aws_utils import compute_resource_attributes
-from .exceptions import AirflowNotPresent, AirflowException
+from .exceptions import AirflowNotPresent, AirflowException, NotSupportedException
 from .airflow_utils import (
     TASK_ID_XCOM_KEY,
     Workflow,
@@ -283,6 +283,8 @@ class Airflow(object):
         if env_deco:
             env = env_deco[0].attributes["vars"]
 
+        if is_a_foreach:
+            raise NotSupportedException("Foreach is not supported in airflow.")
         # The Below If/Else Block handle "Input Paths".
         # Input Paths help manage dataflow across the graph.
         if node.name == "start":

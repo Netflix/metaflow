@@ -14,3 +14,7 @@ class AirflowException(MetaflowException):
 
     def __init__(self, msg):
         super().__init__(msg)
+
+
+class NotSupportedException(MetaflowException):
+    headline = "Feature is not yet supported with airflow"
