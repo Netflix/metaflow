@@ -72,6 +72,7 @@ class Airflow(object):
         username=None,
         max_workers=None,
         is_project=False,
+        worker_pool=None,
         email=None,
         start_date=datetime.now(),
         description=None,
@@ -100,6 +101,7 @@ class Airflow(object):
         self._file_path = file_path
         self.metaflow_parameters = None
         _, self.graph_structure = self.graph.output_steps()
+        self.worker_pool = worker_pool
 
     def _get_schedule(self):
         schedule = self.flow._flow_decorators.get("schedule")
@@ -540,6 +542,11 @@ class Airflow(object):
                 )
             return workflow
 
+        # set max active tasks here , For more info check here :
+        # https://airflow.apache.org/docs/apache-airflow/stable/_api/airflow/models/dag/index.html#airflow.models.dag.DAG
+        other_args = (
+            {} if self.max_workers is None else dict(max_active_tasks=self.max_workers)
+        )
         workflow = Workflow(
             dag_id=self.name,
             default_args=self._create_defaults(),
@@ -550,6 +557,7 @@ class Airflow(object):
             tags=self.tags,
             file_path=self._file_path,
             graph_structure=self.graph_structure,
+            **other_args
         )
         workflow = _visit(self.graph["start"], workflow)
         workflow.set_parameters(self.metaflow_parameters)
@@ -571,7 +579,7 @@ class Airflow(object):
             )
 
     def _create_defaults(self):
-        return {
+        defu_ = {
             "owner": get_username(),
             # If set on a task, doesn’t run the task in the current DAG run if the previous run of the task has failed.
             "depends_on_past": False,
@@ -583,3 +591,7 @@ class Airflow(object):
             # check https://airflow.apache.org/docs/apache-airflow/stable/_api/airflow/models/baseoperator/index.html?highlight=retry_delay#airflow.models.baseoperator.BaseOperatorMeta
             "retry_delay": timedelta(seconds=5),
         }
+        if self.worker_pool is not None:
+            defu_["pool"] = self.worker_pool
+
+        return defu_

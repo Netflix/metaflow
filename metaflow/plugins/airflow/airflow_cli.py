@@ -18,7 +18,9 @@ def airflow(ctx):
     pass
 
 
-def make_flow(obj, tags, namespace, worker_pools, is_project, file_path=None):
+def make_flow(
+    obj, tags, namespace, max_workers, is_project, file_path=None, worker_pool=None
+):
     # Attach K8s decorator over here.
     # todo This will be affected in the future based on how many compute providers are supported on Airflow.
     decorators._attach_decorators(obj.flow, [KubernetesDecorator.name])
@@ -45,7 +47,8 @@ def make_flow(obj, tags, namespace, worker_pools, is_project, file_path=None):
         obj.monitor,
         tags=tags,
         namespace=namespace,
-        max_workers=worker_pools,
+        max_workers=max_workers,
+        worker_pool=worker_pool,
         username=get_username(),
         is_project=is_project,
         description=obj.flow.__doc__,
@@ -70,15 +73,16 @@ def make_flow(obj, tags, namespace, worker_pools, is_project, file_path=None):
     default=None,
 )
 @click.option(
-    "--only-json",
-    is_flag=True,
-    default=False,
-    help="Only print out JSON",
-)
-@click.option(
-    "--worker-pools",
+    "--max-workers",
     default=100,
     show_default=True,
+    help="Maximum number of concurrent airflow tasks to run for the DAG. ",
+)
+@click.option(
+    "--worker-pool",
+    default=None,
+    show_default=True,
+    help="Worker pool the for the airflow tasks."
 )
 @click.pass_obj
 def create(
@@ -86,19 +90,25 @@ def create(
     file_path,
     tags=None,
     user_namespace=None,
-    only_json=False,
-    worker_pools=None,
+    max_workers=None,
+    worker_pool=None,
 ):
     flow = make_flow(
-        obj, tags, user_namespace, worker_pools, False, file_path=file_path
+        obj,
+        tags,
+        user_namespace,
+        max_workers,
+        False,
+        file_path=file_path,
+        worker_pool=worker_pool,
     )
     compiled_dag_file = flow.compile()
     if file_path is None:
         obj.echo_always(compiled_dag_file)
     else:
-        if file_path.startswith('s3://'):
+        if file_path.startswith("s3://"):
             with S3() as s3:
-                s3.put(file_path,compiled_dag_file)
+                s3.put(file_path, compiled_dag_file)
         else:
             with open(file_path, "w") as f:
                 f.write(compiled_dag_file)
