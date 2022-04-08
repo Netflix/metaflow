@@ -974,6 +974,7 @@ class Task(MetaflowObject):
         origin_run_id = None
         origin_task_id = None
         result = []
+        existing_keys = []
         for obj in all_metadata:
             result.append(
                 Metadata(
@@ -984,6 +985,7 @@ class Task(MetaflowObject):
                     task=self,
                 )
             )
+            existing_keys.append(obj.get("field_name"))
             if obj.get("field_name") == "origin-run-id":
                 origin_run_id = obj.get("value")
             elif obj.get("field_name") == "origin-task-id":
@@ -1003,6 +1005,8 @@ class Task(MetaflowObject):
             }
             # We point to ourselves in the Metadata object
             for v in latest_metadata.values():
+                if v.name in existing_keys:
+                    continue
                 result.append(
                     Metadata(
                         name=v.name,
