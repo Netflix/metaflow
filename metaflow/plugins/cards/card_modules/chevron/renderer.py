@@ -23,7 +23,6 @@ if sys.version_info[0] == 3:
     def unicode(x, y):
         return x
 
-
 else:  # python 2
     python3 = False
     unicode_type = unicode
