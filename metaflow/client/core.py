@@ -998,7 +998,9 @@ class Task(MetaflowObject):
             origin_obj_pathcomponents = self.path_components
             origin_obj_pathcomponents[1] = origin_run_id
             origin_obj_pathcomponents[3] = origin_task_id
-            origin_task = Task("/".join(origin_obj_pathcomponents))
+            origin_task = Task(
+                "/".join(origin_obj_pathcomponents), _namespace_check=False
+            )
             latest_metadata = {
                 m.name: m
                 for m in sorted(origin_task.metadata, key=lambda m: m.created_at)
