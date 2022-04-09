@@ -103,7 +103,7 @@ class Airflow(object):
         self.metaflow_parameters = None
         _, self.graph_structure = self.graph.output_steps()
         self.worker_pool = worker_pool
-        self.set_active = False
+        self.set_active = set_active
 
     def _get_schedule(self):
         # Using the cron presets provided here :
