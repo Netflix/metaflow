@@ -198,6 +198,11 @@ KUBERNETES_CONTAINER_REGISTRY = (
 #
 
 ###
+# Airflow Configuration
+###
+AIRFLOW_STATE_MACHINE_PREFIX = from_conf("METAFLOW_AIRFLOW_STATE_MACHINE_PREFIX")
+
+###
 # Conda configuration
 ###
 # Conda package root location on S3

@@ -78,6 +78,7 @@ class Airflow(object):
         description=None,
         catchup=False,
         file_path=None,
+        set_active=False,
     ):
         self.name = name
         self.graph = graph
@@ -102,14 +103,20 @@ class Airflow(object):
         self.metaflow_parameters = None
         _, self.graph_structure = self.graph.output_steps()
         self.worker_pool = worker_pool
+        self.set_active = False
 
     def _get_schedule(self):
+        # Using the cron presets provided here :
+        # https://airflow.apache.org/docs/apache-airflow/stable/dag-run.html?highlight=schedule%20interval#cron-presets
         schedule = self.flow._flow_decorators.get("schedule")
-        # todo : Fix bug here in schedule. The regex pattern doesn't work as intended.
-        if schedule:
-            return schedule.schedule
-        # Schedule can be None.
-        # Especially if parameters are provided without defaults from toplevel.
+        if self.attributes["cron"]:
+            return schedule.attributes["cron"]
+        elif self.attributes["weekly"]:
+            return "@weekly"
+        elif self.attributes["hourly"]:
+            return "@hourly"
+        elif self.attributes["daily"]:
+            return "@daily"
         return None
 
     def _k8s_job(self, node, input_paths, env):
@@ -547,6 +554,8 @@ class Airflow(object):
         other_args = (
             {} if self.max_workers is None else dict(max_active_tasks=self.max_workers)
         )
+        if self.set_active:
+            other_args["is_paused_upon_creation"] = False
         workflow = Workflow(
             dag_id=self.name,
             default_args=self._create_defaults(),

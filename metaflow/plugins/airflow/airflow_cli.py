@@ -3,8 +3,38 @@ from metaflow import decorators
 from metaflow.util import get_username
 from metaflow.package import MetaflowPackage
 from metaflow.plugins import KubernetesDecorator
+from metaflow.metaflow_config import AIRFLOW_STATE_MACHINE_PREFIX
 from .airflow_compiler import Airflow
 from metaflow import S3
+from metaflow import current
+from metaflow.exception import MetaflowException
+import re
+
+VALID_NAME = re.compile("[^a-zA-Z0-9_\-\.]")
+
+
+def resolve_state_machine_name(name):
+    def attach_prefix(name):
+        if AIRFLOW_STATE_MACHINE_PREFIX is not None:
+            return AIRFLOW_STATE_MACHINE_PREFIX + "_" + name
+        return name
+
+    project = current.get("project_name")
+    if project:
+        if name:
+            raise MetaflowException(
+                "--name is not supported for @projects. " "Use --branch instead."
+            )
+        state_machine_name = attach_prefix(current.project_flow_name)
+        is_project = True
+    else:
+        if name and VALID_NAME.search(name):
+            raise MetaflowException("Name '%s' contains invalid characters." % name)
+
+        state_machine_name = attach_prefix(name if name else current.flow_name)
+        is_project = False
+
+    return state_machine_name, is_project
 
 
 @click.group()
@@ -19,7 +49,15 @@ def airflow(ctx):
 
 
 def make_flow(
-    obj, tags, namespace, max_workers, is_project, file_path=None, worker_pool=None
+    obj,
+    dag_name,
+    tags,
+    namespace,
+    max_workers,
+    is_project,
+    file_path=None,
+    worker_pool=None,
+    set_active=False,
 ):
     # Attach K8s decorator over here.
     # todo This will be affected in the future based on how many compute providers are supported on Airflow.
@@ -35,7 +73,7 @@ def make_flow(
         [obj.package.blob], len_hint=1
     )[0]
     return Airflow(
-        obj.flow.name,
+        resolve_state_machine_name(dag_name),
         obj.graph,
         obj.flow,
         package_sha,
@@ -53,6 +91,7 @@ def make_flow(
         is_project=is_project,
         description=obj.flow.__doc__,
         file_path=file_path,
+        set_active=set_active,
     )
 
 
@@ -66,6 +105,20 @@ def make_flow(
     help="Annotate all objects produced by AWS Step Functions runs "
     "with the given tag. You can specify this option multiple "
     "times to attach multiple tags.",
+)
+@click.option(
+    "--name",
+    default=None,
+    type=str,
+    help="`dag_id` of airflow DAG. The flow name is used instead "
+    "if this option is not specified",
+)
+@click.option(
+    "--set-active",
+    default=False,
+    is_flag=True,
+    help="Sets the DAG as active on Airflow as default. "
+    "Overrides the `is_paused_upon_creation=False` in the Airflow DAG object.",
 )
 @click.option(
     "--namespace",
@@ -82,25 +135,29 @@ def make_flow(
     "--worker-pool",
     default=None,
     show_default=True,
-    help="Worker pool the for the airflow tasks."
+    help="Worker pool the for the airflow tasks.",
 )
 @click.pass_obj
 def create(
     obj,
     file_path,
     tags=None,
+    name=None,
+    set_active=False,
     user_namespace=None,
     max_workers=None,
     worker_pool=None,
 ):
     flow = make_flow(
         obj,
+        name,
         tags,
         user_namespace,
         max_workers,
         False,
         file_path=file_path,
         worker_pool=worker_pool,
+        set_active=set_active,
     )
     compiled_dag_file = flow.compile()
     if file_path is None:
