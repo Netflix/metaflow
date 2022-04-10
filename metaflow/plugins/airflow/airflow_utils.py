@@ -176,6 +176,7 @@ def generate_rfc1123_name(flow_name, step_name):
 
 def set_k8s_operator_args(flow_name, step_name, operator_args):
     from kubernetes import client
+    from airflow.kubernetes.secret import Secret
 
     task_id = AIRFLOW_TASK_ID_TEMPLATE_VALUE
     run_id = "arf-{{ run_id | hash }}"  # hash is added via the `user_defined_filters`
@@ -204,6 +205,9 @@ def set_k8s_operator_args(flow_name, step_name, operator_args):
         client.V1VolumeMount(**v) for v in operator_args.get("volume_mounts", [])
     ]
     volumes = [client.V1Volume(**v) for v in operator_args.get("volumes", [])]
+    secrets = [
+        Secret("env", secret, secret) for secret in operator_args.get("secrets", [])
+    ]
     args = {
         # "on_retry_callback": retry_callback,
         "namespace": operator_args.get("namespace", "airflow"),
@@ -218,7 +222,7 @@ def set_k8s_operator_args(flow_name, step_name, operator_args):
         "volumes": volumes,
         "env_vars": env_vars,
         "env_from": operator_args.get("env_from", []),
-        "secrets": operator_args.get("secrets", []),
+        "secrets": secrets,
         "in_cluster": operator_args.get(
             "in_cluster", False
         ),  # Todo : Document what is this ?
@@ -279,9 +283,19 @@ def set_k8s_operator_args(flow_name, step_name, operator_args):
 
 
 def get_k8s_operator():
-    from airflow.contrib.operators.kubernetes_pod_operator import (
-        KubernetesPodOperator,
-    )
+
+    try:
+        from airflow.contrib.operators.kubernetes_pod_operator import (
+            KubernetesPodOperator,
+        )
+    except ImportError:
+        try:
+            from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import (
+                KubernetesPodOperator,
+            )
+        except ImportError as e:
+            # todo : Fix error messages.
+            raise e
 
     return KubernetesPodOperator
 
