@@ -72,8 +72,9 @@ def make_flow(
     package_url, package_sha = obj.flow_datastore.save_data(
         [obj.package.blob], len_hint=1
     )[0]
+    flow_name, is_project = resolve_state_machine_name(dag_name)
     return Airflow(
-        resolve_state_machine_name(dag_name),
+        flow_name,
         obj.graph,
         obj.flow,
         package_sha,
