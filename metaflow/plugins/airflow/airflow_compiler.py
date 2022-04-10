@@ -391,7 +391,7 @@ class Airflow(object):
             "with": [
                 decorator.make_decorator_spec()
                 for decorator in node.decorators
-                if not decorator.statically_defined and decorator.name != "kubernetes"
+                if not decorator.statically_defined
             ]
         }
         # FlowDecorators can define their own top-level options. They are

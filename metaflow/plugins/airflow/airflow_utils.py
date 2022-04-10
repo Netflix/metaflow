@@ -8,6 +8,11 @@ import hashlib
 import re
 from datetime import timedelta, datetime
 
+
+class KubernetesProviderNotFound(Exception):
+    headline = "Kubernetes provider not found"
+
+
 LABEL_VALUE_REGEX = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9\-\_\.]{0,61}[a-zA-Z0-9])?$")
 
 TASK_ID_XCOM_KEY = "metaflow_task_id"
@@ -59,8 +64,9 @@ def json_dump(val):
 
 class AirflowDAGArgs(object):
     # _arg_types This object helps map types of
-    # different keys that need to be parsed. None of the values in this
-    # dictionary are being used.
+    # different keys that need to be parsed. None of the "values" in this
+    # dictionary are being used. But the "types" of the values of are used when
+    # reparsing the arguments from the config variable.
     _arg_types = {
         "dag_id": "asdf",
         "description": "asdfasf",
@@ -182,19 +188,35 @@ def set_k8s_operator_args(flow_name, step_name, operator_args):
     run_id = "arf-{{ run_id | hash }}"  # hash is added via the `user_defined_filters`
     attempt = "{{ task_instance.try_number - 1 }}"
     # Set dynamic env variables like run-id, task-id etc from here.
-    env_vars = [
-        client.V1EnvVar(name=v["name"], value=str(v["value"]))
-        for v in operator_args.get("env_vars", [])
-    ] + [
-        client.V1EnvVar(name=k, value=str(v))
-        for k, v in dict(
-            METAFLOW_RUN_ID=run_id,
-            METAFLOW_AIRFLOW_TASK_ID=task_id,
-            METAFLOW_AIRFLOW_DAG_RUN_ID="{{run_id}}",
-            METAFLOW_AIRFLOW_JOB_ID="{{ti.job_id}}",
-            METAFLOW_ATTEMPT_NUMBER=attempt,
-        ).items()
-    ]
+    env_vars = (
+        [
+            client.V1EnvVar(name=v["name"], value=str(v["value"]))
+            for v in operator_args.get("env_vars", [])
+        ]
+        + [
+            client.V1EnvVar(name=k, value=str(v))
+            for k, v in dict(
+                METAFLOW_RUN_ID=run_id,
+                METAFLOW_AIRFLOW_TASK_ID=task_id,
+                METAFLOW_AIRFLOW_DAG_RUN_ID="{{run_id}}",
+                METAFLOW_AIRFLOW_JOB_ID="{{ti.job_id}}",
+                METAFLOW_ATTEMPT_NUMBER=attempt,
+            ).items()
+        ]
+        + [
+            client.V1EnvVar(
+                name=k,
+                value_from=client.V1EnvVarSource(
+                    field_ref=client.V1ObjectFieldSelector(field_path=str(v))
+                ),
+            )
+            for k, v in {
+                "METAFLOW_KUBERNETES_POD_NAMESPACE": "metadata.namespace",
+                "METAFLOW_KUBERNETES_POD_NAME": "metadata.name",
+                "METAFLOW_KUBERNETES_POD_ID": "metadata.uid",
+            }.items()
+        ]
+    )
 
     labels = {
         "metaflow/attempt": attempt,
@@ -295,7 +317,11 @@ def get_k8s_operator():
             )
         except ImportError as e:
             # todo : Fix error messages.
-            raise e
+            raise KubernetesProviderNotFound(
+                "Running this DAG requires KubernetesPodOperator. "
+                "Install Airflow Kubernetes provider using : "
+                "`pip install apache-airflow-providers-cncf-kubernetes`"
+            )
 
     return KubernetesPodOperator
 

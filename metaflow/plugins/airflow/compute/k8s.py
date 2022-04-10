@@ -87,7 +87,6 @@ def create_k8s_args(
         if service_account is None
         else service_account,
         # todo : pass secrets from metaflow to Kubernetes via airflow
-        secrets=secrets,
         node_selector=node_selector,
         cmds=k8s._command(
             code_package_url=code_package_url,
@@ -105,6 +104,9 @@ def create_k8s_args(
         labels=labels,
         is_delete_operator_pod=True,
     )
+    if secrets:
+        k8s_operator_args["secrets"] = secrets
+
     return k8s_operator_args
 
 
