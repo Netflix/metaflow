@@ -1,9 +1,10 @@
-from typing import NamedTuple
 import os
+from typing import NamedTuple
 
-from metaflow import FlowSpec, step, kfp, resources
-from kubernetes import client, config
 from kfp.components import func_to_container_op
+from kubernetes import client, config
+
+from metaflow import FlowSpec, kfp, resources, step
 
 
 def div_mod(

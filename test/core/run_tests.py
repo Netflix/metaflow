@@ -64,19 +64,12 @@ def log(msg, formatter=None, context=None, real_bad=False, real_good=False):
 
 def run_test(formatter, context, debug, checks, env_base):
     def run_cmd(mode):
-<<<<<<< HEAD
-        cmd = [context['python'], '-B', 'test_flow.py']
-        cmd.extend(context['top_options'])
-        cmd.extend((mode, '--run-id-file', 'run-id'))
-        cmd.extend(context['run_options'])
-        if debug:
-            print("cmd", cmd)
-=======
         cmd = [context["python"], "-B", "test_flow.py"]
         cmd.extend(context["top_options"])
         cmd.extend((mode, "--run-id-file", "run-id"))
         cmd.extend(context["run_options"])
->>>>>>> 2.5.4
+        if debug:
+            print("cmd", cmd)
         return cmd
 
     cwd = os.getcwd()
@@ -90,16 +83,12 @@ def run_test(formatter, context, debug, checks, env_base):
         with open("check_flow.py", "w") as f:
             f.write(formatter.check_code)
 
-<<<<<<< HEAD
         if debug:
             print("tempdir", tempdir)
 
-        shutil.copytree(os.path.join(cwd, "metaflow_test"), os.path.join(tempdir, "metaflow_test"))
-=======
         shutil.copytree(
             os.path.join(cwd, "metaflow_test"), os.path.join(tempdir, "metaflow_test")
         )
->>>>>>> 2.5.4
 
         path = os.path.join(tempdir, "test_flow.py")
 
@@ -140,13 +129,10 @@ def run_test(formatter, context, debug, checks, env_base):
                 return pre_ret, path
 
         # run flow
-<<<<<<< HEAD
         if debug:
             pprint.pprint(env)
-        flow_ret = subprocess.call(run_cmd('run'), env=env)
-=======
+
         flow_ret = subprocess.call(run_cmd("run"), env=env)
->>>>>>> 2.5.4
         if flow_ret:
             if formatter.should_fail:
                 log("Flow failed as expected.")

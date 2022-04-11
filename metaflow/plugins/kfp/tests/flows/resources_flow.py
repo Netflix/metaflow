@@ -1,5 +1,4 @@
 import os
-import click
 import pprint
 import subprocess
 import time
@@ -12,14 +11,8 @@ from kubernetes.client import (
     V1ResourceFieldSelector,
 )
 
-from metaflow import (
-    FlowSpec,
-    step,
-    environment,
-    resources,
-    current,
-    Parameter,
-)
+from metaflow import FlowSpec, Parameter, current, environment, resources, step
+from metaflow._vendor import click
 
 
 def get_env_vars(env_resources: Dict[str, str]) -> List[V1EnvVar]:

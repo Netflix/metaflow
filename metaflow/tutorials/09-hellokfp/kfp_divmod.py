@@ -6,7 +6,9 @@ from metaflow import FlowSpec, step, kfp
 
 
 @func_to_container_op
-def div_mod(dividend: int, divisor: int) -> NamedTuple("result", [('quotient', int), ('remainder', int)]):
+def div_mod(
+    dividend: int, divisor: int
+) -> NamedTuple("result", [("quotient", int), ("remainder", int)]):
     print(f"dividend={dividend}, divisor={divisor}")
     return divmod(dividend, divisor)
 

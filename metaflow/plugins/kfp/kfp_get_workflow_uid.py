@@ -1,11 +1,12 @@
-import click
-
-import pathlib
 import os
+import pathlib
+
 from kubernetes import config
 from kubernetes.client import api_client
 from kubernetes.dynamic import DynamicClient
 from kubernetes.dynamic.resource import Resource, ResourceInstance
+
+from metaflow._vendor import click
 
 
 @click.command()

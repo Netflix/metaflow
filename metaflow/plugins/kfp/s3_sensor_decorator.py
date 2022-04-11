@@ -1,9 +1,9 @@
-from metaflow.decorators import FlowDecorator
-from metaflow.exception import MetaflowException
-
 from types import FunctionType
 from typing import Tuple
 from urllib.parse import urlparse
+
+from metaflow.decorators import FlowDecorator
+from metaflow.exception import MetaflowException
 
 """
 Within identity_formatter, which is passed in as the path_formatter parameter,
@@ -78,7 +78,9 @@ class S3SensorDecorator(FlowDecorator):
         "os_expandvars": False,
     }
 
-    def flow_init(self, flow, graph, environment, datastore, logger, echo, options):
+    def flow_init(
+        self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
+    ):
         self.path = self.attributes["path"]
         self.timeout_seconds = self.attributes["timeout_seconds"]
         self.polling_interval_seconds = self.attributes["polling_interval_seconds"]

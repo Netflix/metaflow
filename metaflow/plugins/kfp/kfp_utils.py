@@ -8,9 +8,8 @@ They are technically not metaflow code.
 import datetime
 import json
 import logging
-import os
-
 import math
+import os
 import posixpath
 import sys
 import time
@@ -21,6 +20,7 @@ from metaflow.plugins.kfp.kfp_constants import KFP_CLI_DEFAULT_RETRY
 from metaflow.util import get_username
 
 try:  # Extra required dependency specific to kfp plug-in may not exists
+    import kfp_server_api
     from kfp import Client as KFPClient
     from kfp_server_api import (
         ApiExperiment,
@@ -29,7 +29,6 @@ try:  # Extra required dependency specific to kfp plug-in may not exists
         ApiRun,
         RunServiceApi,
     )
-    import kfp_server_api
 except ImportError:  # Silence import errors in type hint
     KFPClient = None
     ApiExperiment = None

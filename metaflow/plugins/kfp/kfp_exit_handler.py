@@ -1,7 +1,6 @@
-import click
-
-
 from typing import Dict
+
+from metaflow._vendor import click
 
 
 @click.command()
@@ -36,10 +35,10 @@ def exit_handler(
         return notify_variables.get(name, os.environ.get(name, default=default))
 
     def email_notify(send_to):
-        import smtplib
         import posixpath
-        from email.mime.text import MIMEText
+        import smtplib
         from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
         from email.utils import formatdate
 
         smtp_host = get_env("METAFLOW_NOTIFY_EMAIL_SMTP_HOST")

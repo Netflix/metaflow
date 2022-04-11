@@ -1,4 +1,4 @@
-from metaflow import Parameter, FlowSpec, step, Step
+from metaflow import FlowSpec, Parameter, Step, step
 
 
 class CheckErrorHandlingFlow(FlowSpec):

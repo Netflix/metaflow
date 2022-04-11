@@ -1,5 +1,5 @@
 import os
-from collections import Callable
+from typing import Callable
 
 from metaflow.graph import DAGNode, FlowGraph
 from metaflow.plugins.kfp.kfp_constants import (
@@ -13,7 +13,7 @@ from metaflow.plugins.kfp.kfp_foreach_splits import KfpForEachSplits
 
 
 def save_step_environment_variables(
-    datastore,
+    flow_datastore,
     graph: FlowGraph,
     run_id: str,
     step_name: str,
@@ -31,7 +31,7 @@ def save_step_environment_variables(
     by Metaflow step command line arguments.
     """
     with KfpForEachSplits(
-        graph, step_name, run_id, datastore, logger
+        graph, step_name, run_id, flow_datastore, logger
     ) as split_contexts:
         environment_exports = {
             # The step task_id

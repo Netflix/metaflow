@@ -1,27 +1,29 @@
-import pathlib
-from typing import List
-
-import os
 import json
 import logging
+import os
+import pathlib
 from subprocess import Popen
 from typing import Dict, List
 
-import click
-
-from metaflow.mflog import bash_capture_logs, export_mflog_env_vars, BASH_SAVE_LOGS
-from metaflow.plugins.kfp.kfp_constants import (
-    STEP_ENVIRONMENT_VARIABLES,
-    LOGS_DIR,
-    STDOUT_PATH,
-    STDERR_PATH,
-    TASK_ID_ENV_NAME,
-    SPLIT_INDEX_ENV_NAME,
-    INPUT_PATHS_ENV_NAME,
-    RETRY_COUNT,
-    KFP_METAFLOW_FOREACH_SPLITS_PATH,
-    PRECEDING_COMPONENT_INPUTS_PATH,
+from metaflow._vendor import click
+from metaflow.mflog import (
+    BASH_SAVE_LOGS,
+    bash_capture_logs,
+    export_mflog_env_vars,
 )
+from metaflow.plugins.kfp.kfp_constants import (
+    INPUT_PATHS_ENV_NAME,
+    KFP_METAFLOW_FOREACH_SPLITS_PATH,
+    LOGS_DIR,
+    PRECEDING_COMPONENT_INPUTS_PATH,
+    RETRY_COUNT,
+    SPLIT_INDEX_ENV_NAME,
+    STDERR_PATH,
+    STDOUT_PATH,
+    STEP_ENVIRONMENT_VARIABLES,
+    TASK_ID_ENV_NAME,
+)
+
 from ... import R
 
 
@@ -197,9 +199,6 @@ def _command(
         stderr_path=STDERR_PATH,
     )
 
-    step_cmds: List[str] = ["echo 'Task is starting.'", step_cli]
-    step_expr: str = bash_capture_logs(" && ".join(step_cmds))
-
     if volume_dir:
         clean_volume_cmd: str = f"rm -rf {os.path.join(volume_dir, '*')}"
     else:
@@ -212,7 +211,7 @@ def _command(
     cmd_str: str = (
         f"{clean_volume_cmd} "
         f"&& mkdir -p {LOGS_DIR} && {mflog_expr} "
-        f"&& {step_expr};"
+        f"&& {bash_capture_logs(step_cli)};"
     )
 
     # after the task has finished, we save its exit code (fail/success)

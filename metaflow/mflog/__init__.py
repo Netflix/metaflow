@@ -40,22 +40,19 @@ BASH_MFLOG = (
     " }" % TASK_LOG_SOURCE
 )
 
-<<<<<<< HEAD
 # In KFP, the same bash function goes through
 #   - quotation marks escape adjustment for proper concatenation
-BASH_MFLOG_KFP =\
-    'mflog(){ '\
-        'T=$(date -u -Ins|tr , .); '\
-        'echo \"[MFLOG|0|${T:0:26}Z|%s|$T]$1\"'\
-            ' >> $MFLOG_STDOUT; echo $1; '\
-     ' }' % TASK_LOG_SOURCE
+BASH_MFLOG_KFP = (
+    "mflog(){ "
+    "T=$(date -u -Ins|tr , .); "
+    'echo "[MFLOG|0|${T:0:26}Z|%s|$T]$1"'
+    " >> $MFLOG_STDOUT; echo $1; "
+    " }" % TASK_LOG_SOURCE
+)
 
-BASH_SAVE_LOGS_ARGS = ['python', '-m', 'metaflow.mflog.save_logs']
-BASH_SAVE_LOGS = ' '.join(BASH_SAVE_LOGS_ARGS)
-=======
 BASH_SAVE_LOGS_ARGS = ["python", "-m", "metaflow.mflog.save_logs"]
 BASH_SAVE_LOGS = " ".join(BASH_SAVE_LOGS_ARGS)
->>>>>>> 2.5.4
+
 
 # this function returns a bash expression that redirects stdout
 # and stderr of the given bash expression to mflog.tee

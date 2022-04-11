@@ -4,11 +4,9 @@ import platform
 import requests
 import time
 
-from metaflow import util
 from metaflow import R, current
 
 from metaflow.decorators import StepDecorator
-from metaflow.plugins import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.metadata import MetaDatum
 from metaflow.metadata.util import sync_local_metadata_to_datastore
@@ -23,19 +21,8 @@ from metaflow.metaflow_config import (
 from metaflow.sidecar import SidecarSubProcess
 from metaflow.unbounded_foreach import UBF_CONTROL
 
-<<<<<<< HEAD
-from metaflow.plugins.resources_decorator import ResourcesDecorator
-
-try:
-    # python2
-    from urlparse import urlparse
-except:  # noqa E722
-    # python3
-    from urllib.parse import urlparse
-=======
 from .batch import BatchException
 from ..aws_utils import compute_resource_attributes, get_docker_registry
->>>>>>> 2.5.4
 
 
 class BatchDecorator(StepDecorator):

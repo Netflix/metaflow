@@ -1,4 +1,4 @@
-from metaflow import FlowSpec, step, current, Step
+from metaflow import FlowSpec, Step, current, step
 
 
 class ForeachLinearForeach(FlowSpec):

@@ -28,12 +28,6 @@ from .datastore import DATASTORES, FlowDataStore, TaskDataStoreSet, TaskDataStor
 
 from .runtime import NativeRuntime
 from .package import MetaflowPackage
-<<<<<<< HEAD
-from .plugins import ENVIRONMENTS, LOGGING_SIDECARS, METADATA_PROVIDERS, MONITOR_SIDECARS
-from .metaflow_config import DEFAULT_DATASTORE, DEFAULT_ENVIRONMENT, DEFAULT_EVENT_LOGGER, \
-    DEFAULT_METADATA, DEFAULT_MONITOR, DEFAULT_PACKAGE_SUFFIXES, \
-    METAFLOW_COVERAGE_OMIT, METAFLOW_COVERAGE_SOURCE
-=======
 from .plugins import (
     ENVIRONMENTS,
     LOGGING_SIDECARS,
@@ -48,7 +42,6 @@ from .metaflow_config import (
     DEFAULT_MONITOR,
     DEFAULT_PACKAGE_SUFFIXES,
 )
->>>>>>> 2.5.4
 from .metaflow_environment import MetaflowEnvironment
 from .pylint_wrapper import PyLint
 from .event_logger import EventLogger
@@ -58,16 +51,9 @@ from .mflog import mflog, LOG_SOURCES
 from .unbounded_foreach import UBF_CONTROL, UBF_TASK
 
 
-<<<<<<< HEAD
-
-ERASE_TO_EOL = '\033[K'
-HIGHLIGHT = 'red'
-INDENT = ' ' * 4
-=======
 ERASE_TO_EOL = "\033[K"
 HIGHLIGHT = "red"
 INDENT = " " * 4
->>>>>>> 2.5.4
 
 LOGGER_TIMESTAMP = "magenta"
 LOGGER_COLOR = "green"
@@ -530,15 +516,6 @@ def step(
     if opt_namespace is not None:
         namespace(opt_namespace or None)
 
-    if ctx.obj.coverage:
-        from coverage import Coverage
-        cov = Coverage(data_suffix=True,
-                       auto_data=True,
-                       source=METAFLOW_COVERAGE_SOURCE.split(","),
-                       omit=METAFLOW_COVERAGE_OMIT.split(",") if METAFLOW_COVERAGE_OMIT else None,
-                       branch=True)
-        cov.start()
-
     func = None
     try:
         func = getattr(ctx.obj.flow, step_name)
@@ -546,14 +523,7 @@ def step(
         raise CommandException("Step *%s* doesn't exist." % step_name)
     if not func.is_step:
         raise CommandException("Function *%s* is not a step." % step_name)
-<<<<<<< HEAD
-    echo('Executing a step, *%s*' % step_name,
-         fg='magenta',
-         bold=False,
-         err=False)
-=======
     echo("Executing a step, *%s*" % step_name, fg="magenta", bold=False)
->>>>>>> 2.5.4
 
     if decospecs:
         decorators._attach_decorators_to_step(func, decospecs)
@@ -596,12 +566,6 @@ def step(
 
     echo("Success", fg="green", bold=True, indent=True)
 
-<<<<<<< HEAD
-    echo('Success', fg='green', bold=True, indent=True, err=False)
-    if ctx.obj.coverage:
-        cov.stop()
-=======
->>>>>>> 2.5.4
 
 @parameters.add_custom_parameters(deploy_mode=False)
 @cli.command(help="Internal command to initialize a run.")
@@ -960,27 +924,11 @@ def start(
     if use_r():
         version = metaflow_r_version()
 
-<<<<<<< HEAD
-    echo('Metaflow %s' % version, fg='magenta', bold=True, nl=False)
-    echo(" executing *%s*" % ctx.obj.flow.name, fg='magenta', nl=False)
-    echo(" for *%s*" % resolve_identity(), fg='magenta')
-
-    if coverage:
-        from coverage import Coverage
-        cov = Coverage(data_suffix=True,
-                       auto_data=True,
-                       source=METAFLOW_COVERAGE_SOURCE.split(","),
-                       omit=METAFLOW_COVERAGE_OMIT.split(",") if METAFLOW_COVERAGE_OMIT else None,
-                       branch=True)
-        cov.start()
-=======
     echo("Metaflow %s" % version, fg="magenta", bold=True, nl=False)
     echo(" executing *%s*" % ctx.obj.flow.name, fg="magenta", nl=False)
     echo(" for *%s*" % resolve_identity(), fg="magenta")
->>>>>>> 2.5.4
 
     cli_args._set_top_kwargs(ctx.params)
-    ctx.obj.coverage = coverage
     ctx.obj.echo = echo
     ctx.obj.echo_always = echo_always
     ctx.obj.graph = FlowGraph(ctx.obj.flow.__class__)
@@ -1011,7 +959,8 @@ def start(
         datastore_root = ctx.obj.datastore_impl.get_datastore_root_from_config(
             ctx.obj.echo
         )
-    if datastore_root is None:
+
+    if datastore_root is None and ctx.invoked_subcommand != "kfp":
         raise CommandException(
             "Could not find the location of the datastore -- did you correctly set the "
             "METAFLOW_DATASTORE_SYSROOT_%s environment variable?" % datastore.upper()
@@ -1065,9 +1014,6 @@ def start(
         ctx.obj.package = None
     if ctx.invoked_subcommand is None:
         ctx.invoke(check)
-
-    if coverage:
-        cov.stop()
 
 
 def _reconstruct_cli(params):

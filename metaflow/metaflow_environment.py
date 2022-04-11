@@ -2,19 +2,11 @@ import os
 import platform
 import sys
 
-<<<<<<< HEAD
-from .metaflow_config import from_conf
-from .util import get_username, to_unicode
-from . import metaflow_version
-from metaflow.exception import MetaflowException
-from metaflow.mflog import BASH_MFLOG, BASH_MFLOG_KFP
-=======
 from .util import get_username
 from . import metaflow_version
 from metaflow.exception import MetaflowException
 from metaflow.extension_support import dump_module_info
-from metaflow.mflog import BASH_MFLOG
->>>>>>> 2.5.4
+from metaflow.mflog import BASH_MFLOG, BASH_MFLOG_KFP
 from . import R
 
 version_cache = None
@@ -87,69 +79,48 @@ class MetaflowEnvironment(object):
         """
         return "Local environment"
 
-<<<<<<< HEAD
     def get_boto3_copy_command(self, s3_path, local_path, command="download_file"):
         if command == "download_file":
             copy_command = (
-                    "boto3.client('s3')"
-                    ".download_file(parsed.netloc, parsed.path.lstrip('/'), '%s')" % local_path
+                "boto3.client('s3')"
+                ".download_file(parsed.netloc, parsed.path.lstrip('/'), '%s')"
+                % local_path
             )
         elif command == "upload_file":
             copy_command = (
                 "boto3.client('s3')"
-                ".upload_file('%s', parsed.netloc, parsed.path.lstrip('/'))" % local_path
+                ".upload_file('%s', parsed.netloc, parsed.path.lstrip('/'))"
+                % local_path
             )
         else:
             raise ValueError("%s not supported" % command)
 
         return (
-            "%s -c \"import boto3; " % self._python()
+            '%s -c "import boto3; ' % self._python()
             + "exec('try:\\n from urlparse import urlparse\\nexcept:\\n from urllib.parse import "
-              "urlparse'); "
+            "urlparse'); "
             + "parsed = urlparse('%s'); " % s3_path
-            + "%s\"" % copy_command
+            + '%s"' % copy_command
         )
 
     def get_package_commands(
-            self,
-            code_package_url,
-            is_kfp_plugin=False,
+        self,
+        code_package_url,
+        is_kfp_plugin=False,
     ):
         mflog_bash_cmd = BASH_MFLOG if not is_kfp_plugin else BASH_MFLOG_KFP
         cmds = [
-                mflog_bash_cmd,
-                "mflog \'Setting up task environment.\'",
-                "%s -m pip install click requests boto3 -qqq" % self._python(),
-                "mkdir metaflow",
-                "cd metaflow",
-                "mkdir .metaflow", # mute local datastore creation log
-                "i=0; while [ $i -le 5 ]; do "
-                    "mflog \'Downloading code package...\'; "
-                    "%s && \
-                        mflog \'Code package downloaded.\' && break; "
-                    "sleep 10; i=$((i+1)); "
-                "done" % self.get_boto3_copy_command(code_package_url, "job.tar"),
-                "if [ $i -gt 5 ]; then "
-                    "mflog \'Failed to download code package from %s "
-                    "after 6 tries. Exiting...\' && exit 1; "
-                "fi" % code_package_url,
-                "tar xf job.tar",
-                ]
-=======
-    def get_package_commands(self, code_package_url):
-        cmds = [
-            BASH_MFLOG,
+            mflog_bash_cmd,
             "mflog 'Setting up task environment.'",
-            "%s -m pip install awscli requests boto3 -qqq" % self._python(),
+            "%s -m pip install requests boto3 -qqq" % self._python(),
             "mkdir metaflow",
             "cd metaflow",
             "mkdir .metaflow",  # mute local datastore creation log
             "i=0; while [ $i -le 5 ]; do "
             "mflog 'Downloading code package...'; "
-            "%s -m awscli s3 cp %s job.tar >/dev/null && \
-                        mflog 'Code package downloaded.' && break; "
+            "%s && mflog 'Code package downloaded.' && break; "
             "sleep 10; i=$((i+1)); "
-            "done" % (self._python(), code_package_url),
+            "done" % self.get_boto3_copy_command(code_package_url, "job.tar"),
             "if [ $i -gt 5 ]; then "
             "mflog 'Failed to download code package from %s "
             "after 6 tries. Exiting...' && exit 1; "
@@ -157,7 +128,6 @@ class MetaflowEnvironment(object):
             "TAR_OPTIONS='--warning=no-timestamp' tar xf job.tar",
             "mflog 'Task is starting.'",
         ]
->>>>>>> 2.5.4
         return cmds
 
     def get_environment_info(self):

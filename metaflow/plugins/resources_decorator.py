@@ -4,19 +4,12 @@ from metaflow.decorators import StepDecorator
 class ResourcesDecorator(StepDecorator):
     """
     Step decorator to specify the resources needed when executing this step.
-<<<<<<< HEAD
-    This decorator passes this information along when requesting resources
-    to execute this step.
 
-    This decorator can be used for two purpose:
-    When using with AWS Batch decorator, only 'cpu', 'gpu', and 'memory'
-        parameters are supported.
-    When using for Kubeflow Pipeline, 'cpu', and 'memory' sets resource requests;
-        'cpu_limit', 'gpu', 'memory_limit' sets resource limit.
-        For more details please refer to
-        https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
-    This decorator is ignored if the execution of the step does not happen on
-    Batch or Kubeflow Pipeline
+    This decorator passes this information along to container orchestrator
+    (AWS Batch, Kubernetes, etc.) when requesting resources to execute this
+    step.
+
+    This decorator is ignored if the execution of the step happens locally.
 
     To use, annotate your step as follows:
     ```
@@ -39,17 +32,13 @@ class ResourcesDecorator(StepDecorator):
     Parameters
     ----------
     cpu : Union[int, float, str]
-        AWS Batch: Number of CPUs required for this step. Defaults to 1.
+        AWS Batch: Number of CPUs required for this step. Defaults to 1 in batch decorator.
             Must be integer.
-        KFP: Number of CPUs required for this step. Defaults to 1.
+        KFP: Number of CPUs required for this step. Defaults to None - use cluster setting.
             Accept int, float, or str.
             Support millicpu requests using float or string ending in 'm'.
             Requests with decimal points, like 0.1, are converted to 100m by kfp
             Precision finer than 1m is not allowed.
-    cpu_limit : Union[int, float, str]
-        Not for AWS Batch.
-        KFP: Number of CPUs limited for this step.
-            Defaults None - relying on Kubernetes defaults.
     gpu : int
         AWS Batch: Number of GPUs required for this step. Defaults to 0.
         KFP: GPU limit for this step. Defaults to 0.
@@ -59,13 +48,9 @@ class ResourcesDecorator(StepDecorator):
         Not for AWS Batch.
         KFP: "nvidia" or "amd". Defaults to "nvidia".
     memory : Union[int, str]
-        AWS Batch: Memory size (in MB) required for this step. Defaults to 4000.
-        KFP: Memory required for this step. Default to 4000 MB.
+        AWS Batch: Memory size (in MB) required for this step. Defaults to 4096 in batch decortor.
+        KFP: Memory required for this step. Default to None - use cluster setting.
             See notes above for more units.
-    memory_limit : Union[int, str]
-        Not for AWS Batch.
-        KFP: Memory limit for this step. Default unit is MB - see notes above.
-            Defaults None - relying on Kubernetes defaults.
     shared_memory : int
         Not for KFP
         AWS Batch: The value for the size (in MiB) of the /dev/shm volume for this step.
@@ -98,7 +83,8 @@ class ResourcesDecorator(StepDecorator):
     volume_dir: str
         Default "/opt/metaflow_volume"
     """
-    name = 'resources'
+
+    name = "resources"
 
     # Actual defaults are set in .aws.batch.batch_decorator.BatchDecorator and
     # .kfp.kfp.KubeflowPipelines._get_resource_requirements respectively.
@@ -108,45 +94,12 @@ class ResourcesDecorator(StepDecorator):
         "cpu": None,
         "gpu": None,
         "memory": None,
-
         # Only AWS Batch supported attributes
-        'shared_memory': None,
-
+        "shared_memory": None,
         # Only KFP supported attributes
         "gpu_vendor": None,
         "local_storage": None,
         "volume": None,
         "volume_mode": "ReadWriteOnce",
-        "volume_dir": "/opt/metaflow_volume"
+        "volume_dir": "/opt/metaflow_volume",
     }
-=======
-
-    This decorator passes this information along to container orchestrator
-    (AWS Batch, Kubernetes, etc.) when requesting resources to execute this
-    step.
-
-    This decorator is ignored if the execution of the step happens locally.
-
-    To use, annotate your step as follows:
-    ```
-    @resources(cpu=32)
-    @step
-    def my_step(self):
-        ...
-    ```
-    Parameters
-    ----------
-    cpu : int
-        Number of CPUs required for this step. Defaults to 1
-    gpu : int
-        Number of GPUs required for this step. Defaults to 0
-    memory : int
-        Memory size (in MB) required for this step. Defaults to 4096
-    shared_memory : int
-        The value for the size (in MiB) of the /dev/shm volume for this step.
-        This parameter maps to the --shm-size option to docker run .
-    """
-
-    name = "resources"
-    defaults = {"cpu": "1", "gpu": "0", "memory": "4096", "shared_memory": None}
->>>>>>> 2.5.4

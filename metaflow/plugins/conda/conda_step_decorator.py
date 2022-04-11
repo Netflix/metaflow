@@ -227,11 +227,7 @@ class CondaStepDecorator(StepDecorator):
 
     def _architecture(self, decos):
         for deco in decos:
-<<<<<<< HEAD
-            if deco.name == 'batch' or deco.name == 'kfp_internal':
-=======
-            if deco.name in ("batch", "kubernetes"):
->>>>>>> 2.5.4
+            if deco.name in ("batch", "kfp_internal", "kubernetes"):
                 # force conda resolution for linux-64 architectures
                 return "linux-64"
         bit = "32"

@@ -38,14 +38,9 @@ class EnvironmentDecorator(StepDecorator):
         def my_step(self):
             ...
     """
-<<<<<<< HEAD
-    name = 'environment'
-    defaults = {'vars': {}, 'kubernetes_vars': None}
-=======
->>>>>>> 2.5.4
 
     name = "environment"
-    defaults = {"vars": {}}
+    defaults = {"vars": {}, "kubernetes_vars": None}
 
     def runtime_step_cli(
         self, cli_args, retry_count, max_user_code_retries, ubf_context

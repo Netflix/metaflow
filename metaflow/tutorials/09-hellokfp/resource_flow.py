@@ -7,6 +7,7 @@ class ResourceFlow(FlowSpec):
 
     The hello step uses @resource decorator that only works when kfp plug-in is used.
     """
+
     @step
     def start(self):
         """
@@ -18,9 +19,7 @@ class ResourceFlow(FlowSpec):
         self.next(self.all_resource)
 
     @resources(
-        cpu=0.5, cpu_limit=5,
-        gpu=3, gpu_vendor="amd",
-        memory=150, memory_limit="1G"
+        cpu=0.5, cpu_limit=5, gpu=3, gpu_vendor="amd", memory=150, memory_limit="1G"
     )
     @step
     def all_resource(self):
@@ -67,5 +66,5 @@ class ResourceFlow(FlowSpec):
         print("___________________________________________")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     ResourceFlow()

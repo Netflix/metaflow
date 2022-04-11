@@ -2,15 +2,13 @@ import json
 import shutil
 import subprocess
 
-import click
-
-from metaflow import current, decorators, parameters, JSONType
-from metaflow.datastore.datastore import TransformableObject
+from metaflow import JSONType, current, decorators, parameters
+from metaflow._vendor import click
 from metaflow.exception import CommandException, MetaflowException
 from metaflow.metaflow_config import (
+    KFP_MAX_PARALLELISM,
     KFP_SDK_API_NAMESPACE,
     KFP_SDK_NAMESPACE,
-    KFP_MAX_PARALLELISM,
     from_conf,
 )
 from metaflow.package import MetaflowPackage
@@ -48,7 +46,7 @@ def kubeflow_pipelines(obj):
 @click.pass_obj
 def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
     save_step_environment_variables(
-        obj.datastore,
+        obj.flow_datastore,
         obj.graph,
         run_id,
         step_name,
@@ -263,21 +261,20 @@ def run(
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
     check_metadata_service_version(obj)
     flow = make_flow(
-        obj,
-        pipeline_name if pipeline_name else obj.flow.name,
-        tags,
-        experiment,
-        namespace,
-        kfp_namespace,
-        api_namespace,
-        base_image,
-        s3_code_package,
-        yaml_only,
-        max_parallelism,
-        workflow_timeout,
-        notify,
-        notify_on_error,
-        notify_on_success,
+        obj=obj,
+        name=pipeline_name if pipeline_name else obj.flow.name,
+        tags=tags,
+        experiment=experiment,
+        namespace=namespace,
+        kfp_namespace=kfp_namespace,
+        api_namespace=api_namespace,
+        base_image=base_image,
+        s3_code_package=s3_code_package,
+        max_parallelism=max_parallelism,
+        workflow_timeout=workflow_timeout,
+        notify=notify,
+        notify_on_error=notify_on_error,
+        notify_on_success=notify_on_success,
     )
 
     if yaml_only:
@@ -291,7 +288,7 @@ def run(
             )
         )
     else:
-        if s3_code_package and flow.datastore.TYPE != "s3":
+        if s3_code_package and obj.flow_datastore.TYPE != "s3":
             raise CommandException(
                 "Kubeflow Pipelines s3-code-package requires --datastore=s3."
             )
@@ -301,20 +298,15 @@ def run(
             bold=True,
         )
         run_pipeline_result = flow.create_run_on_kfp(run_name, flow_parameters)
+        kfp_run_id = run_pipeline_result.run_id
+        kfp_run_url = run_id_to_url(kfp_run_id)
+        metaflow_run_id = f"kfp-{kfp_run_id}"
 
         obj.echo("\nRun created successfully!\n")
+        obj.echo(f"Metaflow run_id=*{metaflow_run_id}* \n", fg="magenta")
+        obj.echo(f"*Run link:* {kfp_run_url}\n", fg="cyan")
 
-        run_id = f"kfp-{run_pipeline_result.run_id}"
-        obj.echo(f"Metaflow run_id=*{run_id}* \n", fg="magenta")
-
-        kfp_run_url = run_id_to_url(run_pipeline_result.run_id)
-
-        obj.echo(
-            "*Run link:* {kfp_run_url}\n".format(kfp_run_url=kfp_run_url),
-            fg="cyan",
-        )
-
-        run_info = flow._client.get_run(run_pipeline_result.run_id)
+        run_info = flow._client.get_run(kfp_run_id)
         workflow_manifest = json.loads(run_info.pipeline_runtime.workflow_manifest)
         argo_workflow_name = workflow_manifest["metadata"]["name"]
 
@@ -335,13 +327,13 @@ def run(
                 cmd, shell=True, stdout=subprocess.PIPE, encoding="utf8"
             )
             succeeded = "Succeeded" in ret.stdout
-            show_status(run_id, kfp_run_url, obj.echo, succeeded)
+            show_status(metaflow_run_id, kfp_run_url, obj.echo, succeeded)
         elif wait_for_completion:
             response = flow._client.wait_for_run_completion(
-                run_pipeline_result.run_id, timeout=wait_for_completion_timeout
+                kfp_run_id, timeout=wait_for_completion_timeout
             )
             succeeded = response.run.status == "Succeeded"
-            show_status(run_id, kfp_run_url, obj.echo, succeeded)
+            show_status(metaflow_run_id, kfp_run_url, obj.echo, succeeded)
 
 
 def show_status(run_id: str, kfp_run_url: str, echo: callable, succeeded: bool):
@@ -363,7 +355,6 @@ def make_flow(
     api_namespace,
     base_image,
     s3_code_package,
-    yaml_only,
     max_parallelism,
     workflow_timeout,
     notify,
@@ -383,7 +374,7 @@ def make_flow(
     # Attach KFP decorator to the flow
     decorators._attach_decorators(obj.flow, [KfpInternalDecorator.name])
     decorators._init_step_decorators(
-        obj.flow, obj.graph, obj.environment, obj.datastore, obj.logger
+        obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
     )
 
     obj.package = MetaflowPackage(
@@ -392,32 +383,25 @@ def make_flow(
 
     package_url = None
     if s3_code_package:
-        datastore = obj.datastore(
-            obj.flow.name,
-            mode="w",
-            metadata=obj.metadata,
-            event_logger=obj.event_logger,
-            monitor=obj.monitor,
-        )
-        package_url = datastore.save_data(
-            obj.package.sha, TransformableObject(obj.package.blob)
-        )
+        package_url, package_sha = obj.flow_datastore.save_data(
+            [obj.package.blob], len_hint=1
+        )[0]
         obj.echo(
-            "*Uploaded package to:* {package_url}".format(package_url=package_url),
+            f"*Uploaded package to:* {package_url}",
             fg="cyan",
         )
 
     return KubeflowPipelines(
-        name,
-        obj.graph,
-        obj.flow,
-        obj.package,
-        package_url,
-        obj.metadata,
-        obj.datastore,
-        obj.environment,
-        obj.event_logger,
-        obj.monitor,
+        name=name,
+        graph=obj.graph,
+        flow=obj.flow,
+        code_package=obj.package,
+        code_package_url=package_url,
+        metadata=obj.metadata,
+        flow_datastore=obj.flow_datastore,
+        environment=obj.environment,
+        event_logger=obj.event_logger,
+        monitor=obj.monitor,
         base_image=base_image,
         s3_code_package=s3_code_package,
         tags=tags,

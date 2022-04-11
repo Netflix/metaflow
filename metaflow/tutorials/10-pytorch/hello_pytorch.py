@@ -33,7 +33,15 @@ class HelloPyTorch(FlowSpec):
         print(f"ranks: {self.ranks}")
         self.next(self.train, foreach="ranks")
 
-    @resources(cpu=1, cpu_limit=2, gpu="1", memory="2G", memory_limit="5G", volume="10G", volume_mode="ReadWriteMany")
+    @resources(
+        cpu=1,
+        cpu_limit=2,
+        gpu="1",
+        memory="2G",
+        memory_limit="5G",
+        volume="10G",
+        volume_mode="ReadWriteMany",
+    )
     @step
     def train(self):
         """
@@ -43,6 +51,7 @@ class HelloPyTorch(FlowSpec):
         print("self.rank", self.rank)
 
         from models.train import train_model
+
         self.model_state_dict = train_model(
             input_data_path=self.input_data_path,
             model_path=self.model_path,
@@ -68,6 +77,7 @@ class HelloPyTorch(FlowSpec):
         self.model_state_dict = train_input.model_state_dict
 
         from models.evaluate import evaluate_model
+
         self.evaluate_results = evaluate_model(
             model_state_dict=self.model_state_dict,
             input_data_path=self.input_data_path,

@@ -166,15 +166,11 @@ def get_username():
     Return the name of the current user, or None if the current user
     could not be determined.
     """
-    # note: the order of the list matters
-<<<<<<< HEAD
     if METAFLOW_USER:
         return METAFLOW_USER
 
-    ENVVARS = ['METAFLOW_USER', 'SUDO_USER', 'USERNAME', 'USER']
-=======
+    # note: the order of the list matters
     ENVVARS = ["METAFLOW_USER", "SUDO_USER", "USERNAME", "USER"]
->>>>>>> 2.5.4
     for var in ENVVARS:
         user = os.environ.get(var)
         if user and user != "root":

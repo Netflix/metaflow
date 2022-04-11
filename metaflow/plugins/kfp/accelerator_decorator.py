@@ -38,6 +38,8 @@ class AcceleratorDecorator(StepDecorator):
         "type": None,
     }
 
-    def step_init(self, flow, graph, step, decos, environment, datastore, logger):
+    def step_init(
+        self, flow, graph, step_name, decorators, environment, flow_datastore, logger
+    ):
         if not self.attributes["type"]:
             raise MetaflowException("You must specify the type of accelerator.")
