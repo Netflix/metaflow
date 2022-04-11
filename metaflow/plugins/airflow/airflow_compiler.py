@@ -109,6 +109,8 @@ class Airflow(object):
         # Using the cron presets provided here :
         # https://airflow.apache.org/docs/apache-airflow/stable/dag-run.html?highlight=schedule%20interval#cron-presets
         schedule = self.flow._flow_decorators.get("schedule")
+        if not schedule:
+            return None
         if schedule.attributes["cron"]:
             return schedule.attributes["cron"]
         elif schedule.attributes["weekly"]:
