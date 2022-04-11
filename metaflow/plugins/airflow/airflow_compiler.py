@@ -273,20 +273,22 @@ class Airflow(object):
             ],
             "step_name": node.name,
         }
+        # currently this code is commented because these conditions are not required
+        # since foreach's are not supported ATM
         # Making the key conditions to check into human readable variables so
         # if statements make sense when reading logic
+        # successors_are_foreach_joins = any(
+        #     self.graph[n].type == "join"
+        #     and self.graph[self.graph[n].split_parents[-1]].type == "foreach"
+        #     for n in node.out_funcs
+        # )
+        # any_incoming_node_is_foreach = any(
+        #     self.graph[n].type == "foreach" for n in node.in_funcs
+        # )
+        # join_in_foreach = (
+        #     node.type == "join" and self.graph[node.split_parents[-1]].type == "foreach"
+        # )
         is_a_foreach = node.type == "foreach"
-        successors_are_foreach_joins = any(
-            self.graph[n].type == "join"
-            and self.graph[self.graph[n].split_parents[-1]].type == "foreach"
-            for n in node.out_funcs
-        )
-        join_in_foreach = (
-            node.type == "join" and self.graph[node.split_parents[-1]].type == "foreach"
-        )
-        any_incoming_node_is_foreach = any(
-            self.graph[n].type == "foreach" for n in node.in_funcs
-        )
 
         # Add env vars from the optional @environment decorator.
         env_deco = [deco for deco in node.decorators if deco.name == "environment"]
@@ -313,38 +315,35 @@ class Airflow(object):
                 env["METAFLOW_DEFAULT_PARAMETERS"] = json.dumps(default_parameters)
             input_paths = None
         else:
+            # If it is not the start node then we check if there are many paths
+            # converging into it or a single path. Based on that we set the INPUT_PATHS
             if node.parallel_foreach:
                 raise AirflowException(
                     "Parallel steps are not supported yet with Airflow."
                 )
 
-            # Handle foreach join.
-            if join_in_foreach:
-                # todo : Handle split values + input_paths
-                pass
+            if len(node.in_funcs) == 1:
+                # set input paths where this is only one parent node
+                # The parent-task-id is passed via the xcom; There is no other way to get that.
+                # One key thing about xcoms is that they are immutable and only accepted if the task
+                # doesn't fail.
+                # From airflow docs :
+                # "Note: If the first task run is not succeeded then on every retry task XComs will be cleared to make the task run idempotent."
+                input_paths = self._make_parent_input_path(node.in_funcs[0])
             else:
-                if len(node.in_funcs) == 1:
-                    # set input paths where this is only one parent node
-                    # The parent-task-id is passed via the xcom; There is no other way to get that.
-                    # One key thing about xcoms is that they are immutable and only accepted if the task
-                    # doesn't fail.
-                    # From airflow docs :
-                    # "Note: If the first task run is not succeeded then on every retry task XComs will be cleared to make the task run idempotent."
-                    input_paths = self._make_parent_input_path(node.in_funcs[0])
-                else:
-                    # this is a split scenario where there can be more than one input paths.
-                    input_paths = self._make_parent_input_path_compressed(node.in_funcs)
+                # this is a split scenario where there can be more than one input paths.
+                input_paths = self._make_parent_input_path_compressed(node.in_funcs)
 
             env["METAFLOW_INPUT_PATHS"] = input_paths
 
-            if node.is_inside_foreach:
-                # Todo : Handle This case
-                pass
+            # if node.is_inside_foreach:
+            #     # Todo : Handle This case
+            #     pass
 
-            if any_incoming_node_is_foreach:
-                # todo : Handle split index for for-each.
-                # step.append("--split-index $METAFLOW_SPLIT_INDEX")
-                pass
+            # if any_incoming_node_is_foreach:
+            #     # todo : Handle split index for for-each.
+            #     # step.append("--split-index $METAFLOW_SPLIT_INDEX")
+            #     pass
 
         env["METAFLOW_CODE_URL"] = self.code_package_url
         env["METAFLOW_FLOW_NAME"] = attrs["metaflow.flow_name"]
@@ -358,21 +357,17 @@ class Airflow(object):
         metaflow_version["flow_name"] = self.graph.name
         env["METAFLOW_VERSION"] = json.dumps(metaflow_version)
 
-        if (
-            is_a_foreach
-            or (node.is_inside_foreach and successors_are_foreach_joins)
-            or join_in_foreach
-        ):
+        # if (
+        #     is_a_foreach
+        #     or (node.is_inside_foreach and successors_are_foreach_joins)
+        #     or join_in_foreach
+        # ):
 
-            # Todo : Find ways to pass state using for the below usecases:
-            #   1. To set the cardinality of foreaches (which are subsequently)
-            #      read prior to the instantiation of the Map state by AWS Step
-            #      Functions.
-            #   2. To set the input paths from the parent steps of a foreach join.
-            #   3. To read the input paths in a foreach join.
-            pass
+        #     # Todo : Find ways to pass state using for the below usecases:
+        #     #   1. To set the cardinality of foreaches
+        #     #   2. To set the input paths from the parent steps of a foreach join.
+        #     #   3. To read the input paths in a foreach join.
 
-        # Todo : Find and set resource requirements for the decorator.
         compute_type = "k8s"  # todo : This will become more dynamic in the future.
         if compute_type == "k8s":
             return self._k8s_job(node, input_paths, env)
@@ -403,12 +398,6 @@ class Airflow(object):
             top_opts_dict.update(deco.get_top_level_options())
 
         top_opts = list(dict_to_cli_options(top_opts_dict))
-        join_in_foreach = (
-            node.type == "join" and self.graph[node.split_parents[-1]].type == "foreach"
-        )
-        any_previous_node_is_foreach = any(
-            self.graph[n].type == "foreach" for n in node.in_funcs
-        )
 
         top_level = top_opts + [
             "--quiet",
@@ -472,10 +461,6 @@ class Airflow(object):
             # set input paths for parameters
             paths = "%s/_parameters/%s" % (self.run_id, task_id_params)
 
-        if join_in_foreach:
-            # todo : handle join case
-            pass
-
         step = [
             "step",
             node.name,
@@ -485,9 +470,6 @@ class Airflow(object):
             "--max-user-code-retries %d" % user_code_retries,
             "--input-paths %s" % paths,
         ]
-        if any_previous_node_is_foreach:
-            # todo step.append("--split-index $METAFLOW_SPLIT_INDEX")
-            pass
         if self.tags:
             step.extend("--tag %s" % tag for tag in self.tags)
         if self.namespace is not None:
@@ -538,11 +520,7 @@ class Airflow(object):
                         workflow,
                     )
 
-            elif node.type == "foreach":
-                # Todo : handle foreach cardinality in some way
-                # Continue the traversal from the matching_join.
-                _visit(self.graph[node.matching_join], workflow)
-            # We shouldn't ideally ever get here.
+            # We should only get here for foreach branches.
             else:
                 raise AirflowException(
                     "Node type *%s* for  step *%s* "

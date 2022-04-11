@@ -434,6 +434,9 @@ class Workflow(object):
         from airflow import DAG
 
         params_dict = self._construct_params()
+        # DAG Params can be seen here :
+        # https://airflow.apache.org/docs/apache-airflow/2.0.0/_api/airflow/models/dag/index.html#airflow.models.dag.DAG
+        # Airflow 2.0.0 Allows setting Params.
         dag = DAG(params=params_dict, **self._dag_instantiation_params.arguements)
         dag.fileloc = self._file_path if self._file_path is not None else dag.fileloc
 
