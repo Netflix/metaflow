@@ -13,6 +13,7 @@ from kubernetes.client import (
 
 from metaflow import FlowSpec, Parameter, current, environment, resources, step
 from metaflow._vendor import click
+from metaflow.datatools.s3 import S3
 
 
 def get_env_vars(env_resources: Dict[str, str]) -> List[V1EnvVar]:
@@ -168,6 +169,13 @@ class ResourcesFlow(FlowSpec):
     def foreach_step(self):
         # test simple environment var
         assert os.environ.get("MY_ENV") == "value"
+
+        with S3(run=self) as s3:
+            value = "123"
+            s3.put("foo", value)
+            assert s3.get("foo").text == value
+            print(f"{s3._tmpdir=}")
+            assert "/opt/metaflow_volume" in s3._tmpdir
 
         output = subprocess.check_output(
             "df -h | grep /opt/metaflow_volume", shell=True
