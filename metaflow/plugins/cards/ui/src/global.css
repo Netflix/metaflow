@@ -1,0 +1,45 @@
+@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap");
+
+:root {
+  --bg: #ffffff;
+  --black: #333;
+  --blue: #0c66de;
+  --dk-grey: #767676;
+  --dk-primary: #ef863b;
+  --dk-secondary: #13172d;
+  --dk-tertiary: #0f426e;
+  --error: #cf483e;
+  --grey: rgba(0, 0, 0, 0.125);
+  --highlight: #f8d9d8;
+  --lt-blue: #4fa7ff;
+  --lt-grey: #f3f3f3;
+  --lt-lt-grey: #f9f9f9;
+  --lt-primary: #ffcb8b;
+  --lt-secondary: #434d81;
+  --lt-tertiary: #4189c9;
+  --primary: #faab4a;
+  --quadrary: #f8d9d8;
+  --secondary: #2e3454;
+  --tertiary: #2a679d;
+  --white: #ffffff;
+
+  --component-spacer: 3rem;
+  --aside-width: 20rem;
+
+  --mono-font: ui-monospace, Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono",
+    "Roboto Mono", "Oxygen Mono", "Ubuntu Monospace", "Source Code Pro",
+    "Fira Mono", "Droid Sans Mono", "Courier New", monospace;
+}
+
+html, body {
+  margin: 0;
+  min-height: 100vh;
+  overflow-y: visible;
+  padding: 0;
+  width: 100%;
+}
+
+.card_app {
+  width: 100%;
+  min-height: 100vh;
+}

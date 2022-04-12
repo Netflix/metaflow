@@ -14,24 +14,19 @@ class ParameterFlow(FlowSpec):
     """
 
     alpha = Parameter(
-        'alpha',
-        help='param with default',
+        "alpha",
+        help="param with default",
         default=0.01,
     )
 
-    beta = Parameter(
-        'beta',
-        help='param with no default',
-        type=int,
-        required=True
-    )
+    beta = Parameter("beta", help="param with no default", type=int, required=True)
 
     host_name = Parameter(
-        'host_name',
-        help='Deploy-time param evaluated at deployment',
+        "host_name",
+        help="Deploy-time param evaluated at deployment",
         type=str,
         default=get_host_name,
-        required=True
+        required=True,
     )
 
     @step
@@ -54,5 +49,5 @@ class ParameterFlow(FlowSpec):
         print(f"Host name: {self.host_name}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     ParameterFlow()

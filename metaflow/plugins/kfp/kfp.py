@@ -6,28 +6,27 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple, Union, Any
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import kfp
 from kfp import dsl
-from kfp.dsl import ContainerOp, PipelineConf
-from kfp.dsl import PipelineVolume, ResourceOp
-from kfp.dsl._container_op import _get_resource_number, _get_cpu_number
+from kfp.dsl import ContainerOp, PipelineConf, PipelineVolume, ResourceOp
+from kfp.dsl._container_op import _get_cpu_number, _get_resource_number
 from kfp.dsl._pipeline_param import sanitize_k8s_name
 from kubernetes.client import (
+    V1Affinity,
     V1EnvVar,
     V1EnvVarSource,
-    V1ObjectFieldSelector,
-    V1ResourceRequirements,
-    V1PersistentVolumeClaimSpec,
-    V1OwnerReference,
-    V1ObjectMeta,
-    V1PersistentVolumeClaim,
-    V1Affinity,
     V1NodeAffinity,
     V1NodeSelector,
-    V1NodeSelectorTerm,
     V1NodeSelectorRequirement,
+    V1NodeSelectorTerm,
+    V1ObjectFieldSelector,
+    V1ObjectMeta,
+    V1OwnerReference,
+    V1PersistentVolumeClaim,
+    V1PersistentVolumeClaimSpec,
+    V1ResourceRequirements,
     V1Toleration,
 )
 
@@ -35,20 +34,21 @@ from metaflow.decorators import FlowDecorator
 from metaflow.metaflow_config import (
     DATASTORE_SYSROOT_S3,
     KFP_TTL_SECONDS_AFTER_FINISHED,
-    METAFLOW_USER,
     KFP_USER_DOMAIN,
+    METAFLOW_USER,
     from_conf,
 )
-from metaflow.plugins import KfpInternalDecorator, EnvironmentDecorator
-from metaflow.plugins.kfp.kfp_decorator import KfpException
+from metaflow.plugins import EnvironmentDecorator, KfpInternalDecorator
 from metaflow.plugins.kfp.kfp_constants import S3_SENSOR_RETRY_COUNT
-from .accelerator_decorator import AcceleratorDecorator
-from .kfp_foreach_splits import graph_to_task_ids, KfpForEachSplits
-from ..aws.batch.batch_decorator import BatchDecorator
-from ..aws.step_functions.schedule_decorator import ScheduleDecorator
+from metaflow.plugins.kfp.kfp_decorator import KfpException
+
 from ...graph import DAGNode
 from ...metaflow_environment import MetaflowEnvironment
 from ...plugins.resources_decorator import ResourcesDecorator
+from ..aws.batch.batch_decorator import BatchDecorator
+from ..aws.step_functions.schedule_decorator import ScheduleDecorator
+from .accelerator_decorator import AcceleratorDecorator
+from .kfp_foreach_splits import KfpForEachSplits, graph_to_task_ids
 
 # TODO: @schedule
 UNSUPPORTED_DECORATORS = (
@@ -127,7 +127,7 @@ class KubeflowPipelines(object):
         code_package,
         code_package_url,
         metadata,
-        datastore,
+        flow_datastore,
         environment,
         event_logger,
         monitor,
@@ -155,7 +155,7 @@ class KubeflowPipelines(object):
         self.code_package = code_package
         self.code_package_url = code_package_url
         self.metadata = metadata
-        self.datastore = datastore
+        self.flow_datastore = flow_datastore
         self.environment = environment
         self.event_logger = event_logger
         self.monitor = monitor

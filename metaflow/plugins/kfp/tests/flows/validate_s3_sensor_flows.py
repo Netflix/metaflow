@@ -1,20 +1,17 @@
-from metaflow import FlowSpec, step, resources, s3_sensor, Parameter
-
-import botocore
 import time
-from subprocess import run, PIPE
-
 from os import environ
 from os.path import join
+from subprocess import PIPE, run
+from urllib.parse import ParseResult, urlparse
 
-from urllib.parse import urlparse, ParseResult
-
+import botocore
 from kubernetes import config
 from kubernetes.client import api_client
 from kubernetes.dynamic import DynamicClient
 from kubernetes.dynamic.resource import Resource, ResourceInstance
 
-from metaflow.datastore.util.s3util import get_s3_client
+from metaflow import FlowSpec, Parameter, resources, s3_sensor, step
+from metaflow.datatools.s3util import get_s3_client
 
 """
 This test flow validates the execution of s3_sensor_flow.py and 

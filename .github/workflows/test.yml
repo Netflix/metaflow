@@ -8,31 +8,40 @@ on:
     branches:
     - master
     - feature/kfp
+  workflow_call:
+  
 jobs:
-  test:
-    name: ${{ matrix.lang }} tests on ${{ matrix.os }}
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-python@v2
+    - uses: pre-commit/action@v2.0.3
+
+  Python:
+    name: core / Python ${{ matrix.ver }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        lang: [Python]
+        ver: ['3.9','3.10',]
 
     steps:
     - uses: actions/checkout@v2
 
-    - name: Set up Python 3.9
+    - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: '3.9'
+        python-version: ${{ matrix.ver }}
 
-    - name: Install Python 3.x dependencies
+    - name: Install Python ${{ matrix.ver }} dependencies
       run: |
-        python3 -m pip install --upgrade pip
+        python3 -m pip install --upgrade pip setuptools
         python3 -m pip install tox numpy black
 
     - name: Python Code Format Check
       run: black --target-version py39 --diff --check ./metaflow/plugins/kfp/*.py
 
     - name: Execute Python tests
-      if: matrix.lang == 'python'
       run: tox

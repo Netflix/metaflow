@@ -1,6 +1,6 @@
-from metaflow import FlowSpec, step, resources, s3_sensor, Parameter
-
 from os.path import join
+
+from metaflow import FlowSpec, Parameter, resources, s3_sensor, step
 
 """
 This test flow ensures that @s3_sensor properly waits for path to be written

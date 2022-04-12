@@ -3,16 +3,7 @@ import signal
 import subprocess
 import time
 
-from metaflow import (
-    FlowSpec,
-    step,
-    retry,
-    catch,
-    timeout,
-    current,
-    Step,
-    Parameter,
-)
+from metaflow import FlowSpec, Parameter, Step, catch, current, retry, step, timeout
 from metaflow.exception import MetaflowExceptionWrapper
 
 
@@ -74,12 +65,12 @@ class FailureFlow(FlowSpec):
         user_failure_step: Step = Step(
             f"{current.flow_name}/{current.run_id}/user_failure"
         )
-        expected_logs = self.retry_log.format(retry_count=1)
-        logs = user_failure_step.task.stdout
-        print("\n=== logs for task {task} ===")
-        print(logs)
+        task = user_failure_step.task
+        expected_logs = self.retry_log.format(retry_count=task.current_attempt)
+        print(f"\n=== logs for attempt {task.current_attempt} ===")
+        print(task.stdout)
         print("\n=== logs ended ===")
-        assert expected_logs in logs
+        assert expected_logs in task.stdout
 
         argo_node_name = os.environ.get("MF_ARGO_NODE_NAME")
         assert not argo_node_name.endswith(")")

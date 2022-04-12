@@ -1,6 +1,6 @@
-from metaflow import FlowSpec, step
-
 import pytest
+
+from metaflow import FlowSpec, step
 
 
 class MergeArtifacts(FlowSpec):

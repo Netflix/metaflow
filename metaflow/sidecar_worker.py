@@ -2,7 +2,7 @@ from __future__ import print_function
 
 import os
 import sys
-import click
+
 import traceback
 
 
@@ -13,10 +13,12 @@ sys.path.insert(0, parentDir)
 
 from metaflow.sidecar_messages import MessageTypes, deserialize
 from metaflow.plugins import SIDECARS
+from metaflow._vendor import click
 
 
 class WorkershutdownError(Exception):
     """raised when terminating sidecar"""
+
     pass
 
 
@@ -44,7 +46,7 @@ def process_messages(worker):
 
 
 @click.command(help="Initialize workers")
-@click.argument('worker-type')
+@click.argument("worker-type")
 def main(worker_type):
 
     worker_process = SIDECARS.get(worker_type)

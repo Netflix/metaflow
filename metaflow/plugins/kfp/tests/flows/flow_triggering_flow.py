@@ -1,3 +1,5 @@
+import datetime
+
 from metaflow import FlowSpec, Parameter, Step, current, step
 from metaflow.metaflow_config import KFP_SDK_NAMESPACE
 from metaflow.plugins.kfp import (
@@ -11,7 +13,6 @@ from metaflow.plugins.kfp.kfp_utils import (
     _upload_pipeline,
     to_metaflow_run_id,
 )
-import datetime
 
 TEST_PIPELINE_NAME = "metaflow-unit-test-flow-triggering-flow"
 logger.handlers.clear()  # Avoid double printint logs TODO (yunw) address logging story

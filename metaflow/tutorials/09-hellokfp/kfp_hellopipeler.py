@@ -4,17 +4,18 @@ from metaflow import FlowSpec, step, kfp, current
 
 
 def pipeler_op(run_id):
-  return dsl.ContainerOp(
-      name='pipelerstep1',
-      image='analytics-docker.artifactory.zgtools.net/artificial-intelligence/ai-platform/aip-py36-cpu-spark-jupyter:2.3.8254d0ef.spark-2-4',
-      command=['sh', '-c'],
-      arguments=[
-        "spark-submit --master local --deploy-mode client --conf \"spark.eventLog.enabled=false\" "
-        "--class com.zillow.pipeler.orchestrator.example.ExampleTemplatizedConfigStep "
-        "https://artifactory.zgtools.net/artifactory/analytics-maven-local/com/zillow/pipeler/datalake-pipeler/2.3.0/datalake-pipeler-2.3.0.jar "
-        f"--sessionId {run_id}_execution "
-      ]
-  )
+    return dsl.ContainerOp(
+        name="pipelerstep1",
+        image="analytics-docker.artifactory.zgtools.net/artificial-intelligence/ai-platform/aip-py36-cpu-spark-jupyter:2.3.8254d0ef.spark-2-4",
+        command=["sh", "-c"],
+        arguments=[
+            'spark-submit --master local --deploy-mode client --conf "spark.eventLog.enabled=false" '
+            "--class com.zillow.pipeler.orchestrator.example.ExampleTemplatizedConfigStep "
+            "https://artifactory.zgtools.net/artifactory/analytics-maven-local/com/zillow/pipeler/datalake-pipeler/2.3.0/datalake-pipeler-2.3.0.jar "
+            f"--sessionId {run_id}_execution "
+        ],
+    )
+
 
 class HelloPipeler(FlowSpec):
     """
@@ -30,10 +31,7 @@ class HelloPipeler(FlowSpec):
         self.run_id = current.run_id
         self.next(self.end)
 
-    @kfp(
-        preceding_component=pipeler_op,
-        preceding_component_inputs="run_id"
-    )
+    @kfp(preceding_component=pipeler_op, preceding_component_inputs="run_id")
     @step
     def end(self):
         """

@@ -19,6 +19,9 @@ R/.Rbuildignore
 .Rproj.user
 
 .DS_Store
+.env
+node_modules
+main.js.map
 
 .project
 .pydevproject

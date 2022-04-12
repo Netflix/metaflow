@@ -4,22 +4,19 @@ This function is called within the s3_sensor_op running container.
 (2) It splits the formatted path into an S3 bucket and key 
 (3) It polls for an object with the specified bucket and key until timeout
 """
-from email.policy import default
-import click
-
-import os
-import pathlib
-from typing import Dict
-import botocore
 import base64
 import json
 import marshal
+import os
+import pathlib
 import time
-from urllib.parse import urlparse, ParseResult
+from typing import Dict, Tuple
+from urllib.parse import ParseResult, urlparse
 
-from typing import Tuple
+import botocore
 
-from metaflow.datastore.util.s3util import get_s3_client
+from metaflow._vendor import click
+from metaflow.datatools.s3util import get_s3_client
 
 
 def construct_elapsed_time_s3_bucket_and_key(

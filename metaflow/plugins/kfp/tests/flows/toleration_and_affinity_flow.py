@@ -1,4 +1,4 @@
-from metaflow import FlowSpec, step, resources, accelerator
+from metaflow import FlowSpec, accelerator, resources, step
 
 
 class TolerationAndAffinityFlow(FlowSpec):

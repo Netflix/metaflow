@@ -1,19 +1,18 @@
-import tempfile
-from os import listdir
-from os.path import isfile, join
-
 import json
-import requests
-from requests.models import Response
-import yaml
-from subprocess import CompletedProcess
-from subprocess_tee import run
 import re
-from typing import List, Dict, Tuple
-
-import pytest
+import tempfile
 import time
 import uuid
+from os import listdir
+from os.path import isfile, join
+from subprocess import CompletedProcess
+from typing import Dict, List, Tuple
+
+import pytest
+import requests
+import yaml
+from requests.models import Response
+from subprocess_tee import run
 
 from metaflow import R
 from metaflow.exception import MetaflowException

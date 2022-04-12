@@ -1,10 +1,10 @@
-import pytest
-from unittest.mock import patch, Mock
-
 from typing import List
+from unittest.mock import Mock, patch
 
-from metaflow.plugins.kfp.kfp_metaflow_step import _step_cli, _command
-from metaflow.plugins.kfp.kfp_constants import STDOUT_PATH, STDERR_PATH
+import pytest
+
+from metaflow.plugins.kfp.kfp_constants import STDERR_PATH, STDOUT_PATH
+from metaflow.plugins.kfp.kfp_metaflow_step import _command, _step_cli
 
 """
 To run these tests from your terminal, go to the root directory and run:

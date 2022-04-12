@@ -1,7 +1,7 @@
 import json
 import os
 
-import click
+from metaflow._vendor import click
 
 
 @click.group()

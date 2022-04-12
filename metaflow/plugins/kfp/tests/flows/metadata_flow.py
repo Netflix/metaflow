@@ -1,7 +1,7 @@
-from metaflow import FlowSpec, step, current, Step
-
 import os
 from random import random
+
+from metaflow import FlowSpec, Step, current, step
 
 
 class MetadataFlow(FlowSpec):

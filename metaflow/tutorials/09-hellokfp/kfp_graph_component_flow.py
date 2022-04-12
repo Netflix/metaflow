@@ -54,7 +54,10 @@ class KfpGraphComponentFlow(FlowSpec):
 
         self.next(self.end)
 
-    @kfp(preceding_component=my_recursive_component, preceding_component_inputs=["s3_root"])
+    @kfp(
+        preceding_component=my_recursive_component,
+        preceding_component_inputs=["s3_root"],
+    )
     @step
     def end(self):
         """
