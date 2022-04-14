@@ -21,15 +21,13 @@ def resolve_dag_name(name):
                 "--name is not supported for @projects. " "Use --branch instead."
             )
         dag_name = current.project_flow_name
-        is_project = True
     else:
         if name and VALID_NAME.search(name):
             raise MetaflowException("Name '%s' contains invalid characters." % name)
 
         dag_name = name if name else current.flow_name
-        is_project = False
 
-    return dag_name, is_project
+    return dag_name
 
 
 @click.group()
@@ -49,7 +47,6 @@ def make_flow(
     tags,
     namespace,
     max_workers,
-    is_project,
     file_path=None,
     worker_pool=None,
     set_active=False,
@@ -67,7 +64,7 @@ def make_flow(
     package_url, package_sha = obj.flow_datastore.save_data(
         [obj.package.blob], len_hint=1
     )[0]
-    flow_name, is_project = resolve_dag_name(dag_name)
+    flow_name = resolve_dag_name(dag_name)
     return Airflow(
         flow_name,
         obj.graph,
@@ -84,7 +81,6 @@ def make_flow(
         max_workers=max_workers,
         worker_pool=worker_pool,
         username=get_username(),
-        is_project=is_project,
         description=obj.flow.__doc__,
         file_path=file_path,
         set_active=set_active,
@@ -92,7 +88,7 @@ def make_flow(
 
 
 @airflow.command(help="Create an airflow workflow from this metaflow workflow")
-@click.argument("file_path",required=True)
+@click.argument("file_path", required=True)
 @click.option(
     "--tag",
     "tags",
@@ -150,7 +146,6 @@ def create(
         tags,
         user_namespace,
         max_workers,
-        False,
         file_path=file_path,
         worker_pool=worker_pool,
         set_active=not is_paused,

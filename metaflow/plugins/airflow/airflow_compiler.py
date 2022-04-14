@@ -80,7 +80,6 @@ class Airflow(object):
         namespace=None,
         username=None,
         max_workers=None,
-        is_project=False,
         worker_pool=None,
         email=None,
         start_date=datetime.now(),
