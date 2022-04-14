@@ -92,7 +92,7 @@ def make_flow(
 
 
 @airflow.command(help="Create an airflow workflow from this metaflow workflow")
-@click.argument("file_path", required=False)
+@click.argument("file_path",required=True)
 @click.option(
     "--tag",
     "tags",
