@@ -18,7 +18,6 @@ from metaflow.decorators import flow_decorators
 from metaflow.graph import FlowGraph, DAGNode
 from metaflow.plugins.cards.card_modules import chevron
 from metaflow.plugins.aws.aws_utils import compute_resource_attributes
-from .exceptions import AirflowNotPresent, AirflowException, NotSupportedException
 from .airflow_utils import (
     TASK_ID_XCOM_KEY,
     Workflow,
@@ -30,15 +29,24 @@ from . import airflow_utils as af_utils
 from .compute.k8s import create_k8s_args
 import metaflow.util as util
 
-# TODO : remove rich at the end.
-# Question : Does scheduling interval be a top level argument
-# Question : Does The schedule decorator have to be enforced.
 AIRFLOW_DEPLOY_TEMPLATE_FILE = os.path.join(os.path.dirname(__file__), "af_deploy.py")
 
 
 AIRFLOW_PREFIX = "arf"
 
 # Task instance attributes : https://airflow.apache.org/docs/apache-airflow/stable/_api/airflow/models/taskinstance/index.html
+from metaflow.exception import MetaflowException
+
+
+class AirflowException(MetaflowException):
+    headline = "Airflow Exception"
+
+    def __init__(self, msg):
+        super().__init__(msg)
+
+
+class NotSupportedException(MetaflowException):
+    headline = "Feature is not yet supported with airflow"
 
 
 class Airflow(object):

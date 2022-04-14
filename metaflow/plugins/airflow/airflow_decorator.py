@@ -9,6 +9,7 @@ from .airflow_utils import TASK_ID_XCOM_KEY
 
 K8S_XCOM_DIR_PATH = "/airflow/xcom"
 
+
 def safe_mkdir(dir):
     try:
         os.makedirs(dir)
@@ -20,6 +21,7 @@ def push_xcom_values(xcom_dict):
     safe_mkdir(K8S_XCOM_DIR_PATH)
     with open(os.path.join(K8S_XCOM_DIR_PATH, "return.json"), "w") as f:
         json.dump(xcom_dict, f)
+
 
 class AirflowInternalDecorator(StepDecorator):
     name = "airflow_internal"
@@ -57,4 +59,3 @@ class AirflowInternalDecorator(StepDecorator):
                 TASK_ID_XCOM_KEY: os.environ["METAFLOW_AIRFLOW_TASK_ID"],
             }
         )
-
