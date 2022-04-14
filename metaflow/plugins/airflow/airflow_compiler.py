@@ -15,14 +15,11 @@ import random
 import string
 import json
 from metaflow.decorators import flow_decorators
-from metaflow.graph import FlowGraph, DAGNode
 from metaflow.plugins.cards.card_modules import chevron
-from metaflow.plugins.aws.aws_utils import compute_resource_attributes
 from .airflow_utils import (
     TASK_ID_XCOM_KEY,
     Workflow,
     AirflowTask,
-    AirflowDAGArgs,
     AIRFLOW_TASK_ID_TEMPLATE_VALUE,
 )
 from . import airflow_utils as af_utils
@@ -270,7 +267,7 @@ class Airflow(object):
 
         return "%s%s" % (self.run_id, task_id_string)
 
-    def _to_job(self, node: DAGNode):
+    def _to_job(self, node):
         # supported compute : k8s (v1), local(v2), batch(v3)
         attrs = {
             "metaflow.owner": self.username,
@@ -499,7 +496,7 @@ class Airflow(object):
     def compile(self):
 
         # Visit every node of the flow and recursively build the state machine.
-        def _visit(node: DAGNode, workflow: Workflow, exit_node=None):
+        def _visit(node, workflow, exit_node=None):
             if node.parallel_foreach:
                 raise AirflowException(
                     "Deploying flows with @parallel decorator(s) "
