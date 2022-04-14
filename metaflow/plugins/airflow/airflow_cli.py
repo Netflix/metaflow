@@ -3,7 +3,6 @@ from metaflow import decorators
 from metaflow.util import get_username
 from metaflow.package import MetaflowPackage
 from metaflow.plugins import KubernetesDecorator
-from metaflow.metaflow_config import AIRFLOW_STATE_MACHINE_PREFIX
 from .airflow_compiler import Airflow
 from metaflow import S3
 from metaflow import current

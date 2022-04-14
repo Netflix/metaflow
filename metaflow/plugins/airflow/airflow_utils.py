@@ -16,6 +16,8 @@ class KubernetesProviderNotFound(Exception):
 LABEL_VALUE_REGEX = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9\-\_\.]{0,61}[a-zA-Z0-9])?$")
 
 TASK_ID_XCOM_KEY = "metaflow_task_id"
+RUN_ID_LEN = 12
+TASK_ID_LEN = 8
 
 # AIRFLOW_TASK_ID_TEMPLATE_VALUE will work for linear/branched workflows.
 # ti.task_id is the stepname in metaflow code.
@@ -48,14 +50,14 @@ def sanitize_label_value(val):
 
 
 def hasher(my_value):
-    return hashlib.md5(my_value.encode("utf-8")).hexdigest()
+    return hashlib.md5(my_value.encode("utf-8")).hexdigest()[:RUN_ID_LEN]
 
 
 def task_id_creator(lst):
     # This is a filter which creates a hash of the run_id/step_name string.
     # Since run_ids in airflow are constants, they don't create an issue with the
     #
-    return hashlib.md5("/".join(lst).encode("utf-8")).hexdigest()
+    return hashlib.md5("/".join(lst).encode("utf-8")).hexdigest()[:TASK_ID_LEN]
 
 
 def json_dump(val):
