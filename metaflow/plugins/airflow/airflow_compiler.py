@@ -363,10 +363,10 @@ class Airflow(object):
         #     or join_in_foreach
         # ):
 
-        #     # Todo : Find ways to pass state using for the below usecases:
-        #     #   1. To set the cardinality of foreaches
-        #     #   2. To set the input paths from the parent steps of a foreach join.
-        #     #   3. To read the input paths in a foreach join.
+        # Todo : Find ways to pass state using for the below usecases:
+        #   1. To set the cardinality of foreaches
+        #   2. To set the input paths from the parent steps of a foreach join.
+        #   3. To read the input paths in a foreach join.
 
         compute_type = "k8s"  # todo : This will become more dynamic in the future.
         if compute_type == "k8s":

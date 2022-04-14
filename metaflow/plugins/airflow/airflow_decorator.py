@@ -4,9 +4,22 @@ import time
 
 from metaflow.decorators import StepDecorator
 from metaflow.metadata import MetaDatum
-from .plumbing.airflow_xcom_push import push_xcom_values
 from .airflow_utils import TASK_ID_XCOM_KEY
 
+
+K8S_XCOM_DIR_PATH = "/airflow/xcom"
+
+def safe_mkdir(dir):
+    try:
+        os.makedirs(dir)
+    except FileExistsError:
+        pass
+
+
+def push_xcom_values(xcom_dict):
+    safe_mkdir(K8S_XCOM_DIR_PATH)
+    with open(os.path.join(K8S_XCOM_DIR_PATH, "return.json"), "w") as f:
+        json.dump(xcom_dict, f)
 
 class AirflowInternalDecorator(StepDecorator):
     name = "airflow_internal"
@@ -25,11 +38,10 @@ class AirflowInternalDecorator(StepDecorator):
         ubf_context,
         inputs,
     ):
-        # todo : find out where the execution is taking place.
+        # find out where the execution is taking place.
         # Once figured where the execution is happening then we can do
         # handle xcom push / pull differently
         meta = {}
-        meta["airflow-execution"] = os.environ["METAFLOW_RUN_ID"]
         meta["airflow-dag-run-id"] = os.environ["METAFLOW_AIRFLOW_DAG_RUN_ID"]
         meta["airflow-job-id"] = os.environ["METAFLOW_AIRFLOW_JOB_ID"]
         entries = [
@@ -46,8 +58,3 @@ class AirflowInternalDecorator(StepDecorator):
             }
         )
 
-    def task_finished(
-        self, step_name, flow, graph, is_task_ok, retry_count, max_user_code_retries
-    ):
-        pass
-        # todo : Figure ways to find out foreach cardinality over here,

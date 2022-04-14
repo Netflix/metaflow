@@ -13,11 +13,7 @@ import re
 VALID_NAME = re.compile("[^a-zA-Z0-9_\-\.]")
 
 
-def resolve_state_machine_name(name):
-    def attach_prefix(name):
-        if AIRFLOW_STATE_MACHINE_PREFIX is not None:
-            return AIRFLOW_STATE_MACHINE_PREFIX + "_" + name
-        return name
+def resolve_dag_name(name):
 
     project = current.get("project_name")
     if project:
@@ -25,16 +21,16 @@ def resolve_state_machine_name(name):
             raise MetaflowException(
                 "--name is not supported for @projects. " "Use --branch instead."
             )
-        state_machine_name = attach_prefix(current.project_flow_name)
+        dag_name = current.project_flow_name
         is_project = True
     else:
         if name and VALID_NAME.search(name):
             raise MetaflowException("Name '%s' contains invalid characters." % name)
 
-        state_machine_name = attach_prefix(name if name else current.flow_name)
+        dag_name = name if name else current.flow_name
         is_project = False
 
-    return state_machine_name, is_project
+    return dag_name, is_project
 
 
 @click.group()
@@ -72,7 +68,7 @@ def make_flow(
     package_url, package_sha = obj.flow_datastore.save_data(
         [obj.package.blob], len_hint=1
     )[0]
-    flow_name, is_project = resolve_state_machine_name(dag_name)
+    flow_name, is_project = resolve_dag_name(dag_name)
     return Airflow(
         flow_name,
         obj.graph,
@@ -130,7 +126,7 @@ def make_flow(
     "--max-workers",
     default=100,
     show_default=True,
-    help="Maximum number of concurrent airflow tasks to run for the DAG. ",
+    help="Maximum number of concurrent Airflow tasks.",
 )
 @click.option(
     "--worker-pool",
