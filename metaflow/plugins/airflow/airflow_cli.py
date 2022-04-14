@@ -110,11 +110,11 @@ def make_flow(
     "if this option is not specified",
 )
 @click.option(
-    "--set-active",
+    "--is-paused-upon-creation",
+    "is_paused",
     default=False,
     is_flag=True,
-    help="Sets the DAG as active on Airflow as default. "
-    "Overrides the `is_paused_upon_creation=False` in the Airflow DAG object.",
+    help="Sets `is_paused_upon_creation=True` for the Airflow DAG. ",
 )
 @click.option(
     "--namespace",
@@ -139,7 +139,7 @@ def create(
     file_path,
     tags=None,
     name=None,
-    set_active=False,
+    is_paused=False,
     user_namespace=None,
     max_workers=None,
     worker_pool=None,
@@ -153,7 +153,7 @@ def create(
         False,
         file_path=file_path,
         worker_pool=worker_pool,
-        set_active=set_active,
+        set_active=not is_paused,
     )
     compiled_dag_file = flow.compile()
     if file_path is None:
