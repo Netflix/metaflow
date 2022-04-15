@@ -295,7 +295,6 @@ class Airflow(object):
         # join_in_foreach = (
         #     node.type == "join" and self.graph[node.split_parents[-1]].type == "foreach"
         # )
-        is_a_foreach = node.type == "foreach"
 
         # Add env vars from the optional @environment decorator.
         env_deco = [deco for deco in node.decorators if deco.name == "environment"]
@@ -303,8 +302,6 @@ class Airflow(object):
         if env_deco:
             env = env_deco[0].attributes["vars"]
 
-        if is_a_foreach:
-            raise NotSupportedException("Foreach is not supported in airflow.")
         # The Below If/Else Block handle "Input Paths".
         # Input Paths help manage dataflow across the graph.
         if node.name == "start":
@@ -479,17 +476,6 @@ class Airflow(object):
             step.append("--namespace=%s" % self.namespace)
         cmds.append(" ".join(entrypoint + top_level + step))
         return cmds
-
-    def _validate_workflow(self):
-        # todo : check for batch/ other decorators.
-        # supported compute : k8s (v1), local(v2), batch(v3),
-        if self.metadata.TYPE != "service":
-            raise AirflowException('Metadata of type "service" required with Airflow')
-        if self.flow_datastore.TYPE != "s3":
-            raise AirflowException('Datastore of type "s3" required with Airflow')
-        # supported datastore : s3 (v1)
-        # supported metadata : service
-        pass
 
     def compile(self):
 

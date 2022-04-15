@@ -3,13 +3,34 @@ from metaflow import decorators
 from metaflow.util import get_username
 from metaflow.package import MetaflowPackage
 from metaflow.plugins import KubernetesDecorator
-from .airflow_compiler import Airflow
+from .airflow_compiler import Airflow, AirflowException, NotSupportedException
 from metaflow import S3
 from metaflow import current
 from metaflow.exception import MetaflowException
+
 import re
 
 VALID_NAME = re.compile("[^a-zA-Z0-9_\-\.]")
+
+
+def _validate_workflow(graph, flow_datastore, metadata):
+    # check for other compute related decorators.
+    # supported compute : k8s (v1), local(v2), batch(v3),
+    for node in graph:
+        if node.type == "foreach":
+            raise NotSupportedException(
+                "Step *%s* is a foreach and airflow is not supported for foreach steps."
+            )
+
+        if any([d.name == "batch" for d in node.decorators]):
+            raise NotSupportedException(
+                "@batch is not supported with Airflow. Used @kubernetes instead"
+            )
+
+    if metadata.TYPE != "service":
+        raise AirflowException('Metadata of type "service" required with Airflow')
+    if flow_datastore.TYPE != "s3":
+        raise AirflowException('Datastore of type "s3" required with Airflow')
 
 
 def resolve_dag_name(name):
@@ -51,6 +72,8 @@ def make_flow(
     worker_pool=None,
     set_active=False,
 ):
+    # Validate if the workflow is correctly parsed.
+    _validate_workflow(obj.graph, obj.flow_datastore, obj.metadata)
     # Attach K8s decorator over here.
     # todo This will be affected in the future based on how many compute providers are supported on Airflow.
     decorators._attach_decorators(obj.flow, [KubernetesDecorator.name])
