@@ -1,5 +1,7 @@
+import json
 import os
 import sys
+import re
 import platform
 import requests
 
@@ -88,6 +90,7 @@ class KubernetesDecorator(StepDecorator):
 
         if not self.attributes["namespace"]:
             self.attributes["namespace"] = KUBERNETES_NAMESPACE
+
         # TODO: Unify the logic with AWS Batch
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:
@@ -122,7 +125,6 @@ class KubernetesDecorator(StepDecorator):
             raise KubernetesException(
                 "The *@kubernetes* decorator requires --datastore=s3 " "at the moment."
             )
-
         # Set internal state.
         self.logger = logger
         self.environment = environment
@@ -255,3 +257,32 @@ class KubernetesDecorator(StepDecorator):
             cls.package_url, cls.package_sha = flow_datastore.save_data(
                 [package.blob], len_hint=1
             )[0]
+
+    @classmethod
+    def _parse_decorator_spec(cls, deco_spec):
+        top = deco_spec.split(":", 1)
+        if len(top) == 1:
+            return cls()
+        else:
+            name, attrspec = top
+            attrs = dict(
+                map(lambda x: x.strip(), a.split("="))
+                for a in re.split(""",(?=[\s\w]+=)""", attrspec.strip("\"'"))
+            )
+            if "secrets" in attrs:
+                try:
+                    attrs["secrets"] = json.loads(attrs["secrets"])
+                except json.JSONDecodeError as e:
+                    del attrs["secrets"]
+
+            return cls(attributes=attrs)
+
+    def make_decorator_spec(self):
+        attrs = {k: v for k, v in self.attributes.items() if v is not None}
+        if attrs:
+            if "secrets" in attrs:
+                attrs["secrets"] = json.dumps(attrs["secrets"])
+            attrstr = ",".join("%s=%s" % x for x in attrs.items())
+            return "%s:%s" % (self.name, attrstr)
+        else:
+            return self.name
