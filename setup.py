@@ -26,6 +26,7 @@ setup(
         "boto3",
         "pylint",
     ],
+    tests_require=["coverage"],
     extras_require={
         "kfp": ["zillow-kfp", "kfp-server-api"],
         # Use an extras here as there is no "extras_tests_require" functionality :(
