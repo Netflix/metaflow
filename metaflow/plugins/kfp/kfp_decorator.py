@@ -40,12 +40,10 @@ class KfpInternalDecorator(StepDecorator):
       state within task_pre_step.
 
     image: str
-      Defaults to None, which means default to either the container image
-      specified with --base-image by the user running a flow with
-      python sample_flow.py kfp run --base-image tensorflow/tensorflow:latest-devel
-      OR the container image specified as BASE_IMAGE in
-      metaflow/plugins/kfp/kfp_constants.py.
-
+      Defaults to None, where default is determined in the following order:
+      1. specified with --base-image by the user running a flow with
+        python <flow_name>.py kfp run --base-image <image-url>
+      2. KFP_CONTAINER_IMAGE defined in metaflow_config.py
 
     @step
     @kfp(

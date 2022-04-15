@@ -54,19 +54,6 @@ DEFAULT_AWS_CLIENT_PROVIDER = from_conf("METAFLOW_DEFAULT_AWS_CLIENT_PROVIDER", 
 
 METAFLOW_USER = from_conf("METAFLOW_USER")
 
-##
-# KFP configuration
-###
-KFP_SDK_NAMESPACE = from_conf("KFP_SDK_NAMESPACE", "kubeflow")
-KFP_SDK_API_NAMESPACE = from_conf("KFP_SDK_API_NAMESPACE", "kubeflow")
-KFP_TTL_SECONDS_AFTER_FINISHED = from_conf("KFP_TTL_SECONDS_AFTER_FINISHED", None)
-KFP_USER_DOMAIN = from_conf("KFP_USER_DOMAIN", "")
-# Note: `KFP_RUN_URL_PREFIX` is the URL prefix for KFP runs on your KFP cluster. The prefix includes
-# all parts of the URL except the run_id at the end which we append once the run is created.
-# For eg, this would look like: "https://<your-kf-cluster-url>/pipeline/#/runs/details/"
-KFP_RUN_URL_PREFIX = from_conf("KFP_RUN_URL_PREFIX", "")
-KFP_MAX_PARALLELISM = int(from_conf("KFP_MAX_PARALLELISM", 10))
-
 ###
 # Datastore configuration
 ###
@@ -148,6 +135,27 @@ if METADATA_SERVICE_AUTH_KEY is not None:
 DEFAULT_CONTAINER_IMAGE = from_conf("METAFLOW_DEFAULT_CONTAINER_IMAGE")
 # Default container registry
 DEFAULT_CONTAINER_REGISTRY = from_conf("METAFLOW_DEFAULT_CONTAINER_REGISTRY")
+
+##
+# KFP configuration
+###
+# Link to image package:
+# https://github.com/zillow/metaflow/pkgs/container/metaflow%2Fmetaflow-zillow
+if DEFAULT_CONTAINER_REGISTRY and DEFAULT_CONTAINER_IMAGE:
+    KFP_CONTAINER_IMAGE = (
+        f"{DEFAULT_CONTAINER_REGISTRY.rstrip('/')}/{DEFAULT_CONTAINER_IMAGE}"
+    )
+else:
+    KFP_CONTAINER_IMAGE = "ghcr.io/zillow/metaflow/metaflow-zillow:2.2"
+KFP_SDK_NAMESPACE = from_conf("KFP_SDK_NAMESPACE", "kubeflow")
+KFP_SDK_API_NAMESPACE = from_conf("KFP_SDK_API_NAMESPACE", "kubeflow")
+KFP_TTL_SECONDS_AFTER_FINISHED = from_conf("KFP_TTL_SECONDS_AFTER_FINISHED", None)
+KFP_USER_DOMAIN = from_conf("KFP_USER_DOMAIN", "")
+# Note: `KFP_RUN_URL_PREFIX` is the URL prefix for KFP runs on your KFP cluster. The prefix includes
+# all parts of the URL except the run_id at the end which we append once the run is created.
+# For eg, this would look like: "https://<your-kf-cluster-url>/pipeline/#/runs/details/"
+KFP_RUN_URL_PREFIX = from_conf("KFP_RUN_URL_PREFIX", "")
+KFP_MAX_PARALLELISM = int(from_conf("KFP_MAX_PARALLELISM", 10))
 
 ###
 # AWS Batch configuration
