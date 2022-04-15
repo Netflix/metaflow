@@ -19,18 +19,20 @@ def _validate_workflow(graph, flow_datastore, metadata):
     for node in graph:
         if node.type == "foreach":
             raise NotSupportedException(
-                "Step *%s* is a foreach and airflow is not supported for foreach steps."
+                "Step *%s* is a foreach and for foreach steps are not supported with airflow."
             )
 
         if any([d.name == "batch" for d in node.decorators]):
             raise NotSupportedException(
-                "@batch is not supported with Airflow. Used @kubernetes instead"
+                "@batch is not supported with Airflow. Use @kubernetes instead."
             )
 
     if metadata.TYPE != "service":
-        raise AirflowException('Metadata of type "service" required with Airflow')
+        raise AirflowException(
+            'Metadata of type "service" required with `airflow create`.'
+        )
     if flow_datastore.TYPE != "s3":
-        raise AirflowException('Datastore of type "s3" required with Airflow')
+        raise AirflowException('Datastore of type "s3" required with `airflow create`')
 
 
 def resolve_dag_name(name):

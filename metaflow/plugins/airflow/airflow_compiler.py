@@ -1,38 +1,136 @@
 import base64
-from collections import defaultdict
-from datetime import datetime, timedelta
-from metaflow.exception import MetaflowException
-from metaflow.parameters import deploy_time_eval
-from metaflow.util import get_username
-
-from metaflow import R
-import sys
-from metaflow.util import compress_list, dict_to_cli_options, to_pascalcase
-from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
+import json
 import os
 import random
 import string
-import json
-from metaflow.decorators import flow_decorators
-from metaflow.plugins.cards.card_modules import chevron
-from .airflow_utils import (
-    TASK_ID_XCOM_KEY,
-    Workflow,
-    AirflowTask,
-    RUN_ID_LEN,
-    AIRFLOW_TASK_ID_TEMPLATE_VALUE,
-)
-from . import airflow_utils as af_utils
-from .compute.k8s import create_k8s_args
+import sys
+from collections import defaultdict
+
+# Task instance attributes : https://airflow.apache.org/docs/apache-airflow/stable/_api/airflow/models/taskinstance/index.html
+from datetime import datetime, timedelta
+
 import metaflow.util as util
+from metaflow import R
+from metaflow.decorators import flow_decorators
+from metaflow.exception import MetaflowException
+from metaflow.metaflow_config import (
+    BATCH_METADATA_SERVICE_HEADERS,
+    BATCH_METADATA_SERVICE_URL,
+    DATASTORE_CARD_S3ROOT,
+    DATASTORE_SYSROOT_S3,
+    DATATOOLS_S3ROOT,
+    KUBERNETES_SERVICE_ACCOUNT,
+)
+from metaflow.parameters import deploy_time_eval
+from metaflow.plugins.aws.eks.kubernetes import Kubernetes, sanitize_label_value
+from metaflow.plugins.cards.card_modules import chevron
+from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
+from metaflow.util import dict_to_cli_options, get_username
+
+from . import airflow_utils as af_utils
+from .airflow_utils import (
+    AIRFLOW_TASK_ID_TEMPLATE_VALUE,
+    RUN_ID_LEN,
+    TASK_ID_XCOM_KEY,
+    AirflowTask,
+    Workflow,
+)
 
 AIRFLOW_DEPLOY_TEMPLATE_FILE = os.path.join(os.path.dirname(__file__), "af_deploy.py")
 
 
 AIRFLOW_PREFIX = "arf"
 
-# Task instance attributes : https://airflow.apache.org/docs/apache-airflow/stable/_api/airflow/models/taskinstance/index.html
-from metaflow.exception import MetaflowException
+
+def create_k8s_args(
+    datastore,
+    metadata,
+    environment,
+    flow_name,
+    run_id,
+    step_name,
+    task_id,
+    attempt,
+    code_package_url,
+    code_package_sha,
+    step_cli,
+    docker_image,
+    service_account=None,
+    secrets=None,
+    node_selector=None,
+    namespace=None,
+    cpu=None,
+    gpu=None,
+    disk=None,
+    memory=None,
+    run_time_limit=timedelta(days=5),
+    retries=None,
+    retry_delay=None,
+    env={},
+    user=None,
+):
+
+    k8s = Kubernetes(
+        datastore, metadata, environment, flow_name, run_id, step_name, task_id, attempt
+    )
+    labels = {
+        "app": "metaflow",
+        "metaflow/flow_name": sanitize_label_value(flow_name),
+        "metaflow/step_name": sanitize_label_value(step_name),
+        "app.kubernetes.io/name": "metaflow-task",
+        "app.kubernetes.io/part-of": "metaflow",
+        "app.kubernetes.io/created-by": sanitize_label_value(user),
+    }
+    # Add Metaflow system tags as labels as well!
+    for sys_tag in metadata.sticky_sys_tags:
+        labels["metaflow/%s" % sys_tag[: sys_tag.index(":")]] = sanitize_label_value(
+            sys_tag[sys_tag.index(":") + 1 :]
+        )
+
+    additional_mf_variables = {
+        "METAFLOW_CODE_SHA": code_package_sha,
+        "METAFLOW_CODE_URL": code_package_url,
+        "METAFLOW_CODE_DS": datastore.TYPE,
+        "METAFLOW_USER": user,
+        "METAFLOW_SERVICE_URL": BATCH_METADATA_SERVICE_URL,
+        "METAFLOW_SERVICE_HEADERS": json.dumps(BATCH_METADATA_SERVICE_HEADERS),
+        "METAFLOW_DATASTORE_SYSROOT_S3": DATASTORE_SYSROOT_S3,
+        "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
+        "METAFLOW_DEFAULT_DATASTORE": "s3",
+        "METAFLOW_DEFAULT_METADATA": "service",
+        "METAFLOW_KUBERNETES_WORKLOAD": 1,
+        "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
+        "METAFLOW_CARD_S3ROOT": DATASTORE_CARD_S3ROOT,
+    }
+    env.update(additional_mf_variables)
+
+    k8s_operator_args = dict(
+        namespace=namespace,
+        service_account_name=KUBERNETES_SERVICE_ACCOUNT
+        if service_account is None
+        else service_account,
+        # todo : pass secrets from metaflow to Kubernetes via airflow
+        node_selector=node_selector,
+        cmds=k8s._command(
+            code_package_url=code_package_url,
+            step_cmds=step_cli,
+        ),
+        in_cluster=True,
+        image=docker_image,
+        cpu=cpu,
+        memory=memory,
+        disk=disk,
+        execution_timeout=dict(seconds=run_time_limit.total_seconds()),
+        retry_delay=dict(seconds=retry_delay.total_seconds()) if retry_delay else None,
+        retries=retries,
+        env_vars=[dict(name=k, value=v) for k, v in env.items()],
+        labels=labels,
+        is_delete_operator_pod=True,
+    )
+    if secrets:
+        k8s_operator_args["secrets"] = secrets
+
+    return k8s_operator_args
 
 
 class AirflowException(MetaflowException):
