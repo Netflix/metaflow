@@ -90,7 +90,7 @@ def create_k8s_args(
         node_selector=node_selector,
         cmds=k8s._command(
             code_package_url=code_package_url,
-            step_cmds=[step_cli],
+            step_cmds=step_cli,
         ),
         in_cluster=True,
         image=docker_image,
