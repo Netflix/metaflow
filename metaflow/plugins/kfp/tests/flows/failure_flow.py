@@ -28,7 +28,7 @@ class FailureFlow(FlowSpec):
             print(str(output))
         else:
             command = (
-                f"./kubectl get workflow {os.environ.get('ARGO_WORKFLOW_NAME')} "
+                f"./kubectl get workflow {os.environ.get('MF_ARGO_WORKFLOW_NAME')} "
                 f"--namespace {os.environ.get('POD_NAMESPACE')} -o yaml"
             )
             print(f"{command=}")

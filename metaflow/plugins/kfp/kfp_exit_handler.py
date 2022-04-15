@@ -23,7 +23,7 @@ def exit_handler(
         METAFLOW_NOTIFY_EMAIL_FROM
         K8S_CLUSTER_ENV
         POD_NAMESPACE
-        ARGO_WORKFLOW_NAME
+        MF_ARGO_WORKFLOW_NAME
         METAFLOW_NOTIFY_EMAIL_BODY
     """
     import json
@@ -59,7 +59,7 @@ def exit_handler(
         )
 
         pod_namespace = get_env("POD_NAMESPACE", "")
-        argo_workflow_name = get_env("ARGO_WORKFLOW_NAME", "")
+        argo_workflow_name = get_env("MF_ARGO_WORKFLOW_NAME", "")
         email_body = get_env("METAFLOW_NOTIFY_EMAIL_BODY", "")
         body = (
             f"status = {status} <br/>\n"
