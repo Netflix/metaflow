@@ -265,14 +265,7 @@ class ArgoWorkflows(object):
         # generate container templates at the top level (in WorkflowSpec) and maintain
         # references to them within the DAGTask.
 
-        labels = {
-            "app": "metaflow",
-            # "workflows.argoproj.io/container-runtime-executor": "pns",
-            # "metaflow/argo_workflow_template_name": self.name,
-            # "metaflow/owner": self.username,
-            "metaflow/user": "argo-workflows",
-        }
-        # TODO: Identify all the attributes that should be published as labels.
+        labels = {"app.kubernetes.io/part-of": "metaflow"}
 
         annotations = {
             "metaflow/production_token": self.production_token,
@@ -299,7 +292,8 @@ class ArgoWorkflows(object):
                 # is released, we should be able to support multi-namespace /
                 # multi-cluster scheduling.
                 .namespace(KUBERNETES_NAMESPACE)
-                .labels(labels)
+                .label("app.kubernetes.io/name", "metaflow-flow")
+                .label("app.kubernetes.io/part-of", "metaflow")
                 .annotations(annotations)
             )
             .spec(
@@ -328,8 +322,11 @@ class ArgoWorkflows(object):
                 # Set workflow metadata
                 .workflow_metadata(
                     Metadata()
-                    .labels(labels)
-                    .annotations(annotations)
+                    .label("app.kubernetes.io/name", "metaflow-run")
+                    .label("app.kubernetes.io/part-of", "metaflow")
+                    .annotations(
+                        {**annotations, **{"metaflow/run_id": "argo-{{workflow.name}}"}}
+                    )
                     # TODO: Set dynamic labels using labels_from. Ideally, we would
                     #       want to expose run_id as a label. It's easy to add labels,
                     #       but very difficult to remove them - let's err on the
@@ -349,7 +346,12 @@ class ArgoWorkflows(object):
                     )
                 )
                 # Set common pod metadata.
-                .pod_metadata(Metadata().labels(labels).annotations(annotations))
+                .pod_metadata(
+                    Metadata()
+                    .label("app.kubernetes.io/name", "metaflow-task")
+                    .label("app.kubernetes.io/part-of", "metaflow")
+                    .annotations(annotations)
+                )
                 # Set the entrypoint to flow name
                 .entrypoint(self.flow.name)
                 # Top-level DAG template(s)
@@ -363,7 +365,8 @@ class ArgoWorkflows(object):
     def _dag_templates(self):
         def _sanitize(name):
             # Metaflow allows underscores in node names, which are disallowed in Argo
-            # Workflow template names - so we swap them with hyphens
+            # Workflow template names - so we swap them with hyphens which are not
+            # allowed by Metaflow - guaranteeing uniqueness.
             return name.replace("_", "-")
 
         def _visit(node, exit_node=None, templates=[], dag_tasks=[]):
@@ -697,7 +700,6 @@ class ArgoWorkflows(object):
             cmds = shlex.split('bash -c "%s"' % cmd_str)
 
             # Resolve resource requirements.
-            # TODO: Fix compute_resource_attributes def thats strewn everywhere
             resources = dict(
                 [deco for deco in node.decorators if deco.name == "kubernetes"][
                     0
@@ -817,10 +819,24 @@ class ArgoWorkflows(object):
                 .retry_strategy(
                     times=total_retries,
                     minutes_between_retries=minutes_between_retries,
+                ).metadata(
+                    ObjectMeta().annotation("metaflow/step_name", node.name)
+                    # Unfortuntely, we can't set the task_id since it is generated
+                    # inside the pod. However, it can be inferred from the annotation
+                    # set by argo-workflows - `workflows.argoproj.io/outputs` - refer
+                    # the field 'task-id' in 'parameters'
+                    # .annotation("metaflow/task_id", ...)
+                    .annotation("metaflow/attempt", retry_count)
                 )
-                # .metadata(...)
                 # Set emptyDir volume for state management
                 .empty_dir_volume("out")
+                # Set node selectors
+                .node_selectors(
+                    {
+                        str(k.split("=", 1)[0]): str(k.split("=", 1)[1])
+                        for k in resources.get("node_selector") or []
+                    }
+                )
                 # Set container
                 .container(
                     # TODO: Unify the logic with kubernetes.py
@@ -853,6 +869,8 @@ class ArgoWorkflows(object):
                                 for k, v in {
                                     "METAFLOW_KUBERNETES_POD_NAMESPACE": "metadata.namespace",
                                     "METAFLOW_KUBERNETES_POD_NAME": "metadata.name",
+                                    "METAFLOW_KUBERNETES_POD_ID": "metadata.uid",
+                                    "METAFLOW_KUBERNETES_SERVICE_ACCOUNT_NAME": "spec.serviceAccountName",
                                 }.items()
                             ],
                             image=resources["image"],
@@ -1153,6 +1171,12 @@ class Template(object):
         if "volumes" not in self.payload:
             self.payload["volumes"] = []
         self.payload["volumes"].append({"name": name, "emptyDir": {}})
+        return self
+
+    def node_selectors(self, node_selectors):
+        if "nodeSelector" not in self.payload:
+            self.payload["labels"] = {}
+        self.payload["nodeSelector"].update(node_selectors)
         return self
 
     def to_json(self):

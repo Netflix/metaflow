@@ -80,7 +80,7 @@ def get_plugin_cli():
     # Add new CLI commands in this list
     from . import package_cli
     from .aws.batch import batch_cli
-    from .aws.eks import kubernetes_cli
+    from .kubernetes import kubernetes_cli
     from .aws.step_functions import step_functions_cli
     from .argo import argo_workflows_cli
     from .cards import card_cli
@@ -103,7 +103,7 @@ from .parallel_decorator import ParallelDecorator
 from .retry_decorator import RetryDecorator
 from .resources_decorator import ResourcesDecorator
 from .aws.batch.batch_decorator import BatchDecorator
-from .aws.eks.kubernetes_decorator import KubernetesDecorator
+from .kubernetes.kubernetes_decorator import KubernetesDecorator
 from .argo.argo_workflows_decorator import ArgoWorkflowsInternalDecorator
 from .aws.step_functions.step_functions_decorator import StepFunctionsInternalDecorator
 from .test_unbounded_foreach_decorator import (

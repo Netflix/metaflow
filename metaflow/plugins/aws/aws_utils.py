@@ -71,28 +71,29 @@ def compute_resource_attributes(decos, compute_deco, resource_defaults):
         # If resource decorator is used
         if deco.name == "resources":
             for k, v in deco.attributes.items():
-                my_val = compute_deco.attributes.get(k)
-                # We use the non None value if there is only one or the larger value
-                # if they are both non None. Note this considers "" to be equivalent to
-                # the value zero.
-                if my_val is None and v is None:
-                    continue
-                if my_val is not None and v is not None:
-                    try:
-                        result[k] = str(max(int(my_val or 0), int(v or 0)))
-                    except ValueError:
-                        # Here, we don't have ints so we compare the value and raise
-                        # an exception if not equal
-                        if my_val != v:
-                            raise MetaflowException(
-                                "'resources' and compute decorator have conflicting "
-                                "values for '%s'. Please use consistent values or "
-                                "specify this resource constraint once" % k
-                            )
-                elif my_val is not None:
-                    result[k] = str(my_val or "0")
-                else:
-                    result[k] = str(v or "0")
+                if k in compute_deco.attributes:
+                    my_val = compute_deco.attributes.get(k)
+                    # We use the non None value if there is only one or the larger value
+                    # if they are both non None. Note this considers "" to be equivalent to
+                    # the value zero.
+                    if my_val is None and v is None:
+                        continue
+                    if my_val is not None and v is not None:
+                        try:
+                            result[k] = str(max(int(my_val or 0), int(v or 0)))
+                        except ValueError:
+                            # Here, we don't have ints so we compare the value and raise
+                            # an exception if not equal
+                            if my_val != v:
+                                raise MetaflowException(
+                                    "'resources' and compute decorator have conflicting "
+                                    "values for '%s'. Please use consistent values or "
+                                    "specify this resource constraint once" % k
+                                )
+                    elif my_val is not None:
+                        result[k] = str(my_val or "0")
+                    else:
+                        result[k] = str(v or "0")
             return result
 
     # If there is no resources decorator, values from compute_deco override
