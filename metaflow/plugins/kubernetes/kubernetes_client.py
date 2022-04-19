@@ -176,7 +176,7 @@ class KubernetesJob(object):
                                     for k in self._kwargs.get("secrets", [])
                                 ],
                                 image=self._kwargs["image"],
-                                name=self._kwargs["step_name"],
+                                name=self._kwargs["step_name"].replace("_", "-"),
                                 resources=client.V1ResourceRequirements(
                                     limits={
                                         "cpu": str(self._kwargs["cpu"]),
