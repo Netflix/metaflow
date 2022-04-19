@@ -6,6 +6,7 @@ from metaflow import JSONType, current, decorators, parameters
 from metaflow._vendor import click
 from metaflow.exception import CommandException, MetaflowException
 from metaflow.metaflow_config import (
+    KFP_CONTAINER_IMAGE,
     KFP_MAX_PARALLELISM,
     KFP_SDK_API_NAMESPACE,
     KFP_SDK_NAMESPACE,
@@ -15,7 +16,6 @@ from metaflow.package import MetaflowPackage
 from metaflow.plugins.aws.step_functions.step_functions_cli import (
     check_metadata_service_version,
 )
-from metaflow.plugins.kfp.kfp_constants import BASE_IMAGE
 from metaflow.plugins.kfp.kfp_step_init import save_step_environment_variables
 from metaflow.plugins.kfp.kfp_utils import run_id_to_url
 from metaflow.util import get_username
@@ -139,7 +139,7 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
 @click.option(
     "--base-image",
     "base_image",
-    default=BASE_IMAGE,
+    default=KFP_CONTAINER_IMAGE,
     help="Base docker image used in Kubeflow Pipelines.",
     show_default=True,
 )
@@ -228,7 +228,7 @@ def run(
     yaml_only=False,
     pipeline_path=None,
     s3_code_package=True,
-    base_image=BASE_IMAGE,
+    base_image=None,
     pipeline_name=None,
     max_parallelism=None,
     workflow_timeout=None,
