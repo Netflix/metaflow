@@ -290,6 +290,10 @@ class Kubernetes(object):
             if exit_code:
                 if int(exit_code) == 139:
                     raise KubernetesException("Task failed with a segmentation fault.")
+                if int(exit_code) == 137:
+                    raise KubernetesException("Task ran out of memory. "
+                        "Increase the available memory by specifying "
+                          "@resource(memory=...) for the step. ")
                 else:
                     msg = "%s (exit code %s)" % (msg, exit_code)
             raise KubernetesException(
