@@ -142,11 +142,11 @@ DEFAULT_CONTAINER_REGISTRY = from_conf("METAFLOW_DEFAULT_CONTAINER_REGISTRY")
 # Link to image package:
 # https://github.com/zillow/metaflow/pkgs/container/metaflow%2Fmetaflow-zillow
 if DEFAULT_CONTAINER_REGISTRY and DEFAULT_CONTAINER_IMAGE:
-    KFP_CONTAINER_IMAGE = (
+    KFP_DEFAULT_CONTAINER_IMAGE = (
         f"{DEFAULT_CONTAINER_REGISTRY.rstrip('/')}/{DEFAULT_CONTAINER_IMAGE}"
     )
 else:
-    KFP_CONTAINER_IMAGE = "ghcr.io/zillow/metaflow/metaflow-zillow:2.2"
+    KFP_DEFAULT_CONTAINER_IMAGE = "ghcr.io/zillow/metaflow/metaflow-zillow:2.2"
 KFP_SDK_NAMESPACE = from_conf("KFP_SDK_NAMESPACE", "kubeflow")
 KFP_SDK_API_NAMESPACE = from_conf("KFP_SDK_API_NAMESPACE", "kubeflow")
 KFP_TTL_SECONDS_AFTER_FINISHED = from_conf("KFP_TTL_SECONDS_AFTER_FINISHED", None)

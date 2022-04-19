@@ -6,7 +6,7 @@ from metaflow import JSONType, current, decorators, parameters
 from metaflow._vendor import click
 from metaflow.exception import CommandException, MetaflowException
 from metaflow.metaflow_config import (
-    KFP_CONTAINER_IMAGE,
+    KFP_DEFAULT_CONTAINER_IMAGE,
     KFP_MAX_PARALLELISM,
     KFP_SDK_API_NAMESPACE,
     KFP_SDK_NAMESPACE,
@@ -139,7 +139,7 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
 @click.option(
     "--base-image",
     "base_image",
-    default=KFP_CONTAINER_IMAGE,
+    default=KFP_DEFAULT_CONTAINER_IMAGE,
     help="Base docker image used in Kubeflow Pipelines.",
     show_default=True,
 )
