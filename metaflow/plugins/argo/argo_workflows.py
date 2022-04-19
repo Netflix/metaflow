@@ -875,10 +875,7 @@ class ArgoWorkflows(object):
                             ],
                             image=resources["image"],
                             resources=kubernetes_sdk.V1ResourceRequirements(
-                                limits={
-                                    # If a container specifies its own limit, but does
-                                    # not specify a request, Kubernetes automatically
-                                    # assigns a request that matches the limit.
+                                requests={
                                     "cpu": str(resources["cpu"]),
                                     "memory": "%sM" % str(resources["memory"]),
                                     "ephemeral-storage": "%sM" % str(resources["disk"]),

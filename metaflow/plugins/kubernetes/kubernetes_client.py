@@ -178,7 +178,7 @@ class KubernetesJob(object):
                                 image=self._kwargs["image"],
                                 name=self._kwargs["step_name"].replace("_", "-"),
                                 resources=client.V1ResourceRequirements(
-                                    limits={
+                                    requests={
                                         "cpu": str(self._kwargs["cpu"]),
                                         "memory": "%sM" % str(self._kwargs["memory"]),
                                         "ephemeral-storage": "%sM"
@@ -520,6 +520,7 @@ class RunningJob(object):
                         if reason:
                             msg += " - %s" % reason
                     return msg
+                return "Job is active"
             return "Job status is unknown"
         return "Job is done"
 
