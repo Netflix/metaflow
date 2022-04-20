@@ -119,7 +119,7 @@ def make_flow(
     "tags",
     multiple=True,
     default=None,
-    help="Annotate all objects produced by AWS Step Functions runs "
+    help="Annotate the DAG on Airflow and any of it's metaflow runs "
     "with the given tag. You can specify this option multiple "
     "times to attach multiple tags.",
 )
