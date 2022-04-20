@@ -449,15 +449,6 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
     "the task.",
 )
 @click.option(
-    "--sys-tag",
-    "opt_sys_tag",
-    multiple=True,
-    default=None,
-    help="Annotate this run with the given system tag."
-    "You can specify this option multiple times "
-    "to attach multiple tags in the task.",
-)
-@click.option(
     "--namespace",
     "opt_namespace",
     default=None,
@@ -509,7 +500,6 @@ def step(
     ctx,
     step_name,
     opt_tag=None,
-    opt_sys_tag=None,
     run_id=None,
     task_id=None,
     input_paths=None,
@@ -562,7 +552,7 @@ def step(
     )
     cli_args._set_step_kwargs(step_kwargs)
 
-    ctx.obj.metadata.add_sticky_tags(tags=opt_tag, sys_tags=opt_sys_tag)
+    ctx.obj.metadata.add_sticky_tags(tags=opt_tag)
     paths = decompress_list(input_paths) if input_paths else []
 
     task = MetaflowTask(
@@ -613,15 +603,8 @@ def step(
     default=None,
     help="Tags for this instance of the step.",
 )
-@click.option(
-    "--sys-tag",
-    "sys_tags",
-    multiple=True,
-    default=None,
-    help="System tags for this instance of the step.",
-)
 @click.pass_obj
-def init(obj, run_id=None, task_id=None, tags=None, sys_tags=None, **kwargs):
+def init(obj, run_id=None, task_id=None, tags=None, **kwargs):
     # init is a separate command instead of an option in 'step'
     # since we need to capture user-specified parameters with
     # @add_custom_parameters. Adding custom parameters to 'step'
@@ -630,7 +613,7 @@ def init(obj, run_id=None, task_id=None, tags=None, sys_tags=None, **kwargs):
     # user-specified parameters are often defined as environment
     # variables.
 
-    obj.metadata.add_sticky_tags(tags=tags, sys_tags=sys_tags)
+    obj.metadata.add_sticky_tags(tags=tags)
 
     runtime = NativeRuntime(
         obj.flow,
