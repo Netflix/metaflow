@@ -128,7 +128,7 @@ class KubernetesDecorator(StepDecorator):
             raise MetaflowException(
                 "Step *{step}* is marked for execution both on AWS Batch and "
                 "Kubernetes. Please use one or the other.".format(step=step)
-        )
+            )
 
         for deco in decos:
             if getattr(deco, "IS_PARALLEL", False):
