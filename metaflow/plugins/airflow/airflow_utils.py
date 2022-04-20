@@ -85,7 +85,6 @@ class AirflowDAGArgs(object):
             "email_on_failure": False,
             "email_on_retry": False,
             "retries": 1,
-            # Todo : find defaults
             "retry_delay": timedelta(seconds=10),
             "queue": "bash_queue",  #  which queue to target when running this job. Not all executors implement queue management, the CeleryExecutor does support targeting specific queues.
             "pool": "backfill",  # the slot pool this task should run in, slot pools are a way to limit concurrency for certain tasks
@@ -93,12 +92,7 @@ class AirflowDAGArgs(object):
             "wait_for_downstream": False,
             "sla": timedelta(hours=2),
             "execution_timeout": timedelta(minutes=10),
-            "trigger_rule": "all_success"
-            # 'dag': dag,
-            # 'on_failure_callback': some_function,
-            # 'on_success_callback': some_other_function,
-            # 'on_retry_callback': another_function,
-            # 'sla_miss_callback': yet_another_function,
+            "trigger_rule": "all_success",
         },
     }
 
@@ -248,15 +242,14 @@ def set_k8s_operator_args(flow_name, step_name, operator_args):
         "env_from": operator_args.get("env_from", []),
         "secrets": secrets,
         "in_cluster": operator_args.get(
-            "in_cluster", False
-        ),  # Todo : Document what is this ?
-        "cluster_context": None,  # Todo : Document what is this ?
-        "labels": operator_args.get("labels", {}),  # Todo : Document what is this ?
+            "in_cluster", True  #  run kubernetes client with in_cluster configuration.
+        ),
+        "labels": operator_args.get("labels", {}),
         "reattach_on_restart": False,
         "startup_timeout_seconds": 120,
         "get_logs": True,  # This needs to be set to True to ensure that doesn't error out looking for xcom
-        "image_pull_policy": None,  # todo : document what is this ?
-        "annotations": {},  # todo : document what is this ?
+        "image_pull_policy": None,
+        "annotations": {},
         "resources": client.V1ResourceRequirements(
             requests={
                 "cpu": operator_args.get("cpu", 1),
@@ -267,32 +260,18 @@ def set_k8s_operator_args(flow_name, step_name, operator_args):
         "retry_exponential_backoff": False,  # todo : should this be a arg we allow on CLI.
         "affinity": None,  # kubernetes.client.models.v1_affinity.V1Affinity
         "config_file": None,
-        "node_selectors": {},  # todo : Find difference between "node_selectors" / "node_selector"
-        "node_selector": {},  # todo : Find difference between "node_selectors" / "node_selector"
         # image_pull_secrets : typing.Union[typing.List[kubernetes.client.models.v1_local_object_reference.V1LocalObjectReference], NoneType],
-        "image_pull_secrets": operator_args.get(
-            "image_pull_secrets", []
-        ),  # todo : document what this is for ?
+        "image_pull_secrets": operator_args.get("image_pull_secrets", []),
         "service_account_name": operator_args.get(  # Service account names can be essential for passing reference to IAM roles etc.
             "service_account_name", None
         ),
         "is_delete_operator_pod": operator_args.get(
             "is_delete_operator_pod", False
-        ),  # todo : document what this is for ?
-        "hostnetwork": False,  # todo : document what this is for ?
-        "tolerations": None,  # typing.Union[typing.List[kubernetes.client.models.v1_toleration.V1Toleration], NoneType],
+        ),  # if set to true will delete the pod once finished /failed execution. By default it is true
+        "hostnetwork": False,  # If True enable host networking on the pod.
         "security_context": {},
-        "dnspolicy": None,  # todo : document what this is for ?
-        "schedulername": None,  # todo : document what this is for ?
-        "full_pod_spec": None,  # typing.Union[kubernetes.client.models.v1_pod.V1Pod, NoneType]
-        "init_containers": None,  # typing.Union[typing.List[kubernetes.client.models.v1_container.V1Container], NoneType],
-        "log_events_on_failure": False,
+        "log_events_on_failure": True,
         "do_xcom_push": True,
-        "pod_template_file": None,  # todo : find out what this will do ?
-        "priority_class_name": None,  # todo : find out what this will do ?
-        "pod_runtime_info_envs": None,  # todo : find out what this will do ?
-        "termination_grace_period": None,  # todo : find out what this will do ?
-        "configmaps": None,  # todo : find out what this will do ?
     }
     args["labels"].update(labels)
     if operator_args.get("execution_timeout", None):
@@ -318,10 +297,9 @@ def get_k8s_operator():
                 KubernetesPodOperator,
             )
         except ImportError as e:
-            # todo : Fix error messages.
             raise KubernetesProviderNotFound(
-                "Running this DAG requires KubernetesPodOperator. "
-                "Install Airflow Kubernetes provider using : "
+                "Running this DAG requires a `KubernetesPodOperator`. "
+                "Install the Airflow Kubernetes provider using : "
                 "`pip install apache-airflow-providers-cncf-kubernetes`"
             )
 

@@ -109,7 +109,6 @@ def create_k8s_args(
         service_account_name=KUBERNETES_SERVICE_ACCOUNT
         if service_account is None
         else service_account,
-        # todo : pass secrets from metaflow to Kubernetes via airflow
         node_selector=node_selector,
         cmds=k8s._command(
             code_package_url=code_package_url,
@@ -378,6 +377,7 @@ class Airflow(object):
             ],
             "step_name": node.name,
         }
+
         # currently this code is commented because these conditions are not required
         # since foreach's are not supported ATM
         # Making the key conditions to check into human readable variables so
@@ -438,15 +438,6 @@ class Airflow(object):
 
             env["METAFLOW_INPUT_PATHS"] = input_paths
 
-            # if node.is_inside_foreach:
-            #     # Todo : Handle This case
-            #     pass
-
-            # if any_incoming_node_is_foreach:
-            #     # todo : Handle split index for for-each.
-            #     # step.append("--split-index $METAFLOW_SPLIT_INDEX")
-            #     pass
-
         env["METAFLOW_CODE_URL"] = self.code_package_url
         env["METAFLOW_FLOW_NAME"] = attrs["metaflow.flow_name"]
         env["METAFLOW_STEP_NAME"] = attrs["metaflow.step_name"]
@@ -458,12 +449,6 @@ class Airflow(object):
         metaflow_version = self.environment.get_environment_info()
         metaflow_version["flow_name"] = self.graph.name
         env["METAFLOW_VERSION"] = json.dumps(metaflow_version)
-
-        # if (
-        #     is_a_foreach
-        #     or (node.is_inside_foreach and successors_are_foreach_joins)
-        #     or join_in_foreach
-        # ):
 
         # Todo : Find ways to pass state using for the below usecases:
         #   1. To set the cardinality of foreaches
@@ -651,7 +636,7 @@ class Airflow(object):
                     # malformed strings / json.
                     metaflow_workflow_compile_params=json_dag,
                     AIRFLOW_UTILS=util_file,
-                    deployed_on=str(datetime.now())
+                    deployed_on=str(datetime.now()),
                 ),
             )
 
