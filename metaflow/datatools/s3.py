@@ -260,9 +260,10 @@ class S3Object(object):
 
 
 class S3Client(object):
-    def __init__(self):
+    def __init__(self, s3_role_arn=None):
         self._s3_client = None
         self._s3_error = None
+        self._s3_role = s3_role_arn
 
     @property
     def client(self):
@@ -277,7 +278,7 @@ class S3Client(object):
         return self._s3_error
 
     def reset_client(self):
-        self._s3_client, self._s3_error = get_s3_client()
+        self._s3_client, self._s3_error = get_s3_client(s3_role_arn=self._s3_role)
 
 
 class S3(object):
@@ -327,7 +328,7 @@ class S3(object):
             else:
                 prefix = os.path.join(prefix, run.parent.id, run.id)
 
-            self._s3root = u"s3://%s" % os.path.join(bucket, prefix.strip("/"))
+            self._s3root = "s3://%s" % os.path.join(bucket, prefix.strip("/"))
         elif s3root:
             # 2. use an explicit S3 prefix
             parsed = urlparse(to_unicode(s3root))
@@ -340,7 +341,10 @@ class S3(object):
             # 3. use the client only with full URLs
             self._s3root = None
 
-        self._s3_client = kwargs.get("external_client", S3Client())
+        # Note that providing a role and a client will result in the role
+        # being ignored
+        self._s3_role = kwargs.get("role", None)
+        self._s3_client = kwargs.get("external_client", S3Client(self._s3_role))
         self._tmpdir = mkdtemp(dir=tmproot, prefix="metaflow.s3.")
 
     def __enter__(self):
@@ -1019,6 +1023,8 @@ class S3(object):
                     cmdline.append("--no-%s" % key)
             else:
                 cmdline.extend(("--%s" % key, value))
+        if self._s3_role is not None:
+            cmdline.extend(("--s3role", self._s3_role))
 
         for i in range(S3_RETRY_COUNT + 1):
             with NamedTemporaryFile(

@@ -249,16 +249,14 @@ _aliased_modules = []
 
 if _py_ver >= (3, 4):
     import importlib.util
-    from importlib.machinery import ModuleSpec
 
     if _py_ver >= (3, 8):
         from importlib import metadata
+    elif _py_ver >= (3, 6):
+        from metaflow._vendor.v3_6 import importlib_metadata as metadata
     else:
-        from metaflow._vendor import importlib_metadata as metadata
+        from metaflow._vendor.v3_5 import importlib_metadata as metadata
     _mfext_supported = True
-else:
-    # Something random so there is no syntax error
-    ModuleSpec = None
 
 # Extension points are the directories that can be present in a EXT_PKG to
 # contribute to that extension point. For example, if you have
@@ -814,8 +812,17 @@ def _attempt_load_module(module_name):
 def _get_extension_config(distribution_name, tl_pkg, extension_point, config_module):
     if config_module is not None and not config_module.endswith("__init__"):
         module_name = config_module
+        # file_path below will be /root/metaflow_extensions/X/Y/mfextinit_Z.py and
+        # module name is metaflow_extensions.X.Y.mfextinit_Z so if we want to strip to
+        # /root/metaflow_extensions, we need to remove this number of elements from the
+        # filepath
+        strip_from_filepath = len(module_name.split(".")) - 1
     else:
         module_name = ".".join([EXT_PKG, tl_pkg, extension_point])
+        # file_path here will be /root/metaflow_extensions/X/Y/__init__.py BUT
+        # module name is metaflow_extensions.X.Y so we have a 1 off compared to the
+        # previous case
+        strip_from_filepath = len(module_name.split("."))
 
     _ext_debug("        Attempting to load '%s'" % module_name)
 
@@ -833,11 +840,11 @@ def _get_extension_config(distribution_name, tl_pkg, extension_point, config_mod
             file_path = getattr(extension_module, "__file__")
             if file_path:
                 # Common case where this is an actual init file (mfextinit_X.py or __init__.py)
-                root_paths = [
-                    "/".join(file_path.split("/")[: -len(module_name.split(".")) + 1])
-                ]
+                root_paths = ["/".join(file_path.split("/")[:-strip_from_filepath])]
             else:
-                # Only used for plugins.cards where the package can be a NS package
+                # Only used for plugins.cards where the package can be a NS package. In
+                # this case, __path__ will have things like /root/metaflow_extensions/X/Y
+                # and module name will be metaflow_extensions.X.Y
                 root_paths = [
                     "/".join(p.split("/")[: -len(module_name.split(".")) + 1])
                     for p in extension_module.__path__

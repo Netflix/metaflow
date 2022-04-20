@@ -165,7 +165,6 @@ if sys.version_info[0] >= 3:
     def _load_invalidunicode(obj_type, transferer, json_annotation, json_obj):
         return _load_simple(str, transferer, json_annotation, json_obj)
 
-
 else:
 
     @_register_dumper((str,))
