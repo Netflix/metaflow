@@ -6,7 +6,7 @@ import time
 from metaflow.exception import MetaflowException
 
 
-CLIENT_REFRESH_INTERVAL_SECONDS = 1800
+CLIENT_REFRESH_INTERVAL_SECONDS = 300
 
 
 class KubernetesJobException(MetaflowException):
