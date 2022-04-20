@@ -202,6 +202,8 @@ def step(
                 env=env,
             )
     except Exception as e:
+        repr(e)
+        print(repr(e))
         traceback.print_exc()
         _sync_metadata()
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)

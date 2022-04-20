@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 
 from metaflow.exception import MetaflowException
 
@@ -15,8 +16,12 @@ class ArgoClient(object):
             from kubernetes import client, config
         except (NameError, ImportError):
             raise MetaflowException(
-                "Could not import module 'kubernetes'. Install kubernetes "
-                "Python package (https://pypi.org/project/kubernetes/) first."
+                "Could not import module 'kubernetes'.\n\nInstall kubernetes "
+                "Python package (https://pypi.org/project/kubernetes/) first.\n"
+                "You can install the module by executing - "
+                "%s -m pip install kubernetes\n"
+                "or equivalent through your favorite Python package manager."
+                % sys.executable
             )
 
         if os.getenv("KUBERNETES_SERVICE_HOST"):

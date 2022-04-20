@@ -1,6 +1,7 @@
 import math
 import os
 import random
+import sys
 import time
 
 from metaflow.exception import MetaflowException
@@ -56,9 +57,13 @@ class KubernetesClient(object):
             # Kubernetes is a soft dependency.
             from kubernetes import client, config
         except (NameError, ImportError):
-            raise MetaflowException(
-                "Could not import module 'kubernetes'. Install kubernetes "
-                "Python package (https://pypi.org/project/kubernetes/) first."
+            raise KubernetesJobException(
+                "Could not import module 'kubernetes'.\n\nInstall Kubernetes "
+                "Python package (https://pypi.org/project/kubernetes/) first.\n"
+                "You can install the module by executing - "
+                "%s -m pip install kubernetes\n"
+                "or equivalent through your favorite Python package manager."
+                % sys.executable
             )
         self._refresh_client()
 

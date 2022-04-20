@@ -171,6 +171,19 @@ class KubernetesDecorator(StepDecorator):
         self.package = package
         self.run_id = run_id
 
+        try:
+            # Kubernetes is a soft dependency.
+            from kubernetes import client, config
+        except (NameError, ImportError):
+            raise KubernetesException(
+                "Could not import module 'kubernetes'.\n\nInstall Kubernetes "
+                "Python package (https://pypi.org/project/kubernetes/) first.\n"
+                "You can install the module by executing - "
+                "%s -m pip install kubernetes\n"
+                "or equivalent through your favorite Python package manager."
+                % sys.executable
+            )
+
     def runtime_task_created(
         self, task_datastore, task_id, split_index, input_paths, is_cloned, ubf_context
     ):
