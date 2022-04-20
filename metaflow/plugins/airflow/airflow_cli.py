@@ -176,12 +176,5 @@ def create(
         set_active=not is_paused,
     )
     compiled_dag_file = flow.compile()
-    if file_path is None:
-        obj.echo_always(compiled_dag_file)
-    else:
-        if file_path.startswith("s3://"):
-            with S3() as s3:
-                s3.put(file_path, compiled_dag_file)
-        else:
-            with open(file_path, "w") as f:
-                f.write(compiled_dag_file)
+    with open(file_path, "w") as f:
+        f.write(compiled_dag_file)

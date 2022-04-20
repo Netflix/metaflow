@@ -651,6 +651,7 @@ class Airflow(object):
                     # malformed strings / json.
                     metaflow_workflow_compile_params=json_dag,
                     AIRFLOW_UTILS=util_file,
+                    deployed_on=str(datetime.now())
                 ),
             )
 

@@ -1,4 +1,4 @@
-import base64
+# Deployed on {{deployed_on}}
 
 CONFIG = {{{metaflow_workflow_compile_params}}}
 
