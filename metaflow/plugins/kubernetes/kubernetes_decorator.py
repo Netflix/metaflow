@@ -6,6 +6,7 @@ import requests
 
 from metaflow import util
 from metaflow.decorators import StepDecorator
+from metaflow.exception import MetaflowException
 from metaflow.metadata import MetaDatum
 from metaflow.metadata.util import sync_local_metadata_to_datastore
 from metaflow.metaflow_config import (
@@ -122,6 +123,12 @@ class KubernetesDecorator(StepDecorator):
         self.environment = environment
         self.step = step
         self.flow_datastore = flow_datastore
+
+        if any([deco.name == "batch" for deco in decos]):
+            raise MetaflowException(
+                "Step *{step}* is marked for execution both on AWS Batch and "
+                "Kubernetes. Please use one or the other.".format(step=step)
+        )
 
         for deco in decos:
             if getattr(deco, "IS_PARALLEL", False):
