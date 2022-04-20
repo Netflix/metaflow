@@ -301,14 +301,17 @@ class TaskToDict:
         if truncate:
             data = data_object.head()
         index_column = data.index
-
+        time_format = "%Y-%m-%dT%H:%M:%SZ"
         if index_column.dtype == "datetime64[ns]":
-            index_column = index_column.dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+            if index_column.__class__.__name__ == "DatetimeIndex":
+                index_column = index_column.strftime(time_format)
+            else:
+                index_column = index_column.dt.strftime(time_format)
 
         for col in data.columns:
             # we convert datetime columns to strings
             if data[col].dtype == "datetime64[ns]":
-                data[col] = data[col].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+                data[col] = data[col].dt.strftime(time_format)
 
         data_vals = data.values.tolist()
         for row, idx in zip(data_vals, index_column.values.tolist()):

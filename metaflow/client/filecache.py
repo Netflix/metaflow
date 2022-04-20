@@ -23,7 +23,6 @@ if sys.version_info[0] >= 3 and sys.version_info[1] >= 2:
     def od_move_to_end(od, key):
         od.move_to_end(key)
 
-
 else:
     # Not very efficient but works and most people are on 3.2+
     def od_move_to_end(od, key):

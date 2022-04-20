@@ -6,6 +6,7 @@ import math
 import sys
 import os
 import traceback
+from functools import partial
 from hashlib import sha1
 from tempfile import NamedTemporaryFile
 from multiprocessing import Process, Queue
@@ -78,7 +79,7 @@ ERROR_LOCAL_FILE_NOT_FOUND = 10
 
 
 def format_triplet(prefix, url="", local=""):
-    return u" ".join(url_quote(x).decode("utf-8") for x in (prefix, url, local))
+    return " ".join(url_quote(x).decode("utf-8") for x in (prefix, url, local))
 
 
 # I can't understand what's the right way to deal
@@ -99,7 +100,7 @@ def normalize_client_error(err):
 # S3 worker pool
 
 
-def worker(result_file_name, queue, mode):
+def worker(result_file_name, queue, mode, s3role):
     # Interpret mode, it can either be a single op or something like
     # info_download or info_upload which implies:
     #  - for download: we need to return the information as well
@@ -136,7 +137,7 @@ def worker(result_file_name, queue, mode):
         try:
             from metaflow.datatools.s3util import get_s3_client
 
-            s3, client_error = get_s3_client()
+            s3, client_error = get_s3_client(s3_role_arn=s3role)
             while True:
                 url, idx = queue.get()
                 if url is None:
@@ -228,7 +229,7 @@ def worker(result_file_name, queue, mode):
             sys.exit(ERROR_WORKER_EXCEPTION)
 
 
-def start_workers(mode, urls, num_workers):
+def start_workers(mode, urls, num_workers, s3role):
     # We start the minimum of len(urls) or num_workers to avoid starting
     # workers that will definitely do nothing
     num_workers = min(num_workers, len(urls))
@@ -250,7 +251,7 @@ def start_workers(mode, urls, num_workers):
     with TempDir() as output_dir:
         for i in range(num_workers):
             file_path = os.path.join(output_dir, str(i))
-            p = Process(target=worker, args=(file_path, queue, mode))
+            p = Process(target=worker, args=(file_path, queue, mode, s3role))
             p.start()
             procs[p] = file_path
 
@@ -276,13 +277,13 @@ def start_workers(mode, urls, num_workers):
     return sz_results
 
 
-def process_urls(mode, urls, verbose, num_workers):
+def process_urls(mode, urls, verbose, num_workers, s3role):
 
     if verbose:
         print("%sing %d files.." % (mode.capitalize(), len(urls)), file=sys.stderr)
 
     start = time.time()
-    sz_results = start_workers(mode, urls, num_workers)
+    sz_results = start_workers(mode, urls, num_workers, s3role)
     end = time.time()
 
     if verbose:
@@ -320,15 +321,16 @@ def with_unit(x):
 # required by @aws_retry decorator, which needs the reset_client
 # method. Otherwise they would be just stand-alone functions.
 class S3Ops(object):
-    def __init__(self):
+    def __init__(self, s3role):
         self.s3 = None
+        self.s3role = s3role
         self.client_error = None
 
     def reset_client(self, hard_reset=False):
         from metaflow.datatools.s3util import get_s3_client
 
         if hard_reset or self.s3 is None:
-            self.s3, self.client_error = get_s3_client()
+            self.s3, self.client_error = get_s3_client(s3_role_arn=self.s3role)
 
     @aws_retry
     def get_info(self, url):
@@ -412,18 +414,18 @@ class S3Ops(object):
 # This is accomplished by op_ functions below.
 
 
-def op_get_info(urls):
-    s3 = S3Ops()
+def op_get_info(s3role, urls):
+    s3 = S3Ops(s3role)
     return [s3.get_info(url) for url in urls]
 
 
-def op_list_prefix(prefix_urls):
-    s3 = S3Ops()
+def op_list_prefix(s3role, prefix_urls):
+    s3 = S3Ops(s3role)
     return [s3.list_prefix(prefix) for prefix in prefix_urls]
 
 
-def op_list_prefix_nonrecursive(prefix_urls):
-    s3 = S3Ops()
+def op_list_prefix_nonrecursive(s3role, prefix_urls):
+    s3 = S3Ops(s3role)
     return [s3.list_prefix(prefix, delimiter="/") for prefix in prefix_urls]
 
 
@@ -476,8 +478,8 @@ def generate_local_path(url, suffix=None):
     fname = quoted.split(b"/")[-1].replace(b".", b"_").replace(b"-", b"_")
     sha = sha1(quoted).hexdigest()
     if suffix:
-        return u"-".join((sha, fname.decode("utf-8"), suffix))
-    return u"-".join((sha, fname.decode("utf-8")))
+        return "-".join((sha, fname.decode("utf-8"), suffix))
+    return "-".join((sha, fname.decode("utf-8")))
 
 
 def parallel_op(op, lst, num_workers):
@@ -535,8 +537,15 @@ def cli():
     show_default=True,
     help="Download prefixes recursively.",
 )
+@click.option(
+    "--s3role",
+    default=None,
+    show_default=True,
+    required=False,
+    help="Role to assume when getting the S3 client",
+)
 @click.argument("prefixes", nargs=-1)
-def lst(prefixes, inputs=None, num_workers=None, recursive=None):
+def lst(prefixes, inputs=None, num_workers=None, recursive=None, s3role=None):
 
     urllist = []
     for prefix, _ in _populate_prefixes(prefixes, inputs):
@@ -552,7 +561,11 @@ def lst(prefixes, inputs=None, num_workers=None, recursive=None):
             exit(ERROR_INVALID_URL, url)
         urllist.append(url)
 
-    op = op_list_prefix if recursive else op_list_prefix_nonrecursive
+    op = (
+        partial(op_list_prefix, s3role)
+        if recursive
+        else partial(op_list_prefix_nonrecursive, s3role)
+    )
     urls = []
     for success, prefix_url, ret in parallel_op(op, urllist, num_workers):
         if success:
@@ -604,6 +617,13 @@ def lst(prefixes, inputs=None, num_workers=None, recursive=None):
     show_default=True,
     help="Print S3 URLs upload to on stdout.",
 )
+@click.option(
+    "--s3role",
+    default=None,
+    show_default=True,
+    required=False,
+    help="Role to assume when getting the S3 client",
+)
 def put(
     files=None,
     filelist=None,
@@ -611,6 +631,7 @@ def put(
     verbose=None,
     overwrite=True,
     listing=None,
+    s3role=None,
 ):
     def _files():
         for local, url in files:
@@ -647,7 +668,7 @@ def put(
     ul_op = "upload"
     if not overwrite:
         ul_op = "info_upload"
-    sz_results = process_urls(ul_op, urls, verbose, num_workers)
+    sz_results = process_urls(ul_op, urls, verbose, num_workers, s3role)
     urls = [url for url, sz in zip(urls, sz_results) if sz is not None]
     if listing:
         for url in urls:
@@ -722,6 +743,13 @@ def _populate_prefixes(prefixes, inputs):
     show_default=True,
     help="Print S3 URL -> local file mapping on stdout.",
 )
+@click.option(
+    "--s3role",
+    default=None,
+    show_default=True,
+    required=False,
+    help="Role to assume when getting the S3 client",
+)
 @click.argument("prefixes", nargs=-1)
 def get(
     prefixes,
@@ -733,6 +761,7 @@ def get(
     allow_missing=None,
     verbose=None,
     listing=None,
+    s3role=None,
 ):
 
     # Construct a list of URL (prefix) objects
@@ -756,7 +785,7 @@ def get(
     op = None
     dl_op = "download"
     if recursive:
-        op = op_list_prefix
+        op = partial(op_list_prefix, s3role)
     if verify or verbose or info:
         dl_op = "info_download"
     if op:
@@ -778,7 +807,7 @@ def get(
 
     # exclude the non-existent files from loading
     to_load = [url for url, size in urls if size is not None]
-    sz_results = process_urls(dl_op, to_load, verbose, num_workers)
+    sz_results = process_urls(dl_op, to_load, verbose, num_workers, s3role)
     # We check if there is any access denied
     is_denied = [sz == -ERROR_URL_ACCESS_DENIED for sz in sz_results]
     if any(is_denied):
@@ -844,8 +873,17 @@ def get(
     show_default=True,
     help="Print S3 URL -> local file mapping on stdout.",
 )
+@click.option(
+    "--s3role",
+    default=None,
+    show_default=True,
+    required=False,
+    help="Role to assume when getting the S3 client",
+)
 @click.argument("prefixes", nargs=-1)
-def info(prefixes, num_workers=None, inputs=None, verbose=None, listing=None):
+def info(
+    prefixes, num_workers=None, inputs=None, verbose=None, listing=None, s3role=None
+):
 
     # Construct a list of URL (prefix) objects
     urllist = []
@@ -863,7 +901,7 @@ def info(prefixes, num_workers=None, inputs=None, verbose=None, listing=None):
             exit(ERROR_INVALID_URL, url)
         urllist.append(url)
 
-    process_urls("info", urllist, verbose, num_workers)
+    process_urls("info", urllist, verbose, num_workers, s3role)
 
     if listing:
         for url in urllist:
