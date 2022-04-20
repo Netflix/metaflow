@@ -96,7 +96,7 @@ class AirflowDAGArgs(object):
         },
     }
 
-    metaflow_centric_args = {
+    metaflow_specific_args = {
         # Reference for user_defined_filters : https://stackoverflow.com/a/70175317
         "user_defined_filters": dict(
             hash=lambda my_value: hasher(my_value),
@@ -110,7 +110,7 @@ class AirflowDAGArgs(object):
 
     @property
     def arguements(self):
-        return dict(**self._args, **self.metaflow_centric_args)
+        return dict(**self._args, **self.metaflow_specific_args)
 
     def _serialize_args(self):
         def parse_args(dd):
