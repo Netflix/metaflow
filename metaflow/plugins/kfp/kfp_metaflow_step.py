@@ -56,14 +56,7 @@ def _step_cli(
 
     input_paths = None
 
-    tags_extended: List[str] = [
-        f"--tag argo_workflow:{workflow_name}",
-        "--tag pod_name:$MF_POD_NAME",
-        "--tag pod_namespace:$MF_POD_NAMESPACE",
-        # TODO(talebz): A Metaflow plugin framework to customize tags, labels, etc.
-        "--tag zodiac_service:$ZODIAC_SERVICE",
-        "--tag zodiac_team:$ZODIAC_TEAM",
-    ]
+    tags_extended: List[str] = []
     if tags:
         tags_extended.extend("--tag %s" % tag for tag in tags)
 
