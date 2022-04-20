@@ -19,6 +19,5 @@ def export_parameters(output_file):
     os.chmod(output_file, 509)
 
 
-# TODO: Maybe use click someday instead of conditional.
 if __name__ == "__main__":
     export_parameters(sys.argv[1])
