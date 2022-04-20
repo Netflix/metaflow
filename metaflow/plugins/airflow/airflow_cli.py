@@ -19,7 +19,7 @@ def _validate_workflow(graph, flow_datastore, metadata):
     for node in graph:
         if node.type == "foreach":
             raise NotSupportedException(
-                "Step *%s* is a foreach and for foreach steps are not supported with airflow."
+                "Step *%s* is a foreach step and foreach steps are not supported with airflow."
             )
 
         if any([d.name == "batch" for d in node.decorators]):
