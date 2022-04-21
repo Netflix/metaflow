@@ -662,14 +662,14 @@ def configure_aws_batch(existing_env):
 
 def check_kubernetes_client(ctx):
     try:
-        import kubernetes
+        import kubernetes1
     except ImportError:
         echo(
-            "Could not import module 'kubernetes'.\nInstall kubernetes "
+            "Could not import module 'Kubernetes'.\nInstall Kubernetes "
             + "Python package (https://pypi.org/project/kubernetes/) first.\n"
-            "You can install the module by executing - "
+            "You can install the module by executing - \n"
             + yellow("%s -m pip install kubernetes" % sys.executable)
-            + " or equivalent in your favorite Python package manager)"
+            + " \nor equivalent in your favorite Python package manager\n"
         )
         ctx.abort()
 
