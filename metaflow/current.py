@@ -34,6 +34,7 @@ class Current(object):
         namespace=None,
         username=None,
         is_running=True,
+        tags=None,
     ):
         if flow is not None:
             self._flow_name = flow.name
@@ -47,6 +48,7 @@ class Current(object):
         self._namespace = namespace
         self._username = username
         self._is_running = is_running
+        self._tags = tags
 
     def _update_env(self, env):
         for k, v in env.items():
@@ -105,6 +107,10 @@ class Current(object):
             num_nodes=int(os.environ.get("MF_PARALLEL_NUM_NODES", "1")),
             node_index=int(os.environ.get("MF_PARALLEL_NODE_INDEX", "0")),
         )
+
+    @property
+    def tags(self):
+        return self._tags
 
 
 # instantiate the Current singleton. This will be populated

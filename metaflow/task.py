@@ -425,6 +425,7 @@ class MetaflowTask(object):
             namespace=resolve_identity(),
             username=get_username(),
             is_running=True,
+            tag=self.metadata.sticky_tags,
         )
 
         # 5. run task
