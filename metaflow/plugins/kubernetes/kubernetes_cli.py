@@ -63,6 +63,8 @@ def kubernetes():
 @click.option("--cpu", help="CPU requirement for Kubernetes pod.")
 @click.option("--disk", help="Disk requirement for Kubernetes pod.")
 @click.option("--memory", help="Memory requirement for Kubernetes pod.")
+@click.option("--gpu", help="GPU requirement for Kubernetes pod.")
+@click.option("--gpu-vendor", help="GPU vendor requirement for Kubernetes pod.")
 @click.option("--run-id", help="Passed to the top-level 'step'.")
 @click.option("--task-id", help="Passed to the top-level 'step'.")
 @click.option("--input-paths", help="Passed to the top-level 'step'.")
@@ -97,6 +99,8 @@ def step(
     cpu=None,
     disk=None,
     memory=None,
+    gpu=None,
+    gpu_vendor=None,
     run_time_limit=None,
     **kwargs
 ):
@@ -198,13 +202,13 @@ def step(
                 cpu=cpu,
                 disk=disk,
                 memory=memory,
+                gpu=gpu,
+                gpu_vendor=gpu_vendor,
                 run_time_limit=run_time_limit,
                 env=env,
             )
     except Exception as e:
-        repr(e)
-        print(repr(e))
-        traceback.print_exc()
+        traceback.print_exc(chain=False)
         _sync_metadata()
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
     try:

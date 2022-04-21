@@ -13,7 +13,9 @@ from metaflow.metaflow_config import (
     DATASTORE_LOCAL_DIR,
     KUBERNETES_CONTAINER_IMAGE,
     KUBERNETES_CONTAINER_REGISTRY,
+    KUBERNETES_GPU_VENDOR,
     KUBERNETES_NAMESPACE,
+    KUBERNETES_NODE_SELECTOR,
     KUBERNETES_SERVICE_ACCOUNT,
 )
 from metaflow.plugins import ResourcesDecorator
@@ -75,6 +77,8 @@ class KubernetesDecorator(StepDecorator):
         "secrets": None,  # e.g., mysecret
         "node_selector": None,  # e.g., kubernetes.io/os=linux
         "namespace": None,
+        "gpu": None,  # value of 0 implies that the scheduled node should not have GPUs
+        "gpu_vendor": None,
     }
     package_url = None
     package_sha = None
@@ -87,6 +91,10 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["namespace"] = KUBERNETES_NAMESPACE
         if not self.attributes["service_account"]:
             self.attributes["service_account"] = KUBERNETES_SERVICE_ACCOUNT
+        if not self.attributes["gpu_vendor"]:
+            self.attributes["gpu_vendor"] = KUBERNETES_GPU_VENDOR
+        # TODO: Handle node_selector in a better manner. Currently it is special
+        #       cased in kubernetes_client.py
 
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:
@@ -147,6 +155,7 @@ class KubernetesDecorator(StepDecorator):
         for deco in decos:
             if isinstance(deco, ResourcesDecorator):
                 for k, v in deco.attributes.items():
+                    # TODO: Special case GPUs when they are introduced in @resources.
                     if k in self.attributes:
                         if self.defaults[k] is None:
                             # skip if expected value isn't an int/float
@@ -159,7 +168,15 @@ class KubernetesDecorator(StepDecorator):
                                 max(float(my_val or 0), float(v or 0))
                             )
 
-        # CPU, Disk & Memory values should be greater than 0.
+        # Check GPU vendor.
+        if self.attributes["gpu_vendor"].lower() not in ("amd", "nvidia"):
+            raise KubernetesException(
+                "GPU vendor *{}* for step *{step}* is not currently supported.".format(
+                    self.attributes["gpu_vendor"], step=step
+                )
+            )
+
+        # CPU, Disk, and Memory values should be greater than 0.
         for attr in ["cpu", "disk", "memory"]:
             if not (
                 isinstance(self.attributes[attr], (int, unicode, basestring, float))
@@ -171,13 +188,17 @@ class KubernetesDecorator(StepDecorator):
                     )
                 )
 
-    def runtime_init(self, flow, graph, package, run_id):
-        # Set some more internal state.
-        self.flow = flow
-        self.graph = graph
-        self.package = package
-        self.run_id = run_id
+        if self.attributes["gpu"] is not None and not (
+            isinstance(self.attributes["gpu"], (int, unicode, basestring))
+            and float(self.attributes["gpu"]).is_integer()
+        ):
+            raise KubernetesException(
+                "Invalid GPU value *{}* for step *{step}*; it should be an integer".format(
+                    self.attributes["gpu"], step=step
+                )
+            )
 
+    def package_init(self, flow, step_name, environment):
         try:
             # Kubernetes is a soft dependency.
             from kubernetes import client, config
@@ -190,6 +211,13 @@ class KubernetesDecorator(StepDecorator):
                 "or equivalent through your favorite Python package manager."
                 % sys.executable
             )
+
+    def runtime_init(self, flow, graph, package, run_id):
+        # Set some more internal state.
+        self.flow = flow
+        self.graph = graph
+        self.package = package
+        self.run_id = run_id
 
     def runtime_task_created(
         self, task_datastore, task_id, split_index, input_paths, is_cloned, ubf_context

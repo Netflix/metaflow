@@ -16,6 +16,7 @@ from metaflow.metaflow_config import (
     DATATOOLS_S3ROOT,
     DEFAULT_METADATA,
     KUBERNETES_NAMESPACE,
+    KUBERNETES_NODE_SELECTOR,
 )
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
@@ -834,7 +835,14 @@ class ArgoWorkflows(object):
                 .node_selectors(
                     {
                         str(k.split("=", 1)[0]): str(k.split("=", 1)[1])
-                        for k in resources.get("node_selector") or []
+                        for k in (
+                            resources.get("node_selector")
+                            or (
+                                KUBERNETES_NODE_SELECTOR.split(",")
+                                if KUBERNETES_NODE_SELECTOR
+                                else []
+                            )
+                        )
                     }
                 )
                 # Set container
@@ -879,7 +887,13 @@ class ArgoWorkflows(object):
                                     "cpu": str(resources["cpu"]),
                                     "memory": "%sM" % str(resources["memory"]),
                                     "ephemeral-storage": "%sM" % str(resources["disk"]),
-                                }
+                                },
+                                limits={
+                                    "%s.com/gpu".lower()
+                                    % resources["gpu_vendor"]: str(resources["gpu"])
+                                    for k in [0]
+                                    if resources["gpu"] is not None
+                                },
                             ),
                             # Configure secrets
                             env_from=[

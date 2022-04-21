@@ -1,11 +1,11 @@
 import hashlib
 import json
+import math
 import os
 import re
 import select
 import shlex
 import time
-import math
 
 from metaflow import current, util
 from metaflow.datatools.s3tail import S3Tail
@@ -130,6 +130,7 @@ class Kubernetes(object):
         namespace=None,
         cpu=None,
         gpu=None,
+        gpu_vendor=None,
         disk=None,
         memory=None,
         run_time_limit=None,
@@ -157,6 +158,8 @@ class Kubernetes(object):
                 cpu=cpu,
                 memory=memory,
                 disk=disk,
+                gpu=gpu,
+                gpu_vendor=gpu_vendor,
                 timeout_in_seconds=run_time_limit,
                 # Retries are handled by Metaflow runtime
                 retries=0,

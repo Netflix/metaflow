@@ -1,3 +1,4 @@
+import json
 import math
 import os
 import random
@@ -5,7 +6,7 @@ import sys
 import time
 
 from metaflow.exception import MetaflowException
-
+from metaflow.metaflow_config import KUBERNETES_NODE_SELECTOR
 
 CLIENT_REFRESH_INTERVAL_SECONDS = 300
 
@@ -188,13 +189,29 @@ class KubernetesJob(object):
                                         "memory": "%sM" % str(self._kwargs["memory"]),
                                         "ephemeral-storage": "%sM"
                                         % str(self._kwargs["disk"]),
-                                    }
+                                    },
+                                    limits={
+                                        "%s.com/gpu".lower()
+                                        % self._kwargs["gpu_vendor"]: str(
+                                            self._kwargs["gpu"]
+                                        )
+                                        for k in [0]
+                                        # Don't set GPU limits if gpu isn't specified.
+                                        if self._kwargs["gpu"] is not None
+                                    },
                                 ),
                             )
                         ],
                         node_selector={
                             str(k.split("=", 1)[0]): str(k.split("=", 1)[1])
-                            for k in self._kwargs.get("node_selector", [])
+                            for k in (
+                                self._kwargs.get("node_selector")
+                                or (
+                                    KUBERNETES_NODE_SELECTOR.split(",")
+                                    if KUBERNETES_NODE_SELECTOR
+                                    else []
+                                )
+                            )
                         },
                         # TODO (savin): Support image_pull_secrets
                         # image_pull_secrets=?,
@@ -243,7 +260,8 @@ class KubernetesJob(object):
             )
         except client.rest.ApiException as e:
             raise KubernetesJobException(
-                "Unable to launch Kubernetes job.\n %s" % str(e)
+                "Unable to launch Kubernetes job.\n %s"
+                % (json.loads(e.body)["message"] if e.body is not None else e.reason)
             )
 
     def step_name(self, step_name):
