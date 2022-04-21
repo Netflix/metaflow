@@ -140,7 +140,7 @@ class AirflowException(MetaflowException):
 
 
 class NotSupportedException(MetaflowException):
-    headline = "Feature is not yet supported with airflow"
+    headline = "Not yet supported with Airflow"
 
 
 class Airflow(object):
