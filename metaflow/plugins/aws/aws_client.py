@@ -81,3 +81,23 @@ def get_aws_client(module, with_error=False, params={}, s3_role_arn=None):
                 "Cannot find AWS Client provider %s" % DEFAULT_AWS_CLIENT_PROVIDER
             )
     return cached_provider_class.get_client(module, with_error, params, s3_role_arn)
+
+
+def get_credentials_setup_shim_for_bash():
+    global cached_provider_class
+    if cached_provider_class is None:
+        from metaflow.metaflow_config import DEFAULT_AWS_CLIENT_PROVIDER
+        from metaflow.plugins import AWS_CLIENT_PROVIDERS
+
+        for p in AWS_CLIENT_PROVIDERS:
+            if p.name == DEFAULT_AWS_CLIENT_PROVIDER:
+                cached_provider_class = p
+                break
+        else:
+            raise ValueError(
+                "Cannot find AWS Client provider %s" % DEFAULT_AWS_CLIENT_PROVIDER
+            )
+    if getattr(cached_provider_class, "get_credentials_setup_shim_for_bash"):
+        return cached_provider_class.get_credentials_setup_shim_for_bash()
+    else:
+        return []

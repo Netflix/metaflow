@@ -4,6 +4,7 @@ import sys
 
 from .util import get_username
 from . import metaflow_version
+from metaflow.plugins.aws.aws_client import get_credentials_setup_shim_for_bash
 from metaflow.exception import MetaflowException
 from metaflow.extension_support import dump_module_info
 from metaflow.mflog import BASH_MFLOG
@@ -80,7 +81,7 @@ class MetaflowEnvironment(object):
         return "Local environment"
 
     def get_package_commands(self, code_package_url):
-        cmds = [
+        cmds = get_credentials_setup_shim_for_bash() + [
             BASH_MFLOG,
             "mflog 'Setting up task environment.'",
             "%s -m pip install awscli requests boto3 -qqq" % self._python(),
