@@ -28,6 +28,7 @@ class CurrentSingletonTest(MetaflowTest):
         self.usernames = {current.username}
         self.uuid = str(uuid4())
         self.task_data = {current.pathspec: self.uuid}
+        self.tags = current.tags
 
     @steps(1, ["join"])
     def step_join(self):
@@ -52,6 +53,7 @@ class CurrentSingletonTest(MetaflowTest):
         self.task_data = {}
         for i in inputs:
             self.task_data.update(i.task_data)
+        self.tags = set(chain(*(i.tags for i in inputs)))
 
         # add data for the join step
         self.project_names.add(current.project_name)
@@ -67,6 +69,7 @@ class CurrentSingletonTest(MetaflowTest):
         self.steps.add(current.step_name)
         self.uuid = str(uuid4())
         self.task_data[current.pathspec] = self.uuid
+        self.tags.update(current.tags)
 
     @steps(2, ["all"])
     def step_all(self):
@@ -86,6 +89,7 @@ class CurrentSingletonTest(MetaflowTest):
         self.steps.add(current.step_name)
         self.uuid = str(uuid4())
         self.task_data[current.pathspec] = self.uuid
+        self.tags.update(current.tags)
 
     def check_results(self, flow, checker):
         run = checker.get_run()
@@ -119,3 +123,7 @@ class CurrentSingletonTest(MetaflowTest):
             assert_equals(run.data.origin_run_ids, {None})
             assert_equals(run.data.namespaces, {"user:tester"})
             assert_equals(run.data.usernames, {"tester"})
+            assert_equals(
+                run.data.tags,
+                {"\u523a\u8eab means sashimi", "multiple tags should be ok"},
+            )
