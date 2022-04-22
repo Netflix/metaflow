@@ -28,7 +28,7 @@ from metaflow.mflog import (
 )
 from metaflow.mflog.mflog import refine, set_should_persist
 
-from .kubernetes_client import KubernetesClient
+from .kubernetes_client import KubernetesJobClient
 
 # Redirect structured logs to $PWD/.logs/
 LOGS_DIR = "$PWD/.logs"
@@ -138,7 +138,7 @@ class Kubernetes(object):
     ):
 
         job = (
-            KubernetesClient()
+            KubernetesJobClient()
             .job(
                 generate_name="t-",
                 namespace=namespace,

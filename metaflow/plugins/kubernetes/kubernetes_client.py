@@ -8,8 +8,6 @@ import time
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import KUBERNETES_NODE_SELECTOR
 
-CLIENT_REFRESH_INTERVAL_SECONDS = 300
-
 
 class KubernetesJobException(MetaflowException):
     headline = "Kubernetes job error"
@@ -52,53 +50,14 @@ def k8s_retry(deadline_seconds=60, max_backoff=32):
     return decorator
 
 
-class KubernetesClient(object):
-    def __init__(self):
-        try:
-            # Kubernetes is a soft dependency.
-            from kubernetes import client, config
-        except (NameError, ImportError):
-            raise KubernetesJobException(
-                "Could not import module 'kubernetes'.\n\nInstall Kubernetes "
-                "Python package (https://pypi.org/project/kubernetes/) first.\n"
-                "You can install the module by executing - "
-                "%s -m pip install kubernetes\n"
-                "or equivalent through your favorite Python package manager."
-                % sys.executable
-            )
-        self._refresh_client()
-
-    def _refresh_client(self):
-        from kubernetes import client, config
-
-        if os.getenv("KUBERNETES_SERVICE_HOST"):
-            # We are inside a pod, authenticate via ServiceAccount assigned to us
-            config.load_incluster_config()
-        else:
-            # Use kubeconfig, likely $HOME/.kube/config
-            # TODO (savin):
-            #     1. Support generating kubeconfig on the fly using boto3
-            #     2. Support auth via OIDC - https://docs.aws.amazon.com/eks/latest/userguide/authenticate-oidc-identity-provider.html
-            config.load_kube_config()
-        self._client = client
-        self._client_refresh_timestamp = time.time()
-
+class KubernetesJobClient(object):
     def job(self, **kwargs):
         return KubernetesJob(self, **kwargs)
 
-    def get(self):
-        if (
-            time.time() - self._client_refresh_timestamp
-            > CLIENT_REFRESH_INTERVAL_SECONDS
-        ):
-            self._refresh_client()
-
-        return self._client
-
 
 class KubernetesJob(object):
-    def __init__(self, client_wrapper, **kwargs):
-        self._client_wrapper = client_wrapper
+    def __init__(self, credentials_provider, **kwargs):
+        self._credentials_provider = credentials_provider
         self._kwargs = kwargs
 
     def create(self):
@@ -114,7 +73,7 @@ class KubernetesJob(object):
         #
         # Note: This implementation ensures that there is only one unique Pod
         # (unique UID) per Metaflow task attempt.
-        client = self._client_wrapper.get()
+        client = self._credentials_provider.get_client_client()
         self._job = client.V1Job(
             api_version="batch/v1",
             kind="Job",
@@ -238,7 +197,7 @@ class KubernetesJob(object):
         return self
 
     def execute(self):
-        client = self._client_wrapper.get()
+        client = self._credentials_provider.get_client()
         try:
             # TODO: Make job submission back-pressure aware. Currently
             #       there doesn't seem to be a kubernetes-native way to
@@ -253,7 +212,7 @@ class KubernetesJob(object):
                 .to_dict()
             )
             return RunningJob(
-                client_wrapper=self._client_wrapper,
+                credentials_provider=self._credentials_provider,
                 name=response["metadata"]["name"],
                 uid=response["metadata"]["uid"],
                 namespace=response["metadata"]["namespace"],
@@ -349,8 +308,8 @@ class RunningJob(object):
     #    4. (kube-scheduler) PodScheduled
     #       (https://github.com/kubernetes/kubernetes/blob/master/pkg/scheduler/scheduler.go)
 
-    def __init__(self, client_wrapper, name, uid, namespace):
-        self._client_wrapper = client_wrapper
+    def __init__(self, credentials_provider, name, uid, namespace):
+        self._credentials_provider = credentials_provider
         self._name = name
         self._pod_name = None
         self._id = uid
@@ -376,7 +335,7 @@ class RunningJob(object):
 
     @k8s_retry()
     def _fetch_job(self):
-        client = self._client_wrapper.get()
+        client = self._credentials_provider.get_client()
         try:
             return (
                 client.BatchV1Api()
@@ -393,7 +352,7 @@ class RunningJob(object):
     @k8s_retry()
     def _fetch_pod(self):
         # Fetch pod metadata.
-        client = self._client_wrapper.get()
+        client = self._credentials_provider.get_client()
         pods = (
             client.CoreV1Api()
             .list_namespaced_pod(
@@ -427,7 +386,7 @@ class RunningJob(object):
         #    https://github.com/kubernetes/enhancements/issues/2232
         # 3. If the pod object hasn't shown up yet, we set the parallelism to 0
         #    to preempt it.
-        client = self._client_wrapper.get()
+        client = self._credentials_provider.get_client()
         if not self.is_done:
             if self.is_running:
 
