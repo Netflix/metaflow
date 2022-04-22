@@ -188,8 +188,12 @@ SFN_EXECUTION_LOG_GROUP_ARN = from_conf("METAFLOW_SFN_EXECUTION_LOG_GROUP_ARN")
 ###
 # Kubernetes namespace to use for all objects created by Metaflow
 KUBERNETES_NAMESPACE = from_conf("METAFLOW_KUBERNETES_NAMESPACE", "default")
-# Service account to use by K8S jobs created by Metaflow
+# Default service account to use by K8S jobs created by Metaflow
 KUBERNETES_SERVICE_ACCOUNT = from_conf("METAFLOW_KUBERNETES_SERVICE_ACCOUNT")
+# Default node selectors to use by K8S jobs created by Metaflow - foo=bar,baz=bab
+KUBERNETES_NODE_SELECTOR = from_conf("METAFLOW_KUBERNETES_NODE_SELECTOR", "")
+# Default GPU vendor to use by K8S jobs created by Metaflow (supports nvidia, amd)
+KUBERNETES_GPU_VENDOR = from_conf("METAFLOW_KUBERNETES_GPU_VENDOR", "nvidia")
 # Default container image for K8S
 KUBERNETES_CONTAINER_IMAGE = (
     from_conf("METAFLOW_KUBERNETES_CONTAINER_IMAGE") or DEFAULT_CONTAINER_IMAGE

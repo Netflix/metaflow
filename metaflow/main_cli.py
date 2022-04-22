@@ -1,6 +1,7 @@
 from metaflow._vendor import click
 import json
 import os
+import sys
 import shutil
 
 from os.path import expanduser
@@ -664,10 +665,11 @@ def check_kubernetes_client(ctx):
         import kubernetes
     except ImportError:
         echo(
-            "Please install python kubernetes client first "
-            + "(run "
-            + yellow("pip install kubernetes")
-            + " or equivalent in your favorite python package manager)"
+            "Could not import module 'Kubernetes'.\nInstall Kubernetes "
+            + "Python package (https://pypi.org/project/kubernetes/) first.\n"
+            "You can install the module by executing - \n"
+            + yellow("%s -m pip install kubernetes" % sys.executable)
+            + " \nor equivalent in your favorite Python package manager\n"
         )
         ctx.abort()
 
@@ -687,20 +689,20 @@ def check_kubernetes_config(ctx):
         )
     except config.config_exception.ConfigException as e:
         click.confirm(
-            "\nYou don't seem to have a valid kubernetes configuration file. "
-            + "The error from kubernetes client library: "
+            "\nYou don't seem to have a valid Kubernetes configuration file. "
+            + "The error from Kubernetes client library: "
             + red(str(e))
             + "."
             + "To create a kubernetes configuration for EKS, you typically need to run "
             + yellow("aws eks update-kubeconfig --name <CLUSTER NAME>")
-            + ". For further details, refer to AWS Documentation at https://docs.aws.amazon.com/eks/latest/userguide/create-kubeconfig.html\n"
-            "Do you want to proceed with configuring Metaflow for EKS anyway?",
+            + ". For further details, refer to AWS documentation at https://docs.aws.amazon.com/eks/latest/userguide/create-kubeconfig.html\n"
+            "Do you want to proceed with configuring Metaflow for Kubernetes anyway?",
             default=False,
             abort=True,
         )
 
 
-def configure_eks(existing_env):
+def configure_kubernetes(existing_env):
     empty_profile = False
     if not existing_env:
         empty_profile = True
@@ -821,7 +823,7 @@ def aws(ctx, profile):
     persist_env({k: v for k, v in env.items() if v}, profile)
 
 
-@configure.command(help="Configure metaflow to use AWS EKS.")
+@configure.command(help="Configure metaflow to use Kubernetes.")
 @click.option(
     "--profile",
     "-p",
@@ -830,7 +832,7 @@ def aws(ctx, profile):
     "`METAFLOW_PROFILE` environment variable.",
 )
 @click.pass_context
-def eks(ctx, profile):
+def kubernetes(ctx, profile):
 
     check_kubernetes_client(ctx)
 
@@ -860,9 +862,9 @@ def eks(ctx, profile):
     else:
         # If configured to use something else, offer to switch to S3
         click.confirm(
-            "\nMetaflow on EKS needs to use S3 as a datastore, "
-            + "but your existing configuration is not using S3. "
-            + "Would you like to reconfigure it to use S3?",
+            "\nMetaflow on Kubernetes needs to use Amazon S3 as a datastore, "
+            + "but your existing configuration is not using Amazon S3. "
+            + "Would you like to reconfigure it to use Amazon S3?",
             default=True,
             abort=True,
         )
@@ -883,8 +885,8 @@ def eks(ctx, profile):
         ):
             env.update(configure_metadata_service(existing_env))
 
-    # Configure AWS EKS for compute.
-    env.update(configure_eks(existing_env))
+    # Configure Kubernetes for compute.
+    env.update(configure_kubernetes(existing_env))
 
     persist_env({k: v for k, v in env.items() if v}, profile)
 
