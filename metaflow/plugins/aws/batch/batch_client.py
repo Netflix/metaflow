@@ -258,8 +258,8 @@ class BatchJob(object):
                 for i in range(inferentia):
                     job_definition["containerProperties"]['linuxParameters']['devices'].append(
                         {
-                            "containerPath": f"/dev/neuron{i}",
-                            "hostPath": f"/dev/neuron{i}",
+                            "containerPath": "/dev/neuron{}".format(i),
+                            "hostPath": "/dev/neuron{}".format(i),
                             "permissions": [
                                 "read",
                                 "write"
