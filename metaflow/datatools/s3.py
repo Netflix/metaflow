@@ -931,11 +931,17 @@ class S3(object):
             if tmp:
                 os.unlink(tmp.name)
             self._s3_client.reset_client()
-            # add some jitter to make sure retries are not synchronized
-            time.sleep(2 ** i + random.randint(0, 10))
+            # only sleep if retries > 0
+            if S3_RETRY_COUNT > 0:
+                self._jitter_sleep(i)
         raise MetaflowS3Exception(
             "S3 operation failed.\n" "Key requested: %s\n" "Error: %s" % (url, error)
         )
+
+    # add some jitter to make sure retries are not synchronized
+    def _jitter_sleep(self, trynum, multiplier=2):
+        interval = multiplier ** trynum + random.randint(0, 10)
+        time.sleep(interval)
 
     # NOTE: re: _read_many_files and _put_many_files
     # All file IO is through binary files - we write bytes, we read
@@ -1048,6 +1054,8 @@ class S3(object):
                     elif ex.returncode == s3op.ERROR_URL_ACCESS_DENIED:
                         raise MetaflowS3AccessDenied(err_out)
                     print("Error with S3 operation:", err_out)
-                    time.sleep(2 ** i + random.randint(0, 10))
+                    # only sleep if retrying
+                    if S3_RETRY_COUNT > 0:
+                        self._jitter_sleep(i)
 
         return None, err_out
