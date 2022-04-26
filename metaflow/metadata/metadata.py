@@ -511,6 +511,10 @@ class MetadataProvider(object):
             tags.append("metaflow_r_version:" + env["metaflow_r_version"])
         if "r_version_code" in env:
             tags.append("r_version:" + env["r_version_code"])
+        # KFP plugin tags
+        for key in ["pod_namespace", "zodiac_service", "zodiac_team"]:
+            if env[key]:
+                tags.append(f"{key}:{env[key]}")
         return tags
 
     def _register_code_package_metadata(self, run_id, step_name, task_id, attempt):

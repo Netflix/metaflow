@@ -150,6 +150,10 @@ class MetaflowEnvironment(object):
             "python_version_code": "%d.%d.%d" % sys.version_info[:3],
             "metaflow_version": version_cache,
             "script": os.path.basename(os.path.abspath(sys.argv[0])),
+            # KFP plug-in info
+            "pod_namespace": os.environ.get("MF_POD_NAMESPACE"),
+            "zodiac_service": os.environ.get("ZODIAC_SERVICE"),
+            "zodiac_team": os.environ.get("ZODIAC_TEAM"),
         }
         if R.use_r():
             env["metaflow_r_version"] = R.metaflow_r_version()

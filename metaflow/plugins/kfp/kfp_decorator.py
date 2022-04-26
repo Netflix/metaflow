@@ -126,21 +126,16 @@ class KfpInternalDecorator(StepDecorator):
         self.task_datastore = task_datastore
 
         # TODO: any other KFP environment variables to get and register to Metadata service?
-        meta = {"kfp-execution": run_id}
+        meta = {
+            "kfp-execution": run_id,
+            "pod_name": os.environ.get("MF_POD_NAME"),
+            "argo_workflow": os.environ.get("MF_ARGO_WORKFLOW_NAME"),
+        }
+
         entries = [
             MetaDatum(field=k, value=v, type=k, tags=[]) for k, v in meta.items()
         ]
         metadata.register_metadata(run_id, step_name, task_id, entries)
-
-        metadata.add_sticky_tags(
-            sys_tags=[
-                f"argo_workflow:{os.environ.get('MF_ARGO_WORKFLOW_NAME')}",
-                f"pod_name:{os.environ.get('MF_POD_NAME')}",
-                f"pod_namespace:{os.environ.get('MF_POD_NAMESPACE')}",
-                f"zodiac_service:{os.environ.get('ZODIAC_SERVICE')}",
-                f"zodiac_team:{os.environ.get('ZODIAC_TEAM')}",
-            ]
-        )
 
         preceding_component_outputs: List[str] = json.loads(
             os.environ["PRECEDING_COMPONENT_OUTPUTS"]
