@@ -292,6 +292,12 @@ class MetaflowTask(object):
                     type="origin-run-id",
                     tags=metadata_tags,
                 ),
+                MetaDatum(
+                    field="attempt",
+                    value=str(retry_count),
+                    type="attempt",
+                    tags=metadata_tags,
+                ),
             ],
         )
         output.done()
