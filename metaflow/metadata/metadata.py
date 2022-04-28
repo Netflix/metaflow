@@ -512,9 +512,14 @@ class MetadataProvider(object):
         if "r_version_code" in env:
             tags.append("r_version:" + env["r_version_code"])
         # KFP plugin tags
-        for key in ["pod_namespace", "zodiac_service", "zodiac_team"]:
-            if env[key]:
-                tags.append(f"{key}:{env[key]}")
+        kfp_tags = {
+            "k8s_namespace": os.environ.get("MF_POD_NAMESPACE"),
+            "zodiac_service": os.environ.get("ZODIAC_SERVICE"),
+            "zodiac_team": os.environ.get("ZODIAC_TEAM"),
+        }
+        for key in ["k8s_namespace", "zodiac_service", "zodiac_team"]:
+            if kfp_tags[key]:
+                tags.append(f"{key}:{kfp_tags[key]}")
         return tags
 
     def _register_code_package_metadata(self, run_id, step_name, task_id, attempt):

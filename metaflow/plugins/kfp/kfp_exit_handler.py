@@ -58,14 +58,14 @@ def exit_handler(
             kfp_run_id,
         )
 
-        pod_namespace = get_env("POD_NAMESPACE", "")
+        k8s_namespace = get_env("POD_NAMESPACE", "")
         argo_workflow_name = get_env("MF_ARGO_WORKFLOW_NAME", "")
         email_body = get_env("METAFLOW_NOTIFY_EMAIL_BODY", "")
         body = (
             f"status = {status} <br/>\n"
             f"{kfp_run_url} <br/>\n"
             f"Metaflow RunId = kfp-{kfp_run_id} <br/>\n"
-            f"argo -n {pod_namespace} get {argo_workflow_name} <br/>"
+            f"argo -n {k8s_namespace} get {argo_workflow_name} <br/>"
             "<br/>"
             f"{email_body}"
         )
