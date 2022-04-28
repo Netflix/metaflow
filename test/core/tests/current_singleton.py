@@ -32,6 +32,8 @@ class CurrentSingletonTest(MetaflowTest):
         self.runtime_environment = {current.runtime_environment}
         self.runtime_name = {current.runtime_name}
         self.sfn_state_machine_name = {current.sfn_state_machine_name}
+        self.max_workers = {current.max_workers}
+        self.max_num_splits = {current.max_num_splits}
 
     @steps(1, ["join"])
     def step_join(self):
@@ -62,6 +64,8 @@ class CurrentSingletonTest(MetaflowTest):
         self.sfn_state_machine_name = set(
             chain(*(i.sfn_state_machine_name for i in inputs))
         )
+        self.max_workers = set(chain(*(i.max_workers for i in inputs)))
+        self.max_num_splits = set(chain(*(i.max_num_splits for i in inputs)))
 
         # add data for the join step
         self.project_names.add(current.project_name)
@@ -81,6 +85,8 @@ class CurrentSingletonTest(MetaflowTest):
         self.runtime_environment.add(current.runtime_environment)
         self.runtime_name.add(current.runtime_name)
         self.sfn_state_machine_name.add(current.sfn_state_machine_name)
+        self.max_workers.add(current.max_workers)
+        self.max_num_splits.add(current.max_num_splits)
 
     @steps(2, ["all"])
     def step_all(self):
@@ -104,6 +110,8 @@ class CurrentSingletonTest(MetaflowTest):
         self.runtime_environment.add(current.runtime_environment)
         self.runtime_name.add(current.runtime_name)
         self.sfn_state_machine_name.add(current.sfn_state_machine_name)
+        self.max_workers.add(current.max_workers)
+        self.max_num_splits.add(current.max_num_splits)
 
     def check_results(self, flow, checker):
         run = checker.get_run()
@@ -144,3 +152,5 @@ class CurrentSingletonTest(MetaflowTest):
             assert_equals(run.data.runtime_environment, {"local"})
             assert_equals(run.data.runtime_name, {None})
             assert_equals(run.data.sfn_state_machine_name, {None})
+            assert_equals(run.data.max_workers, {16})
+            assert_equals(run.data.max_num_splits, {100})

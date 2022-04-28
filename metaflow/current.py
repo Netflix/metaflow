@@ -19,6 +19,8 @@ class Current(object):
         self._runtime_environment = None
         self._runtime_name = None
         self._sfn_state_machine_name = None
+        self._max_workers = None
+        self._max_num_splits = None
 
         def _raise(ex):
             raise ex
@@ -53,11 +55,15 @@ class Current(object):
         self._username = username
         self._is_running = is_running
         self._tags = tags
+
+        # from environment variables
         self._runtime_environment = os.environ.get(
             "METAFLOW_RUNTIME_ENVIRONMENT", "local"
         )
         self._runtime_name = os.environ.get("METAFLOW_RUNTIME_NAME", None)
         self._sfn_state_machine_name = os.environ.get("SFN_STATE_MACHINE", None)
+        self._max_workers = os.environ.get("MAX_WORKERS", None)
+        self._max_num_splits = os.environ.get("MAX_NUM_SPLITS", None)
 
     def _update_env(self, env):
         for k, v in env.items():
@@ -132,6 +138,14 @@ class Current(object):
     @property
     def sfn_state_machine_name(self):
         return self._sfn_state_machine_name
+
+    @property
+    def max_workers(self):
+        return int(self._max_workers)
+
+    @property
+    def max_num_splits(self):
+        return int(self._max_num_splits)
 
 
 # instantiate the Current singleton. This will be populated
