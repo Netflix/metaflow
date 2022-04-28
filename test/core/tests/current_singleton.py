@@ -29,6 +29,8 @@ class CurrentSingletonTest(MetaflowTest):
         self.uuid = str(uuid4())
         self.task_data = {current.pathspec: self.uuid}
         self.tags = current.tags
+        self.runtime_environment = {current.runtime_environment}
+        self.runtime_name = {current.runtime_name}
 
     @steps(1, ["join"])
     def step_join(self):
@@ -54,6 +56,8 @@ class CurrentSingletonTest(MetaflowTest):
         for i in inputs:
             self.task_data.update(i.task_data)
         self.tags = set(chain(*(i.tags for i in inputs)))
+        self.runtime_environment = set(chain(*(i.runtime_environment for i in inputs)))
+        self.runtime_name = set(chain(*(i.runtime_name for i in inputs)))
 
         # add data for the join step
         self.project_names.add(current.project_name)
@@ -70,6 +74,8 @@ class CurrentSingletonTest(MetaflowTest):
         self.uuid = str(uuid4())
         self.task_data[current.pathspec] = self.uuid
         self.tags.update(current.tags)
+        self.runtime_environment.add(current.runtime_environment)
+        self.runtime_name.add(current.runtime_name)
 
     @steps(2, ["all"])
     def step_all(self):
@@ -90,6 +96,8 @@ class CurrentSingletonTest(MetaflowTest):
         self.uuid = str(uuid4())
         self.task_data[current.pathspec] = self.uuid
         self.tags.update(current.tags)
+        self.runtime_environment.add(current.runtime_environment)
+        self.runtime_name.add(current.runtime_name)
 
     def check_results(self, flow, checker):
         run = checker.get_run()
@@ -127,3 +135,5 @@ class CurrentSingletonTest(MetaflowTest):
                 run.data.tags,
                 {"\u523a\u8eab means sashimi", "multiple tags should be ok"},
             )
+            assert_equals(run.data.runtime_environment, {"local"})
+            assert_equals(run.data.runtime_name, {None})
