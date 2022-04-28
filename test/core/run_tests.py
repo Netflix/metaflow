@@ -258,7 +258,7 @@ def run_test_cases(args):
     "--tests",
     default="",
     type=str,
-    help="A comma-separate list of graphs to include (default: all).",
+    help="A comma-separate list of tests to include (default: all).",
 )
 @click.option(
     "--graphs",
