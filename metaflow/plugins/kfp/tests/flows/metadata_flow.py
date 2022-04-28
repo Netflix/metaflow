@@ -37,8 +37,7 @@ class MetadataFlow(FlowSpec):
         assert "metaflow_test" in start_step_tags
         assert f"zodiac_service:{os.environ['ZODIAC_SERVICE']}" in start_step_tags
         assert f"zodiac_team:{os.environ['ZODIAC_TEAM']}" in start_step_tags
-        assert f"argo_workflow:{os.environ['MF_ARGO_WORKFLOW_NAME']}" in start_step_tags
-        assert f"pod_namespace:{os.environ['MF_POD_NAMESPACE']}" in start_step_tags
+        assert f"k8s_namespace:{os.environ['MF_POD_NAMESPACE']}" in start_step_tags
 
         print("MetadataFlow is all done.")
 

@@ -126,7 +126,12 @@ class KfpInternalDecorator(StepDecorator):
         self.task_datastore = task_datastore
 
         # TODO: any other KFP environment variables to get and register to Metadata service?
-        meta = {"kfp-execution": run_id}
+        meta = {
+            "kfp-execution": run_id,
+            "pod_name": os.environ.get("MF_POD_NAME"),
+            "argo_workflow": os.environ.get("MF_ARGO_WORKFLOW_NAME"),
+        }
+
         entries = [
             MetaDatum(field=k, value=v, type=k, tags=[]) for k, v in meta.items()
         ]
