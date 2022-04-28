@@ -31,6 +31,7 @@ class CurrentSingletonTest(MetaflowTest):
         self.tags = current.tags
         self.runtime_environment = {current.runtime_environment}
         self.runtime_name = {current.runtime_name}
+        self.sfn_state_machine_name = {current.sfn_state_machine_name}
 
     @steps(1, ["join"])
     def step_join(self):
@@ -58,6 +59,9 @@ class CurrentSingletonTest(MetaflowTest):
         self.tags = set(chain(*(i.tags for i in inputs)))
         self.runtime_environment = set(chain(*(i.runtime_environment for i in inputs)))
         self.runtime_name = set(chain(*(i.runtime_name for i in inputs)))
+        self.sfn_state_machine_name = set(
+            chain(*(i.sfn_state_machine_name for i in inputs))
+        )
 
         # add data for the join step
         self.project_names.add(current.project_name)
@@ -76,6 +80,7 @@ class CurrentSingletonTest(MetaflowTest):
         self.tags.update(current.tags)
         self.runtime_environment.add(current.runtime_environment)
         self.runtime_name.add(current.runtime_name)
+        self.sfn_state_machine_name.add(current.sfn_state_machine_name)
 
     @steps(2, ["all"])
     def step_all(self):
@@ -98,6 +103,7 @@ class CurrentSingletonTest(MetaflowTest):
         self.tags.update(current.tags)
         self.runtime_environment.add(current.runtime_environment)
         self.runtime_name.add(current.runtime_name)
+        self.sfn_state_machine_name.add(current.sfn_state_machine_name)
 
     def check_results(self, flow, checker):
         run = checker.get_run()
@@ -137,3 +143,4 @@ class CurrentSingletonTest(MetaflowTest):
             )
             assert_equals(run.data.runtime_environment, {"local"})
             assert_equals(run.data.runtime_name, {None})
+            assert_equals(run.data.sfn_state_machine_name, {None})

@@ -16,6 +16,9 @@ class Current(object):
         self._username = None
         self._is_running = False
         self._tags = None
+        self._runtime_environment = None
+        self._runtime_name = None
+        self._sfn_state_machine_name = None
 
         def _raise(ex):
             raise ex
@@ -54,6 +57,7 @@ class Current(object):
             "METAFLOW_RUNTIME_ENVIRONMENT", "local"
         )
         self._runtime_name = os.environ.get("METAFLOW_RUNTIME_NAME", None)
+        self._sfn_state_machine_name = os.environ.get("SFN_STATE_MACHINE", None)
 
     def _update_env(self, env):
         for k, v in env.items():
@@ -124,6 +128,10 @@ class Current(object):
     @property
     def runtime_name(self):
         return self._runtime_name
+
+    @property
+    def sfn_state_machine_name(self):
+        return self._sfn_state_machine_name
 
 
 # instantiate the Current singleton. This will be populated
