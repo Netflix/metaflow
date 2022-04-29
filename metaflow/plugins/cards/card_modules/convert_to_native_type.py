@@ -313,6 +313,7 @@ class TaskToDict:
             if data[col].dtype == "datetime64[ns]":
                 data[col] = data[col].dt.strftime(time_format)
 
+        data = data.astype(object).where(data.notnull(), None)
         data_vals = data.values.tolist()
         for row, idx in zip(data_vals, index_column.values.tolist()):
             row.insert(0, idx)
