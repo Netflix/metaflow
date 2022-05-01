@@ -153,4 +153,4 @@ class CurrentSingletonTest(MetaflowTest):
             assert_equals({None}, run.data.runtime_name)
             assert_equals({None}, run.data.sfn_state_machine_name)
             assert_equals({50}, run.data.max_workers)
-            assert_equals({10_000}, run.data.max_num_splits)
+            assert_equals({10000}, run.data.max_num_splits)
