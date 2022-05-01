@@ -127,30 +127,30 @@ class CurrentSingletonTest(MetaflowTest):
 
             task_data = run.data.task_data
             for pathspec, uuid in task_data.items():
-                assert_equals(Task(pathspec).data.uuid, uuid)
+                assert_equals(uuid, Task(pathspec).data.uuid)
             for step in run:
                 for task in step:
-                    assert_equals(task.data.step_name, step.id)
+                    assert_equals(step.id, task.data.step_name)
                     pathspec = "/".join(task.pathspec.split("/")[-4:])
-                    assert_equals(task.data.uuid, task_data[pathspec])
-            assert_equals(run.data.project_names, {"current_singleton"})
-            assert_equals(run.data.branch_names, {"user.tester"})
+                    assert_equals(task_data[pathspec], task.data.uuid)
+            assert_equals({"current_singleton"}, run.data.project_names)
+            assert_equals({"user.tester"}, run.data.branch_names)
             assert_equals(
-                run.data.project_flow_names,
                 {"current_singleton.user.tester.CurrentSingletonTestFlow"},
+                run.data.project_flow_names,
             )
-            assert_equals(run.data.is_production, {False})
-            assert_equals(run.data.flow_names, {run.parent.id})
-            assert_equals(run.data.run_ids, {run.id})
-            assert_equals(run.data.origin_run_ids, {None})
-            assert_equals(run.data.namespaces, {"user:tester"})
-            assert_equals(run.data.usernames, {"tester"})
+            assert_equals({False}, run.data.is_production)
+            assert_equals({run.parent.id}, run.data.flow_names)
+            assert_equals({run.id}, run.data.run_ids)
+            assert_equals({None}, run.data.origin_run_ids)
+            assert_equals({"user:tester"}, run.data.namespaces)
+            assert_equals({"tester"}, run.data.usernames)
             assert_equals(
-                run.data.tags,
                 {"\u523a\u8eab means sashimi", "multiple tags should be ok"},
+                run.data.tags,
             )
-            assert_equals(run.data.runtime_environment, {"local"})
-            assert_equals(run.data.runtime_name, {None})
-            assert_equals(run.data.sfn_state_machine_name, {None})
-            assert_equals(run.data.max_workers, {16})
-            assert_equals(run.data.max_num_splits, {100})
+            assert_equals({"local"}, run.data.runtime_environment)
+            assert_equals({None}, run.data.runtime_name)
+            assert_equals({None}, run.data.sfn_state_machine_name)
+            assert_equals({50}, run.data.max_workers)
+            assert_equals({10_000}, run.data.max_num_splits)
