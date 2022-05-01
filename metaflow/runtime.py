@@ -135,8 +135,8 @@ class NativeRuntime(object):
         self._control_num_splits = {}  # control_task -> num_splits mapping
 
         # to allow the current singleton access within Tasks (which are in subprocesses)
-        os.environ["MAX_WORKERS"] = str(max_workers)
-        os.environ["MAX_NUM_SPLITS"] = str(max_num_splits)
+        os.environ["CURRENT_MAX_WORKERS"] = str(max_workers)
+        os.environ["CURRENT_MAX_NUM_SPLITS"] = str(max_num_splits)
 
         for step in flow:
             for deco in step.decorators:

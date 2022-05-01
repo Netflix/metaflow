@@ -62,8 +62,8 @@ class Current(object):
         )
         self._runtime_name = os.environ.get("METAFLOW_RUNTIME_NAME", None)
         self._sfn_state_machine_name = os.environ.get("SFN_STATE_MACHINE", None)
-        self._max_workers = os.environ.get("MAX_WORKERS", None)
-        self._max_num_splits = os.environ.get("MAX_NUM_SPLITS", None)
+        self._max_workers = os.environ.get("CURRENT_MAX_WORKERS", None)
+        self._max_num_splits = os.environ.get("CURRENT_MAX_NUM_SPLITS", None)
 
     def _update_env(self, env):
         for k, v in env.items():
