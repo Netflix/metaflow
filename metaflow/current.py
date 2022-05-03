@@ -90,7 +90,12 @@ class Current(object):
 
     @property
     def pathspec(self):
-        pathspec_components = (self._flow_name, self._run_id, self._step_name, self._task_id)
+        pathspec_components = (
+            self._flow_name,
+            self._run_id,
+            self._step_name,
+            self._task_id,
+        )
         if any(v is None for v in pathspec_components):
             return None
         return "/".join(pathspec_components)
