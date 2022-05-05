@@ -128,8 +128,8 @@ class KfpInternalDecorator(StepDecorator):
         # TODO: any other KFP environment variables to get and register to Metadata service?
         meta = {
             "kfp-execution": run_id,
-            "pod_name": os.environ.get("MF_POD_NAME"),
-            "argo_workflow": os.environ.get("MF_ARGO_WORKFLOW_NAME"),
+            "pod-name": os.environ.get("MF_POD_NAME"),
+            "argo-workflow": os.environ.get("MF_ARGO_WORKFLOW_NAME"),
         }
 
         entries = [
