@@ -2,7 +2,6 @@ import json
 import logging
 import os
 import pathlib
-import subprocess
 from subprocess import Popen
 from typing import Dict, List
 
@@ -58,16 +57,6 @@ def _step_cli(
     input_paths = None
 
     tags_extended: List[str] = []
-
-    # Add git commit hash as system tag
-    try:
-        git_dir = os.path.dirname(os.path.realpath(script_name))
-        git_hash = subprocess.check_output(
-            f'git -C {git_dir} log -1 --format="%H"'.split(" ")
-        )
-        tags_extended.append(f"--tag git:{git_hash}")
-    except Exception as e:
-        print("Failed to add git commit hash as tag", e)
 
     if tags:
         tags_extended.extend("--tag %s" % tag for tag in tags)
