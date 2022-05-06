@@ -596,7 +596,8 @@ class KubeflowPipelines(object):
             container_op.add_pod_annotation(f"{prefix}/experiment", self.experiment)
         if self.tags and len(self.tags) > 0:
             for tag in self.tags:
-                tag_name = f"{prefix}/tag_{tag}"
+                # <key>:<value> is common metaflow tag pattern but : is not accepted in pod tag.
+                tag_name = f"{prefix}/tag_{tag.replace(':', '-')}"
                 if len(tag_name) > 63:
                     raise ValueError(
                         f"Tag name {tag_name} must be no more than 63 characters"
