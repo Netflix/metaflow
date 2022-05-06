@@ -168,6 +168,7 @@ def step(
     shared_memory=None,
     max_swap=None,
     swappiness=None,
+    inferentia=None,
     host_volumes=None,
     num_parallel=None,
     **kwargs
@@ -291,6 +292,7 @@ def step(
                 shared_memory=shared_memory,
                 max_swap=max_swap,
                 swappiness=swappiness,
+                inferentia=inferentia,
                 env=env,
                 attrs=attrs,
                 host_volumes=host_volumes,
