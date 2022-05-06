@@ -94,6 +94,15 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
     "times to attach multiple tags.",
 )
 @click.option(
+    "--sys-tag",
+    "sys_tags",
+    multiple=True,
+    default=None,
+    help="Annotate all Metaflow objects produced by KFP Metaflow runs "
+    "with the given system tag. You can specify this option multiple "
+    "times to attach multiple tags.",
+)
+@click.option(
     "--namespace",
     "namespace",
     default=None,
@@ -222,6 +231,7 @@ def run(
     experiment=None,
     run_name=None,
     tags=None,
+    sys_tags=None,
     namespace=None,
     kfp_namespace=KFP_SDK_NAMESPACE,
     api_namespace=KFP_SDK_API_NAMESPACE,
@@ -264,6 +274,7 @@ def run(
         obj=obj,
         name=pipeline_name if pipeline_name else obj.flow.name,
         tags=tags,
+        sys_tags=sys_tags,
         experiment=experiment,
         namespace=namespace,
         kfp_namespace=kfp_namespace,
@@ -349,6 +360,7 @@ def make_flow(
     obj,
     name,
     tags,
+    sys_tags,
     experiment,
     namespace,
     kfp_namespace,
@@ -405,6 +417,7 @@ def make_flow(
         base_image=base_image,
         s3_code_package=s3_code_package,
         tags=tags,
+        sys_tags=sys_tags,
         experiment=experiment,
         namespace=namespace,
         kfp_namespace=kfp_namespace,
