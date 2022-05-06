@@ -255,7 +255,7 @@ class BatchJob(object):
                 )
             else:
                 job_definition["containerProperties"]['linuxParameters']['devices'] = []
-                for i in range(inferentia):
+                for i in range(int(inferentia)):
                     job_definition["containerProperties"]['linuxParameters']['devices'].append(
                         {
                             "containerPath": "/dev/neuron{}".format(i),
