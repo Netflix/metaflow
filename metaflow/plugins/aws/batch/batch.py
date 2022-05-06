@@ -218,7 +218,7 @@ class Batch(object):
             .shared_memory(shared_memory)
             .max_swap(max_swap)
             .swappiness(swappiness)
-            .inferentia()
+            .inferentia(inferentia)
             .timeout_in_secs(run_time_limit)
             .task_id(attrs.get("metaflow.task_id"))
             .environment_variable("AWS_DEFAULT_REGION", self._client.region())
