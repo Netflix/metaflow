@@ -62,7 +62,7 @@ annotations = {
     "metaflow.org/experiment": "MF_EXPERIMENT",
     "metaflow.org/tag_metaflow_test": "MF_TAG_METAFLOW_TEST",
     "metaflow.org/tag_test_t1": "MF_TAG_TEST_T1",
-    "metaflow.org/tag_sys_test_t1": "MF_SYS_TAG_TEST_T1",
+    "metaflow.org/tag_test_sys_t1": "MF_SYS_TAG_TEST_T1",
 }
 for annotation, env_name in annotations.items():
     kubernetes_vars.append(
