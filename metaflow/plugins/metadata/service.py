@@ -94,7 +94,9 @@ class ServiceMetadataProvider(MetadataProvider):
                 run_id, step_name, task_id, attempt, tags=tags, sys_tags=sys_tags
             )
         else:
-            self._register_code_package_metadata(run_id, step_name, task_id, attempt)
+            self._register_system_info_and_code_packaging_metadata(
+                run_id, step_name, task_id, attempt
+            )
 
     def _start_heartbeat(
         self, heartbeat_type, flow_id, run_id, step_name=None, task_id=None
@@ -234,7 +236,7 @@ class ServiceMetadataProvider(MetadataProvider):
         task = self._get_or_create(
             "task", run_id, step_name, task_id, tags=tags, sys_tags=sys_tags
         )
-        self._register_code_package_metadata(
+        self._register_system_info_and_code_packaging_metadata(
             run_id, step_name, task["task_id"], attempt
         )
         return task["task_id"]

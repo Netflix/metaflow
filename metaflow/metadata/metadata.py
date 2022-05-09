@@ -497,28 +497,52 @@ class MetadataProvider(object):
             for datum in metadata
         ]
 
-    def _tags(self):
+    def _get_system_info(self):
+        sys_info = dict()
         env = self._environment.get_environment_info()
-        tags = [
-            resolve_identity(),
-            "runtime:" + env["runtime"],
-            "python_version:" + env["python_version_code"],
-            "date:" + datetime.utcnow().strftime("%Y-%m-%d"),
-        ]
+        sys_info["runtime"] = env["runtime"]
+        sys_info["python_version"] = env["python_version_code"]
+        sys_info["date"] = datetime.utcnow().strftime("%Y-%m-%d")
+        identity_parts = resolve_identity().split(":", maxsplit=1)
+        sys_info[identity_parts[0]] = identity_parts[1]
         if env["metaflow_version"]:
-            tags.append("metaflow_version:" + env["metaflow_version"])
-        if "metaflow_r_version" in env:
-            tags.append("metaflow_r_version:" + env["metaflow_r_version"])
+            sys_info["metaflow_version"] = env["metaflow_version"]
+        if env["metaflow_r_version"]:
+            sys_info["metaflow_r_version"] = env["metaflow_r_version"]
         if "r_version_code" in env:
-            tags.append("r_version:" + env["r_version_code"])
-        return tags
+            sys_info["r_version"] = env["r_version_code"]
+        return sys_info
 
-    def _register_code_package_metadata(self, run_id, step_name, task_id, attempt):
+    def _get_system_info_as_tags(self):
+        return set("{}:{}".format(k, v) for k, v in self._get_system_info().items())
+
+    def _register_system_info_and_code_packaging_metadata(
+        self, run_id, step_name, task_id, attempt
+    ):
         metadata = []
+        # Take everything from system info and store them as metadata
+        sys_info = self._get_system_info()
+        attempt_id_tag = "attempt_id:{0}".format(attempt)
+
+        # field, and type could get long in theory...can the metadata backend handle it?
+        # E.g. as of 5/9/2022 Metadata service's DB says VARCHAR(255).
+        # It is likely overkill to fail a flow over an over-flow. We should expect the
+        # backend to try to tolerate this (e.g. enlarge columns, truncation fallback).
+        metadata.extend(
+            MetaDatum(
+                field=str(k),
+                value=str(v),
+                type=str(k),
+                tags=[attempt_id_tag],
+            )
+            for k, v in sys_info.items()
+        )
+
+        # Also store code packaging information
         code_sha = os.environ.get("METAFLOW_CODE_SHA")
-        code_url = os.environ.get("METAFLOW_CODE_URL")
-        code_ds = os.environ.get("METAFLOW_CODE_DS")
         if code_sha:
+            code_url = os.environ.get("METAFLOW_CODE_URL")
+            code_ds = os.environ.get("METAFLOW_CODE_DS")
             metadata.append(
                 MetaDatum(
                     field="code-package",
@@ -526,11 +550,9 @@ class MetadataProvider(object):
                         {"ds_type": code_ds, "sha": code_sha, "location": code_url}
                     ),
                     type="code-package",
-                    tags=["attempt_id:{0}".format(attempt)],
+                    tags=[attempt_id_tag],
                 )
             )
-        # We don't tag with attempt_id here because not readily available; this
-        # is ok though as this doesn't change from attempt to attempt.
         if metadata:
             self.register_metadata(run_id, step_name, task_id, metadata)
 
@@ -604,4 +626,4 @@ class MetadataProvider(object):
         self._monitor = monitor
         self._environment = environment
         self._runtime = os.environ.get("METAFLOW_RUNTIME_NAME", "dev")
-        self.add_sticky_tags(sys_tags=self._tags())
+        self.add_sticky_tags(sys_tags=self._get_system_info_as_tags())
