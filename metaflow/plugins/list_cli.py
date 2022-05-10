@@ -67,3 +67,10 @@ def runs(ctx, num_runs, as_json, file):
             json.dump(run_list, f)
     if as_json:
         ctx.obj.echo_always(json.dumps(run_list, indent=4), err=False)
+    else:
+        for run in run_list:
+            ctx.obj.echo(
+                "{created} {name} [{id}] (Successful:{status} Finished:{finished})".format(
+                    **run
+                )
+            )
