@@ -52,7 +52,7 @@ def _fetch_runs(flow_name, num_runs):
 @click.option(
     "--file",
     default=None,
-    help="Save the run list to file.",
+    help="Save the run list to file as json.",
 )
 @list.command(help="List recent runs for your flow.")
 @click.pass_context
@@ -61,9 +61,9 @@ def runs(ctx, num_runs, as_json, file):
     if not run_list:
         ctx.obj.echo("No runs found for flow: {name}".format(name=ctx.obj.flow.name))
         return
+
+    if file:
+        with open(file, "w") as f:
+            json.dump(run_list, f)
     if as_json:
-        if file:
-            with open(file, "w") as f:
-                json.dump(run_list, f)
-        else:
-            ctx.obj.echo(json.dumps(run_list, indent=4))
+        ctx.obj.echo_always(json.dumps(run_list, indent=4), err=False)
