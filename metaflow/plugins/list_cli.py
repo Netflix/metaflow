@@ -67,7 +67,7 @@ def runs(ctx, num_runs, as_json, file):
         with open(file, "w") as f:
             json.dump(run_list, f)
     if as_json:
-        ctx.obj.echo_always(json.dumps(run_list, indent=4), err=False)
+        ctx.obj.echo(json.dumps(run_list, indent=4), err=False)
     else:
         for run in run_list:
             ctx.obj.echo(
