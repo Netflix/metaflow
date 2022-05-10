@@ -41,6 +41,7 @@ def _fetch_runs(flow_name, num_runs):
 @click.option(
     "--num-runs",
     default=10,
+    type=click.IntRange(1, None),
     help="Number of runs to show.",
 )
 @click.option(
