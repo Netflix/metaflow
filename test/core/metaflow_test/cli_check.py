@@ -167,6 +167,15 @@ class CliCheck(MetaflowCheck):
             with open(f.name, "r") as jsf:
                 return json.load(jsf)
 
+
+    def list_runs(self):
+        with NamedTemporaryFile(dir=".") as f:
+            cmd = ["list", "runs", "--file", f.name]
+            self.run_cli(cmd, capture_output=True)
+            with open(f.name, "r") as f:
+                return json.load(f)
+
+
     def get_card(self, step, task, card_type, card_hash=None, card_id=None):
         with NamedTemporaryFile(dir=".") as f:
             cmd = [
