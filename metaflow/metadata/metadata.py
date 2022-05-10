@@ -497,7 +497,11 @@ class MetadataProvider(object):
             for datum in metadata
         ]
 
-    def _get_system_info(self):
+    def _get_system_info_as_dict(self):
+        """This function drives:
+        - sticky system tags initialization
+        - task-level metadata generation
+        """
         sys_info = dict()
         env = self._environment.get_environment_info()
         sys_info["runtime"] = env["runtime"]
@@ -507,22 +511,21 @@ class MetadataProvider(object):
         sys_info[identity_parts[0]] = identity_parts[1]
         if env["metaflow_version"]:
             sys_info["metaflow_version"] = env["metaflow_version"]
-        if env["metaflow_r_version"]:
+        if "metaflow_r_version" in env:
             sys_info["metaflow_r_version"] = env["metaflow_r_version"]
         if "r_version_code" in env:
             sys_info["r_version"] = env["r_version_code"]
         return sys_info
 
-    def _get_system_info_as_tags(self):
-        return set("{}:{}".format(k, v) for k, v in self._get_system_info().items())
+    def _get_system_info_as_tag_set(self):
+        return set(
+            "{}:{}".format(k, v) for k, v in self._get_system_info_as_dict().items()
+        )
 
-    def _register_system_info_and_code_packaging_metadata(
-        self, run_id, step_name, task_id, attempt
-    ):
+    def _get_system_info_as_metadatum_list(self):
         metadata = []
         # Take everything from system info and store them as metadata
-        sys_info = self._get_system_info()
-        attempt_id_tag = "attempt_id:{0}".format(attempt)
+        sys_info = self._get_system_info_as_dict()
 
         # field, and type could get long in theory...can the metadata backend handle it?
         # E.g. as of 5/9/2022 Metadata service's DB says VARCHAR(255).
@@ -533,10 +536,17 @@ class MetadataProvider(object):
                 field=str(k),
                 value=str(v),
                 type=str(k),
-                tags=[attempt_id_tag],
+                tags=[],
             )
             for k, v in sys_info.items()
         )
+        return metadata
+
+    def _register_system_info_and_code_packaging_metadata(
+        self, run_id, step_name, task_id, attempt
+    ):
+        # Take everything from system info and store them as metadata
+        metadata = self._get_system_info_as_metadatum_list()
 
         # Also store code packaging information
         code_sha = os.environ.get("METAFLOW_CODE_SHA")
@@ -550,10 +560,14 @@ class MetadataProvider(object):
                         {"ds_type": code_ds, "sha": code_sha, "location": code_url}
                     ),
                     type="code-package",
-                    tags=[attempt_id_tag],
+                    tags=[],
                 )
             )
         if metadata:
+            # Tag all metadatums with attempt_id
+            attempt_id_tag = "attempt_id:{0}".format(attempt)
+            for metadatum in metadata:
+                metadatum.tags.append(attempt_id_tag)
             self.register_metadata(run_id, step_name, task_id, metadata)
 
     @staticmethod
@@ -626,4 +640,4 @@ class MetadataProvider(object):
         self._monitor = monitor
         self._environment = environment
         self._runtime = os.environ.get("METAFLOW_RUNTIME_NAME", "dev")
-        self.add_sticky_tags(sys_tags=self._get_system_info_as_tags())
+        self.add_sticky_tags(sys_tags=self._get_system_info_as_tag_set())
