@@ -6,8 +6,7 @@ from collections import namedtuple
 from datetime import datetime
 
 from metaflow.exception import MetaflowInternalError
-from metaflow.util import get_username, resolve_identity
-
+from metaflow.util import get_username, resolve_identity_as_tuple
 
 DataArtifact = namedtuple("DataArtifact", "name ds_type ds_root url type sha")
 
@@ -507,8 +506,8 @@ class MetadataProvider(object):
         sys_info["runtime"] = env["runtime"]
         sys_info["python_version"] = env["python_version_code"]
         sys_info["date"] = datetime.utcnow().strftime("%Y-%m-%d")
-        identity_parts = resolve_identity().split(":", maxsplit=1)
-        sys_info[identity_parts[0]] = identity_parts[1]
+        identity_type, identity_value = resolve_identity_as_tuple()
+        sys_info[identity_type] = identity_value
         if env["metaflow_version"]:
             sys_info["metaflow_version"] = env["metaflow_version"]
         if "metaflow_r_version" in env:
@@ -517,10 +516,10 @@ class MetadataProvider(object):
             sys_info["r_version"] = env["r_version_code"]
         return sys_info
 
-    def _get_system_info_as_tag_set(self):
-        return set(
+    def _get_system_info_as_tags(self):
+        return [
             "{}:{}".format(k, v) for k, v in self._get_system_info_as_dict().items()
-        )
+        ]
 
     def _get_system_info_as_metadatum_list(self):
         metadata = []
@@ -640,4 +639,4 @@ class MetadataProvider(object):
         self._monitor = monitor
         self._environment = environment
         self._runtime = os.environ.get("METAFLOW_RUNTIME_NAME", "dev")
-        self.add_sticky_tags(sys_tags=self._get_system_info_as_tag_set())
+        self.add_sticky_tags(sys_tags=self._get_system_info_as_tags())
