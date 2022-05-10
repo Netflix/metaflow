@@ -505,7 +505,6 @@ class MetadataProvider(object):
         env = self._environment.get_environment_info()
         sys_info["runtime"] = env["runtime"]
         sys_info["python_version"] = env["python_version_code"]
-        sys_info["date"] = datetime.utcnow().strftime("%Y-%m-%d")
         identity_type, identity_value = resolve_identity_as_tuple()
         sys_info[identity_type] = identity_value
         if env["metaflow_version"]:
