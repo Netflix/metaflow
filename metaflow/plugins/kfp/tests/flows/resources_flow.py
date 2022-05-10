@@ -62,6 +62,7 @@ annotations = {
     "metaflow.org/experiment": "MF_EXPERIMENT",
     "metaflow.org/tag_metaflow_test": "MF_TAG_METAFLOW_TEST",
     "metaflow.org/tag_test_t1": "MF_TAG_TEST_T1",
+    "metaflow.org/tag_test_sys_t1": "MF_SYS_TAG_TEST_T1",
 }
 for annotation, env_name in annotations.items():
     kubernetes_vars.append(
@@ -153,6 +154,7 @@ class ResourcesFlow(FlowSpec):
         assert os.environ.get("MF_EXPERIMENT") == "metaflow_test"
         assert os.environ.get("MF_TAG_METAFLOW_TEST") == "true"
         assert os.environ.get("MF_TAG_TEST_T1") == "true"
+        assert os.environ.get("MF_SYS_TAG_TEST_T1") == "true"
 
         assert os.environ.get("KF_POD_DEFAULT") == "true"
 

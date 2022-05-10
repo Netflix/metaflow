@@ -51,10 +51,10 @@ def export_mflog_env_vars():
             "nullSidecarLogger",
             "nullSidecarMonitor",
             3,
-            "sample_workflow",
+            "sample-workflow",
             "sample_script",
             [
-                "argo_workflow:sample_workflow",
+                "argo-workflow:sample-workflow",
                 "metaflow.plugins.aws.step_functions.set_batch_environment",
                 "sample_script",
                 "--environment=local",
@@ -80,7 +80,7 @@ def export_mflog_env_vars():
             "nullSidecarLogger",
             "nullSidecarMonitor",
             3,
-            "sample_workflow",
+            "sample-workflow",
             "sample_script",
             [],
             [

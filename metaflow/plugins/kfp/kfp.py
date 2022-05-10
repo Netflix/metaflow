@@ -65,6 +65,7 @@ class FlowVariables:
     monitor: str
     namespace: str
     tags: List[str]
+    sys_tags: List[str]
     package_commands: str
 
 
@@ -134,6 +135,7 @@ class KubeflowPipelines(object):
         base_image=None,
         s3_code_package=True,
         tags=None,
+        sys_tags=None,
         experiment=None,
         namespace=None,
         kfp_namespace=None,
@@ -160,6 +162,7 @@ class KubeflowPipelines(object):
         self.event_logger = event_logger
         self.monitor = monitor
         self.tags = tags
+        self.sys_tags = sys_tags
         self.experiment = experiment
         self.namespace = namespace
         self.kfp_namespace = kfp_namespace
@@ -283,6 +286,7 @@ class KubeflowPipelines(object):
             monitor=self.monitor.monitor_type,
             namespace=self.namespace,
             tags=list(self.tags),
+            sys_tags=list(self.sys_tags),
             package_commands=self._get_package_commands(
                 code_package_url=self.code_package_url,
                 environment=self.environment,
@@ -594,14 +598,17 @@ class KubeflowPipelines(object):
         container_op.add_pod_annotation(f"{prefix}/run_id", metaflow_run_id)
         if self.experiment:
             container_op.add_pod_annotation(f"{prefix}/experiment", self.experiment)
-        if self.tags and len(self.tags) > 0:
-            for tag in self.tags:
-                tag_name = f"{prefix}/tag_{tag}"
-                if len(tag_name) > 63:
-                    raise ValueError(
-                        f"Tag name {tag_name} must be no more than 63 characters"
-                    )
-                container_op.add_pod_annotation(f"{prefix}/tag_{tag}", "true")
+        all_tags = list()
+        all_tags += self.tags if self.tags else []
+        all_tags += self.sys_tags if self.sys_tags else []
+        for tag in all_tags:
+            # <key>:<value> is common metaflow tag pattern but ":" is not accepted in pod annotation.
+            tag_name = f"{prefix}/tag_{tag.replace(':', '-')}"
+            if len(tag_name) > 63:
+                raise ValueError(
+                    f"Tag name {tag_name} must be no more than 63 characters"
+                )
+            container_op.add_pod_annotation(f"{prefix}/tag_{tag}", "true")
 
         # TODO(talebz): A Metaflow plugin framework to customize tags, labels, etc.
         container_op.add_pod_label("aip.zillowgroup.net/kfp-pod-default", "true")
@@ -937,6 +944,7 @@ class KubeflowPipelines(object):
             f" --script_name {os.path.basename(sys.argv[0])}"
             f" --step_name {step_variables.step_name}"
             f" --tags_json {json.dumps(json.dumps(flow_variables.tags))}"
+            f" --sys_tags_json {json.dumps(json.dumps(flow_variables.sys_tags))}"
             f" --task_id {step_variables.task_id}"
             f" --user_code_retries {step_variables.user_code_retries}"
             " --workflow_name {{workflow.name}}"

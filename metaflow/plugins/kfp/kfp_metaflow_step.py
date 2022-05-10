@@ -33,6 +33,7 @@ def _step_cli(
     run_id: str,
     namespace: str,
     tags: List[str],
+    sys_tags: List[str],
     is_split_index: bool,
     environment: str,
     event_logger: str,
@@ -57,8 +58,10 @@ def _step_cli(
     input_paths = None
 
     tags_extended: List[str] = []
+
     if tags:
         tags_extended.extend("--tag %s" % tag for tag in tags)
+        tags_extended.extend("--sys-tag %s" % tag for tag in sys_tags)
 
     if step_name == "start":
         # We need a separate unique ID for the special _parameters task
@@ -236,6 +239,7 @@ def _command(
 @click.option("--script_name")
 @click.option("--step_name")
 @click.option("--tags_json")
+@click.option("--sys_tags_json")
 @click.option("--task_id")
 @click.option("--user_code_retries", type=int)
 @click.option("--workflow_name")
@@ -258,6 +262,7 @@ def kfp_metaflow_step(
     script_name: str,
     step_name: str,
     tags_json: str,
+    sys_tags_json: str,
     task_id: str,
     user_code_retries: int,
     workflow_name: str,
@@ -269,6 +274,7 @@ def kfp_metaflow_step(
     """
     metaflow_configs: Dict[str, str] = json.loads(metaflow_configs_json)
     tags: List[str] = json.loads(tags_json)
+    sys_tags: List[str] = json.loads(sys_tags_json)
     preceding_component_inputs: List[str] = json.loads(preceding_component_inputs_json)
     preceding_component_outputs: List[str] = json.loads(
         preceding_component_outputs_json
@@ -283,6 +289,7 @@ def kfp_metaflow_step(
         metaflow_run_id,
         namespace,
         tags,
+        sys_tags,
         is_split_index,
         environment,
         event_logger,
