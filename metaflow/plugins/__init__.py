@@ -84,7 +84,7 @@ def get_plugin_cli():
     from .aws.step_functions import step_functions_cli
     from .argo import argo_workflows_cli
     from .cards import card_cli
-    from  . import list_cli
+    from . import list_cli
 
     return _ext_plugins["get_plugin_cli"]() + [
         package_cli.cli,
@@ -93,7 +93,7 @@ def get_plugin_cli():
         kubernetes_cli.cli,
         step_functions_cli.cli,
         argo_workflows_cli.cli,
-        list_cli.cli
+        list_cli.cli,
     ]
 
 
