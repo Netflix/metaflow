@@ -169,7 +169,7 @@ class CliCheck(MetaflowCheck):
 
     def list_runs(self):
         with NamedTemporaryFile(dir=".") as f:
-            cmd = ["list", "runs", "--file", f.name]
+            cmd = ["--quiet", "list", "runs", "--file", f.name]
             self.run_cli(cmd)
             with open(f.name, "r") as f:
                 return json.load(f)
