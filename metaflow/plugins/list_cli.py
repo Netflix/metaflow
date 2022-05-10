@@ -15,13 +15,7 @@ def list():
     pass
 
 
-def _user_match(run: Run, user: str) -> bool:
-    if not user:
-        return True
-    return "user:{}".format(user) in run.tags
-
-
-def _fetch_runs(flow_name, num_runs, user):
+def _fetch_runs(flow_name, num_runs, namespace):
     counter = 1
     try:
         flow = Flow(flow_name)
@@ -32,7 +26,8 @@ def _fetch_runs(flow_name, num_runs, user):
         for run in Flow(flow_name).runs():
             if counter > num_runs:
                 break
-            if _user_match(run, user):
+            tags = [t for t in run.tags]
+            if namespace is None or namespace in tags:
                 counter += 1
                 run_list.append(
                     dict(
@@ -41,6 +36,7 @@ def _fetch_runs(flow_name, num_runs, user):
                         id=run.id,
                         status=run.successful,
                         finished=run.finished,
+                        tags=tags,
                     )
                 )
     return run_list
@@ -64,6 +60,7 @@ def _fetch_runs(flow_name, num_runs, user):
     help="Save the run list to file as json.",
 )
 @click.option("--user", default=None, help="List runs for the given user.")
+@click.option("--namespace", default=None, help="List runs for the given namespace.")
 @click.option(
     "--my-runs",
     default=False,
@@ -72,13 +69,20 @@ def _fetch_runs(flow_name, num_runs, user):
 )
 @list.command(help="List recent runs for your flow.")
 @click.pass_context
-def runs(ctx, num_runs, as_json, file, user, my_runs):
+def runs(ctx, num_runs, as_json, file, user, my_runs, namespace):
     if user and my_runs:
         raise CommandException("--user and --my-runs are mutually exclusive.")
-    if my_runs:
-        user = util.get_username()
+    if user and namespace:
+        raise CommandException("--user and --namespace are mutually exclusive.")
+    if my_runs and namespace:
+        raise CommandException("--my-runs and --namespace are mutually exclusive.")
 
-    run_list = _fetch_runs(ctx.obj.flow.name, num_runs, user)
+    if my_runs:
+        namespace = "user:{}".format(util.get_username())
+    if user:
+        namespace = "user:{}".format(user)
+
+    run_list = _fetch_runs(ctx.obj.flow.name, num_runs, namespace)
     if not run_list:
         ctx.obj.echo("No runs found for flow: {name}".format(name=ctx.obj.flow.name))
         return
