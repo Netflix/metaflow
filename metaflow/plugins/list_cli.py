@@ -1,6 +1,7 @@
 from metaflow._vendor import click
-from metaflow import Flow
-from metaflow.exception import MetaflowNotFound
+from metaflow import Flow, Run
+from metaflow import util
+from metaflow.exception import MetaflowNotFound, CommandException
 import json
 
 
@@ -14,7 +15,13 @@ def list():
     pass
 
 
-def _fetch_runs(flow_name, num_runs):
+def _user_match(run: Run, user: str) -> bool:
+    if not user:
+        return True
+    return "user:{}".format(user) in run.tags
+
+
+def _fetch_runs(flow_name, num_runs, user):
     counter = 1
     try:
         flow = Flow(flow_name)
@@ -25,16 +32,17 @@ def _fetch_runs(flow_name, num_runs):
         for run in Flow(flow_name).runs():
             if counter > num_runs:
                 break
-            counter += 1
-            run_list.append(
-                dict(
-                    created=str(run.created_at),
-                    name=flow_name,
-                    id=run.id,
-                    status=run.successful,
-                    finished=run.finished,
+            if _user_match(run, user):
+                counter += 1
+                run_list.append(
+                    dict(
+                        created=str(run.created_at),
+                        name=flow_name,
+                        id=run.id,
+                        status=run.successful,
+                        finished=run.finished,
+                    )
                 )
-            )
     return run_list
 
 
@@ -55,10 +63,22 @@ def _fetch_runs(flow_name, num_runs):
     default=None,
     help="Save the run list to file as json.",
 )
+@click.option("--user", default=None, help="List runs for the given user.")
+@click.option(
+    "--my-runs",
+    default=False,
+    is_flag=True,
+    help="List all my runs.",
+)
 @list.command(help="List recent runs for your flow.")
 @click.pass_context
-def runs(ctx, num_runs, as_json, file):
-    run_list = _fetch_runs(ctx.obj.flow.name, num_runs)
+def runs(ctx, num_runs, as_json, file, user, my_runs):
+    if user and my_runs:
+        raise CommandException("--user and --my-runs are mutually exclusive.")
+    if my_runs:
+        user = util.get_username()
+
+    run_list = _fetch_runs(ctx.obj.flow.name, num_runs, user)
     if not run_list:
         ctx.obj.echo("No runs found for flow: {name}".format(name=ctx.obj.flow.name))
         return
