@@ -24,7 +24,7 @@ from metaflow.datatools.s3 import (
 from metaflow.util import to_bytes, unicode_type
 
 from . import s3_data
-from .. import FakeFlow
+from .. import FakeFlow, DO_TEST_RUN
 
 try:
     # python2
@@ -390,10 +390,11 @@ def test_init_options(s3root, pathspecs, expected):
         assert_results(s3.get_all(), expected, info_should_be_empty=True)
 
     # option 5) run object
-    namespace(None)
-    with S3(bucket=parsed.netloc, prefix=parsed.path, run=Run(pathspec)) as s3:
-        names = [url.split("/")[-1] for url in expected]
-        assert_results(s3.get_many(names), expected)
+    if DO_TEST_RUN:
+        namespace(None)
+        with S3(bucket=parsed.netloc, prefix=parsed.path, run=Run(pathspec)) as s3:
+            names = [url.split("/")[-1] for url in expected]
+            assert_results(s3.get_many(names), expected)
 
 
 @pytest.mark.parametrize(

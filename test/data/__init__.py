@@ -15,3 +15,6 @@ from metaflow import FlowSpec
 class FakeFlow(FlowSpec):
     def __init__(self, name="FakeFlow", use_cli=False):
         self.name = name
+
+
+DO_TEST_RUN = False
