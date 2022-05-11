@@ -36,7 +36,7 @@ class ResumeEndStepTest(MetaflowTest):
         if run is not None:
             # We can also check the metadata for all steps
             common_run_id = None
-            exclude_keys = ["origin-task-id", "origin-run-id"]
+            exclude_keys = ["origin-task-id", "origin-run-id", "python_version"]
             for step in run:
                 for task in step:
                     resumed_metadata = task.metadata_dict
