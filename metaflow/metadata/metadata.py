@@ -46,6 +46,33 @@ def with_metaclass(mcls):
     return decorator
 
 
+class ObjectOrder:
+    # Consider this list a constant that should never change.
+    # Lots of code depend on the membership of this list as
+    # well as exact ordering
+    _order_as_list = [
+        "root",
+        "flow",
+        "run",
+        "step",
+        "task",
+        "artifact",
+        "metadata",
+        "self",
+    ]
+    _order_as_dict = {v: i for i, v in enumerate(_order_as_list)}
+
+    @staticmethod
+    def order_to_type(order):
+        if order < len(ObjectOrder._order_as_list):
+            return ObjectOrder._order_as_list[order]
+        return None
+
+    @staticmethod
+    def type_to_order(obj_type):
+        return ObjectOrder._order_as_dict.get(obj_type)
+
+
 @with_metaclass(MetadataProviderMeta)
 class MetadataProvider(object):
     @classmethod
@@ -354,22 +381,12 @@ class MetadataProvider(object):
             object or list :
                 Depending on the call, the type of object return varies
         """
-        obj_order = {
-            "root": 0,
-            "flow": 1,
-            "run": 2,
-            "step": 3,
-            "task": 4,
-            "artifact": 5,
-            "metadata": 6,
-            "self": 7,
-        }
-        type_order = obj_order.get(obj_type)
-        sub_order = obj_order.get(sub_type)
+        type_order = ObjectOrder.type_to_order(obj_type)
+        sub_order = ObjectOrder.type_to_order(sub_type)
 
         if type_order is None:
             raise MetaflowInternalError(msg="Cannot find type %s" % obj_type)
-        if type_order > 5:
+        if type_order >= ObjectOrder.type_to_order("metadata"):
             raise MetaflowInternalError(msg="Type %s is not allowed" % obj_type)
 
         if sub_order is None:
@@ -399,7 +416,7 @@ class MetadataProvider(object):
         pre_filter = cls._get_object_internal(
             obj_type, type_order, sub_type, sub_order, filters, attempt_int, *args
         )
-        if attempt_int is None or sub_order != 6:
+        if attempt_int is None or sub_type != "metadata":
             # If no attempt or not for metadata, just return as is
             return pre_filter
         return MetadataProvider._reconstruct_metadata_for_attempt(

@@ -15,6 +15,7 @@ from io import BytesIO
 from functools import partial
 
 from . import get_namespace
+from .metadata import MetaDatum
 from .metaflow_config import MAX_ATTEMPTS
 from .exception import (
     MetaflowException,
@@ -628,13 +629,36 @@ class Task(object):
             # task_id is preset only by persist_constants() or control tasks.
             if ubf_context == UBF_CONTROL:
                 tags = [CONTROL_TASK_TAG]
+                attempt_id = 0
                 metadata.register_task_id(
                     run_id,
                     step,
                     task_id,
-                    0,
+                    attempt_id,
                     sys_tags=tags,
                 )
+                # As part of tag mutation project, we will be overlaying Run's tags
+                # (user and system) on top of Task tags.  I.e. a Task will no longer have
+                # its own tags distinct from their ancestral Run.  It means we should not
+                # use tags to indicate if a task is a control task in future.
+                #
+                # This is the main PR that implements the same "stashing to task metadata"
+                # concept:
+                #     https://github.com/Netflix/metaflow/pull/1039
+                #
+                # Here we will also add a task metadata entry to indicate "control task".
+                # Within the metaflow repo, the only dependency of such a "control task"
+                # indicator is in the integration test suite (see Step.control_tasks() in
+                # client API).
+                task_metadata_list = [
+                    MetaDatum(
+                        field="internal_task_type",
+                        value=CONTROL_TASK_TAG,
+                        type="internal_task_type",
+                        tags=["attempt_id:{0}".format(attempt_id)],
+                    )
+                ]
+                metadata.register_metadata(run_id, step, task_id, task_metadata_list)
             else:
                 metadata.register_task_id(run_id, step, task_id, 0)
 
