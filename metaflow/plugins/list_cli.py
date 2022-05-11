@@ -1,5 +1,5 @@
 from metaflow._vendor import click
-from metaflow import Flow, Run
+from metaflow import Flow, namespace
 from metaflow import util
 from metaflow.exception import MetaflowNotFound, CommandException
 import json
@@ -15,7 +15,7 @@ def list():
     pass
 
 
-def _fetch_runs(flow_name, num_runs, namespace):
+def _fetch_runs(flow_name, num_runs):
     counter = 1
     try:
         flow = Flow(flow_name)
@@ -26,19 +26,17 @@ def _fetch_runs(flow_name, num_runs, namespace):
         for run in Flow(flow_name).runs():
             if counter > num_runs:
                 break
-            tags = [t for t in run.tags]
-            if namespace is None or namespace in tags:
-                counter += 1
-                run_list.append(
-                    dict(
-                        created=str(run.created_at),
-                        name=flow_name,
-                        id=run.id,
-                        status=run.successful,
-                        finished=run.finished,
-                        tags=tags,
-                    )
+            counter += 1
+            run_list.append(
+                dict(
+                    created=str(run.created_at),
+                    name=flow_name,
+                    id=run.id,
+                    status=run.successful,
+                    finished=run.finished,
+                    tags=[t for t in run.tags],
                 )
+            )
     return run_list
 
 
@@ -60,29 +58,35 @@ def _fetch_runs(flow_name, num_runs, namespace):
     help="Save the run list to file as json.",
 )
 @click.option("--user", default=None, help="List runs for the given user.")
-@click.option("--namespace", default=None, help="List runs for the given namespace.")
 @click.option(
-    "--my-runs",
+    "--namespace", "ns", default=None, help="List runs only for the given namespace."
+)
+@click.option(
+    "--show-all",
     default=False,
     is_flag=True,
-    help="List all my runs.",
+    help="List runs from the global namespace instead of the current user.",
 )
 @list.command(help="List recent runs for your flow.")
 @click.pass_context
-def runs(ctx, num_runs, as_json, file, user, my_runs, namespace):
-    if user and my_runs:
-        raise CommandException("--user and --my-runs are mutually exclusive.")
-    if user and namespace:
+def runs(ctx, num_runs, as_json, file, user, show_all, ns):
+    if user and show_all:
+        raise CommandException("--user and --show-all are mutually exclusive.")
+    if user and ns:
         raise CommandException("--user and --namespace are mutually exclusive.")
-    if my_runs and namespace:
-        raise CommandException("--my-runs and --namespace are mutually exclusive.")
+    if show_all and ns:
+        raise CommandException("--show-all and --namespace are mutually exclusive.")
 
-    if my_runs:
-        namespace = "user:{}".format(util.get_username())
-    if user:
-        namespace = "user:{}".format(user)
+    if show_all:
+        namespace(None)
+    elif user:
+        namespace("user:{}".format(user))
+    elif ns:
+        namespace(ns)
+    else:
+        namespace("user:{}".format(util.get_username()))
 
-    run_list = _fetch_runs(ctx.obj.flow.name, num_runs, namespace)
+    run_list = _fetch_runs(ctx.obj.flow.name, num_runs)
     if not run_list:
         ctx.obj.echo("No runs found for flow: {name}".format(name=ctx.obj.flow.name))
         return
