@@ -62,22 +62,22 @@ def _fetch_runs(flow_name, num_runs):
     "--namespace", "ns", default=None, help="List runs only for the given namespace."
 )
 @click.option(
-    "--show-all",
+    "--all",
     default=False,
     is_flag=True,
     help="List runs from the global namespace instead of the current user.",
 )
 @list.command(help="List recent runs for your flow.")
 @click.pass_context
-def runs(ctx, num_runs, as_json, file, user, show_all, ns):
-    if user and show_all:
-        raise CommandException("--user and --show-all are mutually exclusive.")
+def runs(ctx, num_runs, as_json, file, user, all, ns):
+    if user and all:
+        raise CommandException("--user and --all are mutually exclusive.")
     if user and ns:
         raise CommandException("--user and --namespace are mutually exclusive.")
-    if show_all and ns:
-        raise CommandException("--show-all and --namespace are mutually exclusive.")
+    if all and ns:
+        raise CommandException("--all and --namespace are mutually exclusive.")
 
-    if show_all:
+    if all:
         namespace(None)
     elif user:
         namespace("user:{}".format(user))
