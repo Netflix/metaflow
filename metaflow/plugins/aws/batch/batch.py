@@ -18,6 +18,7 @@ from metaflow.metaflow_config import (
     BATCH_METADATA_SERVICE_HEADERS,
     BATCH_EMIT_TAGS,
     DATASTORE_CARD_S3ROOT,
+    S3_ENDPOINT_URL,
 )
 from metaflow.mflog.mflog import refine, set_should_persist
 from metaflow.mflog import (
@@ -238,8 +239,13 @@ class Batch(object):
         # instance and the remote AWS Batch instance assumes metadata is stored in DATASTORE_LOCAL_DIR
         # on the remote AWS Batch instance; this happens when METAFLOW_DATASTORE_SYSROOT_LOCAL
         # is NOT set (see get_datastore_root_from_config in datastore/local.py).
+        # add METAFLOW_S3_ENDPOINT_URL
+        if S3_ENDPOINT_URL is not None:
+            job.environment_variable("METAFLOW_S3_ENDPOINT_URL", S3_ENDPOINT_URL)
+
         for name, value in env.items():
             job.environment_variable(name, value)
+
         if attrs:
             for key, value in attrs.items():
                 job.parameter(key, value)

@@ -18,6 +18,7 @@ from metaflow.metaflow_config import (
     EVENTS_SFN_ACCESS_IAM_ROLE,
     SFN_DYNAMO_DB_TABLE,
     SFN_EXECUTION_LOG_GROUP_ARN,
+    S3_ENDPOINT_URL,
 )
 from metaflow import R
 
@@ -412,6 +413,10 @@ class StepFunctions(object):
         env = {}
         if env_deco:
             env = env_deco[0].attributes["vars"]
+
+        # add METAFLOW_S3_ENDPOINT_URL
+        if S3_ENDPOINT_URL is not None:
+            env["METAFLOW_S3_ENDPOINT_URL"] = S3_ENDPOINT_URL
 
         if node.name == "start":
             # Initialize parameters for the flow in the `start` step.

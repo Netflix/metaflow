@@ -17,6 +17,7 @@ from metaflow.metaflow_config import (
     DEFAULT_METADATA,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
+    S3_ENDPOINT_URL,
 )
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
@@ -770,6 +771,10 @@ class ArgoWorkflows(object):
                     **self.metadata.get_runtime_environment("argo-workflows"),
                 }
             )
+            # add METAFLOW_S3_ENDPOINT_URL
+            if S3_ENDPOINT_URL is not None:
+                env["METAFLOW_S3_ENDPOINT_URL"] = S3_ENDPOINT_URL
+
             metaflow_version = self.environment.get_environment_info()
             metaflow_version["flow_name"] = self.graph.name
             metaflow_version["production_token"] = self.production_token

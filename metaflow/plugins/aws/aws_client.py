@@ -23,8 +23,7 @@ class Boto3ClientProvider(object):
             raise MetaflowException(
                 "Could not import module 'boto3'. Install boto3 first."
             )
-        params['endpoint_url'] = 'https://object.ecstestdrive.com'
-        
+
         if AWS_SANDBOX_ENABLED:
             # role is ignored in the sandbox
             global cached_aws_sandbox_creds
