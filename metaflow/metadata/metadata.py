@@ -515,12 +515,14 @@ class MetadataProvider(object):
             sys_info["r_version"] = env["r_version_code"]
         return sys_info
 
-    def _get_system_info_as_tags(self):
+    def _get_system_tags(self):
+        """Convert system info dictionary into a list of system tags"""
         return [
             "{}:{}".format(k, v) for k, v in self._get_system_info_as_dict().items()
         ]
 
     def _register_system_metadata(self, run_id, step_name, task_id, attempt):
+        """Gather up system and code packaging info and register them as task metadata"""
         metadata = []
         # Take everything from system info and store them as metadata
         sys_info = self._get_system_info_as_dict()
@@ -626,4 +628,4 @@ class MetadataProvider(object):
         self._monitor = monitor
         self._environment = environment
         self._runtime = os.environ.get("METAFLOW_RUNTIME_NAME", "dev")
-        self.add_sticky_tags(sys_tags=self._get_system_info_as_tags())
+        self.add_sticky_tags(sys_tags=self._get_system_tags())
