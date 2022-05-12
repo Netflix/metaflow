@@ -520,7 +520,7 @@ class MetadataProvider(object):
             "{}:{}".format(k, v) for k, v in self._get_system_info_as_dict().items()
         ]
 
-    def _get_system_info_as_metadatum_list(self):
+    def _register_system_metadata(self, run_id, step_name, task_id, attempt):
         metadata = []
         # Take everything from system info and store them as metadata
         sys_info = self._get_system_info_as_dict()
@@ -534,18 +534,10 @@ class MetadataProvider(object):
                 field=str(k),
                 value=str(v),
                 type=str(k),
-                tags=[],
+                tags=["attempt_id:{0}".format(attempt)],
             )
             for k, v in sys_info.items()
         )
-        return metadata
-
-    def _register_system_info_and_code_packaging_metadata(
-        self, run_id, step_name, task_id, attempt
-    ):
-        # Take everything from system info and store them as metadata
-        metadata = self._get_system_info_as_metadatum_list()
-
         # Also store code packaging information
         code_sha = os.environ.get("METAFLOW_CODE_SHA")
         if code_sha:
@@ -558,14 +550,10 @@ class MetadataProvider(object):
                         {"ds_type": code_ds, "sha": code_sha, "location": code_url}
                     ),
                     type="code-package",
-                    tags=[],
+                    tags=["attempt_id:{0}".format(attempt)],
                 )
             )
         if metadata:
-            # Tag all metadatums with attempt_id
-            attempt_id_tag = "attempt_id:{0}".format(attempt)
-            for metadatum in metadata:
-                metadatum.tags.append(attempt_id_tag)
             self.register_metadata(run_id, step_name, task_id, metadata)
 
     @staticmethod
