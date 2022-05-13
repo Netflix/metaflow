@@ -391,6 +391,7 @@ def test_init_options(s3root, pathspecs, expected):
 
     # option 5) run object
     if DO_TEST_RUN:
+        # Only works if a metadata service exists with the run in question.
         namespace(None)
         with S3(bucket=parsed.netloc, prefix=parsed.path, run=Run(pathspec)) as s3:
             names = [url.split("/")[-1] for url in expected]

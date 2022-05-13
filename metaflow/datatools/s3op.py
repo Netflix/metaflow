@@ -99,7 +99,7 @@ def normalize_client_error(err):
         if error_code == "NoSuchKey":
             return 404
         if error_code == "InvalidRange":
-            return 601
+            return 416
     return error_code
 
 
@@ -135,7 +135,7 @@ def worker(result_file_name, queue, mode, s3role):
                 to_return = {"error": ERROR_URL_NOT_FOUND, "raise_error": err}
             elif error_code == 403:
                 to_return = {"error": ERROR_URL_ACCESS_DENIED, "raise_error": err}
-            elif error_code == 601:
+            elif error_code == 416:
                 to_return = {"error": ERROR_INVALID_RANGE, "raise_error": err}
             else:
                 to_return = {"error": error_code, "raise_error": err}
