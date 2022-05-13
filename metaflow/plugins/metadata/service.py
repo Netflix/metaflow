@@ -91,7 +91,12 @@ class ServiceMetadataProvider(MetadataProvider):
             int(task_id)
         except ValueError:
             self._new_task(
-                run_id, step_name, task_id, attempt, tags=tags, sys_tags=sys_tags
+                run_id,
+                step_name,
+                task_id=task_id,
+                attempt=attempt,
+                tags=tags,
+                sys_tags=sys_tags,
             )
         else:
             self._register_system_metadata(run_id, step_name, task_id, attempt)

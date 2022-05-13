@@ -68,7 +68,7 @@ class LocalMetadataProvider(MetadataProvider):
     def new_task_id(self, run_id, step_name, tags=None, sys_tags=None):
         self._task_id_seq += 1
         task_id = str(self._task_id_seq)
-        self._new_task(run_id, step_name, task_id, tags, sys_tags)
+        self._new_task(run_id, step_name, task_id, tags=tags, sys_tags=sys_tags)
         return task_id
 
     def register_task_id(
@@ -78,7 +78,14 @@ class LocalMetadataProvider(MetadataProvider):
             # Same logic as register_run_id
             int(task_id)
         except ValueError:
-            self._new_task(run_id, step_name, task_id, attempt, tags, sys_tags)
+            self._new_task(
+                run_id,
+                step_name,
+                task_id,
+                attempt=attempt,
+                tags=tags,
+                sys_tags=sys_tags,
+            )
         else:
             self._register_system_metadata(run_id, step_name, task_id, attempt)
 
