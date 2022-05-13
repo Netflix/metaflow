@@ -3,6 +3,7 @@ from __future__ import print_function
 import json
 import time
 import math
+import re
 import sys
 import os
 import traceback
@@ -40,6 +41,8 @@ NUM_WORKERS_DEFAULT = 64
 DOWNLOAD_FILE_THRESHOLD = 2 * TransferConfig().multipart_threshold
 DOWNLOAD_MAX_CHUNK = 2 * 1024 * 1024 * 1024 - 1
 
+RANGE_MATCH = re.compile(r"bytes (?P<start>[0-9]+)-(?P<end>[0-9]+)/(?P<total>[0-9]+)")
+
 
 class S3Url(object):
     def __init__(
@@ -76,6 +79,7 @@ ERROR_URL_ACCESS_DENIED = 7
 ERROR_WORKER_EXCEPTION = 8
 ERROR_VERIFY_FAILED = 9
 ERROR_LOCAL_FILE_NOT_FOUND = 10
+ERROR_INVALID_RANGE = 11
 
 
 def format_triplet(prefix, url="", local=""):
@@ -94,6 +98,8 @@ def normalize_client_error(err):
             return 403
         if error_code == "NoSuchKey":
             return 404
+        if error_code == "InvalidRange":
+            return 416
     return error_code
 
 
@@ -129,6 +135,8 @@ def worker(result_file_name, queue, mode, s3role):
                 to_return = {"error": ERROR_URL_NOT_FOUND, "raise_error": err}
             elif error_code == 403:
                 to_return = {"error": ERROR_URL_ACCESS_DENIED, "raise_error": err}
+            elif error_code == 416:
+                to_return = {"error": ERROR_INVALID_RANGE, "raise_error": err}
             else:
                 to_return = {"error": error_code, "raise_error": err}
         return to_return
@@ -156,9 +164,23 @@ def worker(result_file_name, queue, mode, s3role):
                             resp = s3.get_object(
                                 Bucket=url.bucket, Key=url.path, Range=url.range
                             )
+                            range_result = resp["ContentRange"]
+                            range_result_match = RANGE_MATCH.match(range_result)
+                            if range_result_match is None:
+                                raise RuntimeError(
+                                    "Wrong format for ContentRange: %s"
+                                    % str(range_result)
+                                )
+                            range_result = {
+                                x: int(range_result_match.group(x))
+                                for x in ["total", "start", "end"]
+                            }
                         else:
                             resp = s3.get_object(Bucket=url.bucket, Key=url.path)
+                            range_result = None
                         sz = resp["ContentLength"]
+                        if range_result is None:
+                            range_result = {"total": sz, "start": 0, "end": sz - 1}
                         if not url.range and sz > DOWNLOAD_FILE_THRESHOLD:
                             # In this case, it is more efficient to use download_file as it
                             # will download multiple parts in parallel (it does it after
@@ -187,7 +209,12 @@ def worker(result_file_name, queue, mode, s3role):
                     if pre_op_info:
 
                         with open("%s_meta" % url.local, mode="w") as f:
-                            args = {"size": resp["ContentLength"]}
+                            # Get range information
+
+                            args = {
+                                "size": resp["ContentLength"],
+                                "range_result": range_result,
+                            }
                             if resp["ContentType"]:
                                 args["content_type"] = resp["ContentType"]
                             if resp["Metadata"] is not None:
@@ -469,17 +496,24 @@ def verify_results(urls, verbose=False):
                 exit(ERROR_VERIFY_FAILED, url)
 
 
-def generate_local_path(url, suffix=None):
+def generate_local_path(url, range="whole", suffix=None):
     # this function generates a safe local file name corresponding to
     # an S3 URL. URLs may be longer than maximum file length limit on Linux,
     # so we mostly hash the URL but retain the leaf part as a convenience
     # feature to ease eyeballing
+    # We also call out "range" specifically to allow multiple ranges for the same
+    # file to be downloaded in parallel.
+    if range is None:
+        range = "whole"
+    if range != "whole":
+        # It will be of the form `bytes=%d-` or `bytes=-%d` or `bytes=%d-%d`
+        range = range[6:].replace("-", "_")
     quoted = url_quote(url)
     fname = quoted.split(b"/")[-1].replace(b".", b"_").replace(b"-", b"_")
     sha = sha1(quoted).hexdigest()
     if suffix:
-        return "-".join((sha, fname.decode("utf-8"), suffix))
-    return "-".join((sha, fname.decode("utf-8")))
+        return "-".join((sha, fname.decode("utf-8"), range, suffix))
+    return "-".join((sha, fname.decode("utf-8"), range))
 
 
 def parallel_op(op, lst, num_workers):
@@ -772,7 +806,7 @@ def get(
             url=prefix,
             bucket=src.netloc,
             path=src.path.lstrip("/"),
-            local=generate_local_path(prefix),
+            local=generate_local_path(prefix, range=r),
             prefix=prefix,
             range=r,
         )

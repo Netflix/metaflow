@@ -3,9 +3,10 @@ from re import I
 import shutil
 from hashlib import sha1
 from tempfile import mkdtemp
-from itertools import groupby
+from itertools import groupby, starmap
 import random
 from uuid import uuid4
+from metaflow.datatools import s3
 
 import pytest
 
@@ -17,12 +18,13 @@ from metaflow.datatools.s3 import (
     MetaflowS3URLException,
     MetaflowS3InvalidObject,
     S3PutObject,
+    S3GetObject,
 )
 
 from metaflow.util import to_bytes, unicode_type
 
 from . import s3_data
-from .. import FakeFlow
+from .. import FakeFlow, DO_TEST_RUN
 
 try:
     # python2
@@ -32,13 +34,23 @@ except:
     from urllib.parse import urlparse
 
 
-def assert_results(s3objs, expected, info_should_be_empty=False, info_only=False):
+def s3_get_object_from_url_range(url, range_info):
+    if range_info is None:
+        return S3GetObject(url, None, None)
+    return S3GetObject(url, range_info.req_offset, range_info.req_size)
+
+
+def assert_results(
+    s3objs, expected, info_should_be_empty=False, info_only=False, ranges_fetched=None
+):
     # did we receive all expected objects and nothing else?
     if info_only:
         info_should_be_empty = False
+    if ranges_fetched is None:
+        ranges_fetched = [None] * len(s3objs)
+    assert len(s3objs) == len(ranges_fetched)
 
-    assert {s3obj.url for s3obj in s3objs} == set(expected)
-    for s3obj in s3objs:
+    for s3obj, range_info in zip(s3objs, ranges_fetched):
         # assert that all urls returned are unicode, if not None
         assert isinstance(s3obj.key, (unicode_type, type(None)))
         assert isinstance(s3obj.url, (unicode_type, type(None)))
@@ -55,15 +67,18 @@ def assert_results(s3objs, expected, info_should_be_empty=False, info_only=False
             # if there's no prefix, the key is the url
             assert s3obj.url == s3obj.key
 
-        range_info = s3obj.range_info
         if range_info:
-            range_info = (range_info.request_offset, range_info.request_length)
-        expected_result = expected[s3obj.url].get(range_info, None)
+            expected_result = expected[s3obj.url].get(
+                (range_info.req_offset, range_info.req_size)
+            )
+        else:
+            expected_result = expected[s3obj.url].get(None)
         assert expected_result
         size = expected_result.size
         checksum = expected_result.checksum
         content_type = expected_result.content_type
         metadata = expected_result.metadata
+        range_to_match = expected_result.range
         if size is None:
             assert s3obj.exists == False
             assert s3obj.downloaded == False
@@ -85,12 +100,35 @@ def assert_results(s3objs, expected, info_should_be_empty=False, info_only=False
             if info_should_be_empty:
                 assert not s3obj.has_info
             else:
+                assert s3obj.has_info
                 # Content_type is OK
                 if content_type is None:
                     # Default content-type when nothing is supplied
                     assert s3obj.content_type == "binary/octet-stream"
                 else:
                     assert s3obj.content_type == content_type
+                # Range information is properly reported. Note that in this case, even
+                # for whole files we return a range. Ranges don't exist for just information
+                # on files
+                if not info_only:
+                    s3obj_range_info = s3obj.range_info
+                    assert s3obj_range_info is not None
+                    if range_to_match is None:
+                        # This is the entire file
+                        assert s3obj_range_info.total_size == size
+                        assert s3obj_range_info.request_offset == 0
+                        assert s3obj_range_info.request_length == size
+                    else:
+                        # A specific range of the file
+                        assert s3obj_range_info.total_size == range_to_match.total_size
+                        assert (
+                            s3obj_range_info.request_offset
+                            == range_to_match.result_offset
+                        )
+                        assert (
+                            s3obj_range_info.request_length
+                            == range_to_match.result_size
+                        )
                 # metadata is OK
                 if metadata is None:
                     assert s3obj.metadata == None
@@ -351,6 +389,14 @@ def test_init_options(s3root, pathspecs, expected):
         assert_results(s3objs, expected)
         assert_results(s3.get_all(), expected, info_should_be_empty=True)
 
+    # option 5) run object
+    if DO_TEST_RUN:
+        # Only works if a metadata service exists with the run in question.
+        namespace(None)
+        with S3(bucket=parsed.netloc, prefix=parsed.path, run=Run(pathspec)) as s3:
+            names = [url.split("/")[-1] for url in expected]
+            assert_results(s3.get_many(names), expected)
+
 
 @pytest.mark.parametrize(
     argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_basic_case()
@@ -426,16 +472,23 @@ def test_get_exceptions(s3root, prefixes, expected):
 def test_get_one(s3root, prefixes, expected):
     with S3() as s3:
         for url, item in expected.items():
-            if item[None].size is None:
-                # ensure that the default return_missing=False works
-                with pytest.raises(MetaflowS3NotFound):
-                    s3obj = s3.get(url)
-                # test return_missing=True
-                s3obj = s3.get(url, return_missing=True)
-                assert_results([s3obj], {url: expected[url]})
-            else:
-                s3obj = s3.get(url, return_info=True)
-                assert_results([s3obj], {url: expected[url]})
+            for _, expected_result in item.items():
+                range_info = expected_result.range
+                if expected_result.size is None:
+                    # ensure that the default return_missing=False works
+                    with pytest.raises(MetaflowS3NotFound):
+                        s3obj = s3.get(s3_get_object_from_url_range(url, range_info))
+                    # test return_missing=True
+                    s3obj = s3.get(
+                        s3_get_object_from_url_range(url, range_info),
+                        return_missing=True,
+                    )
+                    assert_results([s3obj], {url: item}, ranges_fetched=[range_info])
+                else:
+                    s3obj = s3.get(
+                        s3_get_object_from_url_range(url, range_info), return_info=True
+                    )
+                    assert_results([s3obj], {url: item}, ranges_fetched=[range_info])
 
 
 @pytest.mark.parametrize(
@@ -444,15 +497,33 @@ def test_get_one(s3root, prefixes, expected):
 def test_get_one_wo_meta(s3root, prefixes, expected):
     with S3() as s3:
         for url, item in expected.items():
-            if item[None].size is None:
-                # ensure that the default return_missing=False works
-                with pytest.raises(MetaflowS3NotFound):
-                    s3obj = s3.get(url)
-                s3obj = s3.get(url, return_missing=True, return_info=False)
-                assert_results([s3obj], {url: expected[url]}, info_should_be_empty=True)
-            else:
-                s3obj = s3.get(url, return_info=False)
-                assert_results([s3obj], {url: expected[url]}, info_should_be_empty=True)
+            for _, expected_result in item.items():
+                range_info = expected_result.range
+                if expected_result.size is None:
+                    # ensure that the default return_missing=False works
+                    with pytest.raises(MetaflowS3NotFound):
+                        s3obj = s3.get(s3_get_object_from_url_range(url, range_info))
+                    s3obj = s3.get(
+                        s3_get_object_from_url_range(url, range_info),
+                        return_missing=True,
+                        return_info=False,
+                    )
+                    assert_results(
+                        [s3obj],
+                        {url: item},
+                        info_should_be_empty=True,
+                        ranges_fetched=[range_info],
+                    )
+                else:
+                    s3obj = s3.get(
+                        s3_get_object_from_url_range(url, range_info), return_info=False
+                    )
+                    assert_results(
+                        [s3obj],
+                        {url: item},
+                        info_should_be_empty=True,
+                        ranges_fetched=[range_info],
+                    )
 
 
 @pytest.mark.parametrize(
@@ -489,33 +560,61 @@ def test_get_all_with_meta(s3root, prefixes, expected):
     argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_basic_case()
 )
 def test_get_many(s3root, prefixes, expected):
+    def iter_objs(urls, objs):
+        for url in urls:
+            obj = objs[url]
+            for r, expected in obj.items():
+                if r is None:
+                    yield url, None, None
+                else:
+                    yield url, expected.range.req_offset, expected.range.req_size
+
     with S3() as s3:
         # 1) test the non-missing case
 
         # to test result ordering, make sure we are requesting
         # keys in a non-lexicographic order
-        not_missing = [url for url, v in expected.items() if v[None].size is not None]
-        urls = list(sorted(not_missing, reverse=True))
-        s3objs = s3.get_many(urls, return_info=True)
+        not_missing_urls = [k for k, v in expected.items() if v[None].size is not None]
+        urls_in_order = list(sorted(not_missing_urls, reverse=True))
+        ranges_in_order = []
+        for url in urls_in_order:
+            ranges_in_order.extend(v.range for v in expected[url].values())
 
+        objs_in_order = list(starmap(S3GetObject, iter_objs(urls_in_order, expected)))
+        s3objs = s3.get_many(list(objs_in_order), return_info=True)
+
+        fetched_urls = []
+        for url in urls_in_order:
+            fetched_urls.extend([url] * len(expected[url]))
         # results should come out in the order of keys requested
-        assert urls == [e.url for e in s3objs]
-        assert_results(s3objs, {k: expected[k] for k in not_missing})
+        assert fetched_urls == [e.url for e in s3objs]
+        assert_results(s3objs, expected, ranges_fetched=ranges_in_order)
 
         # 2) test with missing items, default case
-        if not_missing != list(expected):
+        if not_missing_urls != list(expected.keys()):
+            urls_in_order = list(sorted(expected.keys(), reverse=True))
+            ranges_in_order = []
+            for url in urls_in_order:
+                ranges_in_order.extend(v.range for v in expected[url].values())
+            objs_in_order = list(
+                starmap(S3GetObject, iter_objs(urls_in_order, expected))
+            )
+            fetched_urls = []
+            for url in urls_in_order:
+                fetched_urls.extend([url] * len(expected[url]))
             with pytest.raises(MetaflowS3NotFound):
-                s3objs = s3.get_many(list(expected), return_info=True)
+                s3objs = s3.get_many(list(objs_in_order), return_info=True)
 
         # 3) test with missing items, return_missing=True
 
         # to test result ordering, make sure we are requesting
         # keys in a non-lexicographic order. Missing files should
         # be returned in order too
-        urls = list(sorted(expected, reverse=True))
-        s3objs = s3.get_many(urls, return_missing=True, return_info=True)
-        assert urls == [e.url for e in s3objs]
-        assert_results(s3objs, expected)
+        # Here we can use urls_in_order, ranges_in_order and objs_in_order because they
+        # always correspond to the full set
+        s3objs = s3.get_many(list(objs_in_order), return_missing=True, return_info=True)
+        assert fetched_urls == [e.url for e in s3objs]
+        assert_results(s3objs, expected, ranges_fetched=ranges_in_order)
 
 
 @pytest.mark.parametrize(
