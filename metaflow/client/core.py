@@ -17,7 +17,7 @@ from metaflow.exception import (
 from metaflow.metaflow_config import DEFAULT_METADATA, MAX_ATTEMPTS
 from metaflow.plugins import ENVIRONMENTS, METADATA_PROVIDERS
 from metaflow.unbounded_foreach import CONTROL_TASK_TAG
-from metaflow.util import cached_property, resolve_identity, to_unicode
+from metaflow.util import cached_property, resolve_identity, to_unicode, is_stringish
 
 from .filecache import FileCache
 
@@ -379,6 +379,8 @@ class MetaflowObject(object):
         self._tags = frozenset(
             chain(self._object.get("system_tags") or [], self._object.get("tags") or [])
         )
+        self._user_tags = frozenset(self._object.get("tags") or [])
+        self._system_tags = frozenset(self._object.get("system_tags") or [])
 
         if _namespace_check and not self.is_in_namespace():
             raise MetaflowNamespaceMismatch(current_namespace)
@@ -544,6 +546,30 @@ class MetaflowObject(object):
             Tags associated with the object
         """
         return self._tags
+
+    @property
+    def system_tags(self):
+        """
+        System defined tags associated with this object.
+
+        Returns
+        -------
+        Set[string]
+            System tags associated with the object
+        """
+        return self._system_tags
+
+    @property
+    def user_tags(self):
+        """
+        User defined tags associated with this object.
+
+        Returns
+        -------
+        Set[string]
+            User tags associated with the object
+        """
+        return self._user_tags
 
     @property
     def created_at(self):
@@ -1725,6 +1751,83 @@ class Run(MetaflowObject):
             return None
 
         return end_step.task
+
+    def add_tag(self, tag):
+        """
+        Add one tag to the Run. For details see add_tags()
+        Parameters
+        ----------
+        tag : string
+            Tag to add
+        """
+        return self.add_tags([tag])
+
+    def add_tags(self, tags):
+        """
+        Add the tags to the Run.
+        If any of the tags is already a system tag, it is not added as a
+        user-tag but no error is returned (since it already exists as a
+        system tag). On success, all tags will have been added.
+        Parameters
+        ----------
+        tags : Iterable over string
+            Tags to add
+        """
+        return self.replace_tags([], tags)
+
+    def remove_tag(self, tag):
+        """
+        Remove one tag to the Run. For details see remove_tags()
+        Parameters
+        ----------
+        tag : string
+            Tag to remove
+        """
+        return self.remove_tags([tag])
+
+    def remove_tags(self, tags):
+        """
+        Remove the tags to the current object
+        Removing a system tag will result in an error. Removing a non-existent
+        user-tag is a no-op. On success, all tags will have been removed.
+        Parameters
+        ----------
+        tags : string or Iterable over string
+            Tags to remove
+        """
+        return self.replace_tags(tags, [])
+
+    def replace_tag(self, tag_to_remove, tag_to_add):
+        """
+        First removes a tag, then add a tag. For details, see replace_tags()
+        Parameters
+        ----------
+        tag_to_remove : string
+            Tag to remove
+        tag_to_add : string
+            Tag to add
+        """
+        return self.replace_tags([tag_to_remove], [tag_to_add])
+
+    def replace_tags(self, tags_to_remove, tags_to_add):
+        """
+        Removes and adds tags; the removal is done first
+        The same rules that apply to `add_tags` and `remove_tags` apply here,
+        respectively to the `tags_to_remove` and `tags_to_add` arguments.
+        Parameters
+        ----------
+        tags_to_remove : string or Iterable over string
+            Tags to remove
+        tags_to_add : string or Iterable over string
+            Tags to add
+        """
+        flow_id = self.path_components[0]
+        final_user_tags = self._metaflow.metadata.mutate_user_tags_for_run(
+            flow_id, self.id, tags_to_remove=tags_to_remove, tags_to_add=tags_to_add
+        )
+        # refresh Run object with the latest tags
+        self._user_tags = frozenset(final_user_tags)
+        self._tags = frozenset([*self._user_tags, *self._system_tags])
 
 
 class Flow(MetaflowObject):

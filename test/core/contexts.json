@@ -93,7 +93,8 @@
                 "DetectSegFaultTest",
                 "TimeoutDecoratorTest",
                 "CardExtensionsImportTest",
-                "RunIdFileTest"
+                "RunIdFileTest",
+                "TagMutationTest"
             ]
         },
         {
@@ -130,7 +131,8 @@
                 "DetectSegFaultTest",
                 "TimeoutDecoratorTest",
                 "CardExtensionsImportTest",
-                "RunIdFileTest"
+                "RunIdFileTest",
+                "TagMutationTest"
             ]
         }
     ],
