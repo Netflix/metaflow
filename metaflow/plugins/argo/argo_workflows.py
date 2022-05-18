@@ -17,6 +17,7 @@ from metaflow.metaflow_config import (
     DEFAULT_METADATA,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
+    KUBERNETES_SECRETS,
 )
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
@@ -899,10 +900,19 @@ class ArgoWorkflows(object):
                             env_from=[
                                 kubernetes_sdk.V1EnvFromSource(
                                     secret_ref=kubernetes_sdk.V1SecretEnvSource(
-                                        name=str(k)
+                                        name=str(k),
+                                        # optional=True
                                     )
                                 )
-                                for k in resources.get("secrets") or []
+                                for k in list(
+                                    []
+                                    if not resources.get("secrets")
+                                    else [resources.get("secrets")]
+                                    if isinstance(resources.get("secrets"), str)
+                                    else resources.get("secrets")
+                                )
+                                + KUBERNETES_SECRETS.split(",")
+                                if k
                             ],
                             # Assign a volume point to pass state to the next task.
                             volume_mounts=[

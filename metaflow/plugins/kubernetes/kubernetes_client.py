@@ -6,7 +6,7 @@ import sys
 import time
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import KUBERNETES_NODE_SELECTOR
+from metaflow.metaflow_config import KUBERNETES_NODE_SELECTOR, KUBERNETES_SECRETS
 
 CLIENT_REFRESH_INTERVAL_SECONDS = 300
 
@@ -177,9 +177,14 @@ class KubernetesJob(object):
                                 ],
                                 env_from=[
                                     client.V1EnvFromSource(
-                                        secret_ref=client.V1SecretEnvSource(name=str(k))
+                                        secret_ref=client.V1SecretEnvSource(
+                                            name=str(k),
+                                            # optional=True
+                                        )
                                     )
-                                    for k in self._kwargs.get("secrets", [])
+                                    for k in list(self._kwargs.get("secrets", []))
+                                    + KUBERNETES_SECRETS.split(",")
+                                    if k
                                 ],
                                 image=self._kwargs["image"],
                                 name=self._kwargs["step_name"].replace("_", "-"),

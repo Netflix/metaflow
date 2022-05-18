@@ -192,6 +192,7 @@ KUBERNETES_NAMESPACE = from_conf("METAFLOW_KUBERNETES_NAMESPACE", "default")
 KUBERNETES_SERVICE_ACCOUNT = from_conf("METAFLOW_KUBERNETES_SERVICE_ACCOUNT")
 # Default node selectors to use by K8S jobs created by Metaflow - foo=bar,baz=bab
 KUBERNETES_NODE_SELECTOR = from_conf("METAFLOW_KUBERNETES_NODE_SELECTOR", "")
+KUBERNETES_SECRETS = from_conf("METAFLOW_KUBERNETES_SECRETS", "")
 # Default GPU vendor to use by K8S jobs created by Metaflow (supports nvidia, amd)
 KUBERNETES_GPU_VENDOR = from_conf("METAFLOW_KUBERNETES_GPU_VENDOR", "nvidia")
 # Default container image for K8S
