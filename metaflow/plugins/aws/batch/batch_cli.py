@@ -201,7 +201,7 @@ def step(
     if num_parallel and num_parallel > 1:
         # For multinode, we need to add a placeholder that can be mutated by the caller
         step_args += " [multinode-args]"
-    step_cli = u"{entrypoint} {top_args} step {step} {step_args}".format(
+    step_cli = "{entrypoint} {top_args} step {step} {step_args}".format(
         entrypoint=entrypoint,
         top_args=top_args,
         step=step_name,

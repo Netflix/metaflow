@@ -23,7 +23,6 @@ if sys.version_info[0] >= 3 and sys.version_info[1] >= 2:
     def od_move_to_end(od, key):
         od.move_to_end(key)
 
-
 else:
     # Not very efficient but works and most people are on 3.2+
     def od_move_to_end(od, key):
@@ -320,7 +319,7 @@ class FileCache(object):
 
     def _garbage_collect(self):
         now = time.time()
-        while self._objects and self._total > self._max_size * 1024 ** 2:
+        while self._objects and self._total > self._max_size * 1024**2:
             if now - self._objects[0][0] < NEW_FILE_QUARANTINE:
                 break
             ctime, size, path = self._objects.pop(0)

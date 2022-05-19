@@ -153,7 +153,7 @@ def step(
         )
         time.sleep(minutes_between_retries * 60)
 
-    step_cli = u"{entrypoint} {top_args} step {step} {step_args}".format(
+    step_cli = "{entrypoint} {top_args} step {step} {step_args}".format(
         entrypoint="%s -u %s" % (executable, os.path.basename(sys.argv[0])),
         top_args=" ".join(util.dict_to_cli_options(ctx.parent.parent.params)),
         step=step_name,

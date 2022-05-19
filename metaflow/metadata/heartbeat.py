@@ -49,7 +49,7 @@ class MetadataHeartBeat(object):
                 retry_counter = 0
             except HeartBeatException as e:
                 retry_counter = retry_counter + 1
-                time.sleep(4 ** retry_counter)
+                time.sleep(4**retry_counter)
 
     def heartbeat(self):
         if self.hb_url is not None:

@@ -10,6 +10,7 @@ if sys.version_info > (3,):  # pragma: nocover
     import builtins
     from configparser import ConfigParser
     import contextlib
+
     FileNotFoundError = builtins.FileNotFoundError
     IsADirectoryError = builtins.IsADirectoryError
     NotADirectoryError = builtins.NotADirectoryError
@@ -21,12 +22,13 @@ else:  # pragma: nocover
     from itertools import imap as map  # type: ignore
     from itertools import ifilterfalse as filterfalse
     import contextlib2 as contextlib
+
     FileNotFoundError = IOError, OSError
     IsADirectoryError = IOError, OSError
     NotADirectoryError = IOError, OSError
     PermissionError = IOError, OSError
 
-str = type('')
+str = type("")
 
 suppress = contextlib.suppress
 
@@ -44,16 +46,25 @@ except (NameError, AttributeError):  # pragma: nocover
 if sys.version_info >= (3,):  # pragma: nocover
     from importlib.abc import MetaPathFinder
 else:  # pragma: nocover
+
     class MetaPathFinder(object):
         __metaclass__ = abc.ABCMeta
 
 
 __metaclass__ = type
 __all__ = [
-    'install', 'NullFinder', 'MetaPathFinder', 'ModuleNotFoundError',
-    'pathlib', 'ConfigParser', 'map', 'suppress', 'FileNotFoundError',
-    'NotADirectoryError', 'email_message_from_string',
-    ]
+    "install",
+    "NullFinder",
+    "MetaPathFinder",
+    "ModuleNotFoundError",
+    "pathlib",
+    "ConfigParser",
+    "map",
+    "suppress",
+    "FileNotFoundError",
+    "NotADirectoryError",
+    "email_message_from_string",
+]
 
 
 def install(cls):
@@ -77,11 +88,12 @@ def disable_stdlib_finder():
     See #91 for more background for rationale on this sketchy
     behavior.
     """
+
     def matches(finder):
-        return (
-            getattr(finder, '__module__', None) == '_frozen_importlib_external'
-            and hasattr(finder, 'find_distributions')
-            )
+        return getattr(
+            finder, "__module__", None
+        ) == "_frozen_importlib_external" and hasattr(finder, "find_distributions")
+
     for finder in filter(matches, sys.meta_path):  # pragma: nocover
         del finder.find_distributions
 
@@ -91,6 +103,7 @@ class NullFinder:
     A "Finder" (aka "MetaClassFinder") that never finds any modules,
     but may find distributions.
     """
+
     @staticmethod
     def find_spec(*args, **kwargs):
         return None
@@ -112,10 +125,8 @@ def py2_message_from_string(text):  # nocoverpy3
 
 
 email_message_from_string = (
-    py2_message_from_string
-    if sys.version_info < (3,) else
-    email.message_from_string
-    )
+    py2_message_from_string if sys.version_info < (3,) else email.message_from_string
+)
 
 
 class PyPy_repr:
@@ -123,14 +134,16 @@ class PyPy_repr:
     Override repr for EntryPoint objects on PyPy to avoid __iter__ access.
     Ref #97, #102.
     """
-    affected = hasattr(sys, 'pypy_version_info')
+
+    affected = hasattr(sys, "pypy_version_info")
 
     def __compat_repr__(self):  # pragma: nocover
         def make_param(name):
             value = getattr(self, name)
-            return '{name}={value!r}'.format(**locals())
-        params = ', '.join(map(make_param, self._fields))
-        return 'EntryPoint({params})'.format(**locals())
+            return "{name}={value!r}".format(**locals())
+
+        params = ", ".join(map(make_param, self._fields))
+        return "EntryPoint({params})".format(**locals())
 
     if affected:  # pragma: nocover
         __repr__ = __compat_repr__
@@ -148,5 +161,4 @@ def unique_everseen(iterable):  # pragma: nocover
         yield element
 
 
-unique_ordered = (
-    unique_everseen if sys.version_info < (3, 7) else dict.fromkeys)
+unique_ordered = unique_everseen if sys.version_info < (3, 7) else dict.fromkeys

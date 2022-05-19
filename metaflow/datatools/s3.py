@@ -327,7 +327,7 @@ class S3(object):
             else:
                 prefix = os.path.join(prefix, run.parent.id, run.id)
 
-            self._s3root = u"s3://%s" % os.path.join(bucket, prefix.strip("/"))
+            self._s3root = "s3://%s" % os.path.join(bucket, prefix.strip("/"))
         elif s3root:
             # 2. use an explicit S3 prefix
             parsed = urlparse(to_unicode(s3root))
@@ -928,7 +928,7 @@ class S3(object):
                 os.unlink(tmp.name)
             self._s3_client.reset_client()
             # add some jitter to make sure retries are not synchronized
-            time.sleep(2 ** i + random.randint(0, 10))
+            time.sleep(2**i + random.randint(0, 10))
         raise MetaflowS3Exception(
             "S3 operation failed.\n" "Key requested: %s\n" "Error: %s" % (url, error)
         )
@@ -1042,6 +1042,6 @@ class S3(object):
                     elif ex.returncode == s3op.ERROR_URL_ACCESS_DENIED:
                         raise MetaflowS3AccessDenied(err_out)
                     print("Error with S3 operation:", err_out)
-                    time.sleep(2 ** i + random.randint(0, 10))
+                    time.sleep(2**i + random.randint(0, 10))
 
         return None, err_out
