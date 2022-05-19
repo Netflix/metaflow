@@ -366,7 +366,6 @@ class AzureStorage(DataStoreStorage):
 
     @handle_executor_exceptions
     def load_bytes(self, keys):
-
         tmpdir = mkdtemp(dir=self._tmproot, prefix="metaflow.azure.load_bytes.")
         try:
             futures = [

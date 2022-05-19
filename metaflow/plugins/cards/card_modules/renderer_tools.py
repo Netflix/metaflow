@@ -40,6 +40,7 @@ def render_safely(func):
     This is a decorator that can be added to any `MetaflowCardComponent.render`
     The goal is to render subcomponents safely and ensure that they are JSON serializable.
     """
+
     # expects a renderer func
     def ret_func(self, *args, **kwargs):
         return _render_component_safely(self, func, True, *args, **kwargs)

@@ -311,7 +311,6 @@ def make_flow(
 def resolve_token(
     name, token_prefix, obj, authorize, given_token, generate_new_token, is_project
 ):
-
     # 1) retrieve the previous deployment, if one exists
     workflow = StepFunctions.get_existing_deployment(name)
     if workflow is None:

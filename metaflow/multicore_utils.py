@@ -59,7 +59,6 @@ def _spawn(func, arg, dir):
 
 
 def parallel_imap_unordered(func, iterable, max_parallel=None, dir=None):
-
     if max_parallel is None:
         max_parallel = cpu_count()
 
@@ -67,7 +66,6 @@ def parallel_imap_unordered(func, iterable, max_parallel=None, dir=None):
     pids = [_spawn(func, arg, dir) for arg in islice(args_iter, max_parallel)]
 
     while pids:
-
         pid, output_file = pids.pop()
         if os.waitpid(pid, 0)[1]:
             raise MulticoreException("Child failed")

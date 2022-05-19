@@ -60,7 +60,6 @@ if name == "nt":
 def call_git_describe(abbrev=7):
     """return the string output of git describe"""
     try:
-
         # first, make sure we are actually in a Metaflow repo,
         # not some other repo
         with open(devnull, "w") as fnull:

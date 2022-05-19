@@ -655,7 +655,6 @@ def list(
     as_json=False,
     file=None,
 ):
-
     card_id = id
     if pathspec is None:
         list_many_cards(

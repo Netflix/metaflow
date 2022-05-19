@@ -72,7 +72,6 @@ class DAGNode(object):
         return "%s.%s" % (expr.value.id, expr.attr)
 
     def _parse(self, func_ast):
-
         self.num_args = len(func_ast.args.args)
         tail = func_ast.body[-1]
 
@@ -262,7 +261,6 @@ class FlowGraph(object):
         )
 
     def output_steps(self):
-
         steps_info = {}
         graph_structure = []
 

@@ -78,6 +78,7 @@ class StubMetaClass(type):
 
 def with_metaclass(meta, *bases):
     """Create a base class with a metaclass."""
+
     # Compatibility 2/3. Remove when only 3 support
     class metaclass(type):
         def __new__(cls, name, this_bases, d):
@@ -262,7 +263,6 @@ def create_class(
     setattr_overrides,
     class_methods,
 ):
-
     class_dict = {"__slots__": ()}
     for name, doc in class_methods.items():
         method_type = NORMAL_METHOD

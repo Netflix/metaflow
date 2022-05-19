@@ -67,7 +67,6 @@ class S3Url(object):
         range=None,
         idx=None,
     ):
-
         self.bucket = bucket
         self.path = path
         self.url = url
@@ -385,7 +384,6 @@ def start_workers(mode, urls, num_workers, inject_failure, s3config):
 
 
 def process_urls(mode, urls, verbose, inject_failure, num_workers, s3config):
-
     if verbose:
         print("%sing %d files.." % (mode.capitalize(), len(urls)), file=sys.stderr)
 
@@ -729,7 +727,6 @@ def lst(
     s3sessionvars=None,
     s3clientparams=None,
 ):
-
     s3config = S3Config(
         s3role,
         json.loads(s3sessionvars) if s3sessionvars else None,
@@ -1004,7 +1001,6 @@ def get(
     s3clientparams=None,
     inject_failure=0,
 ):
-
     s3config = S3Config(
         s3role,
         json.loads(s3sessionvars) if s3sessionvars else None,
@@ -1149,7 +1145,6 @@ def info(
     s3clientparams=None,
     inject_failure=0,
 ):
-
     s3config = S3Config(
         s3role,
         json.loads(s3sessionvars) if s3sessionvars else None,

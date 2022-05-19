@@ -61,7 +61,6 @@ BIND_RETRY = 1
 
 class Server(object):
     def __init__(self, config_dir, max_pickle_version):
-
         self._max_pickle_version = data_transferer.defaultProtocol = max_pickle_version
         try:
             mappings = importlib.import_module(".server_mappings", package=config_dir)
