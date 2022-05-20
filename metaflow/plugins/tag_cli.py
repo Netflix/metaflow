@@ -317,7 +317,7 @@ def remove(obj, run_id, user_namespace, tags):
     _print_tags_for_one_run(obj, run)
 
 
-@tag.command("replace", help="Replace tags of a run.")
+@tag.command("replace", help="Replace one tag of a run.")
 @click.option(
     "--run-id",
     required=False,  # set False here, so we can throw a better error message
@@ -337,12 +337,73 @@ def remove(obj, run_id, user_namespace, tags):
 @click.pass_obj
 def replace(obj, run_id, user_namespace, tags):
     user_namespace = resolve_identity() if user_namespace is None else user_namespace
-    metaflow_run_client = _get_client_run_obj(obj, run_id, user_namespace)
+    run = _get_client_run_obj(obj, run_id, user_namespace)
 
-    metaflow_run_client.replace_tag(tags[0], tags[1])
+    run.replace_tag(tags[0], tags[1])
 
     obj.echo("Operation successful. New tags:")
-    _print_tags_for_one_run(obj, metaflow_run_client)
+    _print_tags_for_one_run(obj, run)
+
+
+# TODO(jackie) confirm with team on whether this can supercede "replace" command above
+@tag.command(
+    "replace-many",
+    help="Replace many tags of a run atomically. "
+    "Removals are applied after additions.",
+)
+@click.option(
+    "--run-id",
+    required=False,  # set False here, so we can throw a better error message
+    default=None,
+    type=str,
+    help="Run ID of the specific run to tag. [required]",
+)
+@click.option(
+    "--namespace",
+    "user_namespace",
+    required=False,
+    default=None,
+    type=str,
+    help="Change namespace from the default (your username) to the one specified.",
+)
+@click.option(
+    "--add",
+    "tags_to_add",
+    multiple=True,
+    default=None,
+    help="Add this tag to a run. Must specify one or more tags to add.",
+)
+@click.option(
+    "--remove",
+    "tags_to_remove",
+    multiple=True,
+    default=None,
+    help="Remove this tag to a run. Must specify one or more tags to remove.",
+)
+@click.pass_obj
+def replace_many(obj, run_id, user_namespace, tags_to_add=None, tags_to_remove=None):
+    # While run.replace_tags() can accept 0 additions or 0 removals, we want to encourage
+    # the *obvious* way to achieve their goals. E.g. if they are only adding tags, use "tag add"
+    # over more obscure "tag replace --add ... --add ..."
+    if not tags_to_add and not tags_to_remove:
+        raise CommandException(
+            "Specify at least one tag to add (--add) and one tag to remove (--remove)"
+        )
+    if not tags_to_remove:
+        raise CommandException(
+            "Specify at least one tag to remove; else please use *tag add*."
+        )
+    if not tags_to_add:
+        raise CommandException(
+            "Specify at least one tag to add, else please use *tag remove*."
+        )
+    user_namespace = resolve_identity() if user_namespace is None else user_namespace
+    run = _get_client_run_obj(obj, run_id, user_namespace)
+
+    run.replace_tags(tags_to_remove, tags_to_add)
+
+    obj.echo("Operation successful. New tags:")
+    _print_tags_for_one_run(obj, run)
 
 
 @tag.command("list", help="List tags of a run.")

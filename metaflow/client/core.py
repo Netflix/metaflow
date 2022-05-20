@@ -302,7 +302,11 @@ class MetaflowObject(object):
     Attributes
     ----------
     tags : Set
-        Tags associated with the object.
+        Tags associated with the object (user and system tags).
+    user_tags: Set
+        User tags associated with the object
+    system_tags: Set
+        System tags associated with the object
     created_at : datetime
         Date and time this object was first created.
     parent : MetaflowObject
