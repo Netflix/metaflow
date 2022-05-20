@@ -39,6 +39,9 @@ class Monitor(NullMonitor):
         self.sidecar_process = None
         self.monitor_type = monitor_type
         self.env_info = env.get_environment_info()
+        # TODO: This is very big and not needed. Seems to be causing issues with messages
+        if "ext_info" in self.env_info:
+            del self.env_info["ext_info"]
         self.env_info["flow_name"] = flow_name
 
     def start(self):
