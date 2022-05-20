@@ -19,6 +19,7 @@ from metaflow.metaflow_config import (
     DATATOOLS_S3ROOT,
     DEFAULT_AWS_CLIENT_PROVIDER,
     DEFAULT_METADATA,
+    S3_ENDPOINT_URL,
 )
 from metaflow.mflog import (
     BASH_SAVE_LOGS,
@@ -190,6 +191,10 @@ class Kubernetes(object):
             # pod; this happens when METAFLOW_DATASTORE_SYSROOT_LOCAL is NOT set (
             # see get_datastore_root_from_config in datastore/local.py).
         )
+
+        # add METAFLOW_S3_ENDPOINT_URL
+        if S3_ENDPOINT_URL is not None:
+            job.environment_variable("METAFLOW_S3_ENDPOINT_URL", S3_ENDPOINT_URL)
 
         for name, value in env.items():
             job.environment_variable(name, value)

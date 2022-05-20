@@ -57,7 +57,9 @@ class S3Tail(object):
             code = err.response["Error"]["Code"]
             # NOTE we deliberately regard NoSuchKey as an ignorable error.
             # We assume that the file just hasn't appeared in S3 yet.
-            if code in ("InvalidRange", "NoSuchKey"):
+            # Some S3 compatible storage systems like Dell EMC-ECS return 416 in-lieu
+            # of InvalidRange - https://www.delltechnologies.com/asset/en-us/products/storage/technical-support/docu95766.pdf
+            if code in ("InvalidRange", "NoSuchKey", "416"):
                 return None
             else:
                 raise

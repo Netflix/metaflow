@@ -174,15 +174,20 @@ def get_username():
     return None
 
 
-def resolve_identity():
+def resolve_identity_as_tuple():
     prod_token = os.environ.get("METAFLOW_PRODUCTION_TOKEN")
     if prod_token:
-        return "production:%s" % prod_token
+        return "production", prod_token
     user = get_username()
     if user and user != "root":
-        return "user:%s" % user
+        return "user", user
     else:
         raise MetaflowUnknownUser()
+
+
+def resolve_identity():
+    identity_type, identity_value = resolve_identity_as_tuple()
+    return "%s:%s" % (identity_type, identity_value)
 
 
 def get_latest_run_id(echo, flow_name):

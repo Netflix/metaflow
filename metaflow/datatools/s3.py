@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sys
 import time
 import shutil
@@ -60,6 +61,8 @@ RangeInfo = namedtuple_with_defaults(
     "RangeInfo", "total_size request_offset request_length", defaults=(0, -1)
 )
 
+RANGE_MATCH = re.compile(r"bytes (?P<start>[0-9]+)-(?P<end>[0-9]+)/(?P<total>[0-9]+)")
+
 
 class MetaflowS3InvalidObject(MetaflowException):
     headline = "Not a string-like object"
@@ -79,6 +82,10 @@ class MetaflowS3NotFound(MetaflowException):
 
 class MetaflowS3AccessDenied(MetaflowException):
     headline = "S3 access denied"
+
+
+class MetaflowS3InvalidRange(MetaflowException):
+    headline = "S3 invalid range"
 
 
 class S3Object(object):
@@ -210,15 +217,19 @@ class S3Object(object):
     def has_info(self):
         """
         Returns true if this S3Object contains the content-type or user-metadata.
-        If False, this means that content_type and range_info will not return the
-        proper information
+        If False, this means that content_type, metadata, range_info and last_modified
+        will not return the proper information (returning None instead)
         """
-        return self._content_type is not None or self._metadata is not None
+        return (
+            self._content_type is not None
+            or self._metadata is not None
+            or self._range_info is not None
+        )
 
     @property
     def metadata(self):
         """
-        Returns a dictionary of user-defined metadata
+        Returns a dictionary of user-defined metadata; if unknown, returns None
         """
         return self._metadata
 
@@ -235,7 +246,8 @@ class S3Object(object):
         Returns a namedtuple containing the following fields:
             - total_size: size in S3 of the object
             - request_offset: the starting offset in this S3Object
-            - request_length: the length in this S3Object
+            - request_length: the length downloaded in this S3Object
+        If unknown, returns None
         """
         return self._range_info
 
@@ -594,9 +606,27 @@ class S3(object):
                 resp = s3.get_object(
                     Bucket=src.netloc, Key=src.path.lstrip("/"), Range=r
                 )
+                # Format is bytes start-end/total; both start and end are inclusive so
+                # a 500 bytes file will be `bytes 0-499/500` for the entire file.
+                range_result = resp["ContentRange"]
+                range_result_match = RANGE_MATCH.match(range_result)
+                if range_result_match is None:
+                    raise RuntimeError(
+                        "Wrong format for ContentRange: %s" % str(range_result)
+                    )
+                range_result = RangeInfo(
+                    int(range_result_match.group("total")),
+                    request_offset=int(range_result_match.group("start")),
+                    request_length=int(range_result_match.group("end"))
+                    - int(range_result_match.group("start"))
+                    + 1,
+                )
             else:
                 resp = s3.get_object(Bucket=src.netloc, Key=src.path.lstrip("/"))
+                range_result = None
             sz = resp["ContentLength"]
+            if range_result is None:
+                range_result = RangeInfo(sz, request_offset=0, request_length=sz)
             if not r and sz > DOWNLOAD_FILE_THRESHOLD:
                 # In this case, it is more efficient to use download_file as it
                 # will download multiple parts in parallel (it does it after
@@ -609,6 +639,7 @@ class S3(object):
                 return {
                     "content_type": resp["ContentType"],
                     "metadata": resp["Metadata"],
+                    "range_result": range_result,
                     "last_modified": get_timestamp(resp["LastModified"]),
                 }
             return None
@@ -628,6 +659,7 @@ class S3(object):
                 path,
                 content_type=addl_info["content_type"],
                 metadata=addl_info["metadata"],
+                range_info=addl_info["range_result"],
                 last_modified=addl_info["last_modified"],
             )
         return S3Object(self._s3root, url, path)
@@ -668,9 +700,20 @@ class S3(object):
                             os.path.join(self._tmpdir, "%s_meta" % fname), "r"
                         ) as f:
                             info = json.load(f)
+                        range_info = info.get("range_result")
+                        if range_info:
+                            range_info = RangeInfo(
+                                range_info["total"],
+                                request_offset=range_info["start"],
+                                request_length=range_info["end"]
+                                - range_info["start"]
+                                + 1,
+                            )
                         yield self._s3root, s3url, os.path.join(
                             self._tmpdir, fname
-                        ), None, info["content_type"], info["metadata"], None, info[
+                        ), None, info["content_type"], info[
+                            "metadata"
+                        ], range_info, info[
                             "last_modified"
                         ]
                     else:
@@ -712,9 +755,16 @@ class S3(object):
                     # We have a metadata file to read from
                     with open(os.path.join(self._tmpdir, "%s_meta" % fname), "r") as f:
                         info = json.load(f)
+                    range_info = info.get("range_result")
+                    if range_info:
+                        range_info = RangeInfo(
+                            range_info["total"],
+                            request_offset=range_info["start"],
+                            request_length=range_info["end"] - range_info["start"] + 1,
+                        )
                     yield self._s3root, s3url, os.path.join(
                         self._tmpdir, fname
-                    ), None, info["content_type"], info["metadata"], None, info[
+                    ), None, info["content_type"], info["metadata"], range_info, info[
                         "last_modified"
                     ]
                 else:
@@ -922,6 +972,8 @@ class S3(object):
                     raise MetaflowS3NotFound(url)
                 elif error_code == 403:
                     raise MetaflowS3AccessDenied(url)
+                elif error_code == 416:
+                    raise MetaflowS3InvalidRange(err)
                 elif error_code == "NoSuchBucket":
                     raise MetaflowS3URLException("Specified S3 bucket doesn't exist.")
                 error = str(err)
@@ -1053,6 +1105,8 @@ class S3(object):
                         raise MetaflowS3NotFound(err_out)
                     elif ex.returncode == s3op.ERROR_URL_ACCESS_DENIED:
                         raise MetaflowS3AccessDenied(err_out)
+                    elif ex.returncode == s3op.ERROR_INVALID_RANGE:
+                        raise MetaflowS3InvalidRange(err_out)
                     print("Error with S3 operation:", err_out)
                     # only sleep if retrying
                     if S3_RETRY_COUNT > 0:
