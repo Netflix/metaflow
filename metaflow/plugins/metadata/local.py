@@ -187,7 +187,8 @@ class LocalMetadataProvider(MetadataProvider):
 
         mutation_result = _optimistically_mutate()
         tries = 1
-        while tries < 5:
+        # try up to 5 times, with a gentle exponential backoff (1.1-1.3x)
+        while tries <= 5:
             if mutation_result.tags_are_consistent:
                 return mutation_result.tags
             mutation_result = _optimistically_mutate()
