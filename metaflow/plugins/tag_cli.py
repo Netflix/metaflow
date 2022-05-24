@@ -426,7 +426,14 @@ def replace_many(obj, run_id, user_namespace, tags_to_add=None, tags_to_remove=N
 @click.argument("arg_run_id", required=False, default=None, type=str)
 @click.pass_obj
 def tag_list(
-    obj, run_id, hide_system_tags, list_all, my_runs, by_tag, by_run, arg_run_id
+    obj,
+    run_id,
+    hide_system_tags,
+    list_all,
+    my_runs,
+    group_by_tag,
+    group_by_run,
+    arg_run_id,
 ):
     if run_id is None and arg_run_id is None and not list_all and not my_runs:
         # Assume list_all by default
@@ -443,20 +450,22 @@ def tag_list(
     if arg_run_id is not None:
         run_id = arg_run_id
 
-    if by_run and by_tag:
-        raise CommandException("Option --by-tag cannot be used with --by-run")
+    if group_by_run and group_by_tag:
+        raise CommandException(
+            "Option --group-by-tag cannot be used with --group-by-run"
+        )
 
     system_tags_by_some_grouping = dict()
     all_tags_by_some_grouping = dict()
 
     def _populate_tag_groups_from_run(_run):
-        if by_run:
+        if group_by_run:
             if hide_system_tags:
                 all_tags_by_some_grouping[_run.pathspec] = _run.tags - _run.system_tags
             else:
                 system_tags_by_some_grouping[_run.pathspec] = _run.system_tags
                 all_tags_by_some_grouping[_run.pathspec] = _run.tags
-        elif by_tag:
+        elif group_by_tag:
             for t in _run.tags - _run.system_tags:
                 all_tags_by_some_grouping.setdefault(t, []).append(_run.pathspec)
             if not hide_system_tags:
@@ -485,7 +494,7 @@ def tag_list(
         _populate_tag_groups_from_run(run)
         pathspecs.append(run.pathspec)
 
-    if not by_run and not by_tag:
+    if not group_by_run and not group_by_tag:
         # We list all the runs that match to print them out if needed.
         system_tags_by_some_grouping[
             ",".join(pathspecs)
@@ -495,5 +504,5 @@ def tag_list(
         del all_tags_by_some_grouping["_"]
 
     _print_tags_for_runs_by_groups(
-        obj, system_tags_by_some_grouping, all_tags_by_some_grouping, by_tag
+        obj, system_tags_by_some_grouping, all_tags_by_some_grouping, group_by_tag
     )
