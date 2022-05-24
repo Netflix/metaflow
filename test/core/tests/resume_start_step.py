@@ -12,16 +12,7 @@ class ResumeStartStepTest(MetaflowTest):
 
     @steps(0, ["singleton-start"], required=True)
     def step_start(self):
-        import os
         from metaflow import current
-
-        # Whether we are in "run" or "resume" mode, --run-id-file must be written prior to execution
-        assert os.path.isfile(
-            "run-id"
-        ), "run id file should exist before resume execution"
-        with open("run-id", "r") as f:
-            run_id_from_file = f.read()
-        assert run_id_from_file == current.run_id
 
         if is_resumed():
             self.data = "foo"
