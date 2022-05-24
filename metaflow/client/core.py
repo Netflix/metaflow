@@ -1758,72 +1758,41 @@ class Run(MetaflowObject):
 
     def add_tag(self, tag):
         """
-        Add one tag to the Run. For details see add_tags()
-        Parameters
-        ----------
-        tag : string
-            Tag to add
-        """
-        return self.add_tags([tag])
+        Add one or more tags to the Run.
 
-    def add_tags(self, tags):
-        """
-        Add the tags to the Run.
-        If any of the tags is already a system tag, it is not added as a
-        user-tag but no error is returned (since it already exists as a
-        system tag). On success, all tags will have been added.
+        If any of the tags is already a system tag, it is not added as a user-tag
+        but no error is returned (since it already exists as a system tag).
         Parameters
         ----------
-        tags : Iterable over string
-            Tags to add
+        tag : string or Iterable over string
+            Tag(s) to add
         """
-        return self.replace_tags([], tags)
+        return self.replace_tag([], tag)
 
     def remove_tag(self, tag):
         """
-        Remove one tag to the Run. For details see remove_tags()
-        Parameters
-        ----------
-        tag : string
-            Tag to remove
-        """
-        return self.remove_tags([tag])
+        Remove one or more tags to the Run.
 
-    def remove_tags(self, tags):
-        """
-        Remove the tags to the current object
         Removing a system tag will result in an error. Removing a non-existent
-        user-tag is a no-op. On success, all tags will have been removed.
+        user-tag is a no-op.
         Parameters
         ----------
-        tags : string or Iterable over string
-            Tags to remove
+        tag : string or Iterable over string
+            Tag(s) to remove
         """
-        return self.replace_tags(tags, [])
+        return self.replace_tag(tag, [])
 
-    def replace_tag(self, tag_to_remove, tag_to_add):
-        """
-        First removes a tag, then add a tag. For details, see replace_tags()
-        Parameters
-        ----------
-        tag_to_remove : string
-            Tag to remove
-        tag_to_add : string
-            Tag to add
-        """
-        return self.replace_tags([tag_to_remove], [tag_to_add])
-
-    def replace_tags(self, tags_to_remove, tags_to_add):
+    def replace_tag(self, tags_to_remove, tags_to_add):
         """
         Removes and adds tags; the removal is done first
-        The same rules that apply to `add_tags` and `remove_tags` apply here,
+        The same rules that apply to `add_tag` and `remove_tag` apply here,
         respectively to the `tags_to_remove` and `tags_to_add` arguments.
         Parameters
         ----------
         tags_to_remove : string or Iterable over string
-            Tags to remove
+            Tag(s) to remove
         tags_to_add : string or Iterable over string
-            Tags to add
+            Tag(s) to add
         """
         flow_id = self.path_components[0]
         final_user_tags = self._metaflow.metadata.mutate_user_tags_for_run(

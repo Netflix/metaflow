@@ -19,7 +19,7 @@ class TagMutationTest(MetaflowTest):
 
         # add 20 tags
         self.added_tags_at_start = ["start-%s" % str(uuid.uuid4()) for _ in range(20)]
-        run.add_tags(self.added_tags_at_start)
+        run.add_tag(self.added_tags_at_start)
         for tag in self.added_tags_at_start:
             assert tag in run.tags, "Tags added at start should be in effect"
 
@@ -37,7 +37,7 @@ class TagMutationTest(MetaflowTest):
         # remove 10, keep 10
         tags_to_remove = self.added_tags_at_start[:10]
         tags_to_remain = self.added_tags_at_start[10:]
-        run.remove_tags(tags_to_remove)
+        run.remove_tag(tags_to_remove)
 
         for tag in tags_to_remain:
             assert tag in run.tags
@@ -61,13 +61,13 @@ class TagMutationTest(MetaflowTest):
         )
 
         # Verify that trying to add a tag that already exists as a system tag is OK (only non system tags get added)
-        run.add_tags(["tag_along", *some_existing_system_tags])
+        run.add_tag(["tag_along", *some_existing_system_tags])
         assert "tag_along" in run.tags
         assert len(set(some_existing_system_tags) & run.user_tags) == 0
 
         # Verify that trying to remove a tag that already exists as a system tag fails (all or nothing)
         assert_exception(
-            lambda: run.remove_tags(["tag_along", *some_existing_system_tags]),
+            lambda: run.remove_tag(["tag_along", *some_existing_system_tags]),
             MetaflowTaggingError,
         )
         assert "tag_along" in run.tags
@@ -75,9 +75,9 @@ class TagMutationTest(MetaflowTest):
         assert "tag_along" not in run.tags
 
         # Verify "remove, then add" behavior of replace_tags
-        run.add_tags(["AAA", "BBB"])
+        run.add_tag(["AAA", "BBB"])
         assert "AAA" in run.user_tags and "BBB" in run.user_tags
-        run.replace_tags(["AAA", "BBB"], ["BBB", "CCC"])
+        run.replace_tag(["AAA", "BBB"], ["BBB", "CCC"])
         assert "AAA" not in run.user_tags
         assert "BBB" in run.user_tags
         assert "CCC" in run.user_tags
@@ -91,4 +91,4 @@ class TagMutationTest(MetaflowTest):
         assert 4 not in run.tags
 
         # try to replace nothing with nothing - should fail
-        assert_exception(lambda: run.replace_tags([], []), MetaflowTaggingError)
+        assert_exception(lambda: run.replace_tag([], []), MetaflowTaggingError)

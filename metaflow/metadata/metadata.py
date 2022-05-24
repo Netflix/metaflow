@@ -449,14 +449,19 @@ class MetadataProvider(object):
             tags_to_add = []
         if not tags_to_add and not tags_to_remove:
             raise MetaflowTaggingError("Must add or remove at least one tag")
-        if isinstance(tags_to_add, str):
+
+        def _is_iterable(something):
+            try:
+                iter(something)
+                return True
+            except TypeError:
+                return False
+
+        if not _is_iterable(tags_to_add) or is_stringish(tags_to_add):
             tags_to_add = [tags_to_add]
-        if isinstance(tags_to_remove, str):
+        if not _is_iterable(tags_to_remove) or is_stringish(tags_to_remove):
             tags_to_remove = [tags_to_remove]
-        # Everything should be iterable at this point, unless caller passed in weird stuff
-        # We will let TypeError get thrown upwards here
-        iter(tags_to_add)
-        iter(tags_to_remove)
+        # everything is iterable now
 
         # check all tags are non-empty strings
         for tag in chain(tags_to_add, tags_to_remove):

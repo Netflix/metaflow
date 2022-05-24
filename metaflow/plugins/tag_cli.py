@@ -255,7 +255,7 @@ def add(obj, run_id, user_namespace, tags):
     user_namespace = resolve_identity() if user_namespace is None else user_namespace
     run = _get_client_run_obj(obj, run_id, user_namespace)
 
-    run.add_tags(tags)
+    run.add_tag(tags)
 
     obj.echo("Operation successful. New tags:", err=False)
     _print_tags_for_one_run(obj, run)
@@ -283,7 +283,7 @@ def remove(obj, run_id, user_namespace, tags):
     user_namespace = resolve_identity() if user_namespace is None else user_namespace
     run = _get_client_run_obj(obj, run_id, user_namespace)
 
-    run.remove_tags(tags)
+    run.remove_tag(tags)
 
     obj.echo("Operation successful. New tags:")
     _print_tags_for_one_run(obj, run)
@@ -354,7 +354,7 @@ def replace(obj, run_id, user_namespace, tags):
 )
 @click.pass_obj
 def replace_many(obj, run_id, user_namespace, tags_to_add=None, tags_to_remove=None):
-    # While run.replace_tags() can accept 0 additions or 0 removals, we want to encourage
+    # While run.replace_tag() can accept 0 additions or 0 removals, we want to encourage
     # the *obvious* way to achieve their goals. E.g. if they are only adding tags, use "tag add"
     # over more obscure "tag replace --add ... --add ..."
     if not tags_to_add and not tags_to_remove:
@@ -372,7 +372,7 @@ def replace_many(obj, run_id, user_namespace, tags_to_add=None, tags_to_remove=N
     user_namespace = resolve_identity() if user_namespace is None else user_namespace
     run = _get_client_run_obj(obj, run_id, user_namespace)
 
-    run.replace_tags(tags_to_remove, tags_to_add)
+    run.replace_tag(tags_to_remove, tags_to_add)
 
     obj.echo("Operation successful. New tags:")
     _print_tags_for_one_run(obj, run)
@@ -423,7 +423,12 @@ def replace_many(obj, run_id, user_namespace, tags_to_add=None, tags_to_remove=N
     default=False,
     help="Display tags grouped by run",
 )
-@click.argument("arg_run_id", required=False, default=None, type=str)
+@click.argument(
+    "arg_run_id",  # For backwards compatibility with Netflix internal usage of an early version of this CLI
+    required=False,
+    default=None,
+    type=str,
+)
 @click.pass_obj
 def tag_list(
     obj,
