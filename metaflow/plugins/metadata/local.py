@@ -124,7 +124,7 @@ class LocalMetadataProvider(MetadataProvider):
             raise MetaflowInternalError(msg="Type %s is not allowed" % obj_type)
 
         if obj_type not in ("root", "flow", "run", "step", "task", "artifact"):
-            raise MetaflowInternalError(msg="unexpected object type %s" % obj_type)
+            raise MetaflowInternalError(msg="Unexpected object type %s" % obj_type)
 
         from metaflow.datastore.local_storage import LocalStorage
 
@@ -150,7 +150,7 @@ class LocalMetadataProvider(MetadataProvider):
         RUN_ORDER = ObjectOrder.type_to_order("run")
 
         if obj_type not in ("root", "flow", "run", "step", "task"):
-            raise MetaflowInternalError(msg="unexpected object type %s" % obj_type)
+            raise MetaflowInternalError(msg="Unexpected object type %s" % obj_type)
 
         # Special handling of self, artifact, and metadata
         if sub_type == "self":
@@ -169,14 +169,14 @@ class LocalMetadataProvider(MetadataProvider):
 
                 if obj_type not in ("step", "task"):
                     raise MetaflowInternalError(
-                        msg="unexpected object type %s" % obj_type
+                        msg="Unexpected object type %s" % obj_type
                     )
                 run = LocalMetadataProvider.get_object(
                     "run", "self", {}, None, *args[:RUN_ORDER]  # *[flow_id, run_id]
                 )
                 if not run:
                     raise MetaflowInternalError(
-                        msg="could not find run %s" % str(args[:RUN_ORDER])
+                        msg="Could not find run %s" % str(args[:RUN_ORDER])
                     )
 
                 obj["tags"] = run.get("tags", [])
@@ -186,7 +186,7 @@ class LocalMetadataProvider(MetadataProvider):
 
         if sub_type == "artifact":
             if obj_type not in ("root", "flow", "run", "step", "task"):
-                raise MetaflowInternalError(msg="unexpected object type %s" % obj_type)
+                raise MetaflowInternalError(msg="Unexpected object type %s" % obj_type)
 
             meta_path = LocalMetadataProvider._get_metadir(*args[:obj_order])
             result = []
@@ -220,7 +220,7 @@ class LocalMetadataProvider(MetadataProvider):
             )
             if not run:
                 raise MetaflowInternalError(
-                    msg="could not find run %s" % str(args[:RUN_ORDER])
+                    msg="Could not find run %s" % str(args[:RUN_ORDER])
                 )
             for obj in result:
                 obj["tags"] = run.get("tags", [])
@@ -233,7 +233,7 @@ class LocalMetadataProvider(MetadataProvider):
         if sub_type == "metadata":
             # artifact is not expected because if obj_type=artifact on function entry, we transform to =task
             if obj_type not in ("root", "flow", "run", "step", "task"):
-                raise MetaflowInternalError(msg="unexpected object type %s" % obj_type)
+                raise MetaflowInternalError(msg="Unexpected object type %s" % obj_type)
             result = []
             meta_path = LocalMetadataProvider._get_metadir(*args[:obj_order])
             if meta_path is None:
@@ -245,7 +245,7 @@ class LocalMetadataProvider(MetadataProvider):
 
         # For the other types, we locate all the objects we need to find and return them
         if obj_type not in ("root", "flow", "run", "step", "task"):
-            raise MetaflowInternalError(msg="unexpected object type %s" % obj_type)
+            raise MetaflowInternalError(msg="Unexpected object type %s" % obj_type)
         if sub_type not in ("flow", "run", "step", "task"):
             raise MetaflowInternalError(msg="unexpected sub type %s" % sub_type)
         obj_path = LocalMetadataProvider._make_path(
@@ -290,7 +290,7 @@ class LocalMetadataProvider(MetadataProvider):
                 )
                 if not run:
                     raise MetaflowInternalError(
-                        msg="could not find run %s, %s"
+                        msg="Could not find run %s, %s"
                         % (flow_id_from_args, self_info.run_id)
                     )
                 obj["tags"] = run.get("tags", [])
