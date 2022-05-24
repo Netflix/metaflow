@@ -10,40 +10,17 @@ class TagMutationTest(MetaflowTest):
     PRIORITY = 2
     HEADER = "@project(name='tag_mutation')"
 
-    @steps(0, ["start"])
-    def step_start(self):
-        from metaflow import current, Task
-        import uuid
-
-        run = Task(current.pathspec).parent.parent
-
-        # add 20 tags
-        self.added_tags_at_start = ["start-%s" % str(uuid.uuid4()) for _ in range(20)]
-        run.add_tag(self.added_tags_at_start)
-        for tag in self.added_tags_at_start:
-            assert tag in run.tags, "Tags added at start should be in effect"
-
-    @steps(2, ["all"])
+    @steps(1, ["all"])
     def step_all(self):
-        pass
-
-    @steps(1, ["singleton"])
-    def step_singleton(self):
         from metaflow import current, Task
 
-        # util function for loading Run data
         run = Task(current.pathspec).parent.parent
-
-        # remove 10, keep 10
-        tags_to_remove = self.added_tags_at_start[:10]
-        tags_to_remain = self.added_tags_at_start[10:]
-        run.remove_tag(tags_to_remove)
-
-        for tag in tags_to_remain:
-            assert tag in run.tags
-        for tag in tags_to_remove:
-            assert tag not in run.tags
-
+        for i in range(7):
+            tag = str(i)
+            run.add_tag(tag)
+            assert tag in run.user_tags
+            run.remove_tag(tag)
+            assert tag not in run.user_tags
         # TODO let's verify Task tags match up with run tags here
 
     def check_results(self, flow, checker):
