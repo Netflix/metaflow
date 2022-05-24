@@ -17,6 +17,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_SERVICE_ACCOUNT,
+    KUBERNETES_SECRETS,
 )
 from metaflow.plugins import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
@@ -93,6 +94,7 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["service_account"] = KUBERNETES_SERVICE_ACCOUNT
         if not self.attributes["gpu_vendor"]:
             self.attributes["gpu_vendor"] = KUBERNETES_GPU_VENDOR
+
         # TODO: Handle node_selector in a better manner. Currently it is special
         #       cased in kubernetes_client.py
 
