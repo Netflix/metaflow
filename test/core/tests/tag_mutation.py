@@ -82,7 +82,13 @@ class TagMutationTest(MetaflowTest):
         assert "BBB" in run.user_tags
         assert "CCC" in run.user_tags
 
+        # try empty str as tag - should fail
         assert_exception(lambda: run.add_tag(""), MetaflowTaggingError)
         assert "" not in run.tags
+
+        # try int as tag - should fail
         assert_exception(lambda: run.remove_tag(4), MetaflowTaggingError)
         assert 4 not in run.tags
+
+        # try to replace nothing with nothing - should fail
+        assert_exception(lambda: run.replace_tags([], []), MetaflowTaggingError)

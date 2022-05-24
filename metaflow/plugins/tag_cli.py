@@ -168,16 +168,7 @@ def _print_tags_for_one_run(obj, run):
     return _print_tags_for_runs_by_groups(obj, system_tags, all_tags, by_tag=False)
 
 
-def _is_prod_token(token):
-    return token and token.startswith("production:")
-
-
 def _get_client_run_obj(obj, run_id, user_namespace):
-    if _is_prod_token(user_namespace):
-        raise CommandException(
-            "Modifying a scheduled run's tags is currently not allowed."
-        )
-
     flow_name = obj.flow.name
 
     # handle error messaging for two cases
@@ -188,13 +179,12 @@ def _get_client_run_obj(obj, run_id, user_namespace):
         Flow(pathspec=flow_name)
     except MetaflowNotFound:
         raise CommandException(
-            "No execution found for *%s*. Please run the flow before tagging."
-            % flow_name
+            "No run found for *%s*. Please run the flow before tagging." % flow_name
         )
 
     except MetaflowNamespaceMismatch:
         raise CommandException(
-            "No execution found for *%s* in namespace *%s*."
+            "No run found for *%s* in namespace *%s*. You can switch the namespace using --namespace"
             % (flow_name, user_namespace)
         )
 
@@ -203,51 +193,33 @@ def _get_client_run_obj(obj, run_id, user_namespace):
         latest_run_id = Flow(pathspec=flow_name).latest_run.id
         msg = (
             "Please specify a run-id using --run-id.\n"
-            "*%s*'s latest execution in namespace *%s* has id *%s*."
+            "*%s*'s latest run in namespace *%s* has id *%s*."
             % (flow_name, user_namespace, latest_run_id)
         )
         raise CommandException(msg)
     run_id_parts = run_id.split("/")
     if len(run_id_parts) == 1:
-        run_name = "%s/%s" % (flow_name, run_id)
+        path_spec = "%s/%s" % (flow_name, run_id)
     else:
         raise CommandException("Run-id *%s* is not a valid run-id" % run_id)
 
     # handle error messaging for three cases
     # 1. our user makes a typo in --run-id
-    # 2. our user tries to mutate tags on a meson/production run
-    # 3. our user's --run-id does not exist in the default/specified namespace
+    # 2. our user's --run-id does not exist in the default/specified namespace
     try:
         namespace(user_namespace)
-        run = Run(pathspec=run_name)
+        run = Run(pathspec=path_spec)
     except MetaflowNotFound:
-        raise CommandException("No run *%s* found" % run_name)
+        raise CommandException(
+            "No run *%s* found for flow *%s*" % (path_spec, flow_name)
+        )
     except MetaflowNamespaceMismatch:
-        namespace(None)
-        run = Run(pathspec=run_name)
-
-        if any([_is_prod_token(tag) for tag in run.system_tags]):
-            raise CommandException(
-                "Modifying a scheduled run's tags is currently not allowed."
-            )
-
-        msg = "Run *%s* does not belong to namespace *%s*\n" % (
-            run_name,
+        msg = "Run *%s* for flow *%s* does not belong to namespace *%s*\n" % (
+            path_spec,
+            flow_name,
             user_namespace,
         )
-
-        user_identifier_tags = [
-            tag for tag in run.system_tags if tag.startswith("user:")
-        ]
-        if user_identifier_tags:
-            msg += (
-                "You can choose any of the following tags associated with *%s* "
-                "to use with option *--namespace*\n" % run_name
-            )
-            msg += "\n".join(["\t*%s*" % tag for tag in user_identifier_tags])
-
         raise CommandException(msg)
-
     return run
 
 
@@ -438,14 +410,14 @@ def replace_many(obj, run_id, user_namespace, tags_to_add=None, tags_to_remove=N
     help="Hide system tags.",
 )
 @click.option(
-    "--by-tag",
+    "--group-by-tag",
     required=False,
     is_flag=True,
     default=False,
     help="Display results by showing runs grouped by tags",
 )
 @click.option(
-    "--by-run",
+    "--group-by-run",
     required=False,
     is_flag=True,
     default=False,
@@ -461,11 +433,7 @@ def tag_list(
         list_all = True
 
     if list_all and my_runs:
-        raise CommandException(
-            "Option --all cannot be used together with --my-runs.\n"
-            "You can run the flow with commands 'tag list --help' "
-            "to check the meaning of the two options."
-        )
+        raise CommandException("Option --all cannot be used together with --my-runs.")
 
     if run_id is not None and arg_run_id is not None:
         raise CommandException(

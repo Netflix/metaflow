@@ -437,6 +437,10 @@ class MetadataProvider(object):
             Flow id, that the run belongs to.
         run_id: str
             Run id, together with flow_id, that identifies the specific Run whose tags to mutate
+
+        Return
+        ------
+        Run tags after mutation operations
         """
         # perform common validation, across all provider implementations
         if tags_to_remove is None:
@@ -444,7 +448,7 @@ class MetadataProvider(object):
         if tags_to_add is None:
             tags_to_add = []
         if not tags_to_add and not tags_to_remove:
-            return
+            raise MetaflowTaggingError("Must add or remove at least one tag")
         if isinstance(tags_to_add, str):
             tags_to_add = [tags_to_add]
         if isinstance(tags_to_remove, str):
