@@ -729,10 +729,9 @@ def resume(
         max_num_splits=max_num_splits,
         max_log_size=max_log_size * 1024 * 1024,
     )
+    write_run_id(run_id_file, runtime.run_id)
     runtime.persist_constants()
     runtime.execute()
-
-    write_run_id(run_id_file, runtime.run_id)
 
 
 @parameters.add_custom_parameters(deploy_mode=True)
