@@ -289,38 +289,9 @@ def remove(obj, run_id, user_namespace, tags):
     _print_tags_for_one_run(obj, run)
 
 
-@tag.command("replace", help="Replace one tag of a run.")
-@click.option(
-    "--run-id",
-    required=False,  # set False here, so we can throw a better error message
-    default=None,
-    type=str,
-    help="Run ID of the specific run to tag. [required]",
-)
-@click.option(
-    "--namespace",
-    "user_namespace",
-    required=False,
-    default=None,
-    type=str,
-    help="Change namespace from the default (your username) to the one specified.",
-)
-@click.argument("tags", required=True, type=str, nargs=2)
-@click.pass_obj
-def replace(obj, run_id, user_namespace, tags):
-    user_namespace = resolve_identity() if user_namespace is None else user_namespace
-    run = _get_client_run_obj(obj, run_id, user_namespace)
-
-    run.replace_tag(tags[0], tags[1])
-
-    obj.echo("Operation successful. New tags:")
-    _print_tags_for_one_run(obj, run)
-
-
-# TODO(jackie) confirm with team on whether this can supercede "replace" command above
 @tag.command(
-    "replace-many",
-    help="Replace many tags of a run atomically. "
+    "replace",
+    help="Replace one or more tags of a run atomically. "
     "Removals are applied after additions.",
 )
 @click.option(
@@ -353,7 +324,7 @@ def replace(obj, run_id, user_namespace, tags):
     help="Remove this tag to a run. Must specify one or more tags to remove.",
 )
 @click.pass_obj
-def replace_many(obj, run_id, user_namespace, tags_to_add=None, tags_to_remove=None):
+def replace(obj, run_id, user_namespace, tags_to_add=None, tags_to_remove=None):
     # While run.replace_tag() can accept 0 additions or 0 removals, we want to encourage
     # the *obvious* way to achieve their goals. E.g. if they are only adding tags, use "tag add"
     # over more obscure "tag replace --add ... --add ..."
