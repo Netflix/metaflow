@@ -1758,18 +1758,58 @@ class Run(MetaflowObject):
 
     def add_tag(self, tag):
         """
-        Add one or more tags to the Run.
+        Add one tag to the Run.
 
-        If any of the tags is already a system tag, it is not added as a user-tag
-        but no error is returned (since it already exists as a system tag).
+        If the tag is already a system tag, it is not added as a user-tag,
+        and no error is thrown.
         Parameters
         ----------
-        tag : string or Iterable over string
-            Tag(s) to add
+        tag : string
+            Tag to add
         """
+        # For backwards compatibility with Netflix's early version of this functionality,
+        # this function shall accept both an individual tag AND iterables of tags.
+        #
+        # Iterable of tags support shall be removed in future once existing
+        # usage has been migrated off.
+        if is_stringish(tag):
+            tag = [tag]
         return self.replace_tag([], tag)
 
+    def add_tags(self, tags):
+        """
+        Add one or more tags to the Run.
+
+        If any tag is already a system tag, it is not added as a user-tag
+        and no error is thrown.
+        Parameters
+        ----------
+        tags : Iterable over string
+            Tags to add
+        """
+        return self.replace_tag([], tags)
+
     def remove_tag(self, tag):
+        """
+        Remove one tag from the Run.
+
+        Removing a system tag is an error. Removing a non-existent
+        user-tag is a no-op.
+        Parameters
+        ----------
+        tag : string
+            Tag to remove
+        """
+        # For backwards compatibility with Netflix's early version of this functionality,
+        # this function shall accept both an individual tag AND iterables of tags.
+        #
+        # Iterable of tags support shall be removed in future once existing
+        # usage has been migrated off.
+        if is_stringish(tag):
+            tag = [tag]
+        return self.replace_tag(tag, [])
+
+    def remove_tags(self, tags):
         """
         Remove one or more tags to the Run.
 
@@ -1777,22 +1817,43 @@ class Run(MetaflowObject):
         user-tag is a no-op.
         Parameters
         ----------
-        tag : string or Iterable over string
-            Tag(s) to remove
+        tags : Iterable over string
+            Tags to remove
         """
-        return self.replace_tag(tag, [])
+        return self.replace_tags(tags, [])
 
-    def replace_tag(self, tags_to_remove, tags_to_add):
+    def replace_tag(self, tag_to_remove, tag_to_add):
         """
-        Removes and adds tags; the removal is done first
-        The same rules that apply to `add_tag` and `remove_tag` apply here,
-        respectively to the `tags_to_remove` and `tags_to_add` arguments.
+        Remove a tag and add a tag atomically. Removal is done first.
+        The rules for `add_tag` and `remove_tag` also apply here.
         Parameters
         ----------
-        tags_to_remove : string or Iterable over string
-            Tag(s) to remove
-        tags_to_add : string or Iterable over string
-            Tag(s) to add
+        tag_to_remove : string
+            Tag to remove
+        tag_to_add : string
+            Tag to add
+        """
+        # For backwards compatibility with Netflix's early version of this functionality,
+        # this function shall accept both individual tags AND iterables of tags.
+        #
+        # Iterable of tags support shall be removed in future once existing
+        # usage has been migrated off.
+        if is_stringish(tag_to_remove):
+            tag_to_remove = [tag_to_remove]
+        if is_stringish(tag_to_add):
+            tag_to_add = [tag_to_add]
+        return self.replace_tags(tag_to_remove, tag_to_add)
+
+    def replace_tags(self, tags_to_remove, tags_to_add):
+        """
+        Remove and add tags atomically; the removal is done first.
+        The rules for `add_tag` and `remove_tag` also apply here.
+        Parameters
+        ----------
+        tags_to_remove : Iterable over string
+            Tags to remove
+        tags_to_add : Iterable over string
+            Tags to add
         """
         flow_id = self.path_components[0]
         final_user_tags = self._metaflow.metadata.mutate_user_tags_for_run(

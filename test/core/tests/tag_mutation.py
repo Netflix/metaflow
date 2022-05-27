@@ -44,7 +44,7 @@ class TagMutationTest(MetaflowTest):
 
         # Verify that trying to remove a tag that already exists as a system tag fails (all or nothing)
         assert_exception(
-            lambda: run.remove_tag(["tag_along", *some_existing_system_tags]),
+            lambda: run.remove_tags(["tag_along", *some_existing_system_tags]),
             MetaflowTaggingError,
         )
         assert "tag_along" in run.tags
@@ -52,9 +52,9 @@ class TagMutationTest(MetaflowTest):
         assert "tag_along" not in run.tags
 
         # Verify "remove, then add" behavior of replace_tags
-        run.add_tag(["AAA", "BBB"])
+        run.add_tags(["AAA", "BBB"])
         assert "AAA" in run.user_tags and "BBB" in run.user_tags
-        run.replace_tag(["AAA", "BBB"], ["BBB", "CCC"])
+        run.replace_tags(["AAA", "BBB"], ["BBB", "CCC"])
         assert "AAA" not in run.user_tags
         assert "BBB" in run.user_tags
         assert "CCC" in run.user_tags
@@ -68,4 +68,20 @@ class TagMutationTest(MetaflowTest):
         assert 4 not in run.tags
 
         # try to replace nothing with nothing - should fail
-        assert_exception(lambda: run.replace_tag([], []), MetaflowTaggingError)
+        assert_exception(lambda: run.replace_tags([], []), MetaflowTaggingError)
+
+        # Validate deprecated functionality (maintained for backwards compatibility until usage migrated off
+        # When that happens, these test cases may be removed.
+        run.add_tag(["whoop", "eee"])
+        assert "whoop" in run.tags
+        assert "eee" in run.tags
+
+        run.replace_tag(["whoop", "eee"], ["woo", "hoo"])
+        assert "whoop" not in run.tags
+        assert "eee" not in run.tags
+        assert "woo" in run.tags
+        assert "hoo" in run.tags
+
+        run.remove_tag(["woo", "hoo"])
+        assert "woo" not in run.tags
+        assert "hoo" not in run.tags

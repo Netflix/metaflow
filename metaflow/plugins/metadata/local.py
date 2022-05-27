@@ -5,7 +5,6 @@ import os
 import random
 import tempfile
 import time
-import uuid
 from collections import namedtuple
 
 from metaflow.exception import MetaflowInternalError, MetaflowTaggingError

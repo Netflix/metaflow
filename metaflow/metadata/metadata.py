@@ -437,6 +437,10 @@ class MetadataProvider(object):
             Flow id, that the run belongs to.
         run_id: str
             Run id, together with flow_id, that identifies the specific Run whose tags to mutate
+        tags_to_remove: iterable over str
+            Iterable over tags to remove
+        tags_to_add: iterable over str
+            Iterable over tags to add
 
         Return
         ------
@@ -450,6 +454,12 @@ class MetadataProvider(object):
         if not tags_to_add and not tags_to_remove:
             raise MetaflowTaggingError("Must add or remove at least one tag")
 
+        if is_stringish(tags_to_add):
+            raise MetaflowTaggingError("tags_to_add may not be a string")
+
+        if is_stringish(tags_to_remove):
+            raise MetaflowTaggingError("tags_to_remove may not be a string")
+
         def _is_iterable(something):
             try:
                 iter(something)
@@ -457,11 +467,10 @@ class MetadataProvider(object):
             except TypeError:
                 return False
 
-        if not _is_iterable(tags_to_add) or is_stringish(tags_to_add):
-            tags_to_add = [tags_to_add]
-        if not _is_iterable(tags_to_remove) or is_stringish(tags_to_remove):
-            tags_to_remove = [tags_to_remove]
-        # everything is iterable now
+        if not _is_iterable(tags_to_add):
+            raise MetaflowTaggingError("tags_to_add must be iterable")
+        if not _is_iterable(tags_to_remove):
+            raise MetaflowTaggingError("tags_to_remove must be iterable")
 
         # check all tags are non-empty strings
         for tag in chain(tags_to_add, tags_to_remove):

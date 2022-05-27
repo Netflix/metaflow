@@ -255,7 +255,7 @@ def add(obj, run_id, user_namespace, tags):
     user_namespace = resolve_identity() if user_namespace is None else user_namespace
     run = _get_client_run_obj(obj, run_id, user_namespace)
 
-    run.add_tag(tags)
+    run.add_tags(tags)
 
     obj.echo("Operation successful. New tags:", err=False)
     _print_tags_for_one_run(obj, run)
@@ -283,7 +283,7 @@ def remove(obj, run_id, user_namespace, tags):
     user_namespace = resolve_identity() if user_namespace is None else user_namespace
     run = _get_client_run_obj(obj, run_id, user_namespace)
 
-    run.remove_tag(tags)
+    run.remove_tags(tags)
 
     obj.echo("Operation successful. New tags:")
     _print_tags_for_one_run(obj, run)
@@ -343,7 +343,7 @@ def replace(obj, run_id, user_namespace, tags_to_add=None, tags_to_remove=None):
     user_namespace = resolve_identity() if user_namespace is None else user_namespace
     run = _get_client_run_obj(obj, run_id, user_namespace)
 
-    run.replace_tag(tags_to_remove, tags_to_add)
+    run.replace_tags(tags_to_remove, tags_to_add)
 
     obj.echo("Operation successful. New tags:")
     _print_tags_for_one_run(obj, run)
