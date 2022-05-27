@@ -154,7 +154,7 @@ class ResourcesFlow(FlowSpec):
         assert os.environ.get("MF_EXPERIMENT") == "metaflow_test"
         assert os.environ.get("MF_TAG_METAFLOW_TEST") == "true"
         assert os.environ.get("MF_TAG_TEST_T1") == "true"
-        assert os.environ.get("MF_SYS_TAG_TEST_T1") == "true"
+        assert os.environ.get("MF_SYS_TAG_TEST_T1") == "sys_tag_value"
 
         assert os.environ.get("KF_POD_DEFAULT") == "true"
 

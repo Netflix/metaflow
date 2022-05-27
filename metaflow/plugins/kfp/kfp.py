@@ -602,13 +602,19 @@ class KubeflowPipelines(object):
         all_tags += self.tags if self.tags else []
         all_tags += self.sys_tags if self.sys_tags else []
         for tag in all_tags:
-            # <key>:<value> is common metaflow tag pattern but ":" is not accepted in pod annotation.
-            tag_name = f"{prefix}/tag_{tag.replace(':', '-')}"
-            if len(tag_name) > 63:
+            if ":" in tag:  # Metaflow commonly uses <name>:<value> as tag format
+                tag_info = tag.split(":", 1)
+                annotation_name = f"{prefix}/tag_{tag_info[0]}"
+                annotation_value = tag_info[1]
+            else:
+                annotation_name = f"{prefix}/tag_{tag}"
+                annotation_value = "true"
+
+            if len(annotation_name) > 63:
                 raise ValueError(
-                    f"Tag name {tag_name} must be no more than 63 characters"
+                    f"Tag name {annotation_name} must be no more than 63 characters"
                 )
-            container_op.add_pod_annotation(f"{prefix}/tag_{tag}", "true")
+            container_op.add_pod_annotation(annotation_name, annotation_value)
 
         # TODO(talebz): A Metaflow plugin framework to customize tags, labels, etc.
         container_op.add_pod_label("aip.zillowgroup.net/kfp-pod-default", "true")

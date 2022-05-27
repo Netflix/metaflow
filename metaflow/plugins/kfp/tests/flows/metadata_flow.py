@@ -34,7 +34,7 @@ class MetadataFlow(FlowSpec):
         start_step_tags: frozenset = start_step.tags
         print("start_step_tags", start_step_tags)
         assert "test_t1" in start_step_tags
-        assert "test_sys_t1" in start_step_tags
+        assert "test_sys_t1:sys_tag_value" in start_step_tags
         assert "metaflow_test" in start_step_tags
         assert f"zodiac_service:{os.environ['ZODIAC_SERVICE']}" in start_step_tags
         assert f"zodiac_team:{os.environ['ZODIAC_TEAM']}" in start_step_tags
