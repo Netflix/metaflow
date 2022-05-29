@@ -18,7 +18,6 @@ class Current(object):
         self._tags = None
         self._runtime_environment = None
         self._runtime_name = None
-        self._sfn_state_machine_name = None
         self._max_workers = None
         self._max_num_splits = None
 
@@ -61,7 +60,6 @@ class Current(object):
             "METAFLOW_RUNTIME_ENVIRONMENT", "local"
         )
         self._runtime_name = os.environ.get("METAFLOW_RUNTIME_NAME", None)
-        self._sfn_state_machine_name = os.environ.get("SFN_STATE_MACHINE", None)
         self._max_workers = os.environ.get("CURRENT_MAX_WORKERS", None)
         self._max_num_splits = os.environ.get("CURRENT_MAX_NUM_SPLITS", None)
 
@@ -134,10 +132,6 @@ class Current(object):
     @property
     def runtime_name(self):
         return self._runtime_name
-
-    @property
-    def sfn_state_machine_name(self):
-        return self._sfn_state_machine_name
 
     @property
     def max_workers(self):

@@ -4,6 +4,7 @@ import time
 
 from metaflow.decorators import StepDecorator
 from metaflow.metadata import MetaDatum
+from metaflow import current
 
 from .dynamo_db_client import DynamoDbClient
 
@@ -36,6 +37,9 @@ class StepFunctionsInternalDecorator(StepDecorator):
         ]
         # Register book-keeping metadata for debugging.
         metadata.register_metadata(run_id, step_name, task_id, entries)
+        current._update_env(
+            dict(sfn_state_machine_name=os.environ["SFN_STATE_MACHINE"])
+        )
 
     def task_finished(
         self, step_name, flow, graph, is_task_ok, retry_count, max_user_code_retries
