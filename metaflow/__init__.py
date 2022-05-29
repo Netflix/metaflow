@@ -93,6 +93,13 @@ for m in _override_modules:
         tl_package = m.split(".")[1]
         lazy_load_aliases(alias_submodules(extension_module, tl_package, None))
 
+# Utilities
+from .multicore_utils import parallel_imap_unordered, parallel_map
+from .metaflow_profile import profile
+
+# current runtime singleton
+from .current import current
+
 from .event_logger import EventLogger
 
 # Flow spec
@@ -101,9 +108,6 @@ from .includefile import IncludeFile
 from .parameters import Parameter, JSONTypeClass
 
 JSONType = JSONTypeClass()
-
-# current runtime singleton
-from .current import current
 
 # data layer
 from .datatools import S3
@@ -133,10 +137,6 @@ from .client import (
     Task,
     DataArtifact,
 )
-
-# Utilities
-from .multicore_utils import parallel_imap_unordered, parallel_map
-from .metaflow_profile import profile
 
 __version_addl__ = []
 _ext_debug("Loading top-level modules")
