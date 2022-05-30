@@ -31,7 +31,6 @@ class CurrentSingletonTest(MetaflowTest):
         self.tags = current.tags
         self.runtime_environment = {current.runtime_environment}
         self.runtime_name = {current.runtime_name}
-        self.sfn_state_machine_name = {current.sfn_state_machine_name}
         self.max_workers = {current.max_workers}
         self.max_num_splits = {current.max_num_splits}
 
@@ -61,9 +60,6 @@ class CurrentSingletonTest(MetaflowTest):
         self.tags = set(chain(*(i.tags for i in inputs)))
         self.runtime_environment = set(chain(*(i.runtime_environment for i in inputs)))
         self.runtime_name = set(chain(*(i.runtime_name for i in inputs)))
-        self.sfn_state_machine_name = set(
-            chain(*(i.sfn_state_machine_name for i in inputs))
-        )
         self.max_workers = set(chain(*(i.max_workers for i in inputs)))
         self.max_num_splits = set(chain(*(i.max_num_splits for i in inputs)))
 
@@ -84,7 +80,6 @@ class CurrentSingletonTest(MetaflowTest):
         self.tags.update(current.tags)
         self.runtime_environment.add(current.runtime_environment)
         self.runtime_name.add(current.runtime_name)
-        self.sfn_state_machine_name.add(current.sfn_state_machine_name)
         self.max_workers.add(current.max_workers)
         self.max_num_splits.add(current.max_num_splits)
 
@@ -109,7 +104,6 @@ class CurrentSingletonTest(MetaflowTest):
         self.tags.update(current.tags)
         self.runtime_environment.add(current.runtime_environment)
         self.runtime_name.add(current.runtime_name)
-        self.sfn_state_machine_name.add(current.sfn_state_machine_name)
         self.max_workers.add(current.max_workers)
         self.max_num_splits.add(current.max_num_splits)
 
@@ -151,6 +145,5 @@ class CurrentSingletonTest(MetaflowTest):
             )
             assert_equals({"local"}, run.data.runtime_environment)
             assert_equals({None}, run.data.runtime_name)
-            assert_equals({None}, run.data.sfn_state_machine_name)
             assert_equals({50}, run.data.max_workers)
             assert_equals({10000}, run.data.max_num_splits)
