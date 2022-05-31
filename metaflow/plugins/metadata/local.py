@@ -184,13 +184,14 @@ class LocalMetadataProvider(MetadataProvider):
 
             return MutationResult(tags=final_tag_set, tags_are_consistent=True)
 
-        mutation_result = _optimistically_mutate()
         tries = 1
         # try up to 5 times, with a gentle exponential backoff (1.1-1.3x)
-        while tries <= 5:
+        while True:
+            mutation_result = _optimistically_mutate()
             if mutation_result.tags_are_consistent:
                 return mutation_result.tags
-            mutation_result = _optimistically_mutate()
+            if tries >= 5:
+                break
             time.sleep(0.3 * random.uniform(1.1, 1.3) ** tries)
             tries += 1
         raise MetaflowTaggingError(
