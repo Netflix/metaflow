@@ -1,8 +1,11 @@
+import collections
 import glob
 import json
 import os
 import time
 
+from metaflow.exception import MetaflowInternalError
+from metaflow.metadata.metadata import ObjectOrder
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.metadata import MetadataProvider
 
@@ -116,14 +119,38 @@ class LocalMetadataProvider(MetadataProvider):
     def _get_object_internal(
         cls, obj_type, obj_order, sub_type, sub_order, filters, attempt, *args
     ):
+        # This is guaranteed by MetaflowProvider.get_object(), sole intended caller
+        if obj_type in ("metadata", "self"):
+            raise MetaflowInternalError(msg="Type %s is not allowed" % obj_type)
+
+        if obj_type not in ("root", "flow", "run", "step", "task", "artifact"):
+            raise MetaflowInternalError(msg="Unexpected object type %s" % obj_type)
+
         from metaflow.datastore.local_storage import LocalStorage
 
         if obj_type == "artifact":
             # Artifacts are actually part of the tasks in the filesystem
+            # E.g. we get here for (obj_type, sub_type) == (artifact, self)
             obj_type = "task"
             sub_type = "artifact"
             sub_order = obj_order
             obj_order = obj_order - 1
+
+        if obj_type != ObjectOrder.order_to_type(obj_order):
+            raise MetaflowInternalError(
+                "Object type order mismatch %s %s"
+                % (obj_type, ObjectOrder.order_to_type(obj_order))
+            )
+        if sub_type != ObjectOrder.order_to_type(sub_order):
+            raise MetaflowInternalError(
+                "Sub type order mismatch %s %s"
+                % (sub_type, ObjectOrder.order_to_type(sub_order))
+            )
+
+        RUN_ORDER = ObjectOrder.type_to_order("run")
+
+        if obj_type not in ("root", "flow", "run", "step", "task"):
+            raise MetaflowInternalError(msg="Unexpected object type %s" % obj_type)
 
         # Special handling of self, artifact, and metadata
         if sub_type == "self":
@@ -132,12 +159,35 @@ class LocalMetadataProvider(MetadataProvider):
                 return None
             self_file = os.path.join(meta_path, "_self.json")
             if os.path.isfile(self_file):
-                return MetadataProvider._apply_filter(
+                obj = MetadataProvider._apply_filter(
                     [LocalMetadataProvider._read_json_file(self_file)], filters
                 )[0]
+                # For non-descendants of a run, we are done
+
+                if obj_order <= RUN_ORDER:
+                    return obj
+
+                if obj_type not in ("step", "task"):
+                    raise MetaflowInternalError(
+                        msg="Unexpected object type %s" % obj_type
+                    )
+                run = LocalMetadataProvider.get_object(
+                    "run", "self", {}, None, *args[:RUN_ORDER]  # *[flow_id, run_id]
+                )
+                if not run:
+                    raise MetaflowInternalError(
+                        msg="Could not find run %s" % str(args[:RUN_ORDER])
+                    )
+
+                obj["tags"] = run.get("tags", [])
+                obj["system_tags"] = run.get("system_tags", [])
+                return obj
             return None
 
         if sub_type == "artifact":
+            if obj_type not in ("root", "flow", "run", "step", "task"):
+                raise MetaflowInternalError(msg="Unexpected object type %s" % obj_type)
+
             meta_path = LocalMetadataProvider._get_metadir(*args[:obj_order])
             result = []
             if meta_path is None:
@@ -163,11 +213,27 @@ class LocalMetadataProvider(MetadataProvider):
                 )
                 for obj in glob.iglob(artifact_files):
                     result.append(LocalMetadataProvider._read_json_file(obj))
+
+            # We are getting artifacts. We should overlay with ancestral run's tags
+            run = LocalMetadataProvider.get_object(
+                "run", "self", {}, None, *args[:RUN_ORDER]  # *[flow_id, run_id]
+            )
+            if not run:
+                raise MetaflowInternalError(
+                    msg="Could not find run %s" % str(args[:RUN_ORDER])
+                )
+            for obj in result:
+                obj["tags"] = run.get("tags", [])
+                obj["system_tags"] = run.get("system_tags", [])
+
             if len(result) == 1:
                 return result[0]
             return result
 
         if sub_type == "metadata":
+            # artifact is not expected because if obj_type=artifact on function entry, we transform to =task
+            if obj_type not in ("root", "flow", "run", "step", "task"):
+                raise MetaflowInternalError(msg="Unexpected object type %s" % obj_type)
             result = []
             meta_path = LocalMetadataProvider._get_metadir(*args[:obj_order])
             if meta_path is None:
@@ -178,6 +244,10 @@ class LocalMetadataProvider(MetadataProvider):
             return result
 
         # For the other types, we locate all the objects we need to find and return them
+        if obj_type not in ("root", "flow", "run", "step", "task"):
+            raise MetaflowInternalError(msg="Unexpected object type %s" % obj_type)
+        if sub_type not in ("flow", "run", "step", "task"):
+            raise MetaflowInternalError(msg="unexpected sub type %s" % sub_type)
         obj_path = LocalMetadataProvider._make_path(
             *args[:obj_order], create_on_absent=False
         )
@@ -186,11 +256,64 @@ class LocalMetadataProvider(MetadataProvider):
             return result
         skip_dirs = "*/" * (sub_order - obj_order)
         all_meta = os.path.join(obj_path, skip_dirs, LocalStorage.METADATA_DIR)
+        SelfInfo = collections.namedtuple("SelfInfo", ["filepath", "run_id"])
+        self_infos = []
         for meta_path in glob.iglob(all_meta):
             self_file = os.path.join(meta_path, "_self.json")
-            if os.path.isfile(self_file):
-                result.append(LocalMetadataProvider._read_json_file(self_file))
+            if not os.path.isfile(self_file):
+                continue
+            run_id = None
+            # flow and run do not need info from ancestral run
+            if sub_type in ("step", "task"):
+                run_id = LocalMetadataProvider._deduce_run_id_from_meta_dir(
+                    meta_path, sub_type
+                )
+                # obj_type IS run, or more granular than run, let's do sanity check vs args
+                if obj_order >= RUN_ORDER:
+                    if run_id != args[RUN_ORDER - 1]:
+                        raise MetaflowInternalError(
+                            msg="Unexpected run id %s deduced from meta path" % run_id
+                        )
+            self_infos.append(SelfInfo(filepath=self_file, run_id=run_id))
+
+        for self_info in self_infos:
+            obj = LocalMetadataProvider._read_json_file(self_info.filepath)
+            if self_info.run_id:
+                flow_id_from_args = args[0]
+                run = LocalMetadataProvider.get_object(
+                    "run",
+                    "self",
+                    {},
+                    None,
+                    flow_id_from_args,
+                    self_info.run_id,
+                )
+                if not run:
+                    raise MetaflowInternalError(
+                        msg="Could not find run %s, %s"
+                        % (flow_id_from_args, self_info.run_id)
+                    )
+                obj["tags"] = run.get("tags", [])
+                obj["system_tags"] = run.get("system_tags", [])
+            result.append(obj)
+
         return MetadataProvider._apply_filter(result, filters)
+
+    @staticmethod
+    def _deduce_run_id_from_meta_dir(meta_dir_path, sub_type):
+        curr_order = ObjectOrder.type_to_order(sub_type)
+        levels_to_ascend = curr_order - ObjectOrder.type_to_order("run")
+        if levels_to_ascend < 0:
+            return None
+        curr_path = meta_dir_path
+        for _ in range(levels_to_ascend + 1):  # +1 to account for ../_meta
+            curr_path, _ = os.path.split(curr_path)
+        _, run_id = os.path.split(curr_path)
+        if not run_id:
+            raise MetaflowInternalError(
+                "Failed to deduce run_id from meta dir %s" % meta_dir_path
+            )
+        return run_id
 
     @staticmethod
     def _makedirs(path):

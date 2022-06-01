@@ -1488,10 +1488,7 @@ class Step(MetaflowObject):
         Task
             A control task in the step
         """
-        children = super(Step, self).__iter__()
-        for t in children:
-            if CONTROL_TASK_TAG in t.tags:
-                return t
+        return next(self.control_tasks(), None)
 
     def control_tasks(self, *tags):
         """
@@ -1509,11 +1506,23 @@ class Step(MetaflowObject):
             Iterator over Control Task objects in this step
         """
         children = super(Step, self).__iter__()
-        filter_tags = [CONTROL_TASK_TAG]
-        filter_tags.extend(tags)
         for child in children:
-            if all(tag in child.tags for tag in filter_tags):
+            # first filter by standard tag filters
+            if not all(tag in child.tags for tag in tags):
+                continue
+            # Then look for control task indicator in one of two ways
+            # Look in tags - this path will activate for metadata service
+            # backends that pre-date tag mutation release
+            if CONTROL_TASK_TAG in child.tags:
                 yield child
+            else:
+                # Look in task metadata
+                for task_metadata in child.metadata:
+                    if (
+                        task_metadata.name == "internal_task_type"
+                        and task_metadata.value == CONTROL_TASK_TAG
+                    ):
+                        yield child
 
     def __iter__(self):
         children = super(Step, self).__iter__()
