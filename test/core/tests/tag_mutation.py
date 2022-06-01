@@ -21,7 +21,6 @@ class TagMutationTest(MetaflowTest):
             assert tag in run.user_tags
             run.remove_tag(tag)
             assert tag not in run.user_tags
-        # TODO let's verify Task tags match up with run tags here
 
     def check_results(self, flow, checker):
         from metaflow import Run
@@ -58,6 +57,9 @@ class TagMutationTest(MetaflowTest):
         assert "AAA" not in run.user_tags
         assert "BBB" in run.user_tags
         assert "CCC" in run.user_tags
+
+        # Verify task tags do not diverge
+        assert run.end_task.tags == run.tags
 
         # try empty str as tag - should fail
         assert_exception(lambda: run.add_tag(""), MetaflowTaggingError)
