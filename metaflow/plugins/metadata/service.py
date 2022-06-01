@@ -185,7 +185,7 @@ class ServiceMetadataProvider(MetadataProvider):
     def _mutate_user_tags_for_run(
         cls, flow_id, run_id, tags_to_add=None, tags_to_remove=None
     ):
-        min_service_version_with_tag_mutation = "2.2.5"
+        min_service_version_with_tag_mutation = "2.3.0"
         if cls._supports_tag_mutation is None:
             version = cls._version(None)
             cls._supports_tag_mutation = version is not None and LooseVersion(
