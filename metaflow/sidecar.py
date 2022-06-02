@@ -48,18 +48,19 @@ class NullPoller(object):
 
 
 class SidecarSubProcess(object):
-    def __init__(self, worker_type):
-        # type: (str) -> None
-        self.__worker_type = worker_type
-        self.__process = None
-        self.__poller = None
+    def __init__(self, worker_type, context=None):
+        # type: (str, dict) -> None
+        self._worker_type = worker_type
+        self._process = None
+        self._poller = None
+        self._context = context
         self.start()
 
     def start(self):
 
         if (
-            self.__worker_type is not None
-            and self.__worker_type.startswith(NULL_SIDECAR_PREFIX)
+            self._worker_type is not None
+            and self._worker_type.startswith(NULL_SIDECAR_PREFIX)
         ) or (platform.system() == "Darwin" and sys.version_info < (3, 0)):
             # if on darwin and running python 2 disable sidecars
             # there is a bug with importing poll from select in some cases
@@ -67,7 +68,7 @@ class SidecarSubProcess(object):
             # TODO: Python 2 shipped by Anaconda allows for
             # `from select import poll`. We can consider enabling sidecars
             # for that distribution if needed at a later date.
-            self.__poller = NullPoller()
+            self._poller = NullPoller()
 
         else:
             from select import poll
@@ -77,80 +78,85 @@ class SidecarSubProcess(object):
                 python_version,
                 "-u",
                 os.path.dirname(__file__) + "/sidecar_worker.py",
-                self.__worker_type,
+                self._worker_type,
             ]
             debug.sidecar_exec(cmdline)
 
-            self.__process = self.__start_subprocess(cmdline)
+            self._process = self._start_subprocess(cmdline)
 
-            if self.__process is not None:
-                fcntl.fcntl(self.__process.stdin, F_SETFL, O_NONBLOCK)
-                self.__poller = poll()
-                self.__poller.register(self.__process.stdin.fileno(), select.POLLOUT)
+            if self._process is not None:
+                fcntl.fcntl(self._process.stdin, F_SETFL, O_NONBLOCK)
+                self._poller = poll()
+                self._poller.register(self._process.stdin.fileno(), select.POLLOUT)
+
+                if self._context is not None:
+                    self._emit_msg(Message(MessageTypes.START, self._context))
             else:
                 # unable to start subprocess, fallback to Null sidecar
                 self.logger(
-                    "unable to start subprocess for sidecar %s" % self.__worker_type
+                    "Unable to start subprocess for sidecar %s" % self._worker_type
                 )
-                self.__poller = NullPoller()
+                self._poller = NullPoller()
 
-    def __start_subprocess(self, cmdline):
-        for i in range(3):
+    def kill(self):
+        try:
+            msg = Message(MessageTypes.SHUTDOWN, None)
+            self._emit_msg(msg)
+        except:
+            pass
+
+    def send(self, msg, retries=3):
+        try:
+            self._emit_msg(msg)
+        except MsgTimeoutError:
+            # drop message, do not retry on timeout
+            self.logger("Unable to send message due to timeout")
+        except Exception as ex:
+            if isinstance(ex, PipeUnavailableError):
+                self.logger("Restarting sidecar %s" % self._worker_type)
+                self.start()
+            if retries > 0:
+                self.logger("Retrying msg send to sidecar")
+                return self.send(msg, retries - 1)
+            else:
+                self.logger("Error sending log message")
+                self.logger(repr(ex))
+
+    def _start_subprocess(self, cmdline):
+        for _ in range(3):
             try:
                 # Set stdout=sys.stdout & stderr=sys.stderr
                 # to print to console the output of sidecars.
                 return subprocess.Popen(
                     cmdline,
                     stdin=subprocess.PIPE,
-                    stdout=open(os.devnull, "w"),
+                    stdout=sys.stdout if debug.sidecar else subprocess.DEVNULL,
+                    stderr=sys.stderr if debug.sidecar else subprocess.DEVNULL,
                     bufsize=0,
                 )
             except blockingError as be:
-                self.logger("warning: sidecar popen failed: %s" % repr(be))
+                self.logger("Warning: sidecar popen failed: %s" % repr(be))
             except Exception as e:
                 self.logger(repr(e))
                 break
 
-    def kill(self):
-        try:
-            msg = Message(MessageTypes.SHUTDOWN, None)
-            self.emit_msg(msg)
-        except:
-            pass
-
-    def emit_msg(self, msg):
+    def _emit_msg(self, msg):
         msg_ser = msg.serialize().encode("utf-8")
         written_bytes = 0
         while written_bytes < len(msg_ser):
             try:
-                fds = self.__poller.poll(MESSAGE_WRITE_TIMEOUT_IN_MS)
+                fds = self._poller.poll(MESSAGE_WRITE_TIMEOUT_IN_MS)
                 if fds is None or len(fds) == 0:
-                    raise MsgTimeoutError("poller timed out")
+                    raise MsgTimeoutError("Poller timed out")
                 for fd, event in fds:
                     if event & select.POLLERR:
-                        raise PipeUnavailableError("pipe unavailable")
+                        raise PipeUnavailableError("Pipe unavailable")
                     f = os.write(fd, msg_ser[written_bytes:])
                     written_bytes += f
             except NullSidecarError:
                 # sidecar is disabled, ignore all messages
                 break
 
-    def msg_handler(self, msg, retries=3):
-        try:
-            self.emit_msg(msg)
-        except MsgTimeoutError:
-            # drop message, do not retry on timeout
-            self.logger("unable to send message due to timeout")
-        except Exception as ex:
-            if isinstance(ex, PipeUnavailableError):
-                self.logger("restarting sidecar %s" % self.__worker_type)
-                self.start()
-            if retries > 0:
-                self.logger("retrying msg send to sidecar")
-                self.msg_handler(msg, retries - 1)
-            else:
-                self.logger("error sending log message")
-                self.logger(repr(ex))
-
     def logger(self, msg):
-        print("metaflow sidecar logger: " + msg, file=sys.stderr)
+        if debug.sidecar:
+            print(msg, file=sys.stderr)

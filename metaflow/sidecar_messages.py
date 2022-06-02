@@ -4,7 +4,7 @@ import json
 # Unfortunately we can't use enums because they are not supported
 # officially in Python2
 class MessageTypes(object):
-    SHUTDOWN, LOG_EVENT = range(1, 3)
+    INVALID, START, SHUTDOWN, LOG_EVENT = range(1, 5)
 
 
 class Message(object):
@@ -19,6 +19,9 @@ class Message(object):
         }
         return json.dumps(msg) + "\n"
 
-
-def deserialize(json_msg):
-    return Message(**json.loads(json_msg))
+    @staticmethod
+    def deserialize(json_msg):
+        try:
+            return Message(**json.loads(json_msg))
+        except json.decoder.JSONDecodeError:
+            return Message(MessageTypes.INVALID, None)

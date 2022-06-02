@@ -1,17 +1,19 @@
 import sys
 
-from metaflow.sidecar_messages import Message
+from metaflow.sidecar_messages import Message, MessageTypes
 
 
-class DebugEventLogger(object):
-    TYPE = "debugLogger"
-
-    def log(self, msg):
-        sys.stderr.write("event_logger: " + str(msg) + "\n")
+class DebugEventLoggerSidecar(object):
+    def __init__(self):
+        pass
 
     def process_message(self, msg):
         # type: (Message) -> None
-        self.log(msg.payload)
+        if msg.msg_type == MessageTypes.SHUTDOWN:
+            print("Debug event: got shutdown!")
+            self._shutdown()
+        elif msg.msg_type == MessageTypes.LOG_EVENT:
+            print("Debug event logging %s" % str(msg.payload), file=sys.stderr)
 
-    def shutdown(self):
-        pass
+    def _shutdown(self):
+        sys.stderr.flush()

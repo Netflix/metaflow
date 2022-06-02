@@ -937,12 +937,15 @@ def start(
     ctx.obj.package_suffixes = package_suffixes.split(",")
     ctx.obj.reconstruct_cli = _reconstruct_cli
 
-    ctx.obj.event_logger = EventLogger(event_logger)
-
     ctx.obj.environment = [
         e for e in ENVIRONMENTS + [MetaflowEnvironment] if e.TYPE == environment
     ][0](ctx.obj.flow)
     ctx.obj.environment.validate_environment(echo)
+
+    ctx.obj.event_logger = EventLogger(
+        event_logger, ctx.obj.environment, ctx.obj.flow.name
+    )
+    ctx.obj.event_logger.start()
 
     ctx.obj.monitor = Monitor(monitor, ctx.obj.environment, ctx.obj.flow.name)
     ctx.obj.monitor.start()
@@ -1116,3 +1119,8 @@ def main(flow, args=None, handle_exceptions=True, entrypoint=None):
             sys.exit(1)
         else:
             raise
+    finally:
+        if hasattr(state, "monitor") and state.monitor is not None:
+            state.monitor.terminate()
+        if hasattr(state, "event_logger") and state.event_logger is not None:
+            state.event_logger.terminate()

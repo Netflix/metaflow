@@ -17,17 +17,24 @@ class NullEventLogger(object):
 
 
 class EventLogger(NullEventLogger):
-    def __init__(self, logger_type):
-        # type: (str) -> None
+    def __init__(self, logger_type, env, flow_name):
+        # type: (str, str, str) -> None
         self.sidecar_process = None
         self.logger_type = logger_type
+        self.env_info = env.get_environment_info()
+        self.env_info["flow_name"] = flow_name
 
     def start(self):
-        self.sidecar_process = SidecarSubProcess(self.logger_type)
+        if self.sidecar_process is None:
+            self.sidecar_process = SidecarSubProcess(
+                self.logger_type, {"env": self.env_info}
+            )
 
     def log(self, payload):
-        msg = Message(MessageTypes.LOG_EVENT, payload)
-        self.sidecar_process.msg_handler(msg)
+        if self.sidecar_process is not None:
+            msg = Message(MessageTypes.LOG_EVENT, payload)
+            self.sidecar_process.send(msg)
 
     def terminate(self):
-        self.sidecar_process.kill()
+        if self.sidecar_process is not None:
+            self.sidecar_process.kill()

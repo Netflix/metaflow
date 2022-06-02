@@ -11,15 +11,9 @@ myDir = os.path.dirname(os.path.abspath(__file__))
 parentDir = os.path.split(myDir)[0]
 sys.path.insert(0, parentDir)
 
-from metaflow.sidecar_messages import MessageTypes, deserialize
+from metaflow.sidecar_messages import Message, MessageTypes
 from metaflow.plugins import SIDECARS
 from metaflow._vendor import click
-
-
-class WorkershutdownError(Exception):
-    """raised when terminating sidecar"""
-
-    pass
 
 
 def process_messages(worker):
@@ -27,17 +21,19 @@ def process_messages(worker):
         try:
             msg = sys.stdin.readline().strip()
             if msg:
-                parsed_msg = deserialize(msg)
-                if parsed_msg.msg_type == MessageTypes.SHUTDOWN:
-                    raise WorkershutdownError()
+                parsed_msg = Message.deserialize(msg)
+                if parsed_msg.msg_type == MessageTypes.INVALID:
+                    print("Invalid message -- skipping")
+                    continue
                 else:
                     worker.process_message(parsed_msg)
+                    if parsed_msg.msg_type == MessageTypes.SHUTDOWN:
+                        break
             else:
-                raise WorkershutdownError()
-        except WorkershutdownError:
-            break
-        except Exception as e:  # todo handle other possible exceptions gracefully
-            print(traceback.format_exc())
+                break
+
+        except:  # todo handle other possible exceptions gracefully
+            print(traceback.format_exc(), file=sys.stderr)
             break
     try:
         worker.shutdown()
@@ -48,13 +44,12 @@ def process_messages(worker):
 @click.command(help="Initialize workers")
 @click.argument("worker-type")
 def main(worker_type):
-
     worker_process = SIDECARS.get(worker_type)
 
     if worker_process is not None:
         process_messages(worker_process())
     else:
-        print("UNRECOGNIZED WORKER: %s" % worker_type, file=sys.stderr)
+        print("Unrecognized worker: %s" % worker_type, file=sys.stderr)
 
 
 if __name__ == "__main__":
