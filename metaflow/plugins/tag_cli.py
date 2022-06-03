@@ -228,7 +228,7 @@ def cli():
     pass
 
 
-@cli.group(help="Commands related to Metaflow tagging.")
+@cli.group(help="Commands related to tagging.")
 def tag():
     pass
 
@@ -292,7 +292,7 @@ def remove(obj, run_id, user_namespace, tags):
 @tag.command(
     "replace",
     help="Replace one or more tags of a run atomically. "
-    "Removals are applied after additions.",
+    "Removals are applied first, then additions.",
 )
 @click.option(
     "--run-id",
@@ -321,7 +321,7 @@ def remove(obj, run_id, user_namespace, tags):
     "tags_to_remove",
     multiple=True,
     default=None,
-    help="Remove this tag to a run. Must specify one or more tags to remove.",
+    help="Remove this tag from a run. Must specify one or more tags to remove.",
 )
 @click.pass_obj
 def replace(obj, run_id, user_namespace, tags_to_add=None, tags_to_remove=None):
@@ -462,7 +462,14 @@ def tag_list(
     if list_all or my_runs:
         user_namespace = resolve_identity() if my_runs else None
         namespace(user_namespace)
-        for run in Flow(pathspec=obj.flow.name).runs():
+        try:
+            flow = Flow(pathspec=obj.flow.name)
+        except MetaflowNotFound:
+            raise CommandException(
+                "Cannot list tags because the flow %s has never been run."
+                % (obj.flow.name,)
+            )
+        for run in flow.runs():
             _populate_tag_groups_from_run(run)
             pathspecs.append(run.pathspec)
     else:
