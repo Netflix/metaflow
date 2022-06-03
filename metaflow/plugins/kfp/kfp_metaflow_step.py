@@ -61,6 +61,7 @@ def _step_cli(
 
     if tags:
         tags_extended.extend("--tag %s" % tag for tag in tags)
+    if sys_tags:
         tags_extended.extend("--sys-tag %s" % tag for tag in sys_tags)
 
     if step_name == "start":
