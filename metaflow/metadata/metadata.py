@@ -6,6 +6,7 @@ from collections import namedtuple
 from itertools import chain
 
 from metaflow.exception import MetaflowInternalError, MetaflowTaggingError
+from metaflow.tagging_util import validate_tag
 from metaflow.util import get_username, resolve_identity_as_tuple, is_stringish
 
 DataArtifact = namedtuple("DataArtifact", "name ds_type ds_root url type sha")
@@ -472,12 +473,9 @@ class MetadataProvider(object):
         if not _is_iterable(tags_to_remove):
             raise MetaflowTaggingError("tags_to_remove must be iterable")
 
-        # check all tags are non-empty strings
+        # check each tag is valid
         for tag in chain(tags_to_add, tags_to_remove):
-            if not is_stringish(tag):
-                raise MetaflowTaggingError("Tags must be strings: got %s" % (tag,))
-            if tag == "":
-                raise MetaflowTaggingError("Tags must not be empty string")
+            validate_tag(tag)
 
         # onto subclass implementation
         final_user_tags = cls._mutate_user_tags_for_run(

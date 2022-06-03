@@ -59,6 +59,17 @@ class TagMutationTest(MetaflowTest):
         assert_exception(lambda: checker.add_tag(""), Exception)
         assert "" not in checker.get_user_tags()
 
+        # try adding a tag that is too long - should fail
+        assert_exception(lambda: checker.add_tag("a" * 600), Exception)
+        assert ("a" * 600) not in checker.get_user_tags()
+
+        # try adding a tag made up of random bytes
+        random_bytes = bytes(random.getrandbits(8) for _ in range(64))
+        assert_exception(lambda: checker.add_tag(random_bytes), Exception)
+        assert random_bytes not in checker.get_user_tags()
+
+        # TODO add test for "too many tags", pending metadata service support (it depends on existing tags as well)
+
         # try int as tag - should fail
         assert_exception(lambda: checker.remove_tag(4), Exception)
         assert 4 not in checker.get_user_tags()

@@ -11,6 +11,7 @@ from metaflow.exception import MetaflowInternalError, MetaflowTaggingError
 from metaflow.metadata.metadata import ObjectOrder
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.metadata import MetadataProvider
+from metaflow.tagging_util import MAX_USER_TAG_SET_SIZE, validate_tags
 
 
 class LocalMetadataProvider(MetadataProvider):
@@ -159,6 +160,8 @@ class LocalMetadataProvider(MetadataProvider):
                     tags=next_user_tags_set,
                     tags_are_consistent=True,
                 )
+
+            validate_tags(next_user_tags_set, existing_tags=existing_user_tag_set)
 
             # write new tag set to file system
             LocalMetadataProvider._persist_tags_for_run(

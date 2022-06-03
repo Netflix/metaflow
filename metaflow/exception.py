@@ -96,7 +96,7 @@ class MetaflowInternalError(MetaflowException):
 
 
 class MetaflowTaggingError(MetaflowException):
-    headline = "Tagging error (no changes were made)"
+    headline = "Tagging error"
 
 
 class MetaflowUnknownUser(MetaflowException):

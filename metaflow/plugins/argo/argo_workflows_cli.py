@@ -19,6 +19,7 @@ from metaflow.plugins.aws.step_functions.production_token import (
     store_token,
 )
 from metaflow.util import get_username, to_bytes, to_unicode
+from metaflow.tagging_util import validate_tags
 
 from .argo_workflows import ArgoWorkflows
 
@@ -325,6 +326,8 @@ def make_flow(
     #       support for more cloud object stores.
     if obj.flow_datastore.TYPE != "s3":
         raise MetaflowException("Argo Workflows requires --datastore=s3.")
+
+    validate_tags(tags)
 
     # Attach @kubernetes and @environment decorator to the flow to
     # ensure that the related decorator hooks are invoked.

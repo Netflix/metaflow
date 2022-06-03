@@ -10,6 +10,7 @@ from metaflow.metaflow_config import SFN_STATE_MACHINE_PREFIX
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.package import MetaflowPackage
 from metaflow.plugins import BatchDecorator
+from metaflow.tagging_util import validate_tags
 from metaflow.util import get_username, to_bytes, to_unicode
 
 from .step_functions import StepFunctions
@@ -266,6 +267,8 @@ def make_flow(
 ):
     if obj.flow_datastore.TYPE != "s3":
         raise MetaflowException("AWS Step Functions requires --datastore=s3.")
+
+    validate_tags(tags)
 
     # Attach AWS Batch decorator to the flow
     decorators._attach_decorators(obj.flow, [BatchDecorator.name])
