@@ -23,67 +23,69 @@ class TagMutationTest(MetaflowTest):
             assert tag not in run.user_tags
 
     def check_results(self, flow, checker):
-        from metaflow import Run
-        from metaflow.exception import MetaflowTaggingError
         import random
 
-        run_id = checker.run_id
-        flow_name = flow.name
-
-        run = Run("%s/%s" % (flow_name, run_id))
-
+        system_tags = checker.get_system_tags()
+        assert (
+            system_tags
+        ), "Expect at least one system tag for an effective set of checks"
         some_existing_system_tags = random.sample(
-            list(run.system_tags), min(len(run.system_tags) // 2, 1)
+            list(system_tags), min(len(system_tags) // 2, 1)
         )
 
         # Verify that trying to add a tag that already exists as a system tag is OK (only non system tags get added)
-        run.add_tag(["tag_along", *some_existing_system_tags])
-        assert "tag_along" in run.tags
-        assert len(set(some_existing_system_tags) & run.user_tags) == 0
+        checker.add_tags(["tag_along", *some_existing_system_tags])
+        assert "tag_along" in checker.get_user_tags()
+        assert len(set(some_existing_system_tags) & checker.get_user_tags()) == 0
 
         # Verify that trying to remove a tag that already exists as a system tag fails (all or nothing)
         assert_exception(
-            lambda: run.remove_tags(["tag_along", *some_existing_system_tags]),
-            MetaflowTaggingError,
+            lambda: checker.remove_tags(["tag_along", *some_existing_system_tags]),
+            Exception,
         )
-        assert "tag_along" in run.tags
-        run.remove_tag("tag_along")
-        assert "tag_along" not in run.tags
+        assert "tag_along" in checker.get_user_tags()
+        checker.remove_tag("tag_along")
+        assert "tag_along" not in checker.get_user_tags()
 
         # Verify "remove, then add" behavior of replace_tags
-        run.add_tags(["AAA", "BBB"])
-        assert "AAA" in run.user_tags and "BBB" in run.user_tags
-        run.replace_tags(["AAA", "BBB"], ["BBB", "CCC"])
-        assert "AAA" not in run.user_tags
-        assert "BBB" in run.user_tags
-        assert "CCC" in run.user_tags
-
-        # Verify task tags do not diverge
-        assert run.end_task.tags == run.tags
+        checker.add_tags(["AAA", "BBB"])
+        assert "AAA" in checker.get_user_tags() and "BBB" in checker.get_user_tags()
+        checker.replace_tags(["AAA", "BBB"], ["BBB", "CCC"])
+        assert "AAA" not in checker.get_user_tags()
+        assert "BBB" in checker.get_user_tags()
+        assert "CCC" in checker.get_user_tags()
 
         # try empty str as tag - should fail
-        assert_exception(lambda: run.add_tag(""), MetaflowTaggingError)
-        assert "" not in run.tags
+        assert_exception(lambda: checker.add_tag(""), Exception)
+        assert "" not in checker.get_user_tags()
 
         # try int as tag - should fail
-        assert_exception(lambda: run.remove_tag(4), MetaflowTaggingError)
-        assert 4 not in run.tags
+        assert_exception(lambda: checker.remove_tag(4), Exception)
+        assert 4 not in checker.get_user_tags()
 
         # try to replace nothing with nothing - should fail
-        assert_exception(lambda: run.replace_tags([], []), MetaflowTaggingError)
+        assert_exception(lambda: checker.replace_tags([], []), Exception)
 
-        # Validate deprecated functionality (maintained for backwards compatibility until usage migrated off
-        # When that happens, these test cases may be removed.
-        run.add_tag(["whoop", "eee"])
-        assert "whoop" in run.tags
-        assert "eee" in run.tags
+        # these check actions do not work for CliCheck. As of 6/3/2022, the only other
+        # checker is MetadataCheck. But we write the code like this to force consideration
+        # if/when we add the third checker.
+        if checker.__class__.__name__ != "CliCheck":
+            # Verify task tags do not diverge
+            run = checker.get_run()
+            assert run.end_task.tags == run.tags
 
-        run.replace_tag(["whoop", "eee"], ["woo", "hoo"])
-        assert "whoop" not in run.tags
-        assert "eee" not in run.tags
-        assert "woo" in run.tags
-        assert "hoo" in run.tags
+            # Validate deprecated functionality (maintained for backwards compatibility until usage migrated off
+            # When that happens, these test cases may be removed.
+            checker.add_tag(["whoop", "eee"])
+            assert "whoop" in checker.get_user_tags()
+            assert "eee" in checker.get_user_tags()
 
-        run.remove_tag(["woo", "hoo"])
-        assert "woo" not in run.tags
-        assert "hoo" not in run.tags
+            checker.replace_tag(["whoop", "eee"], ["woo", "hoo"])
+            assert "whoop" not in checker.get_user_tags()
+            assert "eee" not in checker.get_user_tags()
+            assert "woo" in checker.get_user_tags()
+            assert "hoo" in checker.get_user_tags()
+
+            checker.remove_tag(["woo", "hoo"])
+            assert "woo" not in checker.get_user_tags()
+            assert "hoo" not in checker.get_user_tags()

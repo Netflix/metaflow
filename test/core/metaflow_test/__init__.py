@@ -147,6 +147,30 @@ class MetaflowCheck(object):
     def list_cards(self, step, task, card_type=None):
         raise NotImplementedError()
 
+    def get_user_tags(self):
+        raise NotImplementedError()
+
+    def get_system_tags(self):
+        raise NotImplementedError()
+
+    def add_tag(self, tag):
+        raise NotImplementedError()
+
+    def add_tags(self, tags):
+        raise NotImplementedError()
+
+    def remove_tag(self, tag):
+        raise NotImplementedError()
+
+    def remove_tags(self, tags):
+        raise NotImplementedError()
+
+    def replace_tag(self, tag_to_remove, tag_to_add):
+        raise NotImplementedError()
+
+    def replace_tags(self, tags_to_remove, tags_to_add):
+        raise NotImplementedError()
+
 
 def new_checker(flow):
     from . import cli_check, metadata_check

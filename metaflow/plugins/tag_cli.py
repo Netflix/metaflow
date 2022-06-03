@@ -5,7 +5,7 @@ from itertools import chain
 from metaflow import namespace
 from metaflow.client import Flow, Run
 from metaflow.util import resolve_identity
-from metaflow.exception import CommandException, MetaflowNotFound
+from metaflow.exception import CommandException, MetaflowNotFound, MetaflowInternalError
 from metaflow.exception import MetaflowNamespaceMismatch
 
 from metaflow._vendor import click
@@ -394,6 +394,16 @@ def replace(obj, run_id, user_namespace, tags_to_add=None, tags_to_remove=None):
     default=False,
     help="Display tags grouped by run",
 )
+@click.option(
+    "--flatten",
+    required=False,
+    is_flag=True,
+    default=False,
+    help="List tags, one line per tag, no groupings",
+    # As of 6/3/2022, a hidden option helps automate CLI testing.
+    # We may consider public supporting --flatten and/or --json in future
+    hidden=True,
+)
 @click.argument(
     "arg_run_id",  # For backwards compatibility with Netflix internal usage of an early version of this CLI
     required=False,
@@ -409,6 +419,7 @@ def tag_list(
     my_runs,
     group_by_tag,
     group_by_run,
+    flatten,
     arg_run_id,
 ):
     if run_id is None and arg_run_id is None and not list_all and not my_runs:
@@ -429,6 +440,11 @@ def tag_list(
     if group_by_run and group_by_tag:
         raise CommandException(
             "Option --group-by-tag cannot be used with --group-by-run"
+        )
+
+    if flatten and (group_by_run or group_by_tag):
+        raise CommandException(
+            "Option --flatten cannot be used with any --group-by-* option"
         )
 
     system_tags_by_some_grouping = dict()
@@ -481,10 +497,22 @@ def tag_list(
         # We list all the runs that match to print them out if needed.
         system_tags_by_some_grouping[
             ",".join(pathspecs)
-        ] = system_tags_by_some_grouping["_"]
-        all_tags_by_some_grouping[",".join(pathspecs)] = all_tags_by_some_grouping["_"]
-        del system_tags_by_some_grouping["_"]
-        del all_tags_by_some_grouping["_"]
+        ] = system_tags_by_some_grouping.get("_", set())
+        all_tags_by_some_grouping[",".join(pathspecs)] = all_tags_by_some_grouping.get(
+            "_", set()
+        )
+        if "_" in system_tags_by_some_grouping:
+            del system_tags_by_some_grouping["_"]
+        if "_" in all_tags_by_some_grouping:
+            del all_tags_by_some_grouping["_"]
+
+    if flatten:
+        if len(all_tags_by_some_grouping) != 1:
+            raise MetaflowInternalError("Failed to flatten tag set")
+        for v in all_tags_by_some_grouping.values():
+            for tag in v:
+                obj.echo(tag)
+            return
 
     _print_tags_for_runs_by_groups(
         obj, system_tags_by_some_grouping, all_tags_by_some_grouping, group_by_tag
