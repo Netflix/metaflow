@@ -185,7 +185,7 @@ class CliCheck(MetaflowCheck):
     def get_log(self, step, logtype):
         cmd = ["--quiet", "logs", "--%s" % logtype, "%s/%s" % (self.run_id, step)]
         completed_process = self.run_cli(cmd)
-        return completed_process.stderr.decode("utf-8")
+        return completed_process.stdout.decode("utf-8")
 
     def get_user_tags(self):
         completed_process = self.run_cli(
