@@ -189,14 +189,14 @@ class CliCheck(MetaflowCheck):
 
     def get_user_tags(self):
         completed_process = self.run_cli(
-            ["tag", "list", "--flatten", "--hide-system-tags", "--run-id", self.run_id]
+            ["tag", "list", "--flat", "--hide-system-tags", "--run-id", self.run_id]
         )
         lines = completed_process.stderr.decode("utf-8").splitlines()[1:]
         return frozenset(lines)
 
     def get_system_tags(self):
         completed_process = self.run_cli(
-            ["tag", "list", "--flatten", "--run-id", self.run_id]
+            ["tag", "list", "--flat", "--run-id", self.run_id]
         )
         lines = completed_process.stderr.decode("utf-8").splitlines()[1:]
         return frozenset(lines) - self.get_user_tags()

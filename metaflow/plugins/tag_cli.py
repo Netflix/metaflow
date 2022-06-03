@@ -395,7 +395,7 @@ def replace(obj, run_id, user_namespace, tags_to_add=None, tags_to_remove=None):
     help="Display tags grouped by run",
 )
 @click.option(
-    "--flatten",
+    "--flat",
     required=False,
     is_flag=True,
     default=False,
@@ -419,7 +419,7 @@ def tag_list(
     my_runs,
     group_by_tag,
     group_by_run,
-    flatten,
+    flat,
     arg_run_id,
 ):
     if run_id is None and arg_run_id is None and not list_all and not my_runs:
@@ -442,9 +442,9 @@ def tag_list(
             "Option --group-by-tag cannot be used with --group-by-run"
         )
 
-    if flatten and (group_by_run or group_by_tag):
+    if flat and (group_by_run or group_by_tag):
         raise CommandException(
-            "Option --flatten cannot be used with any --group-by-* option"
+            "Option --flat cannot be used with any --group-by-* option"
         )
 
     system_tags_by_some_grouping = dict()
@@ -506,7 +506,7 @@ def tag_list(
         if "_" in all_tags_by_some_grouping:
             del all_tags_by_some_grouping["_"]
 
-    if flatten:
+    if flat:
         if len(all_tags_by_some_grouping) != 1:
             raise MetaflowInternalError("Failed to flatten tag set")
         for v in all_tags_by_some_grouping.values():
