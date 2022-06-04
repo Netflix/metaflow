@@ -140,6 +140,8 @@ def create(
     workflow_timeout=None,
     workflow_priority=None,
 ):
+    validate_tags(tags)
+
     obj.echo("Deploying *%s* to Argo Workflows..." % obj.workflow_name, bold=True)
 
     # TODO: Consider dispelling with this check since it's been 2 years since the
@@ -326,8 +328,6 @@ def make_flow(
     #       support for more cloud object stores.
     if obj.flow_datastore.TYPE != "s3":
         raise MetaflowException("Argo Workflows requires --datastore=s3.")
-
-    validate_tags(tags)
 
     # Attach @kubernetes and @environment decorator to the flow to
     # ensure that the related decorator hooks are invoked.

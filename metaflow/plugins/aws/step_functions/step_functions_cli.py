@@ -130,6 +130,8 @@ def create(
     workflow_timeout=None,
     log_execution_history=False,
 ):
+    validate_tags(tags)
+
     obj.echo(
         "Deploying *%s* to AWS Step Functions..." % obj.state_machine_name, bold=True
     )
@@ -267,8 +269,6 @@ def make_flow(
 ):
     if obj.flow_datastore.TYPE != "s3":
         raise MetaflowException("AWS Step Functions requires --datastore=s3.")
-
-    validate_tags(tags)
 
     # Attach AWS Batch decorator to the flow
     decorators._attach_decorators(obj.flow, [BatchDecorator.name])
