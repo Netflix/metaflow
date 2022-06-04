@@ -31,7 +31,9 @@ class CliCheck(MetaflowCheck):
         cmd.extend([opt for opt in self.cli_options if opt != "--quiet"])
         cmd.extend(args)
 
-        return subprocess.run(cmd, capture_output=True, check=True)
+        return subprocess.run(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+        )
 
     def assert_artifact(self, step, name, value, fields=None):
         for task, artifacts in self.artifact_dict(step, name).items():
