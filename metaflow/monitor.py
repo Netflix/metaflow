@@ -17,6 +17,9 @@ class NullMonitor(object):
     def start(self):
         pass
 
+    def add_context(self, **kwargs):
+        pass
+
     @contextmanager
     def count(self, name):
         yield
@@ -33,18 +36,26 @@ class NullMonitor(object):
 
 
 class Monitor(NullMonitor):
-    def __init__(self, monitor_type, env, flow_name):
+    def __init__(self, monitor_type, env, **kwargs):
         # type: (str, str, str) -> None
         self.sidecar_process = None
         self.monitor_type = monitor_type
-        self.env_info = env.get_environment_info()
-        self.env_info["flow_name"] = flow_name
+        self._context = {"env": env.get_environment_info()}
+        # The additional keywords are added to the context for the monitor.
+        # One use case is adding tags like flow_name etc.
+        if kwargs:
+            # Make sure we copy it as we don't want it to change
+            self._context["user_context"] = dict(kwargs)
 
     def start(self):
         if self.sidecar_process is None:
-            self.sidecar_process = SidecarSubProcess(
-                self.monitor_type, {"env": self.env_info}
-            )
+            self.sidecar_process = SidecarSubProcess(self.monitor_type, self._context)
+
+    def add_context(self, **kwargs):
+        self._context["user_context"].update(kwargs)
+        if self.sidecar_process is not None:
+            msg = Message(MessageTypes.UPDATE_CONTEXT, self._context)
+            self.sidecar_process.send(msg)
 
     @contextmanager
     def count(self, name):
@@ -89,10 +100,10 @@ class Metric(object):
     Abstract base class
     """
 
-    def __init__(self, metric_type, name, env=None):
+    def __init__(self, metric_type, name, context=None):
         self._type = metric_type
         self._name = name
-        self._env = env
+        self._context = context
 
     @property
     def metric_type(self):
@@ -103,18 +114,12 @@ class Metric(object):
         return self._name
 
     @property
-    def flow_name(self):
-        if self._env is not None:
-            return self._env.get("flow_name", None)
-        return None
+    def context(self):
+        return self._context
 
-    @property
-    def env(self):
-        return self._env
-
-    @env.setter
-    def env(self, new_env):
-        self._env = new_env
+    @context.setter
+    def context(self, new_context):
+        self._context = new_context
 
     @property
     def value(self):

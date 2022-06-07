@@ -943,11 +943,11 @@ def start(
     ctx.obj.environment.validate_environment(echo)
 
     ctx.obj.event_logger = EventLogger(
-        event_logger, ctx.obj.environment, ctx.obj.flow.name
+        event_logger, ctx.obj.environment, flow_name=ctx.obj.flow.name
     )
     ctx.obj.event_logger.start()
 
-    ctx.obj.monitor = Monitor(monitor, ctx.obj.environment, ctx.obj.flow.name)
+    ctx.obj.monitor = Monitor(monitor, ctx.obj.environment, flow_name=ctx.obj.flow.name)
     ctx.obj.monitor.start()
 
     ctx.obj.metadata = [m for m in METADATA_PROVIDERS if m.TYPE == metadata][0](

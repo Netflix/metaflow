@@ -8,19 +8,20 @@ from metaflow.monitor import Metric
 
 class DebugMonitorSidecar(object):
     def __init__(self):
-        self._env = None
+        self._context = None
 
     def process_message(self, msg):
         # type: (Message) -> None
         if msg.msg_type == MessageTypes.START:
-            self._env = msg.payload.get("env", None)
+            self._context = msg.payload
+        elif msg.msg_type == MessageTypes.UPDATE_CONTEXT:
+            self._context = msg.payload
         elif msg.msg_type == MessageTypes.SHUTDOWN:
-            print("Debug monitor got shutdown!", file=sys.stderr)
             self._shutdown()
         elif msg.msg_type == MessageTypes.LOG_EVENT:
             for v in msg.payload.values():
                 metric = Metric.deserialize(v)
-                metric.env = self._env
+                metric.context = self._context
                 print(
                     "%s for %s: %s"
                     % (metric.metric_type, metric.name, str(metric.value)),

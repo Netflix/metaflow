@@ -98,6 +98,11 @@ class SidecarSubProcess(object):
                 )
                 self._poller = NullPoller()
 
+    def update_context(self, new_context):
+        self._context = new_context
+        if self._process is not None:
+            self._emit_msg(Message(MessageTypes.UPDATE_CONTEXT, self._context))
+
     def kill(self):
         try:
             msg = Message(MessageTypes.SHUTDOWN, None)
