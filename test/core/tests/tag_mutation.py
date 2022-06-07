@@ -55,6 +55,17 @@ class TagMutationTest(MetaflowTest):
         assert "BBB" in checker.get_user_tags()
         assert "CCC" in checker.get_user_tags()
 
+        # Verify UTF-8 support for tags
+        checker.add_tags(["FeatEng1", "FeatEng2", "新想法"])
+        assert "FeatEng1" in checker.get_user_tags()
+        assert "FeatEng2" in checker.get_user_tags()
+        assert "新想法" in checker.get_user_tags()
+
+        checker.remove_tags(["新想法", "FeatEng1"])
+        assert "FeatEng1" not in checker.get_user_tags()
+        assert "FeatEng2" in checker.get_user_tags()
+        assert "新想法" not in checker.get_user_tags()
+
         # try empty str as tag - should fail
         assert_exception(lambda: checker.add_tag(""), Exception)
         assert "" not in checker.get_user_tags()
@@ -85,7 +96,8 @@ class TagMutationTest(MetaflowTest):
             run = checker.get_run()
             assert run.end_task.tags == run.tags
 
-            # Validate deprecated functionality (maintained for backwards compatibility until usage migrated off
+            # Validate deprecated functionality (maintained for backwards compatibility
+            # until usage migrated off
             # When that happens, these test cases may be removed.
             checker.add_tag(["whoop", "eee"])
             assert "whoop" in checker.get_user_tags()
