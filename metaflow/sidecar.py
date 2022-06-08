@@ -159,10 +159,13 @@ class SidecarSubProcess(object):
                     self._send_context()
                 if self._send_context_remaining_tries == 0:
                     self._emit_msg(msg)
+                    self._prev_message_error = False
+                    return True
             else:
                 self._emit_msg(msg)
-            self._prev_message_error = False
-            return True
+                self._prev_message_error = False
+                return True
+            return False
         except MsgTimeoutError:
             # drop message, do not retry on timeout
             self._logger("Unable to send message due to timeout")
