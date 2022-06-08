@@ -39,7 +39,8 @@ from .unbounded_foreach import (
 MAX_WORKERS = 16
 MAX_NUM_SPLITS = 100
 MAX_LOG_SIZE = 1024 * 1024
-PROGRESS_INTERVAL = 1000  # ms
+POLL_TIMEOUT = 1000  # ms
+PROGRESS_INTERVAL = 300  # s
 # The following is a list of the (data) artifacts used by the runtime while
 # executing a flow. These are prefetched during the resume operation by
 # leveraging the TaskDataStoreSet.
@@ -88,7 +89,12 @@ class NativeRuntime(object):
         self._environment = environment
         self._logger = logger
         self._max_workers = max_workers
-        self._num_active_workers = 0
+        self._queued_tasks = dict()  # Key: step name;
+        # value: [number of queued tasks, total for step]
+        self._active_tasks = dict()  # Same key/value as above
+        # Special key 0 is total number of running tasks
+        self._active_tasks[0] = 0
+        self._unprocessed_steps = set([n.name for n in self._graph])
         self._max_num_splits = max_num_splits
         self._max_log_size = max_log_size
         self._params_task = None
@@ -207,7 +213,7 @@ class NativeRuntime(object):
         try:
             # main scheduling loop
             exception = None
-            while self._run_queue or self._num_active_workers > 0:
+            while self._run_queue or self._active_tasks[0] > 0:
 
                 # 1. are any of the current workers finished?
                 finished_tasks = list(self._poll_workers())
@@ -219,14 +225,52 @@ class NativeRuntime(object):
 
                 if time.time() - progress_tstamp > PROGRESS_INTERVAL:
                     progress_tstamp = time.time()
-                    msg = "%d tasks are running: %s." % (
-                        self._num_active_workers,
-                        "e.g. ...",
-                    )  # TODO
+                    tasks_print = ", ".join(
+                        [
+                            "%s (%d of %d)" % (k, v[0], v[1]) if v[1] > 1 else k
+                            for k, v in self._active_tasks.items()
+                            if k != 0
+                        ]
+                    )
+                    if self._active_tasks[0] == 0:
+                        msg = "No tasks are running."
+                    else:
+                        if self._active_tasks[0] == 1:
+                            msg = "1 task is running: "
+                        else:
+                            msg = "%d tasks are running: " % self._active_tasks[0]
+                        msg += "%s." % tasks_print
+
                     self._logger(msg, system_msg=True)
-                    msg = "%d tasks are waiting in the queue." % len(self._run_queue)
+                    tasks_print = ", ".join(
+                        [
+                            "%s (%d of %d)" % (k, v[0], v[1]) if v[1] > 1 else k
+                            for k, v in self._queued_tasks.items()
+                            if v[0] > 0
+                        ]
+                    )
+                    if len(self._run_queue) == 0:
+                        msg = "No tasks are waiting in the queue."
+                    else:
+                        if len(self._run_queue) == 1:
+                            msg = "1 task is waiting in the queue: "
+                        else:
+                            msg = "%d tasks are waiting in the queue: " % len(
+                                self._run_queue
+                            )
+                        msg += "%s." % tasks_print
+
                     self._logger(msg, system_msg=True)
-                    msg = "%d steps are pending: %s." % (0, "e.g. ...")  # TODO
+                    if len(self._unprocessed_steps) == 0:
+                        msg = "No steps are pending."
+                    else:
+                        if len(self._unprocessed_steps) == 1:
+                            msg = "1 step is pending: "
+                        else:
+                            msg = "%d steps are pending: " % len(
+                                self._unprocessed_steps
+                            )
+                        msg += "%s." % ", ".join(self._unprocessed_steps)
                     self._logger(msg, system_msg=True)
 
         except KeyboardInterrupt as ex:
@@ -293,6 +337,11 @@ class NativeRuntime(object):
     # onto the run_queue is an inexpensive operation.
     def _queue_push(self, step, task_kwargs):
         self._run_queue.insert(0, (step, task_kwargs))
+        step_counts = self._queued_tasks.setdefault(step, [0, 0])
+        step_counts[0] += 1
+        step_counts[1] += 1
+        # For foreaches, this will happen multiple time but is ok, becomes a no-op
+        self._unprocessed_steps.discard(step)
 
     def _queue_pop(self):
         return self._run_queue.pop() if self._run_queue else (None, {})
@@ -533,7 +582,7 @@ class NativeRuntime(object):
 
     def _poll_workers(self):
         if self._workers:
-            for event in self._poll.poll(PROGRESS_INTERVAL):
+            for event in self._poll.poll(POLL_TIMEOUT):
                 worker = self._workers.get(event.fd)
                 if worker:
                     if event.can_read:
@@ -544,7 +593,11 @@ class NativeRuntime(object):
                         for fd in worker.fds():
                             self._poll.remove(fd)
                             del self._workers[fd]
-                        self._num_active_workers -= 1
+                        step_counts = self._active_tasks[worker.task.step]
+                        step_counts[0] -= 1
+                        if step_counts[0] == 0:
+                            del self._active_tasks[worker.task.step]
+                        self._active_tasks[0] -= 1
 
                         task = worker.task
                         if returncode:
@@ -570,7 +623,7 @@ class NativeRuntime(object):
                             yield task
 
     def _launch_workers(self):
-        while self._run_queue and self._num_active_workers < self._max_workers:
+        while self._run_queue and self._active_tasks[0] < self._max_workers:
             step, task_kwargs = self._queue_pop()
             # Initialize the task (which can be expensive using remote datastores)
             # before launching the worker so that cost is amortized over time, instead
@@ -606,7 +659,16 @@ class NativeRuntime(object):
         for fd in worker.fds():
             self._workers[fd] = worker
             self._poll.add(fd)
-        self._num_active_workers += 1
+        step_counts = self._active_tasks.setdefault(task.step, [0, 0])
+
+        # Task goes from queued to active
+        queued_step_counts = self._queued_tasks[task.step]
+        queued_step_counts[0] -= 1
+
+        step_counts[1] = queued_step_counts[1]
+        step_counts[0] += 1
+
+        self._active_tasks[0] += 1
 
 
 class Task(object):
