@@ -13,6 +13,7 @@ from os import O_NONBLOCK
 from .sidecar_messages import Message, MessageTypes
 from .debug import debug
 
+CONTEXT_RETRY_TIMES = 10
 MESSAGE_WRITE_TIMEOUT_IN_MS = 1000
 
 NULL_SIDECAR_PREFIX = "nullSidecar"
@@ -54,14 +55,24 @@ class SidecarSubProcess(object):
         self._process = None
         self._poller = None
         self._context = context
+        self._send_context_remaining_tries = (
+            CONTEXT_RETRY_TIMES if self._context is not None else 0
+        )
+        self._starting = False
+        self._prev_message_error = False
         self.start()
 
     def start(self):
 
         if (
-            self._worker_type is not None
-            and self._worker_type.startswith(NULL_SIDECAR_PREFIX)
-        ) or (platform.system() == "Darwin" and sys.version_info < (3, 0)):
+            (
+                self._worker_type is not None
+                and self._worker_type.startswith(NULL_SIDECAR_PREFIX)
+            )
+            or (platform.system() == "Darwin" and sys.version_info < (3, 0))
+            or self._starting
+        ):
+            # If we already restarted once, we give up.
             # if on darwin and running python 2 disable sidecars
             # there is a bug with importing poll from select in some cases
             #
@@ -69,8 +80,11 @@ class SidecarSubProcess(object):
             # `from select import poll`. We can consider enabling sidecars
             # for that distribution if needed at a later date.
             self._poller = NullPoller()
-
+            self._process = None
+            self._starting = False
+            self._logger("No sidecar started")
         else:
+            self._starting = True
             from select import poll
 
             python_version = sys.executable
@@ -80,6 +94,7 @@ class SidecarSubProcess(object):
                 os.path.dirname(__file__) + "/sidecar_worker.py",
                 self._worker_type,
             ]
+            self._logger("Starting sidecar")
             debug.sidecar_exec(cmdline)
 
             self._process = self._start_subprocess(cmdline)
@@ -89,19 +104,17 @@ class SidecarSubProcess(object):
                 self._poller = poll()
                 self._poller.register(self._process.stdin.fileno(), select.POLLOUT)
 
-                if self._context is not None:
-                    self._emit_msg(Message(MessageTypes.START, self._context))
+                self._send_context()
             else:
                 # unable to start subprocess, fallback to Null sidecar
-                self.logger(
-                    "Unable to start subprocess for sidecar %s" % self._worker_type
-                )
+                self._logger("Unable to start subprocess")
                 self._poller = NullPoller()
+            self._starting = False
 
     def update_context(self, new_context):
         self._context = new_context
         if self._process is not None:
-            self._emit_msg(Message(MessageTypes.UPDATE_CONTEXT, self._context))
+            self._send_context()
 
     def kill(self):
         try:
@@ -111,21 +124,8 @@ class SidecarSubProcess(object):
             pass
 
     def send(self, msg, retries=3):
-        try:
-            self._emit_msg(msg)
-        except MsgTimeoutError:
-            # drop message, do not retry on timeout
-            self.logger("Unable to send message due to timeout")
-        except Exception as ex:
-            if isinstance(ex, PipeUnavailableError):
-                self.logger("Restarting sidecar %s" % self._worker_type)
-                self.start()
-            if retries > 0:
-                self.logger("Retrying msg send to sidecar")
-                return self.send(msg, retries - 1)
-            else:
-                self.logger("Error sending log message")
-                self.logger(repr(ex))
+        # Ignore return code for send.
+        self._send_internal(msg, retries=retries)
 
     def _start_subprocess(self, cmdline):
         for _ in range(3):
@@ -140,15 +140,73 @@ class SidecarSubProcess(object):
                     bufsize=0,
                 )
             except blockingError as be:
-                self.logger("Warning: sidecar popen failed: %s" % repr(be))
+                self._logger("Sidecar popen failed: %s" % repr(be))
             except Exception as e:
-                self.logger(repr(e))
+                self._logger("Unknown popen error: %s" % repr(e))
                 break
 
+    def _send_internal(self, msg, retries=3, is_context_send=False):
+        if self._process is None:
+            return False
+        try:
+            if not is_context_send:
+                # If we need to send context, we try that first
+                if self._send_context_remaining_tries == -1:
+                    # We could not send the context so we don't try to send this out;
+                    # restart sidecar so use the PipeUnavailableError caught below
+                    raise PipeUnavailableError()
+                elif self._send_context_remaining_tries > 0:
+                    self._send_context()
+                if self._send_context_remaining_tries == 0:
+                    self._emit_msg(msg)
+            else:
+                self._emit_msg(msg)
+            self._prev_message_error = False
+            return True
+        except MsgTimeoutError:
+            # drop message, do not retry on timeout
+            self._logger("Unable to send message due to timeout")
+            self._prev_message_error = True
+        except Exception as ex:
+            if isinstance(ex, PipeUnavailableError):
+                self.start()
+                # For context sending, we don't retry since we already did it in
+                # start
+                if is_context_send:
+                    return
+            else:
+                self._prev_message_error = True
+            if retries > 0:
+                self._logger("Retrying msg send to sidecar (due to %s)" % repr(ex))
+                return self._send_internal(msg, retries - 1, is_context_send)
+            else:
+                self._logger(
+                    "Error sending log message (exhausted retries): %s" % repr(ex)
+                )
+        return False
+
+    def _send_context(self):
+        if self._send_context_remaining_tries > 0:
+            # If we don't succeed in sending the context, we will try again
+            # next time.
+            if self._send_internal(
+                Message(MessageTypes.START, self._context), is_context_send=True
+            ):
+                self._send_context_remaining_tries = 0
+            else:
+                self._send_context_remaining_tries -= 1
+                if self._send_context_remaining_tries == 0:
+                    # Mark as "failed after try"
+                    self._send_context_remaining_tries = -1
+
     def _emit_msg(self, msg):
-        msg_ser = msg.serialize().encode("utf-8")
+        # If the previous message had an error, we want to prepend a "\n" to this message
+        # to maximize the chance of this message being valid (for example, if the
+        # previous message only partially sent for whatever reason, we want to "clear" it)
+        msg_ser = msg.serialize(clear_previous=self._prev_message_error).encode("utf-8")
         written_bytes = 0
         while written_bytes < len(msg_ser):
+            # self._logger("Sent %d out of %d bytes" % (written_bytes, len(msg_ser)))
             try:
                 fds = self._poller.poll(MESSAGE_WRITE_TIMEOUT_IN_MS)
                 if fds is None or len(fds) == 0:
@@ -162,6 +220,6 @@ class SidecarSubProcess(object):
                 # sidecar is disabled, ignore all messages
                 break
 
-    def logger(self, msg):
+    def _logger(self, msg):
         if debug.sidecar:
-            print(msg, file=sys.stderr)
+            print("[sidecar:%s] %s" % (self._worker_type, msg), file=sys.stderr)

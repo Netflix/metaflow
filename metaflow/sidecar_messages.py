@@ -12,11 +12,13 @@ class Message(object):
         self.msg_type = msg_type
         self.payload = payload
 
-    def serialize(self):
+    def serialize(self, clear_previous=False):
         msg = {
             "msg_type": self.msg_type,
             "payload": self.payload,
         }
+        if clear_previous:
+            return "\n" + json.dumps(msg) + "\n"
         return json.dumps(msg) + "\n"
 
     @staticmethod

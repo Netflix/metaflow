@@ -16,14 +16,17 @@ from metaflow.plugins import SIDECARS
 from metaflow._vendor import click
 
 
-def process_messages(worker):
+def process_messages(worker_type, worker):
     while True:
         try:
             msg = sys.stdin.readline().strip()
             if msg:
                 parsed_msg = Message.deserialize(msg)
                 if parsed_msg.msg_type == MessageTypes.INVALID:
-                    print("Invalid message -- skipping")
+                    print(
+                        "[sidecarProcess:%s] Invalid message -- skipping: %s"
+                        % (worker_type, str(msg))
+                    )
                     continue
                 else:
                     worker.process_message(parsed_msg)
@@ -47,7 +50,7 @@ def main(worker_type):
     worker_process = SIDECARS.get(worker_type)
 
     if worker_process is not None:
-        process_messages(worker_process())
+        process_messages(worker_type, worker_process())
     else:
         print("Unrecognized worker: %s" % worker_type, file=sys.stderr)
 
