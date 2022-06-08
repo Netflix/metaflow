@@ -674,6 +674,18 @@ def common_run_options(func):
     help="ID of the run that should be resumed. By default, the "
     "last run executed locally.",
 )
+@click.option(
+    "--run-id",
+    default=None,
+    help="Run ID for the new run. By default, a new run-id will be generated",
+    hidden=True,
+)
+@click.option(
+    "--clone-only/--no-clone-only",
+    default=False,
+    show_default=True,
+    help="Only clone tasks without continuing execution",
+)
 @click.argument("step-to-rerun", required=False)
 @cli.command(help="Resume execution of a previous run of this flow.")
 @common_run_options
@@ -683,6 +695,8 @@ def resume(
     tags=None,
     step_to_rerun=None,
     origin_run_id=None,
+    run_id=None,
+    clone_only=False,
     max_workers=None,
     max_num_splits=None,
     max_log_size=None,
@@ -712,6 +726,17 @@ def resume(
             )
         clone_steps = {step_to_rerun}
 
+    if run_id:
+        # Run-ids that are provided by the metadata service are always integers.
+        # External providers or run-ids (like external schedulers) always need to
+        # be non-integers to avoid any clashes. This condition ensures this.
+        try:
+            int(run_id)
+        except:
+            pass
+        else:
+            raise CommandException("run-id %s cannot be an integer" % run_id)
+
     runtime = NativeRuntime(
         obj.flow,
         obj.graph,
@@ -723,7 +748,9 @@ def resume(
         obj.entrypoint,
         obj.event_logger,
         obj.monitor,
+        run_id=run_id,
         clone_run_id=origin_run_id,
+        clone_only=clone_only,
         clone_steps=clone_steps,
         max_workers=max_workers,
         max_num_splits=max_num_splits,

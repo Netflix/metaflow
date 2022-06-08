@@ -65,6 +65,7 @@ class NativeRuntime(object):
         monitor,
         run_id=None,
         clone_run_id=None,
+        clone_only=False,
         clone_steps=None,
         max_workers=MAX_WORKERS,
         max_num_splits=MAX_NUM_SPLITS,
@@ -93,6 +94,7 @@ class NativeRuntime(object):
         self._monitor = monitor
 
         self._clone_run_id = clone_run_id
+        self._clone_only = clone_only
         self._clone_steps = {} if clone_steps is None else clone_steps
 
         self._origin_ds_set = None
@@ -167,6 +169,7 @@ class NativeRuntime(object):
             input_paths=input_paths,
             may_clone=may_clone,
             clone_run_id=self._clone_run_id,
+            clone_only=self._clone_only,
             origin_ds_set=self._origin_ds_set,
             decos=decos,
             logger=self._logger,
@@ -242,6 +245,12 @@ class NativeRuntime(object):
         # assert that end was executed and it was successful
         if ("end", ()) in self._finished:
             self._logger("Done!", system_msg=True)
+        elif self._clone_only:
+            self._logger(
+                "Clone-only resume complete -- only previously successful steps were "
+                "cloned; no new tasks executed!",
+                system_msg=True,
+            )
         else:
             raise MetaflowInternalError(
                 "The *end* step was not successful " "by the end of flow."
@@ -281,7 +290,7 @@ class NativeRuntime(object):
         self._run_queue.insert(0, (step, task_kwargs))
 
     def _queue_pop(self):
-        return self._run_queue.pop() if self._run_queue else None
+        return self._run_queue.pop() if self._run_queue else (None, {})
 
     def _queue_task_join(self, task, next_steps):
         # if the next step is a join, we need to check that
@@ -540,7 +549,7 @@ class NativeRuntime(object):
                                 or returncode == METAFLOW_EXIT_DISALLOW_RETRY
                             ):
                                 self._logger(
-                                    "This failed task will not be " "retried.",
+                                    "This failed task will not be retried.",
                                     system_msg=True,
                                 )
                             else:
@@ -579,6 +588,15 @@ class NativeRuntime(object):
         self._launch_worker(worker.task)
 
     def _launch_worker(self, task):
+        if self._clone_only and not task.is_cloned:
+            # We don't launch a worker here
+            self._logger(
+                "Not executing non-cloned task for step '%s' in clone-only resume"
+                % "/".join([task.flow_name, task.run_id, task.step]),
+                system_msg=True,
+            )
+            return
+
         worker = Worker(task, self._max_log_size)
         for fd in worker.fds():
             self._workers[fd] = worker
@@ -601,76 +619,30 @@ class Task(object):
         event_logger,
         monitor,
         input_paths=None,
+        may_clone=False,
+        clone_run_id=None,
+        clone_only=False,
+        origin_ds_set=None,
+        decos=None,
+        logger=None,
+        # Anything below this is passed as part of kwargs
         split_index=None,
         ubf_context=None,
         ubf_iter=None,
-        clone_run_id=None,
-        origin_ds_set=None,
-        may_clone=False,
         join_type=None,
-        logger=None,
         task_id=None,
-        decos=[],
     ):
-        if ubf_context == UBF_CONTROL:
-            [input_path] = input_paths
-            run, input_step, input_task = input_path.split("/")
-            # We associate the control task-id to be 1:1 with the split node
-            # where the unbounded-foreach was defined.
-            # We prefer encoding the corresponding split into the task_id of
-            # the control node; so it has access to this information quite
-            # easily. There is anyway a corresponding int id stored in the
-            # metadata backend - so this should be fine.
-            task_id = "control-%s-%s-%s" % (run, input_step, input_task)
-        # Register only regular Metaflow (non control) tasks.
-        if task_id is None:
-            task_id = str(metadata.new_task_id(run_id, step))
-        else:
-            # task_id is preset only by persist_constants() or control tasks.
-            if ubf_context == UBF_CONTROL:
-                tags = [CONTROL_TASK_TAG]
-                attempt_id = 0
-                metadata.register_task_id(
-                    run_id,
-                    step,
-                    task_id,
-                    attempt_id,
-                    sys_tags=tags,
-                )
-                # As part of tag mutation project, we will be overlaying Run's tags
-                # (user and system) on top of Task tags.  I.e. a Task will no longer have
-                # its own tags distinct from their ancestral Run.  It means we should not
-                # use tags to indicate if a task is a control task in future.
-                #
-                # This is the main PR that implements the same "stashing to task metadata"
-                # concept:
-                #     https://github.com/Netflix/metaflow/pull/1039
-                #
-                # Here we will also add a task metadata entry to indicate "control task".
-                # Within the metaflow repo, the only dependency of such a "control task"
-                # indicator is in the integration test suite (see Step.control_tasks() in
-                # client API).
-                task_metadata_list = [
-                    MetaDatum(
-                        field="internal_task_type",
-                        value=CONTROL_TASK_TAG,
-                        type="internal_task_type",
-                        tags=["attempt_id:{0}".format(attempt_id)],
-                    )
-                ]
-                metadata.register_metadata(run_id, step, task_id, task_metadata_list)
-            else:
-                metadata.register_task_id(run_id, step, task_id, 0)
 
         self.step = step
         self.flow_name = flow.name
         self.run_id = run_id
-        self.task_id = task_id
+        self.task_id = None
+        self._path = None
         self.input_paths = input_paths
         self.split_index = split_index
         self.ubf_context = ubf_context
         self.ubf_iter = ubf_iter
-        self.decos = decos
+        self.decos = [] if decos is None else decos
         self.entrypoint = entrypoint
         self.environment = environment
         self.environment_type = self.environment.TYPE
@@ -682,7 +654,6 @@ class Task(object):
         self.monitor = monitor
 
         self._logger = logger
-        self._path = "%s/%s/%s" % (self.run_id, self.step, self.task_id)
 
         self.retries = 0
         self.user_code_retries = 0
@@ -698,10 +669,32 @@ class Task(object):
         self.datastore_sysroot = flow_datastore.datastore_root
         self._results_ds = None
 
+        if self.step == "_parameters":
+            # Special case where we know we always run so we get task_id now
+            self._get_task_id(task_id)
+
         if clone_run_id and may_clone:
             self._is_cloned = self._attempt_clone(clone_run_id, join_type)
         else:
             self._is_cloned = False
+
+        if clone_only and not self._is_cloned:
+            # We are done -- we don't proceed to create new task-ids or what not
+            return
+
+        if self.step != "_parameters":
+            # In non "_parameters" step, we get the step ID now after we are sure
+            # we are going to execute
+            self._get_task_id(task_id)
+
+            if self._is_cloned:
+                # Store the mapping from current_pathspec -> origin_pathspec which
+                # will be useful for looking up origin_ds_set in find_origin_task.
+                self.clone_pathspec_mapping[self._path] = self.clone_origin
+                self.log(
+                    "Cloning results of a previously run task %s" % self.clone_origin,
+                    system_msg=True,
+                )
 
         # Open the output datastore only if the task is not being cloned.
         if not self._is_cloned:
@@ -756,6 +749,62 @@ class Task(object):
         self._logger(msg, head=prefix, system_msg=system_msg, timestamp=timestamp)
         sys.stdout.flush()
 
+    def _get_task_id(self, task_id):
+        if self.ubf_context == UBF_CONTROL:
+            [input_path] = self.input_paths
+            run, input_step, input_task = input_path.split("/")
+            # We associate the control task-id to be 1:1 with the split node
+            # where the unbounded-foreach was defined.
+            # We prefer encoding the corresponding split into the task_id of
+            # the control node; so it has access to this information quite
+            # easily. There is anyway a corresponding int id stored in the
+            # metadata backend - so this should be fine.
+            task_id = "control-%s-%s-%s" % (run, input_step, input_task)
+        # Register only regular Metaflow (non control) tasks.
+        if task_id is None:
+            task_id = str(self.metadata.new_task_id(self.run_id, self.step))
+        else:
+            # task_id is preset only by persist_constants() or control tasks.
+            if self.ubf_context == UBF_CONTROL:
+                tags = [CONTROL_TASK_TAG]
+                attempt_id = 0
+                self.metadata.register_task_id(
+                    self.run_id,
+                    self.step,
+                    task_id,
+                    attempt_id,
+                    sys_tags=tags,
+                )
+                # As part of tag mutation project, we will be overlaying Run's tags
+                # (user and system) on top of Task tags.  I.e. a Task will no longer have
+                # its own tags distinct from their ancestral Run.  It means we should not
+                # use tags to indicate if a task is a control task in future.
+                #
+                # This is the main PR that implements the same "stashing to task metadata"
+                # concept:
+                #     https://github.com/Netflix/metaflow/pull/1039
+                #
+                # Here we will also add a task metadata entry to indicate "control task".
+                # Within the metaflow repo, the only dependency of such a "control task"
+                # indicator is in the integration test suite (see Step.control_tasks() in
+                # client API).
+                task_metadata_list = [
+                    MetaDatum(
+                        field="internal_task_type",
+                        value=CONTROL_TASK_TAG,
+                        type="internal_task_type",
+                        tags=["attempt_id:{0}".format(attempt_id)],
+                    )
+                ]
+                self.metadata.register_metadata(
+                    self.run_id, self.step, task_id, task_metadata_list
+                )
+            else:
+                self.metadata.register_task_id(self.run_id, self.step, task_id, 0)
+
+        self.task_id = task_id
+        self._path = "%s/%s/%s" % (self.run_id, self.step, self.task_id)
+
     def _find_origin_task(self, clone_run_id, join_type):
         if self.step == "_parameters":
             pathspec = "%s/_parameters[]" % clone_run_id
@@ -797,19 +846,13 @@ class Task(object):
         origin = self._find_origin_task(clone_run_id, join_type)
 
         if origin and origin["_task_ok"]:
-            # Store the mapping from current_pathspec -> origin_pathspec which
-            # will be useful for looking up origin_ds_set in find_origin_task.
-            self.clone_pathspec_mapping[self._path] = origin.pathspec
             if self.step == "_parameters":
                 # Clone in place without relying on run_queue.
                 self.new_attempt()
                 self._ds.clone(origin)
                 self._ds.done()
+                self.clone_pathspec_mapping[self._path] = origin.pathspec
             else:
-                self.log(
-                    "Cloning results of a previously run task %s" % origin.pathspec,
-                    system_msg=True,
-                )
                 # Store the origin pathspec in clone_origin so this can be run
                 # as a task by the runtime.
                 self.clone_origin = origin.pathspec
