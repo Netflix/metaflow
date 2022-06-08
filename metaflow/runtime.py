@@ -253,7 +253,7 @@ class NativeRuntime(object):
             )
         else:
             raise MetaflowInternalError(
-                "The *end* step was not successful " "by the end of flow."
+                "The *end* step was not successful by the end of flow."
             )
 
     def _killall(self):
