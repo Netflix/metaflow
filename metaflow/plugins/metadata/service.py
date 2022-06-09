@@ -68,19 +68,22 @@ class ServiceMetadataProvider(MetadataProvider):
         return self._version(self._monitor)
 
     def new_run_id(self, tags=None, sys_tags=None):
-        return self._new_run(tags=tags, sys_tags=sys_tags)
+        v, _ = self._new_run(tags=tags, sys_tags=sys_tags)
+        return v
 
     def register_run_id(self, run_id, tags=None, sys_tags=None):
         try:
             # don't try to register an integer ID which was obtained
             # from the metadata service in the first place
             int(run_id)
-            return
+            return False
         except ValueError:
-            return self._new_run(run_id, tags=tags, sys_tags=sys_tags)
+            _, already_existed = self._new_run(run_id, tags=tags, sys_tags=sys_tags)
+            return already_existed
 
     def new_task_id(self, run_id, step_name, tags=None, sys_tags=None):
-        return self._new_task(run_id, step_name, tags=tags, sys_tags=sys_tags)
+        v, _ = self._new_task(run_id, step_name, tags=tags, sys_tags=sys_tags)
+        return v
 
     def register_task_id(
         self, run_id, step_name, task_id, attempt=0, tags=None, sys_tags=None
@@ -90,7 +93,7 @@ class ServiceMetadataProvider(MetadataProvider):
             # from the metadata service in the first place
             int(task_id)
         except ValueError:
-            self._new_task(
+            _, already_existed = self._new_task(
                 run_id,
                 step_name,
                 task_id=task_id,
@@ -98,8 +101,10 @@ class ServiceMetadataProvider(MetadataProvider):
                 tags=tags,
                 sys_tags=sys_tags,
             )
+            return not already_existed
         else:
             self._register_system_metadata(run_id, step_name, task_id, attempt)
+            return False
 
     def _start_heartbeat(
         self, heartbeat_type, flow_id, run_id, step_name=None, task_id=None
@@ -199,9 +204,8 @@ class ServiceMetadataProvider(MetadataProvider):
             else:
                 url = ServiceMetadataProvider._obj_path(*args[:obj_order])
             try:
-                return MetadataProvider._apply_filter(
-                    [cls._request(None, url)], filters
-                )[0]
+                v, _ = cls._request(None, url)
+                return MetadataProvider._apply_filter([v], filters)[0]
             except ServiceException as ex:
                 if ex.http_code == 404:
                     return None
@@ -219,7 +223,8 @@ class ServiceMetadataProvider(MetadataProvider):
         else:
             url += "/%ss" % sub_type
         try:
-            return MetadataProvider._apply_filter(cls._request(None, url), filters)
+            v, _ = cls._request(None, url)
+            return MetadataProvider._apply_filter(v, filters)
         except ServiceException as ex:
             if ex.http_code == 404:
                 return None
@@ -228,19 +233,21 @@ class ServiceMetadataProvider(MetadataProvider):
     def _new_run(self, run_id=None, tags=None, sys_tags=None):
         # first ensure that the flow exists
         self._get_or_create("flow")
-        run = self._get_or_create("run", run_id, tags=tags, sys_tags=sys_tags)
-        return str(run["run_number"])
+        run, already_existed = self._get_or_create(
+            "run", run_id, tags=tags, sys_tags=sys_tags
+        )
+        return str(run["run_number"]), already_existed
 
     def _new_task(
         self, run_id, step_name, task_id=None, attempt=0, tags=None, sys_tags=None
     ):
         # first ensure that the step exists
         self._get_or_create("step", run_id, step_name)
-        task = self._get_or_create(
+        task, already_existed = self._get_or_create(
             "task", run_id, step_name, task_id, tags=tags, sys_tags=sys_tags
         )
         self._register_system_metadata(run_id, step_name, task["task_id"], attempt)
-        return task["task_id"]
+        return task["task_id"], already_existed
 
     @staticmethod
     def _obj_path(
@@ -358,7 +365,7 @@ class ServiceMetadataProvider(MetadataProvider):
                 resp = None
             else:
                 if resp.status_code < 300:
-                    return resp.json()
+                    return resp.json(), False
                 elif resp.status_code == 409 and data is not None:
                     # a special case: the post fails due to a conflict
                     # this could occur when we missed a success response
@@ -369,9 +376,10 @@ class ServiceMetadataProvider(MetadataProvider):
                     # instead of retrying the post we retry with a get since
                     # the record is guaranteed to exist
                     if retry_409_path:
-                        return cls._request(monitor, retry_409_path)
+                        v, _ = cls._request(monitor, retry_409_path)
+                        return v, True
                     else:
-                        return
+                        return None, True
                 elif resp.status_code != 503:
                     raise ServiceException(
                         "Metadata request (%s) failed (code %s): %s"

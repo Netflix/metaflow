@@ -14,6 +14,8 @@ from datetime import datetime
 from io import BytesIO
 from functools import partial
 
+from metaflow.datastore.exceptions import DataException
+
 from . import get_namespace
 from .metadata import MetaDatum
 from .metaflow_config import MAX_ATTEMPTS
@@ -66,6 +68,7 @@ class NativeRuntime(object):
         run_id=None,
         clone_run_id=None,
         clone_only=False,
+        reentrant=False,
         clone_steps=None,
         max_workers=MAX_WORKERS,
         max_num_splits=MAX_NUM_SPLITS,
@@ -96,6 +99,7 @@ class NativeRuntime(object):
         self._clone_run_id = clone_run_id
         self._clone_only = clone_only
         self._clone_steps = {} if clone_steps is None else clone_steps
+        self._reentrant = reentrant
 
         self._origin_ds_set = None
         if clone_run_id:
@@ -170,6 +174,7 @@ class NativeRuntime(object):
             may_clone=may_clone,
             clone_run_id=self._clone_run_id,
             clone_only=self._clone_only,
+            reentrant=self._reentrant,
             origin_ds_set=self._origin_ds_set,
             decos=decos,
             logger=self._logger,
@@ -622,6 +627,7 @@ class Task(object):
         may_clone=False,
         clone_run_id=None,
         clone_only=False,
+        reentrant=False,
         origin_ds_set=None,
         decos=None,
         logger=None,
@@ -669,32 +675,100 @@ class Task(object):
         self.datastore_sysroot = flow_datastore.datastore_root
         self._results_ds = None
 
-        if self.step == "_parameters":
-            # Special case where we know we always run so we get task_id now
-            self._get_task_id(task_id)
-
+        origin = None
         if clone_run_id and may_clone:
-            self._is_cloned = self._attempt_clone(clone_run_id, join_type)
+            origin = self._find_origin_task(clone_run_id, join_type)
+        if origin and origin["_task_ok"]:
+            # At this point, we know we are going to clone
+            self._is_cloned = True
+            if reentrant:
+                # In the re-entrant case, we determine if we are the one doing the clone
+                # or not. To do so, we try to create the task-id and if we are successful,
+                # we are the first one to do so so we will clone the task. Everyone
+                # else will wait for the clone to complete.
+                if task_id is not None:
+                    # Sanity check -- this should never happen
+                    raise MetaflowInternalError(
+                        "Reentrant clone-only resume does not allow for explicit task-id"
+                    )
+
+                # We will use the same task_id as the original task
+                # to use it effectively as a synchronization key
+                clone_task_id = origin.task_id
+                # Make sure the task-id is a non-integer to not clash with task ids
+                # assigned by the metadata provider
+                try:
+                    clone_task_int = int(clone_task_id)
+                    clone_task_id = "resume-%d" % clone_task_int
+                except ValueError:
+                    pass
+
+                # If _get_task_id returns True it means the task already existed so
+                # we wait for it.
+                self._wait_for_clone = self._get_task_id(clone_task_id)
+            else:
+                self._wait_for_clone = False
+                self._get_task_id(task_id)
+
+            # Store the mapping from current_pathspec -> origin_pathspec which
+            # will be useful for looking up origin_ds_set in find_origin_task.
+            self.clone_pathspec_mapping[self._path] = origin.pathspec
+            if self.step == "_parameters":
+                # We don't put _parameters on the queue so we either clone it or wait
+                # for it.
+                if not self._wait_for_clone:
+                    # Clone in place without relying on run_queue.
+                    self.new_attempt()
+                    self._ds.clone(origin)
+                    self._ds.done()
+                else:
+                    # TODO: There is a bit of a duplication with the task.py
+                    # clone_only function here
+                    self.log(
+                        "Waiting for clone of _parameters step to occur...",
+                        system_msg=True,
+                    )
+                    while True:
+                        try:
+                            ds = self._flow_datastore.get_task_datastore(
+                                self.run_id, self.step, self.task_id
+                            )
+                            if not ds["_task_ok"]:
+                                raise MetaflowInternalError(
+                                    "Externally cloned _parameters task did not succeed"
+                                )
+                            break
+                        except DataException:
+                            self.log("Sleeping for 5s...", system_msg=True)
+                            # No need to get fancy with the sleep here.
+                            time.sleep(5)
+                    self.log("_parameters clone successful", system_msg=True)
+            else:
+                # For non parameter steps
+                # Store the origin pathspec in clone_origin so this can be run
+                # as a task by the runtime.
+                self.clone_origin = origin.pathspec
+                # Save a call to creating the results_ds since its same as origin.
+                self._results_ds = origin
+                if self._wait_for_clone:
+                    self.log(
+                        "Waiting for the successful cloning of results "
+                        "of a previously run task %s (this may take some time)"
+                        % self.clone_origin,
+                        system_msg=True,
+                    )
+                else:
+                    self.log(
+                        "Cloning results of a previously run task %s"
+                        % self.clone_origin,
+                        system_msg=True,
+                    )
         else:
             self._is_cloned = False
-
-        if clone_only and not self._is_cloned:
-            # We are done -- we don't proceed to create new task-ids or what not
-            return
-
-        if self.step != "_parameters":
-            # In non "_parameters" step, we get the step ID now after we are sure
-            # we are going to execute
+            if clone_only:
+                # We are done -- we don't proceed to create new task-ids
+                return
             self._get_task_id(task_id)
-
-            if self._is_cloned:
-                # Store the mapping from current_pathspec -> origin_pathspec which
-                # will be useful for looking up origin_ds_set in find_origin_task.
-                self.clone_pathspec_mapping[self._path] = self.clone_origin
-                self.log(
-                    "Cloning results of a previously run task %s" % self.clone_origin,
-                    system_msg=True,
-                )
 
         # Open the output datastore only if the task is not being cloned.
         if not self._is_cloned:
@@ -750,6 +824,7 @@ class Task(object):
         sys.stdout.flush()
 
     def _get_task_id(self, task_id):
+        already_existed = True
         if self.ubf_context == UBF_CONTROL:
             [input_path] = self.input_paths
             run, input_step, input_task = input_path.split("/")
@@ -763,12 +838,13 @@ class Task(object):
         # Register only regular Metaflow (non control) tasks.
         if task_id is None:
             task_id = str(self.metadata.new_task_id(self.run_id, self.step))
+            already_existed = False
         else:
             # task_id is preset only by persist_constants() or control tasks.
             if self.ubf_context == UBF_CONTROL:
                 tags = [CONTROL_TASK_TAG]
                 attempt_id = 0
-                self.metadata.register_task_id(
+                already_existed = self.metadata.register_task_id(
                     self.run_id,
                     self.step,
                     task_id,
@@ -800,10 +876,13 @@ class Task(object):
                     self.run_id, self.step, task_id, task_metadata_list
                 )
             else:
-                self.metadata.register_task_id(self.run_id, self.step, task_id, 0)
+                already_existed = not self.metadata.register_task_id(
+                    self.run_id, self.step, task_id, 0
+                )
 
         self.task_id = task_id
         self._path = "%s/%s/%s" % (self.run_id, self.step, self.task_id)
+        return already_existed
 
     def _find_origin_task(self, clone_run_id, join_type):
         if self.step == "_parameters":
@@ -842,26 +921,6 @@ class Task(object):
             pathspec = "%s/%s[%s]" % (clone_run_id, self.step, index)
             return self.origin_ds_set.get_with_pathspec_index(pathspec)
 
-    def _attempt_clone(self, clone_run_id, join_type):
-        origin = self._find_origin_task(clone_run_id, join_type)
-
-        if origin and origin["_task_ok"]:
-            if self.step == "_parameters":
-                # Clone in place without relying on run_queue.
-                self.new_attempt()
-                self._ds.clone(origin)
-                self._ds.done()
-                self.clone_pathspec_mapping[self._path] = origin.pathspec
-            else:
-                # Store the origin pathspec in clone_origin so this can be run
-                # as a task by the runtime.
-                self.clone_origin = origin.pathspec
-                # Save a call to creating the results_ds since its same as origin.
-                self._results_ds = origin
-            return True
-        else:
-            return False
-
     @property
     def path(self):
         return self._path
@@ -884,6 +943,10 @@ class Task(object):
     @property
     def is_cloned(self):
         return self._is_cloned
+
+    @property
+    def wait_for_clone(self):
+        return self._wait_for_clone
 
     def persist(self, flow):
         # this is used to persist parameters before the start step
@@ -957,6 +1020,7 @@ class CLIArgs(object):
             "metadata": self.task.metadata_type,
             "environment": self.task.environment_type,
             "datastore": self.task.datastore_type,
+            "pylint": False,
             "event-logger": self.task.event_logger_type,
             "monitor": self.task.monitor_type,
             "datastore-root": self.task.datastore_sysroot,
@@ -1067,8 +1131,11 @@ class Worker(object):
 
         if self.task.is_cloned and self.task.clone_origin:
             args.command_options["clone-only"] = self.task.clone_origin
-            # disabling atlas sidecar for cloned tasks due to perf reasons
+            # disabling sidecars for cloned tasks due to perf reasons
+            args.top_level_options["event-logger"] = "nullSidecarLogger"
             args.top_level_options["monitor"] = "nullSidecarMonitor"
+            if self.task.wait_for_clone:
+                args.command_options["clone-wait-only"] = True
         else:
             # decorators may modify the CLIArgs object in-place
             for deco in self.task.decos:

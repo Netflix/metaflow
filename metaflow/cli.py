@@ -252,7 +252,7 @@ def dump(obj, input_path, private=None, max_value_size=None, include=None, file=
         run_id, step_name, task_id = parts
     else:
         raise CommandException(
-            "input_path should either be run_id/step_name" "or run_id/step_name/task_id"
+            "input_path should either be run_id/step_name or run_id/step_name/task_id"
         )
 
     datastore_set = TaskDataStoreSet(
@@ -398,7 +398,7 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
                     log = ds.load_log_legacy(stream)
                     if log and timestamps:
                         raise CommandException(
-                            "We can't show --timestamps for " "old runs. Sorry!"
+                            "We can't show --timestamps for old runs. Sorry!"
                         )
                     echo_unicode(log, nl=False)
     else:
@@ -428,7 +428,7 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
 )
 @click.option(
     "--input-paths",
-    help="A comma-separated list of pathspecs " "specifying inputs for this step.",
+    help="A comma-separated list of pathspecs specifying inputs for this step.",
 )
 @click.option(
     "--split-index",
@@ -450,7 +450,7 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
     "--namespace",
     "opt_namespace",
     default=None,
-    help="Change namespace from the default (your username) to " "the specified tag.",
+    help="Change namespace from the default (your username) to the specified tag.",
 )
 @click.option(
     "--retry-count",
@@ -469,9 +469,16 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
     "not execute anything.",
 )
 @click.option(
+    "--clone-wait-only/--no-clone-wait-only",
+    default=False,
+    show_default=True,
+    help="If specified, waits for an external process to clone the task",
+    hidden=True,
+)
+@click.option(
     "--clone-run-id",
     default=None,
-    help="Run id of the origin flow, if this task is part of a flow " "being resumed.",
+    help="Run id of the origin flow, if this task is part of a flow being resumed.",
 )
 @click.option(
     "--with",
@@ -485,7 +492,7 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
     "--ubf-context",
     default="none",
     type=click.Choice(["none", UBF_CONTROL, UBF_TASK]),
-    help="Provides additional context if this task is of type " "unbounded foreach.",
+    help="Provides additional context if this task is of type unbounded foreach.",
 )
 @click.option(
     "--num-parallel",
@@ -506,6 +513,7 @@ def step(
     retry_count=None,
     max_user_code_retries=None,
     clone_only=None,
+    clone_wait_only=False,
     clone_run_id=None,
     decospecs=None,
     ubf_context="none",
@@ -551,7 +559,14 @@ def step(
         ubf_context,
     )
     if clone_only:
-        task.clone_only(step_name, run_id, task_id, clone_only, retry_count)
+        task.clone_only(
+            step_name,
+            run_id,
+            task_id,
+            clone_only,
+            retry_count,
+            wait_only=clone_wait_only,
+        )
     else:
         task.run_step(
             step_name,
@@ -686,6 +701,13 @@ def common_run_options(func):
     show_default=True,
     help="Only clone tasks without continuing execution",
 )
+@click.option(
+    "--reentrant/--no-reentrant",
+    default=False,
+    show_default=True,
+    hidden=True,
+    help="If specified, allows this call to be called in parallel",
+)
 @click.argument("step-to-rerun", required=False)
 @cli.command(help="Resume execution of a previous run of this flow.")
 @common_run_options
@@ -697,6 +719,7 @@ def resume(
     origin_run_id=None,
     run_id=None,
     clone_only=False,
+    reentrant=False,
     max_workers=None,
     max_num_splits=None,
     max_log_size=None,
@@ -751,6 +774,7 @@ def resume(
         run_id=run_id,
         clone_run_id=origin_run_id,
         clone_only=clone_only,
+        reentrant=reentrant,
         clone_steps=clone_steps,
         max_workers=max_workers,
         max_num_splits=max_num_splits,
@@ -892,7 +916,7 @@ def version(obj):
 @click.option("--datastore-root", help="Root path for datastore")
 @click.option(
     "--package-suffixes",
-    help="A comma-separated list of file suffixes to include " "in the code package.",
+    help="A comma-separated list of file suffixes to include in the code package.",
     default=DEFAULT_PACKAGE_SUFFIXES,
     show_default=True,
 )
