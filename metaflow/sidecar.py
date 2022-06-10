@@ -171,7 +171,8 @@ class SidecarSubProcess(object):
             self._logger("Unable to send message due to timeout")
             self._prev_message_error = True
         except Exception as ex:
-            if isinstance(ex, PipeUnavailableError):
+            if isinstance(ex, (PipeUnavailableError, BrokenPipeError)):
+                self._logger("Restarting sidecar due to broken/unavailable pipe")
                 self.start()
                 # For context sending, we don't retry since we already did it in
                 # start
