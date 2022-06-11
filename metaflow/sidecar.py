@@ -173,6 +173,9 @@ class SidecarSubProcess(object):
         except Exception as ex:
             if isinstance(ex, (PipeUnavailableError, BrokenPipeError)):
                 self._logger("Restarting sidecar due to broken/unavailable pipe")
+                self._send_context_remaining_tries = (
+                    CONTEXT_RETRY_TIMES if self._context is not None else 0
+                )
                 self.start()
                 # For context sending, we don't retry since we already did it in
                 # start
