@@ -4,6 +4,7 @@ from itertools import chain
 
 from metaflow import namespace
 from metaflow.client import Flow, Run
+from metaflow.current import current
 from metaflow.util import resolve_identity
 from metaflow.exception import CommandException, MetaflowNotFound, MetaflowInternalError
 from metaflow.exception import MetaflowNamespaceMismatch
@@ -223,6 +224,13 @@ def _get_client_run_obj(obj, run_id, user_namespace):
     return run
 
 
+def _set_current(obj):
+    current._set_env(
+        metadata_desc="%s@%s"
+        % (obj.metadata.__class__.TYPE, obj.metadata.__class__.INFO)
+    )
+
+
 @click.group()
 def cli():
     pass
@@ -252,6 +260,7 @@ def tag():
 @click.argument("tags", required=True, type=str, nargs=-1)
 @click.pass_obj
 def add(obj, run_id, user_namespace, tags):
+    _set_current(obj)
     user_namespace = resolve_identity() if user_namespace is None else user_namespace
     run = _get_client_run_obj(obj, run_id, user_namespace)
 
@@ -280,6 +289,7 @@ def add(obj, run_id, user_namespace, tags):
 @click.argument("tags", required=True, type=str, nargs=-1)
 @click.pass_obj
 def remove(obj, run_id, user_namespace, tags):
+    _set_current(obj)
     user_namespace = resolve_identity() if user_namespace is None else user_namespace
     run = _get_client_run_obj(obj, run_id, user_namespace)
 
@@ -325,6 +335,7 @@ def remove(obj, run_id, user_namespace, tags):
 )
 @click.pass_obj
 def replace(obj, run_id, user_namespace, tags_to_add=None, tags_to_remove=None):
+    _set_current(obj)
     # While run.replace_tag() can accept 0 additions or 0 removals, we want to encourage
     # the *obvious* way to achieve their goals. E.g. if they are only adding tags, use "tag add"
     # over more obscure "tag replace --add ... --add ..."
@@ -422,6 +433,7 @@ def tag_list(
     flat,
     arg_run_id,
 ):
+    _set_current(obj)
     if run_id is None and arg_run_id is None and not list_all and not my_runs:
         # Assume list_all by default
         list_all = True

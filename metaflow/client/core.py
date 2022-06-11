@@ -8,6 +8,7 @@ from collections import namedtuple
 from itertools import chain
 
 from metaflow.metaflow_environment import MetaflowEnvironment
+from metaflow.current import current
 from metaflow.exception import (
     MetaflowNotFound,
     MetaflowNamespaceMismatch,
@@ -121,6 +122,12 @@ def default_metadata():
         The result of get_metadata() after resetting the provider.
     """
     global current_metadata
+
+    # We first check if we are in a flow -- if that is the case, we use the
+    # metadata provider that is being used there
+    if current.metadata_description:
+        return metadata(current.metadata_description)
+
     default = [m for m in METADATA_PROVIDERS if m.TYPE == DEFAULT_METADATA]
     if default:
         current_metadata = default[0]

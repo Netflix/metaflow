@@ -14,6 +14,8 @@ class Current(object):
         self._origin_run_id = None
         self._namespace = None
         self._username = None
+        self._metadata_desc = None
+        self._datastore_desc = None
         self._is_running = False
 
         def _raise(ex):
@@ -33,6 +35,8 @@ class Current(object):
         origin_run_id=None,
         namespace=None,
         username=None,
+        metadata_desc=None,
+        datastore_desc=None,
         is_running=True,
         tags=None,
     ):
@@ -47,6 +51,8 @@ class Current(object):
         self._origin_run_id = origin_run_id
         self._namespace = namespace
         self._username = username
+        self._metadata_desc = metadata_desc
+        self._datastore_desc = datastore_desc
         self._is_running = is_running
         self._tags = tags
 
@@ -107,6 +113,14 @@ class Current(object):
     @property
     def username(self):
         return self._username
+
+    @property
+    def metadata_description(self):
+        return self._metadata_desc
+
+    @property
+    def datastore_description(self):
+        return self._datastore_desc
 
     @property
     def parallel(self):
