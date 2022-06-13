@@ -308,7 +308,7 @@ class Image(UserComponent):
             if plt is None:
                 return ErrorComponent(
                     cls.render_fail_headline(
-                        "Invalid Type. Object %s is not from `matlplotlib`" % type(plot)
+                        "Invalid Type. Object %s is not from `matplotlib`" % type(plot)
                     ),
                     "",
                 )
