@@ -1,42 +1,28 @@
-from tracemalloc import is_tracing
+from metaflow.plugins import SIDECARS
 from .sidecar_subprocess import SidecarSubProcess
-from .sidecar_messages import Message, MessageTypes
 
 
 class Sidecar(object):
-    TYPE = ""
-
-    def __init__(self, flow, env):
+    def __init__(self, sidecar_type):
+        self._sidecar_type = sidecar_type
+        self._has_valid_worker = False
+        t = SIDECARS.get(self._sidecar_type)
+        if t is not None and t.get_worker() is not None:
+            self._has_valid_worker = True
         self.sidecar_process = None
 
     def start(self):
-        if not self._is_active and self.get_sidecar_worker_class() is not None:
-            self.sidecar_process = SidecarSubProcess(self._get_sidecar_worker_type())
+        if not self.is_active and self._has_valid_worker:
+            self.sidecar_process = SidecarSubProcess(self._sidecar_type)
 
-    def add_to_context(self, **kwargs):
-        if self._is_active:
-            msg = Message(MessageTypes.CONTEXT, self._get_context())
+    def send(self, msg):
+        if self.is_active:
             self.sidecar_process.send(msg)
 
     def terminate(self):
-        if self._is_active:
+        if self.is_active:
             self.sidecar_process.kill()
 
-    @classmethod
-    def get_sidecar_worker_class(cls):
-        raise NotImplementedError()
-
-    def _send(self, msg):
-        if self._is_active:
-            self.sidecar_process.send(msg)
-
     @property
-    def _is_active(self):
+    def is_active(self):
         return self.sidecar_process is not None
-
-    def _get_context(self):
-        return None
-
-    @classmethod
-    def _get_sidecar_worker_type(cls):
-        return cls.TYPE

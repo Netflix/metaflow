@@ -8,7 +8,7 @@ class DebugMonitor(BaseMonitor):
     TYPE = "debugMonitor"
 
     @classmethod
-    def get_sidecar_worker_class(cls):
+    def get_worker(cls):
         return DebugMonitorSidecar
 
 
@@ -22,7 +22,7 @@ class DebugMonitorSidecar(object):
             self._context = msg.payload
         elif msg.msg_type == MessageTypes.SHUTDOWN:
             self._shutdown()
-        elif msg.msg_type == MessageTypes.EVENT:
+        elif msg.msg_type == MessageTypes.BEST_EFFORT:
             for v in msg.payload.values():
                 metric = Metric.deserialize(v)
                 print(

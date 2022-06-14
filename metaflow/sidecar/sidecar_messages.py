@@ -4,7 +4,7 @@ import json
 # Unfortunately we can't use enums because they are not supported
 # officially in Python2
 class MessageTypes(object):
-    INVALID, CONTEXT, EVENT, SHUTDOWN = range(1, 5)
+    INVALID, CONTEXT, BEST_EFFORT, SHUTDOWN = range(1, 5)
 
 
 class Message(object):

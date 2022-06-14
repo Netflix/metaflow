@@ -52,7 +52,7 @@ def process_messages(worker_type, worker):
 def main(worker_type):
     sidecar_type = SIDECARS.get(worker_type)
     if sidecar_type is not None:
-        worker_class = sidecar_type.get_sidecar_worker_class()
+        worker_class = sidecar_type.get_worker()
         if worker_class is not None:
             process_messages(worker_type, worker_class())
         else:

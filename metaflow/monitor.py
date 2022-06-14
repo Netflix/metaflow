@@ -9,22 +9,36 @@ GAUGE_TYPE = "GAUGE"
 TIMER_TYPE = "TIMER"
 
 
-class BaseMonitor(Sidecar):
+class BaseMonitor(object):
+    TYPE = "nullSidecarMonitor"
+
+    def __init__(self, flow, env):
+        self._sidecar = Sidecar(self.TYPE)
+
+    def start(self):
+        return self._sidecar.start()
+
+    def terminate(self):
+        return self._sidecar.terminate()
+
+    def add_context(self, context):
+        pass
+
     @contextmanager
     def count(self, name):
-        if self._is_active:
+        if self._sidecar.is_active:
             counter = Counter(name)
             counter.increment()
             payload = {"counter": counter.serialize()}
-            msg = Message(MessageTypes.EVENT, payload)
+            msg = Message(MessageTypes.BEST_EFFORT, payload)
             yield
-            self._send(msg)
+            self._sidecar.send(msg)
         else:
             yield
 
     @contextmanager
     def measure(self, name):
-        if self._is_active:
+        if self._sidecar.is_active:
             timer = Timer(name + "_timer")
             counter = Counter(name + "_counter")
             timer.start()
@@ -32,23 +46,19 @@ class BaseMonitor(Sidecar):
             yield
             timer.end()
             payload = {"counter": counter.serialize(), "timer": timer.serialize()}
-            msg = Message(MessageTypes.EVENT, payload)
-            self._send(msg)
+            msg = Message(MessageTypes.BEST_EFFORT, payload)
+            self._sidecar.send(msg)
         else:
             yield
 
     def gauge(self, gauge):
-        if self._is_active:
+        if self._sidecar.is_active:
             payload = {"gauge": gauge.serialize()}
-            msg = Message(MessageTypes.EVENT, payload)
-            self.sidecar_process.send(msg)
-
-
-class NullMonitor(BaseMonitor):
-    TYPE = "nullSidecarMonitor"
+            msg = Message(MessageTypes.BEST_EFFORT, payload)
+            self._sidecar.send(msg)
 
     @classmethod
-    def get_sidecar_worker_class(cls):
+    def get_worker(cls):
         return None
 
 

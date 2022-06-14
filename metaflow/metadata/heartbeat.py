@@ -36,7 +36,7 @@ class MetadataHeartBeat(object):
             self.req_thread.start()
 
     @classmethod
-    def get_sidecar_worker_class(cls):
+    def get_worker(cls):
         return cls
 
     def _ping(self):

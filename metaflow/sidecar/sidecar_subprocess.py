@@ -146,7 +146,7 @@ class SidecarSubProcess(object):
         if self._process is None:
             return False
         try:
-            if msg.msg_type == MessageTypes.EVENT:
+            if msg.msg_type == MessageTypes.BEST_EFFORT:
                 # If we have a context to send, we need to send it first prior to
                 # sending an EVENT message
                 if self._send_context_remaining_tries == -1:

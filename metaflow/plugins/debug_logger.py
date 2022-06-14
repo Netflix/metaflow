@@ -8,7 +8,7 @@ class DebugEventLogger(BaseEventLogger):
     TYPE = "debugLogger"
 
     @classmethod
-    def get_sidecar_worker_class(cls):
+    def get_worker(cls):
         return DebugEventLoggerSidecar
 
 
@@ -21,7 +21,7 @@ class DebugEventLoggerSidecar(object):
         if msg.msg_type == MessageTypes.SHUTDOWN:
             print("Debug[shutdown]: got shutdown!", file=sys.stderr)
             self._shutdown()
-        elif msg.msg_type == MessageTypes.EVENT:
+        elif msg.msg_type == MessageTypes.BEST_EFFORT:
             print("Debug[event]: %s" % str(msg.payload), file=sys.stderr)
 
     def _shutdown(self):

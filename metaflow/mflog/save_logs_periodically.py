@@ -19,7 +19,7 @@ class SaveLogsPeriodicallySidecar(object):
             self.is_alive = False
 
     @classmethod
-    def get_sidecar_worker_class(cls):
+    def get_worker(cls):
         return cls
 
     def _update_loop(self):
