@@ -2,12 +2,16 @@ import collections
 import glob
 import json
 import os
+import random
+import tempfile
 import time
+from collections import namedtuple
 
-from metaflow.exception import MetaflowInternalError
+from metaflow.exception import MetaflowInternalError, MetaflowTaggingError
 from metaflow.metadata.metadata import ObjectOrder
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.metadata import MetadataProvider
+from metaflow.tagging_util import MAX_USER_TAG_SET_SIZE, validate_tags
 
 
 class LocalMetadataProvider(MetadataProvider):
@@ -114,6 +118,88 @@ class LocalMetadataProvider(MetadataProvider):
             "sysmeta_%s_%d" % (meta["field_name"], ts): meta for meta in metalist
         }
         self._save_meta(meta_dir, metadict)
+
+    @classmethod
+    def _mutate_user_tags_for_run(
+        cls, flow_id, run_id, tags_to_add=None, tags_to_remove=None
+    ):
+        MutationResult = namedtuple(
+            "MutationResult", field_names="tags_are_consistent tags"
+        )
+
+        def _optimistically_mutate():
+            # get existing tags
+            run = LocalMetadataProvider.get_object(
+                "run", "self", {}, None, flow_id, run_id
+            )
+            if not run:
+                raise MetaflowTaggingError(
+                    msg="Run not found (%s, %s)" % (flow_id, run_id)
+                )
+            existing_user_tag_set = frozenset(run["tags"])
+            existing_system_tag_set = frozenset(run["system_tags"])
+            tags_to_remove_set = frozenset(tags_to_remove)
+            # make sure no existing system tags get added as a user tag
+            tags_to_add_set = frozenset(tags_to_add) - existing_system_tag_set
+
+            # from this point on we work with sets of tags only
+
+            if tags_to_remove_set & existing_system_tag_set:
+                raise MetaflowTaggingError(
+                    msg="Cannot remove a tag that is an existing system tag (%s)"
+                    % str(sorted(tags_to_remove_set & existing_system_tag_set))
+                )
+
+            # remove tags first, then add
+            next_user_tags_set = (
+                existing_user_tag_set - tags_to_remove_set
+            ) | tags_to_add_set
+            # we think it will be a no-op, so let's return right away
+            if next_user_tags_set == existing_user_tag_set:
+                return MutationResult(
+                    tags=next_user_tags_set,
+                    tags_are_consistent=True,
+                )
+
+            validate_tags(next_user_tags_set, existing_tags=existing_user_tag_set)
+
+            # write new tag set to file system
+            LocalMetadataProvider._persist_tags_for_run(
+                flow_id, run_id, next_user_tags_set, existing_system_tag_set
+            )
+
+            # read tags back from file system to see if our optimism is misplaced
+            # I.e. did a concurrent mutate overwrite our change
+            run = LocalMetadataProvider.get_object(
+                "run", "self", {}, None, flow_id, run_id
+            )
+            if not run:
+                raise MetaflowTaggingError(
+                    msg="Run not found for read-back check (%s, %s)" % (flow_id, run_id)
+                )
+            final_tag_set = frozenset(run["tags"])
+            if tags_to_add_set - final_tag_set:
+                return MutationResult(tags=final_tag_set, tags_are_consistent=False)
+            if (
+                tags_to_remove_set & final_tag_set
+            ) - tags_to_add_set:  # Remove before add, remember?  Account for this
+                return MutationResult(tags=final_tag_set, tags_are_consistent=False)
+
+            return MutationResult(tags=final_tag_set, tags_are_consistent=True)
+
+        tries = 1
+        # try up to 5 times, with a gentle exponential backoff (1.1-1.3x)
+        while True:
+            mutation_result = _optimistically_mutate()
+            if mutation_result.tags_are_consistent:
+                return mutation_result.tags
+            if tries >= 5:
+                break
+            time.sleep(0.3 * random.uniform(1.1, 1.3) ** tries)
+            tries += 1
+        raise MetaflowTaggingError(
+            "Tagging failed due to too many conflicting updates from other processes"
+        )
 
     @classmethod
     def _get_object_internal(
@@ -328,6 +414,26 @@ class LocalMetadataProvider(MetadataProvider):
             else:
                 raise
 
+    @staticmethod
+    def _persist_tags_for_run(flow_id, run_id, tags, system_tags):
+        subpath = LocalMetadataProvider._create_and_get_metadir(
+            flow_name=flow_id, run_id=run_id
+        )
+        selfname = os.path.join(subpath, "_self.json")
+        if not os.path.isfile(selfname):
+            raise MetaflowInternalError(
+                msg="Could not verify Run existence on disk - missing %s" % selfname
+            )
+        LocalMetadataProvider._save_meta(
+            subpath,
+            {
+                "_self": MetadataProvider._run_to_json_static(
+                    flow_id, run_id=run_id, tags=tags, sys_tags=system_tags
+                )
+            },
+            allow_overwrite=True,
+        )
+
     def _ensure_meta(
         self, obj_type, run_id, step_name, task_id, tags=None, sys_tags=None
     ):
@@ -430,9 +536,16 @@ class LocalMetadataProvider(MetadataProvider):
     def _dump_json_to_file(filepath, data, allow_overwrite=False):
         if os.path.isfile(filepath) and not allow_overwrite:
             return
-        with open(filepath + ".tmp", "w") as f:
-            json.dump(data, f)
-        os.rename(filepath + ".tmp", filepath)
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", dir=os.path.dirname(filepath), delete=False
+            ) as f:
+                json.dump(data, f)
+            os.rename(f.name, filepath)
+        finally:
+            # clean up in case anything goes wrong
+            if f and os.path.isfile(f.name):
+                os.remove(f.name)
 
     @staticmethod
     def _read_json_file(filepath):
@@ -440,7 +553,9 @@ class LocalMetadataProvider(MetadataProvider):
             return json.load(f)
 
     @staticmethod
-    def _save_meta(root_dir, metadict):
+    def _save_meta(root_dir, metadict, allow_overwrite=False):
         for name, datum in metadict.items():
             filename = os.path.join(root_dir, "%s.json" % name)
-            LocalMetadataProvider._dump_json_to_file(filename, datum)
+            LocalMetadataProvider._dump_json_to_file(
+                filename, datum, allow_overwrite=allow_overwrite
+            )

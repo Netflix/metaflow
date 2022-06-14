@@ -1,5 +1,4 @@
 import inspect
-import os
 import sys
 import traceback
 from datetime import datetime
@@ -15,6 +14,7 @@ from . import metaflow_version
 from . import namespace
 from . import current
 from .cli_args import cli_args
+from .tagging_util import validate_tags
 from .util import (
     resolve_identity,
     decompress_list,
@@ -795,6 +795,8 @@ def write_run_id(run_id_file, run_id):
 
 
 def before_run(obj, tags, decospecs):
+    validate_tags(tags)
+
     # There's a --with option both at the top-level and for the run
     # subcommand. Why?
     #
@@ -813,6 +815,7 @@ def before_run(obj, tags, decospecs):
     decorators._init_step_decorators(
         obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
     )
+
     obj.metadata.add_sticky_tags(tags=tags)
 
     # Package working directory only once per run.
@@ -929,6 +932,7 @@ def start(
     cli_args._set_top_kwargs(ctx.params)
     ctx.obj.echo = echo
     ctx.obj.echo_always = echo_always
+    ctx.obj.is_quiet = quiet
     ctx.obj.graph = FlowGraph(ctx.obj.flow.__class__)
     ctx.obj.logger = logger
     ctx.obj.check = _check

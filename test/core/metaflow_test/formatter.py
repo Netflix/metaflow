@@ -151,7 +151,7 @@ class FlowFormatter(object):
     def _check_lines(self):
         yield 0, "# -*- coding: utf-8 -*-"
         yield 0, "import sys"
-        yield 0, "from metaflow_test import assert_equals, assert_equals_metadata, new_checker"
+        yield 0, "from metaflow_test import assert_equals, assert_equals_metadata, assert_exception, new_checker"
         yield 0, "def check_results(flow, checker):"
         for line in self._format_method(self.test.check_results):
             yield 1, line

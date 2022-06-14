@@ -3,10 +3,11 @@ import os
 import re
 import time
 from collections import namedtuple
-from datetime import datetime
+from itertools import chain
 
-from metaflow.exception import MetaflowInternalError
-from metaflow.util import get_username, resolve_identity_as_tuple
+from metaflow.exception import MetaflowInternalError, MetaflowTaggingError
+from metaflow.tagging_util import validate_tag
+from metaflow.util import get_username, resolve_identity_as_tuple, is_stringish
 
 DataArtifact = namedtuple("DataArtifact", "name ds_type ds_root url type sha")
 
@@ -423,10 +424,86 @@ class MetadataProvider(object):
             pre_filter, attempt_int
         )
 
+    @classmethod
+    def mutate_user_tags_for_run(
+        cls, flow_id, run_id, tags_to_remove=None, tags_to_add=None
+    ):
+        """
+        Mutate the set of user tags for a run.
+
+        Removals logically get applied after additions.  Operations occur as a batch atomically.
+        Parameters
+        ----------
+        flow_id : str
+            Flow id, that the run belongs to.
+        run_id: str
+            Run id, together with flow_id, that identifies the specific Run whose tags to mutate
+        tags_to_remove: iterable over str
+            Iterable over tags to remove
+        tags_to_add: iterable over str
+            Iterable over tags to add
+
+        Return
+        ------
+        Run tags after mutation operations
+        """
+        # perform common validation, across all provider implementations
+        if tags_to_remove is None:
+            tags_to_remove = []
+        if tags_to_add is None:
+            tags_to_add = []
+        if not tags_to_add and not tags_to_remove:
+            raise MetaflowTaggingError("Must add or remove at least one tag")
+
+        if is_stringish(tags_to_add):
+            raise MetaflowTaggingError("tags_to_add may not be a string")
+
+        if is_stringish(tags_to_remove):
+            raise MetaflowTaggingError("tags_to_remove may not be a string")
+
+        def _is_iterable(something):
+            try:
+                iter(something)
+                return True
+            except TypeError:
+                return False
+
+        if not _is_iterable(tags_to_add):
+            raise MetaflowTaggingError("tags_to_add must be iterable")
+        if not _is_iterable(tags_to_remove):
+            raise MetaflowTaggingError("tags_to_remove must be iterable")
+
+        # check each tag is valid
+        for tag in chain(tags_to_add, tags_to_remove):
+            validate_tag(tag)
+
+        # onto subclass implementation
+        final_user_tags = cls._mutate_user_tags_for_run(
+            flow_id, run_id, tags_to_add=tags_to_add, tags_to_remove=tags_to_remove
+        )
+        return final_user_tags
+
+    @classmethod
+    def _mutate_user_tags_for_run(
+        cls, flow_id, run_id, tags_to_add=None, tags_to_remove=None
+    ):
+        """
+        To be implemented by subclasses of MetadataProvider.
+
+        See mutate_user_tags_for_run() for expectations.
+        """
+        raise NotImplementedError()
+
     def _all_obj_elements(self, tags=None, sys_tags=None):
+        return MetadataProvider._all_obj_elements_static(
+            self._flow_name, tags=tags, sys_tags=sys_tags
+        )
+
+    @staticmethod
+    def _all_obj_elements_static(flow_name, tags=None, sys_tags=None):
         user = get_username()
         return {
-            "flow_id": self._flow_name,
+            "flow_id": flow_name,
             "user_name": user,
             "tags": list(tags) if tags else [],
             "system_tags": list(sys_tags) if sys_tags else [],
@@ -440,11 +517,17 @@ class MetadataProvider(object):
         return {"flow_id": self._flow_name, "ts_epoch": int(round(time.time() * 1000))}
 
     def _run_to_json(self, run_id=None, tags=None, sys_tags=None):
+        return MetadataProvider._run_to_json_static(
+            self._flow_name, run_id=run_id, tags=tags, sys_tags=sys_tags
+        )
+
+    @staticmethod
+    def _run_to_json_static(flow_name, run_id=None, tags=None, sys_tags=None):
         if run_id is not None:
             d = {"run_number": run_id}
         else:
             d = {}
-        d.update(self._all_obj_elements(tags, sys_tags))
+        d.update(MetadataProvider._all_obj_elements_static(flow_name, tags, sys_tags))
         return d
 
     def _step_to_json(self, run_id, step_name, tags=None, sys_tags=None):

@@ -19,6 +19,7 @@ from metaflow.plugins.aws.step_functions.production_token import (
     store_token,
 )
 from metaflow.util import get_username, to_bytes, to_unicode
+from metaflow.tagging_util import validate_tags
 
 from .argo_workflows import ArgoWorkflows
 
@@ -139,6 +140,8 @@ def create(
     workflow_timeout=None,
     workflow_priority=None,
 ):
+    validate_tags(tags)
+
     obj.echo("Deploying *%s* to Argo Workflows..." % obj.workflow_name, bold=True)
 
     # TODO: Consider dispelling with this check since it's been 2 years since the

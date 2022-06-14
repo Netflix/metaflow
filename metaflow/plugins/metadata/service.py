@@ -1,10 +1,16 @@
 import os
+import random
+
 import requests
 import time
 
 from distutils.version import LooseVersion
 
-from metaflow.exception import MetaflowException
+from metaflow.exception import (
+    MetaflowException,
+    MetaflowTaggingError,
+    MetaflowInternalError,
+)
 from metaflow.metaflow_config import (
     METADATA_SERVICE_NUM_RETRIES,
     METADATA_SERVICE_HEADERS,
@@ -14,6 +20,7 @@ from metaflow.metadata import MetadataProvider
 from metaflow.metadata.heartbeat import HB_URL_KEY
 from metaflow.sidecar import SidecarSubProcess
 from metaflow.sidecar_messages import MessageTypes, Message
+
 
 # Define message enums
 class HeartbeatTypes(object):
@@ -34,6 +41,7 @@ class ServiceMetadataProvider(MetadataProvider):
     TYPE = "service"
 
     _supports_attempt_gets = None
+    _supports_tag_mutation = None
 
     def __init__(self, environment, flow, event_logger, monitor):
         super(ServiceMetadataProvider, self).__init__(
@@ -163,7 +171,7 @@ class ServiceMetadataProvider(MetadataProvider):
         data = self._artifacts_to_json(
             run_id, step_name, task_id, attempt_id, artifacts
         )
-        self._request(self._monitor, url, data)
+        self._request(self._monitor, url, "POST", data)
 
     def register_metadata(self, run_id, step_name, task_id, metadata):
         url = ServiceMetadataProvider._obj_path(
@@ -171,7 +179,56 @@ class ServiceMetadataProvider(MetadataProvider):
         )
         url += "/metadata"
         data = self._metadata_to_json(run_id, step_name, task_id, metadata)
-        self._request(self._monitor, url, data)
+        self._request(self._monitor, url, "POST", data)
+
+    @classmethod
+    def _mutate_user_tags_for_run(
+        cls, flow_id, run_id, tags_to_add=None, tags_to_remove=None
+    ):
+        min_service_version_with_tag_mutation = "2.3.0"
+        if cls._supports_tag_mutation is None:
+            version = cls._version(None)
+            cls._supports_tag_mutation = version is not None and LooseVersion(
+                version
+            ) >= LooseVersion(min_service_version_with_tag_mutation)
+        if not cls._supports_tag_mutation:
+            raise ServiceException(
+                "Adding or removing tags on a run requires the Metaflow service to be "
+                "at least version %s. Please upgrade your service."
+                % (min_service_version_with_tag_mutation,)
+            )
+
+        url = ServiceMetadataProvider._obj_path(flow_id, run_id) + "/tag/mutate"
+        tag_mutation_data = {
+            # mutate_user_tags_for_run() should have already ensured that this is a list, so let's be tolerant here
+            "tags_to_add": list(tags_to_add or []),
+            "tags_to_remove": list(tags_to_remove or []),
+        }
+        tries = 1
+        status_codes_seen = set()
+        # try up to 10 times, with a gentle exponential backoff (1.4-1.6x)
+        while True:
+            resp = cls._request(
+                None, url, "PATCH", data=tag_mutation_data, return_raw_resp=True
+            )
+            status_codes_seen.add(resp.status_code)
+            # happy path
+            if resp.status_code < 300:
+                return frozenset(resp.json()["tags"])
+            # definitely NOT retriable
+            if resp.status_code in (400, 422):
+                raise MetaflowTaggingError("Metadata service says: %s" % (resp.text,))
+            # if we get here, mutation failure is possibly retriable
+            if tries >= 10:
+                # if we ever received 409 on any of our attempts, report "conflicting updates" blurb to user
+                if 409 in status_codes_seen:
+                    raise MetaflowTaggingError(
+                        "Tagging failed due to too many conflicting updates from other processes"
+                    )
+                # No 409's seen... raise a more generic error
+                raise MetaflowTaggingError("Tagging failed after %d tries" % tries)
+            time.sleep(0.3 * random.uniform(1.4, 1.6) ** tries)
+            tries += 1
 
     @classmethod
     def _get_object_internal(
@@ -200,7 +257,7 @@ class ServiceMetadataProvider(MetadataProvider):
                 url = ServiceMetadataProvider._obj_path(*args[:obj_order])
             try:
                 return MetadataProvider._apply_filter(
-                    [cls._request(None, url)], filters
+                    [cls._request(None, url, "GET")], filters
                 )[0]
             except ServiceException as ex:
                 if ex.http_code == 404:
@@ -219,7 +276,9 @@ class ServiceMetadataProvider(MetadataProvider):
         else:
             url += "/%ss" % sub_type
         try:
-            return MetadataProvider._apply_filter(cls._request(None, url), filters)
+            return MetadataProvider._apply_filter(
+                cls._request(None, url, "GET"), filters
+            )
         except ServiceException as ex:
             if ex.http_code == 404:
                 return None
@@ -300,7 +359,9 @@ class ServiceMetadataProvider(MetadataProvider):
                 self.sticky_tags.union(tags),
                 self.sticky_sys_tags.union(sys_tags),
             )
-            return self._request(self._monitor, create_path, data, obj_path)
+            return self._request(
+                self._monitor, create_path, "POST", data=data, retry_409_path=obj_path
+            )
 
         always_create = False
         obj_path = self._obj_path(self._flow_name, run_id, step_name, task_id)
@@ -314,30 +375,45 @@ class ServiceMetadataProvider(MetadataProvider):
             return create_object()
 
         try:
-            return self._request(self._monitor, obj_path)
+            return self._request(self._monitor, obj_path, "GET")
         except ServiceException as ex:
             if ex.http_code == 404:
                 return create_object()
             else:
                 raise
 
+    # TODO _request() needs a more deliberate refactor at some point, it looks quite overgrown.
     @classmethod
-    def _request(cls, monitor, path, data=None, retry_409_path=None):
+    def _request(
+        cls,
+        monitor,
+        path,
+        method,
+        data=None,
+        retry_409_path=None,
+        return_raw_resp=False,
+    ):
         if cls.INFO is None:
             raise MetaflowException(
                 "Missing Metaflow Service URL. "
                 "Specify with METAFLOW_SERVICE_URL environment variable"
             )
+        supported_methods = ("GET", "PATCH", "POST")
+        if method not in supported_methods:
+            raise MetaflowException(
+                "Only these methods are supported: %s, but got %s"
+                % (supported_methods, method)
+            )
         url = os.path.join(cls.INFO, path.lstrip("/"))
         for i in range(METADATA_SERVICE_NUM_RETRIES):
             try:
-                if data is None:
+                if method == "GET":
                     if monitor:
                         with monitor.measure("metaflow.service_metadata.get"):
                             resp = requests.get(url, headers=METADATA_SERVICE_HEADERS)
                     else:
                         resp = requests.get(url, headers=METADATA_SERVICE_HEADERS)
-                else:
+                elif method == "POST":
                     if monitor:
                         with monitor.measure("metaflow.service_metadata.post"):
                             resp = requests.post(
@@ -347,6 +423,20 @@ class ServiceMetadataProvider(MetadataProvider):
                         resp = requests.post(
                             url, headers=METADATA_SERVICE_HEADERS, json=data
                         )
+                elif method == "PATCH":
+                    if monitor:
+                        with monitor.measure("metaflow.service_metadata.patch"):
+                            resp = requests.patch(
+                                url, headers=METADATA_SERVICE_HEADERS, json=data
+                            )
+                    else:
+                        resp = requests.patch(
+                            url, headers=METADATA_SERVICE_HEADERS, json=data
+                        )
+                else:
+                    raise MetaflowInternalError("Unexpected HTTP method %s" % (method,))
+            except MetaflowInternalError:
+                raise
             except:  # noqa E722
                 if monitor:
                     with monitor.count("metaflow.service_metadata.failed_request"):
@@ -357,6 +447,8 @@ class ServiceMetadataProvider(MetadataProvider):
                         raise
                 resp = None
             else:
+                if return_raw_resp:
+                    return resp
                 if resp.status_code < 300:
                     return resp.json()
                 elif resp.status_code == 409 and data is not None:

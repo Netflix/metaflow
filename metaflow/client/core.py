@@ -8,6 +8,7 @@ from collections import namedtuple
 from itertools import chain
 
 from metaflow.metaflow_environment import MetaflowEnvironment
+from metaflow.current import current
 from metaflow.exception import (
     MetaflowNotFound,
     MetaflowNamespaceMismatch,
@@ -17,7 +18,7 @@ from metaflow.exception import (
 from metaflow.metaflow_config import DEFAULT_METADATA, MAX_ATTEMPTS
 from metaflow.plugins import ENVIRONMENTS, METADATA_PROVIDERS
 from metaflow.unbounded_foreach import CONTROL_TASK_TAG
-from metaflow.util import cached_property, resolve_identity, to_unicode
+from metaflow.util import cached_property, resolve_identity, to_unicode, is_stringish
 
 from .filecache import FileCache
 
@@ -121,6 +122,12 @@ def default_metadata():
         The result of get_metadata() after resetting the provider.
     """
     global current_metadata
+
+    # We first check if we are in a flow -- if that is the case, we use the
+    # metadata provider that is being used there
+    if current._metadata_str:
+        return metadata(current._metadata_str)
+
     default = [m for m in METADATA_PROVIDERS if m.TYPE == DEFAULT_METADATA]
     if default:
         current_metadata = default[0]
@@ -302,7 +309,11 @@ class MetaflowObject(object):
     Attributes
     ----------
     tags : Set
-        Tags associated with the object.
+        Tags associated with the object (user and system tags).
+    user_tags: Set
+        User tags associated with the object
+    system_tags: Set
+        System tags associated with the object
     created_at : datetime
         Date and time this object was first created.
     parent : MetaflowObject
@@ -379,6 +390,8 @@ class MetaflowObject(object):
         self._tags = frozenset(
             chain(self._object.get("system_tags") or [], self._object.get("tags") or [])
         )
+        self._user_tags = frozenset(self._object.get("tags") or [])
+        self._system_tags = frozenset(self._object.get("system_tags") or [])
 
         if _namespace_check and not self.is_in_namespace():
             raise MetaflowNamespaceMismatch(current_namespace)
@@ -544,6 +557,30 @@ class MetaflowObject(object):
             Tags associated with the object
         """
         return self._tags
+
+    @property
+    def system_tags(self):
+        """
+        System defined tags associated with this object.
+
+        Returns
+        -------
+        Set[string]
+            System tags associated with the object
+        """
+        return self._system_tags
+
+    @property
+    def user_tags(self):
+        """
+        User defined tags associated with this object.
+
+        Returns
+        -------
+        Set[string]
+            User tags associated with the object
+        """
+        return self._user_tags
 
     @property
     def created_at(self):
@@ -1725,6 +1762,113 @@ class Run(MetaflowObject):
             return None
 
         return end_step.task
+
+    def add_tag(self, tag):
+        """
+        Add one tag to the Run.
+
+        If the tag is already a system tag, it is not added as a user-tag,
+        and no error is thrown.
+        Parameters
+        ----------
+        tag : string
+            Tag to add
+        """
+        # For backwards compatibility with Netflix's early version of this functionality,
+        # this function shall accept both an individual tag AND iterables of tags.
+        #
+        # Iterable of tags support shall be removed in future once existing
+        # usage has been migrated off.
+        if is_stringish(tag):
+            tag = [tag]
+        return self.replace_tag([], tag)
+
+    def add_tags(self, tags):
+        """
+        Add one or more tags to the Run.
+
+        If any tag is already a system tag, it is not added as a user-tag
+        and no error is thrown.
+        Parameters
+        ----------
+        tags : Iterable over string
+            Tags to add
+        """
+        return self.replace_tag([], tags)
+
+    def remove_tag(self, tag):
+        """
+        Remove one tag from the Run.
+
+        Removing a system tag is an error. Removing a non-existent
+        user-tag is a no-op.
+        Parameters
+        ----------
+        tag : string
+            Tag to remove
+        """
+        # For backwards compatibility with Netflix's early version of this functionality,
+        # this function shall accept both an individual tag AND iterables of tags.
+        #
+        # Iterable of tags support shall be removed in future once existing
+        # usage has been migrated off.
+        if is_stringish(tag):
+            tag = [tag]
+        return self.replace_tag(tag, [])
+
+    def remove_tags(self, tags):
+        """
+        Remove one or more tags to the Run.
+
+        Removing a system tag will result in an error. Removing a non-existent
+        user-tag is a no-op.
+        Parameters
+        ----------
+        tags : Iterable over string
+            Tags to remove
+        """
+        return self.replace_tags(tags, [])
+
+    def replace_tag(self, tag_to_remove, tag_to_add):
+        """
+        Remove a tag and add a tag atomically. Removal is done first.
+        The rules for `add_tag` and `remove_tag` also apply here.
+        Parameters
+        ----------
+        tag_to_remove : string
+            Tag to remove
+        tag_to_add : string
+            Tag to add
+        """
+        # For backwards compatibility with Netflix's early version of this functionality,
+        # this function shall accept both individual tags AND iterables of tags.
+        #
+        # Iterable of tags support shall be removed in future once existing
+        # usage has been migrated off.
+        if is_stringish(tag_to_remove):
+            tag_to_remove = [tag_to_remove]
+        if is_stringish(tag_to_add):
+            tag_to_add = [tag_to_add]
+        return self.replace_tags(tag_to_remove, tag_to_add)
+
+    def replace_tags(self, tags_to_remove, tags_to_add):
+        """
+        Remove and add tags atomically; the removal is done first.
+        The rules for `add_tag` and `remove_tag` also apply here.
+        Parameters
+        ----------
+        tags_to_remove : Iterable over string
+            Tags to remove
+        tags_to_add : Iterable over string
+            Tags to add
+        """
+        flow_id = self.path_components[0]
+        final_user_tags = self._metaflow.metadata.mutate_user_tags_for_run(
+            flow_id, self.id, tags_to_remove=tags_to_remove, tags_to_add=tags_to_add
+        )
+        # refresh Run object with the latest tags
+        self._user_tags = frozenset(final_user_tags)
+        self._tags = frozenset([*self._user_tags, *self._system_tags])
 
 
 class Flow(MetaflowObject):
