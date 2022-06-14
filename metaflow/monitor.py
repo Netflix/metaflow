@@ -45,7 +45,7 @@ class BaseMonitor(Sidecar):
 
 
 class NullMonitor(BaseMonitor):
-    TYPE = "null"
+    TYPE = "nullSidecarMonitor"
 
     @classmethod
     def get_sidecar_worker_class(cls):

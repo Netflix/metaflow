@@ -14,7 +14,7 @@ class EventLogger(BaseEventLogger):
 
 
 class NullLogger(BaseEventLogger):
-    TYPE = "null"
+    TYPE = "nullSidecarLogger"
 
     @classmethod
     def get_sidecar_worker_class(cls):
