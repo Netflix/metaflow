@@ -12,8 +12,7 @@ from metaflow.metaflow_config import (
 )
 from metaflow.metadata import MetadataProvider
 from metaflow.metadata.heartbeat import HB_URL_KEY
-from metaflow.sidecar import SidecarSubProcess
-from metaflow.sidecar_messages import MessageTypes, Message
+from metaflow.sidecar import Message, MessageTypes, SidecarSubProcess
 
 # Define message enums
 class HeartbeatTypes(object):
@@ -134,9 +133,10 @@ class ServiceMetadataProvider(MetadataProvider):
         ):
             # if old version of the service is running
             # then avoid running real heartbeat sidecar process
-            self.sidecar_process = SidecarSubProcess("nullSidecarHeartbeat", payload)
+            self.sidecar_process = SidecarSubProcess("nullSidecarHeartbeat")
         else:
-            self.sidecar_process = SidecarSubProcess("heartbeat", payload)
+            self.sidecar_process = SidecarSubProcess("heartbeat")
+        self.sidecar_process.send(Message(MessageTypes.CONTEXT, payload))
 
     def start_run_heartbeat(self, flow_id, run_id):
         self._start_heartbeat(HeartbeatTypes.RUN, flow_id, run_id)

@@ -44,8 +44,6 @@ from .metaflow_config import (
 )
 from .metaflow_environment import MetaflowEnvironment
 from .pylint_wrapper import PyLint
-from .event_logger import EventLogger
-from .monitor import Monitor
 from .R import use_r, metaflow_r_version
 from .mflog import mflog, LOG_SOURCES
 from .unbounded_foreach import UBF_CONTROL, UBF_TASK
@@ -942,12 +940,12 @@ def start(
     ][0](ctx.obj.flow)
     ctx.obj.environment.validate_environment(echo)
 
-    ctx.obj.event_logger = EventLogger(
-        event_logger, ctx.obj.environment, flow_name=ctx.obj.flow.name
+    ctx.obj.event_logger = LOGGING_SIDECARS[event_logger](
+        ctx.obj.flow, ctx.obj.environment
     )
     ctx.obj.event_logger.start()
 
-    ctx.obj.monitor = Monitor(monitor, ctx.obj.environment, flow_name=ctx.obj.flow.name)
+    ctx.obj.monitor = MONITOR_SIDECARS[monitor](ctx.obj.flow, ctx.obj.environment)
     ctx.obj.monitor.start()
 
     ctx.obj.metadata = [m for m in METADATA_PROVIDERS if m.TYPE == metadata][0](

@@ -3,7 +3,7 @@ import requests
 import json
 
 from threading import Thread
-from metaflow.sidecar_messages import MessageTypes, Message
+from metaflow.sidecar import MessageTypes, Message
 from metaflow.metaflow_config import METADATA_SERVICE_HEADERS
 from metaflow.exception import MetaflowException
 
@@ -29,11 +29,15 @@ class MetadataHeartBeat(object):
         # type: (Message) -> None
         if msg.msg_type == MessageTypes.SHUTDOWN:
             self._shutdown()
-        if (not self.req_thread.is_alive()) and msg.msg_type == MessageTypes.START:
+        if (not self.req_thread.is_alive()) and msg.msg_type == MessageTypes.CONTEXT:
             # set post url
             self.hb_url = msg.payload[HB_URL_KEY]
             # start thread
             self.req_thread.start()
+
+    @classmethod
+    def get_sidecar_worker_class(cls):
+        return cls
 
     def _ping(self):
         retry_counter = 0

@@ -4,7 +4,7 @@ import json
 # Unfortunately we can't use enums because they are not supported
 # officially in Python2
 class MessageTypes(object):
-    INVALID, START, UPDATE_CONTEXT, SHUTDOWN, LOG_EVENT = range(1, 6)
+    INVALID, CONTEXT, EVENT, SHUTDOWN = range(1, 5)
 
 
 class Message(object):
@@ -12,13 +12,11 @@ class Message(object):
         self.msg_type = msg_type
         self.payload = payload
 
-    def serialize(self, clear_previous=False):
+    def serialize(self):
         msg = {
             "msg_type": self.msg_type,
             "payload": self.payload,
         }
-        if clear_previous:
-            return "\n" + json.dumps(msg) + "\n"
         return json.dumps(msg) + "\n"
 
     @staticmethod

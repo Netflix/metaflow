@@ -2,76 +2,29 @@ import time
 
 from contextlib import contextmanager
 
-from .sidecar import SidecarSubProcess
-from .sidecar_messages import Message, MessageTypes
+from metaflow.sidecar import Message, MessageTypes, Sidecar
 
 COUNTER_TYPE = "COUNTER"
 GAUGE_TYPE = "GAUGE"
 TIMER_TYPE = "TIMER"
 
 
-class NullMonitor(object):
-    def __init__(self, *args, **kwargs):
-        pass
-
-    def start(self):
-        pass
-
-    def add_context(self, **kwargs):
-        pass
-
+class BaseMonitor(Sidecar):
     @contextmanager
     def count(self, name):
-        yield
-
-    @contextmanager
-    def measure(self, name):
-        yield
-
-    def gauge(self, gauge):
-        pass
-
-    def terminate(self):
-        pass
-
-
-class Monitor(NullMonitor):
-    def __init__(self, monitor_type, env, **kwargs):
-        # type: (str, str, str) -> None
-        self.sidecar_process = None
-        self.monitor_type = monitor_type
-        self._context = {"env": env.get_environment_info()}
-        # The additional keywords are added to the context for the monitor.
-        # One use case is adding tags like flow_name etc.
-        if kwargs:
-            # Make sure we copy it as we don't want it to change
-            self._context["user_context"] = dict(kwargs)
-
-    def start(self):
-        if self.sidecar_process is None:
-            self.sidecar_process = SidecarSubProcess(self.monitor_type, self._context)
-
-    def add_context(self, **kwargs):
-        self._context["user_context"].update(kwargs)
-        if self.sidecar_process is not None:
-            msg = Message(MessageTypes.UPDATE_CONTEXT, self._context)
-            self.sidecar_process.send(msg)
-
-    @contextmanager
-    def count(self, name):
-        if self.sidecar_process is not None:
+        if self._is_active:
             counter = Counter(name)
             counter.increment()
             payload = {"counter": counter.serialize()}
-            msg = Message(MessageTypes.LOG_EVENT, payload)
+            msg = Message(MessageTypes.EVENT, payload)
             yield
-            self.sidecar_process.send(msg)
+            self._send(msg)
         else:
             yield
 
     @contextmanager
     def measure(self, name):
-        if self.sidecar_process is not None:
+        if self._is_active:
             timer = Timer(name + "_timer")
             counter = Counter(name + "_counter")
             timer.start()
@@ -79,20 +32,24 @@ class Monitor(NullMonitor):
             yield
             timer.end()
             payload = {"counter": counter.serialize(), "timer": timer.serialize()}
-            msg = Message(MessageTypes.LOG_EVENT, payload)
-            self.sidecar_process.send(msg)
+            msg = Message(MessageTypes.EVENT, payload)
+            self._send(msg)
         else:
             yield
 
     def gauge(self, gauge):
-        if self.sidecar_process is not None:
+        if self._is_active:
             payload = {"gauge": gauge.serialize()}
-            msg = Message(MessageTypes.LOG_EVENT, payload)
+            msg = Message(MessageTypes.EVENT, payload)
             self.sidecar_process.send(msg)
 
-    def terminate(self):
-        if self.sidecar_process is not None:
-            self.sidecar_process.kill()
+
+class NullMonitor(BaseMonitor):
+    TYPE = "null"
+
+    @classmethod
+    def get_sidecar_worker_class(cls):
+        return None
 
 
 class Metric(object):
@@ -126,7 +83,7 @@ class Metric(object):
         raise NotImplementedError()
 
     def serialize(self):
-        # We purposefully do not serialize the environment as it can be large;
+        # We purposefully do not serialize the context as it can be large;
         # it will be transferred using a different mechanism and reset on the other
         # end.
         return {"_name": self._name, "_type": self._type}
