@@ -125,7 +125,7 @@ def default_metadata():
 
     # We first check if we are in a flow -- if that is the case, we use the
     # metadata provider that is being used there
-    if current.metadata_description:
+    if current._metadata_str:
         return metadata(current._metadata_str)
 
     default = [m for m in METADATA_PROVIDERS if m.TYPE == DEFAULT_METADATA]
