@@ -431,10 +431,8 @@ class MetaflowTask(object):
             origin_run_id=origin_run_id,
             namespace=resolve_identity(),
             username=get_username(),
-            metadata_desc="%s@%s"
+            metadata_str="%s@%s"
             % (self.metadata.__class__.TYPE, self.metadata.__class__.INFO),
-            datastore_desc="%s@%s"
-            % (self.flow_datastore.TYPE, self.flow_datastore.datastore_root),
             is_running=True,
             tags=self.metadata.sticky_tags,
         )
