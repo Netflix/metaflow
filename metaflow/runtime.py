@@ -682,12 +682,29 @@ class Task(object):
             # At this point, we know we are going to clone
             self._is_cloned = True
             if reentrant:
-                # In the re-entrant case, we determine if we are the one doing the clone
-                # or not. To do so, we try to create the task-id and if we are successful,
-                # we are the first one to do so so we will clone the task. Everyone
-                # else will wait for the clone to complete.
+                # A re-entrant clone basically allows multiple concurrent processes
+                # to perform the clone at the same time to the same new run id. Let's
+                # assume two processes A and B both simultaneously calling
+                # `resume --reentrant --run-id XX`.
+                # For each task that is cloned, we want to guarantee that:
+                #   - one and only one of A or B will do the actual cloning
+                #   - the other process (or other processes) will block until the cloning
+                #     is complete.
+                # This ensures that the rest of the clone algorithm can proceed as normal
+                # and also guarantees that we only write once to the datastore and
+                # metadata.
+                #
+                # To accomplish this, we use the cloned task's task-id as the "key" to
+                # synchronize on. We then try to "register" this new task-id (or rather
+                # the full pathspec <run>/<step>/<taskid>) with the metadata service
+                # which will indicate if we actually registered it or if it existed
+                # already. If we did manage to register it, we are the "elected cloner"
+                # in essence and proceed to clone. If we didn't, we just wait to make
+                # sure the task is fully done (ie: the clone is finished).
                 if task_id is not None:
-                    # Sanity check -- this should never happen
+                    # Sanity check -- this should never happen. We cannot allow
+                    # for explicit task-ids because in the reentrant case, we use the
+                    # cloned task's id as the new task's id.
                     raise MetaflowInternalError(
                         "Reentrant clone-only resume does not allow for explicit task-id"
                     )
@@ -696,7 +713,9 @@ class Task(object):
                 # to use it effectively as a synchronization key
                 clone_task_id = origin.task_id
                 # Make sure the task-id is a non-integer to not clash with task ids
-                # assigned by the metadata provider
+                # assigned by the metadata provider. If this is an integer, we
+                # add some string to it. It doesn't matter what we add as long as it is
+                # consistent.
                 try:
                     clone_task_int = int(clone_task_id)
                     clone_task_id = "resume-%d" % clone_task_int
@@ -851,14 +870,10 @@ class Task(object):
                     attempt_id,
                     sys_tags=tags,
                 )
-                # As part of tag mutation project, we will be overlaying Run's tags
-                # (user and system) on top of Task tags.  I.e. a Task will no longer have
-                # its own tags distinct from their ancestral Run.  It means we should not
-                # use tags to indicate if a task is a control task in future.
-                #
-                # This is the main PR that implements the same "stashing to task metadata"
-                # concept:
-                #     https://github.com/Netflix/metaflow/pull/1039
+                # A Task's tags are now those of its ancestral Run so we are not able
+                # to rely on a task's tags to indicate the presence of a control task
+                # so, on top of adding the tags above, we also add a task metadata
+                # entry indicating that this is a "control task".
                 #
                 # Here we will also add a task metadata entry to indicate "control task".
                 # Within the metaflow repo, the only dependency of such a "control task"

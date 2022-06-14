@@ -331,20 +331,6 @@ class MetaflowTask(object):
                 ),
             ],
         )
-        # We write a single line to the log to give a better experience to the user
-        # (particularly in the UI)
-        output.save_logs(
-            TASK_LOG_SOURCE,
-            {
-                "stdout": BytesIO(
-                    bytes(
-                        "Task was cloned from %s/%s"
-                        % (self.flow_datastore.flow_name, clone_origin_task),
-                        encoding="utf-8",
-                    )
-                )
-            },
-        )
         output.done()
 
     def _finalize_control_task(self):

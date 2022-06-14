@@ -700,6 +700,7 @@ def common_run_options(func):
     default=False,
     show_default=True,
     help="Only clone tasks without continuing execution",
+    hidden=True,
 )
 @click.option(
     "--reentrant/--no-reentrant",
