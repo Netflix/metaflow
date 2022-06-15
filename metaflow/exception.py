@@ -95,6 +95,10 @@ class MetaflowInternalError(MetaflowException):
     headline = "Internal error"
 
 
+class MetaflowTaggingError(MetaflowException):
+    headline = "Tagging error"
+
+
 class MetaflowUnknownUser(MetaflowException):
     headline = "Unknown user"
 

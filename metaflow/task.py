@@ -6,6 +6,7 @@ import os
 import time
 
 from types import MethodType, FunctionType
+from metaflow.datastore import flow_datastore
 
 from metaflow.datastore.exceptions import DataException
 
@@ -461,6 +462,8 @@ class MetaflowTask(object):
             origin_run_id=origin_run_id,
             namespace=resolve_identity(),
             username=get_username(),
+            metadata_str="%s@%s"
+            % (self.metadata.__class__.TYPE, self.metadata.__class__.INFO),
             is_running=True,
             tags=self.metadata.sticky_tags,
         )

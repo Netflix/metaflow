@@ -10,6 +10,7 @@ from metaflow.metaflow_config import SFN_STATE_MACHINE_PREFIX
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.package import MetaflowPackage
 from metaflow.plugins import BatchDecorator
+from metaflow.tagging_util import validate_tags
 from metaflow.util import get_username, to_bytes, to_unicode
 
 from .step_functions import StepFunctions
@@ -129,6 +130,8 @@ def create(
     workflow_timeout=None,
     log_execution_history=False,
 ):
+    validate_tags(tags)
+
     obj.echo(
         "Deploying *%s* to AWS Step Functions..." % obj.state_machine_name, bold=True
     )

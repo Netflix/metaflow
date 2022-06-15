@@ -14,6 +14,7 @@ class Current(object):
         self._origin_run_id = None
         self._namespace = None
         self._username = None
+        self._metadata_str = None
         self._is_running = False
 
         def _raise(ex):
@@ -33,6 +34,7 @@ class Current(object):
         origin_run_id=None,
         namespace=None,
         username=None,
+        metadata_str=None,
         is_running=True,
         tags=None,
     ):
@@ -47,6 +49,7 @@ class Current(object):
         self._origin_run_id = origin_run_id
         self._namespace = namespace
         self._username = username
+        self._metadata_str = metadata_str
         self._is_running = is_running
         self._tags = tags
 
