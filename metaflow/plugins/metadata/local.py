@@ -68,7 +68,7 @@ class LocalMetadataProvider(MetadataProvider):
             # on creation). However, some IDs are created outside the metadata
             # provider and need to be properly registered
             int(run_id)
-            return
+            return False
         except ValueError:
             return self._new_run(run_id, tags, sys_tags)
 
@@ -85,7 +85,7 @@ class LocalMetadataProvider(MetadataProvider):
             # Same logic as register_run_id
             int(task_id)
         except ValueError:
-            self._new_task(
+            return self._new_task(
                 run_id,
                 step_name,
                 task_id,
@@ -95,6 +95,7 @@ class LocalMetadataProvider(MetadataProvider):
             )
         else:
             self._register_system_metadata(run_id, step_name, task_id, attempt)
+            return False
 
     def register_data_artifacts(
         self, run_id, step_name, task_id, attempt_id, artifacts
@@ -447,7 +448,11 @@ class LocalMetadataProvider(MetadataProvider):
         selfname = os.path.join(subpath, "_self.json")
         self._makedirs(subpath)
         if os.path.isfile(selfname):
-            return
+            # There is a race here but we are not aiming to make this as solid as
+            # the metadata service. This is used primarily for concurrent resumes
+            # so it is highly unlikely that this combination (multiple resumes of
+            # the same flow on the same machine) happens.
+            return False
         # In this case, the metadata information does not exist so we create it
         self._save_meta(
             subpath,
@@ -462,17 +467,21 @@ class LocalMetadataProvider(MetadataProvider):
                 )
             },
         )
+        return True
 
     def _new_run(self, run_id, tags=None, sys_tags=None):
         self._ensure_meta("flow", None, None, None)
-        self._ensure_meta("run", run_id, None, None, tags, sys_tags)
+        return self._ensure_meta("run", run_id, None, None, tags, sys_tags)
 
     def _new_task(
         self, run_id, step_name, task_id, attempt=0, tags=None, sys_tags=None
     ):
         self._ensure_meta("step", run_id, step_name, None)
-        self._ensure_meta("task", run_id, step_name, task_id, tags, sys_tags)
+        to_return = self._ensure_meta(
+            "task", run_id, step_name, task_id, tags, sys_tags
+        )
         self._register_system_metadata(run_id, step_name, task_id, attempt)
+        return to_return
 
     @staticmethod
     def _make_path(

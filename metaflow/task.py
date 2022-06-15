@@ -1,4 +1,6 @@
 from __future__ import print_function
+from io import BytesIO
+import math
 import sys
 import os
 import time
@@ -6,8 +8,11 @@ import time
 from types import MethodType, FunctionType
 from metaflow.datastore import flow_datastore
 
+from metaflow.datastore.exceptions import DataException
+
 from .metaflow_config import MAX_ATTEMPTS
 from .metadata import MetaDatum
+from .mflog import TASK_LOG_SOURCE
 from .datastore import Inputs, TaskDataStoreSet
 from .exception import (
     MetaflowInternalError,
@@ -158,7 +163,7 @@ class MetaflowTask(object):
         if not ds_list:
             # this guards against errors in input paths
             raise MetaflowDataMissing(
-                "Input paths *%s* resolved to zero " "inputs" % ",".join(input_paths)
+                "Input paths *%s* resolved to zero inputs" % ",".join(input_paths)
             )
         return ds_list
 
@@ -257,11 +262,37 @@ class MetaflowTask(object):
         x._set_datastore(datastore)
         return x
 
-    def clone_only(self, step_name, run_id, task_id, clone_origin_task, retry_count):
+    def clone_only(
+        self,
+        step_name,
+        run_id,
+        task_id,
+        clone_origin_task,
+        retry_count,
+        wait_only=False,
+    ):
         if not clone_origin_task:
             raise MetaflowInternalError(
-                "task.clone_only needs a valid " "clone_origin_task value."
+                "task.clone_only needs a valid clone_origin_task value."
             )
+        if wait_only:
+            # In this case, we are actually going to wait for the clone to be done
+            # by someone else. To do this, we just get the task_datastore in "r" mode
+            while True:
+                try:
+                    ds = self.flow_datastore.get_task_datastore(
+                        run_id, step_name, task_id
+                    )
+                    if not ds["_task_ok"]:
+                        raise MetaflowInternalError(
+                            "Externally cloned task did not succeed"
+                        )
+                    break
+                except DataException:
+                    # No need to get fancy with the sleep here.
+                    time.sleep(5)
+            return
+        # If we actually have to do the clone ourselves, proceed...
         # 1. initialize output datastore
         output = self.flow_datastore.get_task_datastore(
             run_id, step_name, task_id, attempt=0, mode="w"
@@ -355,7 +386,7 @@ class MetaflowTask(object):
             self.metadata.register_task_id(run_id, step_name, task_id, retry_count)
         else:
             raise MetaflowInternalError(
-                "task.run_step needs a valid run_id " "and task_id"
+                "task.run_step needs a valid run_id and task_id"
             )
 
         if retry_count >= MAX_ATTEMPTS:
@@ -363,7 +394,7 @@ class MetaflowTask(object):
             # by datastore, so running a task with such a retry_could would
             # be pointless and dangerous
             raise MetaflowInternalError(
-                "Too many task attempts (%d)! " "MAX_ATTEMPTS exceeded." % retry_count
+                "Too many task attempts (%d)! MAX_ATTEMPTS exceeded." % retry_count
             )
 
         metadata_tags = ["attempt_id:{0}".format(retry_count)]

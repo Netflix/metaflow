@@ -155,6 +155,10 @@ class MetadataProvider(object):
             Tags to apply to this particular run, by default None
         sys_tags : list, optional
             System tags to apply to this particular run, by default None
+        Returns
+        -------
+        bool
+            True if a new run was registered; False if it already existed
         """
         raise NotImplementedError()
 
@@ -200,6 +204,10 @@ class MetadataProvider(object):
             Tags to apply to this particular run, by default []
         sys_tags : list, optional
             System tags to apply to this particular run, by default []
+        Returns
+        -------
+        bool
+            True if a new run was registered; False if it already existed
         """
         raise NotImplementedError()
 
