@@ -21,7 +21,7 @@ from metaflow.metaflow_config import (
 )
 from metaflow.plugins import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
-from metaflow.sidecar import Message, MessageTypes, Sidecar
+from metaflow.sidecar import Sidecar
 
 from ..aws.aws_utils import get_docker_registry
 from .kubernetes import KubernetesException
@@ -303,6 +303,7 @@ class KubernetesDecorator(StepDecorator):
 
             # Start MFLog sidecar to collect task logs.
             self._save_logs_sidecar = Sidecar("save_logs_periodically")
+            self._save_logs_sidecar.start()
 
     def task_finished(
         self, step_name, flow, graph, is_task_ok, retry_count, max_retries
@@ -326,7 +327,6 @@ class KubernetesDecorator(StepDecorator):
                 )
 
         try:
-            self._save_logs_sidecar.send(Message(MessageTypes.SHUTDOWN, None))
             self._save_logs_sidecar.terminate()
         except:
             # Best effort kill

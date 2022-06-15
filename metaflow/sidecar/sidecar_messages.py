@@ -3,8 +3,14 @@ import json
 # Define message enums
 # Unfortunately we can't use enums because they are not supported
 # officially in Python2
+# INVALID: Not a valid message
+# MUST_SEND: Will attempt to send until successful and not send any BEST_EFFORT
+#            messages until then. A newer MUST_SEND message will take precedence on
+#            any currently unsent one
+# BEST_EFFORT: Will try to send once and drop if not possible
+# SHUTDOWN: Signal termination; also best effort
 class MessageTypes(object):
-    INVALID, CONTEXT, BEST_EFFORT, SHUTDOWN = range(1, 5)
+    INVALID, MUST_SEND, BEST_EFFORT, SHUTDOWN = range(1, 5)
 
 
 class Message(object):

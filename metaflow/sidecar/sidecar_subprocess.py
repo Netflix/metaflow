@@ -13,7 +13,7 @@ from os import O_NONBLOCK
 from .sidecar_messages import Message, MessageTypes
 from ..debug import debug
 
-CONTEXT_RETRY_TIMES = 4
+MUST_SEND_RETRY_TIMES = 4
 MESSAGE_WRITE_TIMEOUT_IN_MS = 1000
 
 NULL_SIDECAR_PREFIX = "nullSidecar"
@@ -57,10 +57,10 @@ class SidecarSubProcess(object):
         self._process = None
         self._poller = None
 
-        # Retry counts when needing to send a CONTEXT message
-        self._send_context_remaining_tries = 0
-        # Keep track of the context across restarts
-        self._cached_context = None
+        # Retry counts when needing to send a MUST_SEND message
+        self._send_mustsend_remaining_tries = 0
+        # Keep track of the mustsend across restarts
+        self._cached_mustsend = None
         # Tracks if a previous message had an error
         self._prev_message_error = False
 
@@ -114,12 +114,12 @@ class SidecarSubProcess(object):
             pass
 
     def send(self, msg, retries=3):
-        if msg.msg_type == MessageTypes.CONTEXT:
-            # If this is a context message, we treat it a bit differently. A context
-            # message has to be properly sent before any of the other EVENT messages.
-            self._cached_context = msg.payload
-            self._send_context_remaining_tries = CONTEXT_RETRY_TIMES
-            self._send_context(retries)
+        if msg.msg_type == MessageTypes.MUST_SEND:
+            # If this is a must-send message, we treat it a bit differently. A must-send
+            # message has to be properly sent before any of the other best effort messages.
+            self._cached_mustsend = msg.payload
+            self._send_mustsend_remaining_tries = MUST_SEND_RETRY_TIMES
+            self._send_mustsend(retries)
         else:
             # Ignore return code for send.
             self._send_internal(msg, retries=retries)
@@ -147,15 +147,15 @@ class SidecarSubProcess(object):
             return False
         try:
             if msg.msg_type == MessageTypes.BEST_EFFORT:
-                # If we have a context to send, we need to send it first prior to
-                # sending an EVENT message
-                if self._send_context_remaining_tries == -1:
-                    # We could not send the context so we don't try to send this out;
+                # If we have a mustsend to send, we need to send it first prior to
+                # sending an best effort message
+                if self._send_mustsend_remaining_tries == -1:
+                    # We could not send the mustsend so we don't try to send this out;
                     # restart sidecar so use the PipeUnavailableError caught below
                     raise PipeUnavailableError()
-                elif self._send_context_remaining_tries > 0:
-                    self._send_context()
-                if self._send_context_remaining_tries == 0:
+                elif self._send_mustsend_remaining_tries > 0:
+                    self._send_mustsend()
+                if self._send_mustsend_remaining_tries == 0:
                     self._emit_msg(msg)
                     self._prev_message_error = False
                     return True
@@ -172,9 +172,9 @@ class SidecarSubProcess(object):
             if isinstance(ex, (PipeUnavailableError, BrokenPipeError)):
                 self._logger("Restarting sidecar due to broken/unavailable pipe")
                 self.start()
-                if self._cached_context is not None:
-                    self._send_context_remaining_tries = CONTEXT_RETRY_TIMES
-                    # We don't send the context here, letting it send "lazily" on the
+                if self._cached_mustsend is not None:
+                    self._send_mustsend_remaining_tries = MUST_SEND_RETRY_TIMES
+                    # We don't send the must send here, letting it send "lazily" on the
                     # next message. The reason for this is to simplify the interactions
                     # with the retry logic.
             else:
@@ -188,21 +188,24 @@ class SidecarSubProcess(object):
                 )
         return False
 
-    def _send_context(self, retries=3):
-        if self._cached_context is not None and self._send_context_remaining_tries > 0:
-            # If we don't succeed in sending the context, we will try again
+    def _send_mustsend(self, retries=3):
+        if (
+            self._cached_mustsend is not None
+            and self._send_mustsend_remaining_tries > 0
+        ):
+            # If we don't succeed in sending the must-send, we will try again
             # next time.
             if self._send_internal(
-                Message(MessageTypes.CONTEXT, self._cached_context), retries
+                Message(MessageTypes.MUST_SEND, self._cached_mustsend), retries
             ):
-                self._cached_context = None
-                self._send_context_remaining_tries = 0
+                self._cached_mustsend = None
+                self._send_mustsend_remaining_tries = 0
                 return True
             else:
-                self._send_context_remaining_tries -= 1
-                if self._send_context_remaining_tries == 0:
+                self._send_mustsend_remaining_tries -= 1
+                if self._send_mustsend_remaining_tries == 0:
                     # Mark as "failed after try"
-                    self._send_context_remaining_tries = -1
+                    self._send_mustsend_remaining_tries = -1
                 return False
 
     def _emit_msg(self, msg):

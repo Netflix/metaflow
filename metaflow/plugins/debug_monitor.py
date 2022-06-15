@@ -18,7 +18,7 @@ class DebugMonitorSidecar(object):
 
     def process_message(self, msg):
         # type: (Message) -> None
-        if msg.msg_type == MessageTypes.CONTEXT:
+        if msg.msg_type == MessageTypes.MUST_SEND:
             self._context = msg.payload
         elif msg.msg_type == MessageTypes.SHUTDOWN:
             self._shutdown()

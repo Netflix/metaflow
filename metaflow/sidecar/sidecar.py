@@ -1,9 +1,12 @@
-from metaflow.plugins import SIDECARS
 from .sidecar_subprocess import SidecarSubProcess
 
 
 class Sidecar(object):
     def __init__(self, sidecar_type):
+        # Needs to be here because this file gets loaded early in the TL when we
+        # don't yet have all the sidecars
+        from metaflow.plugins import SIDECARS
+
         self._sidecar_type = sidecar_type
         self._has_valid_worker = False
         t = SIDECARS.get(self._sidecar_type)

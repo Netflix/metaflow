@@ -12,7 +12,7 @@ TIMER_TYPE = "TIMER"
 class BaseMonitor(object):
     TYPE = "nullSidecarMonitor"
 
-    def __init__(self, flow, env):
+    def __init__(self, flow=None, env=None):
         self._sidecar = Sidecar(self.TYPE)
 
     def start(self):
@@ -21,7 +21,7 @@ class BaseMonitor(object):
     def terminate(self):
         return self._sidecar.terminate()
 
-    def add_context(self, context):
+    def add_to_context(self, **kwargs):
         pass
 
     @contextmanager

@@ -4,7 +4,7 @@ from metaflow.sidecar import Message, MessageTypes, Sidecar
 class BaseEventLogger(object):
     TYPE = "nullSidecarLogger"
 
-    def __init__(self, flow, env):
+    def __init__(self, flow=None, env=None):
         self._sidecar = Sidecar(self.TYPE)
 
     def start(self):
@@ -13,7 +13,7 @@ class BaseEventLogger(object):
     def terminate(self):
         return self._sidecar.terminate()
 
-    def add_context(self, context):
+    def add_to_context(self, **kwargs):
         pass
 
     def log(self, payload):

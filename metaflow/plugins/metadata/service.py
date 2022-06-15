@@ -136,7 +136,8 @@ class ServiceMetadataProvider(MetadataProvider):
             self.sidecar = Sidecar("none")
         else:
             self.sidecar = Sidecar("heartbeat")
-        self.sidecar.send(Message(MessageTypes.CONTEXT, payload))
+        self.sidecar.start()
+        self.sidecar.send(Message(MessageTypes.MUST_SEND, payload))
 
     def start_run_heartbeat(self, flow_id, run_id):
         self._start_heartbeat(HeartbeatTypes.RUN, flow_id, run_id)
@@ -148,8 +149,6 @@ class ServiceMetadataProvider(MetadataProvider):
         return self.sidecar is not None
 
     def stop_heartbeat(self):
-        msg = Message(MessageTypes.SHUTDOWN, None)
-        self.sidecar.send(msg)
         self.sidecar.terminate()
 
     def register_data_artifacts(

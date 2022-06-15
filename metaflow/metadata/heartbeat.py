@@ -29,7 +29,7 @@ class MetadataHeartBeat(object):
         # type: (Message) -> None
         if msg.msg_type == MessageTypes.SHUTDOWN:
             self._shutdown()
-        if (not self.req_thread.is_alive()) and msg.msg_type == MessageTypes.CONTEXT:
+        if (not self.req_thread.is_alive()) and msg.msg_type == MessageTypes.MUST_SEND:
             # set post url
             self.hb_url = msg.payload[HB_URL_KEY]
             # start thread
