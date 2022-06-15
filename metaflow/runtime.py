@@ -863,7 +863,7 @@ class Task(object):
             if self.ubf_context == UBF_CONTROL:
                 tags = [CONTROL_TASK_TAG]
                 attempt_id = 0
-                already_existed = self.metadata.register_task_id(
+                already_existed = not self.metadata.register_task_id(
                     self.run_id,
                     self.step,
                     task_id,

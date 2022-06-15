@@ -86,8 +86,8 @@ class ServiceMetadataProvider(MetadataProvider):
             int(run_id)
             return False
         except ValueError:
-            _, already_existed = self._new_run(run_id, tags=tags, sys_tags=sys_tags)
-            return already_existed
+            _, did_create = self._new_run(run_id, tags=tags, sys_tags=sys_tags)
+            return did_create
 
     def new_task_id(self, run_id, step_name, tags=None, sys_tags=None):
         v, _ = self._new_task(run_id, step_name, tags=tags, sys_tags=sys_tags)
@@ -101,7 +101,7 @@ class ServiceMetadataProvider(MetadataProvider):
             # from the metadata service in the first place
             int(task_id)
         except ValueError:
-            _, already_existed = self._new_task(
+            _, did_create = self._new_task(
                 run_id,
                 step_name,
                 task_id=task_id,
@@ -109,7 +109,7 @@ class ServiceMetadataProvider(MetadataProvider):
                 tags=tags,
                 sys_tags=sys_tags,
             )
-            return not already_existed
+            return did_create
         else:
             self._register_system_metadata(run_id, step_name, task_id, attempt)
             return False
@@ -290,21 +290,22 @@ class ServiceMetadataProvider(MetadataProvider):
     def _new_run(self, run_id=None, tags=None, sys_tags=None):
         # first ensure that the flow exists
         self._get_or_create("flow")
-        run, already_existed = self._get_or_create(
+        run, did_create = self._get_or_create(
             "run", run_id, tags=tags, sys_tags=sys_tags
         )
-        return str(run["run_number"]), already_existed
+        return str(run["run_number"]), did_create
 
     def _new_task(
         self, run_id, step_name, task_id=None, attempt=0, tags=None, sys_tags=None
     ):
         # first ensure that the step exists
         self._get_or_create("step", run_id, step_name)
-        task, already_existed = self._get_or_create(
+        task, did_create = self._get_or_create(
             "task", run_id, step_name, task_id, tags=tags, sys_tags=sys_tags
         )
-        self._register_system_metadata(run_id, step_name, task["task_id"], attempt)
-        return task["task_id"], already_existed
+        if did_create:
+            self._register_system_metadata(run_id, step_name, task["task_id"], attempt)
+        return task["task_id"], did_create
 
     @staticmethod
     def _obj_path(
@@ -453,9 +454,9 @@ class ServiceMetadataProvider(MetadataProvider):
                 resp = None
             else:
                 if return_raw_resp:
-                    return resp
+                    return resp, True
                 if resp.status_code < 300:
-                    return resp.json(), False
+                    return resp.json(), True
                 elif resp.status_code == 409 and data is not None:
                     # a special case: the post fails due to a conflict
                     # this could occur when we missed a success response
@@ -467,9 +468,9 @@ class ServiceMetadataProvider(MetadataProvider):
                     # the record is guaranteed to exist
                     if retry_409_path:
                         v, _ = cls._request(monitor, retry_409_path, "GET")
-                        return v, True
+                        return v, False
                     else:
-                        return None, True
+                        return None, False
                 elif resp.status_code != 503:
                     raise ServiceException(
                         "Metadata request (%s) failed (code %s): %s"
