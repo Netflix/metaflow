@@ -7,8 +7,8 @@ import os
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
-    S3_ENDPOINT_URL,
-    S3_VERIFY_CERTIFICATE,
+    DATATOOLS_DEFAULT_CLIENT_PARAMS,
+    DATATOOLS_DEFAULT_SESSION_VARS,
     S3_RETRY_COUNT,
 )
 
@@ -16,14 +16,19 @@ from metaflow.metaflow_config import (
 TEST_S3_RETRY = "TEST_S3_RETRY" in os.environ
 
 
-def get_s3_client(s3_role_arn=None):
+def get_s3_client(s3_role_arn=None, s3_session_vars=None, s3_client_params=None):
     from metaflow.plugins.aws.aws_client import get_aws_client
 
     return get_aws_client(
         "s3",
         with_error=True,
-        params={"endpoint_url": S3_ENDPOINT_URL, "verify": S3_VERIFY_CERTIFICATE},
-        s3_role_arn=s3_role_arn,
+        role_arn=s3_role_arn,
+        session_vars=s3_session_vars
+        if s3_session_vars
+        else DATATOOLS_DEFAULT_SESSION_VARS,
+        client_params=s3_client_params
+        if s3_client_params
+        else DATATOOLS_DEFAULT_CLIENT_PARAMS,
     )
 
 

@@ -7,6 +7,7 @@ import re
 import sys
 import os
 import traceback
+from collections import namedtuple
 from functools import partial
 from hashlib import sha1
 from tempfile import NamedTemporaryFile
@@ -42,6 +43,8 @@ DOWNLOAD_FILE_THRESHOLD = 2 * TransferConfig().multipart_threshold
 DOWNLOAD_MAX_CHUNK = 2 * 1024 * 1024 * 1024 - 1
 
 RANGE_MATCH = re.compile(r"bytes (?P<start>[0-9]+)-(?P<end>[0-9]+)/(?P<total>[0-9]+)")
+
+S3Config = namedtuple("S3Config", "role session_vars client_params")
 
 
 class S3Url(object):
@@ -106,7 +109,7 @@ def normalize_client_error(err):
 # S3 worker pool
 
 
-def worker(result_file_name, queue, mode, s3role):
+def worker(result_file_name, queue, mode, s3config):
     # Interpret mode, it can either be a single op or something like
     # info_download or info_upload which implies:
     #  - for download: we need to return the information as well
@@ -145,7 +148,11 @@ def worker(result_file_name, queue, mode, s3role):
         try:
             from metaflow.datatools.s3util import get_s3_client
 
-            s3, client_error = get_s3_client(s3_role_arn=s3role)
+            s3, client_error = get_s3_client(
+                s3_role_arn=s3config.role,
+                s3_session_vars=s3config.session_vars,
+                s3_client_params=s3config.client_params,
+            )
             while True:
                 url, idx = queue.get()
                 if url is None:
@@ -256,7 +263,7 @@ def worker(result_file_name, queue, mode, s3role):
             sys.exit(ERROR_WORKER_EXCEPTION)
 
 
-def start_workers(mode, urls, num_workers, s3role):
+def start_workers(mode, urls, num_workers, s3config):
     # We start the minimum of len(urls) or num_workers to avoid starting
     # workers that will definitely do nothing
     num_workers = min(num_workers, len(urls))
@@ -278,7 +285,10 @@ def start_workers(mode, urls, num_workers, s3role):
     with TempDir() as output_dir:
         for i in range(num_workers):
             file_path = os.path.join(output_dir, str(i))
-            p = Process(target=worker, args=(file_path, queue, mode, s3role))
+            p = Process(
+                target=worker,
+                args=(file_path, queue, mode, s3config),
+            )
             p.start()
             procs[p] = file_path
 
@@ -304,13 +314,13 @@ def start_workers(mode, urls, num_workers, s3role):
     return sz_results
 
 
-def process_urls(mode, urls, verbose, num_workers, s3role):
+def process_urls(mode, urls, verbose, num_workers, s3config):
 
     if verbose:
         print("%sing %d files.." % (mode.capitalize(), len(urls)), file=sys.stderr)
 
     start = time.time()
-    sz_results = start_workers(mode, urls, num_workers, s3role)
+    sz_results = start_workers(mode, urls, num_workers, s3config)
     end = time.time()
 
     if verbose:
@@ -348,16 +358,20 @@ def with_unit(x):
 # required by @aws_retry decorator, which needs the reset_client
 # method. Otherwise they would be just stand-alone functions.
 class S3Ops(object):
-    def __init__(self, s3role):
+    def __init__(self, s3config):
         self.s3 = None
-        self.s3role = s3role
+        self.s3config = s3config
         self.client_error = None
 
     def reset_client(self, hard_reset=False):
         from metaflow.datatools.s3util import get_s3_client
 
         if hard_reset or self.s3 is None:
-            self.s3, self.client_error = get_s3_client(s3_role_arn=self.s3role)
+            self.s3, self.client_error = get_s3_client(
+                s3_role_arn=self.s3config.role,
+                s3_session_vars=self.s3config.session_vars,
+                s3_client_params=self.s3config.client_params,
+            )
 
     @aws_retry
     def get_info(self, url):
@@ -441,18 +455,18 @@ class S3Ops(object):
 # This is accomplished by op_ functions below.
 
 
-def op_get_info(s3role, urls):
-    s3 = S3Ops(s3role)
+def op_get_info(s3config, urls):
+    s3 = S3Ops(s3config)
     return [s3.get_info(url) for url in urls]
 
 
-def op_list_prefix(s3role, prefix_urls):
-    s3 = S3Ops(s3role)
+def op_list_prefix(s3config, prefix_urls):
+    s3 = S3Ops(s3config)
     return [s3.list_prefix(prefix) for prefix in prefix_urls]
 
 
-def op_list_prefix_nonrecursive(s3role, prefix_urls):
-    s3 = S3Ops(s3role)
+def op_list_prefix_nonrecursive(s3config, prefix_urls):
+    s3 = S3Ops(s3config)
     return [s3.list_prefix(prefix, delimiter="/") for prefix in prefix_urls]
 
 
@@ -578,8 +592,36 @@ def cli():
     required=False,
     help="Role to assume when getting the S3 client",
 )
+@click.option(
+    "--s3sessionvars",
+    default=None,
+    show_default=True,
+    required=False,
+    help="Session vars to set when getting the S3 client",
+)
+@click.option(
+    "--s3clientparams",
+    default=None,
+    show_default=True,
+    required=False,
+    help="Client parameters to set when getting the S3 client",
+)
 @click.argument("prefixes", nargs=-1)
-def lst(prefixes, inputs=None, num_workers=None, recursive=None, s3role=None):
+def lst(
+    prefixes,
+    inputs=None,
+    num_workers=None,
+    recursive=None,
+    s3role=None,
+    s3sessionvars=None,
+    s3clientparams=None,
+):
+
+    s3config = S3Config(
+        s3role,
+        json.loads(s3sessionvars) if s3sessionvars else None,
+        json.loads(s3clientparams) if s3clientparams else None,
+    )
 
     urllist = []
     for prefix, _ in _populate_prefixes(prefixes, inputs):
@@ -596,9 +638,9 @@ def lst(prefixes, inputs=None, num_workers=None, recursive=None, s3role=None):
         urllist.append(url)
 
     op = (
-        partial(op_list_prefix, s3role)
+        partial(op_list_prefix, s3config)
         if recursive
-        else partial(op_list_prefix_nonrecursive, s3role)
+        else partial(op_list_prefix_nonrecursive, s3config)
     )
     urls = []
     for success, prefix_url, ret in parallel_op(op, urllist, num_workers):
@@ -658,6 +700,20 @@ def lst(prefixes, inputs=None, num_workers=None, recursive=None, s3role=None):
     required=False,
     help="Role to assume when getting the S3 client",
 )
+@click.option(
+    "--s3sessionvars",
+    default=None,
+    show_default=True,
+    required=False,
+    help="Session vars to set when getting the S3 client",
+)
+@click.option(
+    "--s3clientparams",
+    default=None,
+    show_default=True,
+    required=False,
+    help="Client parameters to set when getting the S3 client",
+)
 def put(
     files=None,
     filelist=None,
@@ -666,6 +722,8 @@ def put(
     overwrite=True,
     listing=None,
     s3role=None,
+    s3sessionvars=None,
+    s3clientparams=None,
 ):
     def _files():
         for local, url in files:
@@ -698,11 +756,17 @@ def put(
             exit(ERROR_NOT_FULL_PATH, url)
         return url
 
+    s3config = S3Config(
+        s3role,
+        json.loads(s3sessionvars) if s3sessionvars else None,
+        json.loads(s3clientparams) if s3clientparams else None,
+    )
+
     urls = list(starmap(_make_url, _files()))
     ul_op = "upload"
     if not overwrite:
         ul_op = "info_upload"
-    sz_results = process_urls(ul_op, urls, verbose, num_workers, s3role)
+    sz_results = process_urls(ul_op, urls, verbose, num_workers, s3config)
     urls = [url for url, sz in zip(urls, sz_results) if sz is not None]
     if listing:
         for url in urls:
@@ -784,6 +848,20 @@ def _populate_prefixes(prefixes, inputs):
     required=False,
     help="Role to assume when getting the S3 client",
 )
+@click.option(
+    "--s3sessionvars",
+    default=None,
+    show_default=True,
+    required=False,
+    help="Session vars to set when getting the S3 client",
+)
+@click.option(
+    "--s3clientparams",
+    default=None,
+    show_default=True,
+    required=False,
+    help="Client parameters to set when getting the S3 client",
+)
 @click.argument("prefixes", nargs=-1)
 def get(
     prefixes,
@@ -796,7 +874,15 @@ def get(
     verbose=None,
     listing=None,
     s3role=None,
+    s3sessionvars=None,
+    s3clientparams=None,
 ):
+
+    s3config = S3Config(
+        s3role,
+        json.loads(s3sessionvars) if s3sessionvars else None,
+        json.loads(s3clientparams) if s3clientparams else None,
+    )
 
     # Construct a list of URL (prefix) objects
     urllist = []
@@ -819,7 +905,7 @@ def get(
     op = None
     dl_op = "download"
     if recursive:
-        op = partial(op_list_prefix, s3role)
+        op = partial(op_list_prefix, s3config)
     if verify or verbose or info:
         dl_op = "info_download"
     if op:
@@ -841,7 +927,7 @@ def get(
 
     # exclude the non-existent files from loading
     to_load = [url for url, size in urls if size is not None]
-    sz_results = process_urls(dl_op, to_load, verbose, num_workers, s3role)
+    sz_results = process_urls(dl_op, to_load, verbose, num_workers, s3config)
     # We check if there is any access denied
     is_denied = [sz == -ERROR_URL_ACCESS_DENIED for sz in sz_results]
     if any(is_denied):
@@ -914,10 +1000,37 @@ def get(
     required=False,
     help="Role to assume when getting the S3 client",
 )
+@click.option(
+    "--s3sessionvars",
+    default=None,
+    show_default=True,
+    required=False,
+    help="Session vars to set when getting the S3 client",
+)
+@click.option(
+    "--s3clientparams",
+    default=None,
+    show_default=True,
+    required=False,
+    help="Client parameters to set when getting the S3 client",
+)
 @click.argument("prefixes", nargs=-1)
 def info(
-    prefixes, num_workers=None, inputs=None, verbose=None, listing=None, s3role=None
+    prefixes,
+    num_workers=None,
+    inputs=None,
+    verbose=None,
+    listing=None,
+    s3role=None,
+    s3sessionvars=None,
+    s3clientparams=None,
 ):
+
+    s3config = S3Config(
+        s3role,
+        json.loads(s3sessionvars) if s3sessionvars else None,
+        json.loads(s3clientparams) if s3clientparams else None,
+    )
 
     # Construct a list of URL (prefix) objects
     urllist = []
@@ -935,7 +1048,7 @@ def info(
             exit(ERROR_INVALID_URL, url)
         urllist.append(url)
 
-    process_urls("info", urllist, verbose, num_workers, s3role)
+    process_urls("info", urllist, verbose, num_workers, s3config)
 
     if listing:
         for url in urllist:
