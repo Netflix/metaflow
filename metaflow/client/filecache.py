@@ -6,7 +6,7 @@ import time
 from tempfile import NamedTemporaryFile
 from hashlib import sha1
 
-from metaflow.datastore import DATASTORES, FlowDataStore
+from metaflow.datastore import FlowDataStore, get_datastore_impl
 from metaflow.datastore.content_addressed_store import BlobCache
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
@@ -344,8 +344,9 @@ class FileCache(object):
 
     @staticmethod
     def _get_datastore_storage_impl(ds_type):
-        storage_impl = DATASTORES.get(ds_type, None)
-        if storage_impl is None:
+        try:
+            storage_impl = get_datastore_impl(ds_type)
+        except KeyError:
             raise FileCacheException("Datastore %s was not found" % ds_type)
         return storage_impl
 

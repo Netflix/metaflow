@@ -3,7 +3,7 @@ import os
 # This script is used to upload logs during task bootstrapping, so
 # it shouldn't have external dependencies besides Metaflow itself
 # (e.g. no click for parsing CLI args).
-from metaflow.datastore import DATASTORES, FlowDataStore
+from metaflow.datastore import FlowDataStore, get_datastore_impl
 from metaflow.util import Path
 from . import TASK_LOG_SOURCE
 
@@ -23,7 +23,7 @@ def save_logs():
     paths = (os.environ["MFLOG_STDOUT"], os.environ["MFLOG_STDERR"])
 
     flow_name, run_id, step_name, task_id = pathspec.split("/")
-    storage_impl = DATASTORES[ds_type]
+    storage_impl = get_datastore_impl(ds_type)
     if ds_root is None:
 
         def print_clean(line, **kwargs):

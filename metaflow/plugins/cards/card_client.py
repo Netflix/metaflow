@@ -1,4 +1,4 @@
-from metaflow.datastore import DATASTORES, FlowDataStore
+from metaflow.datastore import FlowDataStore, get_datastore_impl
 from metaflow.metaflow_config import DATASTORE_CARD_SUFFIX
 from .card_resolver import resolve_paths_from_task, resumed_info
 from .card_datastore import CardDatastore
@@ -239,7 +239,7 @@ def _get_flow_datastore(task):
     if ds_type is None:
         raise UnresolvableDatastoreException(task)
 
-    storage_impl = DATASTORES[ds_type]
+    storage_impl = get_datastore_impl(ds_type)
     return FlowDataStore(
         flow_name=flow_name,
         environment=None,  # TODO: Add environment here

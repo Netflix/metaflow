@@ -3,15 +3,20 @@ import gzip
 import io
 import json
 import os
+import shutil
+import uuid
 
 from hashlib import sha1
+from tempfile import mkdtemp
 
 from metaflow._vendor import click
 
 from . import parameters
 from .current import current
-from .exception import MetaflowException
-from .metaflow_config import DATATOOLS_LOCALROOT, DATATOOLS_SUFFIX
+from .datastore import get_datastore_impl
+from .datastore.azure_storage import parse_azure_sysroot
+from .exception import MetaflowException, MetaflowInternalError
+from .metaflow_config import DATATOOLS_LOCALROOT, DATATOOLS_SUFFIX, DATATOOLS_AZUREROOT
 from .parameters import DeployTimeField, Parameter
 from .util import to_unicode
 
@@ -78,6 +83,85 @@ class LocalObject(object):
         Path to the local file
         """
         return self._path
+
+
+class Azure(object):
+    @classmethod
+    def get_root_from_config(cls, echo, create_on_absent=True):
+        return DATATOOLS_AZUREROOT
+
+    def __init__(self):
+        """
+        Initialize a new context for Local file operations. This object is based used as
+        a context manager for a with statement.
+        """
+        self._tmpdir = None
+
+    def _get_storage_backend(self, key):
+        """
+        Return an AzureDatastore, rooted at the container level, no prefix
+        Key MUST be a fully qualified path.  <container_name>/b/l/o/b/n/a/m/e
+        """
+        # we parse out the container name only, and use that to root our storage implementation
+        container_name, _ = parse_azure_sysroot(key)
+        storage_impl = get_datastore_impl("azure")
+        return storage_impl(container_name)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        if self._tmpdir and os.path.exists(self._tmpdir):
+            shutil.rmtree(self._tmpdir)
+
+    def get(self, key=None, return_missing=False):
+        """Key MUST be a fully qualified path.  <container_name>/b/l/o/b/n/a/m/e"""
+        if not return_missing:
+            raise MetaflowException("Azure object supports only return_missing=True")
+        if not key.startswith("azure://"):
+            raise MetaflowInternalError(
+                msg="Expected Azure object key to start with 'azure://'"
+            )
+        uri_style_key = key
+        short_key = key[8:]
+        storage = self._get_storage_backend(short_key)
+        with storage.load_bytes([short_key]) as load_result:
+            for _, tmpfile, _ in load_result:
+                if tmpfile is None:
+                    return AzureObject(uri_style_key, None, False)
+                else:
+                    if not self._tmpdir:
+                        self._tmpdir = mkdtemp(prefix="metaflow.includefile.azure.")
+                    output_file_path = os.path.join(self._tmpdir, str(uuid.uuid4()))
+                    shutil.move(tmpfile, output_file_path)
+                    return AzureObject(uri_style_key, output_file_path, True)
+        # This ought to be unreachable... implies a bug
+        raise MetaflowInternalError(msg="Azure get object bug!")
+
+    def put(self, key, obj, overwrite=True):
+        """Key MUST be a fully qualified path.  <container_name>/b/l/o/b/n/a/m/e"""
+        storage = self._get_storage_backend(key)
+        storage.save_bytes([(key, io.BytesIO(obj))], overwrite=overwrite)
+        return "azure://%s" % key
+
+
+class AzureObject(object):
+    def __init__(self, url, path, exists):
+        self._path = path
+        self._url = url
+        self._exists = exists
+
+    @property
+    def path(self):
+        return self._path
+
+    @property
+    def url(self):
+        return self._url
+
+    @property
+    def exists(self):
+        return self._exists
 
 
 class Local(object):
@@ -165,7 +249,7 @@ class Local(object):
 # From here on out, this is the IncludeFile implementation.
 from .datatools import S3
 
-DATACLIENTS = {"local": Local, "s3": S3}
+DATACLIENTS = {"local": Local, "s3": S3, "azure": Azure}
 
 
 class LocalFile:
@@ -370,6 +454,8 @@ class Uploader:
                 "large to be properly handled by Python 2.7" % path
             )
         sha = sha1(input_file).hexdigest()
+        # we do this for the side effect for "create_if_absent"
+        self._client_class.get_root_from_config(echo, True)
         path = os.path.join(
             self._client_class.get_root_from_config(echo, True), flow_name, sha
         )
