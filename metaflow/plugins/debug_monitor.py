@@ -1,43 +1,36 @@
-from __future__ import print_function
-
 import sys
 
-from metaflow.sidecar_messages import MessageTypes, Message
-from metaflow.monitor import Timer, deserialize_metric
-from metaflow.monitor import MEASURE_TYPE, get_monitor_msg_type
+from metaflow.sidecar import MessageTypes, Message
+from metaflow.monitor import NullMonitor, Metric
 
 
-class DebugMonitor(object):
+class DebugMonitor(NullMonitor):
     TYPE = "debugMonitor"
 
+    @classmethod
+    def get_worker(cls):
+        return DebugMonitorSidecar
+
+
+class DebugMonitorSidecar(object):
     def __init__(self):
-        self.logger("init")
-
-    def count(self, count):
-        pass
-
-    def measure(self, timer):
-        # type: (Timer) -> None
-        self.logger(
-            "elapsed time for {}: {}".format(timer.name, str(timer.get_duration()))
-        )
-
-    def gauge(self, gauge):
         pass
 
     def process_message(self, msg):
         # type: (Message) -> None
-        self.logger("processing message %s" % str(msg.msg_type))
-        msg_type = get_monitor_msg_type(msg)
-        if msg_type == MEASURE_TYPE:
-            timer = deserialize_metric(msg.payload.get("timer"))
-            self.measure(timer)
-        else:
-            pass
+        if msg.msg_type == MessageTypes.MUST_SEND:
+            print("DebugMonitor[must_send]: %s" % str(msg.payload), file=sys.stderr)
+        elif msg.msg_type == MessageTypes.SHUTDOWN:
+            print("DebugMonitor[shutdown]: got shutdown!", file=sys.stderr)
+            self._shutdown()
+        elif msg.msg_type == MessageTypes.BEST_EFFORT:
+            for v in msg.payload.values():
+                metric = Metric.deserialize(v)
+                print(
+                    "DebugMonitor[metric]: %s for %s: %s"
+                    % (metric.metric_type, metric.name, str(metric.value)),
+                    file=sys.stderr,
+                )
 
-    def shutdown(self):
-        sys.stderr.flush()
-
-    def logger(self, msg):
-        print("local_monitor: %s" % msg, file=sys.stderr)
+    def _shutdown(self):
         sys.stderr.flush()

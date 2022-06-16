@@ -666,8 +666,8 @@ class Task(object):
         self.error_retries = 0
 
         self.tags = metadata.sticky_tags
-        self.event_logger_type = self.event_logger.logger_type
-        self.monitor_type = monitor.monitor_type
+        self.event_logger_type = self.event_logger.TYPE
+        self.monitor_type = monitor.TYPE
 
         self.metadata_type = metadata.TYPE
         self.datastore_type = flow_datastore.TYPE

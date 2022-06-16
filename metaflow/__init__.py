@@ -100,8 +100,6 @@ from .metaflow_profile import profile
 # current runtime singleton
 from .current import current
 
-from .event_logger import EventLogger
-
 # Flow spec
 from .flowspec import FlowSpec
 from .includefile import IncludeFile

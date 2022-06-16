@@ -44,8 +44,6 @@ from .metaflow_config import (
 )
 from .metaflow_environment import MetaflowEnvironment
 from .pylint_wrapper import PyLint
-from .event_logger import EventLogger
-from .monitor import Monitor
 from .R import use_r, metaflow_r_version
 from .mflog import mflog, LOG_SOURCES
 from .unbounded_foreach import UBF_CONTROL, UBF_TASK
@@ -993,14 +991,19 @@ def start(
     ctx.obj.package_suffixes = package_suffixes.split(",")
     ctx.obj.reconstruct_cli = _reconstruct_cli
 
-    ctx.obj.event_logger = EventLogger(event_logger)
-
     ctx.obj.environment = [
         e for e in ENVIRONMENTS + [MetaflowEnvironment] if e.TYPE == environment
     ][0](ctx.obj.flow)
     ctx.obj.environment.validate_environment(echo)
 
-    ctx.obj.monitor = Monitor(monitor, ctx.obj.environment, ctx.obj.flow.name)
+    ctx.obj.event_logger = LOGGING_SIDECARS[event_logger](
+        flow=ctx.obj.flow, env=ctx.obj.environment
+    )
+    ctx.obj.event_logger.start()
+
+    ctx.obj.monitor = MONITOR_SIDECARS[monitor](
+        flow=ctx.obj.flow, env=ctx.obj.environment
+    )
     ctx.obj.monitor.start()
 
     ctx.obj.metadata = [m for m in METADATA_PROVIDERS if m.TYPE == metadata][0](
@@ -1172,3 +1175,8 @@ def main(flow, args=None, handle_exceptions=True, entrypoint=None):
             sys.exit(1)
         else:
             raise
+    finally:
+        if hasattr(state, "monitor") and state.monitor is not None:
+            state.monitor.terminate()
+        if hasattr(state, "event_logger") and state.event_logger is not None:
+            state.event_logger.terminate()
