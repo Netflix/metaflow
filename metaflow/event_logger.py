@@ -17,7 +17,7 @@ class NullEventLogger(object):
     def send(self, msg):
         # Arbitrary message sending. Useful if you want to override some different
         # types of messages.
-        pass
+        self._sidecar.send(msg)
 
     def log(self, payload):
         if self._sidecar.is_active:
