@@ -941,11 +941,13 @@ def start(
     ctx.obj.environment.validate_environment(echo)
 
     ctx.obj.event_logger = LOGGING_SIDECARS[event_logger](
-        ctx.obj.flow, ctx.obj.environment
+        flow=ctx.obj.flow, env=ctx.obj.environment
     )
     ctx.obj.event_logger.start()
 
-    ctx.obj.monitor = MONITOR_SIDECARS[monitor](ctx.obj.flow, ctx.obj.environment)
+    ctx.obj.monitor = MONITOR_SIDECARS[monitor](
+        flow=ctx.obj.flow, env=ctx.obj.environment
+    )
     ctx.obj.monitor.start()
 
     ctx.obj.metadata = [m for m in METADATA_PROVIDERS if m.TYPE == metadata][0](

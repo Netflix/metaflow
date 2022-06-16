@@ -9,10 +9,11 @@ GAUGE_TYPE = "GAUGE"
 TIMER_TYPE = "TIMER"
 
 
-class BaseMonitor(object):
+class NullMonitor(object):
     TYPE = "nullSidecarMonitor"
 
-    def __init__(self, flow=None, env=None):
+    def __init__(self, *args, **kwargs):
+        # Currently passed flow and env as kwargs
         self._sidecar = Sidecar(self.TYPE)
 
     def start(self):
@@ -21,8 +22,10 @@ class BaseMonitor(object):
     def terminate(self):
         return self._sidecar.terminate()
 
-    def add_to_context(self, **kwargs):
-        pass
+    def send(self, msg):
+        # Arbitrary message sending. Useful if you want to override some different
+        # types of messages.
+        self._sidecar.send(msg)
 
     @contextmanager
     def count(self, name):

@@ -1,10 +1,11 @@
 from metaflow.sidecar import Message, MessageTypes, Sidecar
 
 
-class BaseEventLogger(object):
+class NullEventLogger(object):
     TYPE = "nullSidecarLogger"
 
-    def __init__(self, flow=None, env=None):
+    def __init__(self, *args, **kwargs):
+        # Currently passed flow and env in kwargs
         self._sidecar = Sidecar(self.TYPE)
 
     def start(self):
@@ -13,7 +14,9 @@ class BaseEventLogger(object):
     def terminate(self):
         return self._sidecar.terminate()
 
-    def add_to_context(self, **kwargs):
+    def send(self, msg):
+        # Arbitrary message sending. Useful if you want to override some different
+        # types of messages.
         pass
 
     def log(self, payload):
@@ -24,8 +27,3 @@ class BaseEventLogger(object):
     @classmethod
     def get_worker(cls):
         return None
-
-
-# Backward compatible name
-class EventLogger(BaseEventLogger):
-    pass

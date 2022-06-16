@@ -1,10 +1,10 @@
 import sys
 
-from metaflow.event_logger import BaseEventLogger
+from metaflow.event_logger import NullEventLogger
 from metaflow.sidecar import Message, MessageTypes
 
 
-class DebugEventLogger(BaseEventLogger):
+class DebugEventLogger(NullEventLogger):
     TYPE = "debugLogger"
 
     @classmethod
@@ -22,7 +22,9 @@ class DebugEventLoggerSidecar(object):
             print("Debug[shutdown]: got shutdown!", file=sys.stderr)
             self._shutdown()
         elif msg.msg_type == MessageTypes.BEST_EFFORT:
-            print("Debug[event]: %s" % str(msg.payload), file=sys.stderr)
+            print("Debug[best_effort]: %s" % str(msg.payload), file=sys.stderr)
+        elif msg.msg_type == MessageTypes.MUST_SEND:
+            print("Debug[must_send]: %s" % str(msg.payload), file=sys.stderr)
 
     def _shutdown(self):
         sys.stderr.flush()

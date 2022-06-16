@@ -3,8 +3,8 @@ from .sidecar_subprocess import SidecarSubProcess
 
 class Sidecar(object):
     def __init__(self, sidecar_type):
-        # Needs to be here because this file gets loaded early in the TL when we
-        # don't yet have all the sidecars
+        # Needs to be here because this file gets loaded by lots of things and SIDECARS
+        # may not be fully populated by then
         from metaflow.plugins import SIDECARS
 
         self._sidecar_type = sidecar_type

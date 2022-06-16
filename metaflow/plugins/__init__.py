@@ -209,21 +209,21 @@ SIDECARS.update(_ext_plugins["SIDECARS"])
 
 # Add logger
 from .debug_logger import DebugEventLogger
-from metaflow.event_logger import BaseEventLogger
+from metaflow.event_logger import NullEventLogger
 
 LOGGING_SIDECARS = {
     DebugEventLogger.TYPE: DebugEventLogger,
-    BaseEventLogger.TYPE: BaseEventLogger,
+    NullEventLogger.TYPE: NullEventLogger,
 }
 LOGGING_SIDECARS.update(_ext_plugins["LOGGING_SIDECARS"])
 
 # Add monitor
 from .debug_monitor import DebugMonitor
-from metaflow.monitor import BaseMonitor
+from metaflow.monitor import NullMonitor
 
 MONITOR_SIDECARS = {
     DebugMonitor.TYPE: DebugMonitor,
-    BaseMonitor.TYPE: BaseMonitor,
+    NullMonitor.TYPE: NullMonitor,
 }
 MONITOR_SIDECARS.update(_ext_plugins["MONITOR_SIDECARS"])
 
