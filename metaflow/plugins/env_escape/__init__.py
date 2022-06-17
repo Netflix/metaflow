@@ -129,9 +129,12 @@ def load():
             # print("Env escape using executable {python_executable}")
         else:
             # Inverse logic as above here.
-            if sys.executable == "{python_executable}":
-                return
-            raise RuntimeError("Trying to override '%s' when module exists in system" % prefix)
+            if sys.executable != "{python_executable}":
+                # We use the package locally and warn user.
+                print("Not using environment escape for '%s' as module present" % prefix)
+            # In both cases, we don't load our loader since
+            # the package is locally present
+            return
     sys.path = old_paths
     m = ModuleImporter("{python_executable}", "{pythonpath}", {max_pickle_version}, "{path}", {prefixes})
     sys.meta_path.insert(0, m)

@@ -4,8 +4,7 @@ import time
 import subprocess
 from threading import Thread
 
-from metaflow.metaflow_profile import profile
-from metaflow.sidecar import SidecarSubProcess
+from metaflow.sidecar import MessageTypes
 from . import update_delay, BASH_SAVE_LOGS_ARGS
 
 
@@ -16,10 +15,12 @@ class SaveLogsPeriodicallySidecar(object):
         self._thread.start()
 
     def process_message(self, msg):
-        pass
+        if msg.msg_type == MessageTypes.SHUTDOWN:
+            self.is_alive = False
 
-    def shutdown(self):
-        self.is_alive = False
+    @classmethod
+    def get_worker(cls):
+        return cls
 
     def _update_loop(self):
         def _file_size(path):

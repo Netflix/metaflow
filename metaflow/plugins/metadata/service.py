@@ -18,8 +18,7 @@ from metaflow.metaflow_config import (
 )
 from metaflow.metadata import MetadataProvider
 from metaflow.metadata.heartbeat import HB_URL_KEY
-from metaflow.sidecar import SidecarSubProcess
-from metaflow.sidecar_messages import MessageTypes, Message
+from metaflow.sidecar import Message, MessageTypes, Sidecar
 
 
 # Define message enums
@@ -54,7 +53,7 @@ class ServiceMetadataProvider(MetadataProvider):
         self.url_run_template = os.path.join(
             METADATA_SERVICE_URL, "flows/{flow_id}/runs/{run_number}/heartbeat"
         )
-        self.sidecar_process = None
+        self.sidecar = None
 
     @classmethod
     def compute_info(cls, val):
@@ -122,15 +121,6 @@ class ServiceMetadataProvider(MetadataProvider):
             # multiple heartbeat side cars of any type/combination. Either a
             # single run heartbeat or a single task heartbeat can be started
             raise Exception("heartbeat already started")
-        # start sidecar
-        if self.version() is None or LooseVersion(self.version()) < LooseVersion(
-            "2.0.4"
-        ):
-            # if old version of the service is running
-            # then avoid running real heartbeat sidecar process
-            self.sidecar_process = SidecarSubProcess("nullSidecarHeartbeat")
-        else:
-            self.sidecar_process = SidecarSubProcess("heartbeat")
         # create init message
         payload = {}
         if heartbeat_type == HeartbeatTypes.TASK:
@@ -150,8 +140,17 @@ class ServiceMetadataProvider(MetadataProvider):
         else:
             raise Exception("invalid heartbeat type")
         payload["service_version"] = self.version()
-        msg = Message(MessageTypes.LOG_EVENT, payload)
-        self.sidecar_process.msg_handler(msg)
+        # start sidecar
+        if self.version() is None or LooseVersion(self.version()) < LooseVersion(
+            "2.0.4"
+        ):
+            # if old version of the service is running
+            # then avoid running real heartbeat sidecar process
+            self.sidecar = Sidecar("none")
+        else:
+            self.sidecar = Sidecar("heartbeat")
+        self.sidecar.start()
+        self.sidecar.send(Message(MessageTypes.BEST_EFFORT, payload))
 
     def start_run_heartbeat(self, flow_id, run_id):
         self._start_heartbeat(HeartbeatTypes.RUN, flow_id, run_id)
@@ -160,11 +159,10 @@ class ServiceMetadataProvider(MetadataProvider):
         self._start_heartbeat(HeartbeatTypes.TASK, flow_id, run_id, step_name, task_id)
 
     def _already_started(self):
-        return self.sidecar_process is not None
+        return self.sidecar is not None
 
     def stop_heartbeat(self):
-        msg = Message(MessageTypes.SHUTDOWN, None)
-        self.sidecar_process.msg_handler(msg)
+        self.sidecar.terminate()
 
     def register_data_artifacts(
         self, run_id, step_name, task_id, attempt_id, artifacts

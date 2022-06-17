@@ -483,9 +483,6 @@ class MetaflowTask(object):
         start = time.time()
         self.metadata.start_task_heartbeat(self.flow.name, run_id, step_name, task_id)
         try:
-            # init side cars
-            logger.start()
-
             msg = {
                 "task_id": task_id,
                 "msg": "task starting",
@@ -682,5 +679,4 @@ class MetaflowTask(object):
                 )
 
             # terminate side cars
-            logger.terminate()
             self.metadata.stop_heartbeat()

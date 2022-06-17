@@ -20,7 +20,7 @@ from metaflow.metaflow_config import (
     ECS_FARGATE_EXECUTION_ROLE,
     DATASTORE_LOCAL_DIR,
 )
-from metaflow.sidecar import SidecarSubProcess
+from metaflow.sidecar import Sidecar
 from metaflow.unbounded_foreach import UBF_CONTROL
 
 from .batch import BatchException
@@ -250,7 +250,8 @@ class BatchDecorator(StepDecorator):
             # Register book-keeping metadata for debugging.
             metadata.register_metadata(run_id, step_name, task_id, entries)
 
-            self._save_logs_sidecar = SidecarSubProcess("save_logs_periodically")
+            self._save_logs_sidecar = Sidecar("save_logs_periodically")
+            self._save_logs_sidecar.start()
 
         num_parallel = int(os.environ.get("AWS_BATCH_JOB_NUM_NODES", 0))
         if num_parallel >= 1 and ubf_context == UBF_CONTROL:
@@ -289,7 +290,7 @@ class BatchDecorator(StepDecorator):
                 )
 
         try:
-            self._save_logs_sidecar.kill()
+            self._save_logs_sidecar.terminate()
         except:
             # Best effort kill
             pass

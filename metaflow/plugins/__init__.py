@@ -1,4 +1,5 @@
 import sys
+import traceback
 import types
 
 
@@ -66,6 +67,11 @@ try:
                 v[1](_ext_plugins[k], module_override)
 except Exception as e:
     _ext_debug("\tWARNING: ignoring all plugins due to error during import: %s" % e)
+    print(
+        "WARNING: Plugins did not load -- ignoring all of them which may not "
+        "be what you want: %s" % e
+    )
+    traceback.print_exc()
     _ext_plugins = {k: v[0] for k, v in _expected_extensions.items()}
 
 _ext_debug("\tWill import the following plugins: %s" % str(_ext_plugins))
@@ -205,14 +211,22 @@ SIDECARS.update(_ext_plugins["SIDECARS"])
 
 # Add logger
 from .debug_logger import DebugEventLogger
+from metaflow.event_logger import NullEventLogger
 
-LOGGING_SIDECARS = {"debugLogger": DebugEventLogger, "nullSidecarLogger": None}
+LOGGING_SIDECARS = {
+    DebugEventLogger.TYPE: DebugEventLogger,
+    NullEventLogger.TYPE: NullEventLogger,
+}
 LOGGING_SIDECARS.update(_ext_plugins["LOGGING_SIDECARS"])
 
 # Add monitor
 from .debug_monitor import DebugMonitor
+from metaflow.monitor import NullMonitor
 
-MONITOR_SIDECARS = {"debugMonitor": DebugMonitor, "nullSidecarMonitor": None}
+MONITOR_SIDECARS = {
+    DebugMonitor.TYPE: DebugMonitor,
+    NullMonitor.TYPE: NullMonitor,
+}
 MONITOR_SIDECARS.update(_ext_plugins["MONITOR_SIDECARS"])
 
 SIDECARS.update(LOGGING_SIDECARS)
