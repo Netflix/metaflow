@@ -1,0 +1,68 @@
+name: '🐞 Bug report'
+description: Let us know about functionality that is not working as expected
+title: "Bug report: <short description>"
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting the issue you are facing.
+        Please complete the below form to ensure we have the necessary details to assist you.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Provide a short description of the issue you are facing
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide the steps you have taken so that we can reproduce the error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected results
+      description: Provide a description of what you expect to happen
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual results
+      description: Provide a description of what actually happens
+    validations:
+      required: true
+
+  - type: input
+    id: pythonversion
+    attributes:
+      label: python version
+      description: |
+        Provide the version of python you are using
+        Execute `python --version` or `python -V` in your terminal to identify your version
+    validations:
+      required: false
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system (environment)
+      description: Provide the operating system that you are using
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - Other
+    validations:
+      required: false
+  - type: textarea
+    id: info
+    attributes:
+      label: Additional Info
+      description: |
+        Provide any additional information (screenshots) that may help with the identification of the root cause of this issue
+    validations:
+      required: false

@@ -1,0 +1,40 @@
+name: '🚀 Feature request'
+description: Please let us know if there is anything we can do better
+title: "Feature request: <short description>"
+labels: ["enhancement"] 
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting a way to improve this project.
+        Please complete the below form to ensure we have all the details to get things started.
+  - type: textarea
+    id: solution
+    attributes:
+      label: 💡 Idea
+      description: |
+        Please describe the desired behavior, pitch your idea, or suggest improvements
+    validations:
+      required: true
+  - type: input
+    id: bugrelation
+    attributes:
+      label: Is your feature related to a bug
+      description: |
+        Refer to a an existing bug, add issue number if exists like #100 .
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: |
+        Have you considered alternative solutions or implementations? Do you have an idea on how this should be implemented? Let us know!
+  - type: textarea
+    id: info
+    attributes:
+      label: Additional Info
+      description: |
+        Provide additional information or links to resources that can help with the creation of this command.
+    validations:
+      required: false
