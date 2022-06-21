@@ -709,13 +709,13 @@ class MetaflowData(object):
     `MetaflowData` allows results to be retrieved by their name
     through a convenient dot notation:
 
-    ```
+    ```python
     Task(...).data.my_object
     ```
     
     You can also test the existence of an object
 
-    ```
+    ```python
     if 'my_object' in Task(...).data:
         print('my_object found')
     ```
@@ -1553,29 +1553,34 @@ class Step(MetaflowObject):
 
     def tasks(self, *tags):
         """
-        Returns an iterator over all `Task` objects in the step.
+        [Legacy function - do not use]
 
-        An optional filter is available that allows you to filter on tags.
-        If multiple tags are specified, only tasks that have all the
-        specified tags are returned.
+        Returns an iterator over all `Task` objects in the step. This is an alias
+        to iterating the object itself, i.e.
+        ```
+        list(Step(...)) == list(Step(...).tasks())
+        ```
 
         Parameters
         ----------
         tags : string
-            Tags to match.
+            No op (legacy functionality)
 
         Returns
         -------
         Iterator[Task]
-            Iterator over `Task` objects in this step.
+            Iterator over all `Task` objects in this step.
         """
         return self._filtered_children(*tags)
 
     @property
     def control_task(self):
         """
+        [Unpublished API - use with caution!]
+
         Returns a Control Task object belonging to this step.
         This is useful when the step only contains one control task.
+
         Returns
         -------
         Task
@@ -1585,6 +1590,8 @@ class Step(MetaflowObject):
 
     def control_tasks(self, *tags):
         """
+        [Unpublished API - use with caution!]
+
         Returns an iterator over all the control tasks in the step.
         An optional filter is available that allows you to filter on tags. The
         control tasks returned if the filter is specified will contain all the
@@ -1691,16 +1698,18 @@ class Run(MetaflowObject):
 
     def steps(self, *tags):
         """
-        Returns an iterator over all `Step`s in the run.
+        [Legacy function - do not use]
 
-        An optional filter is available that allows you to filter on tags.
-        If multiple tags are specified, only steps that have all the
-        specified tags are returned.
+        Returns an iterator over all `Step` objects in the step. This is an alias
+        to iterating the object itself, i.e.
+        ```
+        list(Run(...)) == list(Run(...).steps())
+        ```
 
         Parameters
         ----------
         tags : string
-            Tags to match.
+            No op (legacy functionality)
 
         Returns
         -------
