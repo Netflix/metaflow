@@ -18,6 +18,7 @@ variables:
   DEPLOY_INTERNAL: "true"
   DEPLOY_NONPROD: "false"
   DEPLOY_PROD: "false"
+  PUBLISH: "true"
 
 stages:
   - build
@@ -136,6 +137,8 @@ build:publish:
     password: ${PYPI_PASSWORD}
     EOL
   - python setup.py sdist upload --repository "${ANALYTICS_PYPI_REPOSITORY}"
+  rules:
+    - if: '$PUBLISH == "true"'
 
 test:internal:
   extends: 
