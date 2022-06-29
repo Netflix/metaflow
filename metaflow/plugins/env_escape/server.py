@@ -60,13 +60,26 @@ BIND_RETRY = 1
 
 
 class Server(object):
-    def __init__(self, max_pickle_version, config_dir):
+    def __init__(self, max_pickle_version):
 
         self._max_pickle_version = data_transferer.defaultProtocol = max_pickle_version
-        sys.path.insert(0, config_dir)
-        mappings = importlib.import_module("server_mappings")
-        override_module = importlib.import_module("overrides")
-        sys.path = sys.path[1:]
+        try:
+            mappings = importlib.import_module("server_mappings")
+        except Exception as e:
+            raise RuntimeError(
+                "Cannot import server_mappings from '%s': %s" % (sys.path[0], str(e))
+            )
+        try:
+            override_module = importlib.import_module("overrides")
+            override_values = override_module.__dict__.values()
+        except ImportError:
+            # We ignore so the file can be non-existent if not needed
+            override_values = []
+        except Exception as e:
+            raise RuntimeError(
+                "Cannot import overrides from '%s': %s" % (sys.path[0], str(e))
+            )
+
         self._aliases = {}
         self._known_classes, a1 = self._flatten_dict(mappings.EXPORTED_CLASSES)
         self._class_types_to_names = {v: k for k, v in self._known_classes.items()}
@@ -101,7 +114,7 @@ class Server(object):
         self._getattr_overrides = {}
         self._setattr_overrides = {}
         self._exception_serializers = {}
-        for override in override_module.__dict__.values():
+        for override in override_values:
             if isinstance(override, (RemoteAttrOverride, RemoteOverride)):
                 for obj_name, obj_funcs in override.obj_mapping.items():
                     if isinstance(override, RemoteOverride):
@@ -462,7 +475,6 @@ class Server(object):
 
 if __name__ == "__main__":
     max_pickle_version = int(sys.argv[1])
-    config_dir = sys.argv[2]
-    socket_path = sys.argv[3]
-    s = Server(max_pickle_version, config_dir)
+    socket_path = sys.argv[2]
+    s = Server(max_pickle_version)
     s.serve(path=socket_path)
