@@ -12,7 +12,10 @@ from tempfile import mkdtemp, NamedTemporaryFile
 
 from .. import FlowSpec
 from ..current import current
-from ..metaflow_config import DATATOOLS_S3ROOT, S3_RETRY_COUNT
+from ..metaflow_config import (
+    DATATOOLS_S3ROOT,
+    S3_RETRY_COUNT,
+)
 from ..util import (
     namedtuple_with_defaults,
     is_stringish,
@@ -272,10 +275,12 @@ class S3Object(object):
 
 
 class S3Client(object):
-    def __init__(self, s3_role_arn=None):
+    def __init__(self, s3_role_arn=None, s3_session_vars=None, s3_client_params=None):
         self._s3_client = None
         self._s3_error = None
         self._s3_role = s3_role_arn
+        self._s3_session_vars = s3_session_vars
+        self._s3_client_params = s3_client_params
 
     @property
     def client(self):
@@ -290,7 +295,11 @@ class S3Client(object):
         return self._s3_error
 
     def reset_client(self):
-        self._s3_client, self._s3_error = get_s3_client(s3_role_arn=self._s3_role)
+        self._s3_client, self._s3_error = get_s3_client(
+            s3_role_arn=self._s3_role,
+            s3_session_vars=self._s3_session_vars,
+            s3_client_params=self._s3_client_params,
+        )
 
 
 class S3(object):
@@ -353,10 +362,19 @@ class S3(object):
             # 3. use the client only with full URLs
             self._s3root = None
 
-        # Note that providing a role and a client will result in the role
-        # being ignored
+        # Note that providing a role, session vars or client params and a client
+        # will result in the role/session vars/client params being ignored
         self._s3_role = kwargs.get("role", None)
-        self._s3_client = kwargs.get("external_client", S3Client(self._s3_role))
+        self._s3_session_vars = kwargs.get("session_vars", None)
+        self._s3_client_params = kwargs.get("client_params", None)
+        self._s3_client = kwargs.get(
+            "external_client",
+            S3Client(
+                s3_role_arn=self._s3_role,
+                s3_session_vars=self._s3_session_vars,
+                s3_client_params=self._s3_client_params,
+            ),
+        )
         self._tmpdir = mkdtemp(dir=tmproot, prefix="metaflow.s3.")
 
     def __enter__(self):
@@ -1083,6 +1101,10 @@ class S3(object):
                 cmdline.extend(("--%s" % key, value))
         if self._s3_role is not None:
             cmdline.extend(("--s3role", self._s3_role))
+        if self._s3_session_vars is not None:
+            cmdline.extend(("--s3sessionvars", json.dumps(self._s3_session_vars)))
+        if self._s3_client_params is not None:
+            cmdline.extend(("--s3clientparams", json.dumps(self._s3_client_params)))
 
         for i in range(S3_RETRY_COUNT + 1):
             with NamedTemporaryFile(

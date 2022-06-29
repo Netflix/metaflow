@@ -60,6 +60,40 @@ DATASTORE_LOCAL_DIR = ".metaflow"
 DATASTORE_SYSROOT_LOCAL = from_conf("METAFLOW_DATASTORE_SYSROOT_LOCAL")
 # S3 bucket and prefix to store artifacts for 's3' datastore.
 DATASTORE_SYSROOT_S3 = from_conf("METAFLOW_DATASTORE_SYSROOT_S3")
+
+
+###
+# Datastore local cache
+###
+# Path to the client cache
+CLIENT_CACHE_PATH = from_conf("METAFLOW_CLIENT_CACHE_PATH", "/tmp/metaflow_client")
+# Maximum size (in bytes) of the cache
+CLIENT_CACHE_MAX_SIZE = int(from_conf("METAFLOW_CLIENT_CACHE_MAX_SIZE", 10000))
+# Maximum number of cached Flow and TaskDatastores in the cache
+CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT = int(
+    from_conf("METAFLOW_CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT", 50)
+)
+CLIENT_CACHE_MAX_TASKDATASTORE_COUNT = int(
+    from_conf(
+        "METAFLOW_CLIENT_CACHE_MAX_TASKDATASTORE_COUNT",
+        CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT * 100,
+    )
+)
+
+
+###
+# Datatools (S3) configuration
+###
+# S3 endpoint url
+S3_ENDPOINT_URL = from_conf("METAFLOW_S3_ENDPOINT_URL", None)
+S3_VERIFY_CERTIFICATE = from_conf("METAFLOW_S3_VERIFY_CERTIFICATE", None)
+
+# S3 retry configuration
+# This is useful if you want to "fail fast" on S3 operations; use with caution
+# though as this may increase failures. Note that this is the number of *retries*
+# so setting it to 0 means each operation will be tried once.
+S3_RETRY_COUNT = int(from_conf("METAFLOW_S3_RETRY_COUNT", 7))
+
 # S3 datatools root location
 DATATOOLS_SUFFIX = from_conf("METAFLOW_DATATOOLS_SUFFIX", "data")
 DATATOOLS_S3ROOT = from_conf(
@@ -68,6 +102,32 @@ DATATOOLS_S3ROOT = from_conf(
     if from_conf("METAFLOW_DATASTORE_SYSROOT_S3")
     else None,
 )
+
+DATATOOLS_DEFAULT_CLIENT_PARAMS = from_conf(
+    "METAFLOW_DATATOOLS_CLIENT_PARAMS",
+    "{}",
+)
+try:
+    DATATOOLS_DEFAULT_CLIENT_PARAMS = json.loads(DATATOOLS_DEFAULT_CLIENT_PARAMS)
+    if S3_ENDPOINT_URL:
+        DATATOOLS_DEFAULT_CLIENT_PARAMS["endpoint_url"] = S3_ENDPOINT_URL
+    if S3_VERIFY_CERTIFICATE:
+        DATATOOLS_DEFAULT_CLIENT_PARAMS["verify"] = S3_VERIFY_CERTIFICATE
+except json.JSONDecodeError:
+    raise ValueError(
+        "Value for METAFLOW_DATATOOLS_CLIENT_PARAMS is not valid JSON: %s"
+        % DATATOOLS_DEFAULT_CLIENT_PARAMS
+    )
+
+DATATOOLS_DEFAULT_SESSION_VARS = from_conf("METAFLOW_DATATOOLS_SESSION_VARS", "{}")
+try:
+    DATATOOLS_DEFAULT_SESSION_VARS = json.loads(DATATOOLS_DEFAULT_SESSION_VARS)
+except json.JSONDecodeError:
+    raise ValueError(
+        "Value for METAFLOW_DATATOOLS_SESSION_VARS is not valid JSON: %s"
+        % DATATOOLS_DEFAULT_SESSION_VARS
+    )
+
 # Local datatools root location
 DATATOOLS_LOCALROOT = from_conf(
     "METAFLOW_DATATOOLS_LOCALROOT",
@@ -89,34 +149,6 @@ DATASTORE_CARD_S3ROOT = from_conf(
     else None,
 )
 CARD_NO_WARNING = from_conf("METAFLOW_CARD_NO_WARNING", False)
-
-# S3 endpoint url
-S3_ENDPOINT_URL = from_conf("METAFLOW_S3_ENDPOINT_URL", None)
-S3_VERIFY_CERTIFICATE = from_conf("METAFLOW_S3_VERIFY_CERTIFICATE", None)
-
-# S3 retry configuration
-# This is useful if you want to "fail fast" on S3 operations; use with caution
-# though as this may increase failures. Note that this is the number of *retries*
-# so setting it to 0 means each operation will be tried once.
-S3_RETRY_COUNT = int(from_conf("METAFLOW_S3_RETRY_COUNT", 7))
-
-###
-# Datastore local cache
-###
-# Path to the client cache
-CLIENT_CACHE_PATH = from_conf("METAFLOW_CLIENT_CACHE_PATH", "/tmp/metaflow_client")
-# Maximum size (in bytes) of the cache
-CLIENT_CACHE_MAX_SIZE = int(from_conf("METAFLOW_CLIENT_CACHE_MAX_SIZE", 10000))
-# Maximum number of cached Flow and TaskDatastores in the cache
-CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT = int(
-    from_conf("METAFLOW_CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT", 50)
-)
-CLIENT_CACHE_MAX_TASKDATASTORE_COUNT = int(
-    from_conf(
-        "METAFLOW_CLIENT_CACHE_MAX_TASKDATASTORE_COUNT",
-        CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT * 100,
-    )
-)
 
 
 ###
