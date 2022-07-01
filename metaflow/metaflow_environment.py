@@ -2,6 +2,7 @@ import os
 import platform
 import sys
 
+from .datastore.azure_storage import parse_azure_sysroot
 from .util import get_username
 from . import metaflow_version
 from metaflow.exception import MetaflowException
@@ -79,20 +80,60 @@ class MetaflowEnvironment(object):
         """
         return "Local environment"
 
-    def get_package_commands(self, code_package_url):
+    def _get_download_code_package_cmd(self, code_package_url, datastore_type):
+        if datastore_type == "s3":
+            return (
+                '%s -m awscli ${METAFLOW_S3_ENDPOINT_URL:+--endpoint-url=\\"${METAFLOW_S3_ENDPOINT_URL}\\"} '
+                + "s3 cp %s job.tar >/dev/null"
+            ) % (self._python(), code_package_url)
+        elif datastore_type == "azure":
+            # TODO avoid importing azure_storage
+            container_name, blob_prefix = parse_azure_sysroot(code_package_url)
+            # TODO fix the naming here
+            blob = blob_prefix
+            # TODO Use METAFLOW_AZURE_STORAGE_ACCESS_KEY if available
+            sas_token_option = '${METAFLOW_AZURE_STORAGE_ACCESS_KEY:+--sas-token=\\"${METAFLOW_AZURE_STORAGE_ACCESS_KEY}\\"}'
+            return "az storage blob download -f job.tar -c {container} -n {blob} --blob-endpoint={storage_account_url} {sas_token_option}".format(
+                container=container_name,
+                blob=blob,
+                storage_account_url='\\"${METAFLOW_AZURE_STORAGE_ACCOUNT_URL}\\"',
+                sas_token_option=sas_token_option,
+            )
+        raise NotImplementedError(
+            "We don't know how to generate a download code package cmd for datastore %s"
+            % datastore_type
+        )
+
+    def _get_install_dependencies_cmd(self, datastore_type):
+        cmds = ["%s -m pip install requests -qqq" % self._python()]
+        if datastore_type == "s3":
+            cmds.append("%s -m pip install awscli requests boto3 -qqq" % self._python())
+        elif datastore_type == "azure":
+            cmds.append(
+                "%s -m pip install azure-cli azure-identity azure-storage-blob -qqq"
+                % self._python()
+            )
+        else:
+            raise NotImplementedError(
+                "We don't know how to generate an install dependencies cmd for datastore %s"
+                % datastore_type
+            )
+        return " && ".join(cmds)
+
+    def get_package_commands(self, code_package_url, datastore_type="s3"):
         cmds = [
             BASH_MFLOG,
             "mflog 'Setting up task environment.'",
-            "%s -m pip install awscli requests boto3 -qqq" % self._python(),
+            self._get_install_dependencies_cmd(datastore_type),
             "mkdir metaflow",
             "cd metaflow",
             "mkdir .metaflow",  # mute local datastore creation log
             "i=0; while [ $i -le 5 ]; do "
             "mflog 'Downloading code package...'; "
-            '%s -m awscli ${METAFLOW_S3_ENDPOINT_URL:+--endpoint-url=\\"${METAFLOW_S3_ENDPOINT_URL}\\"} '
-            "s3 cp %s job.tar >/dev/null && mflog 'Code package downloaded.' && break; "
+            + self._get_download_code_package_cmd(code_package_url, datastore_type)
+            + " && mflog 'Code package downloaded.' && break; "
             "sleep 10; i=$((i+1)); "
-            "done" % (self._python(), code_package_url),
+            "done",
             "if [ $i -gt 5 ]; then "
             "mflog 'Failed to download code package from %s "
             "after 6 tries. Exiting...' && exit 1; "
@@ -100,6 +141,7 @@ class MetaflowEnvironment(object):
             "TAR_OPTIONS='--warning=no-timestamp' tar xf job.tar",
             "mflog 'Task is starting.'",
         ]
+        print(cmds)
         return cmds
 
     def get_environment_info(self):

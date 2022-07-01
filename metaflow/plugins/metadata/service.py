@@ -53,6 +53,7 @@ class ServiceMetadataProvider(MetadataProvider):
         self.url_run_template = os.path.join(
             METADATA_SERVICE_URL, "flows/{flow_id}/runs/{run_number}/heartbeat"
         )
+        print("GOT SERVICE URL = %s" % METADATA_SERVICE_URL)
         self.sidecar = None
 
     @classmethod

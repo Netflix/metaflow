@@ -60,7 +60,9 @@ class Batch(object):
             stderr_path=STDERR_PATH,
             **task_spec
         )
-        init_cmds = environment.get_package_commands(code_package_url)
+        init_cmds = environment.get_package_commands(
+            code_package_url, datastore_type="s3"
+        )
         init_expr = " && ".join(init_cmds)
         step_expr = bash_capture_logs(
             " && ".join(environment.bootstrap_commands(step_name) + step_cmds)

@@ -601,7 +601,9 @@ class ArgoWorkflows(object):
                     task_id_expr,
                     mflog_expr,
                 ]
-                + self.environment.get_package_commands(self.code_package_url)
+                + self.environment.get_package_commands(
+                    self.code_package_url, datastore_type=self.flow_datastore.TYPE
+                )
             )
             step_cmds = self.environment.bootstrap_commands(node.name)
 

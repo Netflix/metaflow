@@ -20,6 +20,9 @@ from metaflow.metaflow_config import (
     DEFAULT_AWS_CLIENT_PROVIDER,
     DEFAULT_METADATA,
     S3_ENDPOINT_URL,
+    AZURE_STORAGE_ACCOUNT_URL,
+    DATASTORE_SYSROOT_AZURE,
+    DATASTORE_CARD_AZUREROOT,
 )
 from metaflow.mflog import (
     BASH_SAVE_LOGS,
@@ -78,7 +81,9 @@ class Kubernetes(object):
             stdout_path=STDOUT_PATH,
             stderr_path=STDERR_PATH,
         )
-        init_cmds = self._environment.get_package_commands(code_package_url)
+        init_cmds = self._environment.get_package_commands(
+            code_package_url, datastore_type=self._datastore.TYPE
+        )
         init_expr = " && ".join(init_cmds)
         step_expr = bash_capture_logs(
             " && ".join(self._environment.bootstrap_commands(step_name) + step_cmds)
@@ -177,11 +182,18 @@ class Kubernetes(object):
             )
             .environment_variable("METAFLOW_DATASTORE_SYSROOT_S3", DATASTORE_SYSROOT_S3)
             .environment_variable("METAFLOW_DATATOOLS_S3ROOT", DATATOOLS_S3ROOT)
-            .environment_variable("METAFLOW_DEFAULT_DATASTORE", "s3")
+            .environment_variable("METAFLOW_DEFAULT_DATASTORE", self._datastore.TYPE)
             .environment_variable("METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA)
+            .environment_variable(
+                "METAFLOW_AZURE_STORAGE_ACCOUNT_URL", AZURE_STORAGE_ACCOUNT_URL
+            )
+            .environment_variable(
+                "METAFLOW_DATASTORE_SYSROOT_AZURE", DATASTORE_SYSROOT_AZURE
+            )
             .environment_variable("METAFLOW_KUBERNETES_WORKLOAD", 1)
             .environment_variable("METAFLOW_RUNTIME_ENVIRONMENT", "kubernetes")
             .environment_variable("METAFLOW_CARD_S3ROOT", DATASTORE_CARD_S3ROOT)
+            .environment_variable("METAFLOW_CARD_AZUREROOT", DATASTORE_CARD_AZUREROOT)
             .environment_variable(
                 "METAFLOW_DEFAULT_AWS_CLIENT_PROVIDER", DEFAULT_AWS_CLIENT_PROVIDER
             )
@@ -259,20 +271,24 @@ class Kubernetes(object):
                 time.sleep(update_delay(time.time() - start_time))
 
         prefix = b"[%s] " % util.to_bytes(self._job.id)
-        stdout_tail = S3Tail(stdout_location)
-        stderr_tail = S3Tail(stderr_location)
+        # TODO Fix this tail for Azure
+        # stdout_tail = S3Tail(stdout_location)
+        # stderr_tail = S3Tail(stderr_location)
 
         # 1) Loop until the job has started
         wait_for_launch(self._job)
+        while not self._job.is_done:
+            echo("Waiting for job to complete...")
+            time.sleep(7)
 
         # 2) Tail logs until the job has finished
-        tail_logs(
-            prefix=prefix,
-            stdout_tail=stdout_tail,
-            stderr_tail=stderr_tail,
-            echo=echo,
-            has_log_updates=lambda: self._job.is_running,
-        )
+        # tail_logs(
+        #    prefix=prefix,
+        #    stdout_tail=stdout_tail,
+        #    stderr_tail=stderr_tail,
+        #    echo=echo,
+        #    has_log_updates=lambda: self._job.is_running,
+        # )
 
         # 3) Fetch remaining logs
         #

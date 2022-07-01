@@ -579,6 +579,10 @@ class AzureStorage(DataStoreStorage):
     def _get_client(self):
         # We take this only from environment, but not from metaflow JSON configs.
         # There is no precedent for storing secret information there.
+        # This could be
+        # - storage account access key
+        # - shared access token ("SAS")
+        # TODO do we need to broaden the name here?
         access_key = os.getenv("METAFLOW_AZURE_STORAGE_ACCESS_KEY", default=None)
         if access_key:
             return AzureClient(
