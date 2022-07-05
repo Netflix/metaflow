@@ -1,7 +1,3 @@
-import os
-
-from azure.identity import DefaultAzureCredential
-
 from metaflow.metaflow_config import AZURE_STORAGE_ACCESS_KEY
 from metaflow.plugins.azure.azure_python_version_check import check_python_version
 
@@ -20,6 +16,7 @@ try:
     import warnings
 
     warnings.filterwarnings("ignore")
+    from azure.identity import DefaultAzureCredential
     from azure.core.exceptions import (
         ClientAuthenticationError,
         ResourceNotFoundError,
