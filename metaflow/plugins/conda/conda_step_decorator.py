@@ -236,7 +236,11 @@ class CondaStepDecorator(StepDecorator):
         if platform.system() == "Linux":
             return "linux-%s" % bit
         elif platform.system() == "Darwin":
-            return "osx-%s" % bit
+            # Support M1 Mac
+            if platform.machine() == "arm64":
+                return "osx-arm64"
+            else:
+                return "osx-%s" % bit
         else:
             raise InvalidEnvironmentException(
                 "The *@conda* decorator is not supported "
