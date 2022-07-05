@@ -1,3 +1,7 @@
+import os
+
+from azure.identity import DefaultAzureCredential
+
 from metaflow.plugins.azure.azure_python_version_check import check_python_version
 
 check_python_version()
@@ -92,3 +96,15 @@ def handle_exceptions(func):
             process_exception(e)
 
     return inner_function
+
+
+class CacheableDefaultAzureCredential(DefaultAzureCredential):
+    def __init__(self, *args, **kwargs):
+        super(CacheableDefaultAzureCredential, self).__init__(*args, **kwargs)
+        self._hash_code = hash((args, tuple(sorted(kwargs.items()))))
+
+    def __hash__(self):
+        return self._hash_code
+
+    def __eq__(self, other):
+        return hash(self) == hash(other)

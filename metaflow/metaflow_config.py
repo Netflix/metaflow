@@ -36,13 +36,34 @@ def init_config():
 METAFLOW_CONFIG = init_config()
 
 
-def from_conf(name, default=None, validate_fn=None):
+def from_conf(name, default=None, from_env_only=False, validate_fn=None):
     """
+    First try to pull value from environment, then from metaflow config JSON.
+
+    If from_env_only is True, we never use the value in metaflow config JSON.
+    We will raise an Error on seeing the value set in metaflow config JSON.
+
+    Prior to a value being returned, we will validate using validate_fn (if provided).
+
     validate_fn should accept (name, value).
     If the value validates, return None.
+
     Otherwise raise a MetaflowException, including error message for user consumption.
     """
-    value = os.environ.get(name, METAFLOW_CONFIG.get(name, default))
+    value_from_env = os.environ.get(name, None)
+    value_from_config = METAFLOW_CONFIG.get(name, default)
+    if from_env_only:
+        if value_from_config is not None:
+            raise MetaflowException(
+                "%s may only be set from environment variable, NOT from metaflow JSON configs."
+                % name
+            )
+        value = value_from_env
+    else:
+        if value_from_env is not None:
+            value = value_from_env
+        else:
+            value = value_from_config
     if validate_fn:
         validate_fn(name, value)
     return value
@@ -189,6 +210,10 @@ CARD_NO_WARNING = from_conf("METAFLOW_CARD_NO_WARNING", False)
 
 # Azure storage account URL
 AZURE_STORAGE_ACCOUNT_URL = from_conf("METAFLOW_AZURE_STORAGE_ACCOUNT_URL")
+# Either an Azure storage SAS or storage account access key
+AZURE_STORAGE_ACCESS_KEY = from_conf(
+    "METAFLOW_AZURE_STORAGE_ACCESS_KEY", from_env_only=True
+)
 
 # Azure storage - use process-based parallelism, instead of threads
 AZURE_STORAGE_WORKLOAD_TYPE = from_conf(

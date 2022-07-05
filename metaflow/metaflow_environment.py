@@ -87,11 +87,9 @@ class MetaflowEnvironment(object):
                 + "s3 cp %s job.tar >/dev/null"
             ) % (self._python(), code_package_url)
         elif datastore_type == "azure":
-            # TODO avoid importing azure_storage
             container_name, blob_prefix = parse_azure_sysroot(code_package_url)
             # TODO fix the naming here
             blob = blob_prefix
-            # TODO Use METAFLOW_AZURE_STORAGE_ACCESS_KEY if available
             sas_token_option = '${METAFLOW_AZURE_STORAGE_ACCESS_KEY:+--sas-token=\\"${METAFLOW_AZURE_STORAGE_ACCESS_KEY}\\"}'
             return "az storage blob download -f job.tar -c {container} -n {blob} --blob-endpoint={storage_account_url} {sas_token_option}".format(
                 container=container_name,

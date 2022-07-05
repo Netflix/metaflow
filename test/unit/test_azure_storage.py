@@ -40,7 +40,7 @@ class TestAzureStorage(unittest.TestCase):
         )
 
     def tearDown(self):
-        azure_client_maker = self.storage._get_client()
+        azure_client_maker = self.storage._get_root_client()
         container = azure_client_maker.get_blob_container_client()
         _, blob_prefix = parse_azure_sysroot(self.storage.datastore_root)
         # delete_blob(s) did not work well...when there was lots of stuff to delete.

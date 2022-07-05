@@ -1,7 +1,4 @@
 from metaflow.plugins.azure.azure_python_version_check import check_python_version
-
-check_python_version()
-
 import multiprocessing
 import json
 import os
@@ -17,11 +14,12 @@ from metaflow.datastore.datastore_storage import DataStoreStorage, CloseAfterUse
 from metaflow.exception import MetaflowInternalError, MetaflowException
 from metaflow.metaflow_config import (
     DATASTORE_SYSROOT_AZURE,
-    AZURE_STORAGE_ACCOUNT_URL,
     ARTIFACT_LOCALROOT,
     AZURE_STORAGE_WORKLOAD_TYPE,
+    AZURE_STORAGE_ACCESS_KEY,
 )
 
+check_python_version()
 
 if sys.version_info[:2] < (3, 7):
     # in 3.6, Only BrokenProcessPool exists (there is no BrokenThreadPool)
@@ -43,6 +41,14 @@ try:
         ResourceNotFoundError,
         ResourceExistsError,
     )
+
+    # cut down on crazy logging from azure.identity..
+    # TODO but what if folks want to debug on occasion?
+    import logging
+
+    # TODO consolidate & tidy up how we do imports in various modules
+    logging.getLogger("azure.identity").setLevel(logging.ERROR)
+    logging.getLogger("msrest.serialization").setLevel(logging.ERROR)
     from metaflow.plugins.azure.azure_client import get_azure_blob_service
     from metaflow.plugins.azure.azure_utils import (
         parse_azure_sysroot,
@@ -53,13 +59,6 @@ except ImportError:
     raise MetaflowInternalError(
         msg="Please ensure azure-identity and azure-storage-blob Python packages are installed"
     )
-
-# cut down on crazy logging from azure.identity..
-# TODO but what if folks want to debug on occasion?
-import logging
-
-logging.getLogger("azure.identity").setLevel(logging.ERROR)
-logging.getLogger("msrest.serialization").setLevel(logging.ERROR)
 
 
 # TODO strip this out
@@ -132,7 +131,7 @@ AZURE_STORAGE_DEFAULT_SCOPE = "https://storage.azure.com/.default"
 
 
 # TODO this is still not a good name...  Work "root" into it?
-class AzureClient(object):
+class RootClient(object):
     """
     This exists independently from AzureBlobStorage as a wrapper around SDK client object.
     It carries around parameters needed to construct Azure SDK objects on demand.
@@ -143,18 +142,13 @@ class AzureClient(object):
     Either token OR access_key may be provided as credential.
     """
 
-    def __init__(
-        self, storage_account_url=None, datastore_root=None, token=None, access_key=None
-    ):
-        if storage_account_url is None:
-            raise MetaflowInternalError("storage_account_url must be set")
+    def __init__(self, datastore_root=None, token=None, access_key=None):
         if datastore_root is None:
             raise MetaflowInternalError("datastore_root must be set")
         if token is None and access_key is None:
             raise MetaflowInternalError("either access_key or token must be set")
         if token and access_key:
             raise MetaflowInternalError("cannot set both access_key and token")
-        self._storage_account_url = storage_account_url
         self._datastore_root = datastore_root
         self._token = token
         self._access_key = access_key
@@ -165,10 +159,10 @@ class AzureClient(object):
     def get_blob_container_client(self):
         if self._access_key:
             credential = self._access_key
-            credential_is_hashable = True
+            credential_is_cacheable = True
         else:
 
-            class CachedTokenCredential(TokenCredential):
+            class StaticTokenCredential(TokenCredential):
                 def __init__(self, token):
                     self._cached_token = token
                     self._credential = None
@@ -204,12 +198,11 @@ class AzureClient(object):
                 def __eq__(self, other):
                     return self._cached_token == other._cached_token
 
-            credential = CachedTokenCredential(self._token)
-            credential_is_hashable = True
+            credential = StaticTokenCredential(self._token)
+            credential_is_cacheable = True
         service = get_azure_blob_service(
-            self._storage_account_url,
             credential=credential,
-            credential_is_hashable=credential_is_hashable,
+            credential_is_cacheable=credential_is_cacheable,
         )
 
         container_name, _ = parse_azure_sysroot(self._datastore_root)
@@ -230,11 +223,11 @@ class AzureClient(object):
 
 # Azure blob operations. These are meant to be single units of work
 # to be performed by thread or process pool workers.
-def _is_file_single(path, client=None):
+def _is_file_single(path, root_client=None):
     """Drives AzureStorage.is_file()"""
     with profile("SUB_is_file_single"):
         try:
-            blob = client.get_blob_client(path)
+            blob = root_client.get_blob_client(path)
             return blob.exists()
         except Exception as e:
             process_exception(e)
@@ -243,7 +236,7 @@ def _is_file_single(path, client=None):
 def _save_bytes_single(
     path_tmpfile_metadata_triple,
     overwrite=False,
-    client=None,
+    root_client=None,
 ):
     """Drives AzureStorage.save_bytes()"""
     with profile("SUB_save_bytes_single"):
@@ -258,7 +251,7 @@ def _save_bytes_single(
                     # https://docs.microsoft.com/en-us/rest/api/storageservices/setting-and-retrieving-properties-and-metadata-for-blob-resources#Subheading1
                     "metaflow_user_attributes": json.dumps(metadata),
                 }
-            blob = client.get_blob_client(path)
+            blob = root_client.get_blob_client(path)
             with open(tmpfile, "rb") as byte_stream:
                 try:
                     # This is a racy existence check worth doing.
@@ -293,12 +286,12 @@ def _save_bytes_single(
             process_exception(e)
 
 
-def _load_bytes_single(tmpdir, key, client=None):
+def _load_bytes_single(tmpdir, key, root_client=None):
     """Drives AzureStorage.load_bytes()"""
     with profile("SUB_load_bytes_single"):
 
         try:
-            blob = client.get_blob_client(key)
+            blob = root_client.get_blob_client(key)
             try:
                 blob_properties = blob.get_blob_properties()
             except ResourceNotFoundError:
@@ -328,15 +321,15 @@ def _load_bytes_single(tmpdir, key, client=None):
             process_exception(e)
 
 
-def _list_content_single(path, client=None):
+def _list_content_single(path, root_client=None):
     """Drives AzureStorage.list_content()"""
     with profile("SUB_list_content_single"):
         try:
             result = []
             # all query paths are assumed to be folders. This replicates S3 behavior.
             path = path.rstrip("/") + "/"
-            full_path = client.get_blob_full_path(path)
-            container = client.get_blob_container_client()
+            full_path = root_client.get_blob_full_path(path)
+            container = root_client.get_blob_container_client()
             # "file" blobs show up as BlobProperties. We assume we always have "blob_type" key
             # "directories" show up as BlobPrefix. We assume we never have "blob_type" key
             for blob_properties_or_prefix in container.walk_blobs(
@@ -350,7 +343,7 @@ def _list_content_single(path, client=None):
                     # for directories we don't want trailing slashes in results
                     name = name.rstrip("/")
                 _, top_level_blob_prefix = parse_azure_sysroot(
-                    client.get_datastore_root()
+                    root_client.get_datastore_root()
                 )
                 if (
                     top_level_blob_prefix is not None
@@ -393,10 +386,6 @@ class AzureStorage(DataStoreStorage):
     TYPE = "azure"
 
     def __init__(self, root=None):
-        if not AZURE_STORAGE_ACCOUNT_URL:
-            raise MetaflowException(
-                msg="Must configure METAFLOW_AZURE_STORAGE_ACCOUNT_URL"
-            )
         super(AzureStorage, self).__init__(root)
         self._tmproot = ARTIFACT_LOCALROOT
         self._default_scope_token = None
@@ -419,23 +408,24 @@ class AzureStorage(DataStoreStorage):
                 )
         return self._default_scope_token
 
-    def _get_client(self):
-        # We take this only from environment, but not from metaflow JSON configs.
-        # There is no precedent for storing secret information there.
-        # This could be
+    def _get_root_client(self):
+        """Note this is for optimization only - it allows slow-initialization credentials to be
+        reused across multiple threads and processes.
+
+        Speed up applies mainly to the "no access key" path.
+        """
+        # This could be:
         # - storage account access key
         # - shared access token ("SAS")
-        # TODO do we need to broaden the name here?
-        access_key = os.getenv("METAFLOW_AZURE_STORAGE_ACCESS_KEY", default=None)
-        if access_key:
-            return AzureClient(
-                storage_account_url=AZURE_STORAGE_ACCOUNT_URL,
+        # We take this only from environment, but not from metaflow JSON configs.
+        # There is no precedent for storing secret information there.
+        if AZURE_STORAGE_ACCESS_KEY:
+            return RootClient(
                 datastore_root=self.datastore_root,
-                access_key=access_key,
+                access_key=AZURE_STORAGE_ACCESS_KEY,
             )
         else:
-            return AzureClient(
-                storage_account_url=AZURE_STORAGE_ACCOUNT_URL,
+            return RootClient(
                 datastore_root=self.datastore_root,
                 token=self._get_default_token(),
             )
@@ -453,7 +443,7 @@ class AzureStorage(DataStoreStorage):
             self._executor.submit(
                 _is_file_single,
                 path,
-                client=self._get_client(),
+                root_client=self._get_root_client(),
             )
             for path in paths
         ]
@@ -468,8 +458,8 @@ class AzureStorage(DataStoreStorage):
     @profile_dec
     def size_file(self, path):
         try:
-            client = self._get_client()
-            return client.get_blob_client(path).get_blob_properties().size
+            root_client = self._get_root_client()
+            return root_client.get_blob_client(path).get_blob_properties().size
         except Exception as e:
             process_exception(e)
 
@@ -477,7 +467,9 @@ class AzureStorage(DataStoreStorage):
     @profile_dec
     def list_content(self, paths):
         futures = [
-            self._executor.submit(_list_content_single, path, client=self._get_client())
+            self._executor.submit(
+                _list_content_single, path, root_client=self._get_root_client()
+            )
             for path in paths
         ]
         result = []
@@ -512,7 +504,7 @@ class AzureStorage(DataStoreStorage):
                             _save_bytes_single,
                             (path, tmp_filename, metadata),
                             overwrite=overwrite,
-                            client=self._get_client(),
+                            root_client=self._get_root_client(),
                         )
                     )
             with profile("save_bytes_result_wait[%d]" % len(futures)):
@@ -534,7 +526,7 @@ class AzureStorage(DataStoreStorage):
                     _load_bytes_single,
                     tmpdir,
                     key,
-                    client=self._get_client(),
+                    root_client=self._get_root_client(),
                 )
                 for key in keys
             ]

@@ -1,5 +1,9 @@
-from metaflow.exception import MetaflowInternalError
+from azure.core.credentials import TokenCredential
+
+from metaflow.exception import MetaflowInternalError, MetaflowException
+from metaflow.metaflow_config import AZURE_STORAGE_ACCOUNT_URL, AZURE_STORAGE_ACCESS_KEY
 from metaflow.plugins.azure.azure_python_version_check import check_python_version
+from metaflow.plugins.azure.azure_utils import CacheableDefaultAzureCredential
 
 check_python_version()
 
@@ -115,20 +119,31 @@ BYTES_IN_MB = 1024 * 1024
 
 
 def get_azure_blob_service(
-    storage_account_url,
+    storage_account_url=None,
     credential=None,
-    credential_is_hashable=False,  # TODO is hashable the best name?
+    credential_is_cacheable=False,  # TODO is hashable the best name?
     max_single_get_size=AZURE_CLIENT_MAX_SINGLE_GET_SIZE_MB * BYTES_IN_MB,
     max_single_put_size=AZURE_CLIENT_MAX_SINGLE_PUT_SIZE_MB * BYTES_IN_MB,
     max_chunk_get_size=AZURE_CLIENT_MAX_CHUNK_GET_SIZE_MB * BYTES_IN_MB,
     connection_data_block_size=AZURE_CLIENT_CONNECTION_DATA_BLOCK_SIZE * BYTES_IN_MB,
 ):
-    """TODO"""
-    if not credential:
-        credential = DefaultAzureCredential()
-        credential_is_hashable = False
+    if not storage_account_url:
+        # TODO validate the URL to save time
+        if not AZURE_STORAGE_ACCOUNT_URL:
+            raise MetaflowException(
+                msg="Must configure METAFLOW_AZURE_STORAGE_ACCOUNT_URL"
+            )
+        storage_account_url = AZURE_STORAGE_ACCOUNT_URL
 
-    if not credential_is_hashable:
+    if not credential:
+        if AZURE_STORAGE_ACCESS_KEY:
+            credential = AZURE_STORAGE_ACCESS_KEY
+            credential_is_cacheable = True
+        else:
+            credential = CacheableDefaultAzureCredential()
+            credential_is_cacheable = True
+
+    if not credential_is_cacheable:
         return BlobServiceClient(
             storage_account_url,
             credential=credential,
