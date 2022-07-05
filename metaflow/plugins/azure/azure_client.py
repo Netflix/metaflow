@@ -1,9 +1,10 @@
-from azure.core.credentials import TokenCredential
-
 from metaflow.exception import MetaflowInternalError, MetaflowException
-from metaflow.metaflow_config import AZURE_STORAGE_ACCOUNT_URL, AZURE_STORAGE_ACCESS_KEY
+from metaflow.metaflow_config import AZURE_STORAGE_ACCOUNT_URL
 from metaflow.plugins.azure.azure_python_version_check import check_python_version
-from metaflow.plugins.azure.azure_utils import CacheableDefaultAzureCredential
+from metaflow.plugins.azure.azure_utils import (
+    CacheableDefaultAzureCredential,
+    get_azure_storage_access_key,
+)
 
 check_python_version()
 
@@ -128,7 +129,7 @@ def get_azure_blob_service(
     connection_data_block_size=AZURE_CLIENT_CONNECTION_DATA_BLOCK_SIZE * BYTES_IN_MB,
 ):
     if not storage_account_url:
-        # TODO validate the URL to save time
+        # TODO validate the URL to save user debug time (basic stuff)
         if not AZURE_STORAGE_ACCOUNT_URL:
             raise MetaflowException(
                 msg="Must configure METAFLOW_AZURE_STORAGE_ACCOUNT_URL"
@@ -136,8 +137,9 @@ def get_azure_blob_service(
         storage_account_url = AZURE_STORAGE_ACCOUNT_URL
 
     if not credential:
-        if AZURE_STORAGE_ACCESS_KEY:
-            credential = AZURE_STORAGE_ACCESS_KEY
+        access_key = get_azure_storage_access_key()
+        if access_key:
+            credential = access_key
             credential_is_cacheable = True
         else:
             credential = CacheableDefaultAzureCredential()

@@ -4,12 +4,12 @@ import os
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from unittest.mock import patch
 
 from azure.core.credentials import AccessToken
 
 from metaflow.datastore import get_datastore_impl
 from metaflow.datastore.azure_exceptions import (
-    MetaflowAzureResourceError,
     MetaflowAzureAuthenticationError,
 )
 from metaflow.plugins.azure.azure_utils import parse_azure_sysroot
@@ -35,14 +35,14 @@ class TestAzureStorage(unittest.TestCase):
         )
 
     def setUp(self):
-        self.storage = get_datastore_impl("azure")(
-            TestAzureStorage.generate_datastore_root()
-        )
+        self.datastore_root = TestAzureStorage.generate_datastore_root()
+        self.storage = get_datastore_impl("azure")(self.datastore_root)
 
     def tearDown(self):
-        azure_client_maker = self.storage._get_root_client()
-        container = azure_client_maker.get_blob_container_client()
-        _, blob_prefix = parse_azure_sysroot(self.storage.datastore_root)
+        # new storage object, but pointing at the datastore root to be cleaned up
+        storage = get_datastore_impl("azure")(self.datastore_root)
+        container = storage.root_client.get_blob_container_client()
+        _, blob_prefix = parse_azure_sysroot(storage.datastore_root)
         # delete_blob(s) did not work well...when there was lots of stuff to delete.
         blobs_to_delete = list(container.list_blobs(blob_prefix))
         if len(blobs_to_delete) > 0:
@@ -250,24 +250,32 @@ class TestAzureStorage(unittest.TestCase):
             )
 
     def test_bad_credentials(self):
-        self.storage._default_scope_token = AccessToken(
-            # bad token value
-            token="not a real token",
-            # but, not expired (give it a year)
-            expires_on=int(time.time() + 365 * 24 * 3600),
-        )
-        old_access_key_value = os.getenv("METAFLOW_AZURE_STORAGE_ACCESS_KEY")
-        try:
-            if old_access_key_value is not None:
-                del os.environ["METAFLOW_AZURE_STORAGE_ACCESS_KEY"]
+        # skip this test if multiprocessing... mocking is a massive PITA
+        if self.storage._use_processes:
+            return
+        # inject bad access key
+        with patch(
+            "metaflow.datastore.azure_storage.get_azure_storage_access_key"
+        ) as m:
+            m.return_value("garbage_access_key")
+            self.storage = get_datastore_impl("azure")(self.datastore_root)
             with self.assertRaises(MetaflowAzureAuthenticationError):
                 self.storage.list_content(["a"])
 
-            # clear this up, so that we know to get a new, valid token during tearDown
-        finally:
-            if old_access_key_value is not None:
-                os.environ["METAFLOW_AZURE_STORAGE_ACCESS_KEY"] = old_access_key_value
-            self.storage._default_scope_token = None
+        # skip access key, but inject bad default token
+        with patch(
+            "metaflow.datastore.azure_storage.get_azure_storage_access_key"
+        ) as m:
+            m.return_value(None)
+            self.storage = get_datastore_impl("azure")(self.datastore_root)
+            self.storage._default_scope_token = AccessToken(
+                # bad token value
+                token="not a real token",
+                # but, not expired (give it a year)
+                expires_on=int(time.time() + 365 * 24 * 3600),
+            )
+            with self.assertRaises(MetaflowAzureAuthenticationError):
+                self.storage.list_content(["a"])
 
     def test_parse_azure_sysroot(self):
         cases = [

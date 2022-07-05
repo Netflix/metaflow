@@ -2,6 +2,7 @@ import os
 
 from azure.identity import DefaultAzureCredential
 
+from metaflow.metaflow_config import AZURE_STORAGE_ACCESS_KEY
 from metaflow.plugins.azure.azure_python_version_check import check_python_version
 
 check_python_version()
@@ -108,3 +109,8 @@ class CacheableDefaultAzureCredential(DefaultAzureCredential):
 
     def __eq__(self, other):
         return hash(self) == hash(other)
+
+
+def get_azure_storage_access_key():
+    """Wrapping into a function to ease testing"""
+    return AZURE_STORAGE_ACCESS_KEY

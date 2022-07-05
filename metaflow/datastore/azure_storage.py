@@ -16,7 +16,6 @@ from metaflow.metaflow_config import (
     DATASTORE_SYSROOT_AZURE,
     ARTIFACT_LOCALROOT,
     AZURE_STORAGE_WORKLOAD_TYPE,
-    AZURE_STORAGE_ACCESS_KEY,
 )
 
 check_python_version()
@@ -54,6 +53,7 @@ try:
         parse_azure_sysroot,
         process_exception,
         handle_exceptions,
+        get_azure_storage_access_key,
     )
 except ImportError:
     raise MetaflowInternalError(
@@ -130,8 +130,7 @@ BYTES_IN_MB = 1024 * 1024
 AZURE_STORAGE_DEFAULT_SCOPE = "https://storage.azure.com/.default"
 
 
-# TODO this is still not a good name...  Work "root" into it?
-class RootClient(object):
+class AzureRootClient(object):
     """
     This exists independently from AzureBlobStorage as a wrapper around SDK client object.
     It carries around parameters needed to construct Azure SDK objects on demand.
@@ -140,6 +139,9 @@ class RootClient(object):
     may not be serialized across proces boundaries in a multiprocessing context.
 
     Either token OR access_key may be provided as credential.
+
+    This object also carries around with it blob methods that operate relative to
+    datastore_root.
     """
 
     def __init__(self, datastore_root=None, token=None, access_key=None):
@@ -220,145 +222,141 @@ class RootClient(object):
         path = path.lstrip("/")
         return "/".join([blob_prefix, path])
 
+    # Azure blob operations. These are meant to be single units of work
+    # to be performed by thread or process pool workers.
+    def is_file_single(self, path):
+        """Drives AzureStorage.is_file()"""
+        with profile("SUB_is_file_single"):
+            try:
+                blob = self.get_blob_client(path)
+                return blob.exists()
+            except Exception as e:
+                process_exception(e)
 
-# Azure blob operations. These are meant to be single units of work
-# to be performed by thread or process pool workers.
-def _is_file_single(path, root_client=None):
-    """Drives AzureStorage.is_file()"""
-    with profile("SUB_is_file_single"):
-        try:
-            blob = root_client.get_blob_client(path)
-            return blob.exists()
-        except Exception as e:
-            process_exception(e)
+    def save_bytes_single(
+        self,
+        path_tmpfile_metadata_triple,
+        overwrite=False,
+    ):
+        """Drives AzureStorage.save_bytes()"""
+        with profile("SUB_save_bytes_single"):
+            try:
+                path, tmpfile, metadata = path_tmpfile_metadata_triple
 
+                metadata_to_upload = None
+                if metadata:
+                    metadata_to_upload = {
+                        # Azure metadata rules:
+                        # https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blob-properties-metadata#set-and-retrieve-metadata
+                        # https://docs.microsoft.com/en-us/rest/api/storageservices/setting-and-retrieving-properties-and-metadata-for-blob-resources#Subheading1
+                        "metaflow_user_attributes": json.dumps(metadata),
+                    }
+                blob = self.get_blob_client(path)
+                with open(tmpfile, "rb") as byte_stream:
+                    try:
+                        # This is a racy existence check worth doing.
+                        # It is good enough 99.9% of the time.
+                        # Depending on ResourceExistsError is more costly, though
+                        # we are still going to handle it right.
+                        if overwrite or not blob.exists():
+                            blob.upload_blob(
+                                byte_stream,
+                                overwrite=overwrite,
+                                metadata=metadata_to_upload,
+                                max_concurrency=AZURE_STORAGE_UPLOAD_MAX_CONCURRENCY,
+                            )
+                    except ResourceExistsError:
+                        if overwrite:
+                            # this is an unexpected condition - operation should not complain about
+                            # resource exists if we already said it's fine to overwrite
+                            raise
+                        else:
+                            # we did not want to overwrite. We swallow the exception because the behavior we
+                            # want is "try to upload, but just no-op if already exists".
+                            # this is consistent with S3 and Local implementations.
+                            #
+                            # Note: In other implementations, we may do a pre-upload object existence check.
+                            # Race conditions are possible in those implementations - and that appears to
+                            # be tolerated by our datastore usage patterns.
+                            #
+                            # For Azure, we let azure-storage-blob and underlying REST API handle this. It looks
+                            # race free (as of 6/28/2022)
+                            pass
+            except Exception as e:
+                process_exception(e)
 
-def _save_bytes_single(
-    path_tmpfile_metadata_triple,
-    overwrite=False,
-    root_client=None,
-):
-    """Drives AzureStorage.save_bytes()"""
-    with profile("SUB_save_bytes_single"):
-        try:
-            path, tmpfile, metadata = path_tmpfile_metadata_triple
+    def load_bytes_single(self, tmpdir, key):
+        """Drives AzureStorage.load_bytes()"""
+        with profile("SUB_load_bytes_single"):
 
-            metadata_to_upload = None
-            if metadata:
-                metadata_to_upload = {
-                    # Azure metadata rules:
-                    # https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blob-properties-metadata#set-and-retrieve-metadata
-                    # https://docs.microsoft.com/en-us/rest/api/storageservices/setting-and-retrieving-properties-and-metadata-for-blob-resources#Subheading1
-                    "metaflow_user_attributes": json.dumps(metadata),
-                }
-            blob = root_client.get_blob_client(path)
-            with open(tmpfile, "rb") as byte_stream:
+            try:
+                blob = self.get_blob_client(key)
                 try:
-                    # This is a racy existence check worth doing.
-                    # It is good enough 99.9% of the time.
-                    # Depending on ResourceExistsError is more costly, though
-                    # we are still going to handle it right.
-                    if overwrite or not blob.exists():
-                        blob.upload_blob(
-                            byte_stream,
-                            overwrite=overwrite,
-                            metadata=metadata_to_upload,
-                            max_concurrency=AZURE_STORAGE_UPLOAD_MAX_CONCURRENCY,
+                    blob_properties = blob.get_blob_properties()
+                except ResourceNotFoundError:
+                    # load_bytes() needs to return None for keys that don't exist
+                    return key, None, None
+                tmp_filename = os.path.join(tmpdir, str(uuid.uuid4()))
+                try:
+                    with open(tmp_filename, "wb") as f:
+                        blob.download_blob(
+                            max_concurrency=AZURE_STORAGE_DOWNLOAD_MAX_CONCURRENCY
+                        ).readinto(f)
+                    metaflow_user_attributes = None
+                    if (
+                        blob_properties.metadata
+                        and "metaflow_user_attributes" in blob_properties.metadata
+                    ):
+                        metaflow_user_attributes = json.loads(
+                            blob_properties.metadata["metaflow_user_attributes"]
                         )
-                except ResourceExistsError:
-                    if overwrite:
-                        # this is an unexpected condition - operation should not complain about
-                        # resource exists if we already said it's fine to overwrite
-                        raise
-                    else:
-                        # we did not want to overwrite. We swallow the exception because the behavior we
-                        # want is "try to upload, but just no-op if already exists".
-                        # this is consistent with S3 and Local implementations.
-                        #
-                        # Note: In other implementations, we may do a pre-upload object existence check.
-                        # Race conditions are possible in those implementations - and that appears to
-                        # be tolerated by our datastore usage patterns.
-                        #
-                        # For Azure, we let azure-storage-blob and underlying REST API handle this. It looks
-                        # race free (as of 6/28/2022)
-                        pass
-        except Exception as e:
-            process_exception(e)
+                except Exception:
+                    # clean up the tmp file for the one specific failed load
+                    if os.path.exists(tmp_filename):
+                        os.unlink(tmp_filename)
+                    raise
+                return key, tmp_filename, metaflow_user_attributes
+            except Exception as e:
+                process_exception(e)
 
-
-def _load_bytes_single(tmpdir, key, root_client=None):
-    """Drives AzureStorage.load_bytes()"""
-    with profile("SUB_load_bytes_single"):
-
-        try:
-            blob = root_client.get_blob_client(key)
+    def list_content_single(self, path):
+        """Drives AzureStorage.list_content()"""
+        with profile("SUB_list_content_single"):
             try:
-                blob_properties = blob.get_blob_properties()
-            except ResourceNotFoundError:
-                # load_bytes() needs to return None for keys that don't exist
-                return key, None, None
-            tmp_filename = os.path.join(tmpdir, str(uuid.uuid4()))
-            try:
-                with open(tmp_filename, "wb") as f:
-                    blob.download_blob(
-                        max_concurrency=AZURE_STORAGE_DOWNLOAD_MAX_CONCURRENCY
-                    ).readinto(f)
-                metaflow_user_attributes = None
-                if (
-                    blob_properties.metadata
-                    and "metaflow_user_attributes" in blob_properties.metadata
+                result = []
+                # all query paths are assumed to be folders. This replicates S3 behavior.
+                path = path.rstrip("/") + "/"
+                full_path = self.get_blob_full_path(path)
+                container = self.get_blob_container_client()
+                # "file" blobs show up as BlobProperties. We assume we always have "blob_type" key
+                # "directories" show up as BlobPrefix. We assume we never have "blob_type" key
+                for blob_properties_or_prefix in container.walk_blobs(
+                    name_starts_with=full_path
                 ):
-                    metaflow_user_attributes = json.loads(
-                        blob_properties.metadata["metaflow_user_attributes"]
+                    name = blob_properties_or_prefix.name
+                    # there are other ways. Like checking the returned name ends with slash.
+                    # But checking blob_type is more robust
+                    is_file = blob_properties_or_prefix.has_key("blob_type")
+                    if not is_file:
+                        # for directories we don't want trailing slashes in results
+                        name = name.rstrip("/")
+                    _, top_level_blob_prefix = parse_azure_sysroot(
+                        self.get_datastore_root()
                     )
-            except Exception:
-                # clean up the tmp file for the one specific failed load
-                if os.path.exists(tmp_filename):
-                    os.unlink(tmp_filename)
-                raise
-            return key, tmp_filename, metaflow_user_attributes
-        except Exception as e:
-            process_exception(e)
+                    if (
+                        top_level_blob_prefix is not None
+                        and name[: len(top_level_blob_prefix)] == top_level_blob_prefix
+                    ):
+                        name = name[len(top_level_blob_prefix) + 1 :]
 
-
-def _list_content_single(path, root_client=None):
-    """Drives AzureStorage.list_content()"""
-    with profile("SUB_list_content_single"):
-        try:
-            result = []
-            # all query paths are assumed to be folders. This replicates S3 behavior.
-            path = path.rstrip("/") + "/"
-            full_path = root_client.get_blob_full_path(path)
-            container = root_client.get_blob_container_client()
-            # "file" blobs show up as BlobProperties. We assume we always have "blob_type" key
-            # "directories" show up as BlobPrefix. We assume we never have "blob_type" key
-            for blob_properties_or_prefix in container.walk_blobs(
-                name_starts_with=full_path
-            ):
-                name = blob_properties_or_prefix.name
-                # there are other ways. Like checking the returned name ends with slash.
-                # But checking blob_type is more robust
-                is_file = blob_properties_or_prefix.has_key("blob_type")
-                if not is_file:
-                    # for directories we don't want trailing slashes in results
-                    name = name.rstrip("/")
-                _, top_level_blob_prefix = parse_azure_sysroot(
-                    root_client.get_datastore_root()
-                )
-                if (
-                    top_level_blob_prefix is not None
-                    and name[: len(top_level_blob_prefix)] == top_level_blob_prefix
-                ):
-                    name = name[len(top_level_blob_prefix) + 1 :]
-
-                # DataStorage.list_content is not pickle-able, because it is defined inline as a class member.
-                # So let's just return a regular tuple.
-                # list_content() can pack it up later.
-                # TODO(jackie) Why is it defined as a class member at all? Probably should not be.
-                result.append((name, is_file))
-            return result
-        except Exception as e:
-            process_exception(e)
+                    # DataStorage.list_content is not pickle-able, because it is defined inline as a class member.
+                    # So let's just return a regular tuple.
+                    # list_content() can pack it up later.
+                    # TODO(jackie) Why is it defined as a class member at all? Probably should not be.
+                    result.append((name, is_file))
+                return result
+            except Exception as e:
+                process_exception(e)
 
 
 def handle_executor_exceptions(func):
@@ -389,6 +387,7 @@ class AzureStorage(DataStoreStorage):
         super(AzureStorage, self).__init__(root)
         self._tmproot = ARTIFACT_LOCALROOT
         self._default_scope_token = None
+        self._root_client = None
 
         # TODO test this again!
         self._use_processes = AZURE_STORAGE_WORKLOAD_TYPE == "high_throughput"
@@ -408,27 +407,31 @@ class AzureStorage(DataStoreStorage):
                 )
         return self._default_scope_token
 
-    def _get_root_client(self):
+    @property
+    def root_client(self):
         """Note this is for optimization only - it allows slow-initialization credentials to be
         reused across multiple threads and processes.
 
         Speed up applies mainly to the "no access key" path.
         """
-        # This could be:
-        # - storage account access key
-        # - shared access token ("SAS")
-        # We take this only from environment, but not from metaflow JSON configs.
-        # There is no precedent for storing secret information there.
-        if AZURE_STORAGE_ACCESS_KEY:
-            return RootClient(
-                datastore_root=self.datastore_root,
-                access_key=AZURE_STORAGE_ACCESS_KEY,
-            )
-        else:
-            return RootClient(
-                datastore_root=self.datastore_root,
-                token=self._get_default_token(),
-            )
+        if self._root_client is None:
+            # This could be:
+            # - storage account access key
+            # - shared access token ("SAS")
+            # We take this only from environment, but not from metaflow JSON configs.
+            # There is no precedent for storing secret information there.
+            access_key = get_azure_storage_access_key()
+            if access_key:
+                self._root_client = AzureRootClient(
+                    datastore_root=self.datastore_root,
+                    access_key=access_key,
+                )
+            else:
+                self._root_client = AzureRootClient(
+                    datastore_root=self.datastore_root,
+                    token=self._get_default_token(),
+                )
+        return self._root_client
 
     @classmethod
     def get_datastore_root_from_config(cls, echo, create_on_absent=True):
@@ -441,9 +444,8 @@ class AzureStorage(DataStoreStorage):
         # preserving order is important...
         futures = [
             self._executor.submit(
-                _is_file_single,
+                self.root_client.is_file_single,
                 path,
-                root_client=self._get_root_client(),
             )
             for path in paths
         ]
@@ -458,8 +460,7 @@ class AzureStorage(DataStoreStorage):
     @profile_dec
     def size_file(self, path):
         try:
-            root_client = self._get_root_client()
-            return root_client.get_blob_client(path).get_blob_properties().size
+            return self.root_client.get_blob_client(path).get_blob_properties().size
         except Exception as e:
             process_exception(e)
 
@@ -467,9 +468,7 @@ class AzureStorage(DataStoreStorage):
     @profile_dec
     def list_content(self, paths):
         futures = [
-            self._executor.submit(
-                _list_content_single, path, root_client=self._get_root_client()
-            )
+            self._executor.submit(self.root_client.list_content_single, path)
             for path in paths
         ]
         result = []
@@ -501,10 +500,9 @@ class AzureStorage(DataStoreStorage):
                 with profile("save_bytes_submit"):
                     futures.append(
                         self._executor.submit(
-                            _save_bytes_single,
+                            self.root_client.save_bytes_single,
                             (path, tmp_filename, metadata),
                             overwrite=overwrite,
-                            root_client=self._get_root_client(),
                         )
                     )
             with profile("save_bytes_result_wait[%d]" % len(futures)):
@@ -523,10 +521,9 @@ class AzureStorage(DataStoreStorage):
         try:
             futures = [
                 self._executor.submit(
-                    _load_bytes_single,
+                    self.root_client.load_bytes_single,
                     tmpdir,
                     key,
-                    root_client=self._get_root_client(),
                 )
                 for key in keys
             ]
