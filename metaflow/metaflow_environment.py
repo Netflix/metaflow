@@ -2,7 +2,7 @@ import os
 import platform
 import sys
 
-from .datastore.azure_storage import parse_azure_sysroot
+from .plugins.azure.azure_utils import parse_azure_sysroot
 from .util import get_username
 from . import metaflow_version
 from metaflow.exception import MetaflowException

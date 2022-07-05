@@ -12,9 +12,7 @@ from metaflow.datastore.azure_exceptions import (
     MetaflowAzureResourceError,
     MetaflowAzureAuthenticationError,
 )
-from metaflow.datastore.azure_storage import (
-    parse_azure_sysroot,
-)
+from metaflow.plugins.azure.azure_utils import parse_azure_sysroot
 
 import unittest
 import inspect
@@ -232,9 +230,10 @@ class TestAzureStorage(unittest.TestCase):
         self.storage = get_datastore_impl(ds_type="azure")(
             TestAzureStorage.generate_datastore_root()
         )
-        from metaflow.datastore.azure_storage import BlobServiceClientCache
 
         # we reset the client cache, because we want to strictly check cache size later
+        from metaflow.plugins.azure.azure_client import BlobServiceClientCache
+
         BlobServiceClientCache._cache = dict()
 
         key_set = {str(uuid.uuid4()) for _ in range(256)}
@@ -242,6 +241,7 @@ class TestAzureStorage(unittest.TestCase):
 
         # We are running with thread pool.  We expect the client cache to contain N entries where
         # N is the max number of workers in the thread pool.
+        # TODO what happens if we do don't specify an access key?
         if self.storage._use_processes:
             self.assertEqual(len(BlobServiceClientCache._cache), 0)
         else:

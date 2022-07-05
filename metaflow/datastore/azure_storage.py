@@ -1,8 +1,11 @@
+from metaflow.plugins.azure.azure_python_version_check import check_python_version
+
+check_python_version()
+
 import multiprocessing
 import json
 import os
 import shutil
-import threading
 import uuid
 import sys
 import time
@@ -10,10 +13,6 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_compl
 from tempfile import mkdtemp
 
 from metaflow import profile
-from metaflow.datastore.azure_exceptions import (
-    MetaflowAzureAuthenticationError,
-    MetaflowAzureResourceError,
-)
 from metaflow.datastore.datastore_storage import DataStoreStorage, CloseAfterUse
 from metaflow.exception import MetaflowInternalError, MetaflowException
 from metaflow.metaflow_config import (
@@ -23,10 +22,6 @@ from metaflow.metaflow_config import (
     AZURE_STORAGE_WORKLOAD_TYPE,
 )
 
-if sys.version_info[:2] < (3, 6):
-    raise MetaflowInternalError(
-        msg="Metaflow may only use Azure Blob Storage with Python 3.6 or newer"
-    )
 
 if sys.version_info[:2] < (3, 7):
     # in 3.6, Only BrokenProcessPool exists (there is no BrokenThreadPool)
@@ -42,15 +37,17 @@ try:
 
     warnings.filterwarnings("ignore")
     from azure.identity import DefaultAzureCredential
-    from azure.storage.blob import BlobServiceClient
-    from azure.core.credentials import TokenCredential, AccessToken
+    from azure.core.credentials import TokenCredential
 
     from azure.core.exceptions import (
-        ClientAuthenticationError,
         ResourceNotFoundError,
-        AzureError,
         ResourceExistsError,
-        HttpResponseError,
+    )
+    from metaflow.plugins.azure.azure_client import get_azure_blob_service
+    from metaflow.plugins.azure.azure_utils import (
+        parse_azure_sysroot,
+        process_exception,
+        handle_exceptions,
     )
 except ImportError:
     raise MetaflowInternalError(
@@ -72,42 +69,6 @@ def profile_dec(func):
             return func(*args, **kwargs)
 
     return inner_func
-
-
-def parse_azure_sysroot(sysroot):
-    """
-    Parse a sysroot path str into a tuple (container_name, blob_prefix).
-
-    - container_name is the Azure Blob Storage container name
-    - blob_prefix is subpath within that container to which blobs are to live
-
-    We take a strict validation approach, doing no implicit string manipulations on
-    the user's behalf.  Path manipulations by themselves are complicated enough without
-    adding magic.
-
-    We provide clear error messages so the user knows exactly how to fix any validation error.
-    """
-    if sysroot.endswith("/"):
-        raise ValueError("sysroot may not end with slash (got %s)" % sysroot)
-    if sysroot.startswith("/"):
-        raise ValueError("sysroot may not start with slash (got %s)" % sysroot)
-    if "//" in sysroot:
-        raise ValueError(
-            "sysroot may not contain any consecutive slashes (got %s)" % sysroot
-        )
-    parts = sysroot.split("/", 1)
-    container_name = parts[0]
-    if container_name == "":
-        raise ValueError(
-            "Container name part of sysroot may not be empty (tried to parse %s)"
-            % (sysroot,)
-        )
-    if len(parts) == 1:
-        blob_prefix = None
-    else:
-        blob_prefix = parts[1]
-
-    return container_name, blob_prefix
 
 
 # TODO keyboard interrupt crazy tracebacks in process pool
@@ -161,106 +122,16 @@ class AzureStorageExecutor(object):
         return self._executor.submit(*args, **kwargs)
 
 
-class BlobServiceClientCache(object):
-    """BlobServiceClient objects internally cache HTTPS connections. In order to reuse HTTPS connections,
-    we need to reuse BlobServiceClient objects. The effect were are going for is for each process or
-    thread in the executor to EACH REUSE ITS OWN long-lived BlobServiceClient object.
-
-    This cache lives here at the module level because:
-
-    * It must NOT live within AzureClient, because AzureClient must cross process boundaries.
-      BlobServiceClient objects are not picklable. They also are not thread-safe, and so even if we
-      were only using only ThreadPoolExecutor, the recommendation is to have one BlobServiceClient per
-      thread.  See https://github.com/Azure/azure-storage-python/issues/559
-    * It preferably should not live within AzureStorage, because AzureStorage is otherwise conceptually
-      used ONLY within the main thread of the main process.
-    """
-
-    _cache = dict()
-
-    def __init__(self):
-        raise RuntimeError("BlobServiceClientCache may not be instantiated!")
-
-    @staticmethod
-    def get(
-        storage_account_url,
-        credential=None,
-        max_single_put_size=None,
-        max_single_get_size=None,
-        max_chunk_get_size=None,
-        connection_data_block_size=None,
-    ):
-        """
-        Each spawned process will get its own fresh cache.
-
-        With each process's cache, each thread gets its own distinct service object.
-
-        The cache key includes all BlobServiceClient creation params PLUS process ID and thread ID.
-
-        This means that no more than one thread of control will ever access a cache key. This, and
-        the fact that dict() operations are thread-safe means that no additional synchronization
-        required here.
-        """
-        cache_key = (
-            os.getpid(),
-            threading.get_ident(),
-            storage_account_url,
-            credential,
-            max_single_put_size,
-            max_single_get_size,
-            max_chunk_get_size,
-            connection_data_block_size,
-        )
-        service_just_created = None
-        if cache_key not in BlobServiceClientCache._cache:
-            service_just_created = BlobServiceClient(
-                storage_account_url,
-                credential=credential,
-                max_single_put_size=max_single_put_size,
-                max_single_get_size=max_single_get_size,
-                max_chunk_get_size=max_chunk_get_size,
-                connection_data_block_size=connection_data_block_size,
-                # BlobServiceClient accepts many more kwargs. We can add passthroughs as/when needed.
-            )
-            BlobServiceClientCache._cache[cache_key] = service_just_created
-        service_to_return = BlobServiceClientCache._cache[cache_key]
-        if (
-            service_just_created is not None
-            and service_just_created != service_to_return
-        ):
-            # This condition may not be fatal, but highly unexpected.
-            # Each thread of execution gets its own entry, so there *should* be no concurrent insertions
-            # on the same key.
-            #
-            # The Metaflow team REALLY wants to know if this ever happens, but we stop short of raising a
-            # fatal exception to not kill user jobs.
-            print(
-                "METAFLOW WARNING: AzureBlobStorageServiceCache had the same cache key updated more than once"
-            )
-        return service_to_return
-
-
-# These controls when to use more than a single thread / connection for a single GET or PUT
-AZURE_CLIENT_MAX_SINGLE_GET_SIZE_MB = 32
-AZURE_CLIENT_MAX_SINGLE_PUT_SIZE_MB = 64
-
-# Maximum chunk size when splitting a single blob GET into chunks for concurrent processing
-AZURE_CLIENT_MAX_CHUNK_GET_SIZE_MB = 16
-
-# Block size on underlying down TLS transport - Azure SDK defaults to 4096.
-# This larger block size dramatically improves aggregate download throughput.
-# TODO benchmark this... might pick a smaller number based on datastore bench
-AZURE_CLIENT_CONNECTION_DATA_BLOCK_SIZE = 262144
-
 # How many threads / connections to use per upload or download operation
-AZURE_CLIENT_DOWNLOAD_MAX_CONCURRENCY = 4
-AZURE_CLIENT_UPLOAD_MAX_CONCURRENCY = 16
+AZURE_STORAGE_DOWNLOAD_MAX_CONCURRENCY = 4
+AZURE_STORAGE_UPLOAD_MAX_CONCURRENCY = 16
 
 BYTES_IN_MB = 1024 * 1024
 
 AZURE_STORAGE_DEFAULT_SCOPE = "https://storage.azure.com/.default"
 
 
+# TODO this is still not a good name...  Work "root" into it?
 class AzureClient(object):
     """
     This exists independently from AzureBlobStorage as a wrapper around SDK client object.
@@ -291,14 +162,10 @@ class AzureClient(object):
     def get_datastore_root(self):
         return self._datastore_root
 
-    def get_blob_container_client(
-        self,
-        max_single_put_size=AZURE_CLIENT_MAX_SINGLE_PUT_SIZE_MB * BYTES_IN_MB,
-        max_single_get_size=AZURE_CLIENT_MAX_SINGLE_GET_SIZE_MB * BYTES_IN_MB,
-        max_chunk_get_size=AZURE_CLIENT_MAX_CHUNK_GET_SIZE_MB * BYTES_IN_MB,
-    ):
+    def get_blob_container_client(self):
         if self._access_key:
             credential = self._access_key
+            credential_is_hashable = True
         else:
 
             class CachedTokenCredential(TokenCredential):
@@ -330,14 +197,19 @@ class AzureClient(object):
                         return self._credential.get_token(*_scopes, **_kwargs)
                     return self._cached_token
 
+                # Implement __hash__ and __eq__ so the service object becomes cacheable
+                def __hash__(self):
+                    return hash(self._cached_token)
+
+                def __eq__(self, other):
+                    return self._cached_token == other._cached_token
+
             credential = CachedTokenCredential(self._token)
-        service = BlobServiceClientCache.get(
+            credential_is_hashable = True
+        service = get_azure_blob_service(
             self._storage_account_url,
             credential=credential,
-            max_single_put_size=max_single_put_size,
-            max_single_get_size=max_single_get_size,
-            max_chunk_get_size=max_chunk_get_size,
-            connection_data_block_size=AZURE_CLIENT_CONNECTION_DATA_BLOCK_SIZE,
+            credential_is_hashable=credential_is_hashable,
         )
 
         container_name, _ = parse_azure_sysroot(self._datastore_root)
@@ -398,7 +270,7 @@ def _save_bytes_single(
                             byte_stream,
                             overwrite=overwrite,
                             metadata=metadata_to_upload,
-                            max_concurrency=AZURE_CLIENT_UPLOAD_MAX_CONCURRENCY,
+                            max_concurrency=AZURE_STORAGE_UPLOAD_MAX_CONCURRENCY,
                         )
                 except ResourceExistsError:
                     if overwrite:
@@ -436,7 +308,7 @@ def _load_bytes_single(tmpdir, key, client=None):
             try:
                 with open(tmp_filename, "wb") as f:
                     blob.download_blob(
-                        max_concurrency=AZURE_CLIENT_DOWNLOAD_MAX_CONCURRENCY
+                        max_concurrency=AZURE_STORAGE_DOWNLOAD_MAX_CONCURRENCY
                     ).readinto(f)
                 metaflow_user_attributes = None
                 if (
@@ -496,36 +368,6 @@ def _list_content_single(path, client=None):
             process_exception(e)
 
 
-def process_exception(e):
-    """
-    Translate errors to Metaflow errors for standardized messaging. The intent is that all
-    Azure Blob Storage integration logic should send any errors to this function for
-    translation.
-
-    We explicitly EXCLUDE executor related errors here.  See handle_executor_exceptions
-    """
-    if isinstance(e, ClientAuthenticationError):
-        raise MetaflowAzureAuthenticationError(msg=str(e).splitlines()[-1])
-    elif isinstance(e, (ResourceNotFoundError, ResourceExistsError)):
-        raise MetaflowAzureResourceError(msg=str(e))
-    elif isinstance(e, AzureError):  # this is the base class for all Azure SDK errors
-        raise MetaflowInternalError(msg="Azure error: %s" % (str(e)))
-    else:
-        raise MetaflowInternalError(msg=str(e))
-
-
-def handle_exceptions(func):
-    """This is a decorator leveraging the logic from process_exception()"""
-
-    def inner_function(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except Exception as e:
-            process_exception(e)
-
-    return inner_function
-
-
 def handle_executor_exceptions(func):
     """
     Decorator for handling errors that come from an Executor. This decorator should
@@ -559,6 +401,7 @@ class AzureStorage(DataStoreStorage):
         self._tmproot = ARTIFACT_LOCALROOT
         self._default_scope_token = None
 
+        # TODO test this again!
         self._use_processes = AZURE_STORAGE_WORKLOAD_TYPE == "high_throughput"
         self._executor = AzureStorageExecutor(use_processes=self._use_processes)
         self._executor.warm_up()

@@ -14,7 +14,7 @@ from metaflow._vendor import click
 from . import parameters
 from .current import current
 from .datastore import get_datastore_impl
-from .datastore.azure_storage import parse_azure_sysroot
+from .plugins.azure.azure_utils import parse_azure_sysroot
 from .exception import MetaflowException, MetaflowInternalError
 from .metaflow_config import DATATOOLS_LOCALROOT, DATATOOLS_SUFFIX, DATATOOLS_AZUREROOT
 from .parameters import DeployTimeField, Parameter
