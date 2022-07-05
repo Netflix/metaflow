@@ -25,7 +25,7 @@ except ImportError:
     )
 
 
-class BlobServiceClientCache(object):
+class _BlobServiceClientCache(object):
     """BlobServiceClient objects internally cache HTTPS connections. In order to reuse HTTPS connections,
     we need to reuse BlobServiceClient objects. The effect were are going for is for each process or
     thread in the executor to EACH REUSE ITS OWN long-lived BlobServiceClient object.
@@ -76,7 +76,7 @@ class BlobServiceClientCache(object):
             connection_data_block_size,
         )
         service_just_created = None
-        if cache_key not in BlobServiceClientCache._cache:
+        if cache_key not in _BlobServiceClientCache._cache:
             service_just_created = BlobServiceClient(
                 storage_account_url,
                 credential=credential,
@@ -86,8 +86,8 @@ class BlobServiceClientCache(object):
                 connection_data_block_size=connection_data_block_size,
                 # BlobServiceClient accepts many more kwargs. We can add passthroughs as/when needed.
             )
-            BlobServiceClientCache._cache[cache_key] = service_just_created
-        service_to_return = BlobServiceClientCache._cache[cache_key]
+            _BlobServiceClientCache._cache[cache_key] = service_just_created
+        service_to_return = _BlobServiceClientCache._cache[cache_key]
         if (
             service_just_created is not None
             and service_just_created != service_to_return
@@ -156,7 +156,7 @@ def get_azure_blob_service(
             # BlobServiceClient accepts many more kwargs. We can add passthroughs as/when needed.
         )
 
-    return BlobServiceClientCache.get(
+    return _BlobServiceClientCache.get(
         storage_account_url,
         credential=credential,
         max_single_put_size=max_single_put_size,

@@ -454,8 +454,6 @@ class Uploader:
                 "large to be properly handled by Python 2.7" % path
             )
         sha = sha1(input_file).hexdigest()
-        # we do this for the side effect for "create_if_absent"
-        self._client_class.get_root_from_config(echo, True)
         path = os.path.join(
             self._client_class.get_root_from_config(echo, True), flow_name, sha
         )

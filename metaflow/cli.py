@@ -1155,7 +1155,6 @@ def main(flow, args=None, handle_exceptions=True, entrypoint=None):
     import warnings
 
     warnings.filterwarnings("ignore")
-
     if entrypoint is None:
         entrypoint = [sys.executable, sys.argv[0]]
 

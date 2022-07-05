@@ -232,9 +232,9 @@ class TestAzureStorage(unittest.TestCase):
         )
 
         # we reset the client cache, because we want to strictly check cache size later
-        from metaflow.plugins.azure.azure_client import BlobServiceClientCache
+        from metaflow.plugins.azure.azure_client import _BlobServiceClientCache
 
-        BlobServiceClientCache._cache = dict()
+        _BlobServiceClientCache._cache = dict()
 
         key_set = {str(uuid.uuid4()) for _ in range(256)}
         self.storage.is_file(key_set)
@@ -243,10 +243,10 @@ class TestAzureStorage(unittest.TestCase):
         # N is the max number of workers in the thread pool.
         # TODO what happens if we do don't specify an access key?
         if self.storage._use_processes:
-            self.assertEqual(len(BlobServiceClientCache._cache), 0)
+            self.assertEqual(len(_BlobServiceClientCache._cache), 0)
         else:
             self.assertEqual(
-                len(BlobServiceClientCache._cache), max(1, os.cpu_count() // 2)
+                len(_BlobServiceClientCache._cache), max(1, os.cpu_count() // 2)
             )
 
     def test_bad_credentials(self):
