@@ -9,13 +9,13 @@ from metaflow.plugins.azure.azure_python_version_check import check_python_versi
 check_python_version()
 
 from metaflow.plugins.azure.azure_client import get_azure_blob_service
-from metaflow.plugins.azure.azure_utils import parse_azure_sysroot
+from metaflow.plugins.azure.azure_utils import parse_azure_full_path
 
 
 class AzureTail(object):
     def __init__(self, blob_full_uri):
         """Location should be something like <container_name>/blob"""
-        container_name, blob_prefix = parse_azure_sysroot(blob_full_uri)
+        container_name, blob_prefix = parse_azure_full_path(blob_full_uri)
         # TODO naming is awkward here
         blob = blob_prefix
         if not blob:

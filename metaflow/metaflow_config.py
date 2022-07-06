@@ -207,7 +207,6 @@ DATASTORE_CARD_S3ROOT = from_conf(
     if from_conf("METAFLOW_DATASTORE_SYSROOT_S3")
     else None,
 )
-# TODO what is the use case for this?  Why not just fix it with SUFFIX?
 DATASTORE_CARD_AZUREROOT = from_conf(
     "METAFLOW_CARD_AZUREROOT",
     os.path.join(from_conf("METAFLOW_DATASTORE_SYSROOT_AZURE"), DATASTORE_CARD_SUFFIX)
@@ -220,12 +219,14 @@ CARD_NO_WARNING = from_conf("METAFLOW_CARD_NO_WARNING", False)
 AZURE_STORAGE_ACCOUNT_URL = from_conf(
     "METAFLOW_AZURE_STORAGE_ACCOUNT_URL", validate_fn=_validate_https_url_fn
 )
-# Either an Azure storage SAS or storage account access key
-AZURE_STORAGE_ACCESS_KEY = from_conf(
-    "METAFLOW_AZURE_STORAGE_ACCESS_KEY", from_env_only=True
+# Either an Azure storage SAS or storage account access key.
+# If provided, takes precedent over all other forms of credential (e.g. Azure CLI)
+AZURE_STORAGE_SHARED_ACCESS_SIGNATURE = from_conf(
+    "METAFLOW_AZURE_STORAGE_SHARED_ACCESS_SIGNATURE", from_env_only=True
 )
 
-# Azure storage - use process-based parallelism, instead of threads
+# Azure storage can use process-based parallelism instead of threads.
+# This performs better for high throughput workloads (e.g. many huge artifacts)
 AZURE_STORAGE_WORKLOAD_TYPE = from_conf(
     "METAFLOW_AZURE_STORAGE_WORKLOAD_TYPE",
     "general",

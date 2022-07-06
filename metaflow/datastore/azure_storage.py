@@ -50,7 +50,7 @@ try:
     logging.getLogger("msrest.serialization").setLevel(logging.ERROR)
     from metaflow.plugins.azure.azure_client import get_azure_blob_service
     from metaflow.plugins.azure.azure_utils import (
-        parse_azure_sysroot,
+        parse_azure_full_path,
         process_exception,
         handle_exceptions,
         get_azure_storage_access_key,
@@ -207,7 +207,7 @@ class AzureRootClient(object):
             credential_is_cacheable=credential_is_cacheable,
         )
 
-        container_name, _ = parse_azure_sysroot(self._datastore_root)
+        container_name, _ = parse_azure_full_path(self._datastore_root)
         return service.get_container_client(container_name)
 
     def get_blob_client(self, path):
@@ -216,7 +216,7 @@ class AzureRootClient(object):
         return container.get_blob_client(blob_full_path)
 
     def get_blob_full_path(self, path):
-        _, blob_prefix = parse_azure_sysroot(self._datastore_root)
+        _, blob_prefix = parse_azure_full_path(self._datastore_root)
         if blob_prefix is None:
             return path
         path = path.lstrip("/")
@@ -340,7 +340,7 @@ class AzureRootClient(object):
                     if not is_file:
                         # for directories we don't want trailing slashes in results
                         name = name.rstrip("/")
-                    _, top_level_blob_prefix = parse_azure_sysroot(
+                    _, top_level_blob_prefix = parse_azure_full_path(
                         self.get_datastore_root()
                     )
                     if (

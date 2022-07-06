@@ -1,4 +1,4 @@
-from metaflow.metaflow_config import AZURE_STORAGE_ACCESS_KEY
+from metaflow.metaflow_config import AZURE_STORAGE_SHARED_ACCESS_SIGNATURE
 from metaflow.plugins.azure.azure_python_version_check import check_python_version
 
 check_python_version()
@@ -30,12 +30,16 @@ except ImportError:
     )
 
 
-def parse_azure_sysroot(sysroot):
+def parse_azure_full_path(sysroot):
     """
-    Parse a sysroot path str into a tuple (container_name, blob_prefix).
+    Parse an Azure Blob storage path str into a tuple (container_name, blob).
 
-    - container_name is the Azure Blob Storage container name
-    - blob_prefix is subpath within that container to which blobs are to live
+    Expected format is: <container_name>/<blob>
+
+    This is sometimes used to parse an Azure sys root, in which case:
+
+    - <container_name> is the Azure Blob Storage container name
+    - <blob> is effectively a blob_prefix, a subpath within the container to which blobs will live
 
     We take a strict validation approach, doing no implicit string manipulations on
     the user's behalf.  Path manipulations by themselves are complicated enough without
@@ -110,4 +114,4 @@ class CacheableDefaultAzureCredential(DefaultAzureCredential):
 
 def get_azure_storage_access_key():
     """Wrapping into a function to ease testing"""
-    return AZURE_STORAGE_ACCESS_KEY
+    return AZURE_STORAGE_SHARED_ACCESS_SIGNATURE

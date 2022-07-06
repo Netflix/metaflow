@@ -12,7 +12,7 @@ from metaflow.datastore import get_datastore_impl
 from metaflow.datastore.azure_exceptions import (
     MetaflowAzureAuthenticationError,
 )
-from metaflow.plugins.azure.azure_utils import parse_azure_sysroot
+from metaflow.plugins.azure.azure_utils import parse_azure_full_path
 
 import unittest
 import inspect
@@ -42,7 +42,7 @@ class TestAzureStorage(unittest.TestCase):
         # new storage object, but pointing at the datastore root to be cleaned up
         storage = get_datastore_impl("azure")(self.datastore_root)
         container = storage.root_client.get_blob_container_client()
-        _, blob_prefix = parse_azure_sysroot(storage.datastore_root)
+        _, blob_prefix = parse_azure_full_path(storage.datastore_root)
         # delete_blob(s) did not work well...when there was lots of stuff to delete.
         blobs_to_delete = list(container.list_blobs(blob_prefix))
         if len(blobs_to_delete) > 0:
@@ -306,10 +306,10 @@ class TestAzureStorage(unittest.TestCase):
                 with self.assertRaises(
                     case["parse_result"], msg="failing case: " + str(case)
                 ):
-                    print(parse_azure_sysroot(case["sysroot"]))
+                    print(parse_azure_full_path(case["sysroot"]))
             else:
                 self.assertTupleEqual(
-                    parse_azure_sysroot(case["sysroot"]),
+                    parse_azure_full_path(case["sysroot"]),
                     case["parse_result"],
                     "failing case: " + str(case),
                 )
