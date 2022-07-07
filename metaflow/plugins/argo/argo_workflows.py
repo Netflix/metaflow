@@ -17,6 +17,7 @@ from metaflow.metaflow_config import (
     DEFAULT_METADATA,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
+    KUBERNETES_SANDBOX_INIT_SCRIPT,
     KUBERNETES_SECRETS,
     S3_ENDPOINT_URL,
 )
@@ -597,6 +598,10 @@ class ArgoWorkflows(object):
 
             init_cmds = " && ".join(
                 [
+                    # For supporting sandboxes, ensure that a custom script is executed
+                    # before anything else is executed. The script is passed in as an
+                    # env var.
+                    '${METAFLOW_INIT_SCRIPT:+eval \\"${METAFLOW_INIT_SCRIPT}\\"}',
                     "mkdir -p $PWD/.logs",
                     task_id_expr,
                     mflog_expr,
@@ -775,6 +780,10 @@ class ArgoWorkflows(object):
             # add METAFLOW_S3_ENDPOINT_URL
             if S3_ENDPOINT_URL is not None:
                 env["METAFLOW_S3_ENDPOINT_URL"] = S3_ENDPOINT_URL
+
+            # support Metaflow sandboxes
+            if KUBERNETES_SANDBOX_INIT_SCRIPT is not None:
+                env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
 
             metaflow_version = self.environment.get_environment_info()
             metaflow_version["flow_name"] = self.graph.name
