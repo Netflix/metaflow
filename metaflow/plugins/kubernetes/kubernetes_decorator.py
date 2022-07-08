@@ -3,6 +3,7 @@ import platform
 import sys
 
 import requests
+from metaflow import current
 
 from metaflow import util
 from metaflow.decorators import StepDecorator
@@ -267,6 +268,7 @@ class KubernetesDecorator(StepDecorator):
     ):
         self.metadata = metadata
         self.task_datastore = task_datastore
+        current._update_env({"runtime_context":"kubernetes"})
 
         # task_pre_step may run locally if fallback is activated for @catch
         # decorator. In that scenario, we skip collecting Kubernetes execution
