@@ -52,6 +52,7 @@ class Current(object):
         self._metadata_str = metadata_str
         self._is_running = is_running
         self._tags = tags
+        self._runtime_context = "local"
 
     def _update_env(self, env):
         for k, v in env.items():
@@ -122,6 +123,10 @@ class Current(object):
     @property
     def tags(self):
         return self._tags
+
+    @property
+    def runtime_context(self):
+        return self._runtime_context
 
 
 # instantiate the Current singleton. This will be populated

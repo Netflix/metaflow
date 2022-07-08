@@ -268,7 +268,6 @@ class KubernetesDecorator(StepDecorator):
     ):
         self.metadata = metadata
         self.task_datastore = task_datastore
-        current._update_env({"runtime_context":"kubernetes"})
 
         # task_pre_step may run locally if fallback is activated for @catch
         # decorator. In that scenario, we skip collecting Kubernetes execution
@@ -277,6 +276,7 @@ class KubernetesDecorator(StepDecorator):
         # variable.
 
         if "METAFLOW_KUBERNETES_WORKLOAD" in os.environ:
+            current._update_env({"runtime_context": "kubernetes"})
             meta = {}
             meta["kubernetes-pod-name"] = os.environ["METAFLOW_KUBERNETES_POD_NAME"]
             meta["kubernetes-pod-namespace"] = os.environ[

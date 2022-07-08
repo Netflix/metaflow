@@ -206,7 +206,6 @@ class BatchDecorator(StepDecorator):
     ):
         self.metadata = metadata
         self.task_datastore = task_datastore
-        current._update_env({"runtime_context": "batch"})
 
         # task_pre_step may run locally if fallback is activated for @catch
         # decorator. In that scenario, we skip collecting AWS Batch execution
@@ -215,6 +214,7 @@ class BatchDecorator(StepDecorator):
 
         if "AWS_BATCH_JOB_ID" in os.environ:
             meta = {}
+            current._update_env({"runtime_context": "aws-batch"})
             meta["aws-batch-job-id"] = os.environ["AWS_BATCH_JOB_ID"]
             meta["aws-batch-job-attempt"] = os.environ["AWS_BATCH_JOB_ATTEMPT"]
             meta["aws-batch-ce-name"] = os.environ["AWS_BATCH_CE_NAME"]
