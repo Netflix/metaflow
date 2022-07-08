@@ -19,6 +19,7 @@ from metaflow.metaflow_config import (
     DATATOOLS_S3ROOT,
     DEFAULT_AWS_CLIENT_PROVIDER,
     DEFAULT_METADATA,
+    KUBERNETES_SANDBOX_INIT_SCRIPT,
     S3_ENDPOINT_URL,
 )
 from metaflow.mflog import (
@@ -107,6 +108,12 @@ class Kubernetes(object):
         #
         # TODO: Capture hard exit logs in Kubernetes.
         cmd_str += "c=$?; %s; exit $c" % BASH_SAVE_LOGS
+        # For supporting sandboxes, ensure that a custom script is executed before
+        # anything else is executed. The script is passed in as an env var.
+        cmd_str = (
+            '${METAFLOW_INIT_SCRIPT:+eval \\"${METAFLOW_INIT_SCRIPT}\\"} && %s'
+            % cmd_str
+        )
         return shlex.split('bash -c "%s"' % cmd_str)
 
     def launch_job(self, **kwargs):
@@ -195,6 +202,12 @@ class Kubernetes(object):
         # add METAFLOW_S3_ENDPOINT_URL
         if S3_ENDPOINT_URL is not None:
             job.environment_variable("METAFLOW_S3_ENDPOINT_URL", S3_ENDPOINT_URL)
+
+        # support Metaflow sandboxes
+        if KUBERNETES_SANDBOX_INIT_SCRIPT is not None:
+            job.environment_variable(
+                "METAFLOW_INIT_SCRIPT", KUBERNETES_SANDBOX_INIT_SCRIPT
+            )
 
         for name, value in env.items():
             job.environment_variable(name, value)

@@ -1,10 +1,10 @@
-import os
 import json
 import logging
-import pkg_resources
+import os
 import sys
 import types
 
+import pkg_resources
 
 from metaflow.exception import MetaflowException
 
@@ -285,6 +285,7 @@ if AWS_SANDBOX_ENABLED:
     METADATA_SERVICE_HEADERS["x-api-key"] = AWS_SANDBOX_API_KEY
     SFN_STATE_MACHINE_PREFIX = from_conf("METAFLOW_AWS_SANDBOX_STACK_NAME")
 
+KUBERNETES_SANDBOX_INIT_SCRIPT = from_conf("METAFLOW_KUBERNETES_SANDBOX_INIT_SCRIPT")
 
 # MAX_ATTEMPTS is the maximum number of attempts, including the first
 # task, retries, and the final fallback task and its retries.
