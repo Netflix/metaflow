@@ -10,6 +10,7 @@ from metaflow.metaflow_config import (
     DATATOOLS_DEFAULT_CLIENT_PARAMS,
     DATATOOLS_DEFAULT_SESSION_VARS,
     S3_RETRY_COUNT,
+    RETRY_WARNING_THRESHOLD,
 )
 
 
@@ -55,11 +56,14 @@ def aws_retry(f):
                     function_name = f.func_name
                 except AttributeError:
                     function_name = f.__name__
-                sys.stderr.write(
-                    "S3 datastore operation %s failed (%s). "
-                    "Retrying %d more times..\n"
-                    % (function_name, ex, S3_RETRY_COUNT - i)
-                )
+                if i + 1 > RETRY_WARNING_THRESHOLD:
+                    # Print this warning message only after a certain
+                    # amount of retries
+                    sys.stderr.write(
+                        "[WARNING] S3 datastore operation %s failed (%s). "
+                        "Retrying %d more times..\n"
+                        % (function_name, ex, S3_RETRY_COUNT - i)
+                    )
                 self.reset_client(hard_reset=True)
                 last_exc = ex
                 # exponential backoff for real failures

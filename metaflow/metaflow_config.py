@@ -94,6 +94,9 @@ S3_VERIFY_CERTIFICATE = from_conf("METAFLOW_S3_VERIFY_CERTIFICATE", None)
 # so setting it to 0 means each operation will be tried once.
 S3_RETRY_COUNT = int(from_conf("METAFLOW_S3_RETRY_COUNT", 7))
 
+# Threshold to start printing warnings for an AWS retry
+RETRY_WARNING_THRESHOLD = 3
+
 # S3 datatools root location
 DATATOOLS_SUFFIX = from_conf("METAFLOW_DATATOOLS_SUFFIX", "data")
 DATATOOLS_S3ROOT = from_conf(
