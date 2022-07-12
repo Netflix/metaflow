@@ -771,7 +771,7 @@ class ArgoWorkflows(object):
                         "METAFLOW_RETRY_COUNT": retry_count,
                         "METAFLOW_PRODUCTION_TOKEN": self.production_token,
                         "ARGO_WORKFLOW_TEMPLATE": self.name,
-                        "ARGO_WORKFLOW_NAME": "{{workflow.name}}",
+                        "ARGO_WORKFLOW_NAME_METAFLOW": "{{workflow.name}}",
                         "ARGO_WORKFLOW_NAMESPACE": KUBERNETES_NAMESPACE,
                     },
                     **self.metadata.get_runtime_environment("argo-workflows"),
@@ -819,6 +819,20 @@ class ArgoWorkflows(object):
             # liked to inline this ContainerTemplate and avoid scanning the workflow
             # twice, but due to issues with variable substitution, we will have to
             # live with this routine.
+            resource_requests={
+                "cpu": str(resources["cpu"]),
+                "memory": "%sM" % str(resources["memory"]),
+                "ephemeral-storage": "%sM" % str(resources["disk"]),
+            }
+
+            resource_limits={
+                "%s.com/gpu".lower()
+                % resources["gpu_vendor"]: str(resources["gpu"])
+                for k in [0]
+                if resources["gpu"] is not None
+            }
+            resource_limits.update(resource_requests)
+
             yield (
                 Template(node.name)
                 # Set @timeout values
@@ -898,17 +912,8 @@ class ArgoWorkflows(object):
                             ],
                             image=resources["image"],
                             resources=kubernetes_sdk.V1ResourceRequirements(
-                                requests={
-                                    "cpu": str(resources["cpu"]),
-                                    "memory": "%sM" % str(resources["memory"]),
-                                    "ephemeral-storage": "%sM" % str(resources["disk"]),
-                                },
-                                limits={
-                                    "%s.com/gpu".lower()
-                                    % resources["gpu_vendor"]: str(resources["gpu"])
-                                    for k in [0]
-                                    if resources["gpu"] is not None
-                                },
+                                requests=resource_requests,
+                                limits=resource_limits,
                             ),
                             # Configure secrets
                             env_from=[

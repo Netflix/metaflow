@@ -116,6 +116,7 @@ class ArgoClient(object):
             "kind": "Workflow",
             "metadata": {"generateName": name + "-"},
             "spec": {
+                "serviceAccountName": "default-editor",
                 "workflowTemplateRef": {"name": name},
                 "arguments": {
                     "parameters": [
