@@ -25,7 +25,7 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
         self.task_id = task_id
         meta = {}
         meta["argo-workflow-template"] = os.environ["ARGO_WORKFLOW_TEMPLATE"]
-        meta["argo-workflow-name"] = os.environ["ARGO_WORKFLOW_NAME"]
+        meta["argo-workflow-name"] = os.environ["ARGO_WORKFLOW_NAME_METAFLOW"]
         meta["argo-workflow-namespace"] = os.environ["ARGO_WORKFLOW_NAMESPACE"]
         entries = [
             MetaDatum(
