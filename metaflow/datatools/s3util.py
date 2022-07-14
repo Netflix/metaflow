@@ -56,8 +56,15 @@ def aws_retry(f):
                     function_name = f.func_name
                 except AttributeError:
                     function_name = f.__name__
+                if TEST_S3_RETRY and i == 0:
+                    # This is applicable when this code is being tested
+                    sys.stderr.write(
+                        "[WARNING] S3 datastore operation %s failed (%s). "
+                        "Retrying %d more times..\n"
+                        % (function_name, ex, S3_RETRY_COUNT - i)
+                    )
                 if i + 1 > RETRY_WARNING_THRESHOLD:
-                    # Print this warning message only after a certain
+                    # In a real failure, print this warning message only after a certain
                     # amount of retries
                     sys.stderr.write(
                         "[WARNING] S3 datastore operation %s failed (%s). "
