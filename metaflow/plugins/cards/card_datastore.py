@@ -14,6 +14,7 @@ from metaflow.metaflow_config import (
     DATASTORE_CARD_LOCALROOT,
     DATASTORE_LOCAL_DIR,
     DATASTORE_CARD_SUFFIX,
+    DATASTORE_CARD_AZUREROOT,
 )
 
 from .exception import CardNotPresentException
@@ -45,7 +46,9 @@ class CardDatastore(object):
     def get_storage_root(cls, storage_type):
         if storage_type == "s3":
             return DATASTORE_CARD_S3ROOT
-        else:
+        elif storage_type == "azure":
+            return DATASTORE_CARD_AZUREROOT
+        elif storage_type == "local":
             # Borrowing some of the logic from LocalStorage.get_storage_root
             result = DATASTORE_CARD_LOCALROOT
             if result is None:
@@ -66,6 +69,11 @@ class CardDatastore(object):
                 result = orig_path
 
             return result
+        else:
+            # Let's make it obvious we need to update this block for each new datastore backend...
+            raise NotImplementedError(
+                "Card datastore does not support backend %s" % (storage_type,)
+            )
 
     def __init__(self, flow_datastore, pathspec=None):
         self._backend = flow_datastore._storage_impl

@@ -70,14 +70,14 @@ class CondaEnvironment(MetaflowEnvironment):
     def set_local_root(self, ds_root):
         self.local_root = ds_root
 
-    def bootstrap_commands(self, step_name):
+    def bootstrap_commands(self, step_name, datastore_type):
         # Bootstrap conda and execution environment for step
         env_id = self._get_env_id(step_name)
         if env_id is not None:
             return [
                 "echo 'Bootstrapping environment...'",
-                'python -m metaflow.plugins.conda.batch_bootstrap "%s" %s'
-                % (self.flow.name, env_id),
+                'python -m metaflow.plugins.conda.batch_bootstrap "%s" %s "%s"'
+                % (self.flow.name, env_id, datastore_type),
                 "echo 'Environment bootstrapped.'",
             ]
         return []
@@ -129,8 +129,8 @@ class CondaEnvironment(MetaflowEnvironment):
         }
         return new_info
 
-    def get_package_commands(self, code_package_url):
-        return self.base_env.get_package_commands(code_package_url)
+    def get_package_commands(self, code_package_url, datastore_type):
+        return self.base_env.get_package_commands(code_package_url, datastore_type)
 
     def get_environment_info(self):
         return self.base_env.get_environment_info()

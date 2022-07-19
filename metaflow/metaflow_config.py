@@ -36,8 +36,62 @@ def init_config():
 METAFLOW_CONFIG = init_config()
 
 
-def from_conf(name, default=None):
-    return os.environ.get(name, METAFLOW_CONFIG.get(name, default))
+def from_conf(name, default=None, from_env_only=False, validate_fn=None):
+    """
+    First try to pull value from environment, then from metaflow config JSON.
+
+    If from_env_only is True, we never use the value in metaflow config JSON.
+    We will raise an Error on seeing the value set in metaflow config JSON.
+
+    Prior to a value being returned, we will validate using validate_fn (if provided).
+    Only non-None values are validated.
+
+    validate_fn should accept (name, value).
+    If the value validates, return None, else raise an MetaflowException.
+    """
+    value_from_env = os.environ.get(name, None)
+    value_from_config = METAFLOW_CONFIG.get(name, default)
+    if from_env_only:
+        if value_from_config is not None:
+            raise MetaflowException(
+                "%s may only be set from environment variable, NOT from metaflow JSON configs."
+                % name
+            )
+        value = value_from_env
+    else:
+        if value_from_env is not None:
+            value = value_from_env
+        else:
+            value = value_from_config
+    if validate_fn and value is not None:
+        validate_fn(name, value)
+    return value
+
+
+def _get_validate_choice_fn(choices):
+    """Returns a validate_fn for use with from_conf().
+    The validate_fn will check a value against a list of allowed choices.
+    """
+
+    def _validate_choice(name, value):
+        if value not in choices:
+            raise MetaflowException(
+                "%s must be set to one of %s. Got '%s'." % (name, choices, value)
+            )
+
+    return _validate_choice
+
+
+def _validate_https_url_fn(name, value):
+    """Check that the value looks like a URL"""
+    if not isinstance(value, str):
+        raise MetaflowException(
+            msg="%s should be a string, got type %s" % (name, type(value))
+        )
+    if not value.startswith("https://"):
+        raise MetaflowException(
+            msg="%s must start with 'https://'. Got '%s'." % (name, value)
+        )
 
 
 ###
@@ -60,6 +114,8 @@ DATASTORE_LOCAL_DIR = ".metaflow"
 DATASTORE_SYSROOT_LOCAL = from_conf("METAFLOW_DATASTORE_SYSROOT_LOCAL")
 # S3 bucket and prefix to store artifacts for 's3' datastore.
 DATASTORE_SYSROOT_S3 = from_conf("METAFLOW_DATASTORE_SYSROOT_S3")
+# Azure Blob Storage container and blob prefix
+DATASTORE_SYSROOT_AZURE = from_conf("METAFLOW_DATASTORE_SYSROOT_AZURE")
 
 
 ###
@@ -131,6 +187,15 @@ except json.JSONDecodeError:
         % DATATOOLS_DEFAULT_SESSION_VARS
     )
 
+# Azure datatools root location
+# Note: we do not expose an actual datatools library for Azure (like we do for S3)
+# Similar to DATATOOLS_LOCALROOT, this is used ONLY by the IncludeFile's internal implementation.
+DATATOOLS_AZUREROOT = from_conf(
+    "METAFLOW_DATATOOLS_AZUREROOT",
+    os.path.join(from_conf("METAFLOW_DATASTORE_SYSROOT_AZURE"), DATATOOLS_SUFFIX)
+    if from_conf("METAFLOW_DATASTORE_SYSROOT_AZURE")
+    else None,
+)
 # Local datatools root location
 DATATOOLS_LOCALROOT = from_conf(
     "METAFLOW_DATATOOLS_LOCALROOT",
@@ -139,7 +204,7 @@ DATATOOLS_LOCALROOT = from_conf(
     else None,
 )
 
-# The root directory to save artifact pulls in, when using S3
+# The root directory to save artifact pulls in, when using S3 or Azure
 ARTIFACT_LOCALROOT = from_conf("METAFLOW_ARTIFACT_LOCALROOT", os.getcwd())
 
 # Cards related config variables
@@ -151,7 +216,31 @@ DATASTORE_CARD_S3ROOT = from_conf(
     if from_conf("METAFLOW_DATASTORE_SYSROOT_S3")
     else None,
 )
+DATASTORE_CARD_AZUREROOT = from_conf(
+    "METAFLOW_CARD_AZUREROOT",
+    os.path.join(from_conf("METAFLOW_DATASTORE_SYSROOT_AZURE"), DATASTORE_CARD_SUFFIX)
+    if from_conf("METAFLOW_DATASTORE_SYSROOT_AZURE")
+    else None,
+)
 CARD_NO_WARNING = from_conf("METAFLOW_CARD_NO_WARNING", False)
+
+# Azure storage account URL
+AZURE_STORAGE_ACCOUNT_URL = from_conf(
+    "METAFLOW_AZURE_STORAGE_ACCOUNT_URL", validate_fn=_validate_https_url_fn
+)
+# Either an Azure storage SAS or storage account access key.
+# If provided, takes precedent over all other forms of credential (e.g. Azure CLI)
+AZURE_STORAGE_SHARED_ACCESS_SIGNATURE = from_conf(
+    "METAFLOW_AZURE_STORAGE_SHARED_ACCESS_SIGNATURE", from_env_only=True
+)
+
+# Azure storage can use process-based parallelism instead of threads.
+# Processes perform better for high throughput workloads (e.g. many huge artifacts)
+AZURE_STORAGE_WORKLOAD_TYPE = from_conf(
+    "METAFLOW_AZURE_STORAGE_WORKLOAD_TYPE",
+    "general",
+    validate_fn=_get_validate_choice_fn(["general", "high_throughput"]),
+)
 
 
 ###
@@ -246,10 +335,9 @@ KUBERNETES_CONTAINER_REGISTRY = (
 # Conda configuration
 ###
 # Conda package root location on S3
-CONDA_PACKAGE_S3ROOT = from_conf(
-    "METAFLOW_CONDA_PACKAGE_S3ROOT",
-    "%s/conda" % from_conf("METAFLOW_DATASTORE_SYSROOT_S3"),
-)
+CONDA_PACKAGE_S3ROOT = from_conf("METAFLOW_CONDA_PACKAGE_S3ROOT")
+# Conda package root location on Azure
+CONDA_PACKAGE_AZUREROOT = from_conf("METAFLOW_CONDA_PACKAGE_AZUREROOT")
 
 # Use an alternate dependency resolver for conda packages instead of conda
 # Mamba promises faster package dependency resolution times, which
@@ -325,11 +413,22 @@ def get_version(pkg):
 
 # PINNED_CONDA_LIBS are the libraries that metaflow depends on for execution
 # and are needed within a conda environment
-def get_pinned_conda_libs(python_version):
-    return {
+def get_pinned_conda_libs(python_version, datastore_type):
+    pins = {
         "requests": ">=2.21.0",
-        "boto3": ">=1.14.0",
     }
+    if datastore_type == "s3":
+        pins["boto3"] = ">=1.14.0"
+    elif datastore_type == "azure":
+        pins["azure-identity"] = ">=1.10.0"
+        pins["azure-storage-blob"] = ">=12.12.0"
+    elif datastore_type == "local":
+        pass
+    else:
+        raise MetaflowException(
+            msg="conda lib pins for datastore %s are undefined" % (datastore_type,)
+        )
+    return pins
 
 
 # Check if there are extensions to Metaflow to load and override everything

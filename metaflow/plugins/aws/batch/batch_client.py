@@ -417,6 +417,8 @@ class BatchJob(object):
         return self
 
     def environment_variable(self, name, value):
+        if value is None:
+            return self
         if "environment" not in self.payload["containerOverrides"]:
             self.payload["containerOverrides"]["environment"] = []
         value = str(value)

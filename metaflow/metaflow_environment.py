@@ -42,7 +42,7 @@ class MetaflowEnvironment(object):
         """
         return ()
 
-    def bootstrap_commands(self, step_name):
+    def bootstrap_commands(self, step_name, datastore_type):
         """
         A list of shell commands to bootstrap this environment in a remote runtime.
         """
@@ -79,20 +79,86 @@ class MetaflowEnvironment(object):
         """
         return "Local environment"
 
-    def get_package_commands(self, code_package_url):
+    def _get_download_code_package_cmd(self, code_package_url, datastore_type):
+        """Return a command that downloads the code package from the datastore. We use various
+        cloud storage CLI tools because we don't have access to Metaflow codebase (which we
+        are about to download in the command).
+
+        The command should download the package to "job.tar" in the current directory.
+
+        It should work silently if everything goes well.
+        """
+        if datastore_type == "s3":
+            return (
+                '%s -m awscli ${METAFLOW_S3_ENDPOINT_URL:+--endpoint-url=\\"${METAFLOW_S3_ENDPOINT_URL}\\"} '
+                + "s3 cp %s job.tar >/dev/null"
+            ) % (self._python(), code_package_url)
+        elif datastore_type == "azure":
+            from .plugins.azure.azure_utils import parse_azure_full_path
+
+            container_name, blob = parse_azure_full_path(code_package_url)
+            blob_url = "{storage_account_url}/{container}/{blob}".format(
+                storage_account_url="${METAFLOW_AZURE_STORAGE_ACCOUNT_URL%/}",  # remove a trailing slash, if present
+                container=container_name,
+                blob=blob,
+            )
+            # Note that the signature is attached only if it is defined in env.
+            # Alternative Azure auth mechanisms will likely be implemented in future.
+            source_quoted = (
+                '\\"%s${METAFLOW_AZURE_STORAGE_SHARED_ACCESS_SIGNATURE:+?${METAFLOW_AZURE_STORAGE_SHARED_ACCESS_SIGNATURE}}\\"'
+                % (blob_url,)
+            )
+            return "/tmp/azcopy copy {source_quoted} job.tar".format(
+                source_quoted=source_quoted
+            )
+        else:
+            raise NotImplementedError(
+                "We don't know how to generate a download code package cmd for datastore %s"
+                % datastore_type
+            )
+
+    def _get_install_dependencies_cmd(self, datastore_type):
+        cmds = ["%s -m pip install requests -qqq" % self._python()]
+        if datastore_type == "s3":
+            cmds.append("%s -m pip install awscli boto3 -qqq" % self._python())
+        elif datastore_type == "azure":
+            cmds.append(
+                "%s -m pip install azure-identity azure-storage-blob -qqq"
+                % self._python()
+            )
+            # See: https://docs.microsoft.com/en-us/azure/storage/common/storage-use-azcopy-v10#obtain-a-static-download-link
+            # This links to amd64 build. Yes, this not return the right thing for arm64.
+            # Note as of 7/19/2022, ARM build exists but is in preview status.
+            # We will need to account for this in future.  Same issue in miniconda installation in batch_bootstrap.py
+            cmds.extend(
+                [
+                    "wget -O azcopy_v10.tar.gz https://aka.ms/downloadazcopy-v10-linux",
+                    "tar -xf azcopy_v10.tar.gz --strip-components=1",
+                    "mv azcopy /tmp/azcopy",  # we make no assumptions about evolution of CWD
+                    "chmod +x /tmp/azcopy",
+                ]
+            )
+        else:
+            raise NotImplementedError(
+                "We don't know how to generate an install dependencies cmd for datastore %s"
+                % datastore_type
+            )
+        return " && ".join(cmds)
+
+    def get_package_commands(self, code_package_url, datastore_type):
         cmds = [
             BASH_MFLOG,
             "mflog 'Setting up task environment.'",
-            "%s -m pip install awscli requests boto3 -qqq" % self._python(),
+            self._get_install_dependencies_cmd(datastore_type),
             "mkdir metaflow",
             "cd metaflow",
             "mkdir .metaflow",  # mute local datastore creation log
             "i=0; while [ $i -le 5 ]; do "
             "mflog 'Downloading code package...'; "
-            '%s -m awscli ${METAFLOW_S3_ENDPOINT_URL:+--endpoint-url=\\"${METAFLOW_S3_ENDPOINT_URL}\\"} '
-            "s3 cp %s job.tar >/dev/null && mflog 'Code package downloaded.' && break; "
+            + self._get_download_code_package_cmd(code_package_url, datastore_type)
+            + " && mflog 'Code package downloaded.' && break; "
             "sleep 10; i=$((i+1)); "
-            "done" % (self._python(), code_package_url),
+            "done",
             "if [ $i -gt 5 ]; then "
             "mflog 'Failed to download code package from %s "
             "after 6 tries. Exiting...' && exit 1; "
