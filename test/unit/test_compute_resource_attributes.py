@@ -39,7 +39,17 @@ def test_compute_resource_attributes():
             MockDeco("batch", {"cpu": 1}),
             {"cpu": "3"},
         )
-        == {"cpu": "2"}
+        == {"cpu": "2.0"}
+    )
+
+    # take largest of @resources and @batch if both are present
+    assert (
+        compute_resource_attributes(
+            [MockDeco("resources", {"cpu": 0.83})],
+            MockDeco("batch", {"cpu": "0.5"}),
+            {"cpu": "1"},
+        )
+        == {"cpu": "0.83"}
     )
 
 
