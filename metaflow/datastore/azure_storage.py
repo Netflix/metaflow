@@ -33,7 +33,7 @@ from metaflow.plugins.azure.blob_service_client_factory import (
 
 if sys.version_info[:2] < (3, 7):
     # in 3.6, Only BrokenProcessPool exists (there is no BrokenThreadPool)
-    from concurrent.futures import BrokenProcessPool as BrokenExecutor
+    from concurrent.futures.process import BrokenProcessPool as BrokenExecutor
 else:
     # in 3.7 and newer, BrokenExecutor is a base class that parents BrokenProcessPool AND BrokenThreadPool
     from concurrent.futures import BrokenExecutor
