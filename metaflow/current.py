@@ -132,7 +132,7 @@ class Current(object):
         The index of the task exeuction attempt.
 
         This property returns 0 for the first attempt to execute the task.
-        If the @retry decorator is used and the first attempt fails, this 
+        If the @retry decorator is used and the first attempt fails, this
         property returns the number of times the task was attempted prior
         to the current attempt.
 
@@ -191,7 +191,7 @@ class Current(object):
     def namespace(self):
         """
         The current namespace.
-        
+
         Returns
         -------
         str

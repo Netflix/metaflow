@@ -712,7 +712,7 @@ class MetaflowData(object):
     ```python
     Task(...).data.my_object
     ```
-    
+
     You can also test the existence of an object
 
     ```python
@@ -727,7 +727,7 @@ class MetaflowData(object):
     ```
     Task(...)['my_object'].data
     ```
-    """ 
+    """
 
     def __init__(self, artifacts):
         self._artifacts = dict((art.id, art) for art in artifacts)

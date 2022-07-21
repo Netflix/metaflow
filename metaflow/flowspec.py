@@ -302,7 +302,7 @@ class FlowSpec(object):
             ...
         ```
         where each tuple corresponds to:
-        
+
         - The index of the task for that level of the loop.
         - The number of splits for that level of the loop.
         - The value for that level of the loop.
