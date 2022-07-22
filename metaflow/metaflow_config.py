@@ -82,18 +82,6 @@ def _get_validate_choice_fn(choices):
     return _validate_choice
 
 
-def _validate_https_url_fn(name, value):
-    """Check that the value looks like a URL"""
-    if not isinstance(value, str):
-        raise MetaflowException(
-            msg="%s should be a string, got type %s" % (name, type(value))
-        )
-    if not value.startswith("https://"):
-        raise MetaflowException(
-            msg="%s must start with 'https://'. Got '%s'." % (name, value)
-        )
-
-
 ###
 # Default configuration
 ###
@@ -225,9 +213,7 @@ DATASTORE_CARD_AZUREROOT = from_conf(
 CARD_NO_WARNING = from_conf("METAFLOW_CARD_NO_WARNING", False)
 
 # Azure storage account URL
-AZURE_STORAGE_ACCOUNT_URL = from_conf(
-    "METAFLOW_AZURE_STORAGE_ACCOUNT_URL", validate_fn=_validate_https_url_fn
-)
+AZURE_STORAGE_ACCOUNT_URL = from_conf("METAFLOW_AZURE_STORAGE_ACCOUNT_URL")
 # Either an Azure storage SAS or storage account access key.
 # If provided, takes precedent over all other forms of credential (e.g. Azure CLI)
 AZURE_STORAGE_SHARED_ACCESS_SIGNATURE = from_conf(
