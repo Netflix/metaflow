@@ -83,7 +83,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Tail an Azure Blob. Must specify METAFLOW_AZURE_STORAGE_ACCOUNT_URL in environment."
+        description="Tail an Azure Blob. Must specify METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT in environment."
     )
     parser.add_argument(
         "blob_full_uri", help="The blob to tail. Format is <container_name>/<blob>"

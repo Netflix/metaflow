@@ -213,7 +213,9 @@ DATASTORE_CARD_AZUREROOT = from_conf(
 CARD_NO_WARNING = from_conf("METAFLOW_CARD_NO_WARNING", False)
 
 # Azure storage account URL
-AZURE_STORAGE_ACCOUNT_URL = from_conf("METAFLOW_AZURE_STORAGE_ACCOUNT_URL")
+AZURE_STORAGE_BLOB_SERVICE_ENDPOINT = from_conf(
+    "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
+)
 # Either an Azure storage SAS or storage account access key.
 # If provided, takes precedent over all other forms of credential (e.g. Azure CLI)
 AZURE_STORAGE_SHARED_ACCESS_SIGNATURE = from_conf(
