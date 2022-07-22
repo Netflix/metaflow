@@ -123,7 +123,7 @@ def get_azure_blob_service_client(
         raise MetaflowException(
             msg="Must configure METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
         )
-        blob_service_endpoint = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
+    blob_service_endpoint = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
 
     if not credential:
         shared_access_signature = get_azure_storage_shared_access_signature()
