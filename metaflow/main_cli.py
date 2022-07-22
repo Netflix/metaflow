@@ -502,6 +502,29 @@ def configure_s3_datastore(existing_env):
     return env
 
 
+def configure_azure_datastore(existing_env):
+    env = {}
+    # Set Azure Blob Storage as default datastore.
+    env["METAFLOW_DEFAULT_DATASTORE"] = "azure"
+    # Set Azure Blob Storage folder for datastore.
+    # TODO rename this Blob Endpoint!
+    env["METAFLOW_AZURE_STORAGE_ACCOUNT_URL"] = click.prompt(
+        cyan("[METAFLOW_AZURE_STORAGE_ACCOUNT_URL]")
+        + " Azure Storage Account URL, for the account holding the Blob container to be used. "
+        + "(E.g. https://<storage_account>.blob.core.windows.net/)",
+        default=existing_env.get("METAFLOW_AZURE_STORAGE_ACCOUNT_URL"),
+        show_default=True,
+    )
+    env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = click.prompt(
+        cyan("[METAFLOW_DATASTORE_SYSROOT_AZURE]")
+        + " Azure Blob Storage folder for Metaflow artifact storage "
+        + "(Format: <container_name>/<prefix>)",
+        default=existing_env.get("METAFLOW_DATASTORE_SYSROOT_AZURE"),
+        show_default=True,
+    )
+    return env
+
+
 def configure_metadata_service(existing_env):
     empty_profile = False
     if not existing_env:
@@ -521,7 +544,7 @@ def configure_metadata_service(existing_env):
         cyan("[METAFLOW_SERVICE_INTERNAL_URL]")
         + yellow(" (optional)")
         + " URL for Metaflow Service "
-        + "(Accessible only within VPC).",
+        + "(Accessible only within VPC [AWS] or a Kubernetes cluster [if the service runs in one]).",
         default=existing_env.get(
             "METAFLOW_SERVICE_INTERNAL_URL", env["METAFLOW_SERVICE_URL"]
         ),
@@ -538,7 +561,45 @@ def configure_metadata_service(existing_env):
     return env
 
 
-def configure_datastore_and_metadata(existing_env):
+def configure_azure_datastore_and_metadata(existing_env):
+    empty_profile = False
+    if not existing_env:
+        empty_profile = True
+    env = {}
+
+    # Configure Azure Blob Storage as the datastore.
+    use_azure_as_datastore = click.confirm(
+        "\nMetaflow can use "
+        + yellow("Azure Blob Storage as the storage backend")
+        + " for all code and data artifacts on "
+        + "Azure.\nAzure Blob Storage is a strict requirement if you "
+        + "intend to execute your flows on a Kubernetes cluster on Azure (AKS or self-managed)"
+        + ".\nWould you like to configure Azure Blob Storage "
+        + "as the default storage backend?",
+        default=empty_profile
+        or existing_env.get("METAFLOW_DEFAULT_DATASTORE", "") == "azure",
+        abort=False,
+    )
+    if use_azure_as_datastore:
+        env.update(configure_azure_datastore(existing_env))
+
+    # Configure Metadata service for tracking.
+    if click.confirm(
+        "\nMetaflow can use a "
+        + yellow("remote Metadata Service to track")
+        + " and persist flow execution metadata.\nConfiguring the "
+        "service is a requirement if you intend to schedule your "
+        "flows with Kubernetes on Azure (AKS or self-managed).\nWould you like to "
+        "configure the Metadata Service?",
+        default=empty_profile
+        or existing_env.get("METAFLOW_DEFAULT_METADATA", "") == "service",
+        abort=False,
+    ):
+        env.update(configure_metadata_service(existing_env))
+    return env
+
+
+def configure_aws_datastore_and_metadata(existing_env):
     empty_profile = False
     if not existing_env:
         empty_profile = True
@@ -775,6 +836,77 @@ def verify_aws_credentials(ctx):
         ctx.abort()
 
 
+def verify_azure_credentials(ctx):
+    # Verify that the user has configured AWS credentials on their computer.
+    if not click.confirm(
+        "\nMetaflow relies on "
+        + yellow("Azure access credentials")
+        + " present on your computer to access resources on Azure."
+        "\nBefore proceeding further, please confirm that you "
+        "have already configured these access credentials on "
+        "this computer.",
+        default=True,
+    ):
+        echo(
+            "There are many ways to setup your Azure access credentials. You "
+            "can get started by getting familiar with the following: ",
+            nl=False,
+            fg="yellow",
+        )
+        echo("")
+        echo(
+            "- https://docs.microsoft.com/en-us/cli/azure/authenticate-azure-cli",
+            fg="cyan",
+        )
+        echo(
+            "- https://docs.microsoft.com/en-us/cli/azure/azure-cli-configuration",
+            fg="cyan",
+        )
+        ctx.abort()
+
+
+@configure.command(help="Configure metaflow to access Azure Blob Storage.")
+@click.option(
+    "--profile",
+    "-p",
+    default="",
+    help="Configure a named profile. Activate the profile by setting "
+    "`METAFLOW_PROFILE` environment variable.",
+)
+@click.pass_context
+def azure(ctx, profile):
+
+    # Greet the user!
+    echo(
+        "Welcome to Metaflow! Follow the prompts to configure your installation.\n",
+        bold=True,
+    )
+
+    # Check for existing configuration.
+    if not overwrite_config(profile):
+        ctx.abort()
+
+    verify_azure_credentials(ctx)
+
+    existing_env = get_env(profile)
+
+    env = {}
+    env.update(configure_azure_datastore_and_metadata(existing_env))
+
+    persist_env({k: v for k, v in env.items() if v}, profile)
+
+    # Prompt user to also configure Kubernetes for compute if using azure
+    if env.get("METAFLOW_DEFAULT_DATASTORE") == "azure":
+        click.echo(
+            "\nFinal note! Metaflow can scale your flows by "
+            + yellow("executing your steps on Kubernetes.")
+            + "\nYou may use Azure Kubernetes Service (AKS)"
+            " or a self-managed Kubernetes cluster on Azure VMs."
+            + " If/when your Kubernetes cluster is ready for use,"
+            " please run 'metaflow configure kubernetes'.",
+        )
+
+
 @configure.command(help="Configure metaflow to access self-managed AWS resources.")
 @click.option(
     "--profile",
@@ -804,7 +936,7 @@ def aws(ctx, profile):
         empty_profile = True
 
     env = {}
-    env.update(configure_datastore_and_metadata(existing_env))
+    env.update(configure_aws_datastore_and_metadata(existing_env))
 
     # Configure AWS Batch for compute if using S3
     if env.get("METAFLOW_DEFAULT_DATASTORE") == "s3":
