@@ -808,6 +808,15 @@ def configure_kubernetes(existing_env):
         default=existing_env.get("METAFLOW_KUBERNETES_CONTAINER_IMAGE", ""),
         show_default=True,
     )
+    # Set default Kubernetes secrets to source into pod envs
+    env["METAFLOW_KUBERNETES_SECRETS"] = click.prompt(
+        cyan("[METAFLOW_KUBERNETES_SECRETS]")
+        + yellow(" (optional)")
+        + " Comma-delimited list of secret names. Jobs will"
+        " gain environment variables from these secrets. ",
+        default=existing_env.get("METAFLOW_KUBERNETES_SECRETS", ""),
+        show_default=True,
+    )
 
     return env
 
@@ -980,27 +989,20 @@ def kubernetes(ctx, profile):
     if not overwrite_config(profile):
         ctx.abort()
 
-    verify_aws_credentials(ctx)
-
     existing_env = get_env(profile)
 
     env = existing_env.copy()
 
-    if existing_env.get("METAFLOW_DEFAULT_DATASTORE") == "s3":
-        # Skip S3 configuration if it is already configured
-        pass
-    elif not existing_env.get("METAFLOW_DEFAULT_DATASTORE"):
-        env.update(configure_s3_datastore(existing_env))
-    else:
-        # If configured to use something else, offer to switch to S3
-        click.confirm(
-            "\nMetaflow on Kubernetes needs to use Amazon S3 as a datastore, "
-            + "but your existing configuration is not using Amazon S3. "
-            + "Would you like to reconfigure it to use Amazon S3?",
-            default=True,
-            abort=True,
+    # We used to push user straight to S3 configuration inline.
+    # Now that we support >1 cloud, it gets too complicated.
+    # Therefore, we instruct the user to configure datastore first, by
+    # a separate command.
+    if existing_env.get("METAFLOW_DEFAULT_DATASTORE") == "local":
+        click.echo(
+            "\nCannot run Kubernetes with local datastore. Please run"
+            " 'metaflow configure aws' or 'metaflow configure azure'."
         )
-        env.update(configure_s3_datastore(existing_env))
+        click.abort()
 
     # Configure remote metadata.
     if existing_env.get("METAFLOW_DEFAULT_METADATA") == "service":
