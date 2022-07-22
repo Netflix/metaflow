@@ -516,11 +516,11 @@ def configure_azure_datastore(existing_env):
     env["METAFLOW_DEFAULT_DATASTORE"] = "azure"
     # Set Azure Blob Storage folder for datastore.
     # TODO rename this Blob Endpoint!
-    env["METAFLOW_AZURE_STORAGE_ACCOUNT_URL"] = click.prompt(
-        cyan("[METAFLOW_AZURE_STORAGE_ACCOUNT_URL]")
+    env["METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"] = click.prompt(
+        cyan("[METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT]")
         + " Azure Storage Account URL, for the account holding the Blob container to be used. "
         + "(E.g. https://<storage_account>.blob.core.windows.net/)",
-        default=existing_env.get("METAFLOW_AZURE_STORAGE_ACCOUNT_URL"),
+        default=existing_env.get("METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"),
         show_default=True,
     )
     env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = click.prompt(

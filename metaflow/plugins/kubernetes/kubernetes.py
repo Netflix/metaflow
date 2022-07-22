@@ -16,7 +16,7 @@ from metaflow.metaflow_config import (
     DEFAULT_METADATA,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
     S3_ENDPOINT_URL,
-    AZURE_STORAGE_ACCOUNT_URL,
+    AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
     DATASTORE_SYSROOT_AZURE,
     DATASTORE_CARD_AZUREROOT,
 )
@@ -197,7 +197,8 @@ class Kubernetes(object):
             )
             .environment_variable("METAFLOW_S3_ENDPOINT_URL", S3_ENDPOINT_URL)
             .environment_variable(
-                "METAFLOW_AZURE_STORAGE_ACCOUNT_URL", AZURE_STORAGE_ACCOUNT_URL
+                "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT",
+                AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
             )
             .environment_variable(
                 "METAFLOW_DATASTORE_SYSROOT_AZURE", DATASTORE_SYSROOT_AZURE

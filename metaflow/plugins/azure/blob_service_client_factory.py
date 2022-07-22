@@ -1,5 +1,5 @@
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import AZURE_STORAGE_ACCOUNT_URL
+from metaflow.metaflow_config import AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
 from metaflow.plugins.azure.azure_utils import (
     get_azure_storage_shared_access_signature,
     create_cacheable_default_azure_credentials,
@@ -26,7 +26,7 @@ class _ClientCache(object):
 
     @staticmethod
     def get(
-        storage_account_url,
+        blob_service_endpoint,
         credential=None,
         max_single_put_size=None,
         max_single_get_size=None,
@@ -48,7 +48,7 @@ class _ClientCache(object):
             os.getpid(),
             threading.get_ident(),
             credential,
-            storage_account_url,
+            blob_service_endpoint,
             max_single_put_size,
             max_single_get_size,
             max_chunk_get_size,
@@ -57,7 +57,7 @@ class _ClientCache(object):
         service_just_created = None
         if cache_key not in _ClientCache._cache:
             service_just_created = _create_blob_service_client(
-                storage_account_url,
+                blob_service_endpoint,
                 credential=credential,
                 max_single_put_size=max_single_put_size,
                 max_single_get_size=max_single_get_size,
@@ -119,9 +119,11 @@ def get_azure_blob_service_client(
     - auto credential handling (pull SAS token from environment, OR DefaultAzureCredential)
     - sensible default values for Azure SDK tunables
     """
-    if not AZURE_STORAGE_ACCOUNT_URL:
-        raise MetaflowException(msg="Must configure METAFLOW_AZURE_STORAGE_ACCOUNT_URL")
-    storage_account_url = AZURE_STORAGE_ACCOUNT_URL
+    if not AZURE_STORAGE_BLOB_SERVICE_ENDPOINT:
+        raise MetaflowException(
+            msg="Must configure METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
+        )
+        blob_service_endpoint = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
 
     if not credential:
         shared_access_signature = get_azure_storage_shared_access_signature()
@@ -134,7 +136,7 @@ def get_azure_blob_service_client(
 
     if not credential_is_cacheable:
         return _create_blob_service_client(
-            storage_account_url,
+            blob_service_endpoint,
             credential=credential,
             max_single_put_size=max_single_put_size,
             max_single_get_size=max_single_get_size,
@@ -144,7 +146,7 @@ def get_azure_blob_service_client(
         )
 
     return _ClientCache.get(
-        storage_account_url,
+        blob_service_endpoint,
         credential=credential,
         max_single_put_size=max_single_put_size,
         max_single_get_size=max_single_get_size,
@@ -155,7 +157,7 @@ def get_azure_blob_service_client(
 
 @check_azure_deps
 def _create_blob_service_client(
-    storage_account_url,
+    blob_service_endpoint,
     credential=None,
     max_single_put_size=None,
     max_single_get_size=None,
@@ -165,7 +167,7 @@ def _create_blob_service_client(
     from azure.storage.blob import BlobServiceClient
 
     return BlobServiceClient(
-        storage_account_url,
+        blob_service_endpoint,
         credential=credential,
         max_single_put_size=max_single_put_size,
         max_single_get_size=max_single_get_size,

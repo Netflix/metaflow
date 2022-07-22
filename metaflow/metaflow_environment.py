@@ -97,8 +97,9 @@ class MetaflowEnvironment(object):
             from .plugins.azure.azure_utils import parse_azure_full_path
 
             container_name, blob = parse_azure_full_path(code_package_url)
-            blob_url = "{storage_account_url}/{container}/{blob}".format(
-                storage_account_url="${METAFLOW_AZURE_STORAGE_ACCOUNT_URL%/}",  # remove a trailing slash, if present
+            blob_url = "{blob_service_endpoint}/{container}/{blob}".format(
+                # remove a trailing slash, if present
+                blob_service_endpoint="${METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT%/}",
                 container=container_name,
                 blob=blob,
             )
