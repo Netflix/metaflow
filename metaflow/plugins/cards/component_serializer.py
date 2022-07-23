@@ -216,10 +216,11 @@ class CardComponentCollector:
         Choose a specific card for manipulation.
 
         When multiple @card decorators are present, you can add an
-        ID to distinguish between them, @card(id=ID). This allows you
+        `ID` to distinguish between them, `@card(id=ID)`. This allows you
         to add components to a specific card like this:
-
+        ```
         current.card[ID].append(component)
+        ```
 
         Parameters
         ----------
@@ -229,7 +230,7 @@ class CardComponentCollector:
         Returns
         -------
         CardComponentCollector
-            An object with append() and extend() calls which allow you to
+            An object with `append` and `extend` calls which allow you to
             add components to the chosen card.
         """
         if key in self._card_id_map:
@@ -251,10 +252,11 @@ class CardComponentCollector:
         """
         Specify components of the chosen card.
 
-        Instead of adding components to a card individually with current.card[ID].append(component),
+        Instead of adding components to a card individually with `current.card[ID].append(component)`,
         use this method to assign a list of components to a card, replacing the existing components:
-
+        ```
         current.card[ID] = [FirstComponent, SecondComponent]
+        ```
 
         Parameters
         ----------

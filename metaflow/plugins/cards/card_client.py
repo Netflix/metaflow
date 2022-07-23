@@ -17,20 +17,12 @@ _ID_FUNC = id
 
 class Card:
     """
-    The object which holds the html of a Metaflow card.
+    `Card` represents an individual Metaflow Card, a single HTML file, produced by
+    the card `@card` decorator. `Card`s are contained by `CardContainer`, returned by
+    `get_cards`.
 
-    ### Usage
-    ```python
-    card_container = get_cards(task)
-    # This retrieves a `Card` instance
-    card = card_container[0]
-    # View the HTML in browser
-    card.view()
-    # Get the HTML of the card
-    html = card.get()
-    # calling the instance of `Card` inside a notebook cell will render the card as the output of a cell
-    card
-    ```
+    Note that the contents of the card, an HTML file, is retrieved lazily when you call
+    `Card.get` for the first time or when the card is rendered in a notebook.
     """
 
     def __init__(
@@ -62,6 +54,15 @@ class Card:
         self._temp_file = None
 
     def get(self):
+        """
+        Retrieves the HTML contents of the card from the
+        Metaflow datastore.
+
+        Returns
+        -------
+        str
+            HTML contents of the card.
+        """
         if self._html is not None:
             return self._html
         self._html = self._card_ds.get_card_html(self.path)
@@ -69,16 +70,29 @@ class Card:
 
     @property
     def path(self):
+        """
+        The path of the card in the datastore which uniquely
+        identifies the card.
+        """
         return self._path
 
     @property
     def id(self):
+        """
+        The ID of the card, if specified with `@card(id=ID)`.
+        """
         return self._card_id
 
     def __str__(self):
         return "<Card at '%s'>" % self._path
 
     def view(self):
+        """
+        Opens the card in a local web browser.
+
+        This call uses Python's built-in [`webbrowser`](https://docs.python.org/3/library/webbrowser.html)
+        module to open the card.
+        """
         import webbrowser
 
         self._temp_file = tempfile.NamedTemporaryFile(suffix=".html")
@@ -104,15 +118,26 @@ class Card:
 
 class CardContainer:
     """
-    A `list` like object that helps iterate through all the stored `Card`s.
+    `CardContainer` is an immutable list-like object, returned by `get_cards`,
+    which contains individual `Card`s.
 
-    ### Usage:
-    ```python
-    card_container = get_cards(task)
-    # Get all stored cards
-    cards = list(card_container)
-    # calling the instance of `CardContainer` inside a notebook will render all cards as the output of a cell
-    card_container
+    Notably, `CardContainer` contains a special
+    `_repr_html_` function which renders cards automatically in an output
+    cell of a notebook.
+
+    The following operations are supported:
+    ```
+    cards = get_cards(MyTask)
+
+    # retrive by index
+    first_card = cards[0]
+
+    # check length
+    if len(cards) > 1:
+        print('many cards present!')
+
+    # iteration
+    list_of_cards = list(cards)
     ```
     """
 
@@ -172,15 +197,30 @@ class CardContainer:
 
 def get_cards(task, id=None, type=None, follow_resumed=True):
     """
-    Get cards related to a Metaflow `Task`
+    Get cards related to a `Task`.
 
-    Args:
-        task (str or `Task`): A metaflow `Task` object or pathspec (flowname/runid/stepname/taskid)
-        type (str, optional): The type of card to retrieve. Defaults to None.
-        follow_resumed (bool, optional): If a Task has been resumed and cloned, then setting this flag will resolve the card for the origin task. Defaults to True.
+    Note that `get_cards` resolves the cards contained by the task but it doesn't actually
+    retrieve them from the datastore. Actual card contents are retrieved lazily either when
+    the card is rendered in a notebook to when you call `Card.get`. This means that
+    `get_cards` is a fast call even when individual cards contain a lot of data.
 
-    Returns:
-        `CardContainer` : A `list` like object that holds `Card` objects.
+    Parameters
+    ----------
+    task : str or `Task`
+        A `Task` object or pathspec `{flow_name}/{run_id}/{step_name}/{task_id}` that
+        uniquely identifies a task.
+    id : str (optional)
+        The ID of card to retrieve if multiple cards are present.
+    type : str (optional)
+        The type of card to retrieve if multiple cards are present.
+    follow_resumed : bool (optional)
+        If the task has been resumed, then setting this flag will resolve the card for
+        the origin task. Defaults to True.
+
+    Returns
+    -------
+    CardContainer
+        A list-like object that holds `Card` objects.
     """
     from metaflow.client import Task
     from metaflow import namespace

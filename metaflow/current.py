@@ -168,8 +168,9 @@ class Current(object):
         Pathspec of the current run, i.e. a unique
         identifier of the current task. The returned
         string follows this format:
-
+        ```
         {flow_name}/{run_id}/{step_name}/{task_id}
+        ```
 
         Returns
         -------
