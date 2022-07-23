@@ -25,8 +25,7 @@ class Artifact(UserComponent):
     Example:
     ```
     from datetime import datetime
-    current.card.append(Artifact({'now': datetime.utcnow()))
-    }
+    current.card.append(Artifact({'now': datetime.utcnow()}))
     ```
 
     Parameters
@@ -68,6 +67,7 @@ class Table(UserComponent):
             ['first row', Artifact({'a': 2})],
             ['second row', Artifact(3)]
         ])
+    )
     ```
 
     Example: Table from a Pandas dataframe
@@ -79,7 +79,7 @@ class Table(UserComponent):
         Table.from_dataframe(
             pandas.DataFrame(
                 np.random.randint(0, 100, size=(15, 4)),
-                columns=list("ABCD"),
+                columns=list("ABCD")
             )
         )
     )
@@ -167,7 +167,7 @@ class Image(UserComponent):
         Image(
             requests.get("https://www.gif-vif.com/hacker-cat.gif").content,
             "Image From Bytes"
-        ),
+        )
     )
     ```
 
@@ -191,7 +191,7 @@ class Image(UserComponent):
     current.card.append(
         Image.from_pil_image(
             PILImage.fromarray(np.random.randn(1024, 768), "RGB"),
-            "From PIL Image",
+            "From PIL Image"
         )
     )
     ```
