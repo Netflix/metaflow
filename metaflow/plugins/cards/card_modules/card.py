@@ -14,15 +14,16 @@ class MetaflowCard(object):
     The subclass needs to implement a `render(task)` method that produces the card
     contents in HTML, given the finished task that is represented by a `Task` object.
 
+    Attributes
+    ----------
+    type : str
+        Card type string. Note that this should be a globally unique name, similar to a
+        Python package name, to avoid name clashes between different custom cards.
+
     Parameters
     ----------
     options : Dict
         JSON-encodeable dictionary containing user-defineable options for the class.
-    """
-
-    """
-    Card type string. Note that this should be a globally unique name, like Python package name,
-    to avoid name clashes between different custom cards.
     """
     type = None
 
