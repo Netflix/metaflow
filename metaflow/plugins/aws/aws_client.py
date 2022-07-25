@@ -6,13 +6,22 @@ class Boto3ClientProvider(object):
     name = "boto3"
 
     @staticmethod
-    def get_client(module, with_error=False, params={}, s3_role_arn=None):
+    def get_client(
+        module, with_error=False, role_arn=None, session_vars=None, client_params=None
+    ):
         from metaflow.exception import MetaflowException
         from metaflow.metaflow_config import (
             AWS_SANDBOX_ENABLED,
             AWS_SANDBOX_STS_ENDPOINT_URL,
             AWS_SANDBOX_API_KEY,
         )
+
+        if session_vars is None:
+            session_vars = {}
+
+        if client_params is None:
+            client_params = {}
+
         import requests
 
         try:
@@ -40,33 +49,35 @@ class Boto3ClientProvider(object):
             if with_error:
                 return (
                     boto3.session.Session(**cached_aws_sandbox_creds).client(
-                        module, **params
+                        module, **client_params
                     ),
                     ClientError,
                 )
             return boto3.session.Session(**cached_aws_sandbox_creds).client(
-                module, **params
+                module, **client_params
             )
         session = boto3.session.Session()
-        if s3_role_arn:
+        if role_arn:
             fetcher = botocore.credentials.AssumeRoleCredentialFetcher(
                 client_creator=session._session.create_client,
                 source_credentials=session._session.get_credentials(),
-                role_arn=s3_role_arn,
+                role_arn=role_arn,
                 extra_args={},
             )
             creds = botocore.credentials.DeferredRefreshableCredentials(
                 method="assume-role", refresh_using=fetcher.fetch_credentials
             )
-            botocore_session = botocore.session.Session()
+            botocore_session = botocore.session.Session(session_vars=session_vars)
             botocore_session._credentials = creds
             session = boto3.session.Session(botocore_session=botocore_session)
         if with_error:
-            return session.client(module, **params), ClientError
-        return session.client(module, **params)
+            return session.client(module, **client_params), ClientError
+        return session.client(module, **client_params)
 
 
-def get_aws_client(module, with_error=False, params={}, s3_role_arn=None):
+def get_aws_client(
+    module, with_error=False, role_arn=None, session_vars=None, client_params=None
+):
     global cached_provider_class
     if cached_provider_class is None:
         from metaflow.metaflow_config import DEFAULT_AWS_CLIENT_PROVIDER
@@ -80,4 +91,10 @@ def get_aws_client(module, with_error=False, params={}, s3_role_arn=None):
             raise ValueError(
                 "Cannot find AWS Client provider %s" % DEFAULT_AWS_CLIENT_PROVIDER
             )
-    return cached_provider_class.get_client(module, with_error, params, s3_role_arn)
+    return cached_provider_class.get_client(
+        module,
+        with_error,
+        role_arn=role_arn,
+        session_vars=session_vars,
+        client_params=client_params,
+    )

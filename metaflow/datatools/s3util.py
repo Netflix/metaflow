@@ -7,23 +7,29 @@ import os
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
-    S3_ENDPOINT_URL,
-    S3_VERIFY_CERTIFICATE,
+    DATATOOLS_DEFAULT_CLIENT_PARAMS,
+    DATATOOLS_DEFAULT_SESSION_VARS,
     S3_RETRY_COUNT,
+    RETRY_WARNING_THRESHOLD,
 )
 
 
 TEST_S3_RETRY = "TEST_S3_RETRY" in os.environ
 
 
-def get_s3_client(s3_role_arn=None):
+def get_s3_client(s3_role_arn=None, s3_session_vars=None, s3_client_params=None):
     from metaflow.plugins.aws.aws_client import get_aws_client
 
     return get_aws_client(
         "s3",
         with_error=True,
-        params={"endpoint_url": S3_ENDPOINT_URL, "verify": S3_VERIFY_CERTIFICATE},
-        s3_role_arn=s3_role_arn,
+        role_arn=s3_role_arn,
+        session_vars=s3_session_vars
+        if s3_session_vars
+        else DATATOOLS_DEFAULT_SESSION_VARS,
+        client_params=s3_client_params
+        if s3_client_params
+        else DATATOOLS_DEFAULT_CLIENT_PARAMS,
     )
 
 
@@ -50,11 +56,21 @@ def aws_retry(f):
                     function_name = f.func_name
                 except AttributeError:
                     function_name = f.__name__
-                sys.stderr.write(
-                    "S3 datastore operation %s failed (%s). "
-                    "Retrying %d more times..\n"
-                    % (function_name, ex, S3_RETRY_COUNT - i)
-                )
+                if TEST_S3_RETRY and i == 0:
+                    # This is applicable when this code is being tested
+                    sys.stderr.write(
+                        "[WARNING] S3 datastore operation %s failed (%s). "
+                        "Retrying %d more times..\n"
+                        % (function_name, ex, S3_RETRY_COUNT - i)
+                    )
+                if i + 1 > RETRY_WARNING_THRESHOLD:
+                    # In a real failure, print this warning message only after a certain
+                    # amount of retries
+                    sys.stderr.write(
+                        "[WARNING] S3 datastore operation %s failed (%s). "
+                        "Retrying %d more times..\n"
+                        % (function_name, ex, S3_RETRY_COUNT - i)
+                    )
                 self.reset_client(hard_reset=True)
                 last_exc = ex
                 # exponential backoff for real failures

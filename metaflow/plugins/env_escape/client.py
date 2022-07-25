@@ -66,9 +66,9 @@ class Client(object):
                 "-m",
                 server_module,
                 str(max_pickle_version),
-                config_dir,
                 self._socket_path,
             ],
+            cwd=config_dir,
             env=env,
             stdout=PIPE,
             stderr=PIPE,
@@ -78,14 +78,23 @@ class Client(object):
 
         # Read override configuration
         sys.path.insert(0, config_dir)
-        override_module = importlib.import_module("overrides")
+        try:
+            override_module = importlib.import_module("overrides")
+            override_values = override_module.__dict__.values()
+        except ImportError:
+            # We ignore so the file can be non-existent if not needed
+            override_values = []
+        except Exception as e:
+            raise RuntimeError(
+                "Cannot import overrides from '%s': %s" % (sys.path[0], str(e))
+            )
         sys.path = sys.path[1:]
 
         # Determine all overrides
         self._overrides = {}
         self._getattr_overrides = {}
         self._setattr_overrides = {}
-        for override in override_module.__dict__.values():
+        for override in override_values:
             if isinstance(override, (LocalOverride, LocalAttrOverride)):
                 for obj_name, obj_funcs in override.obj_mapping.items():
                     if isinstance(override, LocalOverride):
