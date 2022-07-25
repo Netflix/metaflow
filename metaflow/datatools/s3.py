@@ -294,6 +294,60 @@ class S3Client(object):
 
 
 class S3(object):
+    """
+    The Metaflow S3 client.
+
+    This object manages the connection to S3 and a temporary diretory that is used
+    to download objects. Note that in most cases when the data fits in memory, no local
+    disk IO is needed as operations are cached by the operating system, which makes
+    operations fast as long as there is enough memory available.
+
+    The easiest way is to use this object as a context manager:
+    ```
+    with S3() as s3:
+        data = [obj.blob for obj in s3.get_many(urls)]
+    print(data)
+    ```
+    The context manager takes care of creating and deleting a temporary directory
+    automatically. Without a context manager, you must call `.close()` to delete
+    the directory explicitly:
+    ```
+    s3 = S3()
+    data = [obj.blob for obj in s3.get_many(urls)]
+    s3.close()
+    ```
+    You can customize the location of the temporary directory with `tmproot`. It
+    defaults to the current working directory.
+
+    To make it easier to deal with object locations, the client can be initialized
+    with an S3 path prefix. There are three ways to handle locations:
+
+    1. Use a `metaflow.Run` object or `self`, e.g. `S3(run=self)` which
+       initializes the prefix with the global `DATATOOLS_S3ROOT` path, combined
+       with the current run ID. This mode makes it easy to version data based
+       on the run ID consistently. You can use the `bucket` and `prefix` to
+       override parts of `DATATOOLS_S3ROOT`.
+
+    2. Specify an S3 prefix explicitly with `s3root`,
+       e.g. `S3(s3root='s3://mybucket/some/path')`.
+
+    3. Specify nothing, i.e. `S3()`, in which case all operations require
+       a full S3 url prefixed with `s3://`.
+
+    Parameters
+    ----------
+    tmproot : str
+        Where to store the temporary directory (default: '.').
+    bucket : str
+        Override the bucket from `DATATOOLS_S3ROOT` when `run` is specified.
+    prefix : str
+        Override the path from `DATATOOLS_S3ROOT` when `run` is specified.
+    run : FlowSpec or Run
+        Derive path prefix from the current or a past run ID, e.g. S3(run=self).
+    s3root : str
+        If `run` is not specified, use this as the S3 prefix.
+    """
+
     @classmethod
     def get_root_from_config(cls, echo, create_on_absent=True):
         return DATATOOLS_S3ROOT
@@ -301,24 +355,6 @@ class S3(object):
     def __init__(
         self, tmproot=".", bucket=None, prefix=None, run=None, s3root=None, **kwargs
     ):
-        """
-        Initialize a new context for S3 operations. This object is used as
-        a context manager for a with statement.
-        There are two ways to initialize this object depending whether you want
-        to bind paths to a Metaflow run or not.
-        1. With a run object:
-            run: (required) Either a FlowSpec object (typically 'self') or a
-                 Run object corresponding to an existing Metaflow run. These
-                 are used to add a version suffix in the S3 path.
-            bucket: (optional) S3 bucket.
-            prefix: (optional) S3 prefix.
-        2. Without a run object:
-            s3root: (optional) An S3 root URL for all operations. If this is
-                    not specified, all operations require a full S3 URL.
-        These options are supported in both the modes:
-            tmproot: (optional) Root path for temporary files (default: '.')
-        """
-
         if not boto_found:
             raise MetaflowException("You need to install 'boto3' in order to use S3.")
 
@@ -432,21 +468,39 @@ class S3(object):
 
     def list_paths(self, keys=None):
         """
-        List the next level of paths in S3. If multiple keys are
-        specified, listings are done in parallel. The returned
-        S3Objects have .exists == False if the url refers to a
-        prefix, not an existing S3 object.
-        Args:
-            keys: (required) a list of suffixes for paths to list.
-        Returns:
-            a list of S3Objects (not downloaded)
-        Example:
-        Consider the following paths in S3:
-        A/B/C
-        D/E
-        In this case, list_paths(['A', 'D']), returns ['A/B', 'D/E']. The
-        first S3Object has .exists == False, since it does not refer to an
-        object in S3. It is just a prefix.
+        List the next level of paths in S3.
+
+        If multiple keys are specified, listings are done in parallel. The returned
+        S3Objects have `.exists == False` if the path refers to a prefix, not an
+        existing S3 object.
+
+        For instance, if the directory hierarchy is
+        ```
+        a/0.txt
+        a/b/1.txt
+        a/c/2.txt
+        a/d/e/3.txt
+        f/4.txt
+        ```
+        The `list_paths(['a', 'f'])` call returns
+        ```
+        a/0.txt (exists == True)
+        a/b/ (exists == False)
+        a/c/ (exists == False)
+        a/d/ (exists == False)
+        f/4.txt (exists == True)
+        ```
+
+        Parameters
+        ----------
+        keys : List(str)
+            List of paths.
+
+        Returns
+        -------
+        List[`S3Object`]
+            S3Objects under the given paths, including prefixes (directories) that
+            do not corresponding to leaf objects.
         """
 
         def _list(keys):
@@ -464,19 +518,37 @@ class S3(object):
 
     def list_recursive(self, keys=None):
         """
-        List objects in S3 recursively. If multiple keys are
-        specified, listings are done in parallel. The returned
-        S3Objects have always .exists == True, since they refer
-        to existing objects in S3.
-        Args:
-            keys: (required) a list of suffixes for paths to list.
-        Returns:
-            a list of S3Objects (not downloaded)
-        Example:
-        Consider the following paths in S3:
-        A/B/C
-        D/E
-        In this case, list_recursive(['A', 'D']), returns ['A/B/C', 'D/E'].
+        List all objects recursives under the given prefixes.
+
+        If multiple keys are specified, listings are done in parallel. All objects
+        returned have `.exists == True` as this call always returns leaf objects.
+
+        For instance, if the directory hierarchy is
+        ```
+        a/0.txt
+        a/b/1.txt
+        a/c/2.txt
+        a/d/e/3.txt
+        f/4.txt
+        ```
+        The `list_paths(['a', 'f'])` call returns
+        ```
+        a/0.txt (exists == True)
+        a/b/1.txt (exists == True)
+        a/c/2.txt (exists == True)
+        a/d/e/3.txt (exists == True)
+        f/4.txt (exists == True)
+        ```
+
+        Parameters
+        ----------
+        keys : List(str)
+            List of paths.
+
+        Returns
+        -------
+        List[`S3Object`]
+            S3Objects under the given paths.
         """
 
         def _list(keys):
@@ -492,17 +564,26 @@ class S3(object):
 
     def info(self, key=None, return_missing=False):
         """
-        Get information about a single object from S3
-        Args:
-            key: (optional) a suffix identifying the object.
-            return_missing: (optional, default False) if set to True, do
-                            not raise an exception for a missing key but
-                            return it as an S3Object with .exists == False.
-        Returns:
-            an S3Object containing information about the object. The
-            downloaded property will be false and exists will indicate whether
-            or not the file exists
+        Get metadata about a single object in S3.
+
+        This call makes a single `HEAD` request to S3 which can be
+        much faster than downloading all data with `get`.
+
+        Parameters
+        ----------
+        key : str
+            Object to query. It can be an S3 url or a path suffix.
+        return_missing : bool
+            If set to True, do not raise an exception for a missing key but
+            return it as an `S3Object` with `.exists == False` (default: False).
+
+        Returns
+        -------
+        `S3Object`
+            An S3Object corresponding to the object requested. The object
+            will have `.downloaded == False`.
         """
+
         url = self._url(key)
         src = urlparse(url)
 
@@ -537,16 +618,24 @@ class S3(object):
 
     def info_many(self, keys, return_missing=False):
         """
-        Get information about many objects from S3 in parallel.
-        Args:
-            keys: (required) a list of suffixes identifying the objects.
-            return_missing: (optional, default False) if set to True, do
-                            not raise an exception for a missing key but
-                            return it as an S3Object with .exists == False.
-        Returns:
-            a list of S3Objects corresponding to the objects requested. The
-            downloaded property will be false and exists will indicate whether
-            or not the file exists.
+        Get metadata about many objects in S3 in parallel.
+
+        This call makes a single `HEAD` request to S3 which can be
+        much faster than downloading all data with `get`.
+
+        Parameters
+        ----------
+        keys : List[str]
+            Objects to query. Each key can be an S3 url or a path suffix.
+        return_missing : bool
+            If set to True, do not raise an exception for a missing key but
+            return it as an `S3Object` with `.exists == False` (default: False).
+
+        Returns
+        -------
+        List[`S3Object`]
+            A list of `S3Object`s corresponding to the paths requested. The
+            objects will have `.downloaded == False`.
         """
 
         def _head():
@@ -586,17 +675,24 @@ class S3(object):
     def get(self, key=None, return_missing=False, return_info=True):
         """
         Get a single object from S3.
-        Args:
-            key: (optional) a suffix identifying the object. Can also be
-                 an object containing the properties `key`, `offset` and
-                 `length` to specify a range query. `S3GetObject` is such an object.
-            return_missing: (optional, default False) if set to True, do
-                            not raise an exception for a missing key but
-                            return it as an S3Object with .exists == False.
-            return_info: (optional, default True) if set to True, fetch the
-                         content-type and user metadata associated with the object.
-        Returns:
-            an S3Object corresponding to the object requested.
+
+        Parameters
+        ----------
+        key : str or `S3GetObject`
+            Object to download. It can be an S3 url, a path suffix, or
+            an `S3GetObject` that defines a range of data to download.
+        return_missing : bool
+            If set to True, do not raise an exception for a missing key but
+            return it as an `S3Object` with `.exists == False` (default: False).
+        return_info : bool
+            If set to True, fetch the content-type and user metadata associated
+            with the object at no extra cost, included for symmetry with `get_many`
+            (default: True).
+
+        Returns
+        -------
+        `S3Object`
+            An S3Object corresponding to the object requested.
         """
         url, r = self._url_and_range(key)
         src = urlparse(url)
@@ -667,18 +763,24 @@ class S3(object):
     def get_many(self, keys, return_missing=False, return_info=True):
         """
         Get many objects from S3 in parallel.
-        Args:
-            keys: (required) a list of suffixes identifying the objects. Each
-                  item in the list can also be an object containing the properties
-                  `key`, `offset` and `length to specify a range query.
-                  `S3GetObject` is such an object.
-            return_missing: (optional, default False) if set to True, do
-                            not raise an exception for a missing key but
-                            return it as an S3Object with .exists == False.
-            return_info: (optional, default True) if set to True, fetch the
-                         content-type and user metadata associated with the object.
-        Returns:
-            a list of S3Objects corresponding to the objects requested.
+
+        Parameters
+        ----------
+        keys : List[str or `S3GetObject`]
+            Objects to download. Each object can be an S3 url, a path suffix, or
+            an `S3GetObject` that defines a range of data to download.
+        return_missing : bool
+            If set to True, do not raise an exception for a missing key but
+            return it as an `S3Object` with `.exists == False` (default: False).
+        return_info : bool
+            If set to True, fetch the content-type and user metadata associated
+            with the object at no extra cost, included for symmetry with `get_many`
+            (default: True).
+
+        Returns
+        -------
+        List[`S3Object`]
+            S3Objects corresponding to the objects requested.
         """
 
         def _get():
@@ -730,13 +832,20 @@ class S3(object):
     def get_recursive(self, keys, return_info=False):
         """
         Get many objects from S3 recursively in parallel.
-        Args:
-            keys: (required) a list of suffixes for paths to download
-                  recursively.
-            return_info: (optional, default False) if set to True, fetch the
-                         content-type and user metadata associated with the object.
-        Returns:
-            a list of S3Objects corresponding to the objects requested.
+
+        Parameters
+        ----------
+        keys : List[str]
+            Prefixes to download recursively. Each prefix can be an S3 url or a path suffix
+            which define the root prefix under which all objects are downloaded.
+        return_info : bool
+            If set to True, fetch the content-type and user metadata associated
+            with the object (default: False).
+
+        Returns
+        -------
+        List[`S3Object`]
+            S3Objects stored under the given prefixes.
         """
 
         def _get():
@@ -774,14 +883,23 @@ class S3(object):
 
     def get_all(self, return_info=False):
         """
-        Get all objects from S3 recursively (in parallel). This request
-        only works if S3 is initialized with a run or a s3root prefix.
-        Args:
-            return_info: (optional, default False) if set to True, fetch the
-                         content-type and user metadata associated with the object.
-        Returns:
-            a list of S3Objects corresponding to the objects requested.
+        Get all objects under the prefix set in the `S3` constructor.
+
+        This method requires that the `S3` object is initialized either with `run` or
+        `s3root`.
+
+        Parameters
+        ----------
+        return_info : bool
+            If set to True, fetch the content-type and user metadata associated
+            with the object (default: False).
+
+        Returns
+        -------
+        List[`S3Object`]
+            S3Objects stored under the main prefix.
         """
+
         if self._s3root is None:
             raise MetaflowS3URLException(
                 "Can't get_all() when S3 is initialized without a prefix"
@@ -791,18 +909,30 @@ class S3(object):
 
     def put(self, key, obj, overwrite=True, content_type=None, metadata=None):
         """
-        Put an object to S3.
-        Args:
-            key:           (required) suffix for the object.
-            obj:           (required) a bytes, string, or a unicode object to
-                           be stored in S3.
-            overwrite:     (optional) overwrites the key with obj, if it exists
-            content_type:  (optional) string representing the MIME type of the
-                           object
-            metadata:      (optional) User metadata to store alongside the object
-        Returns:
-            an S3 URL corresponding to the object stored.
+        Upload a single object to S3.
+
+        Parameters
+        ----------
+        key : str or `S3PutObject`
+            Object path. It can be an S3 url or a path suffix.
+        obj : bytes or str
+            An object to store in S3. Strings are converted to UTF-8 encoding.
+        overwrite : bool
+            Overwrite the object if it exists. If set to False, the operation
+            succeeds without uploading anything if the key already exists
+            (default: True).
+        content_type : str
+            Optional MIME type for the object.
+        metadata : Dict
+            A JSON-encodeable dictionary of additional headers to be stored
+            as metadata with the object.
+
+        Returns
+        -------
+        `S3Object`
+            An S3Object corresponding to the object stored.
         """
+
         if isinstance(obj, (RawIOBase, BufferedIOBase)):
             if not obj.readable() or not obj.seekable():
                 raise MetaflowS3InvalidObject(
@@ -861,17 +991,29 @@ class S3(object):
 
     def put_many(self, key_objs, overwrite=True):
         """
-        Put objects to S3 in parallel.
-        Args:
-            key_objs:  (required) an iterator of (key, value) tuples. Value must
-                       be a string, bytes, or a unicode object. Instead of
-                       (key, value) tuples, you can also pass any object that
-                       has the following properties 'key', 'value', 'content_type',
-                       'metadata' like the S3PutObject for example. 'key' and
-                       'value' are required but others are optional.
-            overwrite: (optional) overwrites the key with obj, if it exists
-        Returns:
-            a list of (key, S3 URL) tuples corresponding to the files sent.
+        Upload many objects to S3.
+
+        Each object to be uploaded can be specified in two ways:
+
+        1. As a a `(key, obj)` tuple where `key` is a string specifying
+           the path and `obj` is a string or a bytes object.
+
+        2. As a `S3PutObject` which contains additional metadata to be
+           stored with the object.
+
+        Parameters
+        ----------
+        key_objs : List[(key, object) or `S3PutObject`]
+            List of key-object pairs to upload.
+        overwrite : bool
+            Overwrite the object if it exists. If set to False, the operation
+            succeeds without uploading anything if the key already exists
+            (default: True).
+
+        Returns
+        -------
+        List[(str, str)]
+            List of `(key, url)` pairs corresponding to the objects uploaded.
         """
 
         def _store():
@@ -918,16 +1060,29 @@ class S3(object):
 
     def put_files(self, key_paths, overwrite=True):
         """
-        Put files to S3 in parallel.
-        Args:
-            key_paths: (required) an iterator of (key, path) tuples. Instead of
-                       (key, path) tuples, you can also pass any object that
-                       has the following properties 'key', 'path', 'content_type',
-                       'metadata' like the S3PutObject for example. 'key' and
-                       'path' are required but others are optional.
-            overwrite: (optional) overwrites the key with obj, if it exists
-        Returns:
-            a list of (key, S3 URL) tuples corresponding to the files sent.
+        Upload many objects to S3.
+
+        Each object to be uploaded can be specified in two ways:
+
+        1. As a a `(key, obj)` tuple where `key` is a string specifying
+           the path and `obj` is a string or a bytes object.
+
+        2. As a `S3PutObject` which contains additional metadata to be
+           stored with the object.
+
+        Parameters
+        ----------
+        key_objs : List[(key, object) or `S3PutObject`]
+            List of key-object pairs to upload.
+        overwrite : bool
+            Overwrite the object if it exists. If set to False, the operation
+            succeeds without uploading anything if the key already exists
+            (default: True).
+
+        Returns
+        -------
+        List[(str, str)]
+            List of `(key, url)` pairs corresponding to the objects uploaded.
         """
 
         def _check():
@@ -992,7 +1147,7 @@ class S3(object):
 
     # add some jitter to make sure retries are not synchronized
     def _jitter_sleep(self, trynum, multiplier=2):
-        interval = multiplier ** trynum + random.randint(0, 10)
+        interval = multiplier**trynum + random.randint(0, 10)
         time.sleep(interval)
 
     # NOTE: re: _read_many_files and _put_many_files
