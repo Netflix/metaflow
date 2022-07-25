@@ -95,7 +95,9 @@ class S3Object(object):
     """
     This object represents a path or an object in S3,
     with an optional local copy.
-    Get or list calls return one or more of S3Objects.
+
+    `S3Object`s are not instantiated directly but they are returned
+    by many methods of the `S3` client.
     """
 
     def __init__(
@@ -147,6 +149,11 @@ class S3Object(object):
     def exists(self):
         """
         Does this key correspond to an object in S3?
+
+        Returns
+        -------
+        bool
+            True if this object points at an existing object (file) in S3.
         """
         return self._size is not None
 
@@ -154,6 +161,14 @@ class S3Object(object):
     def downloaded(self):
         """
         Has this object been downloaded?
+
+        If True, the contents can be accessed through `path`, `blob`,
+        and `text` properties.
+
+        Returns
+        -------
+        bool
+            True if the contents of this object have been downloaded.
         """
         return bool(self._path)
 
@@ -161,13 +176,23 @@ class S3Object(object):
     def url(self):
         """
         S3 location of the object
+
+        Returns
+        -------
+        str
+            The S3 location of this object.
         """
         return self._url
 
     @property
     def prefix(self):
         """
-        Prefix requested that matches the object.
+        Prefix requested that matches this object.
+
+        Returns
+        -------
+        str
+            Requested prefix
         """
         return self._prefix
 
@@ -175,25 +200,43 @@ class S3Object(object):
     def key(self):
         """
         Key corresponds to the key given to the get call that produced
-        this object. This may be a full S3 URL or a suffix based on what
+        this object.
+
+        This may be a full S3 URL or a suffix based on what
         was requested.
+
+        Returns
+        -------
+        str
+            Key requested.
         """
         return self._key
 
     @property
     def path(self):
         """
-        Path to the local file corresponding to the object downloaded.
+        Path to a local temporary file corresponding to the object downloaded.
+
         This file gets deleted automatically when a S3 scope exits.
         Returns None if this S3Object has not been downloaded.
+
+        Returns
+        -------
+        str
+            Local path, if the object has been downloaded.
         """
         return self._path
 
     @property
     def blob(self):
         """
-        Contents of the object as a byte string.
-        Returns None if this S3Object has not been downloaded.
+        Contents of the object as a byte string or None if the
+        object hasn't been downloaded.
+
+        Returns
+        -------
+        bytes
+            Contents of the object as bytes.
         """
         if self._path:
             with open(self._path, "rb") as f:
@@ -202,8 +245,15 @@ class S3Object(object):
     @property
     def text(self):
         """
-        Contents of the object as a Unicode string.
-        Returns None if this S3Object has not been downloaded.
+        Contents of the object as a string or None if the
+        object hasn't been downloaded.
+
+        The object is assumed to contain UTF-8 encoded data.
+
+        Returns
+        -------
+        str
+            Contents of the object as text.
         """
         if self._path:
             return self.blob.decode("utf-8", errors="replace")
@@ -212,16 +262,29 @@ class S3Object(object):
     def size(self):
         """
         Size of the object in bytes.
+
         Returns None if the key does not correspond to an object in S3.
+
+        Returns
+        -------
+        int
+            Size of the object in bytes, if the object exists.
         """
         return self._size
 
     @property
     def has_info(self):
         """
-        Returns true if this S3Object contains the content-type or user-metadata.
-        If False, this means that content_type, metadata, range_info and last_modified
-        will not return the proper information (returning None instead)
+        Returns true if this `S3Object` contains the content-type MIME header or
+        user-defined metadata.
+
+        If False, this means that `content_type`, `metadata`, `range_info` and
+        `last_modified`will retuern None.
+
+        Returns
+        -------
+        bool
+            True if additional metadata is available.
         """
         return (
             self._content_type is not None
@@ -232,33 +295,57 @@ class S3Object(object):
     @property
     def metadata(self):
         """
-        Returns a dictionary of user-defined metadata; if unknown, returns None
+        Returns a dictionary of user-defined metadata, or None if no metadata
+        is defined.
+
+        Returns
+        -------
+        Dict
+            User-defined metadata.
         """
         return self._metadata
 
     @property
     def content_type(self):
         """
-        Returns the content-type of the S3 object; if unknown, returns None
+        Returns the content-type of the S3 object or None if it is not defined.
+
+        Returns
+        -------
+        str
+            Content type or None if the content type is undefined.
         """
         return self._content_type
 
     @property
     def range_info(self):
         """
-        Returns a namedtuple containing the following fields:
-            - total_size: size in S3 of the object
-            - request_offset: the starting offset in this S3Object
-            - request_length: the length downloaded in this S3Object
-        If unknown, returns None
+        If the object corresponds to a partially downloaded object, return
+        information of what was downloaded.
+
+        The returned object has the follwing fields:
+        - `total_size`: Size of the object in S3.
+        - `request_offset`: The starting offset.
+        - `request_length`: The number of bytes downloaded.
+
+        Returns
+        -------
+        namedtuple
+            An object containing information about the partial download. If
+            the `S3Object` doesn't correspond to a partially downloaded file,
+            returns None.
         """
         return self._range_info
 
     @property
     def last_modified(self):
         """
-        Returns the last modified unix timestamp of the object, or None
-        if not fetched.
+        Returns the last modified unix timestamp of the object.
+
+        Returns
+        -------
+        int
+            Unix timestamp corresponding to the last modified time.
         """
         return self._last_modified
 

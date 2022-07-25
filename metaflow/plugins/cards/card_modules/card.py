@@ -25,6 +25,7 @@ class MetaflowCard(object):
     options : Dict
         JSON-encodeable dictionary containing user-defineable options for the class.
     """
+
     type = None
 
     ALLOW_USER_COMPONENTS = False
