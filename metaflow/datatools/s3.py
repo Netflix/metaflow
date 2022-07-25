@@ -1021,7 +1021,7 @@ class S3(object):
 
         Parameters
         ----------
-        key_objs : List[(key, object) or `S3PutObject`]
+        key_objs : List[(str, str) or `S3PutObject`]
             List of key-object pairs to upload.
         overwrite : bool
             Overwrite the object if it exists. If set to False, the operation
@@ -1078,20 +1078,20 @@ class S3(object):
 
     def put_files(self, key_paths, overwrite=True):
         """
-        Upload many objects to S3.
+        Upload many local files to S3.
 
-        Each object to be uploaded can be specified in two ways:
+        Each file to be uploaded can be specified in two ways:
 
-        1. As a a `(key, obj)` tuple where `key` is a string specifying
-           the path and `obj` is a string or a bytes object.
+        1. As a a `(key, path)` tuple where `key` is a string specifying
+           the S3 path and `path` is the path to a local file.
 
         2. As a `S3PutObject` which contains additional metadata to be
-           stored with the object.
+           stored with the file.
 
         Parameters
         ----------
-        key_objs : List[(key, object) or `S3PutObject`]
-            List of key-object pairs to upload.
+        key_paths : List[(str, str) or `S3PutObject`]
+            List of files to upload.
         overwrite : bool
             Overwrite the object if it exists. If set to False, the operation
             succeeds without uploading anything if the key already exists
@@ -1100,7 +1100,7 @@ class S3(object):
         Returns
         -------
         List[(str, str)]
-            List of `(key, url)` pairs corresponding to the objects uploaded.
+            List of `(key, url)` pairs corresponding to the files uploaded.
         """
 
         def _check():
