@@ -47,7 +47,7 @@ class CondaStepDecorator(StepDecorator):
     Parameters
     ----------
     libraries : Dict
-        Libraries to use for this flow. The key is the name of the package
+        Libraries to use for this step. The key is the name of the package
         and the value is the version to use (Default: {}).
     python : string
         Version of Python to use, e.g. '3.7.4'

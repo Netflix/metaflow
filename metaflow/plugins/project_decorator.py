@@ -13,6 +13,19 @@ VALID_NAME_LEN = 128
 
 
 class ProjectDecorator(FlowDecorator):
+    """
+    Specifies what projects belong to the same project.
+
+    A project-specific namespace is created for all flows that
+    use the same `@project(name)`.
+
+    Parameters
+    ----------
+    name : str
+        Project name. Make sure that the name is unique amongst all
+        projects that use the same production scheduler.
+    """
+
     name = "project"
     defaults = {"name": None}
 
