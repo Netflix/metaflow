@@ -22,7 +22,6 @@ from metaflow.plugins.azure.azure_utils import (
     check_azure_deps,
     process_exception,
     handle_exceptions,
-    get_azure_storage_shared_access_signature,
     create_static_token_credential,
     parse_azure_full_path,
 )
@@ -436,17 +435,10 @@ class AzureStorage(DataStoreStorage):
         Speed up applies mainly to the "no access key" path.
         """
         if self._root_client is None:
-            shared_access_signature = get_azure_storage_shared_access_signature()
-            if shared_access_signature:
-                self._root_client = _AzureRootClient(
-                    datastore_root=self.datastore_root,
-                    shared_access_signature=shared_access_signature,
-                )
-            else:
-                self._root_client = _AzureRootClient(
-                    datastore_root=self.datastore_root,
-                    token=self._get_default_token(),
-                )
+            self._root_client = _AzureRootClient(
+                datastore_root=self.datastore_root,
+                token=self._get_default_token(),
+            )
         return self._root_client
 
     @classmethod

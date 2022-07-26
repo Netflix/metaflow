@@ -97,20 +97,12 @@ class MetaflowEnvironment(object):
             from .plugins.azure.azure_utils import parse_azure_full_path
 
             container_name, blob = parse_azure_full_path(code_package_url)
-            blob_url = "{blob_service_endpoint}/{container}/{blob}".format(
-                # remove a trailing slash, if present
-                blob_service_endpoint="${METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT%/}",
-                container=container_name,
+            # remove a trailing slash, if present
+            blob_endpoint = "${METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT%/}"
+            return "download-azure-blob --blob-endpoint={blob_endpoint} --container={container} --blob={blob} --output-file=job.tar".format(
+                blob_endpoint=blob_endpoint,
                 blob=blob,
-            )
-            # Note that the signature is attached only if it is defined in env.
-            # Alternative Azure auth mechanisms will likely be implemented in future.
-            source_quoted = (
-                '\\"%s${METAFLOW_AZURE_STORAGE_SHARED_ACCESS_SIGNATURE:+?${METAFLOW_AZURE_STORAGE_SHARED_ACCESS_SIGNATURE}}\\"'
-                % (blob_url,)
-            )
-            return "/tmp/azcopy copy {source_quoted} job.tar".format(
-                source_quoted=source_quoted
+                container=container_name,
             )
         else:
             raise NotImplementedError(
@@ -124,20 +116,8 @@ class MetaflowEnvironment(object):
             cmds.append("%s -m pip install awscli boto3 -qqq" % self._python())
         elif datastore_type == "azure":
             cmds.append(
-                "%s -m pip install azure-identity azure-storage-blob -qqq"
+                "%s -m pip install azure-identity azure-storage-blob simple-azure-blob-downloader -qqq"
                 % self._python()
-            )
-            # See: https://docs.microsoft.com/en-us/azure/storage/common/storage-use-azcopy-v10#obtain-a-static-download-link
-            # This links to amd64 build. Yes, this not return the right thing for arm64.
-            # Note as of 7/19/2022, ARM build exists but is in preview status.
-            # We will need to account for this in future.  Same issue in miniconda installation in batch_bootstrap.py
-            cmds.extend(
-                [
-                    "wget -O azcopy_v10.tar.gz https://aka.ms/downloadazcopy-v10-linux",
-                    "tar -xf azcopy_v10.tar.gz --strip-components=1",
-                    "mv azcopy /tmp/azcopy",  # we make no assumptions about evolution of CWD
-                    "chmod +x /tmp/azcopy",
-                ]
             )
         else:
             raise NotImplementedError(
