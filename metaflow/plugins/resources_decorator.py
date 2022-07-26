@@ -94,7 +94,6 @@ class ResourcesDecorator(StepDecorator):
         "cpu": None,
         "gpu": None,
         "memory": None,
-        # Only AWS Batch supported attributes
         "shared_memory": None,
         # Only KFP supported attributes
         "gpu_vendor": None,
