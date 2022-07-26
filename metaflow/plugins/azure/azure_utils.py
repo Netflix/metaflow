@@ -1,8 +1,6 @@
 import sys
 import time
 
-from metaflow.metaflow_config import AZURE_STORAGE_SHARED_ACCESS_SIGNATURE
-
 from metaflow.plugins.azure.azure_exceptions import (
     MetaflowAzureAuthenticationError,
     MetaflowAzureResourceError,
@@ -218,8 +216,3 @@ def create_static_token_credential(token_):
             return self._cached_token == other._cached_token
 
     return StaticTokenCredential(token_)
-
-
-def get_azure_storage_shared_access_signature():
-    """Wrapping into a function to ease testing"""
-    return AZURE_STORAGE_SHARED_ACCESS_SIGNATURE

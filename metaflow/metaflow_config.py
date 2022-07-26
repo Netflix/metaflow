@@ -216,11 +216,6 @@ CARD_NO_WARNING = from_conf("METAFLOW_CARD_NO_WARNING", False)
 AZURE_STORAGE_BLOB_SERVICE_ENDPOINT = from_conf(
     "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
 )
-# Either an Azure storage SAS or storage account access key.
-# If provided, takes precedent over all other forms of credential (e.g. Azure CLI)
-AZURE_STORAGE_SHARED_ACCESS_SIGNATURE = from_conf(
-    "METAFLOW_AZURE_STORAGE_SHARED_ACCESS_SIGNATURE", from_env_only=True
-)
 
 # Azure storage can use process-based parallelism instead of threads.
 # Processes perform better for high throughput workloads (e.g. many huge artifacts)

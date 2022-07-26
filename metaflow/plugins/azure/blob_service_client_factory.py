@@ -1,7 +1,6 @@
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
 from metaflow.plugins.azure.azure_utils import (
-    get_azure_storage_shared_access_signature,
     create_cacheable_default_azure_credentials,
     check_azure_deps,
 )
@@ -126,13 +125,8 @@ def get_azure_blob_service_client(
     blob_service_endpoint = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
 
     if not credential:
-        shared_access_signature = get_azure_storage_shared_access_signature()
-        if shared_access_signature:
-            credential = shared_access_signature
-            credential_is_cacheable = True
-        else:
-            credential = create_cacheable_default_azure_credentials()
-            credential_is_cacheable = True
+        credential = create_cacheable_default_azure_credentials()
+        credential_is_cacheable = True
 
     if not credential_is_cacheable:
         return _create_blob_service_client(
