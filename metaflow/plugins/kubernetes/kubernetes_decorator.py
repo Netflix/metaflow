@@ -50,9 +50,21 @@ class KubernetesDecorator(StepDecorator):
         Disk size (in MB) required for this step. Defaults to 10GB. If
         `@resources` is also present, the maximum value from all decorators is
         used.
-    image : string
+    image : str
         Docker image to use when launching on Kubernetes. If not specified, a
         default Docker image mapping to the current version of Python is used.
+    service_account : str
+        Kubernetes service account to use when launching pod in Kubernetes. If
+        not specified, the value of `METAFLOW_KUBERNETES_SERVICE_ACCOUNT` is
+        used from Metaflow configuration.
+    namespace : str
+        Kubernetes namespace to use when launching pod in Kubernetes. If
+        not specified, the value of `METAFLOW_KUBERNETES_NAMESPACE` is used
+        from Metaflow configuration.
+    secrets : List[str]
+        Kubernetes secrets to use when launching pod in Kubernetes. These
+        secrets are in addition to the ones defined in `METAFLOW_KUBERNETES_SECRETS`
+        in Metaflow configuration.
     """
 
     name = "kubernetes"
