@@ -3,6 +3,7 @@ import pprint
 import subprocess
 import time
 from typing import Dict, List
+from multiprocessing.shared_memory import SharedMemory
 
 from kubernetes.client import (
     V1EnvVar,
@@ -166,7 +167,7 @@ class ResourcesFlow(FlowSpec):
         self.next(self.foreach_step, foreach="items")
 
     @environment(vars={"MY_ENV": "value"})  # pylint: disable=E1102
-    @resources(volume="11G")
+    @resources(volume="11G", shared_memory="200M")
     @step
     def foreach_step(self):
         # test simple environment var
@@ -183,6 +184,13 @@ class ResourcesFlow(FlowSpec):
             "df -h | grep /opt/metaflow_volume", shell=True
         )
         assert "11G" in str(output)
+
+        # Testing shared memory that
+        # - exceeds docker default shared memory size of 64 MB - 150 MB in this case
+        # - test on foreach step to make sure volume name collision is not an issue
+        shared_memory_block = SharedMemory(create=True, size=157286400)
+        shared_memory_block.close()
+        shared_memory_block.unlink()  # destroy shared memory block
 
         self.next(self.join_step)
 

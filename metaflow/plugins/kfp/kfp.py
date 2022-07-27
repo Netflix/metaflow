@@ -17,6 +17,7 @@ from kubernetes.client import (
     V1Affinity,
     V1EnvVar,
     V1EnvVarSource,
+    V1EmptyDirVolumeSource,
     V1NodeAffinity,
     V1NodeSelector,
     V1NodeSelectorRequirement,
@@ -28,6 +29,7 @@ from kubernetes.client import (
     V1PersistentVolumeClaimSpec,
     V1ResourceRequirements,
     V1Toleration,
+    V1Volume,
 )
 
 from metaflow.decorators import FlowDecorator
@@ -492,6 +494,20 @@ class KubeflowPipelines(object):
                     mode=mode,
                 )
                 container_op.add_pvolumes({volume_dir: volume})
+        if "shared_memory" in resource_requirements:
+            memory_volume = PipelineVolume(
+                volume=V1Volume(
+                    # k8s volume name must consist of lower case alphanumeric characters or '-',
+                    # and must start and end with an alphanumeric character,
+                    # but step name is python function name that tends to be alphanumeric chars with '_'
+                    name=f"{kfp_component.step_name.lower().replace('_', '-')}-shm",
+                    empty_dir=V1EmptyDirVolumeSource(
+                        medium="Memory",
+                        size_limit=resource_requirements["shared_memory"],
+                    ),
+                )
+            )
+            container_op.add_pvolumes({"dev/shm": memory_volume})
 
         if kfp_component.accelerator_decorator:
             accelerator_type: str = kfp_component.accelerator_decorator.attributes[
