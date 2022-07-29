@@ -144,6 +144,11 @@ class AIRFLOW_MACROS:
     # Hence : Foreachs will require some special form of plumbing.
     # https://stackoverflow.com/questions/62962386/can-an-airflow-task-dynamically-generate-a-dag-at-runtime
     TASK_ID = (
+        "%s-{{ [run_id, ti.task_id, dag_run.dag_id] | task_id_creator  }}"
+        % RUN_ID_PREFIX
+    )
+
+    FOREACH_TASK_ID = (
         "%s-{{ [run_id, ti.task_id, dag_run.dag_id, ti.map_index] | task_id_creator  }}"
         % RUN_ID_PREFIX
     )
