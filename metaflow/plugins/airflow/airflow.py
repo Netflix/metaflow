@@ -514,13 +514,10 @@ class Airflow(object):
 
         if node.name == "start":
             # We need a separate unique ID for the special _parameters task
-            task_id_params = (
-                "%s-params"
-                % (
-                    AIRFLOW_MACROS.TASK_ID
-                    if not self.contains_foreach
-                    else AIRFLOW_MACROS.FOREACH_TASK_ID
-                )
+            task_id_params = "%s-params" % (
+                AIRFLOW_MACROS.TASK_ID
+                if not self.contains_foreach
+                else AIRFLOW_MACROS.FOREACH_TASK_ID
             )
             # Export user-defined parameters into runtime environment
             param_file = "".join(
