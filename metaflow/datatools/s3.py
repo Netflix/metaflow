@@ -1034,8 +1034,8 @@ class S3(object):
 
         Returns
         -------
-        `S3Object`
-            An S3Object corresponding to the object stored.
+        str
+            URL of the object stored.
         """
 
         if isinstance(obj, (RawIOBase, BufferedIOBase)):
