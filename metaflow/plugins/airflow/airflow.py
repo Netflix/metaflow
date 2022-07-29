@@ -520,7 +520,7 @@ class Airflow(object):
                     AIRFLOW_MACROS.TASK_ID
                     if not self.contains_foreach
                     else AIRFLOW_MACROS.FOREACH_TASK_ID
-                ),
+                )
             )
             # Export user-defined parameters into runtime environment
             param_file = "".join(
