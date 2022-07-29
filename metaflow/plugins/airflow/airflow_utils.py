@@ -1,6 +1,7 @@
 import hashlib
 import json
 import sys
+import platform
 from collections import defaultdict
 from datetime import datetime, timedelta
 
@@ -12,7 +13,7 @@ RUN_HASH_ID_LEN = 12
 TASK_ID_HASH_LEN = 8
 RUN_ID_PREFIX = "airflow"
 AIRFLOW_FOREACH_SUPPORT_VERSION = "2.3.0"
-AIRFLOW_MIN_SUPPORT_VERSION = "2.0.0"
+AIRFLOW_MIN_SUPPORT_VERSION = "2.2.0"
 KUBERNETES_PROVIDER_FOREACH_VERSION = "4.2.0"
 
 
@@ -109,6 +110,24 @@ def _check_foreach_compatible_kubernetes_provider():
         KUBERNETES_PROVIDER_FOREACH_VERSION
     ):
         raise IncompatibleKubernetesProviderVersionException()
+
+
+def datetimeparse(isotimestamp):
+    ver = int(platform.python_version_tuple()[0]) * 10 + int(
+        platform.python_version_tuple()[1]
+    )
+    if ver >= 37:
+        return datetime.fromisoformat(isotimestamp)
+    else:
+        return datetime.strptime(isotimestamp, "%Y-%m-%dT%H:%M:%S.%f")
+
+
+def get_xcom_arg_class():
+    try:
+        from airflow import XComArg
+    except ImportError:
+        return None
+    return XComArg
 
 
 class AIRFLOW_MACROS:
@@ -243,7 +262,7 @@ class AirflowDAGArgs(object):
                 elif isinstance(v, dict) and isinstance(type_check_dict[k], dict):
                     kwrgs[k] = parse_args(v, type_check_dict[k])
                 elif type_check_dict[k] == datetime:
-                    kwrgs[k] = datetime.fromisoformat(v)
+                    kwrgs[k] = datetimeparse(v)
                 elif type_check_dict[k] == timedelta:
                     kwrgs[k] = timedelta(**v)
                 else:
@@ -524,7 +543,11 @@ class Workflow(object):
 
     def compile(self):
         from airflow import DAG
-        from airflow import XComArg
+
+        # We do this because airflow 2.0.0 cannot import this so we have to do it this wway.
+        # `XComArg` is needed for dynamic task mapping and if the airflow installation is of the right
+        # verion (+2.3.0) then the class will be importible.
+        XComArg = get_xcom_arg_class()
 
         _validate_minimum_airflow_version()
 
