@@ -40,7 +40,6 @@ class ParallelDecorator(StepDecorator):
             from functools import partial
 
             env_to_use = getattr(self.environment, "base_env", self.environment)
-
             return partial(
                 _local_multinode_control_task_step_func,
                 flow,
