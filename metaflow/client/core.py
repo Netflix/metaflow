@@ -1002,7 +1002,7 @@ class Task(MetaflowObject):
     artifacts : MetaflowArtifacts
         Container of `DataArtifact` objects produced by this task.
     successful : boolean
-        True if the task successfully completed.
+        True if the task completed successfully.
     finished : boolean
         True if the task completed.
     exception : object

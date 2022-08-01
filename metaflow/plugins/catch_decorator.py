@@ -35,7 +35,7 @@ class CatchDecorator(StepDecorator):
         If not specified, the exception is not stored.
     print_exception : bool
         Determines whether or not the exception is printed to
-        stdout when caught (Default: True).
+        stdout when caught (default: True).
     """
 
     name = "catch"

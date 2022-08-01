@@ -19,9 +19,9 @@ class RetryDecorator(StepDecorator):
     Parameters
     ----------
     times : int
-        Number of times to retry this task (Default: 3).
+        Number of times to retry this task (default: 3).
     minutes_between_retries : int
-        Number of minutes between retries (Default: 2).
+        Number of minutes between retries (default: 2).
     """
 
     name = "retry"

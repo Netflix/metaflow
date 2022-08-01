@@ -285,7 +285,7 @@ class IncludeFile(Parameter):
     default : str
         Default path to a local file.
     is_text : bool
-        Convert the file contents to a string using the provided `encoding` (Default: True).
+        Convert the file contents to a string using the provided `encoding` (default: True).
         If False, the artifact is stored in `bytes`.
     encoding : str
         Use this encoding to decode the file contexts if `is_text=True` (default: `utf-8`).
@@ -295,7 +295,7 @@ class IncludeFile(Parameter):
     help : str
         Help text to show in `run --help`.
     show_default : bool
-        If True, show the default value in the help text (Default: True).
+        If True, show the default value in the help text (default: True).
     """
 
     def __init__(

@@ -193,14 +193,14 @@ class Parameter(object):
         The type of the default value is used as the parameter `type`.
     type : type
         If `default` is not specified, define the parameter type. Specify
-        one of `str`, `float`, `int`, `bool`, or `JSONType` (Default: str).
+        one of `str`, `float`, `int`, `bool`, or `JSONType` (default: str).
     help : str
         Help text to show in `run --help`.
     required : bool
         Require that the user specified a value for the parameter.
         `required=True` implies that the `default` is not used.
     show_default : bool
-        If True, show the default value in the help text (Default: True).
+        If True, show the default value in the help text (default: True).
     """
 
     def __init__(self, name, **kwargs):

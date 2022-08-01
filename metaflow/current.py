@@ -129,7 +129,7 @@ class Current(object):
     @property
     def retry_count(self):
         """
-        The index of the task exeuction attempt.
+        The index of the task execution attempt.
 
         This property returns 0 for the first attempt to execute the task.
         If the @retry decorator is used and the first attempt fails, this

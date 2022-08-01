@@ -279,7 +279,7 @@ class S3Object(object):
         user-defined metadata.
 
         If False, this means that `content_type`, `metadata`, `range_info` and
-        `last_modified`will retuern None.
+        `last_modified` will return None.
 
         Returns
         -------
@@ -320,7 +320,7 @@ class S3Object(object):
     @property
     def range_info(self):
         """
-        If the object corresponds to a partially downloaded object, return
+        If the object corresponds to a partially downloaded object, returns
         information of what was downloaded.
 
         The returned object has the follwing fields:

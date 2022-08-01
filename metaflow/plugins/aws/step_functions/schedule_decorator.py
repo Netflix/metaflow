@@ -9,11 +9,11 @@ class ScheduleDecorator(FlowDecorator):
     Parameters
     ----------
     hourly : bool
-        Run the workflow hourly (Default: False).
+        Run the workflow hourly (default: False).
     daily : bool
-        Run the workflow daily (Default: True).
+        Run the workflow daily (default: True).
     weekly : bool
-        Run the workflow weekly (Default: False).
+        Run the workflow weekly (default: False).
     cron : str
         Run the workflow at [a custom Cron schedule](https://docs.aws.amazon.com/eventbridge/latest/userguide/scheduled-events.html#cron-expressions)
         specified by this expression.

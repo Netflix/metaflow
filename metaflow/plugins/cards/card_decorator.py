@@ -30,7 +30,7 @@ class CardDecorator(StepDecorator):
     Parameters
     ----------
     type : str
-        Card type (Default: 'default').
+        Card type (default: 'default').
     id : str
         If multiple cards are present, use this id to identify this card.
     options : Dict

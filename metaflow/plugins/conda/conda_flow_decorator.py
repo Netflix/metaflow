@@ -13,12 +13,12 @@ class CondaFlowDecorator(FlowDecorator):
     ----------
     libraries : Dict
         Libraries to use for this flow. The key is the name of the package
-        and the value is the version to use (Default: {}).
+        and the value is the version to use (default: `{}`).
     python : string
         Version of Python to use, e.g. '3.7.4'
-        (Default: None, i.e. the current Python version).
+        (default: None, i.e. the current Python version).
     disabled : bool
-        If set to True, disables Conda (Default: False).
+        If set to True, disables Conda (default: False).
     """
 
     name = "conda_base"
