@@ -160,6 +160,49 @@ def set_parameter_context(flow_name, echo, datastore):
 
 
 class Parameter(object):
+    """
+    Defines a parameter for a flow.
+
+    Parameters must be instantiated as class variables in flow classes, e.g.
+    ```
+    class MyFlow(FlowSpec):
+        param = Parameter('myparam')
+    ```
+    in this case, the parameter is specified on the command line as
+    ```
+    python myflow.py run --myparam=5
+    ```
+    and its value is accessible through a read-only artifact like this:
+    ```
+    print(self.param == 5)
+    ```
+    Note that the user-visible parameter name, `myparam` above, can be
+    different than the artifact name, `param` above.
+
+    The parameter value is converted to a Python type based on the `type`
+    argument or to match the type of `default`, if it is set.
+
+    Parameters
+    ----------
+    name : str
+        User-visible parameter name.
+    default : str or float or int or bool or `JSONType` or a function.
+        Default value for the parameter. Use a special `JSONType` class to
+        indicate that the value must be a valid JSON object. A function
+        implies that the parameter corresponds to a *deploy-time parameter*.
+        The type of the default value is used as the parameter `type`.
+    type : type
+        If `default` is not specified, define the parameter type. Specify
+        one of `str`, `float`, `int`, `bool`, or `JSONType` (default: str).
+    help : str
+        Help text to show in `run --help`.
+    required : bool
+        Require that the user specified a value for the parameter.
+        `required=True` implies that the `default` is not used.
+    show_default : bool
+        If True, show the default value in the help text (default: True).
+    """
+
     def __init__(self, name, **kwargs):
         self.name = name
         self.kwargs = kwargs

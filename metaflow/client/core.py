@@ -48,6 +48,11 @@ def metadata(ms):
     for example, not allow access to information stored in remote
     metadata providers.
 
+    Note that you don't typically have to call this function directly. Usually
+    the metadata provider is set through the Metaflow configuration file. If you
+    need to switch between multiple providers, you can use the `METAFLOW_PROFILE`
+    environment variable to switch between configurations.
+
     Parameters
     ----------
     ms : string
@@ -59,7 +64,7 @@ def metadata(ms):
     -------
     string
         The description of the metadata selected (equivalent to the result of
-        get_metadata())
+        get_metadata()).
     """
     global current_metadata
     infos = ms.split("@", 1)
@@ -91,11 +96,12 @@ def get_metadata():
     """
     Returns the current Metadata provider.
 
-    This call returns the current Metadata being used to return information
-    about Metaflow objects.
+    If this is not set explicitly using `metadata`, the default value is
+    determined through the Metaflow configuration. You can use this call to
+    check that your configuration is set up properly.
 
-    If this is not set explicitly using metadata(), the default value is
-    determined through environment variables.
+    If multiple configuration profiles are present, this call returns the one
+    selected through the `METAFLOW_PROFILE` environment variable.
 
     Returns
     -------
@@ -111,10 +117,8 @@ def get_metadata():
 
 def default_metadata():
     """
-    Resets the Metadata provider to the default value.
-
-    The default value of the Metadata provider is determined through a combination of
-    environment variables.
+    Resets the Metadata provider to the default value, that is, to the value
+    that was used prior to any `metadata` calls.
 
     Returns
     -------
@@ -181,15 +185,13 @@ def get_namespace():
 
 def default_namespace():
     """
-    Sets or resets the namespace used to filter objects.
-
-    The default namespace is in the form 'user:<username>' and is intended to filter
-    objects belonging to the user.
+    Resets the namespace used to filter objects to the default one, i.e. the one that was
+    used prior to any `namespace` calls.
 
     Returns
     -------
     string
-        The result of get_namespace() after
+        The result of get_namespace() after the namespace has been reset.
     """
     global current_namespace
     current_namespace = resolve_identity()
@@ -205,11 +207,10 @@ class Metaflow(object):
 
     Attributes
     ----------
-    flows : List of all flows.
-        Returns the list of all flows. Note that only flows present in the set namespace will
-        be returned. A flow is present in a namespace if it has at least one run in the
-        namespace.
-
+    flows : List[Flow]
+        Returns the list of all `Flow` objects known to this metadata provider. Note that only
+        flows present in the current namespace will be returned. A `Flow` is present in a namespace
+        if it has at least one run in the namespace.
     """
 
     def __init__(self):
@@ -309,11 +310,11 @@ class MetaflowObject(object):
     Attributes
     ----------
     tags : Set
-        Tags associated with the object (user and system tags).
+        Tags associated with the run this object belongs to (user and system tags).
     user_tags: Set
-        User tags associated with the object
+        User tags associated with the run this object belongs to.
     system_tags: Set
-        System tags associated with the object
+        System tags associated with the run this object belongs to.
     created_at : datetime
         Date and time this object was first created.
     parent : MetaflowObject
@@ -701,6 +702,33 @@ class MetaflowObject(object):
 
 
 class MetaflowData(object):
+    """
+    Container of data artifacts produced by a `Task`. This object is
+    instantiated through `Task.data`.
+
+    `MetaflowData` allows results to be retrieved by their name
+    through a convenient dot notation:
+
+    ```python
+    Task(...).data.my_object
+    ```
+
+    You can also test the existence of an object
+
+    ```python
+    if 'my_object' in Task(...).data:
+        print('my_object found')
+    ```
+
+    Note that this container relies on the local cache to load all data
+    artifacts. If your `Task` contains a lot of data, a more efficient
+    approach is to load artifacts individually like so
+
+    ```
+    Task(...)['my_object'].data
+    ```
+    """
+
     def __init__(self, artifacts):
         self._artifacts = dict((art.id, art) for art in artifacts)
 
@@ -719,22 +747,31 @@ class MetaflowData(object):
 
 class MetaflowCode(object):
     """
-    Describes the code that is occasionally stored with a run.
+    Snapshot of the code used to execute this `Run`. Instantiate the object through
+    `Run(...).code` (if all steps are executed remotely) or `Task(...).code` for an
+    individual task. The code package is the same for all steps of a `Run`.
 
-    A code package will contain the version of Metaflow that was used (all the files comprising
-    the Metaflow library) as well as selected files from the directory containing the Python
-    file of the FlowSpec.
+    `MetaflowCode` includes a package of the user-defined `FlowSpec` class and supporting
+    files, as well as a snapshot of the Metaflow library itself.
+
+    Currently `MetaflowCode` objects are stored only for `Run`s that have at least one `Step`
+    executing outside the user's local environment.
+
+    You can extract code in the directory `snapshot` like so:
+    ```
+    Run(...).code.extractall(path='snapshot')
+    ```
 
     Attributes
     ----------
     path : string
-        Location (in the datastore provider) of the code package
+        Location (in the datastore provider) of the code package.
     info : Dict
-        Dictionary of information related to this code-package
+        Dictionary of information related to this code-package.
     flowspec : string
-        Source code of the file containing the FlowSpec in this code package
+        Source code of the file containing the `FlowSpec` in this code package.
     tarball : TarFile
-        Tar ball containing all the code
+        Python standard library `tarfile.TarFile` archive containing all the code.
     """
 
     def __init__(self, flow_name, code_package):
@@ -812,16 +849,19 @@ class MetaflowCode(object):
 
 class DataArtifact(MetaflowObject):
     """
-    A single data artifact and associated metadata.
+    A single data artifact and associated metadata. Note that this object does
+    not contain other objects as it is the leaf object in the hierarchy.
 
     Attributes
     ----------
     data : object
-        The unpickled representation of the data contained in this artifact
+        The data contained in this artifact, that is, the object produced during
+        execution of this run.
     sha : string
-        Encoding representing the unique identity of this artifact
+        A unique ID of this artifact.
     finished_at : datetime
-        Alias for created_at
+        Corresponds roughly to the `Task.finished_at` time of the parent `Task`.
+        An alias for `DataArtifact.created_at`.
     """
 
     _NAME = "artifact"
@@ -932,48 +972,53 @@ class DataArtifact(MetaflowObject):
 
 class Task(MetaflowObject):
     """
-    A Task represents an execution of a step.
+    A `Task` represents an execution of a `Step`.
 
-    As such, it contains all data artifacts associated with that execution as
-    well as all metadata associated with the execution.
+    It contains all `DataArtifact` objects produced by the task as
+    well as metadata related to execution.
 
-    Note that you can also get information about a specific *attempt* of a
-    task. By default, the latest finished attempt is returned but you can
+    Note that the `@retry` decorator may cause multiple attempts of
+    the task to be present. Usually you want the latest attempt, which
+    is what instantiating a `Task` object returns by default. If
+    you need to e.g. retrieve logs from a failed attempt, you can
     explicitly get information about a specific attempt by using the
     following syntax when creating a task:
-    `Task('flow/run/step/task', attempt=<attempt>)`. Note that you will not be able to
-    access a specific attempt of a task through the `.tasks` method of a step
-    for example (that will always return the latest attempt).
+
+    `Task('flow/run/step/task', attempt=<attempt>)`
+
+    where `attempt=0` corresponds to the first attempt etc.
 
     Attributes
     ----------
     metadata : List[Metadata]
-        List of all metadata associated with the task
+        List of all metadata events associated with the task.
     metadata_dict : Dict
-        Dictionary where the keys are the names of the metadata and the value are the values
-        associated with those names
+        A condensed version of `metadata`: A dictionary where keys
+        are names of metadata events and values the latest corresponding event.
     data : MetaflowData
-        Container of all data artifacts produced by this task
+        Container of all data artifacts produced by this task. Note that this
+        call downloads all data locally, so it can be slower than accessing
+        artifacts individually. See `MetaflowData` for more information.
     artifacts : MetaflowArtifacts
-        Container of DataArtifact objects produced by this task
+        Container of `DataArtifact` objects produced by this task.
     successful : boolean
-        True if the task successfully completed
+        True if the task completed successfully.
     finished : boolean
-        True if the task completed
+        True if the task completed.
     exception : object
-        Exception raised by this task if there was one
+        Exception raised by this task if there was one.
     finished_at : datetime
-        Time this task finished
+        Time this task finished.
     runtime_name : string
-        Runtime this task was executed on
+        Runtime this task was executed on.
     stdout : string
-        Standard output for the task execution
+        Standard output for the task execution.
     stderr : string
-        Standard error output for the task execution
+        Standard error output for the task execution.
     code : MetaflowCode
-        Code package for this task (if present)
+        Code package for this task (if present). See `MetaflowCode`.
     environment_info : Dict
-        Information about the execution environment (for example Conda)
+        Information about the execution environment.
     """
 
     _NAME = "task"
@@ -1385,8 +1430,18 @@ class Task(MetaflowObject):
         """
         Return an iterator over (utc_timestamp, logline) tuples.
 
-        If as_unicode=False, logline is returned as a byte object. Otherwise,
-        it is returned as a (unicode) string.
+        Parameters
+        ----------
+        stream : string
+            Either 'stdout' or 'stderr'.
+        as_unicode : boolean
+            If as_unicode=False, each logline is returned as a byte object. Otherwise,
+            it is returned as a (unicode) string.
+
+        Returns
+        -------
+        Iterator[(datetime, string)]
+            Iterator over timestamp, logline pairs.
         """
         from metaflow.mflog.mflog import merge_logs
 
@@ -1460,20 +1515,21 @@ class Task(MetaflowObject):
 
 class Step(MetaflowObject):
     """
-    A Step represents a user-defined Step (a method annotated with the @step decorator).
+    A `Step` represents a user-defined step, that is, a method annotated with the `@step` decorator.
 
-    As such, it contains all Tasks associated with the step (ie: all executions of the
-    Step). A linear Step will have only one associated task whereas a foreach Step will have
-    multiple Tasks.
+    It contains `Task` objects associated with the step, that is, all executions of the
+    `Step`. The step may contain multiple `Task`s in the case of a foreach step.
 
     Attributes
     ----------
     task : Task
-        Returns a Task object from the step
+        The first `Task` object in this step. This is a shortcut for retrieving the only
+        task contained in a non-foreach step.
     finished_at : datetime
-        Time this step finished (time of completion of the last task)
+        Time when the latest `Task` of this step finished. Note that in the case of foreaches,
+        this time may change during execution of the step.
     environment_info : Dict
-        Information about the execution environment (for example Conda)
+        Information about the execution environment.
     """
 
     _NAME = "step"
@@ -1497,29 +1553,34 @@ class Step(MetaflowObject):
 
     def tasks(self, *tags):
         """
-        Returns an iterator over all the tasks in the step.
+        [Legacy function - do not use]
 
-        An optional filter is available that allows you to filter on tags.
-        If tags are specified, only tasks associated with all specified tags
-        are returned.
+        Returns an iterator over all `Task` objects in the step. This is an alias
+        to iterating the object itself, i.e.
+        ```
+        list(Step(...)) == list(Step(...).tasks())
+        ```
 
         Parameters
         ----------
         tags : string
-            Tags to match
+            No op (legacy functionality)
 
         Returns
         -------
         Iterator[Task]
-            Iterator over Task objects in this step
+            Iterator over all `Task` objects in this step.
         """
         return self._filtered_children(*tags)
 
     @property
     def control_task(self):
         """
+        [Unpublished API - use with caution!]
+
         Returns a Control Task object belonging to this step.
         This is useful when the step only contains one control task.
+
         Returns
         -------
         Task
@@ -1529,6 +1590,8 @@ class Step(MetaflowObject):
 
     def control_tasks(self, *tags):
         """
+        [Unpublished API - use with caution!]
+
         Returns an iterator over all the control tasks in the step.
         An optional filter is available that allows you to filter on tags. The
         control tasks returned if the filter is specified will contain all the
@@ -1607,24 +1670,22 @@ class Step(MetaflowObject):
 
 class Run(MetaflowObject):
     """
-    A Run represents an execution of a Flow
-
-    As such, it contains all Steps associated with the flow.
+    A `Run` represents an execution of a `Flow`. It is a container of `Step`s.
 
     Attributes
     ----------
     data : MetaflowData
-        Container of all data artifacts produced by this run
+        a shortcut to run['end'].task.data, i.e. data produced by this run.
     successful : boolean
-        True if the run successfully completed
+        True if the run completed successfully.
     finished : boolean
-        True if the run completed
+        True if the run completed.
     finished_at : datetime
-        Time this run finished
+        Time this run finished.
     code : MetaflowCode
-        Code package for this run (if present)
+        Code package for this run (if present). See `MetaflowCode`.
     end_task : Task
-        Task for the end step (if it is present already)
+        `Task` for the end step (if it is present already).
     """
 
     _NAME = "run"
@@ -1637,21 +1698,23 @@ class Run(MetaflowObject):
 
     def steps(self, *tags):
         """
-        Returns an iterator over all the steps in the run.
+        [Legacy function - do not use]
 
-        An optional filter is available that allows you to filter on tags.
-        If tags are specified, only steps associated with all specified tags
-        are returned.
+        Returns an iterator over all `Step` objects in the step. This is an alias
+        to iterating the object itself, i.e.
+        ```
+        list(Run(...)) == list(Run(...).steps())
+        ```
 
         Parameters
         ----------
         tags : string
-            Tags to match
+            No op (legacy functionality)
 
         Returns
         -------
         Iterator[Step]
-            Iterator over Step objects in this run
+            Iterator over `Step` objects in this run.
         """
         return self._filtered_children(*tags)
 
@@ -1765,15 +1828,17 @@ class Run(MetaflowObject):
 
     def add_tag(self, tag):
         """
-        Add one tag to the Run.
+        Add a tag to this `Run`.
 
-        If the tag is already a system tag, it is not added as a user-tag,
+        Note that if the tag is already a system tag, it is not added as a user tag,
         and no error is thrown.
+
         Parameters
         ----------
         tag : string
-            Tag to add
+            Tag to add.
         """
+
         # For backwards compatibility with Netflix's early version of this functionality,
         # this function shall accept both an individual tag AND iterables of tags.
         #
@@ -1785,28 +1850,31 @@ class Run(MetaflowObject):
 
     def add_tags(self, tags):
         """
-        Add one or more tags to the Run.
+        Add one or more tags to this `Run`.
 
-        If any tag is already a system tag, it is not added as a user-tag
+        Note that if any tag is already a system tag, it is not added as a user tag
         and no error is thrown.
+
         Parameters
         ----------
-        tags : Iterable over string
-            Tags to add
+        tags : Iterable[string]
+            Tags to add.
         """
         return self.replace_tag([], tags)
 
     def remove_tag(self, tag):
         """
-        Remove one tag from the Run.
+        Remove one tag from this `Run`.
 
         Removing a system tag is an error. Removing a non-existent
-        user-tag is a no-op.
+        user tag is a no-op.
+
         Parameters
         ----------
         tag : string
-            Tag to remove
+            Tag to remove.
         """
+
         # For backwards compatibility with Netflix's early version of this functionality,
         # this function shall accept both an individual tag AND iterables of tags.
         #
@@ -1818,28 +1886,31 @@ class Run(MetaflowObject):
 
     def remove_tags(self, tags):
         """
-        Remove one or more tags to the Run.
+        Remove one or more tags to this `Run`.
 
         Removing a system tag will result in an error. Removing a non-existent
-        user-tag is a no-op.
+        user tag is a no-op.
+
         Parameters
         ----------
-        tags : Iterable over string
-            Tags to remove
+        tags : Iterable[string]
+            Tags to remove.
         """
         return self.replace_tags(tags, [])
 
     def replace_tag(self, tag_to_remove, tag_to_add):
         """
         Remove a tag and add a tag atomically. Removal is done first.
-        The rules for `add_tag` and `remove_tag` also apply here.
+        The rules for `Run.add_tag` and `Run.remove_tag` also apply here.
+
         Parameters
         ----------
         tag_to_remove : string
-            Tag to remove
+            Tag to remove.
         tag_to_add : string
-            Tag to add
+            Tag to add.
         """
+
         # For backwards compatibility with Netflix's early version of this functionality,
         # this function shall accept both individual tags AND iterables of tags.
         #
@@ -1854,13 +1925,14 @@ class Run(MetaflowObject):
     def replace_tags(self, tags_to_remove, tags_to_add):
         """
         Remove and add tags atomically; the removal is done first.
-        The rules for `add_tag` and `remove_tag` also apply here.
+        The rules for `Run.add_tag` and `Run.remove_tag` also apply here.
+
         Parameters
         ----------
-        tags_to_remove : Iterable over string
-            Tags to remove
-        tags_to_add : Iterable over string
-            Tags to add
+        tags_to_remove : Iterable[string]
+            Tags to remove.
+        tags_to_add : Iterable[string]
+            Tags to add.
         """
         flow_id = self.path_components[0]
         final_user_tags = self._metaflow.metadata.mutate_user_tags_for_run(
@@ -1874,16 +1946,14 @@ class Run(MetaflowObject):
 class Flow(MetaflowObject):
     """
     A Flow represents all existing flows with a certain name, in other words,
-    classes derived from 'FlowSpec'
-
-    As such, it contains all Runs (executions of a flow) related to this flow.
+    classes derived from `FlowSpec`. A container of `Run` objects.
 
     Attributes
     ----------
     latest_run : Run
-        Latest Run (in progress or completed, successfully or not) of this Flow
+        Latest `Run` (in progress or completed, successfully or not) of this flow.
     latest_successful_run : Run
-        Latest successfully completed Run of this Flow
+        Latest successfully completed `Run` of this flow.
     """
 
     _NAME = "flow"
@@ -1925,21 +1995,21 @@ class Flow(MetaflowObject):
 
     def runs(self, *tags):
         """
-        Returns an iterator over all the runs in the flow.
+        Returns an iterator over all `Run`s of this flow.
 
         An optional filter is available that allows you to filter on tags.
-        If tags are specified, only runs associated with all specified tags
-        are returned.
+        If multiple tags are specified, only runs that have all the
+        specified tags are returned.
 
         Parameters
         ----------
         tags : string
-            Tags to match
+            Tags to match.
 
         Returns
         -------
         Iterator[Run]
-            Iterator over Run objects in this flow
+            Iterator over `Run` objects in this flow.
         """
         return self._filtered_children(*tags)
 

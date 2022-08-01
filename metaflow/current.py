@@ -65,34 +65,119 @@ class Current(object):
 
     @property
     def is_running_flow(self):
+        """
+        Returns True if called inside a running Flow, False otherwise.
+
+        You can use this property e.g. inside a library to choose the desired
+        behavior depending on the execution context.
+
+        Returns
+        -------
+        bool
+            True if called inside a run, False otherwise.
+        """
         return self._is_running
 
     @property
     def flow_name(self):
+        """
+        The name of the currently executing flow.
+
+        Returns
+        -------
+        str
+            Flow name.
+        """
         return self._flow_name
 
     @property
     def run_id(self):
+        """
+        The run ID of the currently executing run.
+
+        Returns
+        -------
+        str
+            Run ID.
+        """
         return self._run_id
 
     @property
     def step_name(self):
+        """
+        The name of the currently executing step.
+
+        Returns
+        -------
+        str
+            Step name.
+        """
         return self._step_name
 
     @property
     def task_id(self):
+        """
+        The task ID of the currently executing task.
+
+        Returns
+        -------
+        str
+            Task ID.
+        """
         return self._task_id
 
     @property
     def retry_count(self):
+        """
+        The index of the task execution attempt.
+
+        This property returns 0 for the first attempt to execute the task.
+        If the @retry decorator is used and the first attempt fails, this
+        property returns the number of times the task was attempted prior
+        to the current attempt.
+
+        Returns
+        -------
+        int
+            The retry count.
+        """
         return self._retry_count
 
     @property
     def origin_run_id(self):
+        """
+        The run ID of the original run this run was resumed from.
+
+        This property returns None for ordinary runs. If the run
+        was started by the resume command, the property returns
+        the ID of the original run.
+
+        You can use this property to detect if the run is resumed
+        or not.
+
+        Returns
+        -------
+        str
+            Run ID of the original run.
+        """
         return self._origin_run_id
 
     @property
     def pathspec(self):
+        """
+        Pathspec of the current run, i.e. a unique
+        identifier of the current task. The returned
+        string follows this format:
+        ```
+        {flow_name}/{run_id}/{step_name}/{task_id}
+        ```
+
+        Returns
+        -------
+        str
+            Pathspec.
+        """
+
         pathspec_components = (
             self._flow_name,
             self._run_id,
@@ -105,10 +190,26 @@ class Current(object):
 
     @property
     def namespace(self):
+        """
+        The current namespace.
+
+        Returns
+        -------
+        str
+            Namespace.
+        """
         return self._namespace
 
     @property
     def username(self):
+        """
+        The name of the user who started the run, if available.
+
+        Returns
+        -------
+        str
+            User name.
+        """
         return self._username
 
     @property
@@ -121,6 +222,11 @@ class Current(object):
 
     @property
     def tags(self):
+        """
+        [Legacy function - do not use]
+
+        Access tags through the Run object instead.
+        """
         return self._tags
 
 

@@ -22,6 +22,24 @@ def warning_message(message, logger=None, ts=False):
 
 
 class CardDecorator(StepDecorator):
+    """
+    Creates a human-readable report, a Metaflow Card, after this step completes.
+
+    Note that you may add multiple `@card` decorators in a step with different parameters.
+
+    Parameters
+    ----------
+    type : str
+        Card type (default: 'default').
+    id : str
+        If multiple cards are present, use this id to identify this card.
+    options : Dict
+        Options passed to the card. The contents depend on the card type.
+    timeout : int
+        Interrupt reporting if it takes more than this many seconds
+        (default: 45).
+    """
+
     name = "card"
     defaults = {
         "type": "default",

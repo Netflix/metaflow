@@ -1,4 +1,31 @@
 class MetaflowCard(object):
+    """
+    Metaflow cards derive from this base class.
+
+    Subclasses of this class are called *card types*. The desired card
+    type `T` is defined in the `@card` decorator as `@card(type=T)`.
+
+    After a task with `@card(type=T, options=S)` finishes executing, Metaflow instantiates
+    a subclass `C` of `MetaflowCard` that has its `type` attribute set to `T`, i.e. `C.type=T`.
+    The constructor is given the options dictionary `S` that contains arbitrary
+    JSON-encodeable data that is passed to the instance, parametrizing the card. The subclass
+    may override the constructor to capture and process the options.
+
+    The subclass needs to implement a `render(task)` method that produces the card
+    contents in HTML, given the finished task that is represented by a `Task` object.
+
+    Attributes
+    ----------
+    type : str
+        Card type string. Note that this should be a globally unique name, similar to a
+        Python package name, to avoid name clashes between different custom cards.
+
+    Parameters
+    ----------
+    options : Dict
+        JSON-encodeable dictionary containing user-defineable options for the class.
+    """
+
     type = None
 
     ALLOW_USER_COMPONENTS = False
@@ -18,7 +45,20 @@ class MetaflowCard(object):
 
     def render(self, task):
         """
-        `render` returns a string.
+        Produce custom card contents in HTML.
+
+        Subclasses override this method to customize the card contents.
+
+        Parameters
+        ----------
+        task : metaflow.Task
+            A `Task` object that allows you to access data from the finished task and tasks
+            preceding it.
+
+        Returns
+        -------
+        str
+            Card contents as an HTML string.
         """
         return NotImplementedError()
 

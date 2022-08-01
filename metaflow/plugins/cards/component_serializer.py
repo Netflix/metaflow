@@ -212,6 +212,27 @@ class CardComponentCollector:
             self._default_editable_card = customize_cards[0]["uuid"]
 
     def __getitem__(self, key):
+        """
+        Choose a specific card for manipulation.
+
+        When multiple @card decorators are present, you can add an
+        `ID` to distinguish between them, `@card(id=ID)`. This allows you
+        to add components to a specific card like this:
+        ```
+        current.card[ID].append(component)
+        ```
+
+        Parameters
+        ----------
+        key : str
+            Card ID.
+
+        Returns
+        -------
+        CardComponentCollector
+            An object with `append` and `extend` calls which allow you to
+            add components to the chosen card.
+        """
         if key in self._card_id_map:
             card_uuid = self._card_id_map[key]
             return self._cards_components[card_uuid]
@@ -228,6 +249,23 @@ class CardComponentCollector:
         return []
 
     def __setitem__(self, key, value):
+        """
+        Specify components of the chosen card.
+
+        Instead of adding components to a card individually with `current.card[ID].append(component)`,
+        use this method to assign a list of components to a card, replacing the existing components:
+        ```
+        current.card[ID] = [FirstComponent, SecondComponent]
+        ```
+
+        Parameters
+        ----------
+        key: str
+            Card ID.
+
+        value: List[CardComponent]
+            List of card components to assign to this card.
+        """
         if key in self._card_id_map:
             card_uuid = self._card_id_map[key]
             if not isinstance(value, list):
@@ -246,6 +284,14 @@ class CardComponentCollector:
         )
 
     def append(self, component):
+        """
+        Appends a component to the current card.
+
+        Parameters
+        ----------
+        component : CardComponent
+            Card component to add to this card.
+        """
         if self._default_editable_card is None:
             if (
                 len(self._cards_components) == 1
@@ -281,6 +327,14 @@ class CardComponentCollector:
         self._cards_components[self._default_editable_card].append(component)
 
     def extend(self, components):
+        """
+        Appends many components to the current card.
+
+        Parameters
+        ----------
+        component : Iterator[CardComponent]
+            Card components to add to this card.
+        """
         if self._default_editable_card is None:
             # if there is one card which is not the _default_editable_card then the card is not editable
             if len(self._cards_components) == 1:

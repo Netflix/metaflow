@@ -2,6 +2,23 @@ from metaflow.decorators import FlowDecorator
 
 # TODO (savin): Lift this decorator up since it's also used by Argo now
 class ScheduleDecorator(FlowDecorator):
+    """
+    Specifies the times when the flow should be run when running on a
+    production scheduler.
+
+    Parameters
+    ----------
+    hourly : bool
+        Run the workflow hourly (default: False).
+    daily : bool
+        Run the workflow daily (default: True).
+    weekly : bool
+        Run the workflow weekly (default: False).
+    cron : str
+        Run the workflow at [a custom Cron schedule](https://docs.aws.amazon.com/eventbridge/latest/userguide/scheduled-events.html#cron-expressions)
+        specified by this expression.
+    """
+
     name = "schedule"
     defaults = {"cron": None, "weekly": False, "daily": True, "hourly": False}
 

@@ -35,37 +35,36 @@ except NameError:
 
 class KubernetesDecorator(StepDecorator):
     """
-    Step decorator to specify that this step should execute on Kubernetes.
+    Specifies that this step should execute on Kubernetes.
 
-    This decorator indicates that your step should execute on Kubernetes. Note
-    that you can apply this decorator automatically to all steps using the
-    ```--with kubernetes``` argument when calling run/resume. Step level
-    decorators within the code are overrides and will force a step to execute
-    on Kubernetes regardless of the ```--with``` specification.
-
-    To use, annotate your step as follows:
-    ```
-    @kubernetes
-    @step
-    def my_step(self):
-        ...
-    ```
     Parameters
     ----------
     cpu : int
-        Number of CPUs required for this step. Defaults to 1. If @resources is
-        also present, the maximum value from all decorators is used
+        Number of CPUs required for this step. Defaults to 1. If `@resources` is
+        also present, the maximum value from all decorators is used.
     memory : int
-        Memory size (in MB) required for this step. Defaults to 4096. If
-        @resources is also present, the maximum value from all decorators is
-        used
+        Memory size (in MB) required for this step. Defaults to 4096 (4GB). If
+        `@resources` is also present, the maximum value from all decorators is
+        used.
     disk : int
         Disk size (in MB) required for this step. Defaults to 10GB. If
-        @resources is also present, the maximum value from all decorators is
-        used
-    image : string
+        `@resources` is also present, the maximum value from all decorators is
+        used.
+    image : str
         Docker image to use when launching on Kubernetes. If not specified, a
-        default docker image mapping to the current version of Python is used
+        default Docker image mapping to the current version of Python is used.
+    service_account : str
+        Kubernetes service account to use when launching pod in Kubernetes. If
+        not specified, the value of `METAFLOW_KUBERNETES_SERVICE_ACCOUNT` is
+        used from Metaflow configuration.
+    namespace : str
+        Kubernetes namespace to use when launching pod in Kubernetes. If
+        not specified, the value of `METAFLOW_KUBERNETES_NAMESPACE` is used
+        from Metaflow configuration.
+    secrets : List[str]
+        Kubernetes secrets to use when launching pod in Kubernetes. These
+        secrets are in addition to the ones defined in `METAFLOW_KUBERNETES_SECRETS`
+        in Metaflow configuration.
     """
 
     name = "kubernetes"

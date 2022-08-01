@@ -37,27 +37,23 @@ except NameError:
 
 class CondaStepDecorator(StepDecorator):
     """
-    Conda decorator that sets the Conda environment for your step
+    Specifies the Conda environment for the step.
 
-    To use, add this decorator to your step:
-    ```
-    @conda
-    @step
-    def MyStep(self):
-        ...
-    ```
+    Information in this decorator will augment any
+    attributes set in the `@conda_base` flow-level decorator. Hence
+    you can use `@conda_base` to set common libraries required by all
+    steps and use `@conda` to specify step-specific additions.
 
-    Information in this decorator will override any eventual @conda_base flow level decorator.
     Parameters
     ----------
     libraries : Dict
-        Libraries to use for this flow. The key is the name of the package and the value
-        is the version to use. Defaults to {}
+        Libraries to use for this step. The key is the name of the package
+        and the value is the version to use (default: `{}`).
     python : string
-        Version of Python to use (for example: '3.7.4'). Defaults to None
-        (will use the current python version)
+        Version of Python to use, e.g. '3.7.4'
+        (default: None, i.e. the current Python version).
     disabled : bool
-        If set to True, disables Conda. Defaults to False
+        If set to True, disables Conda (default: False).
     """
 
     name = "conda"

@@ -5,29 +5,23 @@ from metaflow.metaflow_config import MAX_ATTEMPTS
 
 class RetryDecorator(StepDecorator):
     """
-    Step decorator to specify that a step should be retried on failure.
+    Specifies the number of times the task corresponding
+    to a step needs to be retried.
 
-    This decorator indicates that if this step fails, it should be retried a certain number of times.
+    This decorator is useful for handling transient errors, such as networking issues.
+    If your task contains operations that can't be retried safely, e.g. database updates,
+    it is advisable to annotate it with `@retry(times=0)`.
 
-    This decorator is useful if transient errors (like networking issues) are likely in your step.
-
-    This can be used in conjunction with the @retry decorator. In that case, catch will only
-    activate if all retries fail and will catch the last exception thrown by the last retry.
-
-    To use, annotate your step as follows:
-    ```
-    @retry(times=3)
-    @step
-    def myStep(self):
-        ...
-    ```
+    This can be used in conjunction with the `@catch` decorator. The `@catch`
+    decorator will execute a no-op task after all retries have been exhausted,
+    ensuring that the flow execution can continue.
 
     Parameters
     ----------
     times : int
-        Number of times to retry this step. Defaults to 3
+        Number of times to retry this task (default: 3).
     minutes_between_retries : int
-        Number of minutes between retries
+        Number of minutes between retries (default: 2).
     """
 
     name = "retry"

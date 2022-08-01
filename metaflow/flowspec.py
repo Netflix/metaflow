@@ -51,7 +51,6 @@ class FlowSpec(object):
 
     Attributes
     ----------
-    script_name
     index
     input
     """
@@ -107,6 +106,8 @@ class FlowSpec(object):
     @property
     def script_name(self):
         """
+        [Legacy function - do not use. Use `current` instead]
+
         Returns the name of the script containing the flow
 
         Returns
@@ -203,6 +204,8 @@ class FlowSpec(object):
 
     def __iter__(self):
         """
+        [Legacy function - do not use]
+
         Iterate over all steps in the Flow
 
         Returns
@@ -223,26 +226,27 @@ class FlowSpec(object):
             raise AttributeError("Flow %s has no attribute '%s'" % (self.name, name))
 
     def cmd(self, cmdline, input={}, output=[]):
+        """
+        [Legacy function - do not use]
+        """
         return cmd_with_io.cmd(cmdline, input=input, output=output)
 
     @property
     def index(self):
         """
-        Index of the task in a foreach step
+        The index of this foreach branch.
 
         In a foreach step, multiple instances of this step (tasks) will be executed,
-        one for each element in the foreach.
-        This property returns the zero based index of the current task. If this is not
-        a foreach step, this returns None.
+        one for each element in the foreach. This property returns the zero based index
+        of the current task. If this is not a foreach step, this returns None.
 
-        See Also
-        --------
-        foreach_stack: A detailed example is given in the documentation of this function
+        If you need to know the indices of the parent tasks in a nested foreach, use
+        `FlowSpec.foreach_stack`.
 
         Returns
         -------
         int
-            Index of the task in a foreach step
+            Index of the task in a foreach step.
         """
         if self._foreach_stack:
             return self._foreach_stack[-1].index
@@ -250,30 +254,28 @@ class FlowSpec(object):
     @property
     def input(self):
         """
-        Value passed to the task in a foreach step
+        The value of the foreach artifact in this foreach branch.
 
         In a foreach step, multiple instances of this step (tasks) will be executed,
-        one for each element in the foreach.
-        This property returns the element passed to the current task. If this is not
-        a foreach step, this returns None.
+        one for each element in the foreach. This property returns the element passed
+        to the current task. If this is not a foreach step, this returns None.
 
-        See Also
-        --------
-        foreach_stack: A detailed example is given in the documentation of this function
+        If you need to know the values of the parent tasks in a nested foreach, use
+        `FlowSpec.foreach_stack`.
 
         Returns
         -------
         object
-            Input passed to the task (can be any object)
+            Input passed to the foreach task.
         """
         return self._find_input()
 
     def foreach_stack(self):
         """
-        Returns the current stack of foreach steps for the current step
+        Returns the current stack of foreach indexes and values for the current step.
 
-        This effectively corresponds to the indexes and values at the various levels of nesting.
-        For example, considering the following code:
+        Use this information to understand what data is being processed in the current
+        foreach branch. For example, considering the following code:
         ```
         @step
         def root(self):
@@ -289,26 +291,31 @@ class FlowSpec(object):
         def nest_2(self):
             foo = self.foreach_stack()
         ```
-        foo will take the following values in the various tasks for nest_2:
+
+        `foo` will take the following values in the various tasks for nest_2:
+        ```
             [(0, 3, 'a'), (0, 4, 'd')]
             [(0, 3, 'a'), (1, 4, 'e')]
             ...
             [(0, 3, 'a'), (3, 4, 'g')]
             [(1, 3, 'b'), (0, 4, 'd')]
             ...
-
+        ```
         where each tuple corresponds to:
-            - the index of the task for that level of the loop
-            - the number of splits for that level of the loop
-            - the value for that level of the loop
+
+        - The index of the task for that level of the loop.
+        - The number of splits for that level of the loop.
+        - The value for that level of the loop.
+
         Note that the last tuple returned in a task corresponds to:
-            - first element: value returned by self.index
-            - third element: value returned by self.input
+
+        - 1st element: value returned by `self.index`.
+        - 3rd element: value returned by `self.input`.
 
         Returns
         -------
         List[Tuple[int, int, object]]
-            An array describing the current stack of foreach steps
+            An array describing the current stack of foreach steps.
         """
         return [
             (frame.index, frame.num_splits, self._find_input(stack_index=i))
@@ -349,15 +356,16 @@ class FlowSpec(object):
 
     def merge_artifacts(self, inputs, exclude=[], include=[]):
         """
-        Merge the artifacts coming from each merge branch (from inputs)
+        Helper function for merging artifacts in a join step.
 
         This function takes all the artifacts coming from the branches of a
         join point and assigns them to self in the calling step. Only artifacts
         not set in the current step are considered. If, for a given artifact, different
-        values are present on the incoming edges, an error will be thrown (and the artifacts
-        that "conflict" will be reported).
+        values are present on the incoming edges, an error will be thrown and the artifacts
+        that conflict will be reported.
 
         As a few examples, in the simple graph: A splitting into B and C and joining in D:
+        ```
         A:
           self.x = 5
           self.y = 6
@@ -369,34 +377,34 @@ class FlowSpec(object):
 
         D:
           merge_artifacts(inputs)
-
+        ```
         In D, the following artifacts are set:
-          - y (value: 6), b_var (value: 1)
-          - if from_b and from_c are the same, x will be accessible and have value from_b
-          - if from_b and from_c are different, an error will be thrown. To prevent this error,
-            you need to manually set self.x in D to a merged value (for example the max) prior to
-            calling merge_artifacts.
+          - `y` (value: 6), `b_var` (value: 1)
+          - if `from_b` and `from_c` are the same, `x` will be accessible and have value `from_b`
+          - if `from_b` and `from_c` are different, an error will be thrown. To prevent this error,
+            you need to manually set `self.x` in D to a merged value (for example the max) prior to
+            calling `merge_artifacts`.
 
         Parameters
         ----------
         inputs : List[Steps]
-            Incoming steps to the join point
+            Incoming steps to the join point.
         exclude : List[str], optional
             If specified, do not consider merging artifacts with a name in `exclude`.
-            Cannot specify if `include` is also specified
+            Cannot specify if `include` is also specified.
         include : List[str], optional
             If specified, only merge artifacts specified. Cannot specify if `exclude` is
-            also specified
+            also specified.
 
         Raises
         ------
         MetaflowException
-            This exception is thrown if this is not called in a join step
+            This exception is thrown if this is not called in a join step.
         UnhandledInMergeArtifactsException
-            This exception is thrown in case of unresolved conflicts
+            This exception is thrown in case of unresolved conflicts.
         MissingInMergeArtifactsException
-            This exception is thrown in case an artifact specified in `include cannot
-            be found
+            This exception is thrown in case an artifact specified in `include` cannot
+            be found.
         """
         node = self._graph[self._current_step]
         if node.type != "join":
@@ -483,22 +491,32 @@ class FlowSpec(object):
 
     def next(self, *dsts, **kwargs):
         """
-        Indicates the next step to execute at the end of this step
+        Indicates the next step to execute after this step has completed.
 
-        This statement should appear once and only once in each and every step (except the `end`
-        step). Furthermore, it should be the last statement in the step.
+        This statement should appear as the last statement of each step, except
+        the end step.
 
         There are several valid formats to specify the next step:
-            - Straight-line connection: self.next(self.next_step) where `next_step` is a method in
-              the current class decorated with the `@step` decorator
-            - Static fan-out connection: self.next(self.step1, self.step2, ...) where `stepX` are
-              methods in the current class decorated with the `@step` decorator
-            - Foreach branch:
-                self.next(self.foreach_step, foreach='foreach_iterator')
-              In this situation, `foreach_step` is a method in the current class decorated with the
-              `@step` docorator and `foreach_iterator` is a variable name in the current class that
-              evaluates to an iterator. A task will be launched for each value in the iterator and
-              each task will execute the code specified by the step `foreach_step`.
+
+        - Straight-line connection: `self.next(self.next_step)` where `next_step` is a method in
+          the current class decorated with the `@step` decorator.
+
+        - Static fan-out connection: `self.next(self.step1, self.step2, ...)` where `stepX` are
+          methods in the current class decorated with the `@step` decorator.
+
+        - Foreach branch:
+          ```
+          self.next(self.foreach_step, foreach='foreach_iterator')
+          ```
+          In this situation, `foreach_step` is a method in the current class decorated with the
+          `@step` docorator and `foreach_iterator` is a variable name in the current class that
+          evaluates to an iterator. A task will be launched for each value in the iterator and
+          each task will execute the code specified by the step `foreach_step`.
+
+        Parameters
+        ----------
+        dsts : Method
+            One or more methods annotated with `@step`.
 
         Raises
         ------

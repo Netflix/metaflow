@@ -271,6 +271,33 @@ class FilePathClass(click.ParamType):
 
 
 class IncludeFile(Parameter):
+    """
+    Includes a local file as a parameter for the flow.
+
+    `IncludeFile` behaves like `Parameter` except that it reads its value from a file instead of
+    the command line. The user provides a path to a file on the command line. The file contents
+    are saved as a read-only artifact which is available in all steps of the flow.
+
+    Parameters
+    ----------
+    name : str
+        User-visible parameter name.
+    default : str
+        Default path to a local file.
+    is_text : bool
+        Convert the file contents to a string using the provided `encoding` (default: True).
+        If False, the artifact is stored in `bytes`.
+    encoding : str
+        Use this encoding to decode the file contexts if `is_text=True` (default: `utf-8`).
+    required : bool
+        Require that the user specified a value for the parameter.
+        `required=True` implies that the `default` is not used.
+    help : str
+        Help text to show in `run --help`.
+    show_default : bool
+        If True, show the default value in the help text (default: True).
+    """
+
     def __init__(
         self, name, required=False, is_text=True, encoding=None, help=None, **kwargs
     ):
