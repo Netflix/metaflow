@@ -25,10 +25,6 @@ except:
     from urllib.parse import urlparse
     from queue import Full as QueueFull
 
-# s3op can be launched as a stand-alone script. We must set
-# PYTHONPATH for the parent Metaflow explicitly.
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
-
 from metaflow._vendor import click
 
 # we use Metaflow's parallel_imap_unordered instead of
@@ -1056,4 +1052,9 @@ def info(
 
 
 if __name__ == "__main__":
+    # When launched standalone, point to our parent metaflow
+    sys.path.insert(
+        0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+    )
+
     cli(auto_envvar_prefix="S3OP")
