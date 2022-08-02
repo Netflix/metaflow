@@ -36,12 +36,9 @@ def init_config():
 METAFLOW_CONFIG = init_config()
 
 
-def from_conf(name, default=None, from_env_only=False, validate_fn=None):
+def from_conf(name, default=None, validate_fn=None):
     """
     First try to pull value from environment, then from metaflow config JSON.
-
-    If from_env_only is True, we never use the value in metaflow config JSON.
-    We will raise an Error on seeing the value set in metaflow config JSON.
 
     Prior to a value being returned, we will validate using validate_fn (if provided).
     Only non-None values are validated.
@@ -51,18 +48,10 @@ def from_conf(name, default=None, from_env_only=False, validate_fn=None):
     """
     value_from_env = os.environ.get(name, None)
     value_from_config = METAFLOW_CONFIG.get(name, default)
-    if from_env_only:
-        if value_from_config is not None:
-            raise MetaflowException(
-                "%s may only be set from environment variable, NOT from metaflow JSON configs."
-                % name
-            )
+    if value_from_env is not None:
         value = value_from_env
     else:
-        if value_from_env is not None:
-            value = value_from_env
-        else:
-            value = value_from_config
+        value = value_from_config
     if validate_fn and value is not None:
         validate_fn(name, value)
     return value
