@@ -88,6 +88,7 @@ def get_plugin_cli():
     from .aws.batch import batch_cli
     from .kubernetes import kubernetes_cli
     from .aws.step_functions import step_functions_cli
+    from .airflow import airflow_cli
     from .argo import argo_workflows_cli
     from .cards import card_cli
     from . import tag_cli
@@ -98,6 +99,7 @@ def get_plugin_cli():
         card_cli.cli,
         kubernetes_cli.cli,
         step_functions_cli.cli,
+        airflow_cli.cli,
         argo_workflows_cli.cli,
         tag_cli.cli,
     ]
@@ -121,6 +123,7 @@ from .test_unbounded_foreach_decorator import (
 from .conda.conda_step_decorator import CondaStepDecorator
 from .cards.card_decorator import CardDecorator
 from .frameworks.pytorch import PytorchParallelDecorator
+from .airflow.airflow_decorator import AirflowInternalDecorator
 
 
 STEP_DECORATORS = [
@@ -137,6 +140,7 @@ STEP_DECORATORS = [
     ParallelDecorator,
     PytorchParallelDecorator,
     InternalTestUnboundedForeachDecorator,
+    AirflowInternalDecorator,
     ArgoWorkflowsInternalDecorator,
 ]
 _merge_lists(STEP_DECORATORS, _ext_plugins["STEP_DECORATORS"], "name")
@@ -161,7 +165,12 @@ from .conda.conda_flow_decorator import CondaFlowDecorator
 from .aws.step_functions.schedule_decorator import ScheduleDecorator
 from .project_decorator import ProjectDecorator
 
-FLOW_DECORATORS = [CondaFlowDecorator, ScheduleDecorator, ProjectDecorator]
+
+FLOW_DECORATORS = [
+    CondaFlowDecorator,
+    ScheduleDecorator,
+    ProjectDecorator,
+]
 _merge_lists(FLOW_DECORATORS, _ext_plugins["FLOW_DECORATORS"], "name")
 
 # Cards
