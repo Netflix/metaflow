@@ -134,6 +134,7 @@ def load():
                 print("Not using environment escape for '%s' as module present" % prefix)
             # In both cases, we don't load our loader since
             # the package is locally present
+            sys.path = old_paths
             return
     sys.path = old_paths
     m = ModuleImporter("{python_executable}", "{pythonpath}", {max_pickle_version}, "{path}", {prefixes})
