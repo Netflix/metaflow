@@ -429,7 +429,9 @@ try:
                     )
             elif n == "get_pinned_conda_libs":
 
-                def _new_get_pinned_conda_libs(python_version, datastore_type, f1=globals()[n], f2=o):
+                def _new_get_pinned_conda_libs(
+                    python_version, datastore_type, f1=globals()[n], f2=o
+                ):
                     d1 = f1(python_version, datastore_type)
                     d2 = f2(python_version, datastore_type)
                     for k, v in d2.items():
