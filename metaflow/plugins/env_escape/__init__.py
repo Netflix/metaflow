@@ -43,12 +43,27 @@ from .client_modules import create_modules
 # environment (like the ones created through the Conda plugin) and we will therefore
 # consider that as the environment we escape to.
 # Note that it is important to store the value back in the environment to make
-# it available to any sub-process that launch sa well.
+# it available to any sub-process that launch as well (ie: when we re-launch WITHIN
+# the conda environment).
 # We also store the maximum protocol version that we support for pickle so that
-# we can determine what to use
+# we can determine what to use.
+#
+# In the case of a bootstrap code (for example on Batch), the subprocess mechanism is
+# not used to determine the outside environment but the `generate_trampolines` function
+# in this file is called directly by the remote bootstrap code which operates *outside*
+# of the created conda environment so it has the same effect
 ENV_ESCAPE_PY = os.environ.get("METAFLOW_ENV_ESCAPE_PY", sys.executable)
+
+_cur_sys_paths = sys.path
+if len(_cur_sys_paths) > 0 and _cur_sys_paths[0] == "":
+    # This means "current working directory". We actually replace it with the current
+    # working directory because when the env escape server is launched, it is launched
+    # in a different directory and would therefore not have the exact same path
+    # specifications (which is not what we want)
+    _cur_sys_paths[0] = os.getcwd()
+
 ENV_ESCAPE_PATHS = os.environ.get(
-    "METAFLOW_ENV_ESCAPE_PATHS", os.pathsep.join(sys.path)
+    "METAFLOW_ENV_ESCAPE_PATHS", os.pathsep.join(_cur_sys_paths)
 )
 ENV_ESCAPE_PICKLE_VERSION = os.environ.get(
     "METAFLOW_ENV_ESCAPE_PICKLE_VERSION", str(pickle.HIGHEST_PROTOCOL)
