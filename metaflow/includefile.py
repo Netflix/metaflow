@@ -21,24 +21,24 @@ from .util import get_username
 
 import functools
 
-_tracefunc_depth = 0
+# _tracefunc_depth = 0
 
 
-def tracefunc(func):
-    """Decorates a function to show its trace."""
+# def tracefunc(func):
+#     """Decorates a function to show its trace."""
 
-    @functools.wraps(func)
-    def tracefunc_closure(*args, **kwargs):
-        global _tracefunc_depth
-        """The closure."""
-        print(f"{_tracefunc_depth}: {func.__name__}(args={args}, kwargs={kwargs})")
-        _tracefunc_depth += 1
-        result = func(*args, **kwargs)
-        _tracefunc_depth -= 1
-        print(f"{_tracefunc_depth} => {result}")
-        return result
+#     @functools.wraps(func)
+#     def tracefunc_closure(*args, **kwargs):
+#         global _tracefunc_depth
+#         """The closure."""
+#         print(f"{_tracefunc_depth}: {func.__name__}(args={args}, kwargs={kwargs})")
+#         _tracefunc_depth += 1
+#         result = func(*args, **kwargs)
+#         _tracefunc_depth -= 1
+#         print(f"{_tracefunc_depth} => {result}")
+#         return result
 
-    return tracefunc_closure
+#     return tracefunc_closure
 
 
 _DelayedExecContext = namedtuple(
@@ -57,7 +57,7 @@ class IncludedFile(object):
     # and should be handled as an IncludedFile when returning it (ie: fetching
     # the actual content)
 
-    @tracefunc
+    # @tracefunc
     def __init__(self, descriptor):
         self._descriptor = descriptor
         self._cached_size = None
@@ -67,7 +67,7 @@ class IncludedFile(object):
         return self._descriptor
 
     @property
-    @tracefunc
+    # @tracefunc
     def size(self):
         if self._cached_size is not None:
             return self._cached_size
@@ -80,7 +80,7 @@ class IncludedFile(object):
         self._cached_size = handler.size(self._descriptor)
         return self._cached_size
 
-    @tracefunc
+    # @tracefunc
     def decode(self, name, var_type="Artifact"):
         # We look for the uploader for it and decode it
         handler = UPLOADERS.get(self.descriptor.get("type", None), None)
