@@ -135,6 +135,8 @@ class AIRFLOW_MACROS:
     RUN_ID = "%s-{{ [run_id, dag_run.dag_id] | run_id_creator }}" % RUN_ID_PREFIX
     PARAMETERS = "{{ params | json_dump }}"
 
+    STEPNAME = "{{ ti.task_id }}"
+
     # AIRFLOW_MACROS.TASK_ID will work for linear/branched workflows.
     # ti.task_id is the stepname in metaflow code.
     # AIRFLOW_MACROS.TASK_ID uses a jinja filter called `task_id_creator` which helps
@@ -168,6 +170,22 @@ class AIRFLOW_MACROS:
     AIRFLOW_JOB_ID = "{{ ti.job_id }}"
 
     FOREACH_SPLIT_INDEX = "{{ ti.map_index }}"
+
+    @classmethod
+    def create_task_id(cls, is_foreach):
+        if is_foreach:
+            return cls.FOREACH_TASK_ID
+        else:
+            return cls.TASK_ID
+
+    @classmethod
+    def pathspec(cls, flowname, is_foreach=False):
+        return "%s/%s/%s/%s" % (
+            flowname,
+            cls.RUN_ID,
+            cls.STEPNAME,
+            cls.create_task_id(is_foreach),
+        )
 
 
 def run_id_creator(val):
@@ -401,9 +419,23 @@ def get_metaflow_kuberentes_operator():
         This is later useful in the `Workflow.compile` where the operator's `expand` method is called and we are able to retrieve the xcom value.
         """
 
-        def __init__(self, *args, mapper_arr=None, **kwargs) -> None:
+        template_fields = KubernetesPodOperator.template_fields + ("metaflow_pathspec",)
+
+        def __init__(
+            self,
+            *args,
+            mapper_arr=None,
+            flow_name=None,
+            flow_contains_foreach=False,
+            **kwargs
+        ) -> None:
             super().__init__(*args, **kwargs)
             self.mapper_arr = mapper_arr
+            self._flow_name = flow_name
+            self._flow_contains_foreach = flow_contains_foreach
+            self.metaflow_pathspec = AIRFLOW_MACROS.pathspec(
+                self._flow_name, is_foreach=self._flow_contains_foreach
+            )
 
         def execute(self, context):
             result = super().execute(context)
@@ -423,13 +455,19 @@ def get_metaflow_kuberentes_operator():
 
 class AirflowTask(object):
     def __init__(
-        self, name, operator_type="kubernetes", flow_name=None, is_mapper_node=False
+        self,
+        name,
+        operator_type="kubernetes",
+        flow_name=None,
+        is_mapper_node=False,
+        flow_contains_foreach=False,
     ):
         self.name = name
         self._is_mapper_node = is_mapper_node
         self._operator_args = None
         self._operator_type = operator_type
         self._flow_name = flow_name
+        self._flow_contains_foreach = flow_contains_foreach
 
     @property
     def is_mapper_node(self):
@@ -448,7 +486,7 @@ class AirflowTask(object):
         }
 
     @classmethod
-    def from_dict(cls, task_dict, flow_name=None):
+    def from_dict(cls, task_dict, flow_name=None, flow_contains_foreach=False):
         op_args = {} if not "operator_args" in task_dict else task_dict["operator_args"]
         is_mapper_node = (
             False if "is_mapper_node" not in task_dict else task_dict["is_mapper_node"]
@@ -460,17 +498,26 @@ class AirflowTask(object):
             if "operator_type" in task_dict
             else "kubernetes",
             flow_name=flow_name,
+            flow_contains_foreach=flow_contains_foreach,
         ).set_operator_args(**op_args)
 
     def _kubenetes_task(self):
         MetaflowKubernetesOperator = get_metaflow_kuberentes_operator()
         k8s_args = _kubernetes_pod_operator_args(self._operator_args)
-        return MetaflowKubernetesOperator(**k8s_args)
+        return MetaflowKubernetesOperator(
+            flow_name=self._flow_name,
+            flow_contains_foreach=self._flow_contains_foreach,
+            **k8s_args
+        )
 
     def _kubernetes_mapper_task(self):
         MetaflowKubernetesOperator = get_metaflow_kuberentes_operator()
         k8s_args = _kubernetes_pod_operator_args(self._operator_args)
-        return MetaflowKubernetesOperator.partial(**k8s_args)
+        return MetaflowKubernetesOperator.partial(
+            flow_name=self._flow_name,
+            flow_contains_foreach=self._flow_contains_foreach,
+            **k8s_args
+        )
 
     def to_task(self):
         if self._operator_type == "kubernetes":
@@ -514,7 +561,7 @@ class Workflow(object):
         re_cls = cls(
             file_path=data_dict["file_path"],
             graph_structure=data_dict["graph_structure"],
-            metadata={} if "metadata" not in data_dict else data_dict["metadata"],
+            metadata=data_dict["metadata"],
         )
         re_cls._dag_instantiation_params = AirflowDAGArgs.deserialize(
             data_dict["dag_instantiation_params"]
@@ -522,9 +569,7 @@ class Workflow(object):
 
         for sd in data_dict["states"].values():
             re_cls.add_state(
-                AirflowTask.from_dict(
-                    sd, flow_name=re_cls._dag_instantiation_params.arguments["dag_id"]
-                )
+                AirflowTask.from_dict(sd, flow_name=data_dict["metadata"]["flow_name"])
             )
         re_cls.set_parameters(data_dict["metaflow_params"])
         return re_cls
