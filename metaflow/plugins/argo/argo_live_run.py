@@ -1,5 +1,6 @@
 from metaflow.plugins.argo.argo_client import ArgoClient
 from metaflow.metaflow_config import KUBERNETES_NAMESPACE
+from metaflow.exception import MetaflowNotFound, MetaflowException
 import time
 
 
@@ -33,19 +34,33 @@ class ArgoLiveRun:  # TODO: make child class of LiveRun
         alt_flow_id_info: dict
             Alternative identifying information of flow to trigger run
         """
+        # confirm that a flow_name or template_name exists w/o conflict
         if alt_flow_id_info is None:
             alt_flow_id_info = {}
 
+        template_name = None
+        if 'template_name' in alt_flow_id_info:
+            template_name = alt_flow_id_info['template_name']
+
+        if flow_name is None and template_name is None:
+            raise ValueError("no Metaflow flow or Argo template specified")
+
+        if flow_name and template_name and flow_name.lower() != template_name:
+            raise ValueError("mismatching Metaflow flow and Argo template names")
+
         # initialize instance variables
         self._flow_name = flow_name
-        self._alt_flow_id_info = alt_flow_id_info
-        self._template_name = self._flow_name.lower()  # TODO: add logic when adding alt flow IDs
+        self._template_name = template_name
+        if template_name is None:
+            self._template_name = flow_name.lower()
         self._argo_client = ArgoClient(KUBERNETES_NAMESPACE)
         self._cached_status = None
         self._has_triggered = False
         self._metaflow_run = None
         self._argo_run_id = None
         self._metaflow_run_id = None
+        self._time_triggered = None
+        self._error_message = None
 
     def trigger(
         self,
@@ -77,6 +92,7 @@ class ArgoLiveRun:  # TODO: make child class of LiveRun
             parameters=parameters,
         )
 
+        self._time_triggered = time.time()
         self._argo_run_id = flow_information["metadata"]["name"]
         self._metaflow_run_id = f"argo-{self._argo_run_id}"
         run_kubernetes_namespace = flow_information["metadata"]["namespace"]
@@ -85,7 +101,7 @@ class ArgoLiveRun:  # TODO: make child class of LiveRun
         # It is necessary to determine Flow name if not given as parameter
 
         print(
-            f"Attempting to trigger a run of Metaflow flow {self._flow_name}.\n"
+            f"Attempting to trigger a run of a Metaflow flow:\n"
             f"    - Metaflow run id: {self._metaflow_run_id}\n"
             f"    - k8s namespace: {run_kubernetes_namespace}"
         )
@@ -95,19 +111,21 @@ class ArgoLiveRun:  # TODO: make child class of LiveRun
         while wait_to_trigger > time.time() - start_time:
             if self.has_triggered:
                 print(
-                    f"Run triggered successfully. Metaflow run id: "
-                    f"{self._metaflow_run_id} "
+                    f"Run triggered successfully.\n"
+                    f"    - Metaflow flow:   {self.flow_name}\n"
+                    f"    - Metaflow run id: {self._metaflow_run_id}\n"
                 )
                 break
             elif self._error:
-                # TODO: add specificity to exceptions (see AIP-6470)
-                raise Exception("Error - Unable to trigger run")
+                raise MetaflowException(
+                    "ArgoClient returned 'Error' status. Potentially caused if"
+                    " Metaflow flow does not exist or if Argo workflow"
+                    " template has not yet been created."
+                    f"\nError message: {self._error_message}"
+                )
             time.sleep(1)
         else:
-            # TODO: add specificity to exceptions (see AIP-6470).
-            # MetaflowException (or a child exception in file)
-            # or TimeoutError would be more specific.
-            raise Exception("Failed to begin running")
+            raise TimeoutError(f"Failed to trigger Argo workflow within {wait_to_trigger} seconds")
 
         # optional wait for argo workflow to finish running
         if wait:
@@ -126,9 +144,7 @@ class ArgoLiveRun:  # TODO: make child class of LiveRun
                 loop_counter += 1
                 time.sleep(5)
             else:
-                print("Run timed out.")
-                # TODO: add specificity to exceptions (see AIP-6470)
-                raise Exception("Wait Timeout")
+                raise TimeoutError(f"Failed to begin running within {wait_timeout} minutes")
 
             success_statement = (
                 "successfully!!!" if self.successful else "unsuccessfully."
@@ -139,6 +155,13 @@ class ArgoLiveRun:  # TODO: make child class of LiveRun
             print("\nNot waiting for run to finish")
 
     @property
+    def flow_name(self) -> str:
+        if self._flow_name is None:
+            workflow = self._argo_client.get_workflow(self._argo_run_id)
+            self._flow_name = workflow['metadata']['annotations']['metaflow/flow_name']
+        return self._flow_name
+
+    @property
     def _status(self) -> str:
         if self._cached_status in ["Error", "Failed", "Succeeded"]:
             return self._cached_status
@@ -146,8 +169,19 @@ class ArgoLiveRun:  # TODO: make child class of LiveRun
         workflow = self._argo_client.get_workflow(self._argo_run_id)
         if workflow.get("status"):
             self._cached_status = workflow["status"].get("phase")
+            if self._cached_status == 'Error':
+                self._error_message = workflow["status"].get("message")
 
         return self._cached_status
+
+    def _print_status(self):
+        print(f"""Current run properties:
+        Has Triggered:    {self.has_triggered}
+        Is Running:       {self.is_running}
+        Successful:       {self.successful}
+        Failed Steps:     {self.failed_steps}
+        Exceptions:       {self.exceptions}
+        """)
 
     @property
     def has_triggered(self) -> bool:
@@ -193,37 +227,28 @@ class ArgoLiveRun:  # TODO: make child class of LiveRun
         from metaflow import Run, namespace
 
         namespace(None)
-        metaflow_run_location = self._flow_name + "/" + self._metaflow_run_id
-        seconds_to_find_metaflow_run = 5  # gives 5 seconds to find MF run
-        start_time = time.time()
-        print("Trying to find metaflow run")
-        print(f"metaflow_run_location: {metaflow_run_location}")
-        while seconds_to_find_metaflow_run > time.time() - start_time:
-            print("Trying to find Metaflow Run")
-            try:
-                metaflow_run = Run(metaflow_run_location)
-                self._metaflow_run = metaflow_run
-                print("Found it!")
-                break
-            except:
-                print("could not find metaflow Run")
-                time.sleep(1)
-        else:
-            # TODO: add specificity to exceptions (see AIP-6470).
-            # MetaflowException (or a child exception in file)
-            # or TimeoutError would be more specific.
-            raise Exception("Unable to find Metaflow Run")
+        metaflow_run_location = self.flow_name + "/" + self._metaflow_run_id
+        print(f"Trying to find Metaflow run @ location: {metaflow_run_location}")
+        try:
+            metaflow_run = Run(metaflow_run_location)
+            self._metaflow_run = metaflow_run
+            print("Found Metaflow run!")
+        except MetaflowNotFound:
+            print("Failed to find Metaflow run")
+            if time.time() - self._time_triggered < 60:
+                print("Not raising exception because within 60 seconds of triggering")
+            else:
+                raise MetaflowNotFound(
+                    f"Unable to find Metaflow run at location: {metaflow_run_location}"
+                )
 
     @property
     def exceptions(self) -> dict:
-        # if self.is_running:
-        #     return None
 
         if self._metaflow_run is None:
             self._find_metaflow_run()
             if self._metaflow_run is None:
-                # TODO: add specificity to exceptions (see AIP-6470)
-                raise Exception("Could not find Metaflow run")
+                return {}  # only if Flow not found within 60s of triggering
 
         exceptions = {}
 
