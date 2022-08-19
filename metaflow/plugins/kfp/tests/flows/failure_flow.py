@@ -33,7 +33,7 @@ class FailureFlow(FlowSpec):
             )
             print(f"{command=}")
             output = subprocess.check_output(command, shell=True)
-            assert "pod deleted during operation" in str(output)
+            assert "pod deleted" in str(output)
             print("let's succeed")
 
         self.next(self.user_failure)
