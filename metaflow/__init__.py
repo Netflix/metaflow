@@ -104,6 +104,7 @@ from .current import current
 from .flowspec import FlowSpec
 
 from .parameters import Parameter, JSONTypeClass
+
 JSONType = JSONTypeClass()
 
 # data layer
