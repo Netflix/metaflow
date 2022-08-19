@@ -392,14 +392,14 @@ class BatchJob(object):
         return self
 
     def memory(self, mem):
-        if not (isinstance(mem, (int, unicode, basestring)) and int(mem) > 0):
+        if not (isinstance(mem, (int, unicode, basestring, float)) and float(mem) > 0):
             raise BatchJobException(
                 "Invalid memory value ({}); it should be greater than 0".format(mem)
             )
         if "resourceRequirements" not in self.payload["containerOverrides"]:
             self.payload["containerOverrides"]["resourceRequirements"] = []
         self.payload["containerOverrides"]["resourceRequirements"].append(
-            {"value": str(mem), "type": "MEMORY"}
+            {"value": str(int(float(mem))), "type": "MEMORY"}
         )
         return self
 
@@ -408,11 +408,14 @@ class BatchJob(object):
             raise BatchJobException(
                 "invalid gpu value: ({}) (should be 0 or greater)".format(gpu)
             )
-        if int(gpu) > 0:
+        if float(gpu) > 0:
             if "resourceRequirements" not in self.payload["containerOverrides"]:
                 self.payload["containerOverrides"]["resourceRequirements"] = []
+
+            # Only integer values are supported but the value passed to us
+            # could be a float-converted-to-string
             self.payload["containerOverrides"]["resourceRequirements"].append(
-                {"type": "GPU", "value": str(gpu)}
+                {"type": "GPU", "value": str(int(float(gpu)))}
             )
         return self
 
