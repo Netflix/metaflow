@@ -419,7 +419,10 @@ def get_metaflow_kuberentes_operator():
         This is later useful in the `Workflow.compile` where the operator's `expand` method is called and we are able to retrieve the xcom value.
         """
 
-        template_fields = KubernetesPodOperator.template_fields + ("metaflow_pathspec",)
+        template_fields = KubernetesPodOperator.template_fields + (
+            "metaflow_pathspec",
+            "metaflow_run_id",
+        )
 
         def __init__(
             self,
@@ -436,6 +439,7 @@ def get_metaflow_kuberentes_operator():
             self.metaflow_pathspec = AIRFLOW_MACROS.pathspec(
                 self._flow_name, is_foreach=self._flow_contains_foreach
             )
+            self.metaflow_run_id = AIRFLOW_MACROS.RUN_ID
 
         def execute(self, context):
             result = super().execute(context)
