@@ -6,12 +6,11 @@ from collections import defaultdict
 
 from metaflow import current
 from metaflow.decorators import flow_decorators
-from metaflow.exception import MetaflowException, MetaflowInternalError
+from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
     BATCH_METADATA_SERVICE_HEADERS,
     BATCH_METADATA_SERVICE_URL,
     DATASTORE_CARD_S3ROOT,
-    DATASTORE_LOCAL_DIR,
     DATASTORE_SYSROOT_S3,
     DATATOOLS_S3ROOT,
     DEFAULT_METADATA,
@@ -20,6 +19,9 @@ from metaflow.metaflow_config import (
     KUBERNETES_SANDBOX_INIT_SCRIPT,
     KUBERNETES_SECRETS,
     S3_ENDPOINT_URL,
+    AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
+    DATASTORE_SYSROOT_AZURE,
+    DATASTORE_CARD_AZUREROOT,
 )
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
@@ -606,9 +608,13 @@ class ArgoWorkflows(object):
                     task_id_expr,
                     mflog_expr,
                 ]
-                + self.environment.get_package_commands(self.code_package_url)
+                + self.environment.get_package_commands(
+                    self.code_package_url, self.flow_datastore.TYPE
+                )
             )
-            step_cmds = self.environment.bootstrap_commands(node.name)
+            step_cmds = self.environment.bootstrap_commands(
+                node.name, self.flow_datastore.TYPE
+            )
 
             input_paths = "{{inputs.parameters.input-paths}}"
 
@@ -778,12 +784,17 @@ class ArgoWorkflows(object):
                 }
             )
             # add METAFLOW_S3_ENDPOINT_URL
-            if S3_ENDPOINT_URL is not None:
-                env["METAFLOW_S3_ENDPOINT_URL"] = S3_ENDPOINT_URL
+            env["METAFLOW_S3_ENDPOINT_URL"] = S3_ENDPOINT_URL
 
             # support Metaflow sandboxes
-            if KUBERNETES_SANDBOX_INIT_SCRIPT is not None:
-                env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
+            env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
+
+            # Azure stuff
+            env[
+                "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
+            ] = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
+            env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = DATASTORE_SYSROOT_AZURE
+            env["METAFLOW_DATASTORE_CARD_AZUREROOT"] = DATASTORE_CARD_AZUREROOT
 
             metaflow_version = self.environment.get_environment_info()
             metaflow_version["flow_name"] = self.graph.name
@@ -814,6 +825,10 @@ class ArgoWorkflows(object):
                 outputs.append(
                     Parameter("num-splits").valueFrom({"path": "/mnt/out/splits"})
                 )
+
+            # It makes no sense to set env vars to None (shows up as "None" string)
+            env_without_none_values = {k: v for k, v in env.items() if v is not None}
+            del env
 
             # Create a ContainerTemplate for this node. Ideally, we would have
             # liked to inline this ContainerTemplate and avoid scanning the workflow
@@ -876,7 +891,7 @@ class ArgoWorkflows(object):
                             command=cmds,
                             env=[
                                 kubernetes_sdk.V1EnvVar(name=k, value=str(v))
-                                for k, v in env.items()
+                                for k, v in env_without_none_values.items()
                             ]
                             # Add environment variables for book-keeping.
                             # https://argoproj.github.io/argo-workflows/fields/#fields_155

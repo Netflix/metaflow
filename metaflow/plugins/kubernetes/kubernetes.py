@@ -1,34 +1,32 @@
-import hashlib
 import json
 import math
 import os
-import re
-import select
 import shlex
 import time
 
 from metaflow import current, util
-from metaflow.datatools.s3tail import S3Tail
-from metaflow.exception import MetaflowException, MetaflowInternalError
+from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
     BATCH_METADATA_SERVICE_HEADERS,
     BATCH_METADATA_SERVICE_URL,
     DATASTORE_CARD_S3ROOT,
-    DATASTORE_LOCAL_DIR,
     DATASTORE_SYSROOT_S3,
     DATATOOLS_S3ROOT,
     DEFAULT_AWS_CLIENT_PROVIDER,
     DEFAULT_METADATA,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
     S3_ENDPOINT_URL,
+    AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
+    DATASTORE_SYSROOT_AZURE,
+    DATASTORE_CARD_AZUREROOT,
 )
 from metaflow.mflog import (
     BASH_SAVE_LOGS,
     bash_capture_logs,
     export_mflog_env_vars,
     tail_logs,
+    get_log_tailer,
 )
-from metaflow.mflog.mflog import refine, set_should_persist
 
 from .kubernetes_client import KubernetesClient
 
@@ -79,10 +77,15 @@ class Kubernetes(object):
             stdout_path=STDOUT_PATH,
             stderr_path=STDERR_PATH,
         )
-        init_cmds = self._environment.get_package_commands(code_package_url)
+        init_cmds = self._environment.get_package_commands(
+            code_package_url, self._datastore.TYPE
+        )
         init_expr = " && ".join(init_cmds)
         step_expr = bash_capture_logs(
-            " && ".join(self._environment.bootstrap_commands(step_name) + step_cmds)
+            " && ".join(
+                self._environment.bootstrap_commands(step_name, self._datastore.TYPE)
+                + step_cmds
+            )
         )
 
         # Construct an entry point that
@@ -184,7 +187,7 @@ class Kubernetes(object):
             )
             .environment_variable("METAFLOW_DATASTORE_SYSROOT_S3", DATASTORE_SYSROOT_S3)
             .environment_variable("METAFLOW_DATATOOLS_S3ROOT", DATATOOLS_S3ROOT)
-            .environment_variable("METAFLOW_DEFAULT_DATASTORE", "s3")
+            .environment_variable("METAFLOW_DEFAULT_DATASTORE", self._datastore.TYPE)
             .environment_variable("METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA)
             .environment_variable("METAFLOW_KUBERNETES_WORKLOAD", 1)
             .environment_variable("METAFLOW_RUNTIME_ENVIRONMENT", "kubernetes")
@@ -192,22 +195,25 @@ class Kubernetes(object):
             .environment_variable(
                 "METAFLOW_DEFAULT_AWS_CLIENT_PROVIDER", DEFAULT_AWS_CLIENT_PROVIDER
             )
+            .environment_variable("METAFLOW_S3_ENDPOINT_URL", S3_ENDPOINT_URL)
+            .environment_variable(
+                "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT",
+                AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
+            )
+            .environment_variable(
+                "METAFLOW_DATASTORE_SYSROOT_AZURE", DATASTORE_SYSROOT_AZURE
+            )
+            .environment_variable("METAFLOW_CARD_AZUREROOT", DATASTORE_CARD_AZUREROOT)
+            # support Metaflow sandboxes
+            .environment_variable(
+                "METAFLOW_INIT_SCRIPT", KUBERNETES_SANDBOX_INIT_SCRIPT
+            )
             # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync
             # between the local user instance and the remote Kubernetes pod
             # assumes metadata is stored in DATASTORE_LOCAL_DIR on the Kubernetes
             # pod; this happens when METAFLOW_DATASTORE_SYSROOT_LOCAL is NOT set (
             # see get_datastore_root_from_config in datastore/local.py).
         )
-
-        # add METAFLOW_S3_ENDPOINT_URL
-        if S3_ENDPOINT_URL is not None:
-            job.environment_variable("METAFLOW_S3_ENDPOINT_URL", S3_ENDPOINT_URL)
-
-        # support Metaflow sandboxes
-        if KUBERNETES_SANDBOX_INIT_SCRIPT is not None:
-            job.environment_variable(
-                "METAFLOW_INIT_SCRIPT", KUBERNETES_SANDBOX_INIT_SCRIPT
-            )
 
         for name, value in env.items():
             job.environment_variable(name, value)
@@ -272,8 +278,9 @@ class Kubernetes(object):
                 time.sleep(update_delay(time.time() - start_time))
 
         prefix = b"[%s] " % util.to_bytes(self._job.id)
-        stdout_tail = S3Tail(stdout_location)
-        stderr_tail = S3Tail(stderr_location)
+
+        stdout_tail = get_log_tailer(stdout_location, self._datastore.TYPE)
+        stderr_tail = get_log_tailer(stderr_location, self._datastore.TYPE)
 
         # 1) Loop until the job has started
         wait_for_launch(self._job)
@@ -286,7 +293,6 @@ class Kubernetes(object):
             echo=echo,
             has_log_updates=lambda: self._job.is_running,
         )
-
         # 3) Fetch remaining logs
         #
         # It is possible that we exit the loop above before all logs have been

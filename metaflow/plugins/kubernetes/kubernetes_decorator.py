@@ -122,9 +122,9 @@ class KubernetesDecorator(StepDecorator):
     # Refer https://github.com/Netflix/metaflow/blob/master/docs/lifecycle.png
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         # Executing Kubernetes jobs requires a non-local datastore.
-        if flow_datastore.TYPE != "s3":
+        if flow_datastore.TYPE not in ("s3", "azure"):
             raise KubernetesException(
-                "The *@kubernetes* decorator requires --datastore=s3 at the moment."
+                "The *@kubernetes* decorator requires --datastore=s3 or --datastore=azure at the moment."
             )
 
         # Set internal state.

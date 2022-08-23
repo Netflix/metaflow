@@ -1,23 +1,19 @@
-import functools
 import json
-from multiprocessing import Pool
 import os
-import tarfile
 import shutil
-import subprocess
 import sys
 
-from metaflow.datatools import S3
+from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 
 from ..env_escape import generate_trampolines, ENV_ESCAPE_PY
 
-from . import CONDA_MAGIC_FILE
+from . import CONDA_MAGIC_FILE, get_conda_package_root
 
 
-def bootstrap_environment(flow_name, env_id):
+def bootstrap_environment(flow_name, env_id, datastore_type):
     setup_conda_manifest(flow_name)
-    packages = download_conda_packages(flow_name, env_id)
+    packages = download_conda_packages(flow_name, env_id, datastore_type)
     install_conda_environment(env_id, packages)
 
 
@@ -31,18 +27,42 @@ def setup_conda_manifest(flow_name):
     )
 
 
-def download_conda_packages(flow_name, env_id):
+def download_conda_packages(flow_name, env_id, datastore_type):
     pkgs_folder = os.path.join(os.getcwd(), "pkgs")
     if not os.path.exists(pkgs_folder):
         os.makedirs(pkgs_folder)
+    # NOTE: if two runs use the same DATASTORE_LOCAL_DIR but different cloud based
+    # datastore roots (e.g. a different DATASTORE_SYSROOT_AZURE), then this breaks.
+    # This shared local manifest CONDA_MAGIC_FILE will say that cache_urls exist,
+    # but those URLs will not actually point to any real objects in the datastore
+    # for the second run.
     manifest_folder = os.path.join(os.getcwd(), DATASTORE_LOCAL_DIR, flow_name)
     with open(os.path.join(manifest_folder, CONDA_MAGIC_FILE)) as f:
         env = json.load(f)[env_id]
-        with S3() as s3:
-            for pkg in s3.get_many(env["cache_urls"]):
-                shutil.move(
-                    pkg.path, os.path.join(pkgs_folder, os.path.basename(pkg.key))
-                )
+        if datastore_type == "s3":
+            from metaflow.datatools import S3
+
+            with S3() as s3:
+                for pkg in s3.get_many(env["cache_urls"]):
+                    shutil.move(
+                        pkg.path, os.path.join(pkgs_folder, os.path.basename(pkg.key))
+                    )
+        elif datastore_type == "azure":
+            # Import DATASTORES dynamically... otherwise, circular import
+            from metaflow.datastore import DATASTORES
+
+            conda_package_root = get_conda_package_root("azure")
+            storage = DATASTORES["azure"](conda_package_root)
+            with storage.load_bytes(env["cache_urls"]) as load_result:
+                for key, tmpfile, _ in load_result:
+                    shutil.move(
+                        tmpfile, os.path.join(pkgs_folder, os.path.basename(key))
+                    )
+        else:
+            raise MetaflowException(
+                msg="Downloading conda code packages from datastore backend %s is unimplemented!"
+                % datastore_type
+            )
         return env["order"]
 
 
@@ -68,4 +88,4 @@ def install_conda_environment(env_id, packages):
 
 
 if __name__ == "__main__":
-    bootstrap_environment(sys.argv[1], sys.argv[2])
+    bootstrap_environment(sys.argv[1], sys.argv[2], sys.argv[3])

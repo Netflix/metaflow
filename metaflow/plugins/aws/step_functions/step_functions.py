@@ -629,6 +629,10 @@ class StepFunctions(object):
                 )
             env["METAFLOW_SFN_DYNAMO_DB_TABLE"] = SFN_DYNAMO_DB_TABLE
 
+        # It makes no sense to set env vars to None (shows up as "None" string)
+        env_without_none_values = {k: v for k, v in env.items() if v is not None}
+        del env
+
         # Resolve AWS Batch resource requirements.
         batch_deco = [deco for deco in node.decorators if deco.name == "batch"][0]
         resources = {}
@@ -675,7 +679,7 @@ class StepFunctions(object):
                 shared_memory=resources["shared_memory"],
                 max_swap=resources["max_swap"],
                 swappiness=resources["swappiness"],
-                env=env,
+                env=env_without_none_values,
                 attrs=attrs,
                 host_volumes=resources["host_volumes"],
             )
