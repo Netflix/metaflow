@@ -1,6 +1,7 @@
 from metaflow.plugins.argo.argo_client import ArgoClient
 from metaflow.metaflow_config import KUBERNETES_NAMESPACE
 from metaflow.exception import MetaflowNotFound, MetaflowException
+import json
 import time
 
 
@@ -83,6 +84,15 @@ class ArgoLiveRun:  # TODO: make child class of LiveRun
 
         if parameters is None:
             parameters = {}
+
+        # convert dicts/lists to json-valid strings
+        for key in parameters:
+            if isinstance(parameters[key], (dict, list)):  # TODO: discuss best way to filter
+                try:
+                    parameters[key] = json.dumps(parameters[key])
+                except:
+                    raise TypeError(f"Parameter with key '{key}' not supported.\n"
+                                    "Supported types are str and json-convertible objects")
 
         print(f"template name: {self._template_name}")
 
