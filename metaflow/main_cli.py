@@ -900,7 +900,7 @@ def azure(ctx, profile):
     )
 
     # Check for existing configuration.
-    if not overwrite_config(profile):
+    if not confirm_overwrite_config(profile):
         ctx.abort()
 
     verify_azure_credentials(ctx)
