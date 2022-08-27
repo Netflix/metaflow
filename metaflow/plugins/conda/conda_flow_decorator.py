@@ -14,6 +14,10 @@ class CondaFlowDecorator(FlowDecorator):
     libraries : Dict
         Libraries to use for this flow. The key is the name of the package
         and the value is the version to use (default: `{}`).
+    channels : List
+        Additional channels to use for this flow. You can typically specify a
+        channel using <channel>:<package> as well but this does not work for
+        non aliased channels (default: `[]`).
     python : string
         Version of Python to use, e.g. '3.7.4'
         (default: None, i.e. the current Python version).
@@ -22,7 +26,7 @@ class CondaFlowDecorator(FlowDecorator):
     """
 
     name = "conda_base"
-    defaults = {"libraries": {}, "python": None, "disabled": None}
+    defaults = {"libraries": {}, "channels": [], "python": None, "disabled": None}
 
     def flow_init(
         self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
