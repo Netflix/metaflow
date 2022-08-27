@@ -5,12 +5,14 @@ import tarfile
 
 from io import BytesIO
 
+from metaflow.metaflow_config import CONDA_MAGIC_FILE
 from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.exception import MetaflowException
 from metaflow.mflog import BASH_SAVE_LOGS
 
+from .conda_step_decorator import CondaStepDecorator
 from .conda import Conda
-from . import get_conda_manifest_path, CONDA_MAGIC_FILE
+from . import get_conda_manifest_path
 
 
 class CondaEnvironment(MetaflowEnvironment):
@@ -51,7 +53,9 @@ class CondaEnvironment(MetaflowEnvironment):
 
     def _get_conda_decorator(self, step_name):
         step = next(step for step in self.flow if step.name == step_name)
-        decorator = next(deco for deco in step.decorators if deco.name == "conda")
+        decorator = next(
+            deco for deco in step.decorators if isinstance(deco, CondaStepDecorator)
+        )
         # Guaranteed to have a conda decorator because of self.decospecs()
         return decorator
 
@@ -75,10 +79,12 @@ class CondaEnvironment(MetaflowEnvironment):
         env_id = self._get_env_id(step_name)
         if env_id is not None:
             return [
+                "export CONDA_START=$(date +%s)",
                 "echo 'Bootstrapping environment...'",
-                'python -m metaflow.plugins.conda.batch_bootstrap "%s" %s "%s"'
+                'python -m metaflow.plugins.conda.remote_bootstrap "%s" %s "%s"'
                 % (self.flow.name, env_id, datastore_type),
                 "echo 'Environment bootstrapped.'",
+                "export CONDA_END=$(date +%s)",
             ]
         return []
 

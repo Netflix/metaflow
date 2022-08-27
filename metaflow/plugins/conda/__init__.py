@@ -2,16 +2,18 @@ import errno
 import os
 import json
 import fcntl
+import platform
 
-from metaflow.exception import MetaflowException, MetaflowInternalError
+from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
+    CONDA_MAGIC_FILE,
+    CONDA_S3ROOT,
     CONDA_PACKAGE_S3ROOT,
-    DATASTORE_SYSROOT_S3,
+    CONDA_AZUREROOT,
     CONDA_PACKAGE_AZUREROOT,
-    DATASTORE_SYSROOT_AZURE,
 )
 
-CONDA_MAGIC_FILE = "conda.dependencies"
+from metaflow.metaflow_environment import InvalidEnvironmentException
 
 
 def get_conda_manifest_path(ds_root, flow_name):
@@ -52,28 +54,46 @@ def write_to_conda_manifest(ds_root, flow_name, key, value):
             fcntl.flock(f, fcntl.LOCK_UN)
 
 
+def get_conda_root(datastore_type):
+    if datastore_type == "s3":
+        if CONDA_S3ROOT is None:
+            # We error on METAFLOW_DATASTORE_SYSROOT_S3 because that is the default used
+            raise MetaflowException(msg="METAFLOW_DATASTORE_SYSROOT_S3 must be set!")
+        return CONDA_S3ROOT
+    elif datastore_type == "azure":
+        if CONDA_AZUREROOT is None:
+            # We error on METAFLOW_DATASTORE_SYSROOT_AZURE because that is the default used
+            raise MetaflowException(msg="METAFLOW_DATASTORE_SYSROOT_AZURE must be set!")
+        return CONDA_AZUREROOT
+
+
 def get_conda_package_root(datastore_type):
-    # Yes, code duplication. But easier to read this way, at N=2
     if datastore_type == "s3":
         if CONDA_PACKAGE_S3ROOT is None:
-            if DATASTORE_SYSROOT_S3 is None:
-                raise MetaflowException(
-                    msg="METAFLOW_DATASTORE_SYSROOT_S3 must be set!"
-                )
-            return "%s/conda" % DATASTORE_SYSROOT_S3
-        else:
-            return CONDA_PACKAGE_S3ROOT
+            # We error on METAFLOW_DATASTORE_SYSROOT_S3 because that is the default used
+            raise MetaflowException(msg="METAFLOW_DATASTORE_SYSROOT_S3 must be set!")
+        return CONDA_PACKAGE_S3ROOT
     elif datastore_type == "azure":
         if CONDA_PACKAGE_AZUREROOT is None:
-            if DATASTORE_SYSROOT_AZURE is None:
-                raise MetaflowException(
-                    msg="METAFLOW_DATASTORE_SYSROOT_AZURE must be set!"
-                )
-            return "%s/conda" % DATASTORE_SYSROOT_AZURE
+            # We error on METAFLOW_DATASTORE_SYSROOT_AZURE because that is the default used
+            raise MetaflowException(msg="METAFLOW_DATASTORE_SYSROOT_AZURE must be set!")
+        return CONDA_PACKAGE_AZUREROOT
+
+
+def arch_id():
+    bit = "32"
+    if platform.machine().endswith("64"):
+        bit = "64"
+    if platform.system() == "Linux":
+        return "linux-%s" % bit
+    elif platform.system() == "Darwin":
+        # Support M1 Mac
+        if platform.machine() == "arm64":
+            return "osx-arm64"
         else:
-            return CONDA_PACKAGE_AZUREROOT
+            return "osx-%s" % bit
     else:
-        raise MetaflowInternalError(
-            msg="Unsupported storage backend '%s' for working with Conda"
-            % (datastore_type,)
+        raise InvalidEnvironmentException(
+            "The *@conda* decorator is not supported "
+            "outside of Linux and Darwin platforms"
         )

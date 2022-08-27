@@ -216,7 +216,6 @@ AZURE_STORAGE_WORKLOAD_TYPE = from_conf(
     validate_fn=_get_validate_choice_fn(["general", "high_throughput"]),
 )
 
-
 ###
 # Metadata configuration
 ###
@@ -317,15 +316,65 @@ AIRFLOW_KUBERNETES_STARTUP_TIMEOUT = from_conf(
 ###
 # Conda configuration
 ###
+
+# Conda root in S3; under there, by default, there will be:
+# - a `conda` directory containing the packages downloaded
+# - a `conda-remote` directory containing the remote executable (optional)
+# - a `conda-local` directory containing the tar-balls for the conda distribution
+#   to use (optional)
+CONDA_S3ROOT = from_conf("METAFLOW_CONDA_S3ROOT", DATASTORE_SYSROOT_S3)
+
 # Conda package root location on S3
-CONDA_PACKAGE_S3ROOT = from_conf("METAFLOW_CONDA_PACKAGE_S3ROOT")
-# Conda package root location on Azure
-CONDA_PACKAGE_AZUREROOT = from_conf("METAFLOW_CONDA_PACKAGE_AZUREROOT")
+# This is here for legacy reasons (and therefore treated differently than the
+# `conda-remote` and `conda-local` directories)
+CONDA_PACKAGE_S3ROOT = from_conf(
+    "METAFLOW_CONDA_PACKAGE_S3ROOT",
+    os.path.join(CONDA_S3ROOT, "conda") if CONDA_S3ROOT else None,
+)
+
+# Same thing for Azure
+CONDA_AZUREROOT = from_conf("METAFLOW_CONDA_AZUREROOT", DATASTORE_SYSROOT_AZURE)
+
+CONDA_PACKAGE_AZUREROOT = from_conf(
+    "METAFLOW_CONDA_PACKAGE_AZUREROOT",
+    os.path.join(CONDA_AZUREROOT, "conda") if CONDA_AZUREROOT else None,
+)
+
+# Magic file containing information about Conda
+CONDA_MAGIC_FILE = from_conf("METAFLOW_CONDA_MAGIC_FILE", "conda.dependencies")
 
 # Use an alternate dependency resolver for conda packages instead of conda
 # Mamba promises faster package dependency resolution times, which
 # should result in an appreciable speedup in flow environment initialization.
 CONDA_DEPENDENCY_RESOLVER = from_conf("METAFLOW_CONDA_DEPENDENCY_RESOLVER", "conda")
+
+# Timeout trying to acquire the lock to create environments
+CONDA_LOCK_TIMEOUT = int(from_conf("METAFLOW_CONDA_LOCK_TIMEOUT", "3600"))
+
+# Directory in CONDA_*ROOT that contains the remote installers. If not specified,
+# Miniforge will be used
+CONDA_REMOTE_INSTALLER_DIRNAME = from_conf(
+    "METAFLOW_CONDA_REMOTE_INSTALLER_DIRNAME", "conda-remote"
+)
+
+# Binary within CONDA_REMOTE_INSTALLER_DIRNAME to use as the binary on remote instances.
+# Use {arch} to specify the architecture. This should be fully functional binary
+CONDA_REMOTE_INSTALLER = from_conf("METAFLOW_CONDA_REMOTE_INSTALLER", "conda-{arch}")
+
+# Directory in CONDA_*ROOT that contains the local distribution tarballs. If not specified,
+# a conda executable needs to be installed and will be used (if locatable in PATH)
+CONDA_LOCAL_DIST_DIRNAME = from_conf("METAFLOW_CONDA_LOCAL_DIST_DIRNAME", "conda-local")
+
+# Tar-ball containing the local distribution of conda to use.
+CONDA_LOCAL_DIST = from_conf("METAFLOW_CONDA_LOCAL_DIST", "conda-{arch}.tgz")
+
+# Path to the local conda distribution. If this is specified and a conda distribution
+# does not exist at this path, Metaflow will attempt to install it using
+# CONDA_LOCAL_DIST_DIRNAME and CONDA_LOCAL_DIST
+CONDA_LOCAL_PATH = from_conf("METAFLOW_CONDA_LOCAL_PATH")
+
+# HACK
+CONDA_FORCE_LINUX64 = ("batch", "kubernetes")
 
 ###
 # Debug configuration
