@@ -12,6 +12,15 @@ from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
     BATCH_METADATA_SERVICE_HEADERS,
     BATCH_METADATA_SERVICE_URL,
+    CONDA_AZUREROOT,
+    CONDA_DEPENDENCY_RESOLVER,
+    CONDA_LOCK_TIMEOUT,
+    CONDA_MAGIC_FILE,
+    CONDA_PACKAGE_DIRNAME,
+    CONDA_PREFERRED_FORMAT,
+    CONDA_REMOTE_INSTALLER,
+    CONDA_REMOTE_INSTALLER_DIRNAME,
+    CONDA_S3ROOT,
     DATASTORE_CARD_S3ROOT,
     DATASTORE_SYSROOT_S3,
     DATATOOLS_S3ROOT,
@@ -370,6 +379,15 @@ class Airflow(object):
             "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
             "METAFLOW_DEFAULT_DATASTORE": "s3",
             "METAFLOW_DEFAULT_METADATA": "service",
+            "METAFLOW_CONDA_S3ROOT": CONDA_S3ROOT,
+            "METAFLOW_CONDA_AZUREROOT": CONDA_AZUREROOT,
+            "METAFLOW_CONDA_MAGIC_FILE": CONDA_MAGIC_FILE,
+            "METAFLOW_CONDA_DEPENDENCY_RESOLVER": CONDA_DEPENDENCY_RESOLVER,
+            "METAFLOW_CONDA_LOCK_TIMEOUT": str(CONDA_LOCK_TIMEOUT),
+            "METAFLOW_CONDA_PACKAGE_DIRNAME": CONDA_PACKAGE_DIRNAME,
+            "METAFLOW_CONDA_REMOTE_INSTALLER_DIRNAME": CONDA_REMOTE_INSTALLER_DIRNAME,
+            "METAFLOW_CONDA_REMOTE_INSTALLER": CONDA_REMOTE_INSTALLER,
+            "METAFLOW_CONDA_PREFERRED_FORMAT": CONDA_PREFERRED_FORMAT,
             "METAFLOW_KUBERNETES_WORKLOAD": str(
                 1
             ),  # This is used by kubernetes decorator.
@@ -389,6 +407,14 @@ class Airflow(object):
         ] = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
         env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = DATASTORE_SYSROOT_AZURE
         env["METAFLOW_DATASTORE_CARD_AZUREROOT"] = DATASTORE_CARD_AZUREROOT
+
+        # Transfer over any METAFLOW_DEBUG_ options
+        debug_flags = {
+            k: v for k, v in os.environ.items() if k.startswith("METAFLOW_DEBUG_")
+        }
+        for k, v in debug_flags.items():
+            additional_mf_variables[k] = v
+
         env.update(additional_mf_variables)
 
         service_account = (

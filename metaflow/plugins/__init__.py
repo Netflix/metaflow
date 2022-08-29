@@ -120,7 +120,7 @@ from .test_unbounded_foreach_decorator import (
     InternalTestUnboundedForeachDecorator,
     InternalTestUnboundedForeachInput,
 )
-from .conda.conda_step_decorator import CondaStepDecorator
+from .conda.conda_step_decorator import CondaStepDecorator, FooDecorator
 from .cards.card_decorator import CardDecorator
 from .frameworks.pytorch import PytorchParallelDecorator
 from .airflow.airflow_decorator import AirflowInternalDecorator
@@ -136,6 +136,7 @@ STEP_DECORATORS = [
     CardDecorator,
     KubernetesDecorator,
     StepFunctionsInternalDecorator,
+    FooDecorator,
     CondaStepDecorator,
     ParallelDecorator,
     PytorchParallelDecorator,

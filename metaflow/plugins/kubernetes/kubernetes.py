@@ -9,6 +9,15 @@ from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
     BATCH_METADATA_SERVICE_HEADERS,
     BATCH_METADATA_SERVICE_URL,
+    CONDA_AZUREROOT,
+    CONDA_DEPENDENCY_RESOLVER,
+    CONDA_LOCK_TIMEOUT,
+    CONDA_MAGIC_FILE,
+    CONDA_PACKAGE_DIRNAME,
+    CONDA_PREFERRED_FORMAT,
+    CONDA_REMOTE_INSTALLER,
+    CONDA_REMOTE_INSTALLER_DIRNAME,
+    CONDA_S3ROOT,
     DATASTORE_CARD_S3ROOT,
     DATASTORE_SYSROOT_S3,
     DATATOOLS_S3ROOT,
@@ -192,6 +201,28 @@ class Kubernetes(object):
             .environment_variable("METAFLOW_KUBERNETES_WORKLOAD", 1)
             .environment_variable("METAFLOW_RUNTIME_ENVIRONMENT", "kubernetes")
             .environment_variable("METAFLOW_CARD_S3ROOT", DATASTORE_CARD_S3ROOT)
+            .environment_variable("METAFLOW_CONDA_S3ROOT", CONDA_S3ROOT)
+            .environment_variable("METAFLOW_CONDA_AZUREROOT", CONDA_AZUREROOT)
+            .environment_variable("METAFLOW_CONDA_MAGIC_FILE", CONDA_MAGIC_FILE)
+            .environment_variable(
+                "METAFLOW_CONDA_DEPENDENCY_RESOLVER", CONDA_DEPENDENCY_RESOLVER
+            )
+            .environment_variable(
+                "METAFLOW_CONDA_LOCK_TIMEOUT", str(CONDA_LOCK_TIMEOUT)
+            )
+            .environment_variable(
+                "METAFLOW_CONDA_PACKAGE_DIRNAME", CONDA_PACKAGE_DIRNAME
+            )
+            .environment_variable(
+                "METAFLOW_CONDA_REMOTE_INSTALLER_DIRNAME",
+                CONDA_REMOTE_INSTALLER_DIRNAME,
+            )
+            .environment_variable(
+                "METAFLOW_CONDA_REMOTE_INSTALLER", CONDA_REMOTE_INSTALLER
+            )
+            .environment_variable(
+                "METAFLOW_CONDA_PREFERRED_FORMAT", CONDA_PREFERRED_FORMAT
+            )
             .environment_variable(
                 "METAFLOW_DEFAULT_AWS_CLIENT_PROVIDER", DEFAULT_AWS_CLIENT_PROVIDER
             )
@@ -217,6 +248,13 @@ class Kubernetes(object):
 
         for name, value in env.items():
             job.environment_variable(name, value)
+
+        # Transfer over any METAFLOW_DEBUG_ options
+        debug_flags = {
+            k: v for k, v in os.environ.items() if k.startswith("METAFLOW_DEBUG_")
+        }
+        for k, v in debug_flags.items():
+            job.environment_variable(k, v)
 
         annotations = {
             "metaflow/user": user,

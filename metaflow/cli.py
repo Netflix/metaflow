@@ -109,7 +109,7 @@ def echo_always(line, **kwargs):
         click.secho(ERASE_TO_EOL, **kwargs)
 
 
-def logger(body="", system_msg=False, head="", bad=False, timestamp=True):
+def logger(body="", system_msg=False, head="", bad=False, timestamp=True, nl=True):
     if timestamp:
         if timestamp is True:
             dt = datetime.now()
@@ -119,7 +119,7 @@ def logger(body="", system_msg=False, head="", bad=False, timestamp=True):
         click.secho(tstamp + " ", fg=LOGGER_TIMESTAMP, nl=False)
     if head:
         click.secho(head, fg=LOGGER_COLOR, nl=False)
-    click.secho(body, bold=system_msg, fg=LOGGER_BAD_COLOR if bad else None)
+    click.secho(body, bold=system_msg, fg=LOGGER_BAD_COLOR if bad else None, nl=nl)
 
 
 @click.group()
@@ -994,7 +994,7 @@ def start(
     ctx.obj.environment = [
         e for e in ENVIRONMENTS + [MetaflowEnvironment] if e.TYPE == environment
     ][0](ctx.obj.flow)
-    ctx.obj.environment.validate_environment(echo)
+    ctx.obj.environment.validate_environment(echo, datastore)
 
     ctx.obj.event_logger = LOGGING_SIDECARS[event_logger](
         flow=ctx.obj.flow, env=ctx.obj.environment

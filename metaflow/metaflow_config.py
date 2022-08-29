@@ -322,22 +322,24 @@ AIRFLOW_KUBERNETES_STARTUP_TIMEOUT = from_conf(
 # - a `conda-remote` directory containing the remote executable (optional)
 # - a `conda-local` directory containing the tar-balls for the conda distribution
 #   to use (optional)
-CONDA_S3ROOT = from_conf("METAFLOW_CONDA_S3ROOT", DATASTORE_SYSROOT_S3)
-
-# Conda package root location on S3
-# This is here for legacy reasons (and therefore treated differently than the
-# `conda-remote` and `conda-local` directories)
-CONDA_PACKAGE_S3ROOT = from_conf(
-    "METAFLOW_CONDA_PACKAGE_S3ROOT",
-    os.path.join(CONDA_S3ROOT, "conda") if CONDA_S3ROOT else None,
+# We support both METAFLOW_CONDA_S3ROOT and METAFLOW_CONDA_PACKAGE_S3ROOT for legacy
+# reasons
+CONDA_S3ROOT = from_conf(
+    "METAFLOW_CONDA_S3ROOT",
+    from_conf(
+        "METAFLOW_CONDA_PACKAGE_S3ROOT",
+        os.path.join(DATASTORE_SYSROOT_S3, "conda") if DATASTORE_SYSROOT_S3 else None,
+    ),
 )
 
-# Same thing for Azure
-CONDA_AZUREROOT = from_conf("METAFLOW_CONDA_AZUREROOT", DATASTORE_SYSROOT_AZURE)
-
-CONDA_PACKAGE_AZUREROOT = from_conf(
-    "METAFLOW_CONDA_PACKAGE_AZUREROOT",
-    os.path.join(CONDA_AZUREROOT, "conda") if CONDA_AZUREROOT else None,
+CONDA_AZUREROOT = from_conf(
+    "METAFLOW_CONDA_AZUREROOT",
+    from_conf(
+        "METAFLOW_CONDA_PACKAGE_AZUREROOT",
+        os.path.join(DATASTORE_SYSROOT_AZURE, "conda")
+        if DATASTORE_SYSROOT_AZURE
+        else None,
+    ),
 )
 
 # Magic file containing information about Conda
@@ -346,11 +348,18 @@ CONDA_MAGIC_FILE = from_conf("METAFLOW_CONDA_MAGIC_FILE", "conda.dependencies")
 # Use an alternate dependency resolver for conda packages instead of conda
 # Mamba promises faster package dependency resolution times, which
 # should result in an appreciable speedup in flow environment initialization.
-CONDA_DEPENDENCY_RESOLVER = from_conf("METAFLOW_CONDA_DEPENDENCY_RESOLVER", "conda")
+CONDA_DEPENDENCY_RESOLVER = from_conf(
+    "METAFLOW_CONDA_DEPENDENCY_RESOLVER",
+    "conda",
+    _get_validate_choice_fn(["mamba", "conda"]),
+)
 
 # Timeout trying to acquire the lock to create environments
 CONDA_LOCK_TIMEOUT = int(from_conf("METAFLOW_CONDA_LOCK_TIMEOUT", "3600"))
 
+# Directory containing the cached packages. For legacy reasons, it is empty (basically in
+# CONDA_*ROOT)
+CONDA_PACKAGE_DIRNAME = from_conf("METAFLOW_CONDA_PACKAGE_DIRNAME", "")
 # Directory in CONDA_*ROOT that contains the remote installers. If not specified,
 # Miniforge will be used
 CONDA_REMOTE_INSTALLER_DIRNAME = from_conf(
@@ -373,13 +382,26 @@ CONDA_LOCAL_DIST = from_conf("METAFLOW_CONDA_LOCAL_DIST", "conda-{arch}.tgz")
 # CONDA_LOCAL_DIST_DIRNAME and CONDA_LOCAL_DIST
 CONDA_LOCAL_PATH = from_conf("METAFLOW_CONDA_LOCAL_PATH")
 
+# Preferred Format for Conda packages
+CONDA_PREFERRED_FORMAT = from_conf(
+    "METAFLOW_CONDA_PREFERRED_FORMAT",
+    ".tar.bz2",
+    _get_validate_choice_fn([".tar.bz2", ".conda"]),
+)
+
+# Conda or conda-lock to resolve env
+CONDA_PREFERRED_RESOLVER = from_conf(
+    "METAFLOW_CONDA_PREFERRED_RESOLVER",
+    "conda",
+    _get_validate_choice_fn(["conda", "conda-lock"]),
+)
 # HACK
-CONDA_FORCE_LINUX64 = ("batch", "kubernetes")
+CONDA_REMOTE_COMMANDS = ("batch", "kubernetes")
 
 ###
 # Debug configuration
 ###
-DEBUG_OPTIONS = ["subcommand", "sidecar", "s3client"]
+DEBUG_OPTIONS = ["subcommand", "sidecar", "s3client", "conda"]
 
 for typ in DEBUG_OPTIONS:
     vars()["METAFLOW_DEBUG_%s" % typ.upper()] = from_conf(

@@ -26,7 +26,14 @@ class CondaFlowDecorator(FlowDecorator):
     """
 
     name = "conda_base"
-    defaults = {"libraries": {}, "channels": [], "python": None, "disabled": None}
+    defaults = {
+        "libraries": {},
+        "channels": [],
+        "archs": None,
+        "python": None,
+        "disabled": None,
+        "package_format": None,
+    }
 
     def flow_init(
         self, flow, graph, environment, flow_datastore, metadata, logger, echo, options

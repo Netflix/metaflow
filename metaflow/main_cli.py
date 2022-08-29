@@ -1,3 +1,5 @@
+import builtins
+import traceback
 from metaflow._vendor import click
 import json
 import os
@@ -31,50 +33,10 @@ def echo_always(line, **kwargs):
     click.secho(line, **kwargs)
 
 
-@click.group(invoke_without_command=True)
+@click.group()
 @click.pass_context
 def main(ctx):
-    global echo
-    echo = echo_always
-
-    import metaflow
-
-    echo("Metaflow ", fg="magenta", bold=True, nl=False)
-
-    if ctx.invoked_subcommand is None:
-        echo("(%s): " % metaflow.__version__, fg="magenta", bold=False, nl=False)
-    else:
-        echo("(%s)\n" % metaflow.__version__, fg="magenta", bold=False)
-
-    if ctx.invoked_subcommand is None:
-        echo("More data science, less engineering\n", fg="magenta")
-
-        # metaflow URL
-        echo("http://docs.metaflow.org", fg="cyan", nl=False)
-        echo(" - Read the documentation")
-
-        # metaflow chat
-        echo("http://chat.metaflow.org", fg="cyan", nl=False)
-        echo(" - Chat with us")
-
-        # metaflow help email
-        echo("help@metaflow.org", fg="cyan", nl=False)
-        echo("        - Get help by email\n")
-
-        # print a short list of next steps.
-        short_help = {
-            "tutorials": "Browse and access metaflow tutorials.",
-            "configure": "Configure metaflow to access the cloud.",
-            "status": "Display the current working tree.",
-            "help": "Show all available commands to run.",
-        }
-
-        echo("Commands:", bold=False)
-
-        for cmd, desc in short_help.items():
-            echo("  metaflow {0:<10} ".format(cmd), fg="cyan", bold=False, nl=False)
-
-            echo("%s" % desc)
+    pass
 
 
 @main.command(help="Show all available commands.")
@@ -1033,4 +995,78 @@ def kubernetes(ctx, profile):
     persist_env({k: v for k, v in env.items() if v}, profile)
 
 
-main()
+try:
+    from metaflow.extension_support import get_modules, load_module, _ext_debug
+
+    _modules_to_import = get_modules("cmd")
+    _clis = []
+    # Reverse to maintain "latest" overrides (in Click, the first one will get it)
+    for m in reversed(_modules_to_import):
+        _get_clis = m.module.__dict__.get("get_cmd_clis")
+        if _get_clis:
+            _clis.extend(_get_clis())
+
+except Exception as e:
+    _ext_debug("\tWARNING: ignoring all plugins due to error during import: %s" % e)
+    print(
+        "WARNING: Command extensions did not load -- ignoring all of them which may not "
+        "be what you want: %s" % e
+    )
+    _clis = []
+    traceback.print_exc()
+
+
+@click.command(
+    cls=click.CommandCollection,
+    sources=_clis + [main],
+    invoke_without_command=True,
+)
+@click.pass_context
+def start(ctx):
+    global echo
+    echo = echo_always
+
+    import metaflow
+
+    echo("Metaflow ", fg="magenta", bold=True, nl=False)
+
+    if ctx.invoked_subcommand is None:
+        echo("(%s): " % metaflow.__version__, fg="magenta", bold=False, nl=False)
+    else:
+        echo("(%s)\n" % metaflow.__version__, fg="magenta", bold=False)
+
+    if ctx.invoked_subcommand is None:
+        echo("More data science, less engineering\n", fg="magenta")
+
+        # metaflow URL
+        echo("http://docs.metaflow.org", fg="cyan", nl=False)
+        echo(" - Read the documentation")
+
+        # metaflow chat
+        echo("http://chat.metaflow.org", fg="cyan", nl=False)
+        echo(" - Chat with us")
+
+        # metaflow help email
+        echo("help@metaflow.org", fg="cyan", nl=False)
+        echo("        - Get help by email\n")
+
+        print(ctx.get_help())
+
+
+start()
+
+for _n in [
+    "get_modules",
+    "load_module",
+    "_modules_to_import",
+    "m",
+    "_get_clis",
+    "_clis",
+    "ext_debug",
+    "e",
+]:
+    try:
+        del globals()[_n]
+    except KeyError:
+        pass
+del globals()["_n"]
