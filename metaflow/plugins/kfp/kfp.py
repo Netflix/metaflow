@@ -292,8 +292,8 @@ class KubeflowPipelines(object):
             if isinstance(deco, ResourcesDecorator):
                 if deco.attributes.get("local_storage") is not None:
                     raise ValueError(  # Not using DeprecationWarning to hard block the run before triggering.
-                        "`local_storage` option is deprecated over cluster stability concerns."
-                        "Please use `volume` for storage space."
+                        "`local_storage` option is deprecated over cluster stability concerns. "
+                        "Please use `volume` for storage request."
                     )
 
                 for attr_key, attr_value in deco.attributes.items():
