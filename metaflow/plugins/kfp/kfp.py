@@ -280,7 +280,6 @@ class KubeflowPipelines(object):
                 resource
                 in [
                     "memory",
-                    "local_storage",
                     "volume",
                 ]
                 and value.isnumeric()
@@ -291,6 +290,12 @@ class KubeflowPipelines(object):
         resource_requirements = {}
         for deco in node.decorators:
             if isinstance(deco, ResourcesDecorator):
+                if deco.attributes.get("local_storage") is not None:
+                    raise ValueError(  # Not using DeprecationWarning to hard block the run before triggering.
+                        "`local_storage` option is deprecated over cluster stability concerns."
+                        "Please use `volume` for storage space."
+                    )
+
                 for attr_key, attr_value in deco.attributes.items():
                     if attr_value is not None:
                         resource_requirements[attr_key] = to_k8s_resource_format(
@@ -490,13 +495,6 @@ class KubeflowPipelines(object):
             container_op.container.set_gpu_limit(
                 resource_requirements["gpu"],
                 vendor=gpu_vendor if gpu_vendor else "nvidia",
-            )
-        if "local_storage" in resource_requirements:
-            container_op.container.set_ephemeral_storage_request(
-                resource_requirements["local_storage"]
-            )
-            container_op.container.set_ephemeral_storage_limit(
-                resource_requirements["local_storage"]
             )
         if "volume" in resource_requirements:
             mode = resource_requirements["volume_mode"]

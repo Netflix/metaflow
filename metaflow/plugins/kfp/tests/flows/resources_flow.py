@@ -47,8 +47,6 @@ def get_env_vars(env_resources: Dict[str, str]) -> List[V1EnvVar]:
 
 kubernetes_vars = get_env_vars(
     {
-        "LOCAL_STORAGE": "requests.ephemeral-storage",
-        "LOCAL_STORAGE_LIMIT": "limits.ephemeral-storage",
         "CPU": "requests.cpu",
         "CPU_LIMIT": "limits.cpu",
         "MEMORY": "requests.memory",
@@ -134,7 +132,6 @@ class ResourcesFlow(FlowSpec):
 
     @accelerator(type=None)  # AIP-6604 DCR: Allow @accelerator(type=None)
     @resources(
-        local_storage="242",
         cpu="0.6",
         memory="1G",
     )
@@ -154,8 +151,6 @@ class ResourcesFlow(FlowSpec):
         assert "resourcesflow" in os.environ.get("MY_POD_NAME")
         assert os.environ.get("CPU") == "600"
         assert os.environ.get("CPU_LIMIT") == "600"
-        assert os.environ.get("LOCAL_STORAGE") == "242000000"
-        assert os.environ.get("LOCAL_STORAGE_LIMIT") == "242000000"
         assert os.environ.get("MEMORY") == "1000000000"
         assert os.environ.get("MEMORY_LIMIT") == "1000000000"
 
