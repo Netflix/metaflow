@@ -373,8 +373,10 @@ def _validate_workflow(flow, graph, flow_datastore, metadata, workflow_timeout):
                 % node.name
             )
 
-    if flow_datastore.TYPE != "s3":
-        raise AirflowException('Datastore of type "s3" required with `airflow create`')
+    if flow_datastore.TYPE not in ("azure", "s3"):
+        raise AirflowException(
+            'Datastore of type "s3" or "azure" required with `airflow create`'
+        )
 
 
 def resolve_dag_name(name):

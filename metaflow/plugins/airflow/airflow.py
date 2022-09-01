@@ -18,6 +18,9 @@ from metaflow.metaflow_config import (
     KUBERNETES_SERVICE_ACCOUNT,
     KUBERNETES_SECRETS,
     AIRFLOW_KUBERNETES_STARTUP_TIMEOUT,
+    AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
+    DATASTORE_SYSROOT_AZURE,
+    DATASTORE_CARD_AZUREROOT,
 )
 from metaflow.parameters import deploy_time_eval
 from metaflow.plugins.kubernetes.kubernetes import Kubernetes
@@ -381,7 +384,13 @@ class Airflow(object):
             "METAFLOW_PRODUCTION_TOKEN": self.production_token,
             "METAFLOW_ATTEMPT_NUMBER": AIRFLOW_MACROS.ATTEMPT,
         }
+        env[
+            "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
+        ] = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
+        env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = DATASTORE_SYSROOT_AZURE
+        env["METAFLOW_DATASTORE_CARD_AZUREROOT"] = DATASTORE_CARD_AZUREROOT
         env.update(additional_mf_variables)
+
         service_account = (
             KUBERNETES_SERVICE_ACCOUNT
             if k8s_deco.attributes["service_account"] is None
@@ -451,7 +460,7 @@ class Airflow(object):
             resources=resources,
             execution_timeout=dict(seconds=runtime_limit),
             retries=user_code_retries,
-            env_vars=[dict(name=k, value=v) for k, v in env.items()],
+            env_vars=[dict(name=k, value=v) for k, v in env.items() if v is not None],
             labels=labels,
             task_id=node.name,
             startup_timeout_seconds=AIRFLOW_KUBERNETES_STARTUP_TIMEOUT,
