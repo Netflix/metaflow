@@ -16,6 +16,7 @@ from metaflow.metaflow_config import (
     DATASTORE_CARD_SUFFIX,
     DATASTORE_CARD_AZUREROOT,
 )
+from metaflow.metaflow_version import get_version
 
 from .exception import CardNotPresentException
 
@@ -23,6 +24,10 @@ TEMP_DIR_NAME = "metaflow_card_cache"
 NUM_SHORT_HASH_CHARS = 5
 
 CardInfo = namedtuple("CardInfo", ["type", "hash", "id", "filename"])
+
+
+def abs_version(verstr):
+    return sum([int(x) * (10 ** (3 - i)) for i, x in enumerate(verstr.split(".")[:3])])
 
 
 def path_spec_resolver(pathspec):
@@ -82,6 +87,20 @@ class CardDatastore(object):
         self._run_id = run_id
         self._step_name = step_name
         self._pathspec = pathspec
+
+        # Save the task's metaflow version so that we can use it in the `_make_path` function.
+        # Since metaflow version >= 2.7.8 had a change in the directory structure for cards, CardDatastore object needs this information to determine the correct directory structure for retrieving/storing cards.
+        from metaflow.client import Run
+
+        self._metaflow_version = get_version(pep440=True)
+        version_tag = [
+            t
+            for t in Run("/".join(pathspec.split("/"))).system_tags
+            if "metaflow_version" in t
+        ]
+        if len(version_tag) >= 0:
+            self._metaflow_version = version_tag[0].split("metaflow_version:")[1]
+
         self._temp_card_save_path = self._get_card_path(base_pth=TEMP_DIR_NAME)
 
     @classmethod
@@ -97,10 +116,21 @@ class CardDatastore(object):
         sysroot = base_pth
 
         if pathspec is not None:
+            # since most cards are at a task level there will always be 4 non-none values returned
             flow_name, run_id, step_name, task_id = path_spec_resolver(pathspec)
-
-        # For task level cards the flow_name and run_id and task_id are required
-        if flow_name is not None and run_id is not None and task_id is not None:
+        if abs_version(self._metaflow_version) >= 2780:
+            pth_arr = [
+                sysroot,
+                flow_name,
+                "runs",
+                run_id,
+                "steps",
+                step_name,
+                "tasks",
+                task_id,
+                "cards",
+            ]
+        else:
             pth_arr = [
                 sysroot,
                 flow_name,
@@ -110,7 +140,6 @@ class CardDatastore(object):
                 task_id,
                 "cards",
             ]
-
         if sysroot == "" or sysroot == None:
             pth_arr.pop(0)
         return os.path.join(*pth_arr)
