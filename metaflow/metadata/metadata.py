@@ -516,8 +516,9 @@ class MetadataProvider(object):
             "k8s_namespace": os.environ.get("MF_POD_NAMESPACE"),
             "zodiac_service": os.environ.get("ZODIAC_SERVICE"),
             "zodiac_team": os.environ.get("ZODIAC_TEAM"),
+            "zodiac_owner": os.environ.get("ZODIAC_OWNER"),
         }
-        for key in ["k8s_namespace", "zodiac_service", "zodiac_team"]:
+        for key in ["k8s_namespace", "zodiac_service", "zodiac_team", "zodiac_owner"]:
             if kfp_tags[key]:
                 tags.append(f"{key}:{kfp_tags[key]}")
         return tags

@@ -82,6 +82,7 @@ labels = {
     "tags.ledger.zgtools.net/ai-flow-name": "AI_FLOW_NAME",
     "tags.ledger.zgtools.net/ai-step-name": "AI_STEP_NAME",
     "tags.ledger.zgtools.net/ai-experiment-name": "AI_EXPERIMENT_NAME",
+    "zodiac.zillowgroup.net/owner": "ZODIAC_OWNER",
 }
 for label, env_name in labels.items():
     kubernetes_vars.append(
@@ -162,6 +163,8 @@ class ResourcesFlow(FlowSpec):
         assert os.environ.get("AI_FLOW_NAME") == current.flow_name
         assert os.environ.get("AI_STEP_NAME") == current.step_name
         assert os.environ.get("AI_EXPERIMENT_NAME") == "metaflow_test"
+
+        assert os.environ.get("ZODIAC_OWNER")
 
         self.items = [1, 2]
         self.next(self.foreach_step, foreach="items")
