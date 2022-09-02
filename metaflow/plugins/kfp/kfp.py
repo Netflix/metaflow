@@ -644,11 +644,8 @@ class KubeflowPipelines(object):
 
         # - In context of Zillow CICD self.username == "cicd_compile"
         # - In the context of a Zillow NB self.username == METAFLOW_USER (user_alias)
-        #   and KFP_USER_DOMAIN == "zillowgroup.com"
         # - In the context of Metaflow integration tests self.username == USER=$GITLAB_USER_EMAIL
         user_email = self.username
-        if KFP_USER_DOMAIN:
-            user_email += f"@{KFP_USER_DOMAIN}"
         container_op.add_pod_label("zodiac.zillowgroup.net/owner", user_email)
 
     def create_kfp_pipeline_from_flow_graph(self) -> Tuple[Callable, PipelineConf]:
