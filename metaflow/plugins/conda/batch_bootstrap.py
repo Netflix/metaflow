@@ -39,7 +39,7 @@ def download_conda_packages(flow_name, env_id, datastore_type):
     manifest_folder = os.path.join(os.getcwd(), DATASTORE_LOCAL_DIR, flow_name)
     with open(os.path.join(manifest_folder, CONDA_MAGIC_FILE)) as f:
         env = json.load(f)[env_id]
-        
+
         # Import DATASTORES dynamically... otherwise, circular import
         from metaflow.datastore import DATASTORES
 
@@ -53,10 +53,8 @@ def download_conda_packages(flow_name, env_id, datastore_type):
         storage = DATASTORES[datastore_type](conda_package_root)
         with storage.load_bytes(env["cache_urls"]) as load_result:
             for key, tmpfile, _ in load_result:
-                shutil.move(
-                    tmpfile, os.path.join(pkgs_folder, os.path.basename(key))
-                )
-        
+                shutil.move(tmpfile, os.path.join(pkgs_folder, os.path.basename(key)))
+
         return env["order"]
 
 
