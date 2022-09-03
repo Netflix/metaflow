@@ -39,30 +39,22 @@ def download_conda_packages(flow_name, env_id, datastore_type):
     manifest_folder = os.path.join(os.getcwd(), DATASTORE_LOCAL_DIR, flow_name)
     with open(os.path.join(manifest_folder, CONDA_MAGIC_FILE)) as f:
         env = json.load(f)[env_id]
-        if datastore_type == "s3":
-            from metaflow.datatools import S3
 
-            with S3() as s3:
-                for pkg in s3.get_many(env["cache_urls"]):
-                    shutil.move(
-                        pkg.path, os.path.join(pkgs_folder, os.path.basename(pkg.key))
-                    )
-        elif datastore_type == "azure":
-            # Import DATASTORES dynamically... otherwise, circular import
-            from metaflow.datastore import DATASTORES
+        # Import DATASTORES dynamically... otherwise, circular import
+        from metaflow.datastore import DATASTORES
 
-            conda_package_root = get_conda_package_root("azure")
-            storage = DATASTORES["azure"](conda_package_root)
-            with storage.load_bytes(env["cache_urls"]) as load_result:
-                for key, tmpfile, _ in load_result:
-                    shutil.move(
-                        tmpfile, os.path.join(pkgs_folder, os.path.basename(key))
-                    )
-        else:
+        if datastore_type not in DATASTORES:
             raise MetaflowException(
                 msg="Downloading conda code packages from datastore backend %s is unimplemented!"
                 % datastore_type
             )
+
+        conda_package_root = get_conda_package_root(datastore_type)
+        storage = DATASTORES[datastore_type](conda_package_root)
+        with storage.load_bytes(env["cache_urls"]) as load_result:
+            for key, tmpfile, _ in load_result:
+                shutil.move(tmpfile, os.path.join(pkgs_folder, os.path.basename(key)))
+
         return env["order"]
 
 
