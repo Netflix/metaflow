@@ -40,6 +40,7 @@ def download_conda_packages(flow_name, env_id, datastore_type):
     with open(os.path.join(manifest_folder, CONDA_MAGIC_FILE)) as f:
         env = json.load(f)[env_id]
         
+        # Import DATASTORES dynamically... otherwise, circular import
         from metaflow.datastore import DATASTORES
 
         if datastore_type not in DATASTORES:
