@@ -25,10 +25,6 @@ NUM_SHORT_HASH_CHARS = 5
 CardInfo = namedtuple("CardInfo", ["type", "hash", "id", "filename"])
 
 
-def abs_version(verstr):
-    return sum([int(x) * (10 ** (3 - i)) for i, x in enumerate(verstr.split(".")[:3])])
-
-
 def path_spec_resolver(pathspec):
     splits = pathspec.split("/")
     splits.extend([None] * (4 - len(splits)))
