@@ -89,9 +89,8 @@ class NativeRuntime(object):
         self._environment = environment
         self._logger = logger
         self._max_workers = max_workers
-        self._queued_tasks = dict()  # Key: step name;
-        # value: [number of queued tasks, total for step]
-        self._active_tasks = dict()  # Same key/value as above
+        self._active_tasks = dict()  # Key: step name;
+        # value: [number of running tasks, number of done tasks]
         # Special key 0 is total number of running tasks
         self._active_tasks[0] = 0
         self._unprocessed_steps = set([n.name for n in self._graph])
@@ -227,9 +226,9 @@ class NativeRuntime(object):
                     progress_tstamp = time.time()
                     tasks_print = ", ".join(
                         [
-                            "%s (%d of %d)" % (k, v[0], v[1]) if v[1] > 1 else k
+                            "%s (%d running; %d done)" % (k, v[0], v[1])
                             for k, v in self._active_tasks.items()
-                            if k != 0
+                            if k != 0 and v[0] > 0
                         ]
                     )
                     if self._active_tasks[0] == 0:
@@ -242,23 +241,16 @@ class NativeRuntime(object):
                         msg += "%s." % tasks_print
 
                     self._logger(msg, system_msg=True)
-                    tasks_print = ", ".join(
-                        [
-                            "%s (%d of %d)" % (k, v[0], v[1]) if v[1] > 1 else k
-                            for k, v in self._queued_tasks.items()
-                            if v[0] > 0
-                        ]
-                    )
+
                     if len(self._run_queue) == 0:
                         msg = "No tasks are waiting in the queue."
                     else:
                         if len(self._run_queue) == 1:
                             msg = "1 task is waiting in the queue: "
                         else:
-                            msg = "%d tasks are waiting in the queue: " % len(
+                            msg = "%d tasks are waiting in the queue." % len(
                                 self._run_queue
                             )
-                        msg += "%s." % tasks_print
 
                     self._logger(msg, system_msg=True)
                     if len(self._unprocessed_steps) == 0:
@@ -337,9 +329,6 @@ class NativeRuntime(object):
     # onto the run_queue is an inexpensive operation.
     def _queue_push(self, step, task_kwargs):
         self._run_queue.insert(0, (step, task_kwargs))
-        step_counts = self._queued_tasks.setdefault(step, [0, 0])
-        step_counts[0] += 1
-        step_counts[1] += 1
         # For foreaches, this will happen multiple time but is ok, becomes a no-op
         self._unprocessed_steps.discard(step)
 
@@ -594,9 +583,11 @@ class NativeRuntime(object):
                             self._poll.remove(fd)
                             del self._workers[fd]
                         step_counts = self._active_tasks[worker.task.step]
-                        step_counts[0] -= 1
-                        if step_counts[0] == 0:
-                            del self._active_tasks[worker.task.step]
+                        step_counts[0] -= 1  # One less task for this step is running
+                        step_counts[1] += 1  # ... and one more completed.
+                        # We never remove from self._active_tasks because it is possible
+                        # for all currently running task for a step to complete but
+                        # for others to still be queued up.
                         self._active_tasks[0] -= 1
 
                         task = worker.task
@@ -659,15 +650,12 @@ class NativeRuntime(object):
         for fd in worker.fds():
             self._workers[fd] = worker
             self._poll.add(fd)
-        step_counts = self._active_tasks.setdefault(task.step, [0, 0])
+        active_step_counts = self._active_tasks.setdefault(task.step, [0, 0])
 
-        # Task goes from queued to active
-        queued_step_counts = self._queued_tasks[task.step]
-        queued_step_counts[0] -= 1
+        # We have an additional task for this step running
+        active_step_counts[0] += 1
 
-        step_counts[1] = queued_step_counts[1]
-        step_counts[0] += 1
-
+        # One more task actively running
         self._active_tasks[0] += 1
 
 
