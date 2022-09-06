@@ -16,7 +16,6 @@ from metaflow.metaflow_config import (
     DATASTORE_CARD_SUFFIX,
     DATASTORE_CARD_AZUREROOT,
 )
-from metaflow.metaflow_version import get_version
 
 from .exception import CardNotPresentException
 
@@ -87,21 +86,7 @@ class CardDatastore(object):
         self._run_id = run_id
         self._step_name = step_name
         self._pathspec = pathspec
-
-        # Save the task's metaflow version so that we can use it in the `_make_path` function.
-        # Since metaflow version >= 2.7.8 had a change in the directory structure for cards, CardDatastore object needs this information to determine the correct directory structure for retrieving/storing cards.
-        from metaflow.client import Run
-
-        self._metaflow_version = get_version(pep440=True)
-        version_tag = [
-            t
-            for t in Run("/".join(pathspec.split("/"))).system_tags
-            if "metaflow_version" in t
-        ]
-        if len(version_tag) >= 0:
-            self._metaflow_version = version_tag[0].split("metaflow_version:")[1]
-
-        self._temp_card_save_path = self._get_card_path(base_pth=TEMP_DIR_NAME)
+        self._temp_card_save_path = self._get_write_path(base_pth=TEMP_DIR_NAME)
 
     @classmethod
     def get_card_location(cls, base_path, card_name, card_html, card_id=None):
@@ -112,13 +97,16 @@ class CardDatastore(object):
             card_file_name = "%s-%s-%s.html" % (card_name, card_id, chash)
         return os.path.join(base_path, card_file_name)
 
-    def _make_path(self, base_pth, pathspec=None):
+    def _make_path(self, base_pth, pathspec=None, with_steps=False):
         sysroot = base_pth
-
         if pathspec is not None:
             # since most cards are at a task level there will always be 4 non-none values returned
             flow_name, run_id, step_name, task_id = path_spec_resolver(pathspec)
-        if abs_version(self._metaflow_version) >= 2780:
+
+        # We have a condition that checks for `with_steps` because when cards were introduced there was an assumption made about task-ids being unique.
+        # This assumption is incorrect since pathspec needs to be unique but there is no such gaurentees on task-ids
+        # This is why we have a `with_steps` flag that allows constructing the path with and without steps so that older-cards (cards with a path without `steps/<stepname>` in them) can also be accessed by the card cli and the card client.
+        if with_steps:
             pth_arr = [
                 sysroot,
                 flow_name,
@@ -144,11 +132,11 @@ class CardDatastore(object):
             pth_arr.pop(0)
         return os.path.join(*pth_arr)
 
-    def _get_card_path(self, base_pth=""):
-        return self._make_path(
-            base_pth,
-            pathspec=self._pathspec,
-        )
+    def _get_write_path(self, base_pth=""):
+        return self._make_path(base_pth, pathspec=self._pathspec, with_steps=True)
+
+    def _get_read_path(self, base_pth="", with_steps=False):
+        return self._make_path(base_pth, pathspec=self._pathspec, with_steps=with_steps)
 
     @staticmethod
     def card_info_from_path(path):
@@ -183,7 +171,7 @@ class CardDatastore(object):
     def save_card(self, card_type, card_html, card_id=None, overwrite=True):
         card_file_name = card_type
         card_path = self.get_card_location(
-            self._get_card_path(), card_file_name, card_html, card_id=card_id
+            self._get_write_path(), card_file_name, card_html, card_id=card_id
         )
         self._backend.save_bytes(
             [(card_path, BytesIO(bytes(card_html, "utf-8")))], overwrite=overwrite
@@ -191,16 +179,28 @@ class CardDatastore(object):
         return self.card_info_from_path(card_path)
 
     def _list_card_paths(self, card_type=None, card_hash=None, card_id=None):
-        card_path = self._get_card_path()
+        # Check for new cards first
+        card_paths = []
+        card_paths_with_steps = self._backend.list_content(
+            [self._get_read_path(with_steps=True)]
+        )
 
-        card_paths = self._backend.list_content([card_path])
-        if len(card_paths) == 0:
-            # If there are no files found on the Path then raise an error of
-            raise CardNotPresentException(
-                self._pathspec,
-                card_hash=card_hash,
-                card_type=card_type,
+        if len(card_paths_with_steps) == 0:
+            card_paths_without_steps = self._backend.list_content(
+                [self._get_read_path(with_steps=False)]
             )
+            if len(card_paths_without_steps) == 0:
+                # If there are no files found on the Path then raise an error of
+                raise CardNotPresentException(
+                    self._pathspec,
+                    card_hash=card_hash,
+                    card_type=card_type,
+                )
+            else:
+                card_paths = card_paths_without_steps
+        else:
+            card_paths = card_paths_with_steps
+
         cards_found = []
         for task_card_path in card_paths:
             card_path = task_card_path.path
