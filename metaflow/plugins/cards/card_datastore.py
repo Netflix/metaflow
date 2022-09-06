@@ -99,9 +99,15 @@ class CardDatastore(object):
             # since most cards are at a task level there will always be 4 non-none values returned
             flow_name, run_id, step_name, task_id = path_spec_resolver(pathspec)
 
-        # We have a condition that checks for `with_steps` because when cards were introduced there was an assumption made about task-ids being unique.
-        # This assumption is incorrect since pathspec needs to be unique but there is no such gaurentees on task-ids
-        # This is why we have a `with_steps` flag that allows constructing the path with and without steps so that older-cards (cards with a path without `steps/<stepname>` in them) can also be accessed by the card cli and the card client.
+        # We have a condition that checks for `with_steps` because
+        # when cards were introduced there was an assumption made
+        # about task-ids being unique.
+        # This assumption is incorrect since pathspec needs to be
+        # unique but there is no such guarantees on task-ids.
+        # This is why we have a `with_steps` flag that allows
+        # constructing the path with and without steps so that
+        # older-cards (cards with a path without `steps/<stepname>` in them)
+        # can also be accessed by the card cli and the card client.
         if with_steps:
             pth_arr = [
                 sysroot,
@@ -166,13 +172,35 @@ class CardDatastore(object):
 
     def save_card(self, card_type, card_html, card_id=None, overwrite=True):
         card_file_name = card_type
-        card_path = self.get_card_location(
+        # HACK : FIXME (LATER) : Fix the duplication of below block in a few months.
+        # Check file blame to understand the age of this HACK
+        # This function will end up saving cards at two locations.
+        # Thereby doubling the number of cards. (Which is a temporary fix)
+
+        # Why do this ? :
+        # When cards were introduced there was an assumption made about task-ids being unique.
+        # This assumption was incorrect.
+        # Only the pathspec needs to be unique but there is no such guarantees for task-ids.
+        # Since task-ids are non-unique and cards used to store data based on task-ids,
+        # it would result in finding incorrect cards at read time.
+        # If we switch from storing based on task-ids to using a step-name abstraction folder
+        # then it will break user-code for users who are accessing cards from an older version of metaflow client.
+        # It will especially break the metaflow-ui (which maybe using a client from an older version)
+        # Hence we are writing cards to both paths so that we can introduce breaking changes later in the future.
+        card_path_with_steps = self.get_card_location(
             self._get_write_path(), card_file_name, card_html, card_id=card_id
         )
-        self._backend.save_bytes(
-            [(card_path, BytesIO(bytes(card_html, "utf-8")))], overwrite=overwrite
+        card_path_without_steps = self.get_card_location(
+            self._get_read_path(with_steps=False),
+            card_file_name,
+            card_html,
+            card_id=card_id,
         )
-        return self.card_info_from_path(card_path)
+        for cp in [card_path_with_steps, card_path_without_steps]:
+            self._backend.save_bytes(
+                [(cp, BytesIO(bytes(card_html, "utf-8")))], overwrite=overwrite
+            )
+        return self.card_info_from_path(card_path_with_steps)
 
     def _list_card_paths(self, card_type=None, card_hash=None, card_id=None):
         # Check for new cards first
