@@ -140,6 +140,16 @@ build:publish:
   rules:
     - if: '$PUBLISH == "true"'
 
+test:sandbox:
+  extends: 
+    - .devex_sandbox_eks
+    - .test
+  variables:
+    KFP_RUN_URL_PREFIX: "https://kubeflow.corp.sandbox-k8s.zg-aip.net/"
+    KFP_SDK_NAMESPACE: "metaflow-integration-testing-sandbox"
+  rules:
+    - if: '$DEPLOY_SANDBOX == "true"'
+
 test:internal:
   extends: 
     - .devex_internal_eks
