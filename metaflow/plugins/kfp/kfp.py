@@ -1136,8 +1136,8 @@ class KubeflowPipelines(object):
             file_outputs={"Output": "/tmp/outputs/Output/data"},
         ).set_display_name("s3_sensor")
 
-        KubeflowPipelines._set_minimal_container_resources(s3_sensor_op, memory="400M")
-        s3_sensor_op.set_retry(S3_SENSOR_RETRY_COUNT, policy="OnError")
+        KubeflowPipelines._set_minimal_container_resources(s3_sensor_op)
+        s3_sensor_op.set_retry(S3_SENSOR_RETRY_COUNT, policy="Always")
         return s3_sensor_op
 
     def _create_exit_handler_op(self, package_commands: str) -> ContainerOp:

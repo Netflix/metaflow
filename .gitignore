@@ -30,3 +30,4 @@ main.js.map
 .idea
 
 .coverage
+.coverage.*
