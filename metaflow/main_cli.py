@@ -496,6 +496,21 @@ def configure_azure_datastore(existing_env):
     return env
 
 
+def configure_gs_datastore(existing_env):
+    env = {}
+    # Set Google Cloud Storage as default datastore.
+    env["METAFLOW_DEFAULT_DATASTORE"] = "gs"
+    # Set Google Cloud Storage folder for datastore.
+    env["METAFLOW_DATASTORE_SYSROOT_GS"] = click.prompt(
+        cyan("[METAFLOW_DATASTORE_SYSROOT_GS]")
+        + " Google Cloud Storage folder for Metaflow artifact storage "
+        + "(Format: gs://<bucket>/<prefix>)",
+        default=existing_env.get("METAFLOW_DATASTORE_SYSROOT_GS"),
+        show_default=True,
+    )
+    return env
+
+
 def configure_metadata_service(existing_env):
     empty_profile = False
     if not existing_env:
@@ -561,6 +576,44 @@ def configure_azure_datastore_and_metadata(existing_env):
         + " and persist flow execution metadata.\nConfiguring the "
         "service is a requirement if you intend to schedule your "
         "flows with Kubernetes on Azure (AKS or self-managed).\nWould you like to "
+        "configure the Metadata Service?",
+        default=empty_profile
+        or existing_env.get("METAFLOW_DEFAULT_METADATA", "") == "service",
+        abort=False,
+    ):
+        env.update(configure_metadata_service(existing_env))
+    return env
+
+
+def configure_gs_datastore_and_metadata(existing_env):
+    empty_profile = False
+    if not existing_env:
+        empty_profile = True
+    env = {}
+
+    # Configure Google Cloud Storage as the datastore.
+    use_gs_as_datastore = click.confirm(
+        "\nMetaflow can use "
+        + yellow("Google Cloud Storage as the storage backend")
+        + " for all code and data artifacts on "
+        + "Google Cloud Storage.\nGoogle Cloud Storage is a strict requirement if you "
+        + "intend to execute your flows on a Kubernetes cluster on GCP (GKE or self-managed)"
+        + ".\nWould you like to configure Google Cloud Storage "
+        + "as the default storage backend?",
+        default=empty_profile
+        or existing_env.get("METAFLOW_DEFAULT_DATASTORE", "") == "gs",
+        abort=False,
+    )
+    if use_gs_as_datastore:
+        env.update(configure_gs_datastore(existing_env))
+
+    # Configure Metadata service for tracking.
+    if click.confirm(
+        "\nMetaflow can use a "
+        + yellow("remote Metadata Service to track")
+        + " and persist flow execution metadata.\nConfiguring the "
+        "service is a requirement if you intend to schedule your "
+        "flows with Kubernetes on GCP (GKE or self-managed).\nWould you like to "
         "configure the Metadata Service?",
         default=empty_profile
         or existing_env.get("METAFLOW_DEFAULT_METADATA", "") == "service",
@@ -845,7 +898,32 @@ def verify_azure_credentials(ctx):
         ctx.abort()
 
 
-@configure.command(help="Configure metaflow to access Azure Blob Storage.")
+def verify_gcp_credentials(ctx):
+    # Verify that the user has configured AWS credentials on their computer.
+    if not click.confirm(
+        "\nMetaflow relies on "
+        + yellow("GCP access credentials")
+        + " present on your computer to access resources on GCP."
+        "\nBefore proceeding further, please confirm that you "
+        "have already configured these access credentials on "
+        "this computer.",
+        default=True,
+    ):
+        echo(
+            "There are many ways to setup your GCP access credentials. You "
+            "can get started by getting familiar with the following: ",
+            nl=False,
+            fg="yellow",
+        )
+        echo("")
+        echo(
+            "- https://cloud.google.com/docs/authentication/provide-credentials-adc",
+            fg="cyan",
+        )
+        ctx.abort()
+
+
+@configure.command(help="Configure metaflow to access Microsoft Azure.")
 @click.option(
     "--profile",
     "-p",
@@ -882,6 +960,48 @@ def azure(ctx, profile):
             + yellow("executing your steps on Kubernetes.")
             + "\nYou may use Azure Kubernetes Service (AKS)"
             " or a self-managed Kubernetes cluster on Azure VMs."
+            + " If/when your Kubernetes cluster is ready for use,"
+            " please run 'metaflow configure kubernetes'.",
+        )
+
+
+@configure.command(help="Configure metaflow to access Google Cloud Platform.")
+@click.option(
+    "--profile",
+    "-p",
+    default="",
+    help="Configure a named profile. Activate the profile by setting "
+    "`METAFLOW_PROFILE` environment variable.",
+)
+@click.pass_context
+def gcp(ctx, profile):
+
+    # Greet the user!
+    echo(
+        "Welcome to Metaflow! Follow the prompts to configure your installation.\n",
+        bold=True,
+    )
+
+    # Check for existing configuration.
+    if not confirm_overwrite_config(profile):
+        ctx.abort()
+
+    verify_gcp_credentials(ctx)
+
+    existing_env = get_env(profile)
+
+    env = {}
+    env.update(configure_gs_datastore_and_metadata(existing_env))
+
+    persist_env({k: v for k, v in env.items() if v}, profile)
+
+    # Prompt user to also configure Kubernetes for compute if using Google Cloud Storage
+    if env.get("METAFLOW_DEFAULT_DATASTORE") == "gs":
+        click.echo(
+            "\nFinal note! Metaflow can scale your flows by "
+            + yellow("executing your steps on Kubernetes.")
+            + "\nYou may use Google Kubernetes Engine (GKE)"
+            " or a self-managed Kubernetes cluster on Google Compute Engine VMs."
             + " If/when your Kubernetes cluster is ready for use,"
             " please run 'metaflow configure kubernetes'.",
         )

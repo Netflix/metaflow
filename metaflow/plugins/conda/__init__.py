@@ -8,7 +8,9 @@ from metaflow.metaflow_config import (
     CONDA_PACKAGE_S3ROOT,
     DATASTORE_SYSROOT_S3,
     CONDA_PACKAGE_AZUREROOT,
+    CONDA_PACKAGE_GSROOT,
     DATASTORE_SYSROOT_AZURE,
+    DATASTORE_SYSROOT_GS,
 )
 
 CONDA_MAGIC_FILE = "conda.dependencies"
@@ -72,6 +74,15 @@ def get_conda_package_root(datastore_type):
             return "%s/conda" % DATASTORE_SYSROOT_AZURE
         else:
             return CONDA_PACKAGE_AZUREROOT
+    elif datastore_type == "gs":
+        if CONDA_PACKAGE_GSROOT is None:
+            if DATASTORE_SYSROOT_GS is None:
+                raise MetaflowException(
+                    msg="METAFLOW_DATASTORE_SYSROOT_GS must be set!"
+                )
+            return "%s/conda" % DATASTORE_SYSROOT_GS
+        else:
+            return CONDA_PACKAGE_GSROOT
     else:
         raise MetaflowInternalError(
             msg="Unsupported storage backend '%s' for working with Conda"

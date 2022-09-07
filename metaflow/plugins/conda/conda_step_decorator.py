@@ -147,7 +147,7 @@ class CondaStepDecorator(StepDecorator):
                 payload = cached_deps[env_id]
 
             if (
-                self.flow_datastore.TYPE in ("s3", "azure")
+                self.flow_datastore.TYPE in ("s3", "azure", "gs")
                 and "cache_urls" not in payload
             ):
                 payload["cache_urls"] = self._cache_env()

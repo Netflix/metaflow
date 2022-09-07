@@ -19,6 +19,8 @@ from metaflow.metaflow_config import (
     AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
     DATASTORE_SYSROOT_AZURE,
     CARD_AZUREROOT,
+    CARD_GSROOT,
+    DATASTORE_SYSROOT_GS,
 )
 from metaflow.mflog import (
     BASH_SAVE_LOGS,
@@ -204,6 +206,8 @@ class Kubernetes(object):
                 "METAFLOW_DATASTORE_SYSROOT_AZURE", DATASTORE_SYSROOT_AZURE
             )
             .environment_variable("METAFLOW_CARD_AZUREROOT", CARD_AZUREROOT)
+            .environment_variable("METAFLOW_DATASTORE_SYSROOT_GS", DATASTORE_SYSROOT_GS)
+            .environment_variable("METAFLOW_CARD_GSROOT", CARD_GSROOT)
             # support Metaflow sandboxes
             .environment_variable(
                 "METAFLOW_INIT_SCRIPT", KUBERNETES_SANDBOX_INIT_SCRIPT

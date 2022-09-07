@@ -67,7 +67,6 @@ def download_conda_packages(flow_name, env_id, datastore_type):
                     msg="Downloading conda code packages from datastore backend %s is unimplemented!"
                     % datastore_type
                 )
-
             conda_package_root = get_conda_package_root(datastore_type)
             storage = DATASTORES[datastore_type](conda_package_root)
             with storage.load_bytes(env["cache_urls"]) as load_result:

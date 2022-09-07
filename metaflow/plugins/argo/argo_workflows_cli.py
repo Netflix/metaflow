@@ -328,9 +328,9 @@ def make_flow(
 ):
     # TODO: Make this check less specific to Amazon S3 as we introduce
     #       support for more cloud object stores.
-    if obj.flow_datastore.TYPE not in ("azure", "s3"):
+    if obj.flow_datastore.TYPE not in ("azure", "gs", "s3"):
         raise MetaflowException(
-            "Argo Workflows requires --datastore=s3 or --datastore=azure"
+            "Argo Workflows requires --datastore=s3 or --datastore=azure or --datastore=gs"
         )
 
     # Attach @kubernetes and @environment decorator to the flow to
