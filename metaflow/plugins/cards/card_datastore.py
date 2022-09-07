@@ -15,6 +15,7 @@ from metaflow.metaflow_config import (
     DATASTORE_LOCAL_DIR,
     DATASTORE_CARD_SUFFIX,
     DATASTORE_CARD_AZUREROOT,
+    SKIP_CARD_DUAL_WRITE,
 )
 import metaflow.metaflow_config as metaflow_config
 
@@ -173,8 +174,8 @@ class CardDatastore(object):
 
     def save_card(self, card_type, card_html, card_id=None, overwrite=True):
         card_file_name = card_type
-        # HACK : FIXME (LATER) : Fix the duplication of below block in a few months.
-        # Check file blame to understand the age of this HACK.
+        # TEMPORARY_WORKAROUND: FIXME (LATER) : Fix the duplication of below block in a few months.
+        # Check file blame to understand the age of this temporary workaround.
 
         # This function will end up saving cards at two locations.
         # Thereby doubling the number of cards. (Which is a temporary fix)
@@ -193,18 +194,18 @@ class CardDatastore(object):
         card_path_with_steps = self.get_card_location(
             self._get_write_path(), card_file_name, card_html, card_id=card_id
         )
-        card_path_without_steps = self.get_card_location(
-            self._get_read_path(with_steps=False),
-            card_file_name,
-            card_html,
-            card_id=card_id,
-        )
-        if hasattr(metaflow_config, "_HACK_SKIP_CARD_DUALWRITE"):
+        if SKIP_CARD_DUAL_WRITE:
             self._backend.save_bytes(
                 [(card_path_with_steps, BytesIO(bytes(card_html, "utf-8")))],
                 overwrite=overwrite,
             )
         else:
+            card_path_without_steps = self.get_card_location(
+                self._get_read_path(with_steps=False),
+                card_file_name,
+                card_html,
+                card_id=card_id,
+            )
             for cp in [card_path_with_steps, card_path_without_steps]:
                 self._backend.save_bytes(
                     [(cp, BytesIO(bytes(card_html, "utf-8")))], overwrite=overwrite
