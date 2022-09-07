@@ -16,6 +16,7 @@ from metaflow.metaflow_config import (
     DATASTORE_CARD_SUFFIX,
     DATASTORE_CARD_AZUREROOT,
 )
+import metaflow.metaflow_config as metaflow_config
 
 from .exception import CardNotPresentException
 
@@ -173,19 +174,21 @@ class CardDatastore(object):
     def save_card(self, card_type, card_html, card_id=None, overwrite=True):
         card_file_name = card_type
         # HACK : FIXME (LATER) : Fix the duplication of below block in a few months.
-        # Check file blame to understand the age of this HACK
+        # Check file blame to understand the age of this HACK.
+
         # This function will end up saving cards at two locations.
         # Thereby doubling the number of cards. (Which is a temporary fix)
-
         # Why do this ? :
         # When cards were introduced there was an assumption made about task-ids being unique.
         # This assumption was incorrect.
-        # Only the pathspec needs to be unique but there is no such guarantees for task-ids.
-        # Since task-ids are non-unique and cards used to store data based on task-ids,
-        # it would result in finding incorrect cards at read time.
-        # If we switch from storing based on task-ids to using a step-name abstraction folder
-        # then it will break user-code for users who are accessing cards from an older version of metaflow client.
-        # It will especially break the metaflow-ui (which maybe using a client from an older version)
+        # Only the pathspec needs to be unique but there is no such guarantees about task-ids.
+        # When task-ids are non-unique, card read would result in finding incorrect cards.
+        # This happens because cards were stored based on task-ids.
+        # If we immediately switch from storing based on task-ids to a step-name abstraction folder,
+        # then card reading will crash for many users.
+        # It would especially happen for users who are accessing cards created by a newer
+        # MF client from an older version of MF client.
+        # It will also easily end up breaking the metaflow-ui (which maybe using a client from an older version).
         # Hence we are writing cards to both paths so that we can introduce breaking changes later in the future.
         card_path_with_steps = self.get_card_location(
             self._get_write_path(), card_file_name, card_html, card_id=card_id
@@ -196,10 +199,17 @@ class CardDatastore(object):
             card_html,
             card_id=card_id,
         )
-        for cp in [card_path_with_steps, card_path_without_steps]:
+        if hasattr(metaflow_config, "_HACK_SKIP_CARD_DUALWRITE"):
             self._backend.save_bytes(
-                [(cp, BytesIO(bytes(card_html, "utf-8")))], overwrite=overwrite
+                [(card_path_with_steps, BytesIO(bytes(card_html, "utf-8")))],
+                overwrite=overwrite,
             )
+        else:
+            for cp in [card_path_with_steps, card_path_without_steps]:
+                self._backend.save_bytes(
+                    [(cp, BytesIO(bytes(card_html, "utf-8")))], overwrite=overwrite
+                )
+
         return self.card_info_from_path(card_path_with_steps)
 
     def _list_card_paths(self, card_type=None, card_hash=None, card_id=None):
