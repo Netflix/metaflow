@@ -556,11 +556,13 @@ class KubeflowPipelines(object):
     # used by the workflow_uid_op and the s3_sensor_op to tighten resources
     # to ensure customers don't bear unnecesarily large costs
     @staticmethod
-    def _set_minimal_container_resources(container_op: ContainerOp):
+    def _set_minimal_container_resources(
+        container_op: ContainerOp, memory: str = "200M"
+    ):
         container_op.container.set_cpu_request("0.5")
         container_op.container.set_cpu_limit("0.5")
-        container_op.container.set_memory_request("200M")
-        container_op.container.set_memory_limit("200M")
+        container_op.container.set_memory_request(memory)
+        container_op.container.set_memory_limit(memory)
 
     @staticmethod
     def _create_volume(
@@ -1134,7 +1136,7 @@ class KubeflowPipelines(object):
             file_outputs={"Output": "/tmp/outputs/Output/data"},
         ).set_display_name("s3_sensor")
 
-        KubeflowPipelines._set_minimal_container_resources(s3_sensor_op)
+        KubeflowPipelines._set_minimal_container_resources(s3_sensor_op, memory="400M")
         s3_sensor_op.set_retry(S3_SENSOR_RETRY_COUNT, policy="OnError")
         return s3_sensor_op
 

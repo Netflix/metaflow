@@ -236,6 +236,7 @@ def run_cmd_with_backoff_from_platform_errors(
 
     platform_error_messages: List[str] = [
         "Reason: Unauthorized",
+        "Reason: Forbidden",
         "Failed to connect to the KFAM service",
         "Failed to create a new experiment",
     ]
