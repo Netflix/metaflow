@@ -412,7 +412,7 @@ def get_metaflow_kuberentes_operator():
         Oddly dynamic task mapping [doesn't support XCom values from any other key except](https://github.com/apache/airflow/blob/8a34d25049a060a035d4db4a49cd4a0d0b07fb0b/airflow/models/mappedoperator.py#L150) `return_values`
         The values of XCom passed by the `KubernetesPodOperator` are mapped to the `return_values` XCom key.
 
-        The biggest problem this creates is that the values of the Foreach cadinality are stored inside the dictionary of `return_values` and cannot   be accessed trivially like : `XComArg(task)['foreach_key']` since they are resolved during runtime.
+        The biggest problem this creates is that the values of the Foreach cadinality are stored inside the dictionary of `return_values` and cannot be accessed trivially like : `XComArg(task)['foreach_key']` since they are resolved during runtime.
         This puts us in a bind since the only xcom we can retrieve is the full dictionary and we cannot pass that as the iteratable for the mapper tasks.
         Hence we inherit the `execute` method and push custom xcom keys (needed by downstream tasks such as metaflow taskids) and modify `return_values` captured from the container whenever a foreach related xcom is passed.
         When we encounter a foreach xcom we resolve the cardinality which is passed to an actual list and return that as `return_values`.
@@ -422,6 +422,10 @@ def get_metaflow_kuberentes_operator():
         template_fields = KubernetesPodOperator.template_fields + (
             "metaflow_pathspec",
             "metaflow_run_id",
+            "metaflow_task_id",
+            "metaflow_attempt",
+            "metaflow_step",
+            "metaflow_flow_name",
         )
 
         def __init__(
@@ -440,6 +444,12 @@ def get_metaflow_kuberentes_operator():
                 self._flow_name, is_foreach=self._flow_contains_foreach
             )
             self.metaflow_run_id = AIRFLOW_MACROS.RUN_ID
+            self.metaflow_task_id = AIRFLOW_MACROS.create_task_id(
+                self._flow_contains_foreach
+            )
+            self.metaflow_attempt = AIRFLOW_MACROS.ATTEMPT
+            self.metaflow_step = AIRFLOW_MACROS.STEPNAME
+            self.metaflow_flow_name = self._flow_name
 
         def execute(self, context):
             result = super().execute(context)
