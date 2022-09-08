@@ -341,13 +341,19 @@ class TaskInfoComponent(MetaflowCardComponent):
         )
         # ignore the name as an artifact
         del task_data_dict["data"]["name"]
-        mf_version = [
-            t for t in self._task.parent.parent.tags if "metaflow_version" in t
-        ][0].split("metaflow_version:")[1]
+
+        _metadata = dict(version=1, template="defaultCardTemplate")
+        # try to parse out metaflow version from tags, but let it go if unset
+        # e.g. if a run came from a local, un-versioned metaflow codebase
+        try:
+            _metadata["metaflow_version"] = [
+                t for t in self._task.parent.parent.tags if "metaflow_version" in t
+            ][0].split("metaflow_version:")[1]
+        except Exception:
+            pass
+
         final_component_dict = dict(
-            metadata=dict(
-                metaflow_version=mf_version, version=1, template="defaultCardTemplate"
-            ),
+            metadata=_metadata,
             components=[],
         )
 
