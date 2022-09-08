@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-version = "2.7.9"
+version = "2.7.10"
 
 setup(
     include_package_data=True,
