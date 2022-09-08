@@ -1,6 +1,8 @@
 from metaflow.decorators import StepDecorator
 from metaflow.exception import MetaflowException
 
+from metaflow.plugins.kfp.kfp_decorator import KfpException
+
 
 class AcceleratorDecorator(StepDecorator):
     """
@@ -16,7 +18,7 @@ class AcceleratorDecorator(StepDecorator):
         print(f"ranks: {self.ranks}")
         self.next(self.train, foreach="ranks")
 
-    @accelerator
+    @accelerator(type="nvidia-tesla-v100")
     @step
     def train(self):
         self.rank = self.input
@@ -26,7 +28,7 @@ class AcceleratorDecorator(StepDecorator):
 
     Parameters
     ----------
-    accelerator_type: str
+    type: str
         Defaults to None.
         Available values: nvidia-tesla-v100
         More GPUs will be added based on customer needs.
@@ -41,5 +43,5 @@ class AcceleratorDecorator(StepDecorator):
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
     ):
-        if not self.attributes["type"]:
-            raise MetaflowException("You must specify the type of accelerator.")
+        if self.attributes["type"] and not isinstance(self.attributes["type"], str):
+            raise KfpException("type must be a string.")

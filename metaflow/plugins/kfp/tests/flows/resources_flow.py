@@ -12,7 +12,15 @@ from kubernetes.client import (
     V1ResourceFieldSelector,
 )
 
-from metaflow import FlowSpec, Parameter, current, environment, resources, step
+from metaflow import (
+    FlowSpec,
+    Parameter,
+    current,
+    environment,
+    resources,
+    step,
+    accelerator,
+)
 from metaflow._vendor import click
 from metaflow.datatools.s3 import S3
 
@@ -124,6 +132,7 @@ class ResourcesFlow(FlowSpec):
         "json_param", default=default_dict, type=TestTypeClass()
     )
 
+    @accelerator(type=None)  # AIP-6604 DCR: Allow @accelerator(type=None)
     @resources(
         local_storage="242",
         cpu="0.6",
