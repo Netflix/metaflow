@@ -1,3 +1,4 @@
+from datetime import datetime
 import json
 import os
 import shlex
@@ -22,12 +23,27 @@ from metaflow.metaflow_config import (
     AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
     DATASTORE_SYSROOT_AZURE,
     DATASTORE_CARD_AZUREROOT,
+    EVENT_SOURCE_URL,
+    EVENT_SOURCE_NAME,
+    EVENT_SOURCE_AUTH_SECRET,
+    EVENT_SOURCE_AUTH_KEY,
+    EVENT_SOURCE_AUTH_TOKEN,
+    EVENT_SERVICE_ACCOUNT,
+    EVENT_DISPATCH_IMAGE,
 )
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
 from metaflow.util import compress_list, dict_to_cli_options, to_camelcase
 
 from .argo_client import ArgoClient
+from .util import (
+    current_flow_name,
+    format_flow_name,
+    format_sensor_name,
+    parse_flow_name,
+    event_topic,
+    are_events_configured,
+)
 
 
 class ArgoWorkflowsException(MetaflowException):
@@ -72,6 +88,7 @@ class ArgoWorkflows(object):
         max_workers=None,
         workflow_timeout=None,
         workflow_priority=None,
+        ignore_events=False,
     ):
         # Some high-level notes -
         #
@@ -114,19 +131,41 @@ class ArgoWorkflows(object):
         self.max_workers = max_workers
         self.workflow_timeout = workflow_timeout
         self.workflow_priority = workflow_priority
+        self._ignore_events = ignore_events
+
+        # The values with curly braces '{{}}' are made available by Argo
+        # Workflows. Unfortunately, there are a few bugs in Argo which prevent
+        # us from accessing these values as liberally as we would like to - e.g,
+        # within inline templates - so we are forced to generate container templates
+        self._run_id = "argo-{{workflow.name}}"
 
         self.parameters = self._process_parameters()
         self._workflow_template = self._compile()
+        self._trigger_on_template = self._compile_trigger_on_template()
         self._cron = self._cron()
 
     def __str__(self):
         return str(self._workflow_template)
 
+    def trigger_on_template(self):
+        return self._trigger_on_template
+
     def deploy(self):
         try:
-            ArgoClient(namespace=KUBERNETES_NAMESPACE).register_workflow_template(
+            client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+            client.register_workflow_template(
                 self.name, self._workflow_template.to_json()
             )
+            if are_events_configured():
+                if self._trigger_on_template is not None:
+                    client.register_trigger_on_template(
+                        self._trigger_on_template.name(),
+                        self._trigger_on_template.to_json(),
+                    )
+                else:
+                    client.remove_existing_trigger_on_template(
+                        format_sensor_name(current_flow_name())
+                    )
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
 
@@ -181,6 +220,15 @@ class ArgoWorkflows(object):
             return (
                 "This workflow triggers automatically via the CronWorkflow *%s*."
                 % self.name
+            )
+        elif self._triggering_flow is not None:
+            if self._triggering_status == "succeeded":
+                display_status = "succeeds"
+            else:
+                display_status = "fails"
+            return "This workflow triggers automatically when flow %s %s." % (
+                self._triggering_flow,
+                display_status,
             )
         else:
             return "No triggers defined. You need to launch this workflow manually."
@@ -360,6 +408,8 @@ class ArgoWorkflows(object):
                 )
                 # Set the entrypoint to flow name
                 .entrypoint(self.flow.name)
+                # Set succeeded & failed lifecycle hooks
+                .lifecycle_hooks(self.flow.name, ignore_events=self._ignore_events)
                 # Top-level DAG template(s)
                 .templates(self._dag_templates())
                 # Container templates
@@ -553,12 +603,6 @@ class ArgoWorkflows(object):
             # TODO: Support R someday. Quite a few people will be happy.
             entrypoint = [executable, script_name]
 
-            # The values with curly braces '{{}}' are made available by Argo
-            # Workflows. Unfortunately, there are a few bugs in Argo which prevent
-            # us from accessing these values as liberally as we would like to - e.g,
-            # within inline templates - so we are forced to generate container templates
-            run_id = "argo-{{workflow.name}}"
-
             # Unfortunately, we don't have any easy access to unique ids that remain
             # stable across task attempts through Argo Workflows. So, we are forced to
             # stitch them together ourselves. The task ids are a function of step name,
@@ -592,7 +636,7 @@ class ArgoWorkflows(object):
                 stdout_path="$PWD/.logs/mflog_stdout",
                 stderr_path="$PWD/.logs/mflog_stderr",
                 flow_name=self.flow.name,
-                run_id=run_id,
+                run_id=self._run_id,
                 step_name=node.name,
                 task_id=task_id,
                 retry_count=retry_count,
@@ -651,7 +695,7 @@ class ArgoWorkflows(object):
                     + top_level
                     + [
                         "init",
-                        "--run-id %s" % run_id,
+                        "--run-id %s" % self._run_id,
                         "--task-id %s" % task_id_params,
                     ]
                     + [
@@ -670,7 +714,7 @@ class ArgoWorkflows(object):
                 exists = entrypoint + [
                     "dump",
                     "--max-value-size=0",
-                    "%s/_parameters/%s" % (run_id, task_id_params),
+                    "%s/_parameters/%s" % (self._run_id, task_id_params),
                 ]
                 step_cmds.extend(
                     [
@@ -678,7 +722,7 @@ class ArgoWorkflows(object):
                         % (" ".join(exists), " ".join(init))
                     ]
                 )
-                input_paths = "%s/_parameters/%s" % (run_id, task_id_params)
+                input_paths = "%s/_parameters/%s" % (self._run_id, task_id_params)
             elif (
                 node.type == "join"
                 and self.graph[node.split_parents[-1]].type == "foreach"
@@ -691,7 +735,7 @@ class ArgoWorkflows(object):
             step = [
                 "step",
                 node.name,
-                "--run-id %s" % run_id,
+                "--run-id %s" % self._run_id,
                 "--task-id %s" % task_id,
                 "--retry-count %s" % retry_count,
                 "--max-user-code-retries %d" % user_code_retries,
@@ -735,71 +779,7 @@ class ArgoWorkflows(object):
                 deco for deco in node.decorators if deco.name == "kubernetes"
             ][0].run_time_limit
 
-            # Resolve @environment decorator. We set three classes of environment
-            # variables -
-            #   (1) User-specified environment variables through @environment
-            #   (2) Metaflow runtime specific environment variables
-            #   (3) @kubernetes, @argo_workflows_internal book-keeping environment
-            #       variables
-            env = dict(
-                [deco for deco in node.decorators if deco.name == "environment"][
-                    0
-                ].attributes["vars"]
-            )
-            env.update(
-                {
-                    **{
-                        # These values are needed by Metaflow to set it's internal
-                        # state appropriately
-                        "METAFLOW_CODE_URL": self.code_package_url,
-                        "METAFLOW_CODE_SHA": self.code_package_sha,
-                        "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
-                        "METAFLOW_SERVICE_URL": BATCH_METADATA_SERVICE_URL,
-                        "METAFLOW_SERVICE_HEADERS": json.dumps(
-                            BATCH_METADATA_SERVICE_HEADERS
-                        ),
-                        "METAFLOW_USER": "argo-workflows",
-                        "METAFLOW_DATASTORE_SYSROOT_S3": DATASTORE_SYSROOT_S3,
-                        "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
-                        "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
-                        "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
-                        "METAFLOW_CARD_S3ROOT": DATASTORE_CARD_S3ROOT,
-                        "METAFLOW_KUBERNETES_WORKLOAD": 1,
-                        "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
-                        "METAFLOW_OWNER": self.username,
-                    },
-                    **{
-                        # Some optional values for bookkeeping
-                        "METAFLOW_FLOW_NAME": self.flow.name,
-                        "METAFLOW_STEP_NAME": node.name,
-                        "METAFLOW_RUN_ID": run_id,
-                        # "METAFLOW_TASK_ID": task_id,
-                        "METAFLOW_RETRY_COUNT": retry_count,
-                        "METAFLOW_PRODUCTION_TOKEN": self.production_token,
-                        "ARGO_WORKFLOW_TEMPLATE": self.name,
-                        "ARGO_WORKFLOW_NAME": "{{workflow.name}}",
-                        "ARGO_WORKFLOW_NAMESPACE": KUBERNETES_NAMESPACE,
-                    },
-                    **self.metadata.get_runtime_environment("argo-workflows"),
-                }
-            )
-            # add METAFLOW_S3_ENDPOINT_URL
-            env["METAFLOW_S3_ENDPOINT_URL"] = S3_ENDPOINT_URL
-
-            # support Metaflow sandboxes
-            env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
-
-            # Azure stuff
-            env[
-                "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
-            ] = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
-            env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = DATASTORE_SYSROOT_AZURE
-            env["METAFLOW_DATASTORE_CARD_AZUREROOT"] = DATASTORE_CARD_AZUREROOT
-
-            metaflow_version = self.environment.get_environment_info()
-            metaflow_version["flow_name"] = self.graph.name
-            metaflow_version["production_token"] = self.production_token
-            env["METAFLOW_VERSION"] = json.dumps(metaflow_version)
+            env = self._make_env(node, retry_count=retry_count)
 
             # Set the template inputs and outputs for passing state. Very simply,
             # the container template takes in input-paths as input and outputs
@@ -954,6 +934,92 @@ class ArgoWorkflows(object):
                 )
             )
 
+            if node.name == "end":
+                if self._ignore_events:
+                    return
+                elif are_events_configured():
+                    yield self._make_lifecycle_hook_container_template(
+                        self._make_env(node), "succeeded"
+                    )
+                    yield self._make_lifecycle_hook_container_template(
+                        self._make_env(node), "failed"
+                    )
+
+    def _make_lifecycle_hook_container_template(self, env, status):
+        t = LifecycleHookContainerTemplate(current_flow_name(), status)
+        t.env(env)
+        return t
+
+    def _make_env(self, node, retry_count=None):
+        # Resolve @environment decorator. We set three classes of environment
+        # variables -
+        #   (1) User-specified environment variables through @environment
+        #   (2) Metaflow runtime specific environment variables
+        #   (3) @kubernetes, @argo_workflows_internal book-keeping environment
+        #       variables
+        env = dict(
+            [deco for deco in node.decorators if deco.name == "environment"][
+                0
+            ].attributes["vars"]
+        )
+        env.update(
+            {
+                **{
+                    # These values are needed by Metaflow to set it's internal
+                    # state appropriately
+                    "METAFLOW_CODE_URL": self.code_package_url,
+                    "METAFLOW_CODE_SHA": self.code_package_sha,
+                    "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
+                    "METAFLOW_SERVICE_URL": BATCH_METADATA_SERVICE_URL,
+                    "METAFLOW_SERVICE_HEADERS": json.dumps(
+                        BATCH_METADATA_SERVICE_HEADERS
+                    ),
+                    "METAFLOW_USER": "argo-workflows",
+                    "METAFLOW_DATASTORE_SYSROOT_S3": DATASTORE_SYSROOT_S3,
+                    "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
+                    "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
+                    "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
+                    "METAFLOW_CARD_S3ROOT": DATASTORE_CARD_S3ROOT,
+                    "METAFLOW_KUBERNETES_WORKLOAD": 1,
+                    "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
+                    "METAFLOW_OWNER": self.username,
+                },
+                **{
+                    # Some optional values for bookkeeping
+                    "METAFLOW_FLOW_NAME": self.flow.name,
+                    "METAFLOW_STEP_NAME": node.name,
+                    "METAFLOW_RUN_ID": self._run_id,
+                    "METAFLOW_PRODUCTION_TOKEN": self.production_token,
+                    "ARGO_WORKFLOW_TEMPLATE": self.name,
+                    "ARGO_WORKFLOW_NAME": "{{workflow.name}}",
+                    "ARGO_WORKFLOW_NAMESPACE": KUBERNETES_NAMESPACE,
+                    "METAFLOW_EVENT_SOURCE": EVENT_SOURCE_URL,
+                    "METAFLOW_EVENT_SOURCE_NAME": EVENT_SOURCE_NAME,
+                },
+                **self.metadata.get_runtime_environment("argo-workflows"),
+            }
+        )
+        if retry_count is not None:
+            env["METAFLOW_RETRY_COUNT"] = retry_count
+        # add METAFLOW_S3_ENDPOINT_URL
+        env["METAFLOW_S3_ENDPOINT_URL"] = S3_ENDPOINT_URL
+
+        # support Metaflow sandboxes
+        env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
+
+        # Azure stuff
+        env[
+            "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
+        ] = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
+        env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = DATASTORE_SYSROOT_AZURE
+        env["METAFLOW_DATASTORE_CARD_AZUREROOT"] = DATASTORE_CARD_AZUREROOT
+
+        metaflow_version = self.environment.get_environment_info()
+        metaflow_version["flow_name"] = self.graph.name
+        metaflow_version["production_token"] = self.production_token
+        env["METAFLOW_VERSION"] = json.dumps(metaflow_version)
+        return env
+
     def _get_retries(self, node):
         max_user_code_retries = 0
         max_error_retries = 0
@@ -974,6 +1040,32 @@ class ArgoWorkflows(object):
             "{{retries}}" if max_user_code_retries + max_error_retries else 0,
             int(minutes_between_retries),
         )
+
+    def _compile_trigger_on_template(self):
+        trigger_on = current.get("trigger_on")
+        if trigger_on is not None:
+            trigger_flow = trigger_on["flow"]
+            status = trigger_on["status"]
+            calling_flow = current_flow_name()
+            (project, branch, flow_name) = parse_flow_name(calling_flow)
+            (display_name, argo_name) = format_flow_name(
+                trigger_flow, project_name=project, branch_name=branch
+            )
+            self._triggering_flow = display_name
+            self._triggering_status = status
+            t = TriggerOnTemplate(calling_flow, argo_name, status)
+            t.annotation({"metaflow/flow_name": display_name})
+            t.annotation({"metaflow/owner": self.username})
+            t.annotation({"metaflow/user": EVENT_SERVICE_ACCOUNT})
+            t.annotation({"metaflow/production_token": self.production_token})
+            t.annotation({"metaflow/triggered_by": argo_name})
+            t.annotation({"metaflow/trigger_status": status})
+            t.label({"app.kubernetes.io/name": "metaflow-flow-sensor"})
+            t.label({"app.kubernetes.io/part-of": "metaflow"})
+            return t
+        else:
+            self._triggering_flow = None
+            self._triggering_status = None
 
 
 # Helper classes to assist with JSON-foo. This can very well replaced with an explicit
@@ -1109,6 +1201,22 @@ class WorkflowSpec(object):
             self.payload["templates"] = []
         for template in templates:
             self.payload["templates"].append(template.to_json())
+        return self
+
+    def lifecycle_hooks(self, name, ignore_events=False):
+        if not ignore_events:
+            name = name.replace("_", "-").lower()
+            success = {
+                "template": "on-succeeded",
+                "expression": 'workflow.status == "Succeeded"',
+            }
+            success_name = "mf-" + name + "-succeeded"
+            failure = {
+                "template": "on-failed",
+                "expression": 'workflow.status == "Failed"',
+            }
+            failure_name = "mf-" + name + "-failed"
+            self.payload["hooks"] = {success_name: success, failure_name: failure}
         return self
 
     def to_json(self):
@@ -1392,3 +1500,125 @@ class Arguments(object):
 
     def __str__(self):
         return json.dumps(self.payload, indent=4)
+
+
+class LifecycleHookContainerTemplate(object):
+    def __init__(self, flow_name, lifecycle_event):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+        self._name = "on-" + lifecycle_event
+        self.payload["command"] = [
+            "python",
+            "/trigger.py",
+            "flow_lifecycle",
+            flow_name,
+            lifecycle_event,
+        ]
+        self.payload["requests"] = {"cpu": "1", "memory": "512M"}
+        self.payload["image"] = EVENT_DISPATCH_IMAGE
+
+    def _add_auth(self, vars):
+        if EVENT_SOURCE_AUTH_SECRET is not None and EVENT_SOURCE_AUTH_KEY is not None:
+            secretKeyRef = {
+                "secretKeyRef": {
+                    "name": EVENT_SOURCE_AUTH_SECRET,
+                    "key": EVENT_SOURCE_AUTH_KEY,
+                }
+            }
+            vars.append({"name": "NATS_TOKEN", "valueFrom": secretKeyRef})
+        elif EVENT_SOURCE_AUTH_TOKEN is not None:
+            vars.append({"name": "NATS_TOKEN", "value": EVENT_SOURCE_AUTH_TOKEN})
+
+    def env(self, vars):
+        updated = [
+            {"name": key, "value": str(vars[key])}
+            for key in vars.keys()
+            if vars[key] is not None
+        ]
+        self._add_auth(updated)
+        self.payload["env"] = updated
+        return self
+
+    def to_json(self):
+        return {"name": self._name, "container": self.payload}
+
+    def __str__(self):
+        return json.dumps(self.to_json(), indent=4)
+
+
+class TriggerOnTemplate(object):
+    def __init__(self, calling_flow, after_flow, flow_status):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+        self._calling_flow = calling_flow.replace("_", "-").lower()
+        self._after_flow = after_flow
+        self._sensor_name = format_sensor_name(calling_flow)
+        self.payload["apiVersion"] = "argoproj.io/v1alpha1"
+        self.payload["kind"] = "Sensor"
+        self.payload["metadata"]["name"] = self._sensor_name
+        self.payload["spec"]["template"]["serviceAccountName"] = EVENT_SERVICE_ACCOUNT
+        flow_event_name = "metaflow_flow_run_%s" % (flow_status)
+        event = {"name": "lifecycle-event"}
+        event["eventSourceName"] = EVENT_SOURCE_NAME
+        event["eventName"] = event_topic()
+        filters = {
+            "exprs": [
+                {
+                    "expr": (
+                        'flow_name == "%s" && event_name == "%s"'
+                        % (after_flow, flow_event_name)
+                    ),
+                    "fields": [
+                        {"name": "flow_name", "path": "body.payload.flow_name"},
+                        {"name": "event_name", "path": "body.payload.event_name"},
+                    ],
+                },
+            ],
+        }
+
+        event["filters"] = filters
+        self.payload["spec"]["dependencies"] = [event]
+        self.payload["spec"]["triggers"] = []
+        triggered_template = {
+            "source": {
+                "resource": {
+                    "apiVersion": "argoproj.io/v1alpha1",
+                    "kind": "Workflow",
+                    "metadata": {"generateName": self._calling_flow + "-"},
+                    "spec": {
+                        "arguments": {},
+                        "workflowTemplateRef": {"name": self._calling_flow},
+                    },
+                }
+            }
+        }
+        self.payload["spec"]["triggers"].append(
+            {
+                "template": {
+                    "name": self._sensor_name + "-trigger",
+                    "k8s": triggered_template,
+                }
+            }
+        )
+
+    def annotation(self, annotation):
+        if not self.payload["metadata"]["annotations"]:
+            self.payload["metadata"]["annotations"] = annotation
+        else:
+            self.payload["metadata"]["annotations"].update(annotation)
+        return self
+
+    def label(self, label):
+        if not self.payload["metadata"]["labels"]:
+            self.payload["metadata"]["labels"] = label
+        else:
+            self.payload["metadata"]["labels"].update(label)
+
+    def name(self):
+        return self._sensor_name
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.to_json(), indent=4)

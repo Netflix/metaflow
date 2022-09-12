@@ -125,7 +125,6 @@ from .cards.card_decorator import CardDecorator
 from .frameworks.pytorch import PytorchParallelDecorator
 from .airflow.airflow_decorator import AirflowInternalDecorator
 
-
 STEP_DECORATORS = [
     CatchDecorator,
     TimeoutDecorator,
@@ -164,12 +163,13 @@ _merge_lists(METADATA_PROVIDERS, _ext_plugins["METADATA_PROVIDERS"], "TYPE")
 from .conda.conda_flow_decorator import CondaFlowDecorator
 from .aws.step_functions.schedule_decorator import ScheduleDecorator
 from .project_decorator import ProjectDecorator
-
+from .argo.event_decorators import TriggerOnDecorator
 
 FLOW_DECORATORS = [
     CondaFlowDecorator,
     ScheduleDecorator,
     ProjectDecorator,
+    TriggerOnDecorator,
 ]
 _merge_lists(FLOW_DECORATORS, _ext_plugins["FLOW_DECORATORS"], "name")
 
