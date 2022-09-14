@@ -298,6 +298,40 @@ def has_node_toleration(
     )
 
 
+def get_compiled_yaml(compile_to_yaml_cmd, yaml_file_path) -> Dict[str, str]:
+    compile_to_yaml_process: CompletedProcess = run(
+        compile_to_yaml_cmd,
+        universal_newlines=True,
+        shell=True,
+    )
+
+    assert compile_to_yaml_process.returncode == 0
+
+    with open(f"{yaml_file_path}", "r") as stream:
+        try:
+            flow_yaml: dict = yaml.safe_load(stream)
+        except yaml.YAMLError as exc:
+            print(exc)
+
+    return flow_yaml
+
+
+def test_kubernetes_service_account_compile_only() -> None:
+    service_account = "test-service-account"
+    with tempfile.TemporaryDirectory() as yaml_tmp_dir:
+        yaml_file_path: str = join(yaml_tmp_dir, "kubernetes_service_account.yaml")
+
+        compile_to_yaml_cmd: str = (
+            f"export METAFLOW_KUBERNETES_SERVICE_ACCOUNT={service_account};"
+            f" {_python()} flows/toleration_and_affinity_flow.py kfp run"
+            f" --yaml-only --pipeline-path {yaml_file_path}"
+        )
+
+        flow_yaml = get_compiled_yaml(compile_to_yaml_cmd, yaml_file_path)
+
+    assert flow_yaml["spec"]["serviceAccountName"] == service_account
+
+
 def test_toleration_and_affinity_compile_only() -> None:
     step_templates: Dict[str, str] = {}
     with tempfile.TemporaryDirectory() as yaml_tmp_dir:
@@ -308,18 +342,7 @@ def test_toleration_and_affinity_compile_only() -> None:
             f" --no-s3-code-package --yaml-only --pipeline-path {yaml_file_path}"
         )
 
-        compile_to_yaml_process: CompletedProcess = run(
-            compile_to_yaml_cmd,
-            universal_newlines=True,
-            shell=True,
-        )
-        assert compile_to_yaml_process.returncode == 0
-
-        with open(f"{yaml_file_path}", "r") as stream:
-            try:
-                flow_yaml: dict = yaml.safe_load(stream)
-            except yaml.YAMLError as exc:
-                print(exc)
+        flow_yaml = get_compiled_yaml(compile_to_yaml_cmd, yaml_file_path)
 
         for step in flow_yaml["spec"]["templates"]:
             # step name in yaml use "-" in place of "_"

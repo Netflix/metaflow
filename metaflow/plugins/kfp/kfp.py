@@ -37,6 +37,7 @@ from metaflow.metaflow_config import (
     DATASTORE_SYSROOT_S3,
     KFP_TTL_SECONDS_AFTER_FINISHED,
     KFP_USER_DOMAIN,
+    KUBERNETES_SERVICE_ACCOUNT,
     METAFLOW_USER,
     from_conf,
 )
@@ -181,11 +182,7 @@ class KubeflowPipelines(object):
         self.notify_on_success = notify_on_success
         self._client = None
 
-    def create_run_on_kfp(self, run_name: str, flow_parameters: dict):
-        """
-        Creates a new run on KFP using the `kfp.Client()`.
-        """
-        # TODO: first create KFP Pipeline, then an experiment if provided else default experiment.
+    def set_kfp_client(self):
         # kfp userid needs to have the user domain
         kfp_client_user_email = self.username
         if KFP_USER_DOMAIN:
@@ -194,6 +191,13 @@ class KubeflowPipelines(object):
         self._client = kfp.Client(
             namespace=self.api_namespace, userid=kfp_client_user_email
         )
+
+    def create_run_on_kfp(self, run_name: str, flow_parameters: dict):
+        """
+        Creates a new run on KFP using the `kfp.Client()`.
+        """
+        # TODO: first create KFP Pipeline, then an experiment if provided else default experiment.
+        self.set_kfp_client()
         pipeline_func, _ = self.create_kfp_pipeline_from_flow_graph()
         return self._client.create_run_from_pipeline_func(
             pipeline_func=pipeline_func,
@@ -201,6 +205,7 @@ class KubeflowPipelines(object):
             experiment_name=self.experiment,
             run_name=run_name,
             namespace=self.kfp_namespace,
+            service_account=KUBERNETES_SERVICE_ACCOUNT,
         )
 
     def create_kfp_pipeline_yaml(self, pipeline_file_path) -> str:
@@ -214,6 +219,20 @@ class KubeflowPipelines(object):
             pipeline_file_path,
             pipeline_conf=pipeline_conf,
         )
+
+        # re-write the workflow serviceAccountName if metaflow KUBERNETES_SERVICE_ACCOUNT
+        # is set.
+        if KUBERNETES_SERVICE_ACCOUNT:
+            self.set_kfp_client()
+            # use kfp client extract yaml method so we do not recreate logic that accounts
+            # for various extensions supported by kfp
+            workflow_yaml = self._client._extract_pipeline_yaml(pipeline_file_path)
+            workflow_yaml["spec"]["serviceAccountName"] = KUBERNETES_SERVICE_ACCOUNT
+            # use internal kfp static method to write the modified yaml back to the
+            # pipeline_file_path so we do not have to recreate kfp support for the
+            # various extensions it supports
+            kfp.compiler.Compiler()._write_workflow(workflow_yaml, pipeline_file_path)
+
         return os.path.abspath(pipeline_file_path)
 
     @staticmethod
