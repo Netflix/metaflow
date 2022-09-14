@@ -277,22 +277,6 @@ class TaskDataStore(object):
                         raise UnpicklableArtifactException(name)
                 else:
                     try:
-                        # KFP preceding component is a function that shouldn't be pickled
-                        # Remove it entirely from datastore since the function is already
-                        # compiled into a KFP container operator in argo workflow yaml
-                        if isinstance(obj, dict) and "steps" in obj:
-                            steps: dict = obj["steps"]
-                            for step in steps:
-                                for decorator_dict in steps[step]["decorators"]:
-                                    if decorator_dict["name"] == "kfp" and callable(
-                                        decorator_dict["attributes"][
-                                            "preceding_component"
-                                        ]
-                                    ):
-                                        decorator_dict["attributes"][
-                                            "preceding_component"
-                                        ] = None
-
                         blob = pickle.dumps(obj, protocol=2)
                         encode_type = "gzip+pickle-v2"
                     except (SystemError, OverflowError):
