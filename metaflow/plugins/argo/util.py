@@ -1,4 +1,5 @@
-import os
+import base64
+import json
 import re
 
 from metaflow.metaflow_config import (
@@ -90,3 +91,9 @@ def status_present_tense(status):
 
 def valid_statuses():
     return list(STATUS_TENSES.keys())
+
+
+def encode_json(data):
+    data = bytes(json.dumps(data, separators=(",", ":"), indent=None), "UTF-8")
+    encoded_data = base64.b64encode(data)
+    return '"%s"' % encoded_data.decode("UTF-8")

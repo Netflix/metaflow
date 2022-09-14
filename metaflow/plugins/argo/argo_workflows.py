@@ -1,5 +1,6 @@
 import base64
 from datetime import datetime
+from io import StringIO
 import json
 import os
 import shlex
@@ -48,6 +49,7 @@ from .util import (
     parse_flow_name,
     event_topic,
     are_events_configured,
+    encode_json,
 )
 
 
@@ -1045,16 +1047,32 @@ class ArgoWorkflows(object):
                 if self._ignore_events:
                     return
                 elif are_events_configured():
+                    annotation = current.get("lifecycle_annotation")
                     template_env = self._make_env(node)
-                    yield self._make_lifecycle_hook_container_template(
-                        template_env, "succeeded"
-                    )
-                    yield self._make_lifecycle_hook_container_template(
-                        template_env, "failed"
-                    )
+                    statuses = []
+                    data = None
+                    if annotation is not None:
+                        statuses = annotation["statuses"]
+                        data = annotation["data"]
+                    if "succeeded" in statuses:
+                        yield self._make_lifecycle_hook_container_template(
+                            template_env, "succeeded", data=data
+                        )
+                    else:
+                        yield self._make_lifecycle_hook_container_template(
+                            template_env, "succeeded"
+                        )
+                    if "failed" in statuses:
+                        yield self._make_lifecycle_hook_container_template(
+                            template_env, "failed", data=data
+                        )
+                    else:
+                        yield self._make_lifecycle_hook_container_template(
+                            template_env, "failed"
+                        )
 
-    def _make_lifecycle_hook_container_template(self, env, status):
-        t = WorkflowLifecycleHookContainerTemplate(current_flow_name(), status)
+    def _make_lifecycle_hook_container_template(self, env, status, data=None):
+        t = WorkflowLifecycleHookContainerTemplate(current_flow_name(), status, data)
         t.set_env_vars(env)
         return t
 
@@ -1154,6 +1172,7 @@ class ArgoWorkflows(object):
             event = trigger_on["event"]
             status = trigger_on["status"]
             triggering_flow = trigger_on["flow"]
+            mappings = trigger_on.get("mappings")
             parameters = self._process_parameters(include_values=False)
             t = TriggerOnTemplate.make_trigger(
                 calling_flow=calling_flow,
@@ -1161,6 +1180,7 @@ class ArgoWorkflows(object):
                 predecessor_status=status,
                 event_name=event,
                 parameters=parameters,
+                mappings=mappings,
             )
             t.annotation({"metaflow/flow_name": calling_flow})
             t.annotation({"metaflow/owner": self.username})
@@ -1721,20 +1741,24 @@ class HookContainerTemplate(object):
 
 
 class WorkflowLifecycleHookContainerTemplate(HookContainerTemplate):
-    def __init__(self, flow_name, lifecycle_event):
+    def __init__(self, flow_name, lifecycle_event, data=None):
         super().__init__()
         (project, branch, flow) = parse_flow_name(flow_name)
         (_, flow_name) = format_flow_name(
             flow, project_name=project, branch_name=branch
         )
         self.name = "on-" + lifecycle_event
-        self.command = [
+        commands = [
             "python",
             "/trigger.py",
             "run_lifecycle_event",
             flow_name,
             lifecycle_event,
         ]
+        if data is not None:
+            encoded = encode_json(data)
+            commands.append("%s" % encoded)
+        self.command = commands
 
 
 class EventEmitterHookContainerTemplate(HookContainerTemplate):
@@ -1747,10 +1771,8 @@ class EventEmitterHookContainerTemplate(HookContainerTemplate):
         self.name = hook_name
         commands = ["python", "/trigger.py", "user_event", event_name]
         if data is not None:
-            data = bytes(json.dumps(data), "UTF-8")
-            encoded_data = base64.b64encode(data)
-            data = encoded_data.decode("UTF-8")
-            commands.append("%s" % data)
+            encoded = encode_json(data)
+            commands.append("%s" % encoded)
         self.command = commands
 
 
@@ -1763,6 +1785,7 @@ class TriggerOnTemplate(object):
         predecessor_status=None,
         event_name=None,
         parameters=[],
+        mappings=None,
     ):
         (project, branch, flow) = parse_flow_name(calling_flow)
         (_, calling_flow) = format_flow_name(
@@ -1770,12 +1793,14 @@ class TriggerOnTemplate(object):
         )
         if predecessor is not None and predecessor_status is not None:
             return TriggerOnFlowStatusTemplate(
-                calling_flow, predecessor, predecessor_status, parameters
+                calling_flow, predecessor, predecessor_status, parameters, mappings
             )
         else:
-            return TriggerOnRawEventTemplate(calling_flow, event_name, parameters)
+            return TriggerOnRawEventTemplate(
+                calling_flow, event_name, parameters, mappings
+            )
 
-    def __init__(self, calling_flow, parameters):
+    def __init__(self, calling_flow, parameters, mappings):
         self.topic = event_topic()
         tree = lambda: defaultdict(tree)
         self.payload = tree()
@@ -1783,25 +1808,39 @@ class TriggerOnTemplate(object):
         self.payload["flow"] = None
         self.payload["status"] = None
         self.payload["data"] = None
-        self.calling_flow = calling_flow.replace("_", "-").lower()
+        self.calling_flow = calling_flow
         self.sensor_name = format_sensor_name(self.calling_flow)
         self.payload["apiVersion"] = "argoproj.io/v1alpha1"
         self.payload["kind"] = "Sensor"
         self.payload["metadata"]["name"] = self.name()
         self.payload["spec"]["template"]["serviceAccountName"] = EVENT_SERVICE_ACCOUNT
-        self.parameter_mapping = self._build_parameter_mapping(parameters)
+        self.parameter_assignments = self._build_flow_parameter_assignments(parameters)
+        self.event_field_mappings = self._build_event_field_mappings(mappings)
 
-    def _build_parameter_mapping(self, parameters):
+    def _build_flow_parameter_assignments(self, parameters):
         i = 0
-        mappings = []
+        assignments = []
         for parameter in parameters:
             data_key = "body.payload.data.%s" % parameter["name"].lower()
             dest = "spec.arguments.parameters.%d.value" % i
-            mappings.append(
+            assignments.append(
                 {"src": {"dependencyName": "", "dataKey": data_key}, "dest": dest}
             )
             i += 1
-        return mappings
+        return assignments
+
+    def _build_event_field_mappings(self, mappings):
+        if mappings is None:
+            return None
+        buf = StringIO()
+        for param_name in mappings.keys():
+            event_field = mappings[param_name]
+            buf.write(
+                "event.body.payload.data.%s = event.body.payload.data.%s\n"
+                % (param_name, event_field)
+            )
+        buf.write("return event")
+        return {"script": buf.getvalue()}
 
     def annotation(self, annotation):
         pass
@@ -1818,15 +1857,14 @@ class TriggerOnTemplate(object):
         return self.sensor_name
 
     def to_json(self):
-        return self.payload
-
-    def __str__(self):
-        return json.dumps(self.to_json(), indent=4)
+        pass
 
 
 class TriggerOnFlowStatusTemplate(TriggerOnTemplate):
-    def __init__(self, calling_flow, predecessor, predecessor_status, parameters):
-        super().__init__(calling_flow, parameters)
+    def __init__(
+        self, calling_flow, predecessor, predecessor_status, parameters, mappings
+    ):
+        super().__init__(calling_flow, parameters, mappings)
         (project, branch, flow) = parse_flow_name(calling_flow)
         (_, calling_flow) = format_flow_name(flow, project, branch)
         (_, predecessor) = format_flow_name(predecessor, project, branch)
@@ -1834,26 +1872,13 @@ class TriggerOnFlowStatusTemplate(TriggerOnTemplate):
         event = {"name": "lifecycle-event"}
         event["eventSourceName"] = EVENT_SOURCE_NAME
         event["eventName"] = event_topic()
-        filters = {
-            "exprs": [
-                {
-                    "expr": (
-                        'flow_name == "%s" && event_name == "metaflow_flow_run_%s"'
-                        % (predecessor, predecessor_status)
-                    ),
-                    "fields": [
-                        {"name": "flow_name", "path": "body.payload.flow_name"},
-                        {"name": "event_name", "path": "body.payload.event_name"},
-                    ],
-                },
-            ],
-        }
-
-        event["filters"] = filters
+        event["filters"] = self._build_filters(predecessor_status)
+        if self.event_field_mappings is not None:
+            event["transform"] = self.event_field_mappings
         self.payload["spec"]["dependencies"] = [event]
         self.payload["spec"]["triggers"] = []
-        for mapping in self.parameter_mapping:
-            mapping["src"]["dependencyName"] = "lifecycle-event"
+        for assignment in self.parameter_assignments:
+            assignment["src"]["dependencyName"] = "lifecycle-event"
         triggered_template = {
             "source": {
                 "resource": {
@@ -1866,7 +1891,7 @@ class TriggerOnFlowStatusTemplate(TriggerOnTemplate):
                     },
                 }
             },
-            "parameters": self.parameter_mapping,
+            "parameters": self.parameter_assignments,
         }
         self.payload["spec"]["triggers"].append(
             {
@@ -1890,10 +1915,32 @@ class TriggerOnFlowStatusTemplate(TriggerOnTemplate):
             self.payload["metadata"]["annotations"].update(annotation)
         return self
 
+    def _build_filters(self, predecessor_status):
+        return {
+            "exprs": [
+                {
+                    "expr": (
+                        'flow_name == "%s" && event_name == "metaflow_flow_run_%s"'
+                        % (self._after_flow, predecessor_status)
+                    ),
+                    "fields": [
+                        {"name": "flow_name", "path": "body.payload.flow_name"},
+                        {"name": "event_name", "path": "body.payload.event_name"},
+                    ],
+                },
+            ],
+        }
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.to_json(), indent=4)
+
 
 class TriggerOnRawEventTemplate(TriggerOnTemplate):
-    def __init__(self, calling_flow, event_name, parameters):
-        super().__init__(calling_flow, parameters)
+    def __init__(self, calling_flow, event_name, parameters, mappings):
+        super().__init__(calling_flow, parameters, mappings)
         (project, branch, flow) = parse_flow_name(calling_flow)
         (_, event_name) = format_flow_name(
             event_name, project_name=project, branch_name=branch
@@ -1901,20 +1948,12 @@ class TriggerOnRawEventTemplate(TriggerOnTemplate):
         event = {"name": "raw-event"}
         event["eventSourceName"] = EVENT_SOURCE_NAME
         event["eventName"] = self.topic
-        filters = {
-            "exprs": [
-                {
-                    "expr": ('event_name == "%s"' % (event_name)),
-                    "fields": [
-                        {"name": "event_name", "path": "body.payload.event_name"},
-                    ],
-                },
-            ],
-        }
-        event["filters"] = filters
+        event["filters"] = self._build_filters(event_name)
+        if self.event_field_mappings is not None:
+            event["transform"] = self.event_field_mappings
         self.payload["spec"]["dependencies"] = [event]
-        for mapping in self.parameter_mapping:
-            mapping["src"]["dependencyName"] = "raw-event"
+        for assignment in self.parameter_assignments:
+            assignment["src"]["dependencyName"] = "raw-event"
         triggered_template = {
             "source": {
                 "resource": {
@@ -1927,7 +1966,7 @@ class TriggerOnRawEventTemplate(TriggerOnTemplate):
                     },
                 }
             },
-            "parameters": self.parameter_mapping,
+            "parameters": self.parameter_assignments,
         }
         self.payload["spec"]["triggers"] = [
             {
@@ -1937,3 +1976,21 @@ class TriggerOnRawEventTemplate(TriggerOnTemplate):
                 }
             }
         ]
+
+    def _build_filters(self, event_name):
+        return {
+            "exprs": [
+                {
+                    "expr": ('event_name == "%s"' % (event_name)),
+                    "fields": [
+                        {"name": "event_name", "path": "body.payload.event_name"},
+                    ],
+                },
+            ],
+        }
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.to_json(), indent=4)
