@@ -74,11 +74,11 @@ def test_s3_sensor_flow(pytestconfig) -> None:
     file_name_for_formatter_test: str = f"s3-sensor-file-{uuid.uuid1()}.txt"
 
     s3_sensor_flow_cmd: str = (
-        f"{_python()} flows/s3_sensor_flow.py --datastore=s3 kfp run "
+        f"{_python()} flows/s3_sensor_flow.py --datastore=s3 --with retry  kfp run "
         f"--file_name {file_name} --notify "
     )
     s3_sensor_with_formatter_flow_cmd: str = (
-        f"{_python()} flows/s3_sensor_with_formatter_flow.py --datastore=s3 kfp run "
+        f"{_python()} flows/s3_sensor_with_formatter_flow.py --datastore=s3 --with retry kfp run "
         f"--file_name_for_formatter_test {file_name_for_formatter_test} --notify "
     )
 
@@ -117,7 +117,7 @@ def test_s3_sensor_flow(pytestconfig) -> None:
     )
 
     validate_s3_sensor_flow_cmd: str = (
-        f"{_python()} flows/validate_s3_sensor_flows.py --datastore=s3 kfp run "
+        f"{_python()} flows/validate_s3_sensor_flows.py --datastore=s3 --with retry kfp run "
         f"--file_name {file_name} --file_name_for_formatter_test {file_name_for_formatter_test} "
         f"--s3_sensor_argo_workflow_name {s3_sensor_argo_workflow_name} --s3_sensor_with_formatter_argo_workflow_name {s3_sensor_with_formatter_argo_workflow_name} "
         f"--wait-for-completion "
