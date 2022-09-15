@@ -13,12 +13,8 @@ class PytorchParallelDecorator(ParallelDecorator):
     defaults = {"master_port": None}
     IS_PARALLEL = True
 
-    def task_decorate(
-        self, step_func, flow, graph, retry_count, max_user_code_retries, ubf_context
-    ):
-        return super().task_decorate(
-            step_func, flow, graph, retry_count, max_user_code_retries, ubf_context
-        )
+    def task_decorate(self, step_func, flow, graph, retry_count, max_user_code_retries, ubf_context):
+        return super().task_decorate(step_func, flow, graph, retry_count, max_user_code_retries, ubf_context)
 
     def setup_distributed_env(self, flow):
         setup_torch_distributed(self.attributes["master_port"])

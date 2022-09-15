@@ -76,8 +76,7 @@ def metadata(ms):
         res = [m for m in METADATA_PROVIDERS if m.TYPE == metadata_type]
         if not res:
             print(
-                "Cannot find a '%s' metadata provider -- "
-                "try specifying one explicitly using <type>@<info>",
+                "Cannot find a '%s' metadata provider -- " "try specifying one explicitly using <type>@<info>",
                 metadata_type,
             )
             return get_metadata()
@@ -335,9 +334,7 @@ class MetaflowObject(object):
 
         if self._attempt is not None:
             if self._NAME not in ["task", "artifact"]:
-                raise MetaflowNotFound(
-                    "Attempts can only be specified for Task or DataArtifact"
-                )
+                raise MetaflowNotFound("Attempts can only be specified for Task or DataArtifact")
             try:
                 self._attempt = int(self._attempt)
             except ValueError:
@@ -346,9 +343,7 @@ class MetaflowObject(object):
             if self._attempt < 0:
                 raise MetaflowNotFound("Attempt can only be non-negative")
             elif self._attempt >= MAX_ATTEMPTS:
-                raise MetaflowNotFound(
-                    "Attempt can only be smaller than %d" % MAX_ATTEMPTS
-                )
+                raise MetaflowNotFound("Attempt can only be smaller than %d" % MAX_ATTEMPTS)
             # NOTE: It is possible that no attempt exists but we can't
             # distinguish between "attempt will happen" and "no such
             # attempt exists".
@@ -376,17 +371,13 @@ class MetaflowObject(object):
 
         self._created_at = datetime.fromtimestamp(self._object["ts_epoch"] / 1000.0)
 
-        self._tags = frozenset(
-            chain(self._object.get("system_tags") or [], self._object.get("tags") or [])
-        )
+        self._tags = frozenset(chain(self._object.get("system_tags") or [], self._object.get("tags") or []))
 
         if _namespace_check and not self.is_in_namespace():
             raise MetaflowNamespaceMismatch(current_namespace)
 
     def _get_object(self, *path_components):
-        result = self._metaflow.metadata.get_object(
-            self._NAME, "self", None, self._attempt, *path_components
-        )
+        result = self._metaflow.metadata.get_object(self._NAME, "self", None, self._attempt, *path_components)
         if not result:
             raise MetaflowNotFound("%s does not exist" % self)
         return result
@@ -407,11 +398,7 @@ class MetaflowObject(object):
             query_filter = {"any_tags": current_namespace}
 
         unfiltered_children = self._metaflow.metadata.get_object(
-            self._NAME,
-            _CLASSES[self._CHILD_CLASS]._NAME,
-            query_filter,
-            self._attempt,
-            *self.path_components
+            self._NAME, _CLASSES[self._CHILD_CLASS]._NAME, query_filter, self._attempt, *self.path_components
         )
         unfiltered_children = unfiltered_children if unfiltered_children else []
         children = filter(
@@ -508,9 +495,7 @@ class MetaflowObject(object):
         """
         obj = self._get_child(id)
         if obj:
-            return _CLASSES[self._CHILD_CLASS](
-                attempt=self._attempt, _object=obj, _parent=self
-            )
+            return _CLASSES[self._CHILD_CLASS](attempt=self._attempt, _object=obj, _parent=self)
         else:
             raise KeyError(id)
 
@@ -575,9 +560,7 @@ class MetaflowObject(object):
             if latest_step:
                 # If we had a step
                 task = latest_step.task
-                origin_run_id = [
-                    m.value for m in task.metadata if m.name == "origin-run-id"
-                ]
+                origin_run_id = [m.value for m in task.metadata if m.name == "origin-run-id"]
                 if origin_run_id:
                     origin_pathspec = "%s/%s" % (self.parent.id, origin_run_id[0])
         else:
@@ -586,9 +569,7 @@ class MetaflowObject(object):
                 my_id = self.id
                 origin_task_id = None
                 if self._NAME == "task":
-                    origin_task_id = [
-                        m.value for m in self.metadata if m.name == "origin-task-id"
-                    ]
+                    origin_task_id = [m.value for m in self.metadata if m.name == "origin-task-id"]
                     if origin_task_id:
                         my_id = origin_task_id[0]
                     else:
@@ -711,9 +692,7 @@ class MetaflowCode(object):
 
         if filecache is None:
             filecache = FileCache()
-        _, blobdata = filecache.get_data(
-            self._ds_type, self._flow_name, self._path, self._sha
-        )
+        _, blobdata = filecache.get_data(self._ds_type, self._flow_name, self._path, self._sha)
         code_obj = BytesIO(blobdata)
         self._tar = tarfile.open(fileobj=code_obj, mode="r:gz")
         # The JSON module in Python3 deals with Unicode. Tar gives bytes.
@@ -827,9 +806,7 @@ class DataArtifact(MetaflowObject):
             return filecache.get_artifact(ds_type, location[6:], meta, *components)
         else:
             # Older artifacts have a location information which we can use.
-            return filecache.get_artifact_by_location(
-                ds_type, location, meta, *components
-            )
+            return filecache.get_artifact_by_location(ds_type, location, meta, *components)
 
     @property
     def size(self):
@@ -852,13 +829,9 @@ class DataArtifact(MetaflowObject):
             # TODO: Pass proper environment to properly extract artifacts
             filecache = FileCache()
         if location.startswith(":root:"):
-            return filecache.get_artifact_size(
-                ds_type, location[6:], self._attempt, *components
-            )
+            return filecache.get_artifact_size(ds_type, location[6:], self._attempt, *components)
         else:
-            return filecache.get_artifact_size_by_location(
-                ds_type, location, self._attempt, *components
-            )
+            return filecache.get_artifact_size_by_location(ds_type, location, self._attempt, *components)
 
     # TODO add
     # @property
@@ -995,9 +968,7 @@ class Task(MetaflowObject):
             Dictionary mapping metadata name with value
         """
         # use the newest version of each key, hence sorting
-        return {
-            m.name: m.value for m in sorted(self.metadata, key=lambda m: m.created_at)
-        }
+        return {m.name: m.value for m in sorted(self.metadata, key=lambda m: m.created_at)}
 
     @property
     def index(self):
@@ -1316,9 +1287,7 @@ class Task(MetaflowObject):
             filecache = FileCache()
 
         attempt = self.current_attempt
-        logs = filecache.get_logs_stream(
-            ds_type, ds_root, stream, attempt, *self.path_components
-        )
+        logs = filecache.get_logs_stream(ds_type, ds_root, stream, attempt, *self.path_components)
         for line in merge_logs([blob for _, blob in logs]):
             msg = to_unicode(line.msg) if as_unicode else line.msg
             yield line.utc_tstamp, msg
@@ -1333,9 +1302,7 @@ class Task(MetaflowObject):
         attempt = log_info["attempt"]
         if filecache is None:
             filecache = FileCache()
-        ret_val = filecache.get_log_legacy(
-            ds_type, location, logtype, int(attempt), *self.path_components
-        )
+        ret_val = filecache.get_log_legacy(ds_type, location, logtype, int(attempt), *self.path_components)
         if as_unicode and (ret_val is not None):
             return ret_val.decode(encoding="utf8")
         else:
@@ -1351,9 +1318,7 @@ class Task(MetaflowObject):
         if filecache is None:
             filecache = FileCache()
 
-        return filecache.get_legacy_log_size(
-            ds_type, location, logtype, int(attempt), *self.path_components
-        )
+        return filecache.get_legacy_log_size(ds_type, location, logtype, int(attempt), *self.path_components)
 
     def _log_size(self, stream):
         global filecache
@@ -1366,9 +1331,7 @@ class Task(MetaflowObject):
             filecache = FileCache()
         attempt = self.current_attempt
 
-        return filecache.get_log_size(
-            ds_type, ds_root, stream, attempt, *self.path_components
-        )
+        return filecache.get_log_size(ds_type, ds_root, stream, attempt, *self.path_components)
 
 
 class Step(MetaflowObject):

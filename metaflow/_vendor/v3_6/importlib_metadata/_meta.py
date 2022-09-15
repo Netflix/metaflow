@@ -35,13 +35,13 @@ class SimplePath(Protocol):
     A minimal subset of pathlib.Path required by PathDistribution.
     """
 
-    def joinpath(self) -> 'SimplePath':
+    def joinpath(self) -> "SimplePath":
         ...  # pragma: no cover
 
-    def __truediv__(self) -> 'SimplePath':
+    def __truediv__(self) -> "SimplePath":
         ...  # pragma: no cover
 
-    def parent(self) -> 'SimplePath':
+    def parent(self) -> "SimplePath":
         ...  # pragma: no cover
 
     def read_text(self) -> str:

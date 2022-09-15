@@ -95,12 +95,7 @@ def _make_command(f, name, attrs, cls):
         help = inspect.cleandoc(help)
     attrs["help"] = help
     _check_for_unicode_literals()
-    return cls(
-        name=name or f.__name__.lower().replace("_", "-"),
-        callback=f,
-        params=params,
-        **attrs
-    )
+    return cls(name=name or f.__name__.lower().replace("_", "-"), callback=f, params=params, **attrs)
 
 
 def command(name=None, cls=None, **attrs):

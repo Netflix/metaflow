@@ -182,9 +182,7 @@ def output_raw(obj, json):
 
         _msg = "Internal representation of the flow in JSON format:"
         _graph_dict, _graph_struct = obj.graph.output_steps()
-        _graph = _json.dumps(
-            dict(graph=_graph_dict, graph_structure=_graph_struct), indent=4
-        )
+        _graph = _json.dumps(dict(graph=_graph_dict, graph_structure=_graph_struct), indent=4)
     else:
         _graph = str(obj.graph)
         _msg = "Internal representation of the flow:"
@@ -197,8 +195,7 @@ def output_raw(obj, json):
 def output_dot(obj):
     echo("Visualizing the flow as a GraphViz graph", fg="magenta", bold=False)
     echo(
-        "Try piping the output to 'dot -Tpng -o graph.png' to produce "
-        "an actual image.",
+        "Try piping the output to 'dot -Tpng -o graph.png' to produce " "an actual image.",
         indent=True,
     )
     echo_always(obj.graph.output_dot(), err=False)
@@ -221,8 +218,7 @@ def output_dot(obj):
     default=1000,
     show_default=True,
     type=int,
-    help="Show only values that are smaller than this number. "
-    "Set to 0 to see only keys.",
+    help="Show only values that are smaller than this number. " "Set to 0 to see only keys.",
 )
 @click.option(
     "--include",
@@ -230,9 +226,7 @@ def output_dot(obj):
     default="",
     help="Include only artifacts in the given comma-separated list.",
 )
-@click.option(
-    "--file", type=str, default=None, help="Serialize artifacts in the given file."
-)
+@click.option("--file", type=str, default=None, help="Serialize artifacts in the given file.")
 @click.pass_obj
 def dump(obj, input_path, private=None, max_value_size=None, include=None, file=None):
 
@@ -251,9 +245,7 @@ def dump(obj, input_path, private=None, max_value_size=None, include=None, file=
     elif len(parts) == 3:
         run_id, step_name, task_id = parts
     else:
-        raise CommandException(
-            "input_path should either be run_id/step_name" "or run_id/step_name/task_id"
-        )
+        raise CommandException("input_path should either be run_id/step_name" "or run_id/step_name/task_id")
 
     datastore_set = TaskDataStoreSet(
         obj.flow_datastore,
@@ -269,16 +261,12 @@ def dump(obj, input_path, private=None, max_value_size=None, include=None, file=
     for ds in ds_list:
         echo(
             "Dumping output of run_id=*{run_id}* "
-            "step=*{step}* task_id=*{task_id}*".format(
-                run_id=ds.run_id, step=ds.step_name, task_id=ds.task_id
-            ),
+            "step=*{step}* task_id=*{task_id}*".format(run_id=ds.run_id, step=ds.step_name, task_id=ds.task_id),
             fg="magenta",
         )
 
         if file is None:
-            echo_always(
-                ds.format(**kwargs), highlight="green", highlight_bold=False, err=False
-            )
+            echo_always(ds.format(**kwargs), highlight="green", highlight_bold=False, err=False)
         else:
             output[ds.pathspec] = ds.to_dict(**kwargs)
 
@@ -340,14 +328,9 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
     elif len(parts) == 3:
         run_id, step_name, task_id = parts
     else:
-        raise CommandException(
-            "input_path should either be run_id/step_name "
-            "or run_id/step_name/task_id"
-        )
+        raise CommandException("input_path should either be run_id/step_name " "or run_id/step_name/task_id")
 
-    datastore_set = TaskDataStoreSet(
-        obj.flow_datastore, run_id, steps=[step_name], allow_not_done=True
-    )
+    datastore_set = TaskDataStoreSet(obj.flow_datastore, run_id, steps=[step_name], allow_not_done=True)
     if task_id:
         ds_list = [
             TaskDataStore(
@@ -372,9 +355,7 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
         for ds in ds_list:
             echo(
                 "Dumping logs of run_id=*{run_id}* "
-                "step=*{step}* task_id=*{task_id}*".format(
-                    run_id=ds.run_id, step=ds.step_name, task_id=ds.task_id
-                ),
+                "step=*{step}* task_id=*{task_id}*".format(run_id=ds.run_id, step=ds.step_name, task_id=ds.task_id),
                 fg="magenta",
             )
 
@@ -397,15 +378,10 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
                     # nothing is found
                     log = ds.load_log_legacy(stream)
                     if log and timestamps:
-                        raise CommandException(
-                            "We can't show --timestamps for " "old runs. Sorry!"
-                        )
+                        raise CommandException("We can't show --timestamps for " "old runs. Sorry!")
                     echo_unicode(log, nl=False)
     else:
-        raise CommandException(
-            "No Tasks found at the given path -- "
-            "either none exist or none have started yet"
-        )
+        raise CommandException("No Tasks found at the given path -- " "either none exist or none have started yet")
 
 
 # TODO - move step and init under a separate 'internal' subcommand
@@ -465,8 +441,7 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
 @click.option(
     "--clone-only",
     default=None,
-    help="Pathspec of the origin task for this task to clone. Do "
-    "not execute anything.",
+    help="Pathspec of the origin task for this task to clone. Do " "not execute anything.",
 )
 @click.option(
     "--clone-run-id",
@@ -532,9 +507,7 @@ def step(
     # Remove argument `step_name` from `step_kwargs`.
     step_kwargs.pop("step_name", None)
     # Remove `opt_*` prefix from (some) option keys.
-    step_kwargs = dict(
-        [(k[4:], v) if k.startswith("opt_") else (k, v) for k, v in step_kwargs.items()]
-    )
+    step_kwargs = dict([(k[4:], v) if k.startswith("opt_") else (k, v) for k, v in step_kwargs.items()])
     cli_args._set_step_kwargs(step_kwargs)
 
     ctx.obj.metadata.add_sticky_tags(tags=opt_tag)
@@ -575,9 +548,7 @@ def step(
     required=True,
     help="ID for one execution of all steps in the flow.",
 )
-@click.option(
-    "--task-id", default=None, required=True, help="ID for this instance of the step."
-)
+@click.option("--task-id", default=None, required=True, help="ID for this instance of the step.")
 @click.option(
     "--tag",
     "tags",
@@ -671,8 +642,7 @@ def common_run_options(func):
 @click.option(
     "--origin-run-id",
     default=None,
-    help="ID of the run that should be resumed. By default, the "
-    "last run executed locally.",
+    help="ID of the run that should be resumed. By default, the " "last run executed locally.",
 )
 @click.argument("step-to-rerun", required=False)
 @cli.command(help="Resume execution of a previous run of this flow.")
@@ -695,9 +665,7 @@ def resume(
     if origin_run_id is None:
         origin_run_id = get_latest_run_id(obj.echo, obj.flow.name)
         if origin_run_id is None:
-            raise CommandException(
-                "A previous run id was not found. Specify --origin-run-id."
-            )
+            raise CommandException("A previous run id was not found. Specify --origin-run-id.")
 
     if step_to_rerun is None:
         clone_steps = set()
@@ -811,17 +779,13 @@ def before_run(obj, tags, decospecs):
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
     # obj.environment.init_environment(obj.logger)
 
-    decorators._init_step_decorators(
-        obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
-    )
+    decorators._init_step_decorators(obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger)
     obj.metadata.add_sticky_tags(tags=tags)
 
     # Package working directory only once per run.
     # We explicitly avoid doing this in `start` since it is invoked for every
     # step in the run.
-    obj.package = MetaflowPackage(
-        obj.flow, obj.environment, obj.echo, obj.package_suffixes
-    )
+    obj.package = MetaflowPackage(obj.flow, obj.environment, obj.echo, obj.package_suffixes)
 
 
 @cli.command(help="Print the Metaflow version")
@@ -940,9 +904,7 @@ def start(
 
     ctx.obj.event_logger = EventLogger(event_logger)
 
-    ctx.obj.environment = [
-        e for e in ENVIRONMENTS + [MetaflowEnvironment] if e.TYPE == environment
-    ][0](ctx.obj.flow)
+    ctx.obj.environment = [e for e in ENVIRONMENTS + [MetaflowEnvironment] if e.TYPE == environment][0](ctx.obj.flow)
     ctx.obj.environment.validate_environment(echo)
 
     ctx.obj.monitor = Monitor(monitor, ctx.obj.environment, ctx.obj.flow.name)
@@ -955,9 +917,7 @@ def start(
     ctx.obj.datastore_impl = DATASTORES[datastore]
 
     if datastore_root is None:
-        datastore_root = ctx.obj.datastore_impl.get_datastore_root_from_config(
-            ctx.obj.echo
-        )
+        datastore_root = ctx.obj.datastore_impl.get_datastore_root_from_config(ctx.obj.echo)
     if datastore_root is None:
         raise CommandException(
             "Could not find the location of the datastore -- did you correctly set the "
@@ -993,9 +953,7 @@ def start(
 
     # initialize current and parameter context for deploy-time parameters
     current._set_env(flow=ctx.obj.flow, is_running=False)
-    parameters.set_parameter_context(
-        ctx.obj.flow.name, ctx.obj.echo, ctx.obj.flow_datastore
-    )
+    parameters.set_parameter_context(ctx.obj.flow.name, ctx.obj.echo, ctx.obj.flow_datastore)
 
     if ctx.invoked_subcommand not in ("run", "resume"):
         # run/resume are special cases because they can add more decorators with --with,
@@ -1049,8 +1007,7 @@ def _check(graph, flow, environment, pylint=True, warnings=False, **kwargs):
                 echo("Pylint is happy!", fg="green", bold=True, indent=True)
             else:
                 echo(
-                    "Pylint couldn't analyze your code.\n\tPylint exception: %s"
-                    % pylint_exception_msg,
+                    "Pylint couldn't analyze your code.\n\tPylint exception: %s" % pylint_exception_msg,
                     fg="red",
                     bold=True,
                     indent=True,

@@ -115,9 +115,7 @@ class NativeRuntime(object):
             # (see PREFETCH_DATA_ARTIFACTS) so that the entire runtime can
             # access the relevant data from cache (instead of going to the datastore
             # after the first prefetch).
-            logger(
-                "Gathering required information to resume run (this may take a bit of time)..."
-            )
+            logger("Gathering required information to resume run (this may take a bit of time)...")
             self._origin_ds_set = TaskDataStoreSet(
                 flow_datastore,
                 clone_run_id,
@@ -242,9 +240,7 @@ class NativeRuntime(object):
         if ("end", ()) in self._finished:
             self._logger("Done!", system_msg=True)
         else:
-            raise MetaflowInternalError(
-                "The *end* step was not successful " "by the end of flow."
-            )
+            raise MetaflowInternalError("The *end* step was not successful " "by the end of flow.")
 
     def _killall(self):
         # If we are here, all children have received a signal and are shutting down.
@@ -262,8 +258,7 @@ class NativeRuntime(object):
         if live_workers:
             self._logger(
                 "Killing %d remaining tasks after having waited for %d seconds -- "
-                "some tasks may not exit cleanly"
-                % (len(live_workers), int(time.time()) - now),
+                "some tasks may not exit cleanly" % (len(live_workers), int(time.time()) - now),
                 system_msg=True,
                 bad=True,
             )
@@ -289,10 +284,7 @@ class NativeRuntime(object):
         # CHECK: this condition should be enforced by the linter but
         # let's assert that the assumption holds
         if len(next_steps) > 1:
-            msg = (
-                "Step *{step}* transitions to a join and another "
-                "step. The join must be the only transition."
-            )
+            msg = "Step *{step}* transitions to a join and another " "step. The join must be the only transition."
             raise MetaflowInternalError(task, msg.format(step=task.step))
         else:
             next_step = next_steps[0]
@@ -311,13 +303,8 @@ class NativeRuntime(object):
                         "specify the artifact *_control_mapper_tasks* for "
                         "the subsequent *{join}* step."
                     )
-                    raise MetaflowInternalError(
-                        msg.format(step=task.step, join=next_steps[0])
-                    )
-                elif not (
-                    isinstance(mapper_tasks, list)
-                    and isinstance(mapper_tasks[0], unicode_type)
-                ):
+                    raise MetaflowInternalError(msg.format(step=task.step, join=next_steps[0]))
+                elif not (isinstance(mapper_tasks, list) and isinstance(mapper_tasks[0], unicode_type)):
                     msg = (
                         "Step *{step}* has a control task which didn't "
                         "specify the artifact *_control_mapper_tasks* as a "
@@ -401,24 +388,17 @@ class NativeRuntime(object):
                         yield tuple(bottom + [top._replace(index=index)])
 
                 # required tasks are all split-siblings of the finished task
-                required_tasks = [
-                    self._finished.get((task.step, s)) for s in siblings(foreach_stack)
-                ]
+                required_tasks = [self._finished.get((task.step, s)) for s in siblings(foreach_stack)]
                 join_type = "foreach"
             else:
                 # next step is a split
                 # required tasks are all branches joined by the next step
-                required_tasks = [
-                    self._finished.get((step, foreach_stack))
-                    for step in self._graph[next_step].in_funcs
-                ]
+                required_tasks = [self._finished.get((step, foreach_stack)) for step in self._graph[next_step].in_funcs]
                 join_type = "linear"
 
             if all(required_tasks):
                 # all tasks to be joined are ready. Schedule the next join step.
-                self._queue_push(
-                    next_step, {"input_paths": required_tasks, "join_type": join_type}
-                )
+                self._queue_push(next_step, {"input_paths": required_tasks, "join_type": join_type})
 
     def _queue_task_foreach(self, task, next_steps):
 
@@ -458,16 +438,12 @@ class NativeRuntime(object):
                 )
                 raise TaskFailed(
                     task,
-                    msg.format(
-                        step=task.step, num=num_splits, max=self._max_num_splits
-                    ),
+                    msg.format(step=task.step, num=num_splits, max=self._max_num_splits),
                 )
 
             # schedule all splits
             for i in range(num_splits):
-                self._queue_push(
-                    next_step, {"split_index": str(i), "input_paths": [task.path]}
-                )
+                self._queue_push(next_step, {"split_index": str(i), "input_paths": [task.path]})
 
     def _queue_tasks(self, finished_tasks):
         # finished tasks include only successful tasks
@@ -534,19 +510,13 @@ class NativeRuntime(object):
                         task = worker.task
                         if returncode:
                             # worker did not finish successfully
-                            if (
-                                worker.cleaned
-                                or returncode == METAFLOW_EXIT_DISALLOW_RETRY
-                            ):
+                            if worker.cleaned or returncode == METAFLOW_EXIT_DISALLOW_RETRY:
                                 self._logger(
                                     "This failed task will not be " "retried.",
                                     system_msg=True,
                                 )
                             else:
-                                if (
-                                    task.retries
-                                    < task.user_code_retries + task.error_retries
-                                ):
+                                if task.retries < task.user_code_retries + task.error_retries:
                                     self._retry_worker(worker)
                                 else:
                                     raise TaskFailed(task)
@@ -569,10 +539,7 @@ class NativeRuntime(object):
             # any results with an attempt ID >= MAX_ATTEMPTS will be ignored
             # by datastore, so running a task with such a retry_could would
             # be pointless and dangerous
-            raise MetaflowInternalError(
-                "Too many task attempts (%d)! "
-                "MAX_ATTEMPTS exceeded." % worker.task.retries
-            )
+            raise MetaflowInternalError("Too many task attempts (%d)! " "MAX_ATTEMPTS exceeded." % worker.task.retries)
 
         worker.task.new_attempt()
         self._launch_worker(worker.task)
@@ -705,13 +672,8 @@ class Task(object):
                     # choosing to specially handle this way in the runtime.
                     self.user_code_retries = None
                     self.error_retries = None
-                if (
-                    self.user_code_retries is not None
-                    and self.error_retries is not None
-                ):
-                    self.user_code_retries = max(
-                        self.user_code_retries, user_code_retries
-                    )
+                if self.user_code_retries is not None and self.error_retries is not None:
+                    self.user_code_retries = max(self.user_code_retries, user_code_retries)
                     self.error_retries = max(self.error_retries, error_retries)
             if self.user_code_retries is None and self.error_retries is None:
                 self.user_code_retries = 0
@@ -741,9 +703,7 @@ class Task(object):
                 # This is just for usability: We could rerun the whole flow
                 # if an unknown clone_run_id is provided but probably this is
                 # not what the user intended, so raise a warning
-                raise MetaflowException(
-                    "Resume could not find run id *%s*" % clone_run_id
-                )
+                raise MetaflowException("Resume could not find run id *%s*" % clone_run_id)
             else:
                 return origin
         else:
@@ -760,9 +720,7 @@ class Task(object):
                 index = ",".join(str(s.index) for s in foreach_stack[:-1])
             elif self.split_index or self.ubf_context == UBF_CONTROL:
                 # foreach-split pushes a new index
-                index = ",".join(
-                    [str(s.index) for s in foreach_stack] + [str(self.split_index)]
-                )
+                index = ",".join([str(s.index) for s in foreach_stack] + [str(self.split_index)])
             else:
                 # all other transitions keep the parent's foreach stack intact
                 index = ",".join(str(s.index) for s in foreach_stack)
@@ -804,9 +762,7 @@ class Task(object):
         if self._results_ds:
             return self._results_ds
         else:
-            self._results_ds = self._flow_datastore.get_task_datastore(
-                self.run_id, self.step, self.task_id
-            )
+            self._results_ds = self._flow_datastore.get_task_datastore(self.run_id, self.step, self.task_id)
             return self._results_ds
 
     @property
@@ -893,11 +849,7 @@ class CLIArgs(object):
             "event-logger": self.task.event_logger_type,
             "monitor": self.task.monitor_type,
             "datastore-root": self.task.datastore_sysroot,
-            "with": [
-                deco.make_decorator_spec()
-                for deco in self.task.decos
-                if not deco.statically_defined
-            ],
+            "with": [deco.make_decorator_spec() for deco in self.task.decos if not deco.statically_defined],
         }
 
         # FlowDecorators can define their own top-level options. They are
@@ -971,9 +923,7 @@ class Worker(object):
             )
         elif not task.is_cloned:
             suffix = " (retry)." if task.retries else "."
-            self.task.log(
-                "Task is starting" + suffix, system_msg=True, pid=self._proc.pid
-            )
+            self.task.log("Task is starting" + suffix, system_msg=True, pid=self._proc.pid)
 
         self._stdout = TruncatedBuffer("stdout", max_logs_size)
         self._stderr = TruncatedBuffer("stderr", max_logs_size)
@@ -1146,9 +1096,7 @@ class Worker(object):
                         system_msg=True,
                         pid=self._proc.pid,
                     )
-                self.task.log(
-                    "Task finished successfully.", system_msg=True, pid=self._proc.pid
-                )
+                self.task.log("Task finished successfully.", system_msg=True, pid=self._proc.pid)
             self.task.save_logs(
                 {
                     "stdout": self._stdout.get_buffer(),

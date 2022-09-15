@@ -50,9 +50,7 @@ class CardDatastore(object):
             result = DATASTORE_CARD_LOCALROOT
             if result is None:
                 current_path = os.getcwd()
-                check_dir = os.path.join(
-                    current_path, DATASTORE_LOCAL_DIR, DATASTORE_CARD_SUFFIX
-                )
+                check_dir = os.path.join(current_path, DATASTORE_LOCAL_DIR, DATASTORE_CARD_SUFFIX)
                 check_dir = os.path.realpath(check_dir)
                 orig_path = check_dir
                 while not os.path.isdir(check_dir):
@@ -60,9 +58,7 @@ class CardDatastore(object):
                     if new_path == current_path:
                         break  # We are no longer making upward progress
                     current_path = new_path
-                    check_dir = os.path.join(
-                        current_path, DATASTORE_LOCAL_DIR, DATASTORE_CARD_SUFFIX
-                    )
+                    check_dir = os.path.join(current_path, DATASTORE_LOCAL_DIR, DATASTORE_CARD_SUFFIX)
                 result = orig_path
 
             return result
@@ -145,12 +141,8 @@ class CardDatastore(object):
 
     def save_card(self, card_type, card_html, card_id=None, overwrite=True):
         card_file_name = card_type
-        card_path = self.get_card_location(
-            self._get_card_path(), card_file_name, card_html, card_id=card_id
-        )
-        self._backend.save_bytes(
-            [(card_path, BytesIO(bytes(card_html, "utf-8")))], overwrite=overwrite
-        )
+        card_path = self.get_card_location(self._get_card_path(), card_file_name, card_html, card_id=card_id)
+        self._backend.save_bytes([(card_path, BytesIO(bytes(card_html, "utf-8")))], overwrite=overwrite)
         return self.card_info_from_path(card_path)
 
     def _list_card_paths(self, card_type=None, card_hash=None, card_id=None):
@@ -220,6 +212,4 @@ class CardDatastore(object):
                     return main_path
 
     def extract_card_paths(self, card_type=None, card_hash=None, card_id=None):
-        return self._list_card_paths(
-            card_type=card_type, card_hash=card_hash, card_id=card_id
-        )
+        return self._list_card_paths(card_type=card_type, card_hash=card_hash, card_id=card_id)

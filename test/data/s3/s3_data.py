@@ -36,7 +36,7 @@ BASIC_METADATA = {
     "complex": (
         "text/plain",
         {
-            "utf8-data": u"\u523a\u8eab/means sashimi",
+            "utf8-data": "\u523a\u8eab/means sashimi",
             "with-weird-chars": "Space and !@#<>:/-+=&%",
         },
     ),
@@ -44,7 +44,7 @@ BASIC_METADATA = {
 
 BASIC_RANGE_INFO = {
     "from_beg": (0, 16),  # From beginning
-    "exceed_end": (0, 10 * 1024 ** 3),  # From beginning, should fetch full file
+    "exceed_end": (0, 10 * 1024**3),  # From beginning, should fetch full file
     "middle": (5, 10),  # From middle
     "end": (None, -5),  # Fetch from end
     "till_end": (5, None),  # Fetch till end
@@ -61,7 +61,7 @@ BASIC_DATA = [
     # a basic sanity check
     (
         "3_small_files",
-        {"empty_file": 0, "kb_file": 1024, "mb_file": 1024 ** 2, "missing_file": None},
+        {"empty_file": 0, "kb_file": 1024, "mb_file": 1024**2, "missing_file": None},
     ),
     # S3 paths can be longer than the max allowed filename on Linux
     (
@@ -90,27 +90,27 @@ BASIC_DATA = [
     (
         "crazypath",
         {
-            u"crazy spaces": 34,
-            u"\x01\xff": 64,
-            u"\u523a\u8eab/means sashimi": 33,
-            u"crazy-!.$%@2_()\"'": 100,
-            u" /cra._:zy/\x01\x02/p a t h/$this/!!is()": 1000,
-            u"crazy missing :(": None,
+            "crazy spaces": 34,
+            "\x01\xff": 64,
+            "\u523a\u8eab/means sashimi": 33,
+            "crazy-!.$%@2_()\"'": 100,
+            " /cra._:zy/\x01\x02/p a t h/$this/!!is()": 1000,
+            "crazy missing :(": None,
         },
     ),
 ]
 
 BIG_DATA = [
     # test a file > 4GB
-    ("5gb_file", {"5gb_file": 5 * 1024 ** 3}),
+    ("5gb_file", {"5gb_file": 5 * 1024**3}),
     # ensure that e.g. paged listings work correctly with many keys
     ("3000_files", {str(i): i for i in range(3000)}),
 ]
 
 # Large file to use for benchmark, must be in BASIC_DATA or BIG_DATA
 BENCHMARK_SMALL_FILE = ("3000_files", {"1": 1})
-BENCHMARK_MEDIUM_FILE = ("3_small_files", {"mb_file": 1024 ** 2})
-BENCHMARK_LARGE_FILE = ("5gb_file", {"5gb_file": 5 * 1024 ** 3})
+BENCHMARK_MEDIUM_FILE = ("3_small_files", {"mb_file": 1024**2})
+BENCHMARK_LARGE_FILE = ("5gb_file", {"5gb_file": 5 * 1024**3})
 
 BENCHMARK_SMALL_ITER_MAX = 10001
 BENCHMARK_MEDIUM_ITER_MAX = 501
@@ -123,9 +123,7 @@ FAKE_RUN_DATA = [
 
 PUT_PREFIX = "put_tests"
 
-ExpectedResult = namedtuple(
-    "ExpectedResult", "size checksum content_type metadata range"
-)
+ExpectedResult = namedtuple("ExpectedResult", "size checksum content_type metadata range")
 
 
 class RandomFile(object):
@@ -153,13 +151,9 @@ class RandomFile(object):
                 if self._data is None:
                     self._make_data()
                 if length < 0:
-                    self.cached_digests[lookup_key] = sha1(
-                        self._data[length:]
-                    ).hexdigest()
+                    self.cached_digests[lookup_key] = sha1(self._data[length:]).hexdigest()
                 else:
-                    self.cached_digests[lookup_key] = sha1(
-                        self._data[start : start + length]
-                    ).hexdigest()
+                    self.cached_digests[lookup_key] = sha1(self._data[start : start + length]).hexdigest()
             return self.cached_digests[lookup_key]
 
     def size_from_range(self, start, length):
@@ -204,10 +198,7 @@ def _format_test_cases(dataset, meta=None, ranges=None):
             # We generate one per meta info
             for metaname, (content_type, usermeta) in meta.items():
                 objs.update(
-                    {
-                        "%s_%s" % (obj.url, metaname): (obj, content_type, usermeta)
-                        for (obj, _, _) in objs.values()
-                    }
+                    {"%s_%s" % (obj.url, metaname): (obj, content_type, usermeta) for (obj, _, _) in objs.values()}
                 )
         files = {
             k: {
@@ -245,9 +236,7 @@ def pytest_fakerun_cases():
 
 
 def pytest_basic_case():
-    cases, ids = _format_test_cases(
-        BASIC_DATA, ranges=BASIC_RANGE_INFO, meta=BASIC_METADATA
-    )
+    cases, ids = _format_test_cases(BASIC_DATA, ranges=BASIC_RANGE_INFO, meta=BASIC_METADATA)
     return {"argvalues": cases, "ids": ids}
 
 
@@ -382,7 +371,7 @@ def pytest_many_prefixes_case():
 def pytest_put_strings_case(meta=None):
     put_prefix = os.path.join(S3ROOT, PUT_PREFIX)
     data = [
-        u"unicode: \u523a\u8eab means sashimi",
+        "unicode: \u523a\u8eab means sashimi",
         b"bytes: \x00\x01\x02",
         "just a string",
     ]
@@ -501,26 +490,19 @@ def ensure_test_data():
                     # (since it is the same) but we modify the path to post-pend
                     # the name
                     print("Test data case %s: upload to %s started" % (prefix, f.url))
-                    s3client.upload_fileobj(
-                        f.fileobj(), url.netloc, url.path.lstrip("/")
-                    )
+                    s3client.upload_fileobj(f.fileobj(), url.netloc, url.path.lstrip("/"))
                     print("Test data case %s: uploaded to %s" % (prefix, f.url))
                     if meta is not None:
                         for metaname, metainfo in meta.items():
                             new_url = "%s_%s" % (f.url, metaname)
                             url = urlparse(new_url)
-                            print(
-                                "Test data case %s: upload to %s started"
-                                % (prefix, new_url)
-                            )
+                            print("Test data case %s: upload to %s started" % (prefix, new_url))
                             extra = {}
                             content_type, user_meta = metainfo
                             if content_type:
                                 extra["ContentType"] = content_type
                             if user_meta:
-                                new_meta = {
-                                    "metaflow-user-attributes": json.dumps(user_meta)
-                                }
+                                new_meta = {"metaflow-user-attributes": json.dumps(user_meta)}
                                 extra["Metadata"] = new_meta
                             s3client.upload_fileobj(
                                 f.fileobj(),
@@ -528,18 +510,14 @@ def ensure_test_data():
                                 url.path.lstrip("/"),
                                 ExtraArgs=extra,
                             )
-                            print(
-                                "Test data case %s: uploaded to %s" % (prefix, new_url)
-                            )
+                            print("Test data case %s: uploaded to %s" % (prefix, new_url))
 
         for prefix, filespecs in BIG_DATA + FAKE_RUN_DATA:
             _do_upload(prefix, filespecs)
         for prefix, filespecs in BASIC_DATA:
             _do_upload(prefix, filespecs, meta=BASIC_METADATA)
 
-        s3client.upload_fileobj(
-            to_fileobj("ok"), Bucket=mark.netloc, Key=mark.path.lstrip("/")
-        )
+        s3client.upload_fileobj(to_fileobj("ok"), Bucket=mark.netloc, Key=mark.path.lstrip("/"))
         print("Test data uploaded ok")
 
 

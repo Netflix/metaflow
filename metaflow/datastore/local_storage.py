@@ -33,9 +33,7 @@ class LocalStorage(DataStoreStorage):
             if top_level_reached:
                 if create_on_absent:
                     # Could not find any directory to use so create a new one
-                    echo(
-                        "Creating local datastore in current directory (%s)" % orig_path
-                    )
+                    echo("Creating local datastore in current directory (%s)" % orig_path)
                     os.mkdir(orig_path)
                     result = orig_path
                 else:

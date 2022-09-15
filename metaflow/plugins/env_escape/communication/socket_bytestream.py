@@ -15,9 +15,7 @@ MAX_MSG_SIZE = 2097152  # Send/Receive 2 MB at a time
 class SocketByteStream(ByteStream):
     @classmethod
     def connect(cls, host, port):
-        family, socktype, proto, _, sockaddr = socket.getaddrinfo(
-            host, port, socket.AF_INET, socket.SOCK_STREAM
-        )
+        family, socktype, proto, _, sockaddr = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
         try:
             sock = socket.socket(family=family, type=socktype)
             sock.settimeout(CONNECT_TIMEOUT)
@@ -72,9 +70,7 @@ class SocketByteStream(ByteStream):
             total_count = m.nbytes
             while total_count > 0:
                 try:
-                    nbytes = __try_op__(
-                        "send", self._sock.send, WRITE_RETRY, m[:MAX_MSG_SIZE]
-                    )
+                    nbytes = __try_op__("send", self._sock.send, WRITE_RETRY, m[:MAX_MSG_SIZE])
                     m = m[nbytes:]
                     total_count -= nbytes
                 except socket.timeout:

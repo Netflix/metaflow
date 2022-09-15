@@ -26,9 +26,7 @@ def init_config():
         with open(path_to_config) as f:
             return json.load(f)
     elif profile:
-        raise MetaflowException(
-            "Unable to locate METAFLOW_PROFILE '%s' in '%s')" % (profile, home)
-        )
+        raise MetaflowException("Unable to locate METAFLOW_PROFILE '%s' in '%s')" % (profile, home))
     return config
 
 
@@ -108,9 +106,7 @@ CLIENT_CACHE_PATH = from_conf("METAFLOW_CLIENT_CACHE_PATH", "/tmp/metaflow_clien
 # Maximum size (in bytes) of the cache
 CLIENT_CACHE_MAX_SIZE = int(from_conf("METAFLOW_CLIENT_CACHE_MAX_SIZE", 10000))
 # Maximum number of cached Flow and TaskDatastores in the cache
-CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT = int(
-    from_conf("METAFLOW_CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT", 50)
-)
+CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT = int(from_conf("METAFLOW_CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT", 50))
 CLIENT_CACHE_MAX_TASKDATASTORE_COUNT = int(
     from_conf(
         "METAFLOW_CLIENT_CACHE_MAX_TASKDATASTORE_COUNT",
@@ -145,17 +141,11 @@ ECS_FARGATE_EXECUTION_ROLE = from_conf("METAFLOW_ECS_FARGATE_EXECUTION_ROLE")
 # Job queue for AWS Batch
 BATCH_JOB_QUEUE = from_conf("METAFLOW_BATCH_JOB_QUEUE")
 # Default container image for AWS Batch
-BATCH_CONTAINER_IMAGE = (
-    from_conf("METAFLOW_BATCH_CONTAINER_IMAGE") or DEFAULT_CONTAINER_IMAGE
-)
+BATCH_CONTAINER_IMAGE = from_conf("METAFLOW_BATCH_CONTAINER_IMAGE") or DEFAULT_CONTAINER_IMAGE
 # Default container registry for AWS Batch
-BATCH_CONTAINER_REGISTRY = (
-    from_conf("METAFLOW_BATCH_CONTAINER_REGISTRY") or DEFAULT_CONTAINER_REGISTRY
-)
+BATCH_CONTAINER_REGISTRY = from_conf("METAFLOW_BATCH_CONTAINER_REGISTRY") or DEFAULT_CONTAINER_REGISTRY
 # Metadata service URL for AWS Batch
-BATCH_METADATA_SERVICE_URL = from_conf(
-    "METAFLOW_SERVICE_INTERNAL_URL", METADATA_SERVICE_URL
-)
+BATCH_METADATA_SERVICE_URL = from_conf("METAFLOW_SERVICE_INTERNAL_URL", METADATA_SERVICE_URL)
 BATCH_METADATA_SERVICE_HEADERS = METADATA_SERVICE_HEADERS
 
 # Assign resource tags to AWS Batch jobs. Set to False by default since
@@ -191,13 +181,9 @@ KUBERNETES_NAMESPACE = from_conf("METAFLOW_KUBERNETES_NAMESPACE", "default")
 # Service account to use by K8S jobs created by Metaflow
 KUBERNETES_SERVICE_ACCOUNT = from_conf("METAFLOW_KUBERNETES_SERVICE_ACCOUNT")
 # Default container image for K8S
-KUBERNETES_CONTAINER_IMAGE = (
-    from_conf("METAFLOW_KUBERNETES_CONTAINER_IMAGE") or DEFAULT_CONTAINER_IMAGE
-)
+KUBERNETES_CONTAINER_IMAGE = from_conf("METAFLOW_KUBERNETES_CONTAINER_IMAGE") or DEFAULT_CONTAINER_IMAGE
 # Default container registry for K8S
-KUBERNETES_CONTAINER_REGISTRY = (
-    from_conf("METAFLOW_KUBERNETES_CONTAINER_REGISTRY") or DEFAULT_CONTAINER_REGISTRY
-)
+KUBERNETES_CONTAINER_REGISTRY = from_conf("METAFLOW_KUBERNETES_CONTAINER_REGISTRY") or DEFAULT_CONTAINER_REGISTRY
 #
 
 ###
@@ -220,9 +206,7 @@ CONDA_DEPENDENCY_RESOLVER = from_conf("METAFLOW_CONDA_DEPENDENCY_RESOLVER", "con
 DEBUG_OPTIONS = ["subcommand", "sidecar", "s3client"]
 
 for typ in DEBUG_OPTIONS:
-    vars()["METAFLOW_DEBUG_%s" % typ.upper()] = from_conf(
-        "METAFLOW_DEBUG_%s" % typ.upper()
-    )
+    vars()["METAFLOW_DEBUG_%s" % typ.upper()] = from_conf("METAFLOW_DEBUG_%s" % typ.upper())
 
 ###
 # AWS Sandbox configuration
@@ -234,9 +218,7 @@ AWS_SANDBOX_STS_ENDPOINT_URL = from_conf("METAFLOW_SERVICE_URL")
 # Metaflow AWS sandbox API auth key
 AWS_SANDBOX_API_KEY = from_conf("METAFLOW_AWS_SANDBOX_API_KEY")
 # Internal Metadata URL
-AWS_SANDBOX_INTERNAL_SERVICE_URL = from_conf(
-    "METAFLOW_AWS_SANDBOX_INTERNAL_SERVICE_URL"
-)
+AWS_SANDBOX_INTERNAL_SERVICE_URL = from_conf("METAFLOW_AWS_SANDBOX_INTERNAL_SERVICE_URL")
 # AWS region
 AWS_SANDBOX_REGION = from_conf("METAFLOW_AWS_SANDBOX_REGION")
 
@@ -301,9 +283,7 @@ try:
             if n == "DEBUG_OPTIONS":
                 DEBUG_OPTIONS.extend(o)
                 for typ in o:
-                    vars()["METAFLOW_DEBUG_%s" % typ.upper()] = from_conf(
-                        "METAFLOW_DEBUG_%s" % typ.upper()
-                    )
+                    vars()["METAFLOW_DEBUG_%s" % typ.upper()] = from_conf("METAFLOW_DEBUG_%s" % typ.upper())
             elif n == "get_pinned_conda_libs":
 
                 def _new_get_pinned_conda_libs(python_version, f1=globals()[n], f2=o):

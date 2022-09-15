@@ -59,9 +59,7 @@ class MetaflowTask(object):
         cls = self.flow.__class__
 
         def _set_cls_var(_, __):
-            raise AttributeError(
-                "Flow level attributes and Parameters are not modifiable"
-            )
+            raise AttributeError("Flow level attributes and Parameters are not modifiable")
 
         def set_as_parameter(name, value):
             if callable(value):
@@ -143,22 +141,17 @@ class MetaflowTask(object):
             ds_list = [ds for ds in datastore_set]
             if len(ds_list) != len(input_paths):
                 raise MetaflowDataMissing(
-                    "Some input datastores are missing. "
-                    "Expected: %d Actual: %d" % (len(input_paths), len(ds_list))
+                    "Some input datastores are missing. " "Expected: %d Actual: %d" % (len(input_paths), len(ds_list))
                 )
         else:
             # initialize directly in the single input case.
             ds_list = []
             for input_path in input_paths:
                 run_id, step_name, task_id = input_path.split("/")
-                ds_list.append(
-                    self.flow_datastore.get_task_datastore(run_id, step_name, task_id)
-                )
+                ds_list.append(self.flow_datastore.get_task_datastore(run_id, step_name, task_id))
         if not ds_list:
             # this guards against errors in input paths
-            raise MetaflowDataMissing(
-                "Input paths *%s* resolved to zero " "inputs" % ",".join(input_paths)
-            )
+            raise MetaflowDataMissing("Input paths *%s* resolved to zero " "inputs" % ",".join(input_paths))
         return ds_list
 
     def _init_foreach(self, step_name, join_type, inputs, split_index):
@@ -193,16 +186,14 @@ class MetaflowTask(object):
 
             if not all_equal(lineage()):
                 raise MetaflowInternalError(
-                    "Step *%s* tried to join branches "
-                    "whose lineages don't match." % step_name
+                    "Step *%s* tried to join branches " "whose lineages don't match." % step_name
                 )
 
             # assert that none of the inputs are splits - we don't
             # allow empty foreaches (joins immediately following splits)
             if any(not i.is_none("_foreach_var") for i in inputs):
                 raise MetaflowInternalError(
-                    "Step *%s* tries to join a foreach "
-                    "split with no intermediate steps." % step_name
+                    "Step *%s* tries to join a foreach " "split with no intermediate steps." % step_name
                 )
 
             inp = inputs[0]
@@ -228,15 +219,12 @@ class MetaflowTask(object):
         elif not inputs[0].is_none("_foreach_var"):
             if len(inputs) != 1:
                 raise MetaflowInternalError(
-                    "Step *%s* got multiple inputs "
-                    "although it follows a split step." % step_name
+                    "Step *%s* got multiple inputs " "although it follows a split step." % step_name
                 )
 
             if self.ubf_context != UBF_CONTROL and split_index is None:
                 raise MetaflowInternalError(
-                    "Step *%s* follows a split step "
-                    "but no split_index is "
-                    "specified." % step_name
+                    "Step *%s* follows a split step " "but no split_index is " "specified." % step_name
                 )
 
             # push a new index after a split to the stack
@@ -258,21 +246,15 @@ class MetaflowTask(object):
 
     def clone_only(self, step_name, run_id, task_id, clone_origin_task, retry_count):
         if not clone_origin_task:
-            raise MetaflowInternalError(
-                "task.clone_only needs a valid " "clone_origin_task value."
-            )
+            raise MetaflowInternalError("task.clone_only needs a valid " "clone_origin_task value.")
         # 1. initialize output datastore
-        output = self.flow_datastore.get_task_datastore(
-            run_id, step_name, task_id, attempt=0, mode="w"
-        )
+        output = self.flow_datastore.get_task_datastore(run_id, step_name, task_id, attempt=0, mode="w")
 
         output.init_task()
 
         origin_run_id, origin_step_name, origin_task_id = clone_origin_task.split("/")
         # 2. initialize origin datastore
-        origin = self.flow_datastore.get_task_datastore(
-            origin_run_id, origin_step_name, origin_task_id
-        )
+        origin = self.flow_datastore.get_task_datastore(origin_run_id, origin_step_name, origin_task_id)
         metadata_tags = ["attempt_id:{0}".format(retry_count)]
         output.clone(origin)
         self.metadata.register_metadata(
@@ -310,13 +292,8 @@ class MetaflowTask(object):
                     "specify the artifact *_control_mapper_tasks* for "
                     "the subsequent *{join}* step."
                 )
-                raise MetaflowInternalError(
-                    msg.format(step=step_name, join=next_steps[0])
-                )
-            elif not (
-                isinstance(mapper_tasks, list)
-                and isinstance(mapper_tasks[0], unicode_type)
-            ):
+                raise MetaflowInternalError(msg.format(step=step_name, join=next_steps[0]))
+            elif not (isinstance(mapper_tasks, list) and isinstance(mapper_tasks[0], unicode_type)):
                 msg = (
                     "Step *{step}* has a control task which didn't "
                     "specify the artifact *_control_mapper_tasks* as a "
@@ -347,17 +324,13 @@ class MetaflowTask(object):
             self.metadata.register_run_id(run_id)
             self.metadata.register_task_id(run_id, step_name, task_id, retry_count)
         else:
-            raise MetaflowInternalError(
-                "task.run_step needs a valid run_id " "and task_id"
-            )
+            raise MetaflowInternalError("task.run_step needs a valid run_id " "and task_id")
 
         if retry_count >= MAX_ATTEMPTS:
             # any results with an attempt ID >= MAX_ATTEMPTS will be ignored
             # by datastore, so running a task with such a retry_could would
             # be pointless and dangerous
-            raise MetaflowInternalError(
-                "Too many task attempts (%d)! " "MAX_ATTEMPTS exceeded." % retry_count
-            )
+            raise MetaflowInternalError("Too many task attempts (%d)! " "MAX_ATTEMPTS exceeded." % retry_count)
 
         metadata_tags = ["attempt_id:{0}".format(retry_count)]
         self.metadata.register_metadata(
@@ -401,9 +374,7 @@ class MetaflowTask(object):
             join_type = self.flow._graph[node.split_parents[-1]].type
 
         # 1. initialize output datastore
-        output = self.flow_datastore.get_task_datastore(
-            run_id, step_name, task_id, attempt=retry_count, mode="w"
-        )
+        output = self.flow_datastore.get_task_datastore(run_id, step_name, task_id, attempt=retry_count, mode="w")
 
         output.init_task()
 
@@ -483,9 +454,7 @@ class MetaflowTask(object):
                 # initialize parameters (if they exist)
                 # We take Parameter values from the first input,
                 # which is always safe since parameters are read-only
-                current._update_env(
-                    {"parameter_names": self._init_parameters(inputs[0], passdown=True)}
-                )
+                current._update_env({"parameter_names": self._init_parameters(inputs[0], passdown=True)})
             else:
                 # Linear step:
                 # We are running with a single input context.
@@ -494,22 +463,14 @@ class MetaflowTask(object):
                     # This should be captured by static checking but
                     # let's assert this again
                     raise MetaflowInternalError(
-                        "Step *%s* is not a join "
-                        "step but it gets multiple "
-                        "inputs." % step_name
+                        "Step *%s* is not a join " "step but it gets multiple " "inputs." % step_name
                     )
                 self.flow._set_datastore(inputs[0])
                 if input_paths:
                     # initialize parameters (if they exist)
                     # We take Parameter values from the first input,
                     # which is always safe since parameters are read-only
-                    current._update_env(
-                        {
-                            "parameter_names": self._init_parameters(
-                                inputs[0], passdown=False
-                            )
-                        }
-                    )
+                    current._update_env({"parameter_names": self._init_parameters(inputs[0], passdown=False)})
 
             for deco in decorators:
 

@@ -109,9 +109,7 @@ class Table(UserComponent):
         task_to_dict = TaskToDict()
         object_type = task_to_dict.object_type(dataframe)
         if object_type == "pandas.core.frame.DataFrame":
-            table_data = task_to_dict._parse_pandas_dataframe(
-                dataframe, truncate=truncate
-            )
+            table_data = task_to_dict._parse_pandas_dataframe(dataframe, truncate=truncate)
             return_val = cls(data=table_data["data"], headers=table_data["headers"])
             return return_val
         else:
@@ -140,9 +138,7 @@ class Table(UserComponent):
 
     @render_safely
     def render(self):
-        return TableComponent(
-            headers=self._headers, data=self._render_subcomponents()
-        ).render()
+        return TableComponent(headers=self._headers, data=self._render_subcomponents()).render()
 
 
 class Image(UserComponent):
@@ -217,15 +213,11 @@ class Image(UserComponent):
                 self._src = self._bytes_to_base64(src)
             except TypeError:
                 self._error_comp = ErrorComponent(
-                    self.render_fail_headline(
-                        "first argument should be of type `bytes` or vaild image base64 string"
-                    ),
+                    self.render_fail_headline("first argument should be of type `bytes` or vaild image base64 string"),
                     "Type of %s is invalid" % (str(type(src))),
                 )
             except ValueError:
-                self._error_comp = ErrorComponent(
-                    self.render_fail_headline("Bytes not parsable as image"), ""
-                )
+                self._error_comp = ErrorComponent(self.render_fail_headline("Bytes not parsable as image"), "")
             except Exception as e:
                 import traceback
 
@@ -238,9 +230,7 @@ class Image(UserComponent):
                 self._src = src
             else:
                 self._error_comp = ErrorComponent(
-                    self.render_fail_headline(
-                        "first argument should be of type `bytes` or vaild image base64 string"
-                    ),
+                    self.render_fail_headline("first argument should be of type `bytes` or vaild image base64 string"),
                     "String %s is invalid base64 string" % src,
                 )
 
@@ -263,27 +253,19 @@ class Image(UserComponent):
             task_to_dict = TaskToDict()
             if task_to_dict.object_type(pilimage) != PIL_IMAGE_PATH:
                 return ErrorComponent(
-                    cls.render_fail_headline(
-                        "first argument for `Image` should be of type %s"
-                        % PIL_IMAGE_PATH
-                    ),
-                    "Type of %s is invalid. Type of %s required"
-                    % (task_to_dict.object_type(pilimage), PIL_IMAGE_PATH),
+                    cls.render_fail_headline("first argument for `Image` should be of type %s" % PIL_IMAGE_PATH),
+                    "Type of %s is invalid. Type of %s required" % (task_to_dict.object_type(pilimage), PIL_IMAGE_PATH),
                 )
             img_byte_arr = io.BytesIO()
             try:
                 pilimage.save(img_byte_arr, format="PNG")
             except OSError as e:
-                return ErrorComponent(
-                    cls.render_fail_headline("PIL Image Not Parsable"), "%s" % repr(e)
-                )
+                return ErrorComponent(cls.render_fail_headline("PIL Image Not Parsable"), "%s" % repr(e))
             img_byte_arr = img_byte_arr.getvalue()
             parsed_image = task_to_dict.parse_image(img_byte_arr)
             if parsed_image is not None:
                 return cls(src=parsed_image, label=label)
-            return ErrorComponent(
-                cls.render_fail_headline("PIL Image Not Parsable"), ""
-            )
+            return ErrorComponent(cls.render_fail_headline("PIL Image Not Parsable"), "")
         except:
             import traceback
 
@@ -307,9 +289,7 @@ class Image(UserComponent):
                 )
             if plt is None:
                 return ErrorComponent(
-                    cls.render_fail_headline(
-                        "Invalid Type. Object %s is not from `matlplotlib`" % type(plot)
-                    ),
+                    cls.render_fail_headline("Invalid Type. Object %s is not from `matlplotlib`" % type(plot)),
                     "",
                 )
             task_to_dict = TaskToDict()
@@ -320,9 +300,7 @@ class Image(UserComponent):
             pyplt.close(figure)
             if parsed_image is not None:
                 return cls(src=parsed_image, label=label)
-            return ErrorComponent(
-                cls.render_fail_headline("Matplotlib plot's image is not parsable"), ""
-            )
+            return ErrorComponent(cls.render_fail_headline("Matplotlib plot's image is not parsable"), "")
         except:
             import traceback
 
@@ -338,9 +316,7 @@ class Image(UserComponent):
 
         if self._src is not None:
             return ImageComponent(src=self._src, label=self._label).render()
-        return ErrorComponent(
-            self.render_fail_headline("`Image` Component `src` argument is `None`"), ""
-        ).render()
+        return ErrorComponent(self.render_fail_headline("`Image` Component `src` argument is `None`"), "").render()
 
 
 class Error(UserComponent):

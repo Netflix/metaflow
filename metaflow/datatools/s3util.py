@@ -36,9 +36,7 @@ def aws_retry(f):
                 ret = f(self, *args, **kwargs)
                 if TEST_S3_RETRY and i == 0:
                     raise Exception(
-                        "TEST_S3_RETRY env var set. "
-                        "Pretending that an S3 op failed. "
-                        "This is not a real failure."
+                        "TEST_S3_RETRY env var set. " "Pretending that an S3 op failed. " "This is not a real failure."
                     )
                 else:
                     return ret
@@ -52,14 +50,13 @@ def aws_retry(f):
                     function_name = f.__name__
                 sys.stderr.write(
                     "S3 datastore operation %s failed (%s). "
-                    "Retrying %d more times..\n"
-                    % (function_name, ex, S3_RETRY_COUNT - i)
+                    "Retrying %d more times..\n" % (function_name, ex, S3_RETRY_COUNT - i)
                 )
                 self.reset_client(hard_reset=True)
                 last_exc = ex
                 # exponential backoff for real failures
                 if not (TEST_S3_RETRY and i == 0):
-                    time.sleep(2 ** i + random.randint(0, 5))
+                    time.sleep(2**i + random.randint(0, 5))
         raise last_exc
 
     return retry_wrapper

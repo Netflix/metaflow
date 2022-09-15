@@ -81,9 +81,7 @@ class MyNativeType:
 
                     number = cli_check_dict[task_pathspec]["random_number"]
                     assert_equals(
-                        cards_info is not None
-                        and "cards" in cards_info
-                        and len(cards_info["cards"]) == 1,
+                        cards_info is not None and "cards" in cards_info and len(cards_info["cards"]) == 1,
                         True,
                     )
                     card = cards_info["cards"][0]
@@ -104,9 +102,7 @@ class MyNativeType:
                     cards_info = checker.list_cards(step.name, task_id, card_type)
 
                     assert_equals(
-                        cards_info is not None
-                        and "cards" in cards_info
-                        and len(cards_info["cards"]) == 1,
+                        cards_info is not None and "cards" in cards_info and len(cards_info["cards"]) == 1,
                         True,
                     )
                     for card in cards_info["cards"]:

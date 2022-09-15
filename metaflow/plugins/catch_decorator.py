@@ -56,9 +56,7 @@ class CatchDecorator(StepDecorator):
         self.logger = logger
         if graph[step].type == "foreach":
             raise MetaflowException(
-                "@catch is defined for the step *%s* "
-                "but @catch is not supported in foreach "
-                "split steps." % step
+                "@catch is defined for the step *%s* " "but @catch is not supported in foreach " "split steps." % step
             )
 
     def _print_exception(self, step, flow):
@@ -71,9 +69,7 @@ class CatchDecorator(StepDecorator):
         if var:
             setattr(flow, var, val)
 
-    def task_exception(
-        self, exception, step, flow, graph, retry_count, max_user_code_retries
-    ):
+    def task_exception(self, exception, step, flow, graph, retry_count, max_user_code_retries):
 
         # Only "catch" exceptions after all retries are exhausted
         if retry_count < max_user_code_retries:
@@ -88,27 +84,21 @@ class CatchDecorator(StepDecorator):
         # If this task is a UBF control task, it will return itself as the singleton
         # list of tasks.
         if hasattr(flow, "_parallel_ubf_iter"):
-            flow._control_mapper_tasks = [
-                "/".join((current.run_id, current.step_name, current.task_id))
-            ]
+            flow._control_mapper_tasks = ["/".join((current.run_id, current.step_name, current.task_id))]
         # store the exception
         picklable = MetaflowExceptionWrapper(exception)
         flow._catch_exception = picklable
         self._set_var(flow, picklable)
         return True
 
-    def task_post_step(
-        self, step_name, flow, graph, retry_count, max_user_code_retries
-    ):
+    def task_post_step(self, step_name, flow, graph, retry_count, max_user_code_retries):
         # there was no exception, set the exception var (if any) to None
         self._set_var(flow, None)
 
     def step_task_retry_count(self):
         return 0, NUM_FALLBACK_RETRIES
 
-    def task_decorate(
-        self, step_func, func, graph, retry_count, max_user_code_retries, ubf_context
-    ):
+    def task_decorate(self, step_func, func, graph, retry_count, max_user_code_retries, ubf_context):
 
         # if the user code has failed max_user_code_retries times, @catch
         # runs a piece of fallback code instead. This way we can continue

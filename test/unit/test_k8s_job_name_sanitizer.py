@@ -18,16 +18,12 @@ def test_job_name_santitizer():
     assert rfc1123.match(generate_rfc1123_name("HelloFlow_", "1", "end", "321", "1"))
 
     # Same flow name, different case must produce different job names
-    assert generate_rfc1123_name(
-        "Helloflow", "1", "end", "321", "1"
-    ) != generate_rfc1123_name("HelloFlow", "1", "end", "321", "1")
+    assert generate_rfc1123_name("Helloflow", "1", "end", "321", "1") != generate_rfc1123_name(
+        "HelloFlow", "1", "end", "321", "1"
+    )
 
     # Very long step name should be fine
-    assert rfc1123.match(
-        generate_rfc1123_name("Helloflow", "1", "end" * 50, "321", "1")
-    )
+    assert rfc1123.match(generate_rfc1123_name("Helloflow", "1", "end" * 50, "321", "1"))
 
     # Very long run id should be fine too
-    assert rfc1123.match(
-        generate_rfc1123_name("Helloflow", "1" * 100, "end", "321", "1")
-    )
+    assert rfc1123.match(generate_rfc1123_name("Helloflow", "1" * 100, "end", "321", "1"))

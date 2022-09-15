@@ -119,24 +119,18 @@ class KubernetesDecorator(StepDecorator):
         # moment.
         # TODO: To support MiniKube we need to enable local datastore execution.
         if flow_datastore.TYPE != "s3":
-            raise KubernetesException(
-                "The *@kubernetes* decorator requires --datastore=s3 " "at the moment."
-            )
+            raise KubernetesException("The *@kubernetes* decorator requires --datastore=s3 " "at the moment.")
 
         # Set internal state.
         self.logger = logger
         self.environment = environment
         self.step = step
         self.flow_datastore = flow_datastore
-        self.attributes.update(
-            compute_resource_attributes(decos, self, self.resource_defaults)
-        )
+        self.attributes.update(compute_resource_attributes(decos, self, self.resource_defaults))
 
         for deco in decos:
             if getattr(deco, "IS_PARALLEL", False):
-                raise KubernetesException(
-                    "Kubernetes decorator does not support parallel execution yet."
-                )
+                raise KubernetesException("Kubernetes decorator does not support parallel execution yet.")
 
         # Set run time limit for the Kubernetes job.
         self.run_time_limit = get_run_time_limit_for_task(decos)
@@ -154,18 +148,14 @@ class KubernetesDecorator(StepDecorator):
         self.package = package
         self.run_id = run_id
 
-    def runtime_task_created(
-        self, task_datastore, task_id, split_index, input_paths, is_cloned, ubf_context
-    ):
+    def runtime_task_created(self, task_datastore, task_id, split_index, input_paths, is_cloned, ubf_context):
         # To execute the Kubernetes job, the job container needs to have
         # access to the code package. We store the package in the datastore
         # which the pod is able to download as part of it's entrypoint.
         if not is_cloned:
             self._save_package_once(self.flow_datastore, self.package)
 
-    def runtime_step_cli(
-        self, cli_args, retry_count, max_user_code_retries, ubf_context
-    ):
+    def runtime_step_cli(self, cli_args, retry_count, max_user_code_retries, ubf_context):
         if retry_count <= max_user_code_retries:
             # After all attempts to run the user code have failed, we don't need
             # to execute on Kubernetes anymore. We can execute possible fallback
@@ -212,23 +202,17 @@ class KubernetesDecorator(StepDecorator):
             # TODO: Get kubernetes job id and job name
             meta["kubernetes-pod-id"] = os.environ["METAFLOW_KUBERNETES_POD_ID"]
             meta["kubernetes-pod-name"] = os.environ["METAFLOW_KUBERNETES_POD_NAME"]
-            meta["kubernetes-pod-namespace"] = os.environ[
-                "METAFLOW_KUBERNETES_POD_NAMESPACE"
-            ]
+            meta["kubernetes-pod-namespace"] = os.environ["METAFLOW_KUBERNETES_POD_NAMESPACE"]
             # meta['kubernetes-job-attempt'] = ?
 
-            entries = [
-                MetaDatum(field=k, value=v, type=k, tags=[]) for k, v in meta.items()
-            ]
+            entries = [MetaDatum(field=k, value=v, type=k, tags=[]) for k, v in meta.items()]
             # Register book-keeping metadata for debugging.
             metadata.register_metadata(run_id, step_name, task_id, entries)
 
             # Start MFLog sidecar to collect task logs.
             self._save_logs_sidecar = SidecarSubProcess("save_logs_periodically")
 
-    def task_finished(
-        self, step_name, flow, graph, is_task_ok, retry_count, max_retries
-    ):
+    def task_finished(self, step_name, flow, graph, is_task_ok, retry_count, max_retries):
         # task_finished may run locally if fallback is activated for @catch
         # decorator.
         if "METAFLOW_KUBERNETES_WORKLOAD" in os.environ:
@@ -239,9 +223,7 @@ class KubernetesDecorator(StepDecorator):
             if self.metadata.TYPE == "local":
                 # Note that the datastore is *always* Amazon S3 (see
                 # runtime_task_created function).
-                sync_local_metadata_to_datastore(
-                    DATASTORE_LOCAL_DIR, self.task_datastore
-                )
+                sync_local_metadata_to_datastore(DATASTORE_LOCAL_DIR, self.task_datastore)
 
         try:
             self._save_logs_sidecar.kill()
@@ -252,6 +234,4 @@ class KubernetesDecorator(StepDecorator):
     @classmethod
     def _save_package_once(cls, flow_datastore, package):
         if cls.package_url is None:
-            cls.package_url, cls.package_sha = flow_datastore.save_data(
-                [package.blob], len_hint=1
-            )[0]
+            cls.package_url, cls.package_sha = flow_datastore.save_data([package.blob], len_hint=1)[0]

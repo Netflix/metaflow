@@ -19,9 +19,7 @@ class _WrappedModule(object):
         self._loader = loader
         self._prefix = prefix
         self._client = client
-        is_match = re.compile(
-            r"^%s\.([a-zA-Z_][a-zA-Z0-9_]*)$" % prefix.replace(".", r"\.")  # noqa W605
-        )
+        is_match = re.compile(r"^%s\.([a-zA-Z_][a-zA-Z0-9_]*)$" % prefix.replace(".", r"\."))  # noqa W605
         self._exports = {}
         for k in ("classes", "functions", "values"):
             result = []
@@ -49,17 +47,13 @@ class _WrappedModule(object):
         elif name in self._exports["functions"]:
             # TODO: Grab doc back from the remote side like in _make_method
             def func(*args, **kwargs):
-                return self._client.stub_request(
-                    None, OP_CALLFUNC, "%s.%s" % (self._prefix, name), *args, **kwargs
-                )
+                return self._client.stub_request(None, OP_CALLFUNC, "%s.%s" % (self._prefix, name), *args, **kwargs)
 
             func.__name__ = name
             func.__doc__ = "Unknown (TODO)"
             return func
         elif name in self._exports["values"]:
-            return self._client.stub_request(
-                None, OP_GETVAL, "%s.%s" % (self._prefix, name)
-            )
+            return self._client.stub_request(None, OP_GETVAL, "%s.%s" % (self._prefix, name))
         elif name in self._exception_classes:
             return self._exception_classes[name]
         else:
@@ -96,9 +90,7 @@ class _WrappedModule(object):
             object.__setattr__(self, name, value)
             return
         if name in self._exports["values"]:
-            self._client.stub_request(
-                None, OP_SETVAL, "%s.%s" % (self._prefix, name), value
-            )
+            self._client.stub_request(None, OP_SETVAL, "%s.%s" % (self._prefix, name), value)
         elif name in self._exports["classes"] or name in self._exports["functions"]:
             raise ValueError
         else:
@@ -139,9 +131,7 @@ class ModuleImporter(object):
             return sys.modules[fullname]
         if self._client is None:
             if sys.version_info[0] < 3:
-                raise NotImplementedError(
-                    "Environment escape imports are not supported in Python 2"
-                )
+                raise NotImplementedError("Environment escape imports are not supported in Python 2")
             # We initialize a client and query the modules we handle
             # The max_pickle_version is the pickle version that the server (so
             # the underlying interpreter we call into) supports; we determine
@@ -168,9 +158,7 @@ class ModuleImporter(object):
             export_values = exports.get("values", [])
             export_exceptions = exports.get("exceptions", [])
             self._aliases = exports.get("aliases", {})
-            for name in itertools.chain(
-                export_classes, export_functions, export_values
-            ):
+            for name in itertools.chain(export_classes, export_functions, export_values):
                 splits = name.rsplit(".", 1)
                 prefixes.add(splits[0])
 
@@ -262,9 +250,7 @@ def create_modules(python_executable, pythonpath, max_pickle_version, path, pref
             pass
         else:
             # pass
-            raise RuntimeError(
-                "Trying to override %s when module exists in system" % prefix
-            )
+            raise RuntimeError("Trying to override %s when module exists in system" % prefix)
 
     # The first version forces the use of the environment escape even if the module
     # exists in the system. This is useful for testing to make sure that the
@@ -272,8 +258,4 @@ def create_modules(python_executable, pythonpath, max_pickle_version, path, pref
     # will only use the environment escape if the module cannot be found
 
     # sys.meta_path.insert(0, ModuleImporter(python_path, path, prefixes))
-    sys.meta_path.append(
-        ModuleImporter(
-            python_executable, pythonpath, max_pickle_version, path, prefixes
-        )
-    )
+    sys.meta_path.append(ModuleImporter(python_executable, pythonpath, max_pickle_version, path, prefixes))

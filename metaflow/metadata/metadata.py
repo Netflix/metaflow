@@ -155,9 +155,7 @@ class MetadataProvider(object):
         """
         raise NotImplementedError()
 
-    def register_task_id(
-        self, run_id, step_name, task_id, attempt=0, tags=None, sys_tags=None
-    ):
+    def register_task_id(self, run_id, step_name, task_id, attempt=0, tags=None, sys_tags=None):
         """
         No-op operation in this implementation.
 
@@ -192,9 +190,7 @@ class MetadataProvider(object):
         """
         return {"METAFLOW_RUNTIME_NAME": runtime_name, "USER": get_username()}
 
-    def register_data_artifacts(
-        self, run_id, step_name, task_id, attempt_id, artifacts
-    ):
+    def register_data_artifacts(self, run_id, step_name, task_id, attempt_id, artifacts):
         """
         Registers the fact that the data-artifacts are associated with
         the particular task.
@@ -248,9 +244,7 @@ class MetadataProvider(object):
         pass
 
     @classmethod
-    def _get_object_internal(
-        cls, obj_type, obj_order, sub_type, sub_order, filters, attempt, *args
-    ):
+    def _get_object_internal(cls, obj_type, obj_order, sub_type, sub_order, filters, attempt, *args):
         """
         Return objects for the implementation of this class
 
@@ -377,15 +371,11 @@ class MetadataProvider(object):
             raise MetaflowInternalError(msg="Cannot find subtype %s" % sub_type)
 
         if type_order >= sub_order:
-            raise MetaflowInternalError(
-                msg="Subtype %s not allowed for %s" % (sub_type, obj_type)
-            )
+            raise MetaflowInternalError(msg="Subtype %s not allowed for %s" % (sub_type, obj_type))
 
         # Metadata is always only at the task level
         if sub_type == "metadata" and obj_type != "task":
-            raise MetaflowInternalError(
-                msg="Metadata can only be retrieved at the task level"
-            )
+            raise MetaflowInternalError(msg="Metadata can only be retrieved at the task level")
 
         if attempt is not None:
             try:
@@ -397,15 +387,11 @@ class MetadataProvider(object):
         else:
             attempt_int = None
 
-        pre_filter = cls._get_object_internal(
-            obj_type, type_order, sub_type, sub_order, filters, attempt_int, *args
-        )
+        pre_filter = cls._get_object_internal(obj_type, type_order, sub_type, sub_order, filters, attempt_int, *args)
         if attempt_int is None or sub_order != 6:
             # If no attempt or not for metadata, just return as is
             return pre_filter
-        return MetadataProvider._reconstruct_metadata_for_attempt(
-            pre_filter, attempt_int
-        )
+        return MetadataProvider._reconstruct_metadata_for_attempt(pre_filter, attempt_int)
 
     def _all_obj_elements(self, tags=None, sys_tags=None):
         user = get_username()
@@ -522,9 +508,7 @@ class MetadataProvider(object):
             metadata.append(
                 MetaDatum(
                     field="code-package",
-                    value=json.dumps(
-                        {"ds_type": code_ds, "sha": code_sha, "location": code_url}
-                    ),
+                    value=json.dumps({"ds_type": code_ds, "sha": code_sha, "location": code_url}),
                     type="code-package",
                     tags=["attempt_id:{0}".format(attempt)],
                 )
@@ -543,9 +527,7 @@ class MetadataProvider(object):
         for key, value in filters.items():
             if key == "any_tags":
                 for obj in starting_point:
-                    if value in obj.get("tags", []) or value in obj.get(
-                        "system_tags", []
-                    ):
+                    if value in obj.get("tags", []) or value in obj.get("system_tags", []):
                         result.append(obj)
             if key == "tags":
                 for obj in starting_point:
@@ -587,11 +569,7 @@ class MetadataProvider(object):
                 return []  # No metadata since the attempt hasn't started
             # Doubt we will be using Python in year 3000
             end_ts = attempts_start.get(attempt_id + 1, 32503680000000)
-            post_filter = [
-                v
-                for v in all_metadata
-                if v["ts_epoch"] >= start_ts and v["ts_epoch"] < end_ts
-            ]
+            post_filter = [v for v in all_metadata if v["ts_epoch"] >= start_ts and v["ts_epoch"] < end_ts]
 
         return post_filter
 

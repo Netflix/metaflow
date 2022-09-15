@@ -136,11 +136,7 @@ class Kubernetes(object):
         )
         init_cmds = self._environment.get_package_commands(code_package_url)
         init_expr = " && ".join(init_cmds)
-        step_expr = bash_capture_logs(
-            " && ".join(
-                self._environment.bootstrap_commands(self._step_name) + step_cmds
-            )
-        )
+        step_expr = bash_capture_logs(" && ".join(self._environment.bootstrap_commands(self._step_name) + step_cmds))
 
         # Construct an entry point that
         # 1) initializes the mflog environment (mflog_expr)
@@ -247,9 +243,7 @@ class Kubernetes(object):
             .environment_variable("METAFLOW_KUBERNETES_WORKLOAD", 1)
             .environment_variable("METAFLOW_RUNTIME_ENVIRONMENT", "kubernetes")
             .environment_variable("METAFLOW_CARD_S3ROOT", DATASTORE_CARD_S3ROOT)
-            .environment_variable(
-                "METAFLOW_DEFAULT_AWS_CLIENT_PROVIDER", DEFAULT_AWS_CLIENT_PROVIDER
-            )
+            .environment_variable("METAFLOW_DEFAULT_AWS_CLIENT_PROVIDER", DEFAULT_AWS_CLIENT_PROVIDER)
             .label("app", "metaflow")
             .label("metaflow/flow_name", sanitize_label_value(self._flow_name))
             .label("metaflow/run_id", sanitize_label_value(self._run_id))
@@ -273,9 +267,9 @@ class Kubernetes(object):
         # TODO: 1. Verify the behavior of high cardinality labels like instance,
         #          version etc. in the app.kubernetes.io namespace before
         #          introducing them here.
-        job.label("app.kubernetes.io/name", "metaflow-task").label(
-            "app.kubernetes.io/part-of", "metaflow"
-        ).label("app.kubernetes.io/created-by", sanitize_label_value(user))
+        job.label("app.kubernetes.io/name", "metaflow-task").label("app.kubernetes.io/part-of", "metaflow").label(
+            "app.kubernetes.io/created-by", sanitize_label_value(user)
+        )
         # Add Metaflow system tags as labels as well!
         for sys_tag in self._metadata.sticky_sys_tags:
             job.label(
@@ -351,9 +345,7 @@ class Kubernetes(object):
                     raise KubernetesException("Task failed with a segmentation fault.")
                 else:
                     msg = "%s (exit code %s)" % (msg, exit_code)
-            raise KubernetesException(
-                "%s. This could be a transient error. " "Use @retry to retry." % msg
-            )
+            raise KubernetesException("%s. This could be a transient error. " "Use @retry to retry." % msg)
 
         exit_code, _ = self._job.reason
         echo(

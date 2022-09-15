@@ -93,9 +93,7 @@ class CurrentSingletonTest(MetaflowTest):
             # very basic sanity check for CLI
             for step in flow:
                 checker.assert_artifact(step.name, "step_name", step.name)
-                checker.assert_artifact(
-                    step.name, "project_names", {"current_singleton"}
-                )
+                checker.assert_artifact(step.name, "project_names", {"current_singleton"})
         else:
             from metaflow import Task
 

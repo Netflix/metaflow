@@ -45,9 +45,7 @@ class CardComponentCollector:
     def __init__(self, logger=None):
         from metaflow.metaflow_config import CARD_NO_WARNING
 
-        self._cards_components = (
-            {}
-        )  # a dict with key as uuid and value as a list of MetaflowCardComponent.
+        self._cards_components = {}  # a dict with key as uuid and value as a list of MetaflowCardComponent.
         self._cards_meta = (
             {}
         )  # a `dict` of (card_uuid, `dict)` holding all metadata about all @card decorators on the `current` @step.
@@ -123,11 +121,7 @@ class CardComponentCollector:
             List[List[MetaflowCardComponent]]
         """
         card_type = type
-        card_uuids = [
-            card_meta["uuid"]
-            for card_meta in self._cards_meta.values()
-            if card_meta["type"] == card_type
-        ]
+        card_uuids = [card_meta["uuid"] for card_meta in self._cards_meta.values() if card_meta["type"] == card_type]
         return [self._cards_components[uuid] for uuid in card_uuids]
 
     def _finalize(self):
@@ -178,10 +172,7 @@ class CardComponentCollector:
         id_set = set(card_ids)
         if len(card_ids) != len(id_set):
             non_unique_ids = [
-                idx
-                for idx in id_set
-                if len(list(filter(lambda x: x["card_id"] == idx, not_none_id_cards)))
-                > 1
+                idx for idx in id_set if len(list(filter(lambda x: x["card_id"] == idx, not_none_id_cards))) > 1
             ]
             nui = ", ".join(non_unique_ids)
             # throw a warning that decorators have non unique Ids
@@ -253,9 +244,7 @@ class CardComponentCollector:
                 card_type = list(self._cards_meta.values())[0]["type"]
                 if list(self._cards_meta.values())[0]["exists"]:
                     _crdwr = "Card of type `%s` is not an editable card." % card_type
-                    _endwr = (
-                        "Please use an editable card."  # todo : link to documentation
-                    )
+                    _endwr = "Please use an editable card."  # todo : link to documentation
                 else:
                     _crdwr = "Card of type `%s` doesn't exist." % card_type
                     _endwr = "Please use a card `type` which exits."  # todo : link to documentation
@@ -315,10 +304,7 @@ class CardComponentCollector:
         if card_uuid not in self._cards_components:
             return []
         has_user_components = any(
-            [
-                issubclass(type(component), UserComponent)
-                for component in self._cards_components[card_uuid]
-            ]
+            [issubclass(type(component), UserComponent) for component in self._cards_components[card_uuid]]
         )
         for component in self._cards_components[card_uuid]:
             if not issubclass(type(component), MetaflowCardComponent):
@@ -341,7 +327,5 @@ class CardComponentCollector:
                             continue
                 serialized_components.append(rendered_obj)
         if has_user_components and len(serialized_components) > 0:
-            serialized_components = [
-                SectionComponent(contents=serialized_components).render()
-            ]
+            serialized_components = [SectionComponent(contents=serialized_components).render()]
         return serialized_components

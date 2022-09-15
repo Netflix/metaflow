@@ -57,10 +57,9 @@ class SidecarSubProcess(object):
 
     def start(self):
 
-        if (
-            self.__worker_type is not None
-            and self.__worker_type.startswith(NULL_SIDECAR_PREFIX)
-        ) or (platform.system() == "Darwin" and sys.version_info < (3, 0)):
+        if (self.__worker_type is not None and self.__worker_type.startswith(NULL_SIDECAR_PREFIX)) or (
+            platform.system() == "Darwin" and sys.version_info < (3, 0)
+        ):
             # if on darwin and running python 2 disable sidecars
             # there is a bug with importing poll from select in some cases
             #
@@ -89,9 +88,7 @@ class SidecarSubProcess(object):
                 self.__poller.register(self.__process.stdin.fileno(), select.POLLOUT)
             else:
                 # unable to start subprocess, fallback to Null sidecar
-                self.logger(
-                    "unable to start subprocess for sidecar %s" % self.__worker_type
-                )
+                self.logger("unable to start subprocess for sidecar %s" % self.__worker_type)
                 self.__poller = NullPoller()
 
     def __start_subprocess(self, cmdline):

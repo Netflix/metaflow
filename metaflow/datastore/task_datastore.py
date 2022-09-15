@@ -22,9 +22,7 @@ def only_if_not_done(f):
     def method(self, *args, **kwargs):
         if self._is_done_set:
             raise MetaflowInternalError(
-                "Tried to write to datastore "
-                "(method %s) after it was marked "
-                ".done()" % f.__name__
+                "Tried to write to datastore " "(method %s) after it was marked " ".done()" % f.__name__
             )
         return f(self, *args, **kwargs)
 
@@ -105,9 +103,7 @@ class TaskDataStore(object):
         self._run_id = run_id
         self._step_name = step_name
         self._task_id = task_id
-        self._path = self._storage_impl.path_join(
-            flow_datastore.flow_name, run_id, step_name, task_id
-        )
+        self._path = self._storage_impl.path_join(flow_datastore.flow_name, run_id, step_name, task_id)
         self._mode = mode
         self._attempt = attempt
         self._metadata = flow_datastore.metadata
@@ -142,9 +138,7 @@ class TaskDataStore(object):
                 # like logs even for tasks that did not write a done marker
                 max_attempt = None
                 for i in range(metaflow_config.MAX_ATTEMPTS):
-                    check_meta = self._metadata_name_for_attempt(
-                        self.METADATA_ATTEMPT_SUFFIX, i
-                    )
+                    check_meta = self._metadata_name_for_attempt(self.METADATA_ATTEMPT_SUFFIX, i)
                     if self.has_metadata(check_meta, add_attempt=False):
                         max_attempt = i
                 if self._attempt is None:
@@ -163,10 +157,7 @@ class TaskDataStore(object):
                     data_obj = self.load_metadata([self.METADATA_DATA_SUFFIX])
                     data_obj = data_obj[self.METADATA_DATA_SUFFIX]
                 elif self._attempt is None or not allow_not_done:
-                    raise DataException(
-                        "No completed attempts of the task was found for task '%s'"
-                        % self._path
-                    )
+                    raise DataException("No completed attempts of the task was found for task '%s'" % self._path)
 
                 if data_obj is not None:
                     self._objects = data_obj.get("objects", {})
@@ -210,9 +201,7 @@ class TaskDataStore(object):
     @require_mode(None)
     def get_log_location(self, logprefix, stream):
         log_name = self._get_log_location(logprefix, stream)
-        path = self._storage_impl.path_join(
-            self._path, self._metadata_name_for_attempt(log_name)
-        )
+        path = self._storage_impl.path_join(self._path, self._metadata_name_for_attempt(log_name))
         return self._storage_impl.full_uri(path)
 
     @require_mode("r")
@@ -259,11 +248,7 @@ class TaskDataStore(object):
 
         def pickle_iter():
             for name, obj in artifacts_iter:
-                do_v4 = (
-                    force_v4 and force_v4
-                    if isinstance(force_v4, bool)
-                    else force_v4.get(name, False)
-                )
+                do_v4 = force_v4 and force_v4 if isinstance(force_v4, bool) else force_v4.get(name, False)
                 if do_v4:
                     encode_type = "gzip+pickle-v4"
                     if encode_type not in self._encodings:
@@ -335,8 +320,7 @@ class TaskDataStore(object):
         """
         if not self._info:
             raise DataException(
-                "Datastore for task '%s' does not have the required metadata to "
-                "load artifacts" % self._path
+                "Datastore for task '%s' does not have the required metadata to " "load artifacts" % self._path
             )
         to_load = defaultdict(list)
         for name in names:
@@ -349,9 +333,7 @@ class TaskDataStore(object):
             else:
                 encode_type = "gzip+pickle-v2"
             if encode_type not in self._encodings:
-                raise DataException(
-                    "Python 3.4 or later is required to load artifact '%s'" % name
-                )
+                raise DataException("Python 3.4 or later is required to load artifact '%s'" % name)
             else:
                 to_load[self._objects[name]].append(name)
         # At this point, we load what we don't have from the CAS
@@ -436,9 +418,7 @@ class TaskDataStore(object):
         )
 
     @require_mode("w")
-    def _dangerous_save_metadata_post_done(
-        self, contents, allow_overwrite=True, add_attempt=True
-    ):
+    def _dangerous_save_metadata_post_done(self, contents, allow_overwrite=True, add_attempt=True):
         """
         Method identical to save_metadata BUT BYPASSES THE CHECK ON DONE
 
@@ -520,9 +500,7 @@ class TaskDataStore(object):
             True if the metadata exists or False otherwise
         """
         if add_attempt:
-            path = self._storage_impl.path_join(
-                self._path, self._metadata_name_for_attempt(name)
-            )
+            path = self._storage_impl.path_join(self._path, self._metadata_name_for_attempt(name))
         else:
             path = self._storage_impl.path_join(self._path, name)
         return self._storage_impl.is_file([path])[0]
@@ -624,9 +602,7 @@ class TaskDataStore(object):
                 for var, sha in self._objects.items()
             ]
 
-            self._metadata.register_data_artifacts(
-                self.run_id, self.step_name, self.task_id, self._attempt, artifacts
-            )
+            self._metadata.register_data_artifacts(self.run_id, self.step_name, self.task_id, self._attempt, artifacts)
 
         self._is_done_set = True
 
@@ -687,17 +663,11 @@ class TaskDataStore(object):
             if var.startswith("__") or var in flow._EPHEMERAL:
                 continue
             # Skip over properties of the class (Parameters or class variables)
-            if hasattr(flow.__class__, var) and isinstance(
-                getattr(flow.__class__, var), property
-            ):
+            if hasattr(flow.__class__, var) and isinstance(getattr(flow.__class__, var), property):
                 continue
 
             val = getattr(flow, var)
-            if not (
-                isinstance(val, MethodType)
-                or isinstance(val, FunctionType)
-                or isinstance(val, Parameter)
-            ):
+            if not (isinstance(val, MethodType) or isinstance(val, FunctionType) or isinstance(val, Parameter)):
                 valid_artifacts.append((var, val))
 
         def artifacts_iter():
@@ -793,9 +763,7 @@ class TaskDataStore(object):
     def format(self, **kwargs):
         def lines():
             for k, v in self.to_dict(**kwargs).items():
-                yield k, "*{key}* [size: {size} type: {type}] = {value}".format(
-                    key=k, value=v, **self._info[k]
-                )
+                yield k, "*{key}* [size: {size} type: {type}] = {value}".format(key=k, value=v, **self._info[k])
 
         return "\n".join(line for k, line in sorted(lines()))
 
@@ -821,9 +789,7 @@ class TaskDataStore(object):
         return self.format(show_private=True, max_value_size=1000)
 
     def _metadata_name_for_attempt(self, name, attempt_override=None):
-        return self.metadata_name_for_attempt(
-            name, self._attempt if attempt_override is None else attempt_override
-        )
+        return self.metadata_name_for_attempt(name, self._attempt if attempt_override is None else attempt_override)
 
     @staticmethod
     def _get_log_location(logprefix, stream):
@@ -849,9 +815,7 @@ class TaskDataStore(object):
         def blob_iter():
             for name, value in contents.items():
                 if add_attempt:
-                    path = self._storage_impl.path_join(
-                        self._path, self._metadata_name_for_attempt(name)
-                    )
+                    path = self._storage_impl.path_join(self._path, self._metadata_name_for_attempt(name))
                 else:
                     path = self._storage_impl.path_join(self._path, name)
                 if isinstance(value, (RawIOBase, BufferedIOBase)) and value.readable():
@@ -860,8 +824,7 @@ class TaskDataStore(object):
                     yield path, to_fileobj(value)
                 else:
                     raise DataException(
-                        "Metadata '%s' for task '%s' has an invalid type: %s"
-                        % (name, self._path, type(value))
+                        "Metadata '%s' for task '%s' has an invalid type: %s" % (name, self._path, type(value))
                     )
 
         self._storage_impl.save_bytes(blob_iter(), overwrite=allow_overwrite)
@@ -887,9 +850,7 @@ class TaskDataStore(object):
         to_load = []
         for name in names:
             if add_attempt:
-                path = self._storage_impl.path_join(
-                    self._path, self._metadata_name_for_attempt(name)
-                )
+                path = self._storage_impl.path_join(self._path, self._metadata_name_for_attempt(name))
             else:
                 path = self._storage_impl.path_join(self._path, name)
             to_load.append(path)
@@ -897,9 +858,7 @@ class TaskDataStore(object):
         with self._storage_impl.load_bytes(to_load) as load_results:
             for key, path, meta in load_results:
                 if add_attempt:
-                    _, name = self.parse_attempt_metadata(
-                        self._storage_impl.basename(key)
-                    )
+                    _, name = self.parse_attempt_metadata(self._storage_impl.basename(key))
                 else:
                     name = self._storage_impl.basename(key)
                 if path is None:

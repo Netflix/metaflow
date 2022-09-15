@@ -5,9 +5,7 @@ def get_methods(class_object):
     all_attributes = {}
     all_methods = {}
     if isinstance(class_object, type):
-        mros = list(reversed(type(class_object).__mro__)) + list(
-            reversed(class_object.__mro__)
-        )
+        mros = list(reversed(type(class_object).__mro__)) + list(reversed(class_object.__mro__))
     else:
         mros = reversed(type(class_object).__mro__)
     for base_class in mros:

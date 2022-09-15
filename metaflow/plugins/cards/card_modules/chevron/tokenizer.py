@@ -103,9 +103,7 @@ def parse_tag(template, l_del, r_del):
 
         # Otherwise we should complain
         else:
-            raise ChevronError(
-                "unclosed set delimiter tag\n" "at line {0}".format(_CURRENT_LINE)
-            )
+            raise ChevronError("unclosed set delimiter tag\n" "at line {0}".format(_CURRENT_LINE))
 
     # If we might be a no html escape tag
     elif tag_type == "no escape?":

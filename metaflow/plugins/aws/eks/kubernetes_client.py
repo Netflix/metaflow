@@ -38,9 +38,7 @@ def k8s_retry(deadline_seconds=60, max_backoff=32):
                 except client.rest.ApiException as e:
                     if e.status == 500:
                         current_t = time.time()
-                        backoff_delay = min(
-                            math.pow(2, retry_number) + random.random(), max_backoff
-                        )
+                        backoff_delay = min(math.pow(2, retry_number) + random.random(), max_backoff)
                         if current_t + backoff_delay < deadline:
                             time.sleep(backoff_delay)
                             retry_number += 1
@@ -93,10 +91,7 @@ class KubernetesClient(object):
         return KubernetesJob(self, **kwargs)
 
     def get(self):
-        if (
-            time.time() - self._client_refresh_timestamp
-            > CLIENT_REFRESH_INTERVAL_SECONDS
-        ):
+        if time.time() - self._client_refresh_timestamp > CLIENT_REFRESH_INTERVAL_SECONDS:
             self._refresh_client()
 
         return self._client
@@ -111,36 +106,21 @@ class KubernetesJob(object):
         # Check that job attributes are sensible.
 
         # CPU value should be greater than 0
-        if not (
-            isinstance(self._kwargs["cpu"], (int, unicode, basestring, float))
-            and float(self._kwargs["cpu"]) > 0
-        ):
+        if not (isinstance(self._kwargs["cpu"], (int, unicode, basestring, float)) and float(self._kwargs["cpu"]) > 0):
             raise KubernetesJobException(
-                "Invalid CPU value ({}); it should be greater than 0".format(
-                    self._kwargs["cpu"]
-                )
+                "Invalid CPU value ({}); it should be greater than 0".format(self._kwargs["cpu"])
             )
 
         # Memory value should be greater than 0
-        if not (
-            isinstance(self._kwargs["memory"], (int, unicode, basestring))
-            and int(self._kwargs["memory"]) > 0
-        ):
+        if not (isinstance(self._kwargs["memory"], (int, unicode, basestring)) and int(self._kwargs["memory"]) > 0):
             raise KubernetesJobException(
-                "Invalid memory value ({}); it should be greater than 0".format(
-                    self._kwargs["memory"]
-                )
+                "Invalid memory value ({}); it should be greater than 0".format(self._kwargs["memory"])
             )
 
         # Disk value should be greater than 0
-        if not (
-            isinstance(self._kwargs["disk"], (int, unicode, basestring))
-            and int(self._kwargs["disk"]) > 0
-        ):
+        if not (isinstance(self._kwargs["disk"], (int, unicode, basestring)) and int(self._kwargs["disk"]) > 0):
             raise KubernetesJobException(
-                "Invalid disk value ({}); it should be greater than 0".format(
-                    self._kwargs["disk"]
-                )
+                "Invalid disk value ({}); it should be greater than 0".format(self._kwargs["disk"])
             )
 
         # TODO(s) (savin)
@@ -205,9 +185,7 @@ class KubernetesJob(object):
                                 command=self._kwargs["command"],
                                 env=[
                                     client.V1EnvVar(name=k, value=str(v))
-                                    for k, v in self._kwargs.get(
-                                        "environment_variables", {}
-                                    ).items()
+                                    for k, v in self._kwargs.get("environment_variables", {}).items()
                                 ]
                                 # And some downward API magic. Add (key, value)
                                 # pairs below to make pod metadata available
@@ -219,9 +197,7 @@ class KubernetesJob(object):
                                     client.V1EnvVar(
                                         name=k,
                                         value_from=client.V1EnvVarSource(
-                                            field_ref=client.V1ObjectFieldSelector(
-                                                field_path=str(v)
-                                            )
+                                            field_ref=client.V1ObjectFieldSelector(field_path=str(v))
                                         ),
                                     )
                                     for k, v in {
@@ -231,9 +207,7 @@ class KubernetesJob(object):
                                     }.items()
                                 ],
                                 env_from=[
-                                    client.V1EnvFromSource(
-                                        secret_ref=client.V1SecretEnvSource(name=str(k))
-                                    )
+                                    client.V1EnvFromSource(secret_ref=client.V1SecretEnvSource(name=str(k)))
                                     for k in self._kwargs.get("secrets", [])
                                 ],
                                 image=self._kwargs["image"],
@@ -242,8 +216,7 @@ class KubernetesJob(object):
                                     requests={
                                         "cpu": str(self._kwargs["cpu"]),
                                         "memory": "%sM" % str(self._kwargs["memory"]),
-                                        "ephemeral-storage": "%sM"
-                                        % str(self._kwargs["disk"]),
+                                        "ephemeral-storage": "%sM" % str(self._kwargs["disk"]),
                                     }
                                 ),
                             )
@@ -296,11 +269,7 @@ class KubernetesJob(object):
             #               achieve the guarantees that we are seeking.
             #               Hopefully, we will be able to get creative soon.
             response = (
-                client.BatchV1Api()
-                .create_namespaced_job(
-                    body=self._job, namespace=self._kwargs["namespace"]
-                )
-                .to_dict()
+                client.BatchV1Api().create_namespaced_job(body=self._job, namespace=self._kwargs["namespace"]).to_dict()
             )
             return RunningJob(
                 client_wrapper=self._client_wrapper,
@@ -309,9 +278,7 @@ class KubernetesJob(object):
                 namespace=response["metadata"]["namespace"],
             )
         except client.rest.ApiException as e:
-            raise KubernetesJobException(
-                "Unable to launch Kubernetes job.\n %s" % str(e)
-            )
+            raise KubernetesJobException("Unable to launch Kubernetes job.\n %s" % str(e))
 
     def namespace(self, namespace):
         self._kwargs["namespace"] = namespace
@@ -338,9 +305,7 @@ class KubernetesJob(object):
         return self
 
     def environment_variable(self, name, value):
-        self._kwargs["environment_variables"] = dict(
-            self._kwargs.get("environment_variables", {}), **{name: value}
-        )
+        self._kwargs["environment_variables"] = dict(self._kwargs.get("environment_variables", {}), **{name: value})
         return self
 
     def label(self, name, value):
@@ -348,9 +313,7 @@ class KubernetesJob(object):
         return self
 
     def annotation(self, name, value):
-        self._kwargs["annotations"] = dict(
-            self._kwargs.get("annotations", {}), **{name: value}
-        )
+        self._kwargs["annotations"] = dict(self._kwargs.get("annotations", {}), **{name: value})
         return self
 
 
@@ -427,19 +390,13 @@ class RunningJob(object):
         atexit.register(self.kill)
 
     def __repr__(self):
-        return "{}('{}/{}')".format(
-            self.__class__.__name__, self._namespace, self._name
-        )
+        return "{}('{}/{}')".format(self.__class__.__name__, self._namespace, self._name)
 
     @k8s_retry()
     def _fetch_job(self):
         client = self._client_wrapper.get()
         try:
-            return (
-                client.BatchV1Api()
-                .read_namespaced_job(name=self._name, namespace=self._namespace)
-                .to_dict()
-            )
+            return client.BatchV1Api().read_namespaced_job(name=self._name, namespace=self._namespace).to_dict()
         except client.rest.ApiException as e:
             # TODO: Handle failures as well as the fact that a different
             #       process can delete the job.
@@ -582,18 +539,14 @@ class RunningJob(object):
         if bool(self._job["status"].get("succeeded")):
             return "Job:Succeeded"
         # Failure!
-        if bool(self._job["status"].get("failed")) or (
-            self._job["spec"]["parallelism"] == 0
-        ):
+        if bool(self._job["status"].get("failed")) or (self._job["spec"]["parallelism"] == 0):
             return "Job:Failed"
         if bool(self._job["status"].get("active")):
             msg = "Job:Active"
             if self._pod:
                 msg += " Pod:%s" % self._pod["status"]["phase"].title()
                 # TODO (savin): parse Pod conditions
-                container_status = (
-                    self._pod["status"].get("container_statuses") or [None]
-                )[0]
+                container_status = (self._pod["status"].get("container_statuses") or [None])[0]
                 if container_status:
                     # We have a single container inside the pod
                     status = {"status": "waiting"}
@@ -680,11 +633,7 @@ class RunningJob(object):
                             )
                         )
 
-                    for k, v in (
-                        pod_status.get("container_statuses", [{}])[0]
-                        .get("state", {})
-                        .items()
-                    ):
+                    for k, v in pod_status.get("container_statuses", [{}])[0].get("state", {}).items():
                         if v is not None:
                             return v.get("exit_code"), ": ".join(
                                 filter(

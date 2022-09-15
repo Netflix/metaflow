@@ -40,8 +40,7 @@ def cli():
     "--name",
     default=None,
     type=str,
-    help="State Machine name. The flow name is used instead "
-    "if this option is not specified",
+    help="State Machine name. The flow name is used instead " "if this option is not specified",
 )
 @click.pass_obj
 def step_functions(obj, name=None):
@@ -53,9 +52,7 @@ def step_functions(obj, name=None):
     ) = resolve_state_machine_name(obj, name)
 
 
-@step_functions.command(
-    help="Deploy a new version of this workflow to " "AWS Step Functions."
-)
+@step_functions.command(help="Deploy a new version of this workflow to " "AWS Step Functions.")
 @click.option(
     "--authorize",
     default=None,
@@ -67,9 +64,7 @@ def step_functions(obj, name=None):
 @click.option(
     "--generate-new-token",
     is_flag=True,
-    help="Generate a new production token for this flow. "
-    "This will move the production flow to a new "
-    "namespace.",
+    help="Generate a new production token for this flow. " "This will move the production flow to a new " "namespace.",
 )
 @click.option(
     "--new-token",
@@ -107,14 +102,11 @@ def step_functions(obj, name=None):
     show_default=True,
     help="Maximum number of parallel processes.",
 )
-@click.option(
-    "--workflow-timeout", default=None, type=int, help="Workflow timeout in seconds."
-)
+@click.option("--workflow-timeout", default=None, type=int, help="Workflow timeout in seconds.")
 @click.option(
     "--log-execution-history",
     is_flag=True,
-    help="Log AWS Step Functions execution history to AWS CloudWatch "
-    "Logs log group.",
+    help="Log AWS Step Functions execution history to AWS CloudWatch " "Logs log group.",
 )
 @click.pass_obj
 def create(
@@ -129,9 +121,7 @@ def create(
     workflow_timeout=None,
     log_execution_history=False,
 ):
-    obj.echo(
-        "Deploying *%s* to AWS Step Functions..." % obj.state_machine_name, bold=True
-    )
+    obj.echo("Deploying *%s* to AWS Step Functions..." % obj.state_machine_name, bold=True)
 
     check_metadata_service_version(obj)
 
@@ -163,9 +153,7 @@ def create(
         obj.echo(
             "State Machine *{state_machine}* "
             "for flow *{name}* pushed to "
-            "AWS Step Functions successfully.\n".format(
-                state_machine=obj.state_machine_name, name=current.flow_name
-            ),
+            "AWS Step Functions successfully.\n".format(state_machine=obj.state_machine_name, name=current.flow_name),
             bold=True,
         )
         if obj._is_state_machine_name_hashed:
@@ -190,22 +178,14 @@ def check_metadata_service_version(obj):
     else:
         obj.echo("")
         obj.echo(
-            "You are running a version of the metaflow service "
-            "that currently doesn't support AWS Step Functions. "
+            "You are running a version of the metaflow service " "that currently doesn't support AWS Step Functions. "
         )
+        obj.echo("For more information on how to upgrade your " "service to a compatible version (>= 2.0.2), visit:")
         obj.echo(
-            "For more information on how to upgrade your "
-            "service to a compatible version (>= 2.0.2), visit:"
-        )
-        obj.echo(
-            "    https://admin-docs.metaflow.org/metaflow-on-aws/operation"
-            "s-guide/metaflow-service-migration-guide",
+            "    https://admin-docs.metaflow.org/metaflow-on-aws/operation" "s-guide/metaflow-service-migration-guide",
             fg="green",
         )
-        obj.echo(
-            "Once you have upgraded your metadata service, please "
-            "re-execute your command."
-        )
+        obj.echo("Once you have upgraded your metadata service, please " "re-execute your command.")
         raise IncorrectMetadataServiceVersion(
             "Try again with a more recent " "version of metaflow service " "(>=2.0.2)."
         )
@@ -221,23 +201,16 @@ def resolve_state_machine_name(obj, name):
     obj._is_state_machine_name_hashed = False
     if project:
         if name:
-            raise MetaflowException(
-                "--name is not supported for @projects. " "Use --branch instead."
-            )
+            raise MetaflowException("--name is not supported for @projects. " "Use --branch instead.")
         state_machine_name = attach_prefix(current.project_flow_name)
         project_branch = to_bytes(".".join((project, current.branch_name)))
-        token_prefix = (
-            "mfprj-%s"
-            % to_unicode(base64.b32encode(sha1(project_branch).digest()))[:16]
-        )
+        token_prefix = "mfprj-%s" % to_unicode(base64.b32encode(sha1(project_branch).digest()))[:16]
         is_project = True
         # AWS Step Functions has a limit of 80 chars for state machine names.
         # We truncate the state machine name if the computed name is greater
         # than 60 chars and append a hashed suffix to ensure uniqueness.
         if len(state_machine_name) > 60:
-            name_hash = to_unicode(
-                base64.b32encode(sha1(to_bytes(state_machine_name)).digest())
-            )[:16].lower()
+            name_hash = to_unicode(base64.b32encode(sha1(to_bytes(state_machine_name)).digest()))[:16].lower()
             state_machine_name = "%s-%s" % (state_machine_name[:60], name_hash)
             obj._is_state_machine_name_hashed = True
     else:
@@ -261,24 +234,16 @@ def resolve_state_machine_name(obj, name):
     return state_machine_name, token_prefix.lower(), is_project
 
 
-def make_flow(
-    obj, token, name, tags, namespace, max_workers, workflow_timeout, is_project
-):
+def make_flow(obj, token, name, tags, namespace, max_workers, workflow_timeout, is_project):
     if obj.flow_datastore.TYPE != "s3":
         raise MetaflowException("AWS Step Functions requires --datastore=s3.")
 
     # Attach AWS Batch decorator to the flow
     decorators._attach_decorators(obj.flow, [BatchDecorator.name])
-    decorators._init_step_decorators(
-        obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
-    )
+    decorators._init_step_decorators(obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger)
 
-    obj.package = MetaflowPackage(
-        obj.flow, obj.environment, obj.echo, obj.package_suffixes
-    )
-    package_url, package_sha = obj.flow_datastore.save_data(
-        [obj.package.blob], len_hint=1
-    )[0]
+    obj.package = MetaflowPackage(obj.flow, obj.environment, obj.echo, obj.package_suffixes)
+    package_url, package_sha = obj.flow_datastore.save_data([obj.package.blob], len_hint=1)[0]
 
     return StepFunctions(
         name,
@@ -301,17 +266,12 @@ def make_flow(
     )
 
 
-def resolve_token(
-    name, token_prefix, obj, authorize, given_token, generate_new_token, is_project
-):
+def resolve_token(name, token_prefix, obj, authorize, given_token, generate_new_token, is_project):
 
     # 1) retrieve the previous deployment, if one exists
     workflow = StepFunctions.get_existing_deployment(name)
     if workflow is None:
-        obj.echo(
-            "It seems this is the first time you are deploying *%s* to "
-            "AWS Step Functions." % name
-        )
+        obj.echo("It seems this is the first time you are deploying *%s* to " "AWS Step Functions." % name)
         prev_token = None
     else:
         prev_user, prev_token = workflow
@@ -332,21 +292,12 @@ def resolve_token(
                 "*%s*." % (name, prev_user)
             )
             obj.echo(
-                "To deploy a new version of this flow, you need to use "
-                "the same production token that they used. "
+                "To deploy a new version of this flow, you need to use " "the same production token that they used. "
             )
-            obj.echo(
-                "Please reach out to them to get the token. Once you "
-                "have it, call this command:"
-            )
+            obj.echo("Please reach out to them to get the token. Once you " "have it, call this command:")
             obj.echo("    step-functions create --authorize MY_TOKEN", fg="green")
-            obj.echo(
-                'See "Organizing Results" at docs.metaflow.org for more '
-                "information about production tokens."
-            )
-            raise IncorrectProductionToken(
-                "Try again with the correct " "production token."
-            )
+            obj.echo('See "Organizing Results" at docs.metaflow.org for more ' "information about production tokens.")
+            raise IncorrectProductionToken("Try again with the correct " "production token.")
 
     # 3) do we need a new token or should we use the existing token?
     if given_token:
@@ -354,9 +305,7 @@ def resolve_token(
             # we rely on a known prefix for @project tokens, so we can't
             # allow the user to specify a custom token with an arbitrary prefix
             raise MetaflowException(
-                "--new-token is not supported for "
-                "@projects. Use --generate-new-token to "
-                "create a new token."
+                "--new-token is not supported for " "@projects. Use --generate-new-token to " "create a new token."
             )
         if given_token.startswith("production:"):
             given_token = given_token[11:]
@@ -367,9 +316,7 @@ def resolve_token(
         token = new_token(token_prefix, prev_token)
         if token is None:
             if prev_token is None:
-                raise MetaflowInternalError(
-                    "We could not generate a new " "token. This is unexpected. "
-                )
+                raise MetaflowInternalError("We could not generate a new " "token. This is unexpected. ")
             else:
                 raise MetaflowException(
                     "--generate-new-token option is not "
@@ -385,9 +332,7 @@ def resolve_token(
     obj.echo("")
     obj.echo("The namespace of this production flow is")
     obj.echo("    production:%s" % token, fg="green")
-    obj.echo(
-        "To analyze results of this production flow " "add this line in your notebooks:"
-    )
+    obj.echo("To analyze results of this production flow " "add this line in your notebooks:")
     obj.echo('    namespace("production:%s")' % token, fg="green")
     obj.echo(
         "If you want to authorize other people to deploy new versions "
@@ -395,10 +340,7 @@ def resolve_token(
     )
     obj.echo("    step-functions create --authorize %s" % token, fg="green")
     obj.echo("when deploying this flow to AWS Step Functions for the first " "time.")
-    obj.echo(
-        'See "Organizing Results" at https://docs.metaflow.org/ for more '
-        "information about production tokens."
-    )
+    obj.echo('See "Organizing Results" at https://docs.metaflow.org/ for more ' "information about production tokens.")
     obj.echo("")
     store_token(token_prefix, token)
     return token
@@ -418,13 +360,7 @@ def trigger(obj, run_id_file=None, **kwargs):
     def _convert_value(param):
         # Swap `-` with `_` in parameter name to match click's behavior
         val = kwargs.get(param.name.replace("-", "_").lower())
-        return (
-            json.dumps(val)
-            if param.kwargs.get("type") == JSONType
-            else val()
-            if callable(val)
-            else val
-        )
+        return json.dumps(val) if param.kwargs.get("type") == JSONType else val() if callable(val) else val
 
     params = {
         param.name: _convert_value(param)
@@ -480,9 +416,7 @@ def trigger(obj, run_id_file=None, **kwargs):
     help="List all runs of the workflow in ABORTED state on " "AWS Step Functions.",
 )
 @click.pass_obj
-def list_runs(
-    obj, running=False, succeeded=False, failed=False, timed_out=False, aborted=False
-):
+def list_runs(obj, running=False, succeeded=False, failed=False, timed_out=False, aborted=False):
     states = []
     if running:
         states.append("RUNNING")
@@ -531,12 +465,6 @@ def list_runs(
                 else:
                     status += ", "
                 status += "*%s*" % state
-            obj.echo(
-                "No %s executions for *%s* found on AWS Step Functions."
-                % (status, obj.state_machine_name)
-            )
+            obj.echo("No %s executions for *%s* found on AWS Step Functions." % (status, obj.state_machine_name))
         else:
-            obj.echo(
-                "No executions for *%s* found on AWS Step Functions."
-                % (obj.state_machine_name)
-            )
+            obj.echo("No executions for *%s* found on AWS Step Functions." % (obj.state_machine_name))

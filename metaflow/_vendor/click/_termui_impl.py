@@ -190,12 +190,7 @@ class ProgressBar(object):
         else:
             bar = list(self.empty_char * (self.width or 1))
             if self.time_per_iteration != 0:
-                bar[
-                    int(
-                        (math.cos(self.pos * self.time_per_iteration) / 2.0 + 0.5)
-                        * self.width
-                    )
-                ] = self.fill_char
+                bar[int((math.cos(self.pos * self.time_per_iteration) / 2.0 + 0.5) * self.width)] = self.fill_char
             bar = "".join(bar)
         return bar
 
@@ -459,7 +454,9 @@ class Editor(object):
             environ = None
         try:
             c = subprocess.Popen(
-                '{} "{}"'.format(editor, filename), env=environ, shell=True,
+                '{} "{}"'.format(editor, filename),
+                env=environ,
+                shell=True,
             )
             exit_code = c.wait()
             if exit_code != 0:
@@ -532,9 +529,7 @@ def open_url(url, wait=False, locate=False):
             url = _unquote_file(url)
             args = 'explorer /select,"{}"'.format(_unquote_file(url.replace('"', "")))
         else:
-            args = 'start {} "" "{}"'.format(
-                "/WAIT" if wait else "", url.replace('"', "")
-            )
+            args = 'start {} "" "{}"'.format("/WAIT" if wait else "", url.replace('"', ""))
         return os.system(args)
     elif CYGWIN:
         if locate:
@@ -563,11 +558,11 @@ def open_url(url, wait=False, locate=False):
 
 
 def _translate_ch_to_exc(ch):
-    if ch == u"\x03":
+    if ch == "\x03":
         raise KeyboardInterrupt()
-    if ch == u"\x04" and not WIN:  # Unix-like, Ctrl+D
+    if ch == "\x04" and not WIN:  # Unix-like, Ctrl+D
         raise EOFError()
-    if ch == u"\x1a" and WIN:  # Windows, Ctrl+Z
+    if ch == "\x1a" and WIN:  # Windows, Ctrl+Z
         raise EOFError()
 
 
@@ -614,13 +609,12 @@ if WIN:
             func = msvcrt.getwch
 
         rv = func()
-        if rv in (u"\x00", u"\xe0"):
+        if rv in ("\x00", "\xe0"):
             # \x00 and \xe0 are control characters that indicate special key,
             # see above.
             rv += func()
         _translate_ch_to_exc(rv)
         return rv
-
 
 else:
     import tty

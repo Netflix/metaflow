@@ -18,9 +18,7 @@ class DebugMonitor(object):
 
     def measure(self, timer):
         # type: (Timer) -> None
-        self.logger(
-            "elapsed time for {}: {}".format(timer.name, str(timer.get_duration()))
-        )
+        self.logger("elapsed time for {}: {}".format(timer.name, str(timer.get_duration())))
 
     def gauge(self, gauge):
         pass

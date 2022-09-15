@@ -135,9 +135,7 @@ def resolve_card(
 
     if len(card_paths_found) == 0:
         # If there are no files found on the Path then raise an error of
-        raise CardNotPresentException(
-            card_pathspec, card_hash=hash, card_type=type, card_id=card_id
-        )
+        raise CardNotPresentException(card_pathspec, card_hash=hash, card_type=type, card_id=card_id)
 
     return card_paths_found, card_datastore, card_pathspec
 
@@ -178,10 +176,7 @@ def list_available_cards(
     scriptname = ctx.obj.flow.script_name
     path_tuples = card_datastore.get_card_names(card_paths)
     if show_list_as_json:
-        json_arr = [
-            dict(id=tup.id, hash=tup.hash, type=tup.type, filename=tup.filename)
-            for tup in path_tuples
-        ]
+        json_arr = [dict(id=tup.id, hash=tup.hash, type=tup.type, filename=tup.filename) for tup in path_tuples]
         if not list_many:
             # This means that `list_available_cards` is being called once.
             # So we can directly dump the file
@@ -197,9 +192,7 @@ def list_available_cards(
     if list_many:
         ctx.obj.echo("\tTask: %s" % pathspec.split("/")[-1], fg="green")
     else:
-        ctx.obj.echo(
-            "Found %d card matching for your query..." % len(path_tuples), fg="green"
-        )
+        ctx.obj.echo("Found %d card matching for your query..." % len(path_tuples), fg="green")
     task_pathspec = "/".join(pathspec.split("/")[1:])
     card_list = []
     for path_tuple, file_path in zip(path_tuples, card_paths):
@@ -306,9 +299,7 @@ def list_many_cards(
             except CardNotPresentException:
                 pass
     if cards_found == 0:
-        raise CardNotPresentException(
-            run.pathspec, card_hash=hash, card_type=type, card_id=card_id
-        )
+        raise CardNotPresentException(run.pathspec, card_hash=hash, card_type=type, card_id=card_id)
     if as_json:
         if file:
             with open(file, "w") as f:
@@ -330,9 +321,7 @@ def card(ctx):
     # If we don't set the metadata here than the metaflow client picks the defaults when calling the `Task`/`Run` objects. These defaults can come from the `config.json` file or based on the `METAFLOW_PROFILE`
     from metaflow import metadata
 
-    setting_metadata = "@".join(
-        [ctx.obj.metadata.TYPE, ctx.obj.metadata.default_info()]
-    )
+    setting_metadata = "@".join([ctx.obj.metadata.TYPE, ctx.obj.metadata.default_info()])
     metadata(setting_metadata)
     # set the card root to the datastore according to the configuration.
     root_pth = CardDatastore.get_storage_root(ctx.obj.flow_datastore._storage_impl.TYPE)
@@ -444,9 +433,7 @@ def create(
     error_stack_trace = None  # Variable which will keep a track of error
 
     if len(pathspec.split("/")) != 3:
-        raise CommandException(
-            msg="Expecting pathspec of form <runid>/<stepname>/<taskid>"
-        )
+        raise CommandException(msg="Expecting pathspec of form <runid>/<stepname>/<taskid>")
     flowname = ctx.obj.flow.name
     full_pathspec = "/".join([flowname, pathspec])
 
@@ -476,8 +463,7 @@ def create(
     if len(filtered_cards) > 0:
         filtered_card = filtered_cards[0]
         ctx.obj.echo(
-            "Creating new card of type %s with timeout %s"
-            % (filtered_card.type, timeout),
+            "Creating new card of type %s with timeout %s" % (filtered_card.type, timeout),
             fg="green",
         )
         # If the card is Instatiatable then
@@ -486,9 +472,7 @@ def create(
         # store the exception as a string or raise the exception
         try:
             if options is not None:
-                mf_card = filtered_card(
-                    options=options, components=component_arr, graph=graph_dict
-                )
+                mf_card = filtered_card(options=options, components=component_arr, graph=graph_dict)
             else:
                 mf_card = filtered_card(components=component_arr, graph=graph_dict)
         except TypeError as e:
@@ -512,9 +496,7 @@ def create(
         rendered_info = error_card().render(task, stack_trace=error_stack_trace)
 
     if rendered_info is None and render_error_card:
-        rendered_info = error_card().render(
-            task, stack_trace="No information rendered From card of type %s" % type
-        )
+        rendered_info = error_card().render(task, stack_trace="No information rendered From card of type %s" % type)
 
     # todo : should we save native type for error card or error type ?
     if type is not None and re.match(CARD_ID_PATTERN, type) is not None:
@@ -534,8 +516,7 @@ def create(
     if rendered_info is not None:
         card_info = card_datastore.save_card(save_type, rendered_info, card_id=card_id)
         ctx.obj.echo(
-            "Card created with type: %s and hash: %s"
-            % (card_info.type, card_info.hash[:NUM_SHORT_HASH_CHARS]),
+            "Card created with type: %s and hash: %s" % (card_info.type, card_info.hash[:NUM_SHORT_HASH_CHARS]),
             fg="green",
         )
 

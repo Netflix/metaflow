@@ -98,9 +98,7 @@ class Client(object):
                         obj_funcs = (obj_funcs,)
                     for name in obj_funcs:
                         if name in override_dict:
-                            raise ValueError(
-                                "%s was already overridden for %s" % (name, obj_name)
-                            )
+                            raise ValueError("%s was already overridden for %s" % (name, obj_name))
                         override_dict[name] = override.func
         self._proxied_objects = {}
 
@@ -110,8 +108,7 @@ class Client(object):
             returncode = self._server_process.poll()
             if returncode is not None:
                 raise RuntimeError(
-                    "Server did not properly start: %s"
-                    % self._server_process.stderr.read(),
+                    "Server did not properly start: %s" % self._server_process.stderr.read(),
                 )
             time.sleep(1)
         # Open up the channel and setup the datastransfer pipeline
@@ -131,15 +128,10 @@ class Client(object):
         self._poller.register(self._channel, select.POLLIN | select.POLLHUP)
 
         # Get all exports that we are proxying
-        response = self._communicate(
-            {FIELD_MSGTYPE: MSG_CONTROL, FIELD_OPTYPE: CONTROL_GETEXPORTS}
-        )
+        response = self._communicate({FIELD_MSGTYPE: MSG_CONTROL, FIELD_OPTYPE: CONTROL_GETEXPORTS})
 
         self._proxied_classes = {
-            k: None
-            for k in itertools.chain(
-                response[FIELD_CONTENT]["classes"], response[FIELD_CONTENT]["proxied"]
-            )
+            k: None for k in itertools.chain(response[FIELD_CONTENT]["classes"], response[FIELD_CONTENT]["proxied"])
         }
 
         # Proxied standalone functions are functions that are proxied
@@ -180,9 +172,7 @@ class Client(object):
         if self._server_process is not None:
             # Attempt to send it a terminate signal and then wait and kill
             try:
-                self._channel.send(
-                    {FIELD_MSGTYPE: MSG_CONTROL, FIELD_OPTYPE: CONTROL_SHUTDOWN}
-                )
+                self._channel.send({FIELD_MSGTYPE: MSG_CONTROL, FIELD_OPTYPE: CONTROL_SHUTDOWN})
                 self._channel.recv(timeout=10)  # If we receive, we are sure we
                 # are good
             except:  # noqa E722
@@ -225,8 +215,7 @@ class Client(object):
             raise load_exception(self._datatransferer, response[FIELD_CONTENT])
         elif response_type == MSG_INTERNAL_ERROR:
             raise RuntimeError(
-                "Error in the server runtime:\n\n===== SERVER TRACEBACK =====\n%s"
-                % response[FIELD_CONTENT]
+                "Error in the server runtime:\n\n===== SERVER TRACEBACK =====\n%s" % response[FIELD_CONTENT]
             )
 
     def encode(self, obj):
@@ -287,13 +276,9 @@ class Client(object):
         # transferred
         if getattr(obj, "___connection___", None) == self:
             # This is something we can transfer over
-            return ObjReference(
-                VALUE_LOCAL, obj.___remote_class_name___, obj.___identifier___
-            )
+            return ObjReference(VALUE_LOCAL, obj.___remote_class_name___, obj.___identifier___)
 
-        raise ValueError(
-            "Cannot send object of type %s from client to server" % type(obj)
-        )
+        raise ValueError("Cannot send object of type %s from client to server" % type(obj))
 
     def unpickle_object(self, obj):
         # This function is called when the server sends a remote reference.

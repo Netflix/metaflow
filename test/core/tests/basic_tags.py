@@ -31,11 +31,11 @@ class BasicTagTest(MetaflowTest):
         # test crazy unicode and spaces in tags
         # these tags must be set with --tag option in contexts.json
         tags = (
-            u"project:basic_tag",
-            u"project_branch:user.tester",
-            u"user:%s" % os.environ.get("METAFLOW_USER"),
-            u"刺身 means sashimi",
-            u"multiple tags should be ok",
+            "project:basic_tag",
+            "project_branch:user.tester",
+            "user:%s" % os.environ.get("METAFLOW_USER"),
+            "刺身 means sashimi",
+            "multiple tags should be ok",
         )
         for tag in tags:
             # test different namespaces: one is a system-tag,
@@ -68,14 +68,10 @@ class BasicTagTest(MetaflowTest):
                 # filtering by a non-existent tag should return nothing
                 assert_equals([], list(step.tasks("not_a_tag")))
                 # filtering by the tag should not exclude any tasks
-                assert_equals(
-                    [task.id for task in step], [task.id for task in step.tasks(tag)]
-                )
+                assert_equals([task.id for task in step], [task.id for task in step.tasks(tag)])
                 for task in step.tasks(tag):
                     # the task object should have the tags
                     assert_equals([True] * len(tags), [t in task.tags for t in tags])
                     for data in task:
                         # the data artifact should have the tags
-                        assert_equals(
-                            [True] * len(tags), [t in data.tags for t in tags]
-                        )
+                        assert_equals([True] * len(tags), [t in data.tags for t in tags])

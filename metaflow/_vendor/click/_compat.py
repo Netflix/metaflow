@@ -10,9 +10,7 @@ PY2 = sys.version_info[0] == 2
 CYGWIN = sys.platform.startswith("cygwin")
 MSYS2 = sys.platform.startswith("win") and ("GCC" in sys.version)
 # Determine local App Engine environment, per Google's own suggestion
-APP_ENGINE = "APPENGINE_RUNTIME" in os.environ and "Development/" in os.environ.get(
-    "SERVER_SOFTWARE", ""
-)
+APP_ENGINE = "APPENGINE_RUNTIME" in os.environ and "Development/" in os.environ.get("SERVER_SOFTWARE", "")
 WIN = sys.platform.startswith("win") and not APP_ENGINE and not MSYS2
 DEFAULT_COLUMNS = 80
 
@@ -24,9 +22,7 @@ def get_filesystem_encoding():
     return sys.getfilesystemencoding() or sys.getdefaultencoding()
 
 
-def _make_text_stream(
-    stream, encoding, errors, force_readable=False, force_writable=False
-):
+def _make_text_stream(stream, encoding, errors, force_readable=False, force_writable=False):
     if encoding is None:
         encoding = get_best_encoding(stream)
     if errors is None:
@@ -58,15 +54,7 @@ def get_best_encoding(stream):
 
 
 class _NonClosingTextIOWrapper(io.TextIOWrapper):
-    def __init__(
-        self,
-        stream,
-        encoding,
-        errors,
-        force_readable=False,
-        force_writable=False,
-        **extra
-    ):
+    def __init__(self, stream, encoding, errors, force_readable=False, force_writable=False, **extra):
         self._stream = stream = _FixupStream(stream, force_readable, force_writable)
         io.TextIOWrapper.__init__(self, stream, encoding, errors, **extra)
 
@@ -270,7 +258,6 @@ if PY2:
             value = value.decode(get_filesystem_encoding(), "replace")
         return value
 
-
 else:
     import io
 
@@ -355,9 +342,7 @@ else:
         """Check if a stream's encoding and errors attributes are
         compatible with the desired values.
         """
-        return _is_compat_stream_attr(
-            stream, "encoding", encoding
-        ) and _is_compat_stream_attr(stream, "errors", errors)
+        return _is_compat_stream_attr(stream, "encoding", encoding) and _is_compat_stream_attr(stream, "errors", errors)
 
     def _force_correct_text_stream(
         text_stream,
@@ -430,42 +415,32 @@ else:
     def get_binary_stdout():
         writer = _find_binary_writer(sys.stdout)
         if writer is None:
-            raise RuntimeError(
-                "Was not able to determine binary stream for sys.stdout."
-            )
+            raise RuntimeError("Was not able to determine binary stream for sys.stdout.")
         return writer
 
     def get_binary_stderr():
         writer = _find_binary_writer(sys.stderr)
         if writer is None:
-            raise RuntimeError(
-                "Was not able to determine binary stream for sys.stderr."
-            )
+            raise RuntimeError("Was not able to determine binary stream for sys.stderr.")
         return writer
 
     def get_text_stdin(encoding=None, errors=None):
         rv = _get_windows_console_stream(sys.stdin, encoding, errors)
         if rv is not None:
             return rv
-        return _force_correct_text_reader(
-            sys.stdin, encoding, errors, force_readable=True
-        )
+        return _force_correct_text_reader(sys.stdin, encoding, errors, force_readable=True)
 
     def get_text_stdout(encoding=None, errors=None):
         rv = _get_windows_console_stream(sys.stdout, encoding, errors)
         if rv is not None:
             return rv
-        return _force_correct_text_writer(
-            sys.stdout, encoding, errors, force_writable=True
-        )
+        return _force_correct_text_writer(sys.stdout, encoding, errors, force_writable=True)
 
     def get_text_stderr(encoding=None, errors=None):
         rv = _get_windows_console_stream(sys.stderr, encoding, errors)
         if rv is not None:
             return rv
-        return _force_correct_text_writer(
-            sys.stderr, encoding, errors, force_writable=True
-        )
+        return _force_correct_text_writer(sys.stderr, encoding, errors, force_writable=True)
 
     def filename_to_ui(value):
         if isinstance(value, bytes):
@@ -720,11 +695,8 @@ if WIN:
             return rv
 
         def get_winterm_size():
-            win = colorama.win32.GetConsoleScreenBufferInfo(
-                colorama.win32.STDOUT
-            ).srWindow
+            win = colorama.win32.GetConsoleScreenBufferInfo(colorama.win32.STDOUT).srWindow
             return win.Right - win.Left, win.Bottom - win.Top
-
 
 else:
 

@@ -36,25 +36,19 @@ class ServiceMetadataProvider(MetadataProvider):
     _supports_attempt_gets = None
 
     def __init__(self, environment, flow, event_logger, monitor):
-        super(ServiceMetadataProvider, self).__init__(
-            environment, flow, event_logger, monitor
-        )
+        super(ServiceMetadataProvider, self).__init__(environment, flow, event_logger, monitor)
         self.url_task_template = os.path.join(
             METADATA_SERVICE_URL,
             "flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/heartbeat",
         )
-        self.url_run_template = os.path.join(
-            METADATA_SERVICE_URL, "flows/{flow_id}/runs/{run_number}/heartbeat"
-        )
+        self.url_run_template = os.path.join(METADATA_SERVICE_URL, "flows/{flow_id}/runs/{run_number}/heartbeat")
         self.sidecar_process = None
 
     @classmethod
     def compute_info(cls, val):
         v = val.rstrip("/")
         try:
-            resp = requests.get(
-                os.path.join(v, "ping"), headers=METADATA_SERVICE_HEADERS
-            )
+            resp = requests.get(os.path.join(v, "ping"), headers=METADATA_SERVICE_HEADERS)
             resp.raise_for_status()
         except:  # noqa E722
             raise ValueError("Metaflow service [%s] unreachable." % v)
@@ -82,32 +76,24 @@ class ServiceMetadataProvider(MetadataProvider):
     def new_task_id(self, run_id, step_name, tags=None, sys_tags=None):
         return self._new_task(run_id, step_name, tags=tags, sys_tags=sys_tags)
 
-    def register_task_id(
-        self, run_id, step_name, task_id, attempt=0, tags=None, sys_tags=None
-    ):
+    def register_task_id(self, run_id, step_name, task_id, attempt=0, tags=None, sys_tags=None):
         try:
             # don't try to register an integer ID which was obtained
             # from the metadata service in the first place
             int(task_id)
         except ValueError:
-            self._new_task(
-                run_id, step_name, task_id, attempt, tags=tags, sys_tags=sys_tags
-            )
+            self._new_task(run_id, step_name, task_id, attempt, tags=tags, sys_tags=sys_tags)
         else:
             self._register_code_package_metadata(run_id, step_name, task_id, attempt)
 
-    def _start_heartbeat(
-        self, heartbeat_type, flow_id, run_id, step_name=None, task_id=None
-    ):
+    def _start_heartbeat(self, heartbeat_type, flow_id, run_id, step_name=None, task_id=None):
         if self._already_started():
             # A single ServiceMetadataProvider instance can not start
             # multiple heartbeat side cars of any type/combination. Either a
             # single run heartbeat or a single task heartbeat can be started
             raise Exception("heartbeat already started")
         # start sidecar
-        if self.version() is None or LooseVersion(self.version()) < LooseVersion(
-            "2.0.4"
-        ):
+        if self.version() is None or LooseVersion(self.version()) < LooseVersion("2.0.4"):
             # if old version of the service is running
             # then avoid running real heartbeat sidecar process
             self.sidecar_process = SidecarSubProcess("nullSidecarHeartbeat")
@@ -148,36 +134,24 @@ class ServiceMetadataProvider(MetadataProvider):
         msg = Message(MessageTypes.SHUTDOWN, None)
         self.sidecar_process.msg_handler(msg)
 
-    def register_data_artifacts(
-        self, run_id, step_name, task_id, attempt_id, artifacts
-    ):
-        url = ServiceMetadataProvider._obj_path(
-            self._flow_name, run_id, step_name, task_id
-        )
+    def register_data_artifacts(self, run_id, step_name, task_id, attempt_id, artifacts):
+        url = ServiceMetadataProvider._obj_path(self._flow_name, run_id, step_name, task_id)
         url += "/artifact"
-        data = self._artifacts_to_json(
-            run_id, step_name, task_id, attempt_id, artifacts
-        )
+        data = self._artifacts_to_json(run_id, step_name, task_id, attempt_id, artifacts)
         self._request(self._monitor, url, data)
 
     def register_metadata(self, run_id, step_name, task_id, metadata):
-        url = ServiceMetadataProvider._obj_path(
-            self._flow_name, run_id, step_name, task_id
-        )
+        url = ServiceMetadataProvider._obj_path(self._flow_name, run_id, step_name, task_id)
         url += "/metadata"
         data = self._metadata_to_json(run_id, step_name, task_id, metadata)
         self._request(self._monitor, url, data)
 
     @classmethod
-    def _get_object_internal(
-        cls, obj_type, obj_order, sub_type, sub_order, filters, attempt, *args
-    ):
+    def _get_object_internal(cls, obj_type, obj_order, sub_type, sub_order, filters, attempt, *args):
         if attempt is not None:
             if cls._supports_attempt_gets is None:
                 version = cls._version(None)
-                cls._supports_attempt_gets = version is not None and LooseVersion(
-                    version
-                ) >= LooseVersion("2.0.6")
+                cls._supports_attempt_gets = version is not None and LooseVersion(version) >= LooseVersion("2.0.6")
             if not cls._supports_attempt_gets:
                 raise ServiceException(
                     "Getting specific attempts of Tasks or Artifacts requires "
@@ -188,15 +162,11 @@ class ServiceMetadataProvider(MetadataProvider):
         if sub_type == "self":
             if obj_type == "artifact":
                 # Special case with the artifacts; we add the attempt
-                url = ServiceMetadataProvider._obj_path(
-                    *args[:obj_order], attempt=attempt
-                )
+                url = ServiceMetadataProvider._obj_path(*args[:obj_order], attempt=attempt)
             else:
                 url = ServiceMetadataProvider._obj_path(*args[:obj_order])
             try:
-                return MetadataProvider._apply_filter(
-                    [cls._request(None, url)], filters
-                )[0]
+                return MetadataProvider._apply_filter([cls._request(None, url)], filters)[0]
             except ServiceException as ex:
                 if ex.http_code == 404:
                     return None
@@ -226,17 +196,11 @@ class ServiceMetadataProvider(MetadataProvider):
         run = self._get_or_create("run", run_id, tags=tags, sys_tags=sys_tags)
         return str(run["run_number"])
 
-    def _new_task(
-        self, run_id, step_name, task_id=None, attempt=0, tags=None, sys_tags=None
-    ):
+    def _new_task(self, run_id, step_name, task_id=None, attempt=0, tags=None, sys_tags=None):
         # first ensure that the step exists
         self._get_or_create("step", run_id, step_name)
-        task = self._get_or_create(
-            "task", run_id, step_name, task_id, tags=tags, sys_tags=sys_tags
-        )
-        self._register_code_package_metadata(
-            run_id, step_name, task["task_id"], attempt
-        )
+        task = self._get_or_create("task", run_id, step_name, task_id, tags=tags, sys_tags=sys_tags)
+        self._register_code_package_metadata(run_id, step_name, task["task_id"], attempt)
         return task["task_id"]
 
     @staticmethod
@@ -322,8 +286,7 @@ class ServiceMetadataProvider(MetadataProvider):
     def _request(cls, monitor, path, data=None, retry_409_path=None):
         if cls.INFO is None:
             raise MetaflowException(
-                "Missing Metaflow Service URL. "
-                "Specify with METAFLOW_SERVICE_URL environment variable"
+                "Missing Metaflow Service URL. " "Specify with METAFLOW_SERVICE_URL environment variable"
             )
         url = os.path.join(cls.INFO, path.lstrip("/"))
         for i in range(METADATA_SERVICE_NUM_RETRIES):
@@ -337,13 +300,9 @@ class ServiceMetadataProvider(MetadataProvider):
                 else:
                     if monitor:
                         with monitor.measure("metaflow.service_metadata.post"):
-                            resp = requests.post(
-                                url, headers=METADATA_SERVICE_HEADERS, json=data
-                            )
+                            resp = requests.post(url, headers=METADATA_SERVICE_HEADERS, json=data)
                     else:
-                        resp = requests.post(
-                            url, headers=METADATA_SERVICE_HEADERS, json=data
-                        )
+                        resp = requests.post(url, headers=METADATA_SERVICE_HEADERS, json=data)
             except:  # noqa E722
                 if monitor:
                     with monitor.count("metaflow.service_metadata.failed_request"):
@@ -371,17 +330,15 @@ class ServiceMetadataProvider(MetadataProvider):
                         return
                 elif resp.status_code != 503:
                     raise ServiceException(
-                        "Metadata request (%s) failed (code %s): %s"
-                        % (path, resp.status_code, resp.text),
+                        "Metadata request (%s) failed (code %s): %s" % (path, resp.status_code, resp.text),
                         resp.status_code,
                         resp.text,
                     )
-            time.sleep(2 ** i)
+            time.sleep(2**i)
 
         if resp:
             raise ServiceException(
-                "Metadata request (%s) failed (code %s): %s"
-                % (path, resp.status_code, resp.text),
+                "Metadata request (%s) failed (code %s): %s" % (path, resp.status_code, resp.text),
                 resp.status_code,
                 resp.text,
             )
@@ -392,8 +349,7 @@ class ServiceMetadataProvider(MetadataProvider):
     def _version(cls, monitor):
         if cls.INFO is None:
             raise MetaflowException(
-                "Missing Metaflow Service URL. "
-                "Specify with METAFLOW_SERVICE_URL environment variable"
+                "Missing Metaflow Service URL. " "Specify with METAFLOW_SERVICE_URL environment variable"
             )
         path = "ping"
         url = os.path.join(cls.INFO, path)
@@ -418,16 +374,14 @@ class ServiceMetadataProvider(MetadataProvider):
                     return resp.headers.get("METADATA_SERVICE_VERSION", None)
                 elif resp.status_code != 503:
                     raise ServiceException(
-                        "Metadata request (%s) failed"
-                        " (code %s): %s" % (url, resp.status_code, resp.text),
+                        "Metadata request (%s) failed" " (code %s): %s" % (url, resp.status_code, resp.text),
                         resp.status_code,
                         resp.text,
                     )
-            time.sleep(2 ** i)
+            time.sleep(2**i)
         if resp:
             raise ServiceException(
-                "Metadata request (%s) failed (code %s): %s"
-                % (url, resp.status_code, resp.text),
+                "Metadata request (%s) failed (code %s): %s" % (url, resp.status_code, resp.text),
                 resp.status_code,
                 resp.text,
             )

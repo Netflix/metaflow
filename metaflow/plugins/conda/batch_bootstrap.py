@@ -40,9 +40,7 @@ def download_conda_packages(flow_name, env_id):
         env = json.load(f)[env_id]
         with S3() as s3:
             for pkg in s3.get_many(env["cache_urls"]):
-                shutil.move(
-                    pkg.path, os.path.join(pkgs_folder, os.path.basename(pkg.key))
-                )
+                shutil.move(pkg.path, os.path.join(pkgs_folder, os.path.basename(pkg.key)))
         return env["order"]
 
 

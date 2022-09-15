@@ -43,22 +43,12 @@ class CardImportTest(MetaflowTest):
                     cards_info = checker.list_cards(step.name, task_id)
                     # Safely importable cards should be present.
                     assert_equals(
-                        cards_info is not None
-                        and "cards" in cards_info
-                        and len(cards_info["cards"]) == 2,
+                        cards_info is not None and "cards" in cards_info and len(cards_info["cards"]) == 2,
                         True,
                     )
-                    impc_e = [
-                        c
-                        for c in cards_info["cards"]
-                        if c["type"] == "editable_import_test_card"
-                    ]
+                    impc_e = [c for c in cards_info["cards"] if c["type"] == "editable_import_test_card"]
                     impc_e = impc_e[0]
-                    impc_ne = [
-                        c
-                        for c in cards_info["cards"]
-                        if c["type"] == "non_editable_import_test_card"
-                    ]
+                    impc_ne = [c for c in cards_info["cards"] if c["type"] == "non_editable_import_test_card"]
                     impc_ne = impc_ne[0]
                     checker.assert_card(
                         step.name,
@@ -90,22 +80,12 @@ class CardImportTest(MetaflowTest):
                         task_id,
                     )
                     assert_equals(
-                        cards_info is not None
-                        and "cards" in cards_info
-                        and len(cards_info["cards"]) == 2,
+                        cards_info is not None and "cards" in cards_info and len(cards_info["cards"]) == 2,
                         True,
                     )
-                    impc_e = [
-                        c
-                        for c in cards_info["cards"]
-                        if c["type"] == "editable_import_test_card"
-                    ]
+                    impc_e = [c for c in cards_info["cards"] if c["type"] == "editable_import_test_card"]
                     impc_e = impc_e[0]
-                    impc_ne = [
-                        c
-                        for c in cards_info["cards"]
-                        if c["type"] == "non_editable_import_test_card"
-                    ]
+                    impc_ne = [c for c in cards_info["cards"] if c["type"] == "non_editable_import_test_card"]
                     impc_ne = impc_ne[0]
                     # print()
                     task_pathspec = cards_info["pathspec"]

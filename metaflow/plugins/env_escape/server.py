@@ -73,12 +73,8 @@ class Server(object):
         self._known_funcs, a2 = self._flatten_dict(mappings.EXPORTED_FUNCTIONS)
         self._known_vals, a3 = self._flatten_dict(mappings.EXPORTED_VALUES)
         self._known_exceptions, a4 = self._flatten_dict(mappings.EXPORTED_EXCEPTIONS)
-        self._proxied_types = {
-            "%s.%s" % (t.__module__, t.__name__): t for t in mappings.PROXIED_CLASSES
-        }
-        self._class_types_to_names.update(
-            {v: k for k, v in self._proxied_types.items()}
-        )
+        self._proxied_types = {"%s.%s" % (t.__module__, t.__name__): t for t in mappings.PROXIED_CLASSES}
+        self._class_types_to_names.update({v: k for k, v in self._proxied_types.items()})
 
         # We will also proxy functions from objects as needed. This is useful
         # for defaultdict for example since the `default_factory` function is a
@@ -86,15 +82,11 @@ class Server(object):
         self._class_types_to_names[type(lambda x: x)] = "function"
 
         # Update all alias information
-        for base_name, aliases in itertools.chain(
-            a1.items(), a2.items(), a3.items(), a4.items()
-        ):
+        for base_name, aliases in itertools.chain(a1.items(), a2.items(), a3.items(), a4.items()):
             for alias in aliases:
                 a = self._aliases.setdefault(alias, base_name)
                 if a != base_name:
-                    raise ValueError(
-                        "%s is an alias to both %s and %s" % (alias, base_name, a)
-                    )
+                    raise ValueError("%s is an alias to both %s and %s" % (alias, base_name, a))
 
         # Determine if we have any overrides
         self._overrides = {}
@@ -105,30 +97,20 @@ class Server(object):
             if isinstance(override, (RemoteAttrOverride, RemoteOverride)):
                 for obj_name, obj_funcs in override.obj_mapping.items():
                     if isinstance(override, RemoteOverride):
-                        override_dict = self._overrides.setdefault(
-                            self._known_classes[obj_name], {}
-                        )
+                        override_dict = self._overrides.setdefault(self._known_classes[obj_name], {})
                     elif override.is_setattr:
-                        override_dict = self._setattr_overrides.setdefault(
-                            self._known_classes[obj_name], {}
-                        )
+                        override_dict = self._setattr_overrides.setdefault(self._known_classes[obj_name], {})
                     else:
-                        override_dict = self._getattr_overrides.setdefault(
-                            self._known_classes[obj_name], {}
-                        )
+                        override_dict = self._getattr_overrides.setdefault(self._known_classes[obj_name], {})
                     if isinstance(obj_funcs, str):
                         obj_funcs = (obj_funcs,)
                     for name in obj_funcs:
                         if name in override_dict:
-                            raise ValueError(
-                                "%s was already overridden for %s" % (name, obj_name)
-                            )
+                            raise ValueError("%s was already overridden for %s" % (name, obj_name))
                         override_dict[name] = override.func
             elif isinstance(override, RemoteExceptionSerializer):
                 if override.class_path in self._exception_serializers:
-                    raise ValueError(
-                        "%s exception serializer already defined" % override.class_path
-                    )
+                    raise ValueError("%s exception serializer already defined" % override.class_path)
                 self._exception_serializers[override.class_path] = override.serializer
 
         # Process the exceptions making sure we have all the ones we need and building a
@@ -142,8 +124,7 @@ class Server(object):
             for base in ex_cls.__mro__[1:]:
                 if base is object:
                     raise ValueError(
-                        "Exported exceptions not rooted in a builtin exception are not supported: %s"
-                        % ex_name
+                        "Exported exceptions not rooted in a builtin exception are not supported: %s" % ex_name
                     )
                 if base.__module__ == "builtins":
                     # We found our base exception
@@ -187,9 +168,7 @@ class Server(object):
             to_process = next_round
 
         if name_to_parent_count:
-            raise ValueError(
-                "Badly rooted exceptions: %s" % ", ".join(name_to_parent_count.keys())
-            )
+            raise ValueError("Badly rooted exceptions: %s" % ", ".join(name_to_parent_count.keys()))
         self._active = False
         self._channel = None
         self._datatransferer = DataTransferer(self)
@@ -256,9 +235,7 @@ class Server(object):
         extra_content = None
         if serializer is not None:
             extra_content = serializer(ex)
-        return dump_exception(
-            self._datatransferer, ex_type, ex, trace_back, extra_content
-        )
+        return dump_exception(self._datatransferer, ex_type, ex, trace_back, extra_content)
 
     def decode(self, json_obj):
         # This decodes an object that was transferred in
@@ -305,9 +282,7 @@ class Server(object):
             if ex_type is SystemExit or ex_type is KeyboardInterrupt:
                 raise
             try:
-                self._reply(
-                    MSG_EXCEPTION, self.encode_exception(ex_type, ex, trace_back)
-                )
+                self._reply(MSG_EXCEPTION, self.encode_exception(ex_type, ex, trace_back))
             except (SystemExit, KeyboardInterrupt):
                 raise
             except:  # noqa E722

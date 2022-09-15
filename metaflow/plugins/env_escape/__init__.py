@@ -47,12 +47,8 @@ from .client_modules import create_modules
 # We also store the maximum protocol version that we support for pickle so that
 # we can determine what to use
 ENV_ESCAPE_PY = os.environ.get("METAFLOW_ENV_ESCAPE_PY", sys.executable)
-ENV_ESCAPE_PATHS = os.environ.get(
-    "METAFLOW_ENV_ESCAPE_PATHS", os.pathsep.join(sys.path)
-)
-ENV_ESCAPE_PICKLE_VERSION = os.environ.get(
-    "METAFLOW_ENV_ESCAPE_PICKLE_VERSION", str(pickle.HIGHEST_PROTOCOL)
-)
+ENV_ESCAPE_PATHS = os.environ.get("METAFLOW_ENV_ESCAPE_PATHS", os.pathsep.join(sys.path))
+ENV_ESCAPE_PICKLE_VERSION = os.environ.get("METAFLOW_ENV_ESCAPE_PICKLE_VERSION", str(pickle.HIGHEST_PROTOCOL))
 os.environ["METAFLOW_ENV_ESCAPE_PICKLE_VERSION"] = ENV_ESCAPE_PICKLE_VERSION
 os.environ["METAFLOW_ENV_ESCAPE_PATHS"] = ENV_ESCAPE_PATHS
 os.environ["METAFLOW_ENV_ESCAPE_PY"] = ENV_ESCAPE_PY
@@ -70,9 +66,7 @@ def generate_trampolines(out_dir):
 
     paths = [os.path.join(os.path.dirname(os.path.abspath(__file__)), "configurations")]
     for m in get_modules("plugins.env_escape"):
-        paths.extend(
-            [os.path.join(x, "configurations") for x in list(m.module.__path__)]
-        )
+        paths.extend([os.path.join(x, "configurations") for x in list(m.module.__path__)])
 
     for rootpath in paths:
         for path in os.listdir(rootpath):
@@ -156,9 +150,7 @@ load()
 def init(python_executable, pythonpath, max_pickle_version):
     # This function will look in the configurations directory and setup
     # the proper overrides
-    config_dir = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "configurations"
-    )
+    config_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "configurations")
 
     for path in os.listdir(config_dir):
         path = os.path.join(config_dir, path)

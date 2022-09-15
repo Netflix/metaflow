@@ -26,9 +26,7 @@ def transform_flow_graph(step_info):
         graph_dict[stepname] = {
             "type": node_to_type(step_info[stepname]["type"]),
             "box_next": step_info[stepname]["type"] not in ("linear", "join"),
-            "box_ends": None
-            if "matching_join" not in step_info[stepname]
-            else step_info[stepname]["matching_join"],
+            "box_ends": None if "matching_join" not in step_info[stepname] else step_info[stepname]["matching_join"],
             "next": step_info[stepname]["next"],
             "doc": step_info[stepname]["doc"],
         }
@@ -94,9 +92,7 @@ class SectionComponent(DefaultComponent):
         self._columns = columns
 
     @classmethod
-    def render_subcomponents(
-        cls, component_array, additional_allowed_types=[str, dict], allow_unknowns=False
-    ):
+    def render_subcomponents(cls, component_array, additional_allowed_types=[str, dict], allow_unknowns=False):
         contents = []
         for content in component_array:
             # Render objects of `MetaflowCardComponent` type
@@ -149,9 +145,7 @@ class ImageComponent(DefaultComponent):
 class TableComponent(DefaultComponent):
     type = "table"
 
-    def __init__(
-        self, title=None, subtitle=None, headers=[], data=[[]], vertical=False
-    ):
+    def __init__(self, title=None, subtitle=None, headers=[], data=[[]], vertical=False):
         super().__init__(title=title, subtitle=subtitle)
         self._headers = []
         self._data = [[]]
@@ -271,9 +265,7 @@ class ErrorComponent(MetaflowCardComponent):
         self._error_message = error_message
 
     def render(self):
-        return LogComponent(
-            data="%s\n\n%s" % (self._headline, self._error_message)
-        ).render()
+        return LogComponent(data="%s\n\n%s" % (self._headline, self._error_message)).render()
 
 
 class SerializationErrorComponent(ErrorComponent):
@@ -315,9 +307,7 @@ class TaskInfoComponent(MetaflowCardComponent):
         final_component: the dictionary returned by the `render` function of this class.
     """
 
-    def __init__(
-        self, task, page_title="Task Info", only_repr=True, graph=None, components=[]
-    ):
+    def __init__(self, task, page_title="Task Info", only_repr=True, graph=None, components=[]):
         self._task = task
         self._only_repr = only_repr
         self._graph = graph
@@ -333,18 +323,14 @@ class TaskInfoComponent(MetaflowCardComponent):
             a dictionary of form:
                 dict(metadata = {},components= [])
         """
-        task_data_dict = TaskToDict(only_repr=self._only_repr)(
-            self._task, graph=self._graph
-        )
+        task_data_dict = TaskToDict(only_repr=self._only_repr)(self._task, graph=self._graph)
         # ignore the name as an artifact
         del task_data_dict["data"]["name"]
-        mf_version = [
-            t for t in self._task.parent.parent.tags if "metaflow_version" in t
-        ][0].split("metaflow_version:")[1]
+        mf_version = [t for t in self._task.parent.parent.tags if "metaflow_version" in t][0].split(
+            "metaflow_version:"
+        )[1]
         final_component_dict = dict(
-            metadata=dict(
-                metaflow_version=mf_version, version=1, template="defaultCardTemplate"
-            ),
+            metadata=dict(metaflow_version=mf_version, version=1, template="defaultCardTemplate"),
             components=[],
         )
 
@@ -361,9 +347,7 @@ class TaskInfoComponent(MetaflowCardComponent):
             "Task Created On": task_data_dict["created_at"],
             "Task Finished On": task_data_dict["finished_at"],
             # Remove Microseconds from timedelta
-            "Task Duration": str(self._task.finished_at - self._task.created_at).split(
-                "."
-            )[0],
+            "Task Duration": str(self._task.finished_at - self._task.created_at).split(".")[0],
             "Tags": ", ".join(tags),
         }
         if len(user_info) > 0:
@@ -385,18 +369,12 @@ class TaskInfoComponent(MetaflowCardComponent):
 
         img_components = []
         for img_name in task_data_dict["images"]:
-            img_components.append(
-                ImageComponent(
-                    src=task_data_dict["images"][img_name], label=img_name
-                ).render()
-            )
+            img_components.append(ImageComponent(src=task_data_dict["images"][img_name], label=img_name).render())
         table_comps = []
         for tabname in task_data_dict["tables"]:
             tab_dict = task_data_dict["tables"][tabname]
             tab_title = "Artifact Name: %s" % tabname
-            sec_tab_comp = [
-                TableComponent(headers=tab_dict["headers"], data=tab_dict["data"])
-            ]
+            sec_tab_comp = [TableComponent(headers=tab_dict["headers"], data=tab_dict["data"])]
             post_table_md = None
 
             if tab_dict["truncated"]:
@@ -406,8 +384,7 @@ class TaskInfoComponent(MetaflowCardComponent):
                     tab_dict["full_size"][0],
                 )
                 post_table_md = MarkdownComponent(
-                    "_Truncated - %d rows not shown_"
-                    % ((tab_dict["full_size"][0] - len(tab_dict["data"])))
+                    "_Truncated - %d rows not shown_" % ((tab_dict["full_size"][0] - len(tab_dict["data"])))
                 )
 
             if post_table_md:
@@ -421,13 +398,9 @@ class TaskInfoComponent(MetaflowCardComponent):
             )
 
         # ignore the name as a parameter
-        param_ids = [
-            p.id for p in self._task.parent.parent["_parameters"].task if p.id != "name"
-        ]
+        param_ids = [p.id for p in self._task.parent.parent["_parameters"].task if p.id != "name"]
         if len(param_ids) > 0:
-            param_component = ArtifactsComponent(
-                data=[task_data_dict["data"][pid] for pid in param_ids]
-            )
+            param_component = ArtifactsComponent(data=[task_data_dict["data"][pid] for pid in param_ids])
         else:
             param_component = TitleComponent(text="No Parameters")
 
@@ -437,19 +410,13 @@ class TaskInfoComponent(MetaflowCardComponent):
         ).render()
 
         # Don't include parameter ids + "name" in the task artifacts
-        artifactlist = [
-            task_data_dict["data"][k]
-            for k in task_data_dict["data"]
-            if k not in param_ids
-        ]
+        artifactlist = [task_data_dict["data"][k] for k in task_data_dict["data"] if k not in param_ids]
         if len(artifactlist) > 0:
             artrifact_component = ArtifactsComponent(data=artifactlist).render()
         else:
             artrifact_component = TitleComponent(text="No Artifacts")
 
-        artifact_section = SectionComponent(
-            title="Artifacts", contents=[artrifact_component]
-        ).render()
+        artifact_section = SectionComponent(title="Artifacts", contents=[artrifact_component]).render()
         dag_component = SectionComponent(
             title="DAG", contents=[DagComponent(data=task_data_dict["graph"]).render()]
         ).render()
@@ -466,9 +433,7 @@ class TaskInfoComponent(MetaflowCardComponent):
             ]
         )
         if len(table_comps) > 0:
-            table_section = SectionComponent(
-                title="Tabular Data", contents=table_comps
-            ).render()
+            table_section = SectionComponent(title="Tabular Data", contents=table_comps).render()
             page_contents.append(table_section)
 
         if len(img_components) > 0:
@@ -486,9 +451,7 @@ class TaskInfoComponent(MetaflowCardComponent):
             contents=page_contents,
         ).render()
 
-        final_component_dict["components"].append(
-            TitleComponent(text=task_data_dict["pathspec"]).render()
-        )
+        final_component_dict["components"].append(TitleComponent(text=task_data_dict["pathspec"]).render())
         final_component_dict["components"].append(page_component)
 
         # These Properties will provide a way to access these components
@@ -535,9 +498,7 @@ class ErrorCard(MetaflowCard):
         )
         pt = self._get_mustache()
         data_dict = dict(
-            task_data=base64.b64encode(
-                json.dumps(final_component_dict).encode("utf-8")
-            ).decode("utf-8"),
+            task_data=base64.b64encode(json.dumps(final_component_dict).encode("utf-8")).decode("utf-8"),
             javascript=JS_DATA,
             css=CSS_DATA,
             title=task.pathspec,
@@ -592,9 +553,7 @@ class DefaultCard(MetaflowCard):
         ).render()
         pt = self._get_mustache()
         data_dict = dict(
-            task_data=base64.b64encode(
-                json.dumps(final_component_dict).encode("utf-8")
-            ).decode("utf-8"),
+            task_data=base64.b64encode(json.dumps(final_component_dict).encode("utf-8")).decode("utf-8"),
             javascript=JS_DATA,
             title=task.pathspec,
             css=CSS_DATA,
@@ -634,9 +593,7 @@ class BlankCard(MetaflowCard):
         )
         pt = self._get_mustache()
         data_dict = dict(
-            task_data=base64.b64encode(
-                json.dumps(final_component_dict).encode("utf-8")
-            ).decode("utf-8"),
+            task_data=base64.b64encode(json.dumps(final_component_dict).encode("utf-8")).decode("utf-8"),
             javascript=JS_DATA,
             title=task.pathspec,
             css=CSS_DATA,

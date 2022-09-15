@@ -126,9 +126,9 @@ class Local(object):
 
     def _path(self, key):
         key = to_unicode(key)
-        if key.startswith(u"local://"):
+        if key.startswith("local://"):
             return key[8:]
-        elif key[0] != u"/":
+        elif key[0] != "/":
             if current.is_running_flow:
                 raise MetaflowLocalURLException(
                     "Specify Local(run=self) when you use Local inside a running "
@@ -145,7 +145,7 @@ class Local(object):
 
     def get(self, key=None, return_missing=False):
         p = self._path(key)
-        url = u"local://%s" % p
+        url = "local://%s" % p
         if not os.path.isfile(p):
             if return_missing:
                 p = None
@@ -159,7 +159,7 @@ class Local(object):
             Local._makedirs(os.path.dirname(p))
             with open(p, "wb") as f:
                 f.write(obj)
-        return u"local://%s" % p
+        return "local://%s" % p
 
 
 # From here on out, this is the IncludeFile implementation.
@@ -190,7 +190,7 @@ class LocalFile:
                 )
             path = decoded_value["url"]
         for prefix, handler in DATACLIENTS.items():
-            if path.startswith(u"%s://" % prefix):
+            if path.startswith("%s://" % prefix):
                 return True, Uploader(handler), None
         try:
             with open(path, mode="r") as _:
@@ -214,12 +214,8 @@ class LocalFile:
             raise MetaflowException(err)
         client = DATACLIENTS.get(ctx.ds_type)
         if client:
-            return Uploader(client).store(
-                ctx.flow_name, self._path, self._is_text, self._encoding, ctx.logger
-            )
-        raise MetaflowException(
-            "IncludeFile: no client found for datastore type %s" % ctx.ds_type
-        )
+            return Uploader(client).store(ctx.flow_name, self._path, self._is_text, self._encoding, ctx.logger)
+        raise MetaflowException("IncludeFile: no client found for datastore type %s" % ctx.ds_type)
 
 
 class FilePathClass(click.ParamType):
@@ -271,9 +267,7 @@ class FilePathClass(click.ParamType):
 
 
 class IncludeFile(Parameter):
-    def __init__(
-        self, name, required=False, is_text=True, encoding=None, help=None, **kwargs
-    ):
+    def __init__(self, name, required=False, is_text=True, encoding=None, help=None, **kwargs):
         # Defaults are DeployTimeField
         v = kwargs.get("default")
         if v is not None:
@@ -285,9 +279,7 @@ class IncludeFile(Parameter):
                     name,
                     str,
                     "default",
-                    lambda ctx, full_evaluation, o=o: LocalFile(
-                        o["is_text"], o["encoding"], o["url"]
-                    )(ctx)
+                    lambda ctx, full_evaluation, o=o: LocalFile(o["is_text"], o["encoding"], o["url"])(ctx)
                     if full_evaluation
                     else json.dumps(o),
                     print_representation=v,
@@ -304,11 +296,7 @@ class IncludeFile(Parameter):
                 )
 
         super(IncludeFile, self).__init__(
-            name,
-            required=required,
-            help=help,
-            type=FilePathClass(is_text, encoding),
-            **kwargs
+            name, required=required, help=help, type=FilePathClass(is_text, encoding), **kwargs
         )
 
     def load_parameter(self, val):
@@ -316,13 +304,9 @@ class IncludeFile(Parameter):
             return val
         ok, file_type, err = LocalFile.is_file_handled(val)
         if not ok:
-            raise MetaflowException(
-                "Parameter '%s' could not be loaded: %s" % (self.name, err)
-            )
+            raise MetaflowException("Parameter '%s' could not be loaded: %s" % (self.name, err))
         if file_type is None or isinstance(file_type, LocalFile):
-            raise MetaflowException(
-                "Parameter '%s' was not properly converted" % self.name
-            )
+            raise MetaflowException("Parameter '%s' was not properly converted" % self.name)
         return file_type.load(val)
 
 
@@ -370,9 +354,7 @@ class Uploader:
                 "large to be properly handled by Python 2.7" % path
             )
         sha = sha1(input_file).hexdigest()
-        path = os.path.join(
-            self._client_class.get_root_from_config(echo, True), flow_name, sha
-        )
+        path = os.path.join(self._client_class.get_root_from_config(echo, True), flow_name, sha)
         buf = io.BytesIO()
         with gzip.GzipFile(fileobj=buf, mode="wb", compresslevel=3) as f:
             f.write(input_file)
@@ -380,9 +362,7 @@ class Uploader:
         with self._client_class() as client:
             url = client.put(path, buf.getvalue(), overwrite=False)
             echo("File persisted at %s" % url)
-            return Uploader.encode_url(
-                Uploader.file_type, url, is_text=is_text, encoding=encoding
-            )
+            return Uploader.encode_url(Uploader.file_type, url, is_text=is_text, encoding=encoding)
 
     def load(self, value):
         value_info = Uploader.decode_value(value)
@@ -393,16 +373,12 @@ class Uploader:
                     # We saved this file directly so we know how to read it out
                     with gzip.GzipFile(filename=obj.path, mode="rb") as f:
                         if value_info["is_text"]:
-                            return io.TextIOWrapper(
-                                f, encoding=value_info.get("encoding")
-                            ).read()
+                            return io.TextIOWrapper(f, encoding=value_info.get("encoding")).read()
                         return f.read()
                 else:
                     # We open this file according to the is_text and encoding information
                     if value_info["is_text"]:
-                        return io.open(
-                            obj.path, mode="rt", encoding=value_info.get("encoding")
-                        ).read()
+                        return io.open(obj.path, mode="rt", encoding=value_info.get("encoding")).read()
                     else:
                         return io.open(obj.path, mode="rb").read()
             raise FileNotFoundError("File at %s does not exist" % value_info["url"])

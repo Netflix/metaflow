@@ -165,7 +165,6 @@ if sys.version_info[0] >= 3:
     def _load_invalidunicode(obj_type, transferer, json_annotation, json_obj):
         return _load_simple(str, transferer, json_annotation, json_obj)
 
-
 else:
 
     @_register_dumper((str,))
@@ -219,9 +218,7 @@ class DataTransferer(object):
             # This is primarily used to transfer a reference to an object
             try:
                 json_obj = base64.b64encode(
-                    pickle.dumps(
-                        self._connection.pickle_object(obj), protocol=defaultProtocol
-                    )
+                    pickle.dumps(self._connection.pickle_object(obj), protocol=defaultProtocol)
                 ).decode("utf-8")
             except ValueError as e:
                 raise RuntimeError("Unable to dump non base type: %s" % e)
@@ -230,16 +227,12 @@ class DataTransferer(object):
     def load(self, json_obj):
         obj_type = json_obj.get(FIELD_TYPE)
         if obj_type is None:
-            raise RuntimeError(
-                "Malformed message -- missing %s: %s" % (FIELD_TYPE, str(json_obj))
-            )
+            raise RuntimeError("Malformed message -- missing %s: %s" % (FIELD_TYPE, str(json_obj)))
         if obj_type == -1:
             # This is something that the connection handles
             try:
                 return self._connection.unpickle_object(
-                    pickle.loads(
-                        base64.b64decode(json_obj[FIELD_INLINE_VALUE]), encoding="utf-8"
-                    )
+                    pickle.loads(base64.b64decode(json_obj[FIELD_INLINE_VALUE]), encoding="utf-8")
                 )
             except ValueError as e:
                 raise RuntimeError("Unable to load non base type: %s" % e)
@@ -247,9 +240,7 @@ class DataTransferer(object):
         if handler:
             json_subobj = json_obj.get(FIELD_INLINE_VALUE)
             if json_subobj is not None:
-                return handler(
-                    self, json_obj.get(FIELD_ANNOTATION), json_obj[FIELD_INLINE_VALUE]
-                )
+                return handler(self, json_obj.get(FIELD_ANNOTATION), json_obj[FIELD_INLINE_VALUE])
             raise RuntimeError("Non inline value not supported")
         raise RuntimeError("Unable to find handler for type %s" % obj_type)
 
@@ -264,9 +255,7 @@ class DataTransferer(object):
             elif checker(obj):
                 return processor(obj)
             else:
-                raise RuntimeError(
-                    "Cannot pickle object of type %s: %s" % (obj_type, str(obj))
-                )
+                raise RuntimeError("Cannot pickle object of type %s: %s" % (obj_type, str(obj)))
 
         cast_to = None
         key_change_allowed = True
@@ -311,8 +300,7 @@ class DataTransferer(object):
                 if sub_key is not None:
                     if not key_change_allowed:
                         raise RuntimeError(
-                            "OrderedDict key cannot contain references -- "
-                            "this would change the order"
+                            "OrderedDict key cannot contain references -- " "this would change the order"
                         )
                     has_changes = True
                 sub_val = _sub_process(v)
@@ -373,9 +361,7 @@ class DataTransferer(object):
         if obj_type == str:
             return True
         if obj_type == dict or obj_type == OrderedDict:
-            return all(
-                (recursive_func(k) and recursive_func(v) for k, v in obj.items())
-            )
+            return all((recursive_func(k) and recursive_func(v) for k, v in obj.items()))
         if obj_type in _container_types:
             return all((recursive_func(x) for x in obj))
         return False

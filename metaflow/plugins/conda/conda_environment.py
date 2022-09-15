@@ -31,11 +31,9 @@ class CondaEnvironment(MetaflowEnvironment):
             # the default 'default environment'
             self.base_env = MetaflowEnvironment(self.flow)
         else:
-            self.base_env = [
-                e
-                for e in ENVIRONMENTS + [MetaflowEnvironment]
-                if e.TYPE == DEFAULT_ENVIRONMENT
-            ][0](self.flow)
+            self.base_env = [e for e in ENVIRONMENTS + [MetaflowEnvironment] if e.TYPE == DEFAULT_ENVIRONMENT][0](
+                self.flow
+            )
 
     def init_environment(self, echo):
         # Print a message for now
@@ -76,8 +74,7 @@ class CondaEnvironment(MetaflowEnvironment):
         if env_id is not None:
             return [
                 "echo 'Bootstrapping environment...'",
-                'python -m metaflow.plugins.conda.batch_bootstrap "%s" %s'
-                % (self.flow.name, env_id),
+                'python -m metaflow.plugins.conda.batch_bootstrap "%s" %s' % (self.flow.name, env_id),
                 "echo 'Environment bootstrapped.'",
             ]
         return []
@@ -114,9 +111,7 @@ class CondaEnvironment(MetaflowEnvironment):
         if info is None or env_id is None:
             return {"type": "conda"}
         info = json.loads(info)
-        _, blobdata = cls._filecache.get_data(
-            info["ds_type"], flow_name, info["location"], info["sha"]
-        )
+        _, blobdata = cls._filecache.get_data(info["ds_type"], flow_name, info["location"], info["sha"])
         with tarfile.open(fileobj=BytesIO(blobdata), mode="r:gz") as tar:
             conda_file = tar.extractfile(CONDA_MAGIC_FILE)
         if conda_file is None:

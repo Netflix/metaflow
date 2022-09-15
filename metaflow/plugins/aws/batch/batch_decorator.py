@@ -153,9 +153,7 @@ class BatchDecorator(StepDecorator):
         self.step = step
         self.flow_datastore = flow_datastore
 
-        self.attributes.update(
-            compute_resource_attributes(decos, self, self.resource_defaults)
-        )
+        self.attributes.update(compute_resource_attributes(decos, self, self.resource_defaults))
 
         # Set run time limit for the AWS Batch job.
         self.run_time_limit = get_run_time_limit_for_task(decos)
@@ -172,15 +170,11 @@ class BatchDecorator(StepDecorator):
         self.package = package
         self.run_id = run_id
 
-    def runtime_task_created(
-        self, task_datastore, task_id, split_index, input_paths, is_cloned, ubf_context
-    ):
+    def runtime_task_created(self, task_datastore, task_id, split_index, input_paths, is_cloned, ubf_context):
         if not is_cloned:
             self._save_package_once(self.flow_datastore, self.package)
 
-    def runtime_step_cli(
-        self, cli_args, retry_count, max_user_code_retries, ubf_context
-    ):
+    def runtime_step_cli(self, cli_args, retry_count, max_user_code_retries, ubf_context):
         if retry_count <= max_user_code_retries:
             # after all attempts to run the user code have failed, we don't need
             # to execute on AWS Batch anymore. We can execute possible fallback
@@ -230,11 +224,7 @@ class BatchDecorator(StepDecorator):
             # version V4.
             # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-metadata-endpoint.html
             try:
-                logs_meta = (
-                    requests.get(url=os.environ["ECS_CONTAINER_METADATA_URI_V4"])
-                    .json()
-                    .get("LogOptions", {})
-                )
+                logs_meta = requests.get(url=os.environ["ECS_CONTAINER_METADATA_URI_V4"]).json().get("LogOptions", {})
                 meta["aws-batch-awslogs-group"] = logs_meta.get("awslogs-group")
                 meta["aws-batch-awslogs-region"] = logs_meta.get("awslogs-region")
                 meta["aws-batch-awslogs-stream"] = logs_meta.get("awslogs-stream")
@@ -261,21 +251,17 @@ class BatchDecorator(StepDecorator):
             control_task_id = current.task_id
             top_task_id = control_task_id.replace("control-", "")  # chop "-0"
             mapper_task_ids = [control_task_id] + [
-                "%s-node-%d" % (top_task_id, node_idx)
-                for node_idx in range(1, num_parallel)
+                "%s-node-%d" % (top_task_id, node_idx) for node_idx in range(1, num_parallel)
             ]
             flow._control_mapper_tasks = [
-                "%s/%s/%s" % (run_id, step_name, mapper_task_id)
-                for mapper_task_id in mapper_task_ids
+                "%s/%s/%s" % (run_id, step_name, mapper_task_id) for mapper_task_id in mapper_task_ids
             ]
             flow._control_task_is_mapper_zero = True
 
         if num_parallel >= 1:
             _setup_multinode_environment()
 
-    def task_finished(
-        self, step_name, flow, graph, is_task_ok, retry_count, max_retries
-    ):
+    def task_finished(self, step_name, flow, graph, is_task_ok, retry_count, max_retries):
 
         # task_finished may run locally if fallback is activated for @catch
         # decorator.
@@ -287,9 +273,7 @@ class BatchDecorator(StepDecorator):
             if self.metadata.TYPE == "local":
                 # Note that the datastore is *always* Amazon S3 (see
                 # runtime_task_created function).
-                sync_local_metadata_to_datastore(
-                    DATASTORE_LOCAL_DIR, self.task_datastore
-                )
+                sync_local_metadata_to_datastore(DATASTORE_LOCAL_DIR, self.task_datastore)
 
         try:
             self._save_logs_sidecar.kill()
@@ -318,9 +302,7 @@ class BatchDecorator(StepDecorator):
                 step_path = "%s/%s/%s" % (flow.name, current.run_id, step_name)
                 tasks = [task for task in Step(step_path)]
                 if len(tasks) == len(flow._control_mapper_tasks):
-                    if all(
-                        task.finished_at is not None for task in tasks
-                    ):  # for some reason task.finished fails
+                    if all(task.finished_at is not None for task in tasks):  # for some reason task.finished fails
                         return True
                 else:
                     print(
@@ -331,16 +313,12 @@ class BatchDecorator(StepDecorator):
                     )
             except Exception as e:
                 pass
-        raise Exception(
-            "Batch secondary workers did not finish in %s seconds" % TIMEOUT
-        )
+        raise Exception("Batch secondary workers did not finish in %s seconds" % TIMEOUT)
 
     @classmethod
     def _save_package_once(cls, flow_datastore, package):
         if cls.package_url is None:
-            cls.package_url, cls.package_sha = flow_datastore.save_data(
-                [package.blob], len_hint=1
-            )[0]
+            cls.package_url, cls.package_sha = flow_datastore.save_data([package.blob], len_hint=1)[0]
 
 
 def _setup_multinode_environment():
@@ -353,8 +331,6 @@ def _setup_multinode_environment():
         assert local_ips, "Could not find local ip address"
         os.environ["MF_PARALLEL_MAIN_IP"] = local_ips[0]
     else:
-        os.environ["MF_PARALLEL_MAIN_IP"] = os.environ[
-            "AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS"
-        ]
+        os.environ["MF_PARALLEL_MAIN_IP"] = os.environ["AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS"]
     os.environ["MF_PARALLEL_NUM_NODES"] = os.environ["AWS_BATCH_JOB_NUM_NODES"]
     os.environ["MF_PARALLEL_NODE_INDEX"] = os.environ["AWS_BATCH_JOB_NODE_INDEX"]

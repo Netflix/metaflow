@@ -38,9 +38,7 @@ class BatchClient(object):
             job
             for queue in queues
             for status in ["SUBMITTED", "PENDING", "RUNNABLE", "STARTING", "RUNNING"]
-            for page in self._client.get_paginator("list_jobs").paginate(
-                jobQueue=queue, jobStatus=status
-            )
+            for page in self._client.get_paginator("list_jobs").paginate(jobQueue=queue, jobStatus=status)
             for job in page["jobSummaryList"]
         )
 
@@ -50,9 +48,7 @@ class BatchClient(object):
                 yield jobs
 
     def describe_job_queue(self, job_queue):
-        paginator = self._client.get_paginator("describe_job_queues").paginate(
-            jobQueues=[job_queue], maxResults=1
-        )
+        paginator = self._client.get_paginator("describe_job_queues").paginate(jobQueues=[job_queue], maxResults=1)
         return paginator.paginate()["jobQueues"][0]
 
     def job(self):
@@ -78,13 +74,9 @@ class BatchJob(object):
 
     def execute(self):
         if self._image is None:
-            raise BatchJobException(
-                "Unable to launch AWS Batch job. No docker image specified."
-            )
+            raise BatchJobException("Unable to launch AWS Batch job. No docker image specified.")
         if self._iam_role is None:
-            raise BatchJobException(
-                "Unable to launch AWS Batch job. No IAM role specified."
-            )
+            raise BatchJobException("Unable to launch AWS Batch job. No IAM role specified.")
 
         # Multinode
         if getattr(self, "num_parallel", 0) >= 1:
@@ -98,15 +90,12 @@ class BatchJob(object):
             main_task_override["command"][-1] = commands
 
             # secondary tasks
-            secondary_task_container_override = copy.deepcopy(
-                self.payload["containerOverrides"]
-            )
+            secondary_task_container_override = copy.deepcopy(self.payload["containerOverrides"])
             secondary_commands = self.payload["containerOverrides"]["command"][-1]
             # other tasks do not have control- prefix, and have the split id appended to the task -id
             secondary_commands = secondary_commands.replace(
                 self._task_id,
-                self._task_id.replace("control-", "")
-                + "-node-$AWS_BATCH_JOB_NODE_INDEX",
+                self._task_id.replace("control-", "") + "-node-$AWS_BATCH_JOB_NODE_INDEX",
             )
             secondary_commands = secondary_commands.replace(
                 "ubf_control",
@@ -163,12 +152,8 @@ class BatchJob(object):
             response = self._client.describe_job_queues(jobQueues=[job_queue])
             if len(response["jobQueues"]) == 0:
                 raise BatchJobException("AWS Batch Job Queue %s not found." % job_queue)
-            compute_environment = response["jobQueues"][0]["computeEnvironmentOrder"][
-                0
-            ]["computeEnvironment"]
-            response = self._client.describe_compute_environments(
-                computeEnvironments=[compute_environment]
-            )
+            compute_environment = response["jobQueues"][0]["computeEnvironmentOrder"][0]["computeEnvironment"]
+            response = self._client.describe_compute_environments(computeEnvironments=[compute_environment])
             platform = response["computeEnvironments"][0]["computeResources"]["type"]
 
         # compose job definition
@@ -200,26 +185,18 @@ class BatchJob(object):
                 )
             job_definition["containerProperties"]["executionRoleArn"] = execution_role
             job_definition["platformCapabilities"] = ["FARGATE"]
-            job_definition["containerProperties"]["networkConfiguration"] = {
-                "assignPublicIp": "ENABLED"
-            }
+            job_definition["containerProperties"]["networkConfiguration"] = {"assignPublicIp": "ENABLED"}
 
         if platform == "EC2" or platform == "SPOT":
             if "linuxParameters" not in job_definition["containerProperties"]:
                 job_definition["containerProperties"]["linuxParameters"] = {}
             if shared_memory is not None:
-                if not (
-                    isinstance(shared_memory, (int, unicode, basestring))
-                    and int(shared_memory) > 0
-                ):
+                if not (isinstance(shared_memory, (int, unicode, basestring)) and int(shared_memory) > 0):
                     raise BatchJobException(
-                        "Invalid shared memory size value ({}); "
-                        "it should be greater than 0".format(shared_memory)
+                        "Invalid shared memory size value ({}); " "it should be greater than 0".format(shared_memory)
                     )
                 else:
-                    job_definition["containerProperties"]["linuxParameters"][
-                        "sharedMemorySize"
-                    ] = int(shared_memory)
+                    job_definition["containerProperties"]["linuxParameters"]["sharedMemorySize"] = int(shared_memory)
             if swappiness is not None:
                 if not (
                     isinstance(swappiness, (int, unicode, basestring))
@@ -231,39 +208,27 @@ class BatchJob(object):
                         "(should be 0 or greater and less than 100)".format(swappiness)
                     )
                 else:
-                    job_definition["containerProperties"]["linuxParameters"][
-                        "swappiness"
-                    ] = int(swappiness)
+                    job_definition["containerProperties"]["linuxParameters"]["swappiness"] = int(swappiness)
             if max_swap is not None:
-                if not (
-                    isinstance(max_swap, (int, unicode, basestring))
-                    and int(max_swap) >= 0
-                ):
+                if not (isinstance(max_swap, (int, unicode, basestring)) and int(max_swap) >= 0):
                     raise BatchJobException(
-                        "Invalid swappiness value ({}); "
-                        "(should be 0 or greater)".format(max_swap)
+                        "Invalid swappiness value ({}); " "(should be 0 or greater)".format(max_swap)
                     )
                 else:
-                    job_definition["containerProperties"]["linuxParameters"][
-                        "maxSwap"
-                    ] = int(max_swap)
+                    job_definition["containerProperties"]["linuxParameters"]["maxSwap"] = int(max_swap)
 
         if inferentia:
             if not (isinstance(inferentia, (int, unicode, basestring))):
-                raise BatchJobException(
-                    "invalid inferentia value: ({}) (should be 0 or greater)".format(inferentia)
-                )
+                raise BatchJobException("invalid inferentia value: ({}) (should be 0 or greater)".format(inferentia))
             else:
-                job_definition["containerProperties"]['linuxParameters']['devices'] = []
+                job_definition["containerProperties"]["linuxParameters"]["devices"] = []
                 for i in range(int(inferentia)):
-                    job_definition["containerProperties"]['linuxParameters']['devices'].append(
+                    job_definition["containerProperties"]["linuxParameters"]["devices"].append(
                         {
                             "containerPath": "/dev/neuron{}".format(i),
                             "hostPath": "/dev/neuron{}".format(i),
-                            "permissions": [
-                                "read",
-                                "write"
-                            ]}
+                            "permissions": ["read", "write"],
+                        }
                     )
 
         if host_volumes:
@@ -305,10 +270,7 @@ class BatchJob(object):
             del job_definition["containerProperties"]  # not used for multi-node
 
         # check if job definition already exists
-        def_name = (
-            "metaflow_%s"
-            % hashlib.sha224(str(job_definition).encode("utf-8")).hexdigest()
-        )
+        def_name = "metaflow_%s" % hashlib.sha224(str(job_definition).encode("utf-8")).hexdigest()
         payload = {"jobDefinitionName": def_name, "status": "ACTIVE"}
         response = self._client.describe_job_definitions(**payload)
         if len(response["jobDefinitions"]) > 0:
@@ -319,9 +281,7 @@ class BatchJob(object):
         try:
             response = self._client.register_job_definition(**job_definition)
         except Exception as ex:
-            if type(ex).__name__ == "ParamValidationError" and (
-                platform == "FARGATE" or platform == "FARGATE_SPOT"
-            ):
+            if type(ex).__name__ == "ParamValidationError" and (platform == "FARGATE" or platform == "FARGATE_SPOT"):
                 raise BatchJobException(
                     "%s \nPlease ensure you have installed boto3>=1.16.29 if "
                     "you intend to launch AWS Batch jobs on AWS Fargate "
@@ -406,39 +366,27 @@ class BatchJob(object):
 
     def cpu(self, cpu):
         if not (isinstance(cpu, (int, unicode, basestring, float)) and float(cpu) > 0):
-            raise BatchJobException(
-                "Invalid CPU value ({}); it should be greater than 0".format(cpu)
-            )
+            raise BatchJobException("Invalid CPU value ({}); it should be greater than 0".format(cpu))
         if "resourceRequirements" not in self.payload["containerOverrides"]:
             self.payload["containerOverrides"]["resourceRequirements"] = []
-        self.payload["containerOverrides"]["resourceRequirements"].append(
-            {"value": str(cpu), "type": "VCPU"}
-        )
+        self.payload["containerOverrides"]["resourceRequirements"].append({"value": str(cpu), "type": "VCPU"})
         return self
 
     def memory(self, mem):
         if not (isinstance(mem, (int, unicode, basestring)) and int(mem) > 0):
-            raise BatchJobException(
-                "Invalid memory value ({}); it should be greater than 0".format(mem)
-            )
+            raise BatchJobException("Invalid memory value ({}); it should be greater than 0".format(mem))
         if "resourceRequirements" not in self.payload["containerOverrides"]:
             self.payload["containerOverrides"]["resourceRequirements"] = []
-        self.payload["containerOverrides"]["resourceRequirements"].append(
-            {"value": str(mem), "type": "MEMORY"}
-        )
+        self.payload["containerOverrides"]["resourceRequirements"].append({"value": str(mem), "type": "MEMORY"})
         return self
 
     def gpu(self, gpu):
         if not (isinstance(gpu, (int, unicode, basestring))):
-            raise BatchJobException(
-                "invalid gpu value: ({}) (should be 0 or greater)".format(gpu)
-            )
+            raise BatchJobException("invalid gpu value: ({}) (should be 0 or greater)".format(gpu))
         if int(gpu) > 0:
             if "resourceRequirements" not in self.payload["containerOverrides"]:
                 self.payload["containerOverrides"]["resourceRequirements"] = []
-            self.payload["containerOverrides"]["resourceRequirements"].append(
-                {"type": "GPU", "value": str(gpu)}
-            )
+            self.payload["containerOverrides"]["resourceRequirements"].append({"type": "GPU", "value": str(gpu)})
         return self
 
     def environment_variable(self, name, value):
@@ -448,13 +396,9 @@ class BatchJob(object):
         if value.startswith("$$.") or value.startswith("$."):
             # Context Object substitution for AWS Step Functions
             # https://docs.aws.amazon.com/step-functions/latest/dg/input-output-contextobject.html
-            self.payload["containerOverrides"]["environment"].append(
-                {"name": name, "value.$": value}
-            )
+            self.payload["containerOverrides"]["environment"].append({"name": name, "value.$": value})
         else:
-            self.payload["containerOverrides"]["environment"].append(
-                {"name": name, "value": value}
-            )
+            self.payload["containerOverrides"]["environment"].append({"name": name, "value": value})
         return self
 
     def timeout_in_secs(self, timeout_in_secs):
@@ -497,9 +441,9 @@ class Throttle(object):
                     self._tries_left -= 1
                     if self._tries_left == 0:
                         raise ex.ex
-                    self._wait = (self.delta_in_secs * 1.2) ** (
-                        self.num_tries - self._tries_left
-                    ) + random.randint(0, 3 * self.delta_in_secs)
+                    self._wait = (self.delta_in_secs * 1.2) ** (self.num_tries - self._tries_left) + random.randint(
+                        0, 3 * self.delta_in_secs
+                    )
 
         return wrapped
 
@@ -625,7 +569,5 @@ class RunningJob(object):
 
     def kill(self):
         if not self.is_done:
-            self._client.terminate_job(
-                jobId=self._id, reason="Metaflow initiated job termination."
-            )
+            self._client.terminate_job(jobId=self._id, reason="Metaflow initiated job termination.")
         return self.update()

@@ -40,9 +40,7 @@ def kubernetes():
     "--executable",
     help="Executable requirement for Kubernetes job on Amazon EKS.",
 )
-@click.option(
-    "--image", help="Docker image requirement for Kubernetes job on Amazon EKS."
-)
+@click.option("--image", help="Docker image requirement for Kubernetes job on Amazon EKS.")
 @click.option(
     "--service-account",
     help="IRSA requirement for Kubernetes job on Amazon EKS.",
@@ -77,14 +75,10 @@ def kubernetes():
 @click.option("--split-index", help="Passed to the top-level 'step'.")
 @click.option("--clone-path", help="Passed to the top-level 'step'.")
 @click.option("--clone-run-id", help="Passed to the top-level 'step'.")
-@click.option(
-    "--tag", multiple=True, default=None, help="Passed to the top-level 'step'."
-)
+@click.option("--tag", multiple=True, default=None, help="Passed to the top-level 'step'.")
 @click.option("--namespace", default=None, help="Passed to the top-level 'step'.")
 @click.option("--retry-count", default=0, help="Passed to the top-level 'step'.")
-@click.option(
-    "--max-user-code-retries", default=0, help="Passed to the top-level 'step'."
-)
+@click.option("--max-user-code-retries", default=0, help="Passed to the top-level 'step'.")
 @click.option(
     "--run-time-limit",
     default=5 * 24 * 60 * 60,  # Default is set to 5 days
@@ -144,16 +138,12 @@ def step(
     retry_deco = [deco for deco in node.decorators if deco.name == "retry"]
     minutes_between_retries = None
     if retry_deco:
-        minutes_between_retries = int(
-            retry_deco[0].attributes.get("minutes_between_retries", 2)
-        )
+        minutes_between_retries = int(retry_deco[0].attributes.get("minutes_between_retries", 2))
     if retry_count:
-        ctx.obj.echo_always(
-            "Sleeping %d minutes before the next retry" % minutes_between_retries
-        )
+        ctx.obj.echo_always("Sleeping %d minutes before the next retry" % minutes_between_retries)
         time.sleep(minutes_between_retries * 60)
 
-    step_cli = u"{entrypoint} {top_args} step {step} {step_args}".format(
+    step_cli = "{entrypoint} {top_args} step {step} {step_args}".format(
         entrypoint="%s -u %s" % (executable, os.path.basename(sys.argv[0])),
         top_args=" ".join(util.dict_to_cli_options(ctx.parent.parent.params)),
         step=step_name,
@@ -175,9 +165,7 @@ def step(
         if ctx.obj.metadata.TYPE == "local":
             sync_local_metadata_from_datastore(
                 DATASTORE_LOCAL_DIR,
-                ctx.obj.flow_datastore.get_task_datastore(
-                    kwargs["run_id"], step_name, kwargs["task_id"]
-                ),
+                ctx.obj.flow_datastore.get_task_datastore(kwargs["run_id"], step_name, kwargs["task_id"]),
             )
 
     try:

@@ -20,9 +20,7 @@ class Boto3ClientProvider(object):
             import botocore
             from botocore.exceptions import ClientError
         except (NameError, ImportError):
-            raise MetaflowException(
-                "Could not import module 'boto3'. Install boto3 first."
-            )
+            raise MetaflowException("Could not import module 'boto3'. Install boto3 first.")
 
         if AWS_SANDBOX_ENABLED:
             # role is ignored in the sandbox
@@ -39,14 +37,10 @@ class Boto3ClientProvider(object):
                     raise MetaflowException(repr(e))
             if with_error:
                 return (
-                    boto3.session.Session(**cached_aws_sandbox_creds).client(
-                        module, **params
-                    ),
+                    boto3.session.Session(**cached_aws_sandbox_creds).client(module, **params),
                     ClientError,
                 )
-            return boto3.session.Session(**cached_aws_sandbox_creds).client(
-                module, **params
-            )
+            return boto3.session.Session(**cached_aws_sandbox_creds).client(module, **params)
         session = boto3.session.Session()
         if s3_role_arn:
             fetcher = botocore.credentials.AssumeRoleCredentialFetcher(
@@ -77,7 +71,5 @@ def get_aws_client(module, with_error=False, params={}, s3_role_arn=None):
                 cached_provider_class = p
                 break
         else:
-            raise ValueError(
-                "Cannot find AWS Client provider %s" % DEFAULT_AWS_CLIENT_PROVIDER
-            )
+            raise ValueError("Cannot find AWS Client provider %s" % DEFAULT_AWS_CLIENT_PROVIDER)
     return cached_provider_class.get_client(module, with_error, params, s3_role_arn)

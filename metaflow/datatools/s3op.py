@@ -153,9 +153,7 @@ def worker(result_file_name, queue, mode, s3role):
                     tmp = NamedTemporaryFile(dir=".", mode="wb", delete=False)
                     try:
                         if url.range:
-                            resp = s3.get_object(
-                                Bucket=url.bucket, Key=url.path, Range=url.range
-                            )
+                            resp = s3.get_object(Bucket=url.bucket, Key=url.path, Range=url.range)
                         else:
                             resp = s3.get_object(Bucket=url.bucket, Key=url.path)
                         sz = resp["ContentLength"]
@@ -176,9 +174,7 @@ def worker(result_file_name, queue, mode, s3role):
                             result_file.write("%d %d\n" % (idx, -ERROR_URL_NOT_FOUND))
                             continue
                         elif error_code == 403:
-                            result_file.write(
-                                "%d %d\n" % (idx, -ERROR_URL_ACCESS_DENIED)
-                            )
+                            result_file.write("%d %d\n" % (idx, -ERROR_URL_ACCESS_DENIED))
                             continue
                         else:
                             raise
@@ -193,9 +189,7 @@ def worker(result_file_name, queue, mode, s3role):
                             if resp["Metadata"] is not None:
                                 args["metadata"] = resp["Metadata"]
                             if resp["LastModified"]:
-                                args["last_modified"] = get_timestamp(
-                                    resp["LastModified"]
-                                )
+                                args["last_modified"] = get_timestamp(resp["LastModified"])
                             json.dump(args, f)
                         # Finally, we push out the size to the result_pipe since
                         # the size is used for verification and other purposes and
@@ -307,10 +301,10 @@ def process_urls(mode, urls, verbose, num_workers, s3role):
 
 
 def with_unit(x):
-    if x > 1024 ** 3:
-        return "%.1fGB" % (x / 1024.0 ** 3)
-    elif x > 1024 ** 2:
-        return "%.1fMB" % (x / 1024.0 ** 2)
+    if x > 1024**3:
+        return "%.1fGB" % (x / 1024.0**3)
+    elif x > 1024**2:
+        return "%.1fMB" % (x / 1024.0**2)
     elif x > 1024:
         return "%.1fKB" % (x / 1024.0)
     else:
@@ -372,9 +366,7 @@ class S3Ops(object):
         try:
             paginator = self.s3.get_paginator("list_objects_v2")
             urls = []
-            for page in paginator.paginate(
-                Bucket=prefix_url.bucket, Prefix=prefix_url.path, Delimiter=delimiter
-            ):
+            for page in paginator.paginate(Bucket=prefix_url.bucket, Prefix=prefix_url.path, Delimiter=delimiter):
                 # note that an url may be both a prefix and an object
                 # - the trailing slash is significant in S3
                 if "Contents" in page:
@@ -561,11 +553,7 @@ def lst(prefixes, inputs=None, num_workers=None, recursive=None, s3role=None):
             exit(ERROR_INVALID_URL, url)
         urllist.append(url)
 
-    op = (
-        partial(op_list_prefix, s3role)
-        if recursive
-        else partial(op_list_prefix_nonrecursive, s3role)
-    )
+    op = partial(op_list_prefix, s3role) if recursive else partial(op_list_prefix_nonrecursive, s3role)
     urls = []
     for success, prefix_url, ret in parallel_op(op, urllist, num_workers):
         if success:
@@ -687,9 +675,7 @@ def _populate_prefixes(prefixes, inputs):
             for l in f:
                 s = l.split(b" ")
                 if len(s) > 1:
-                    prefixes.append(
-                        (url_unquote(s[0].strip()), url_unquote(s[1].strip()))
-                    )
+                    prefixes.append((url_unquote(s[0].strip()), url_unquote(s[1].strip())))
                 else:
                     prefixes.append((url_unquote(s[0].strip()), None))
     return prefixes
@@ -826,11 +812,7 @@ def get(
     if verify:
         # Verify only results with an actual size (so actual files)
         verify_results(
-            [
-                (url, sz)
-                for url, sz in zip(to_load, sz_results)
-                if sz != -ERROR_URL_NOT_FOUND
-            ],
+            [(url, sz) for url, sz in zip(to_load, sz_results) if sz != -ERROR_URL_NOT_FOUND],
             verbose=verbose,
         )
 
@@ -881,9 +863,7 @@ def get(
     help="Role to assume when getting the S3 client",
 )
 @click.argument("prefixes", nargs=-1)
-def info(
-    prefixes, num_workers=None, inputs=None, verbose=None, listing=None, s3role=None
-):
+def info(prefixes, num_workers=None, inputs=None, verbose=None, listing=None, s3role=None):
 
     # Construct a list of URL (prefix) objects
     urllist = []

@@ -107,9 +107,7 @@ def status():
     # Throw an exception
     if path is None:
         raise click.ClickException(
-            "Could not find "
-            + click.style('"%s"' % DATASTORE_LOCAL_DIR, fg="red")
-            + " in the current working tree."
+            "Could not find " + click.style('"%s"' % DATASTORE_LOCAL_DIR, fg="red") + " in the current working tree."
         )
 
     stripped_path = os.path.dirname(path)
@@ -189,9 +187,7 @@ def validate_episode(episode):
     src_dir = os.path.join(get_tutorials_dir(), episode)
     if not os.path.isdir(src_dir):
         raise click.BadArgumentUsage(
-            "Episode "
-            + click.style('"{0}"'.format(episode), fg="red")
-            + " does not exist."
+            "Episode " + click.style('"{0}"'.format(episode), fg="red") + " does not exist."
             " To see a list of available episodes, "
             "type:\n" + click.style("metaflow tutorials list", fg="cyan")
         )
@@ -267,9 +263,7 @@ def info(episode):
 
 
 # NOTE: This code needs to be in sync with metaflow/metaflow_config.py.
-METAFLOW_CONFIGURATION_DIR = expanduser(
-    os.environ.get("METAFLOW_HOME", "~/.metaflowconfig")
-)
+METAFLOW_CONFIGURATION_DIR = expanduser(os.environ.get("METAFLOW_HOME", "~/.metaflowconfig"))
 
 
 @main.group(help="Configure Metaflow to access the cloud.")
@@ -344,8 +338,7 @@ def reset(profile):
     path = get_config_path(profile)
     if os.path.exists(path):
         if click.confirm(
-            "Do you really wish to reset the configuration in "
-            + click.style('"%s"' % path, fg="cyan"),
+            "Do you really wish to reset the configuration in " + click.style('"%s"' % path, fg="cyan"),
             abort=True,
         ):
             os.remove(path)
@@ -392,9 +385,7 @@ def export(profile, output_filename):
     output_path = expanduser(output_filename)
     if os.path.exists(output_path):
         if click.confirm(
-            "Do you wish to overwrite the contents in "
-            + click.style('"%s"' % output_path, fg="cyan")
-            + "?",
+            "Do you wish to overwrite the contents in " + click.style('"%s"' % output_path, fg="cyan") + "?",
             abort=True,
         ):
             pass
@@ -433,16 +424,13 @@ def import_from(profile, input_filename):
     "--profile",
     "-p",
     default="",
-    help="Configure a named profile. Activate the profile by setting "
-    "`METAFLOW_PROFILE` environment variable.",
+    help="Configure a named profile. Activate the profile by setting " "`METAFLOW_PROFILE` environment variable.",
 )
 def sandbox(profile):
     overwrite_config(profile)
     # Prompt for user input.
     encoded_str = click.prompt(
-        "Following instructions from "
-        "https://metaflow.org/sandbox, "
-        "please paste the encoded magic string",
+        "Following instructions from " "https://metaflow.org/sandbox, " "please paste the encoded magic string",
         type=str,
     )
     # Decode the bytes to env_dict.
@@ -450,14 +438,10 @@ def sandbox(profile):
         import base64, zlib
         from metaflow.util import to_bytes
 
-        env_dict = json.loads(
-            to_unicode(zlib.decompress(base64.b64decode(to_bytes(encoded_str))))
-        )
+        env_dict = json.loads(to_unicode(zlib.decompress(base64.b64decode(to_bytes(encoded_str)))))
     except:
         # TODO: Add the URL for contact us page in the error?
-        raise click.BadArgumentUsage(
-            "Could not decode the sandbox " "configuration. Please contact us."
-        )
+        raise click.BadArgumentUsage("Could not decode the sandbox " "configuration. Please contact us.")
     # Persist to a file.
     persist_env(env_dict, profile)
 
@@ -521,16 +505,12 @@ def configure_metadata_service(existing_env):
         + yellow(" (optional)")
         + " URL for Metaflow Service "
         + "(Accessible only within VPC).",
-        default=existing_env.get(
-            "METAFLOW_SERVICE_INTERNAL_URL", env["METAFLOW_SERVICE_URL"]
-        ),
+        default=existing_env.get("METAFLOW_SERVICE_INTERNAL_URL", env["METAFLOW_SERVICE_URL"]),
         show_default=True,
     )
     # Set Auth Key for the Metadata Service.
     env["METAFLOW_SERVICE_AUTH_KEY"] = click.prompt(
-        cyan("[METAFLOW_SERVICE_AUTH_KEY]")
-        + yellow(" (optional)")
-        + " Auth Key for Metaflow Service.",
+        cyan("[METAFLOW_SERVICE_AUTH_KEY]") + yellow(" (optional)") + " Auth Key for Metaflow Service.",
         default=existing_env.get("METAFLOW_SERVICE_AUTH_KEY", ""),
         show_default=True,
     )
@@ -553,8 +533,7 @@ def configure_datastore_and_metadata(existing_env):
         + "and/or schedule them on AWS Step "
         + "Functions.\nWould you like to configure Amazon "
         + "S3 as the default storage backend?",
-        default=empty_profile
-        or existing_env.get("METAFLOW_DEFAULT_DATASTORE", "") == "s3",
+        default=empty_profile or existing_env.get("METAFLOW_DEFAULT_DATASTORE", "") == "s3",
         abort=False,
     )
     if use_s3_as_datastore:
@@ -708,18 +687,14 @@ def configure_eks(existing_env):
 
     # Set K8S Namespace
     env["METAFLOW_KUBERNETES_NAMESPACE"] = click.prompt(
-        cyan("[METAFLOW_KUBERNETES_NAMESPACE]")
-        + yellow(" (optional)")
-        + " Kubernetes Namespace ",
+        cyan("[METAFLOW_KUBERNETES_NAMESPACE]") + yellow(" (optional)") + " Kubernetes Namespace ",
         default="default",
         show_default=True,
     )
 
     # Set K8S SA
     env["METAFLOW_KUBERNETES_SERVICE_ACCOUNT"] = click.prompt(
-        cyan("[METAFLOW_KUBERNETES_SERVICE_ACCOUNT]")
-        + yellow(" (optional)")
-        + " Kubernetes Service Account ",
+        cyan("[METAFLOW_KUBERNETES_SERVICE_ACCOUNT]") + yellow(" (optional)") + " Kubernetes Service Account ",
         default="default",
         show_default=True,
     )
@@ -778,8 +753,7 @@ def verify_aws_credentials(ctx):
     "--profile",
     "-p",
     default="",
-    help="Configure a named profile. Activate the profile by setting "
-    "`METAFLOW_PROFILE` environment variable.",
+    help="Configure a named profile. Activate the profile by setting " "`METAFLOW_PROFILE` environment variable.",
 )
 @click.pass_context
 def aws(ctx, profile):
@@ -826,8 +800,7 @@ def aws(ctx, profile):
     "--profile",
     "-p",
     default="",
-    help="Configure a named profile. Activate the profile by setting "
-    "`METAFLOW_PROFILE` environment variable.",
+    help="Configure a named profile. Activate the profile by setting " "`METAFLOW_PROFILE` environment variable.",
 )
 @click.pass_context
 def eks(ctx, profile):

@@ -67,9 +67,7 @@ def _verify_python3_env():
         import subprocess
 
         try:
-            rv = subprocess.Popen(
-                ["locale", "-a"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
-            ).communicate()[0]
+            rv = subprocess.Popen(["locale", "-a"], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0]
         except OSError:
             rv = b""
         good_locales = set()

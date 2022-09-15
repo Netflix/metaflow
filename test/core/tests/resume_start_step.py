@@ -39,6 +39,4 @@ class ResumeStartStepTest(MetaflowTest):
                 checker.assert_artifact(step.name, "data", "foo")
                 checker.assert_artifact(step.name, "int_param", 123)
         else:
-            assert_equals(
-                run.data.expected_origin_run_id, run.data.actual_origin_run_id
-            )
+            assert_equals(run.data.expected_origin_run_id, run.data.actual_origin_run_id)

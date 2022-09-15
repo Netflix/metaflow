@@ -342,9 +342,7 @@ class FlowSpec(object):
                     self._cached_input[stack_index] = var[frame.index]
                 except TypeError:
                     # __getitem__ not supported, fall back to an iterator
-                    self._cached_input[stack_index] = next(
-                        islice(var, frame.index, frame.index + 1)
-                    )
+                    self._cached_input[stack_index] = next(islice(var, frame.index, frame.index + 1))
             return self._cached_input[stack_index]
 
     def merge_artifacts(self, inputs, exclude=[], include=[]):
@@ -400,9 +398,8 @@ class FlowSpec(object):
         """
         node = self._graph[self._current_step]
         if node.type != "join":
-            msg = (
-                "merge_artifacts can only be called in a join and step *{step}* "
-                "is not a join".format(step=self._current_step)
+            msg = "merge_artifacts can only be called in a join and step *{step}* " "is not a join".format(
+                step=self._current_step
             )
             raise MetaflowException(msg)
         if len(exclude) > 0 and len(include) > 0:
@@ -415,9 +412,7 @@ class FlowSpec(object):
             # available_vars is the list of variables from inp that should be considered
             if include:
                 available_vars = (
-                    (var, sha)
-                    for var, sha in inp._datastore.items()
-                    if (var in include) and (not hasattr(self, var))
+                    (var, sha) for var, sha in inp._datastore.items() if (var in include) and (not hasattr(self, var))
                 )
             else:
                 available_vars = (
@@ -475,9 +470,8 @@ class FlowSpec(object):
         join_type = join_node.type
 
         if join_type != "join":
-            msg = (
-                "UnboundedForeach found for:{node} -> {join}."
-                " The join type isn't valid.".format(node=step_name, join=join_step)
+            msg = "UnboundedForeach found for:{node} -> {join}." " The join type isn't valid.".format(
+                node=step_name, join=join_step
             )
             raise InvalidNextException(msg)
 
@@ -512,17 +506,15 @@ class FlowSpec(object):
         num_parallel = kwargs.pop("num_parallel", None)
         if kwargs:
             kw = next(iter(kwargs))
-            msg = (
-                "Step *{step}* passes an unknown keyword argument "
-                "'{invalid}' to self.next().".format(step=step, invalid=kw)
+            msg = "Step *{step}* passes an unknown keyword argument " "'{invalid}' to self.next().".format(
+                step=step, invalid=kw
             )
             raise InvalidNextException(msg)
 
         # check: next() is called only once
         if self._transition is not None:
-            msg = (
-                "Multiple self.next() calls detected in step *{step}*. "
-                "Call self.next() only once.".format(step=step)
+            msg = "Multiple self.next() calls detected in step *{step}*. " "Call self.next() only once.".format(
+                step=step
             )
             raise InvalidNextException(msg)
 
@@ -539,18 +531,15 @@ class FlowSpec(object):
                 )
                 raise InvalidNextException(msg)
             if not hasattr(self, name):
-                msg = (
-                    "Step *{step}* specifies a self.next() transition to an "
-                    "unknown step, *{name}*.".format(step=step, name=name)
+                msg = "Step *{step}* specifies a self.next() transition to an " "unknown step, *{name}*.".format(
+                    step=step, name=name
                 )
                 raise InvalidNextException(msg)
             funcs.append(name)
 
         if num_parallel is not None and num_parallel >= 1:
             if len(dsts) > 1:
-                raise InvalidNextException(
-                    "Only one destination allowed when num_parallel used in self.next()"
-                )
+                raise InvalidNextException("Only one destination allowed when num_parallel used in self.next()")
             foreach = "_parallel_ubf_iter"
             self._parallel_ubf_iter = ParallelUBF(num_parallel)
 
@@ -573,11 +562,8 @@ class FlowSpec(object):
             try:
                 foreach_iter = getattr(self, foreach)
             except:
-                msg = (
-                    "Foreach variable *self.{var}* in step *{step}* "
-                    "does not exist. Check your variable.".format(
-                        step=step, var=foreach
-                    )
+                msg = "Foreach variable *self.{var}* in step *{step}* " "does not exist. Check your variable.".format(
+                    step=step, var=foreach
                 )
                 raise InvalidNextException(msg)
 
@@ -591,18 +577,14 @@ class FlowSpec(object):
                 except TypeError:
                     msg = (
                         "Foreach variable *self.{var}* in step *{step}* "
-                        "is not iterable. Check your variable.".format(
-                            step=step, var=foreach
-                        )
+                        "is not iterable. Check your variable.".format(step=step, var=foreach)
                     )
                     raise InvalidNextException(msg)
 
                 if self._foreach_num_splits == 0:
                     msg = (
                         "Foreach iterator over *{var}* in step *{step}* "
-                        "produced zero splits. Check your variable.".format(
-                            step=step, var=foreach
-                        )
+                        "produced zero splits. Check your variable.".format(step=step, var=foreach)
                     )
                     raise InvalidNextException(msg)
 

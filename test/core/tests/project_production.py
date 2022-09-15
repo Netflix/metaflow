@@ -20,6 +20,4 @@ os.environ['METAFLOW_PRODUCTION'] = 'True'
         from metaflow import current
 
         assert_equals(current.branch_name, "prod")
-        assert_equals(
-            current.project_flow_name, "project_prod.prod.ProjectProductionTestFlow"
-        )
+        assert_equals(current.project_flow_name, "project_prod.prod.ProjectProductionTestFlow")

@@ -190,9 +190,7 @@ def get_latest_run_id(echo, flow_name):
 
     local_root = LocalStorage.datastore_root
     if local_root is None:
-        local_root = LocalStorage.get_datastore_root_from_config(
-            echo, create_on_absent=False
-        )
+        local_root = LocalStorage.get_datastore_root_from_config(echo, create_on_absent=False)
     if local_root:
         path = os.path.join(local_root, flow_name, "latest_run")
         if os.path.exists(path):
@@ -205,9 +203,7 @@ def write_latest_run_id(obj, run_id):
     from metaflow.datastore.local_storage import LocalStorage
 
     if LocalStorage.datastore_root is None:
-        LocalStorage.datastore_root = LocalStorage.get_datastore_root_from_config(
-            obj.echo
-        )
+        LocalStorage.datastore_root = LocalStorage.get_datastore_root_from_config(obj.echo)
     path = LocalStorage.path_join(LocalStorage.datastore_root, obj.flow.name)
     try:
         os.makedirs(path)
@@ -248,8 +244,7 @@ def compress_list(lst, separator=",", rangedelim=":", zlibmarker="!", zlibmin=50
     bad_items = [x for x in lst if separator in x or rangedelim in x or zlibmarker in x]
     if bad_items:
         raise MetaflowInternalError(
-            "Item '%s' includes a delimiter character "
-            "so it can't be compressed" % bad_items[0]
+            "Item '%s' includes a delimiter character " "so it can't be compressed" % bad_items[0]
         )
     # Three output modes:
     lcp = longest_common_prefix(lst)
@@ -293,9 +288,7 @@ def decompress_list(lststr, separator=",", rangedelim=":", zlibmarker="!"):
 
 def longest_common_prefix(lst):
     if lst:
-        return "".join(
-            a for a, _ in takewhile(lambda t: t[0] == t[1], zip(min(lst), max(lst)))
-        )
+        return "".join(a for a, _ in takewhile(lambda t: t[0] == t[1], zip(min(lst), max(lst))))
     else:
         return ""
 
@@ -391,9 +384,7 @@ def to_pascalcase(obj):
     if isinstance(obj, dict):
         res = obj.__class__()
         for k in obj:
-            res[
-                re.sub("([a-zA-Z])", lambda x: x.groups()[0].upper(), k, 1)
-            ] = to_pascalcase(obj[k])
+            res[re.sub("([a-zA-Z])", lambda x: x.groups()[0].upper(), k, 1)] = to_pascalcase(obj[k])
     elif isinstance(obj, (list, set, tuple)):
         res = obj.__class__(to_pascalcase(v) for v in obj)
     else:
