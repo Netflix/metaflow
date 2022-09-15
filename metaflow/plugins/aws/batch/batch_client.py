@@ -386,8 +386,13 @@ class BatchJob(object):
             )
         if "resourceRequirements" not in self.payload["containerOverrides"]:
             self.payload["containerOverrides"]["resourceRequirements"] = []
+
+        # %g will format the value without .0 if it doesn't have a fractional part
+        #
+        # While AWS Batch supports fractional values for fargate, it does not
+        # seem to like seeing values like 2.0 for non-fargate environments.
         self.payload["containerOverrides"]["resourceRequirements"].append(
-            {"value": str(cpu), "type": "VCPU"}
+            {"value": "%g" % (float(cpu)), "type": "VCPU"}
         )
         return self
 
