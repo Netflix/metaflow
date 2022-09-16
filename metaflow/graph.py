@@ -166,6 +166,28 @@ class StepVisitor(ast.NodeVisitor):
             self.nodes[node.name] = DAGNode(node, func.decorators, func.__doc__)
 
 
+class FlowVisitor(ast.NodeVisitor):
+    def __init__(self, nodes, flow):
+        self.nodes = nodes
+        self.flow = flow
+        super(FlowVisitor, self).__init__()
+
+    def visit_ClassDef(self, node):
+        if(len(self.flow.__bases__) > 1):
+            print(f"Can't have multiple inheritance to avoid ambiguity. Skipping... {node.id}")
+            return
+
+        base = self.flow.__bases__[0]
+        base_nodes = {}
+        if base is not object:
+            tree = ast.parse(inspect.getsource(base)).body
+            StepVisitor(base_nodes, base).visit(tree[0])
+
+        nodes = {}
+        StepVisitor(nodes, self.flow).visit(node)  # by vising the root last, we respect the precedence of the inheritance
+        self.nodes = {**base_nodes, **nodes}
+
+
 class FlowGraph(object):
     def __init__(self, flow):
         self.name = flow.__name__
@@ -180,9 +202,9 @@ class FlowGraph(object):
         root = [n for n in tree if isinstance(n, ast.ClassDef) and n.name == self.name][
             0
         ]
-        nodes = {}
-        StepVisitor(nodes, flow).visit(root)
-        return nodes
+        fv = FlowVisitor({}, flow)
+        fv.visit(root)
+        return fv.nodes
 
     def _postprocess(self):
         # any node who has a foreach as any of its split parents
