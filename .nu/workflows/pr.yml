@@ -1,0 +1,8 @@
+apiVersion: workflows.dev/v1alpha1
+kind: TemplateInstance
+metadata:
+  namespace: pipelines
+spec:
+  templateName: python-testing-pr
+  input:
+    pythonVersion: 3.9.7
