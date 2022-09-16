@@ -19,8 +19,6 @@ from metaflow.package import MetaflowPackage
 from metaflow.plugins import EnvironmentDecorator, KubernetesDecorator
 from .util import (
     current_flow_name,
-    format_flow_name,
-    parse_flow_name,
     format_sensor_name,
     status_present_tense,
 )
@@ -547,75 +545,3 @@ def trigger(obj, run_id_file=None, **kwargs):
         "(run-id *{run_id}*).".format(name=obj.workflow_name, run_id=run_id),
         bold=True,
     )
-
-
-@argo_workflows.command(
-    help="Remove any Argo Workflows template and sensors for this workflow."
-)
-@click.option(
-    "--dry-run",
-    default=False,
-    is_flag=True,
-    help="Display what would be deleted without performing deletion",
-)
-@click.option(
-    "--project", default=None, show_default=False, type=str, help="Project name"
-)
-@click.option("--branch", default=None, show_default=True, type=str, help="Branch name")
-@click.pass_obj
-def delete(obj, dry_run=False, project=None, branch=None):
-    current_user = get_username()
-    parsed = list(parse_flow_name(current_flow_name()))
-    if project is not None:
-        parsed[0] = project
-    if branch is not None:
-        parsed[1] = branch
-    else:
-        parsed[1] = ".".join(["user", get_username()])
-    submitted_flow_name = format_flow_name(
-        parsed[2], project_name=parsed[0], branch_name=parsed[1]
-    )[0]
-    sensor_name = format_sensor_name(submitted_flow_name)
-    client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
-    result = client.remove_existing_trigger_on_template(sensor_name, dry_run=dry_run)
-    if dry_run:
-        if result[0]:
-            obj.echo(
-                "DELETE trigger *{sensor_name}* (executed when {workflow_name} {status}).".format(
-                    sensor_name=sensor_name,
-                    workflow_name=result[1],
-                    status=status_present_tense(result[2]),
-                ),
-            )
-        else:
-            obj.echo(
-                "Trigger for *{workflow_name}* not found.".format(
-                    workflow_name=submitted_flow_name
-                )
-            )
-    else:
-        if result[0]:
-            obj.echo("Deleted trigger *{sensor_name}*.".format(sensor_name=sensor_name))
-    result = client.remove_existing_workflow_template(
-        submitted_flow_name, dry_run=dry_run
-    )
-    if dry_run:
-        if result:
-            obj.echo(
-                "DELETE workflow template *{workflow_name}*.".format(
-                    workflow_name=submitted_flow_name
-                )
-            )
-        else:
-            obj.echo(
-                "Workflow template *{workflow_name}* not found.".format(
-                    workflow_name=submitted_flow_name
-                )
-            )
-    else:
-        if result:
-            obj.echo(
-                "Deleted workflow template *{workflow_name}*.".format(
-                    workflow_name=submitted_flow_name
-                )
-            )

@@ -6,6 +6,7 @@ import os
 import shlex
 import sys
 from collections import defaultdict
+from urllib import parse
 
 from metaflow.current import current
 from metaflow.decorators import flow_decorators
@@ -40,16 +41,16 @@ from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_v
 from metaflow.parameters import deploy_time_eval
 from metaflow.util import compress_list, dict_to_cli_options, to_camelcase
 
-from .event_decorators import EmitEventDecorator
+from .event_decorators import TriggerInfo
 from .argo_client import ArgoClient
 from .util import (
-    current_flow_name,
-    format_flow_name,
-    format_sensor_name,
-    parse_flow_name,
-    event_topic,
     are_events_configured,
+    current_flow_name,
     encode_json,
+    event_topic,
+    format_sensor_name,
+    list_to_prose,
+    project_and_branch,
 )
 
 
@@ -139,9 +140,8 @@ class ArgoWorkflows(object):
         self.workflow_timeout = workflow_timeout
         self.workflow_priority = workflow_priority
         self._ignore_events = ignore_events
-        self._triggering_flow = None
-        self._triggering_status = None
-        self._triggering_event = None
+        self._triggering_flows = []
+        self._triggering_events = []
 
         # The values with curly braces '{{}}' are made available by Argo
         # Workflows. Unfortunately, there are a few bugs in Argo which prevent
@@ -169,11 +169,11 @@ class ArgoWorkflows(object):
             if are_events_configured():
                 if self._trigger_on_template is not None:
                     client.register_trigger_on_template(
-                        self._trigger_on_template.name(),
+                        self._trigger_on_template.name,
                         self._trigger_on_template.to_json(),
                     )
                 else:
-                    client.remove_existing_trigger_on_template(
+                    client.disable_existing_trigger_on_template(
                         format_sensor_name(current_flow_name())
                     )
         except Exception as e:
@@ -240,20 +240,44 @@ class ArgoWorkflows(object):
                 "This workflow triggers automatically via the CronWorkflow *%s*."
                 % self.name
             )
-        elif self._triggering_flow is not None:
-            if self._triggering_status == "succeeded":
-                display_status = "succeeds"
+        elif len(self._triggering_flows) > 0 or len(self._triggering_events) > 0:
+            (flow_ref, flows) = list_to_prose(self._triggering_flows, "flow")
+            (event_ref, events) = list_to_prose(
+                self._triggering_events, "event", use_quotes=True
+            )
+            message = "This workflow triggers automatically when the"
+            if flows != "":
+                template = "%s %s %s %s"
+                if flow_ref == "flow":
+                    message = template % (message, flow_ref, flows, "succeeds")
+                else:
+                    message = template % (message, flow_ref, flows, "succeed")
+                if events != "":
+                    template = "%s and the %s %s %s."
+                    if event_ref == "event":
+                        message = template % (
+                            message,
+                            event_ref,
+                            events,
+                            "is received",
+                        )
+                    else:
+                        message = template % (
+                            message,
+                            event_ref,
+                            events,
+                            "are received",
+                        )
+                else:
+                    message = message + "."
             else:
-                display_status = "fails"
-            return "This workflow triggers automatically when flow %s %s." % (
-                self._triggering_flow,
-                display_status,
-            )
-        elif self._triggering_event is not None:
-            return (
-                "This workflow triggers automatically when the event '%s' is received."
-                % (self._triggering_event)
-            )
+                template = "%s %s %s %s."
+                if event_ref == "event":
+                    message = template % (message, event_ref, events, "is received")
+                else:
+                    message = template % (message, event_ref, events, "are received")
+            return message
+
         else:
             return "No triggers defined. You need to launch this workflow manually."
 
@@ -439,28 +463,14 @@ class ArgoWorkflows(object):
                 )
                 # Set the entrypoint to flow name
                 .entrypoint(self.flow.name)
-                # Set succeeded & failed lifecycle hooks
+                # Set succeeded lifecycle hook
                 .lifecycle_hooks(self.flow.name, ignore_events=self._ignore_events)
                 # Top-level DAG template(s)
                 .templates(self._dag_templates())
                 # Container templates
                 .templates(self._container_templates())
-                # Event emitter templates
-                .templates(self._event_emitter_templates())
             )
         )
-
-    # Emit a new container template for each use of @emit_event
-    def _event_emitter_templates(self):
-        for node in self.graph:
-            if hasattr(node, "event_emitter_hook_name"):
-                template_name = node.event_emitter_hook_name
-                deco = node.event_emitter_decorator
-                t = EventEmitterHookContainerTemplate(
-                    template_name, deco.event, deco.data
-                )
-                t.set_env_vars(self._make_env(node))
-                yield t
 
     # Visit every node and yield the uber DAGTemplate(s).
     def _dag_templates(self):
@@ -520,7 +530,6 @@ class ArgoWorkflows(object):
                     .template(self._sanitize(node.name))
                     .arguments(Arguments().parameters(parameters))
                 )
-            dag_task = dag_task.add_event_emitter(node)
             dag_tasks.append(dag_task)
 
             # End the workflow if we have reached the end of the flow
@@ -566,7 +575,6 @@ class ArgoWorkflows(object):
                         % self._sanitize(node.name)
                     )
                 )
-                foreach_task = foreach_task.add_event_emitter(node)
                 dag_tasks.append(foreach_task)
                 templates, dag_tasks_1 = _visit(
                     self.graph[node.out_funcs[0]], node.matching_join, templates, []
@@ -611,9 +619,6 @@ class ArgoWorkflows(object):
                             ]
                         )
                     )
-                )
-                join_foreach_task = join_foreach_task.add_event_emitter(
-                    self.graph[node.matching_join]
                 )
                 dag_tasks.append(join_foreach_task)
                 return _visit(
@@ -873,10 +878,14 @@ class ArgoWorkflows(object):
                         "ARGO_WORKFLOW_TEMPLATE": self.name,
                         "ARGO_WORKFLOW_NAME": "{{workflow.name}}",
                         "ARGO_WORKFLOW_NAMESPACE": KUBERNETES_NAMESPACE,
+                        "METAFLOW_EVENT_SOURCE": EVENT_SOURCE_URL,
+                        "METAFLOW_EVENT_SOURCE_NAME": EVENT_SOURCE_NAME,
                     },
                     **self.metadata.get_runtime_environment("argo-workflows"),
                 }
             )
+            if retry_count is not None:
+                env["METAFLOW_RETRY_COUNT"] = retry_count
             # add METAFLOW_S3_ENDPOINT_URL
             env["METAFLOW_S3_ENDPOINT_URL"] = S3_ENDPOINT_URL
 
@@ -893,12 +902,12 @@ class ArgoWorkflows(object):
             # GCP stuff
             env["METAFLOW_DATASTORE_SYSROOT_GS"] = DATASTORE_SYSROOT_GS
             env["METAFLOW_CARD_GSROOT"] = CARD_GSROOT
+            env["METAFLOW_DATASTORE_CARD_AZUREROOT"] = DATASTORE_CARD_AZUREROOT
 
             metaflow_version = self.environment.get_environment_info()
             metaflow_version["flow_name"] = self.graph.name
             metaflow_version["production_token"] = self.production_token
             env["METAFLOW_VERSION"] = json.dumps(metaflow_version)
-            env = self._make_env(node, retry_count=retry_count)
 
             # Set the template inputs and outputs for passing state. Very simply,
             # the container template takes in input-paths as input and outputs
@@ -1047,102 +1056,23 @@ class ArgoWorkflows(object):
                 if self._ignore_events:
                     return
                 elif are_events_configured():
-                    annotation = current.get("lifecycle_annotation")
-                    template_env = self._make_env(node)
-                    statuses = []
-                    data = None
-                    if annotation is not None:
-                        statuses = annotation["statuses"]
-                        data = annotation["data"]
-                    if "succeeded" in statuses:
-                        yield self._make_lifecycle_hook_container_template(
-                            template_env, "succeeded", data=data
+                    template_env = {"METAFLOW_EVENT_SOURCE_NAME": EVENT_SOURCE_NAME}
+                    if EVENT_SOURCE_URL.startswith("nats://"):
+                        parsed = parse.urlparse(EVENT_SOURCE_URL)
+                        template_env["METAFLOW_EVENT_ENDPOINT"] = parsed.netloc
+                        template_env["METAFLOW_EVENT_PATH"] = parsed.path.replace(
+                            "/", ""
                         )
                     else:
-                        yield self._make_lifecycle_hook_container_template(
-                            template_env, "succeeded"
-                        )
-                    if "failed" in statuses:
-                        yield self._make_lifecycle_hook_container_template(
-                            template_env, "failed", data=data
-                        )
-                    else:
-                        yield self._make_lifecycle_hook_container_template(
-                            template_env, "failed"
-                        )
+                        template_env["METAFLOW_EVENT_SOURCE_URL"] = EVENT_SOURCE_URL
+                    yield self._make_lifecycle_hook_container_template(
+                        template_env, "succeeded"
+                    )
 
-    def _make_lifecycle_hook_container_template(self, env, status, data=None):
-        t = WorkflowLifecycleHookContainerTemplate(current_flow_name(), status, data)
+    def _make_lifecycle_hook_container_template(self, env, status):
+        t = WorkflowLifecycleHookContainerTemplate(current_flow_name(), status)
         t.set_env_vars(env)
         return t
-
-    def _make_env(self, node, retry_count=None):
-        # Resolve @environment decorator. We set three classes of environment
-        # variables -
-        #   (1) User-specified environment variables through @environment
-        #   (2) Metaflow runtime specific environment variables
-        #   (3) @kubernetes, @argo_workflows_internal book-keeping environment
-        #       variables
-        env = dict(
-            [deco for deco in node.decorators if deco.name == "environment"][
-                0
-            ].attributes["vars"]
-        )
-        env.update(
-            {
-                **{
-                    # These values are needed by Metaflow to set it's internal
-                    # state appropriately
-                    "METAFLOW_CODE_URL": self.code_package_url,
-                    "METAFLOW_CODE_SHA": self.code_package_sha,
-                    "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
-                    "METAFLOW_SERVICE_URL": SERVICE_INTERNAL_URL,
-                    "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
-                    "METAFLOW_USER": "argo-workflows",
-                    "METAFLOW_DATASTORE_SYSROOT_S3": DATASTORE_SYSROOT_S3,
-                    "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
-                    "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
-                    "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
-                    "METAFLOW_CARD_S3ROOT": CARD_S3ROOT,
-                    "METAFLOW_KUBERNETES_WORKLOAD": 1,
-                    "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
-                    "METAFLOW_OWNER": self.username,
-                },
-                **{
-                    # Some optional values for bookkeeping
-                    "METAFLOW_FLOW_NAME": self.flow.name,
-                    "METAFLOW_STEP_NAME": node.name,
-                    "METAFLOW_RUN_ID": self._run_id,
-                    "METAFLOW_PRODUCTION_TOKEN": self.production_token,
-                    "ARGO_WORKFLOW_TEMPLATE": self.name,
-                    "ARGO_WORKFLOW_NAME": "{{workflow.name}}",
-                    "ARGO_WORKFLOW_NAMESPACE": KUBERNETES_NAMESPACE,
-                    "METAFLOW_EVENT_SOURCE": EVENT_SOURCE_URL,
-                    "METAFLOW_EVENT_SOURCE_NAME": EVENT_SOURCE_NAME,
-                },
-                **self.metadata.get_runtime_environment("argo-workflows"),
-            }
-        )
-        if retry_count is not None:
-            env["METAFLOW_RETRY_COUNT"] = retry_count
-        # add METAFLOW_S3_ENDPOINT_URL
-        env["METAFLOW_S3_ENDPOINT_URL"] = S3_ENDPOINT_URL
-
-        # support Metaflow sandboxes
-        env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
-
-        # Azure stuff
-        env[
-            "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
-        ] = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
-        env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = DATASTORE_SYSROOT_AZURE
-        env["METAFLOW_DATASTORE_CARD_AZUREROOT"] = DATASTORE_CARD_AZUREROOT
-
-        metaflow_version = self.environment.get_environment_info()
-        metaflow_version["flow_name"] = self.graph.name
-        metaflow_version["production_token"] = self.production_token
-        env["METAFLOW_VERSION"] = json.dumps(metaflow_version)
-        return env
 
     def _get_retries(self, node):
         max_user_code_retries = 0
@@ -1166,42 +1096,32 @@ class ArgoWorkflows(object):
         )
 
     def _compile_trigger_on_template(self):
-        trigger_on = current.get("trigger_on")
-        if trigger_on is not None:
-            calling_flow = current_flow_name()
-            event = trigger_on["event"]
-            status = trigger_on["status"]
-            triggering_flow = trigger_on["flow"]
-            mappings = trigger_on.get("mappings")
-            parameters = self._process_parameters(include_values=False)
-            t = TriggerOnTemplate.make_trigger(
-                calling_flow=calling_flow,
-                predecessor=triggering_flow,
-                predecessor_status=status,
-                event_name=event,
-                parameters=parameters,
-                mappings=mappings,
-            )
-            t.annotation({"metaflow/flow_name": calling_flow})
-            t.annotation({"metaflow/owner": self.username})
-            t.annotation({"metaflow/user": EVENT_SERVICE_ACCOUNT})
-            t.annotation({"metaflow/production_token": self.production_token})
-            t.label({"app.kubernetes.io/name": "metaflow-flow-sensor"})
-            t.label({"app.kubernetes.io/part-of": "metaflow"})
-            (project, branch, _) = parse_flow_name(calling_flow)
-            if triggering_flow is not None:
-                (display_name, argo_name) = format_flow_name(
-                    triggering_flow, project_name=project, branch_name=branch
-                )
-                self._triggering_flow = display_name
-                self._triggering_status = status
-                triggering_flow = argo_name
-                t.annotation({"metaflow/triggering_flow": argo_name})
-                t.annotation({"metaflow/trigger_status": status})
-            elif event is not None:
-                self._triggering_event = event
-                t.annotation({"metaflow/triggering_event": event})
-            return t
+        for decorator in flow_decorators():
+            if (
+                decorator.name == "trigger_on"
+                and not decorator.attributes["trigger_set"].is_empty()
+            ):
+                trigger_set = decorator.attributes["trigger_set"]
+                parameters = self._process_parameters(include_values=False)
+                calling_flow = current_flow_name()
+                (project_name, branch_name) = project_and_branch()
+                trigger_set.add_namespacing(project_name, branch_name)
+                t = SensorTemplate(calling_flow, parameters)
+                for trigger in trigger_set.triggers:
+                    print(trigger)
+                    t.add_trigger(trigger)
+                    if trigger.type == TriggerInfo.LIFECYCLE_EVENT:
+                        self._triggering_flows.append(trigger.name)
+                    elif trigger.type == TriggerInfo.USER_EVENT:
+                        self._triggering_events.append(trigger.name)
+                t.annotation({"metaflow/flow_name": calling_flow})
+                t.annotation({"metaflow/owner": self.username})
+                t.annotation({"metaflow/user": EVENT_SERVICE_ACCOUNT})
+                t.annotation({"metaflow/production_token": self.production_token})
+                t.label({"app.kubernetes.io/name": "metaflow-flow-sensor"})
+                t.label({"app.kubernetes.io/part-of": "metaflow"})
+                return t
+        return None
 
 
 # Helper classes to assist with JSON-foo. This can very well replaced with an explicit
@@ -1347,12 +1267,7 @@ class WorkflowSpec(object):
                 "expression": 'workflow.status == "Succeeded"',
             }
             success_name = "mf-" + name + "-succeeded"
-            failure = {
-                "template": "on-failed",
-                "expression": 'workflow.status == "Failed"',
-            }
-            failure_name = "mf-" + name + "-failed"
-            self.payload["hooks"] = {success_name: success, failure_name: failure}
+            self.payload["hooks"] = {success_name: success}
         return self
 
     def to_json(self):
@@ -1615,26 +1530,6 @@ class DAGTask(object):
         self.payload["withParam"] = with_param
         return self
 
-    def add_event_emitter(self, node):
-        if node.type == "foreach" or node.is_inside_foreach:
-            raise MetaflowException(
-                "Using @emit_event with foreach loops isn't supported"
-            )
-        for deco in node.decorators:
-            if deco.__class__ == EmitEventDecorator:
-                if "hooks" not in self.payload:
-                    self.payload["hooks"] = {}
-                hook_name = self._unique_hook_name(node.name)
-                expr = 'tasks.%s.status == "%s"' % (node.name, deco.formatted_status())
-                hook = {"template": hook_name, "expression": expr}
-                self.payload["hooks"][hook_name] = hook
-                # Stash hook name and decorator reference so we can
-                # generate container templates with the correct name
-                # later
-                node.event_emitter_hook_name = hook_name
-                node.event_emitter_decorator = deco
-        return self
-
     def to_json(self):
         return self.payload
 
@@ -1672,12 +1567,54 @@ class Arguments(object):
         return json.dumps(self.payload, indent=4)
 
 
-class HookContainerTemplate(object):
-    def __init__(self):
+class WorkflowLifecycleHookContainerTemplate(object):
+    def __init__(self, flow_name, lifecycle_event):
         tree = lambda: defaultdict(tree)
         self.payload = tree()
-        self._requests = {"cpu": "1", "memory": "512M"}
-        self._image = EVENT_DISPATCH_IMAGE
+        self._requests = {"requests": {"cpu": "1", "memory": "512M"}}
+        self._image = "ubuntu:22.04"
+        self._env = dict()
+        self.name = "on-" + lifecycle_event
+        event_payload = {
+            "payload": {
+                "event_name": "metaflow_flow_run_%s" % lifecycle_event,
+                "flow_name": flow_name,
+                "timestamp": "TS",
+            }
+        }
+        text = json.dumps(event_payload)
+        if EVENT_SOURCE_URL.startswith("nats://"):
+            commands = [
+                # Update pkg index
+                "apt-get update",
+                # Install curl
+                "apt-get -y install curl",
+                # Fetch NATS package
+                "/usr/bin/curl -o natscli.deb -L https://github.com/nats-io/natscli/releases/download/v0.0.34/nats-0.0.34-amd64.deb",
+                # Install it
+                "dpkg -i natscli.deb",
+                # Get current timestamp
+                "TS=$(date -u +%s)",
+                # Create event payload with current UTC timestamp
+                'PAYLOAD="$(echo \'%s\' | sed -e "s/\\"TS\\"/${TS}/g")"' % text,
+                # Publish event
+                'nats --user=$NATS_TOKEN -s $METAFLOW_EVENT_ENDPOINT pub $METAFLOW_EVENT_PATH "${PAYLOAD}"',
+                "echo ${PAYLOAD}",
+            ]
+        else:
+            commands = [
+                # Update pkg index
+                "apt-get update",
+                # Install curl
+                "apt-get -y install curl",
+                # Get current timestamp
+                "TS=$(date -u +%s)",
+                # Create event payload with current UTC timestamp
+                'PAYLOAD="$(echo \'%s\' | sed -e "s/\\"TS\\"/${TS}/g")"' % text,
+                # Publish event
+                'curl -XPOST --data-binary "${PAYLOAD}" $METAFLOW_EVENT_URL',
+            ]
+        self.command = ["bash", "-c", " && ".join(commands)]
 
     @property
     def name(self):
@@ -1740,167 +1677,111 @@ class HookContainerTemplate(object):
         return json.dumps(self.to_json(), indent=4)
 
 
-class WorkflowLifecycleHookContainerTemplate(HookContainerTemplate):
-    def __init__(self, flow_name, lifecycle_event, data=None):
-        super().__init__()
-        (project, branch, flow) = parse_flow_name(flow_name)
-        (_, flow_name) = format_flow_name(
-            flow, project_name=project, branch_name=branch
-        )
-        self.name = "on-" + lifecycle_event
-        commands = [
-            "python",
-            "/trigger.py",
-            "run_lifecycle_event",
-            flow_name,
-            lifecycle_event,
-        ]
-        if data is not None:
-            encoded = encode_json(data)
-            commands.append("%s" % encoded)
-        self.command = commands
-
-
-class EventEmitterHookContainerTemplate(HookContainerTemplate):
-    def __init__(self, hook_name, event_name, data):
-        super().__init__()
-        (project, branch, _) = parse_flow_name(current_flow_name())
-        (_, event_name) = format_flow_name(
-            event_name, project_name=project, branch_name=branch
-        )
-        self.name = hook_name
-        commands = ["python", "/trigger.py", "user_event", event_name]
-        if data is not None:
-            encoded = encode_json(data)
-            commands.append("%s" % encoded)
-        self.command = commands
-
-
-class TriggerOnTemplate(object):
-    @classmethod
-    def make_trigger(
-        cls,
-        calling_flow,
-        predecessor=None,
-        predecessor_status=None,
-        event_name=None,
-        parameters=[],
-        mappings=None,
-    ):
-        (project, branch, flow) = parse_flow_name(calling_flow)
-        (_, calling_flow) = format_flow_name(
-            flow, project_name=project, branch_name=branch
-        )
-        if predecessor is not None and predecessor_status is not None:
-            return TriggerOnFlowStatusTemplate(
-                calling_flow, predecessor, predecessor_status, parameters, mappings
-            )
-        else:
-            return TriggerOnRawEventTemplate(
-                calling_flow, event_name, parameters, mappings
-            )
-
-    def __init__(self, calling_flow, parameters, mappings):
-        self.topic = event_topic()
-        tree = lambda: defaultdict(tree)
-        self.payload = tree()
-        self.payload["event"] = None
-        self.payload["flow"] = None
-        self.payload["status"] = None
-        self.payload["data"] = None
+class SensorTemplate:
+    def __init__(self, calling_flow, parameters):
+        self.name = format_sensor_name(calling_flow)
         self.calling_flow = calling_flow
-        self.sensor_name = format_sensor_name(self.calling_flow)
-        self.payload["apiVersion"] = "argoproj.io/v1alpha1"
-        self.payload["kind"] = "Sensor"
-        self.payload["metadata"]["name"] = self.name()
-        self.payload["spec"]["template"]["serviceAccountName"] = EVENT_SERVICE_ACCOUNT
-        self.parameter_assignments = self._build_flow_parameter_assignments(parameters)
-        self.event_field_mappings = self._build_event_field_mappings(mappings)
+        self.parameters = parameters
+        self.dependencies = []
+        self.dependency_names = {}
+        self.transformed_fields = {}
+        self.parameter_assignments = None
+        self.count = 0
+        self.payload = {
+            "apiVersion": "argoproj.io/v1alpha1",
+            "kind": "Sensor",
+            "spec": {"template": {"serviceAccountName": EVENT_SERVICE_ACCOUNT}},
+            "metadata": {"annotations": {}, "labels": {}, "name": self.name},
+        }
 
-    def _build_flow_parameter_assignments(self, parameters):
-        i = 0
-        assignments = []
-        for parameter in parameters:
-            data_key = "body.payload.data.%s" % parameter["name"].lower()
-            dest = "spec.arguments.parameters.%d.value" % i
-            assignments.append(
-                {"src": {"dependencyName": "", "dataKey": data_key}, "dest": dest}
-            )
-            i += 1
-        return assignments
+    def _unique_name(self, prefix):
+        result = "%s-%d" % (prefix, self.count)
+        self.count += 1
+        return result
 
-    def _build_event_field_mappings(self, mappings):
-        if mappings is None:
-            return None
+    def add_trigger(self, info):
+        if info.type == TriggerInfo.LIFECYCLE_EVENT:
+            name = self._unique_name("lifecycle-event")
+        elif info.type == TriggerInfo.USER_EVENT:
+            name = self._unique_name("user-event")
+        filters = self._build_filters(info)
+        print(
+            "trigger flow name: %s, formatted name: %s"
+            % (info.name, info.formatted_name)
+        )
+        event = {
+            "name": name,
+            "eventSourceName": EVENT_SOURCE_NAME,
+            "eventName": event_topic(),
+            "filters": filters,
+        }
+        if info.has_mappings():
+            event["transform"] = self._build_event_field_transforms(info)
+        self.dependencies.append(event)
+        self.dependency_names[info.name] = name
+
+    def _build_filters(self, info):
+        if info.type == TriggerInfo.LIFECYCLE_EVENT:
+            return {
+                "exprs": [
+                    {
+                        "expr": (
+                            'flow_name == "%s" && event_name == "metaflow_flow_run_%s"'
+                            % (info.formatted_name, info.status)
+                        ),
+                        "fields": [
+                            {"name": "flow_name", "path": "body.payload.flow_name"},
+                            {"name": "event_name", "path": "body.payload.event_name"},
+                        ],
+                    },
+                ],
+            }
+        elif info.type == TriggerInfo.USER_EVENT:
+            return {
+                "exprs": [
+                    {
+                        "expr": ('event_name == "%s"' % (info.name)),
+                        "fields": [
+                            {"name": "event_name", "path": "body.payload.event_name"},
+                        ],
+                    },
+                ]
+            }
+
+    def _build_event_field_transforms(self, info):
+        if info.mappings is None or info.name not in info.mappings:
+            return
+        current_mappings = info.mappings[info.name]
         buf = StringIO()
-        for param_name in mappings.keys():
-            event_field = mappings[param_name]
+        for parameter_name in current_mappings.keys():
+            event_field = current_mappings[parameter_name]
+            self.transformed_fields[parameter_name] = info.name
             buf.write(
                 "event.body.payload.data.%s = event.body.payload.data.%s\n"
-                % (param_name, event_field)
+                % (parameter_name, event_field)
             )
         buf.write("return event")
         return {"script": buf.getvalue()}
 
-    def annotation(self, annotation):
-        pass
-        if not self.payload["metadata"]["annotations"]:
-            self.payload["metadata"]["annotations"] = annotation
-        else:
-            self.payload["metadata"]["annotations"].update(annotation)
-        return self
-
-    def label(self, label):
-        pass
-
-    def name(self):
-        return self.sensor_name
-
-    def to_json(self):
-        pass
-
-
-class TriggerOnFlowStatusTemplate(TriggerOnTemplate):
-    def __init__(
-        self, calling_flow, predecessor, predecessor_status, parameters, mappings
-    ):
-        super().__init__(calling_flow, parameters, mappings)
-        (project, branch, flow) = parse_flow_name(calling_flow)
-        (_, calling_flow) = format_flow_name(flow, project, branch)
-        (_, predecessor) = format_flow_name(predecessor, project, branch)
-        self._after_flow = predecessor
-        event = {"name": "lifecycle-event"}
-        event["eventSourceName"] = EVENT_SOURCE_NAME
-        event["eventName"] = event_topic()
-        event["filters"] = self._build_filters(predecessor_status)
-        if self.event_field_mappings is not None:
-            event["transform"] = self.event_field_mappings
-        self.payload["spec"]["dependencies"] = [event]
-        self.payload["spec"]["triggers"] = []
-        for assignment in self.parameter_assignments:
-            assignment["src"]["dependencyName"] = "lifecycle-event"
-        triggered_template = {
-            "source": {
-                "resource": {
-                    "apiVersion": "argoproj.io/v1alpha1",
-                    "kind": "Workflow",
-                    "metadata": {"generateName": self.calling_flow + "-"},
-                    "spec": {
-                        "arguments": {"parameters": parameters},
-                        "workflowTemplateRef": {"name": self.calling_flow},
-                    },
-                }
-            },
-            "parameters": self.parameter_assignments,
-        }
-        self.payload["spec"]["triggers"].append(
-            {
-                "template": {
-                    "name": self.name() + "-trigger",
-                    "k8s": triggered_template,
-                }
-            }
-        )
+    def _build_parameter_assignments(self):
+        assignments = []
+        i = 0
+        for param in self.parameters:
+            param_name = param["name"]
+            if param_name in self.transformed_fields:
+                name = self.transformed_fields[param_name]
+                dependency = self.dependency_names[name]
+                assignments.append(
+                    {
+                        "src": {
+                            "dependencyName": dependency,
+                            "dataKey": "body.payload.data.%s" % param_name,
+                        },
+                        "dest": "spec.arguments.parameters.%d.value" % i,
+                    }
+                )
+            i += 1
+        return assignments
 
     def label(self, label):
         if not self.payload["metadata"]["labels"]:
@@ -1913,84 +1794,38 @@ class TriggerOnFlowStatusTemplate(TriggerOnTemplate):
             self.payload["metadata"]["annotations"] = annotation
         else:
             self.payload["metadata"]["annotations"].update(annotation)
-        return self
-
-    def _build_filters(self, predecessor_status):
-        return {
-            "exprs": [
-                {
-                    "expr": (
-                        'flow_name == "%s" && event_name == "metaflow_flow_run_%s"'
-                        % (self._after_flow, predecessor_status)
-                    ),
-                    "fields": [
-                        {"name": "flow_name", "path": "body.payload.flow_name"},
-                        {"name": "event_name", "path": "body.payload.event_name"},
-                    ],
-                },
-            ],
-        }
 
     def to_json(self):
-        return self.payload
-
-    def __str__(self):
-        return json.dumps(self.to_json(), indent=4)
-
-
-class TriggerOnRawEventTemplate(TriggerOnTemplate):
-    def __init__(self, calling_flow, event_name, parameters, mappings):
-        super().__init__(calling_flow, parameters, mappings)
-        (project, branch, flow) = parse_flow_name(calling_flow)
-        (_, event_name) = format_flow_name(
-            event_name, project_name=project, branch_name=branch
-        )
-        event = {"name": "raw-event"}
-        event["eventSourceName"] = EVENT_SOURCE_NAME
-        event["eventName"] = self.topic
-        event["filters"] = self._build_filters(event_name)
-        if self.event_field_mappings is not None:
-            event["transform"] = self.event_field_mappings
-        self.payload["spec"]["dependencies"] = [event]
-        for assignment in self.parameter_assignments:
-            assignment["src"]["dependencyName"] = "raw-event"
+        result = self.payload.copy()
+        spec = {
+            "dependencies": self.dependencies,
+            "template": {"serviceAccountName": "operate-workflow-sa"},
+        }
         triggered_template = {
-            "source": {
-                "resource": {
-                    "apiVersion": "argoproj.io/v1alpha1",
-                    "kind": "Workflow",
-                    "metadata": {"generateName": self.calling_flow + "-"},
-                    "spec": {
-                        "arguments": {"parameters": parameters},
-                        "workflowTemplateRef": {"name": self.calling_flow},
+            "template": {
+                "name": self.name,
+                "k8s": {
+                    "source": {
+                        "resource": {
+                            "apiVersion": "argoproj.io/v1alpha1",
+                            "kind": "Workflow",
+                            "metadata": {"generateName": self.calling_flow + "-"},
+                            "spec": {
+                                "arguments": {"parameters": self.parameters},
+                                "workflowTemplateRef": {"name": self.calling_flow},
+                            },
+                        }
                     },
-                }
-            },
-            "parameters": self.parameter_assignments,
-        }
-        self.payload["spec"]["triggers"] = [
-            {
-                "template": {
-                    "name": self.name() + "-trigger",
-                    "k8s": triggered_template,
-                }
-            }
-        ]
-
-    def _build_filters(self, event_name):
-        return {
-            "exprs": [
-                {
-                    "expr": ('event_name == "%s"' % (event_name)),
-                    "fields": [
-                        {"name": "event_name", "path": "body.payload.event_name"},
-                    ],
                 },
-            ],
+            }
         }
+        triggered_template["template"]["k8s"][
+            "parameters"
+        ] = self._build_parameter_assignments()
 
-    def to_json(self):
-        return self.payload
+        spec["triggers"] = [triggered_template]
+        result["spec"] = spec
+        return result
 
     def __str__(self):
         return json.dumps(self.to_json(), indent=4)

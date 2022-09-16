@@ -232,90 +232,44 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
-    def remove_existing_trigger_on_template(self, name, dry_run=False):
-        if dry_run:
-            return self._describe_remove_existing_trigger_on_template(name)
-        else:
-            return self._remove_existing_trigger_on_template(name)
-
-    def _remove_existing_trigger_on_template(self, name):
+    def disable_existing_trigger_on_template(self, name):
         try:
-            self._client.CustomObjectsApi().delete_namespaced_custom_object(
+            sensor = self._client.CustomObjectsApi().get_namespaced_custom_object(
                 group=self._group,
                 version=self._version,
                 namespace=self._namespace,
                 plural="sensors",
                 name=name,
-                grace_period_seconds=0,
             )
-            return (True,)
-        except self._client.rest.ApiException as e:
-            if e.status == 404:
-                return (False,)
+            del sensor["status"]
+            # Change expression to something which will never match, effectively
+            # disabling the trigger
+            first_dep = sensor["spec"]["dependencies"][0]
+            first_dep["filters"] = {
+                "exprs": [
+                    {
+                        "expr": 'event_name == ""',
+                        "fields": [
+                            {
+                                "name": "event_name",
+                                "path": "body.payload.event_name",
+                            }
+                        ],
+                    }
+                ]
+            }
 
-            raise ArgoClientException(
-                json.loads(e.body)["message"] if e.body is not None else e.reason
-            )
-
-    def _describe_remove_existing_trigger_on_template(self, name):
-        try:
-            results = self._client.CustomObjectsApi().list_namespaced_custom_object(
+            sensor["spec"]["dependencies"] = [first_dep]
+            sensor["spec"]["filters"] = []
+            self._client.CustomObjectsApi().replace_namespaced_custom_object(
                 group=self._group,
                 version=self._version,
                 namespace=self._namespace,
                 plural="sensors",
-                watch=False,
-            )
-            templates = results["items"]
-            for t in templates:
-                if t["metadata"]["name"] == name:
-                    annotations = t["metadata"]["annotations"]
-                    triggered_by = annotations["metaflow/triggered_by"]
-                    trigger_status = annotations["metaflow/trigger_status"]
-                    return (True, triggered_by, trigger_status)
-            return (False,)
-        except self._client.rest.ApiException as e:
-            if e.status == 404:
-                return (False,)
-
-            raise ArgoClientException(
-                json.loads(e.body)["message"] if e.body is not None else e.reason
-            )
-
-    def remove_existing_workflow_template(self, flow_name, dry_run=False):
-        if dry_run:
-            return self._describe_remove_existing_workflow_template(flow_name)
-        else:
-            return self._remove_existing_workflow_template(flow_name)
-
-    def _describe_remove_existing_workflow_template(self, name):
-        try:
-            self._client.CustomObjectsApi().get_namespaced_custom_object(
-                group=self._group,
-                version=self._version,
-                namespace=self._namespace,
-                plural="workflowtemplates",
                 name=name,
-            )
-            return True
-        except self._client.rest.ApiException as e:
-            if e.status == 404:
-                return False
-
-            raise ArgoClientException(
-                json.loads(e.body)["message"] if e.body is not None else e.reason
+                body=sensor,
             )
 
-    def _remove_existing_workflow_template(self, flow_name):
-        try:
-            self._client.CustomObjectsApi().delete_namespaced_custom_object(
-                group=self._group,
-                version=self._version,
-                namespace=self._namespace,
-                plural="workflowtemplates",
-                name=flow_name,
-            )
-            return True
         except self._client.rest.ApiException as e:
             if e.status == 404:
                 return False

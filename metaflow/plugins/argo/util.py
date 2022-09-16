@@ -37,42 +37,20 @@ def current_flow_name():
     return flow_name.replace("_", "-").lower()
 
 
-# Parses a flow name into its constituent parts
-# Returns a tuple of (project_name, branch_name, flow_name)
-def parse_flow_name(flow_name):
-    chunks = flow_name.split(".")
-    chunk_count = len(chunks)
-    if chunk_count == 1:
-        return (None, None, chunks[0])
-    elif chunk_count == 3:
-        return (chunks[0], chunks[1], chunks[2])
-    elif chunk_count == 4:
-        return (chunks[0], ".".join((chunks[1], chunks[2])), chunks[3])
+def project_and_branch():
+    if "project_name" in current:
+        project_name = current.project_name
     else:
-        raise MetaflowException(
-            msg="Unknown flow name format. "
-            + "Expected 1, 3, or 4 chunks and have %d" % chunk_count
-        )
-
-
-# This is a streamlined version of the logic from project_decorator.format_name()
-# Validation has been removed since the only time this function should return the
-# default flow name if the project decorator isn't used.
-def format_flow_name(flow_name, project_name=None, branch_name=None):
-    argo_name = flow_name.replace("_", "-").lower()
-    if project_name is None:
-        return (flow_name, argo_name)
-    project_name = re.sub("_|\-", "", project_name)
-    return (
-        ".".join((project_name, branch_name, flow_name)),
-        ".".join((project_name, branch_name, argo_name)),
-    )
+        return (None, None)
+    if "branch_name" in current:
+        return (project_name, current.branch_name)
+    return (project_name, None)
 
 
 # Creates the Argo Event sensor name for a given workflow
 def format_sensor_name(flow_name):
     updated = flow_name.replace("_", "-").lower()
-    return "mf-" + updated + "-after"
+    return "mf-" + updated + "-after-trigger"
 
 
 def are_events_configured():
@@ -97,3 +75,36 @@ def encode_json(data):
     data = bytes(json.dumps(data, separators=(",", ":"), indent=None), "UTF-8")
     encoded_data = base64.b64encode(data)
     return '"%s"' % encoded_data.decode("UTF-8")
+
+
+def list_to_prose(items, singular, use_quotes=False, plural=None):
+    item_count = len(items)
+    if plural is None:
+        plural = singular + "s"
+    item_type = singular
+    if item_count == 1:
+        if use_quotes:
+            template = "'%s'"
+        else:
+            template = "%s"
+        result = template % items[0]
+    elif item_count == 2:
+        if use_quotes:
+            template = "'%s' and '%s'"
+        else:
+            template = "%s and %s"
+        result = template % (items[0], items[1])
+        item_type = plural
+    elif item_count > 2:
+        if use_quotes:
+            formatted = ", ".join(
+                ["'" + item + "'" for item in items[0 : item_count - 1]]
+            )
+            result = "%s and '%s'" % (formatted, items[item_count - 1])
+        else:
+            formatted = ", ".join(items[0 : item_count - 1])
+            result = "%s and %s" % (formatted, items[item_count - 1])
+            item_type = plural
+    else:
+        result = ""
+    return (item_type, result)
