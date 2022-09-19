@@ -424,7 +424,7 @@ def get_metaflow_kuberentes_operator():
             "metaflow_run_id",
             "metaflow_task_id",
             "metaflow_attempt",
-            "metaflow_step",
+            "metaflow_step_name",
             "metaflow_flow_name",
         )
 
@@ -448,7 +448,7 @@ def get_metaflow_kuberentes_operator():
                 self._flow_contains_foreach
             )
             self.metaflow_attempt = AIRFLOW_MACROS.ATTEMPT
-            self.metaflow_step = AIRFLOW_MACROS.STEPNAME
+            self.metaflow_step_name = AIRFLOW_MACROS.STEPNAME
             self.metaflow_flow_name = self._flow_name
 
         def execute(self, context):
