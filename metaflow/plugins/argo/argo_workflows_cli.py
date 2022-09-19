@@ -17,11 +17,6 @@ from metaflow.metaflow_config import KUBERNETES_NAMESPACE
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.package import MetaflowPackage
 from metaflow.plugins import EnvironmentDecorator, KubernetesDecorator
-from .util import (
-    current_flow_name,
-    format_sensor_name,
-    status_present_tense,
-)
 
 # TODO: Move production_token to utils
 from metaflow.plugins.aws.step_functions.production_token import (
@@ -198,9 +193,9 @@ def create(
 
     if only_json:
         obj.echo_always(str(flow), err=False, no_bold=True)
-        if flow.trigger_on_template() is not None:
+        if flow.sensor_template() is not None:
             obj.echo_always("", err=False, no_bold=True)
-            obj.echo_always(str(flow.trigger_on_template()), err=False, no_bold=True)
+            obj.echo_always(str(flow.sensor_template()), err=False, no_bold=True)
     else:
         flow.deploy()
         obj.echo(

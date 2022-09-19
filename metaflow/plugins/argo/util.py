@@ -34,23 +34,20 @@ def current_flow_name():
     flow_name = current.get("project_flow_name")
     if flow_name is None:
         flow_name = current.flow_name
-    return flow_name.replace("_", "-").lower()
+    return flow_name.lower()
 
 
 def project_and_branch():
-    if "project_name" in current:
-        project_name = current.project_name
-    else:
-        return (None, None)
-    if "branch_name" in current:
-        return (project_name, current.branch_name)
-    return (project_name, None)
+    return (current.get("project_name"), current.get("branch_name"))
 
 
 # Creates the Argo Event sensor name for a given workflow
 def format_sensor_name(flow_name):
-    updated = flow_name.replace("_", "-").lower()
-    return "mf-" + updated + "-after-trigger"
+    # Argo's internal NATS bus throws an error when attempting to
+    # create a persistent queue for the sensor when the sensor name
+    # contains '.' which is NATS' topic delimiter.
+    updated = flow_name.replace("_", "").replace(".", "-").lower()
+    return "mf-" + updated + "-trigger"
 
 
 def are_events_configured():
@@ -59,22 +56,6 @@ def are_events_configured():
         and EVENT_SOURCE_URL is not None
         and EVENT_SERVICE_ACCOUNT is not None
     )
-
-
-# Translates workflow status into present tense
-# Ex: 'succeeded' becomes 'succeeds'
-def status_present_tense(status):
-    return STATUS_TENSES[status]
-
-
-def valid_statuses():
-    return list(STATUS_TENSES.keys())
-
-
-def encode_json(data):
-    data = bytes(json.dumps(data, separators=(",", ":"), indent=None), "UTF-8")
-    encoded_data = base64.b64encode(data)
-    return '"%s"' % encoded_data.decode("UTF-8")
 
 
 def list_to_prose(items, singular, use_quotes=False, plural=None):

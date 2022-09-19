@@ -181,7 +181,7 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
-    def register_trigger_on_template(self, name, sensor_template):
+    def register_sensor_template(self, name, sensor_template):
         try:
             sensor_template["metadata"][
                 "resourceVersion"
@@ -232,7 +232,7 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
-    def disable_existing_trigger_on_template(self, name):
+    def disable_sensor(self, name):
         try:
             sensor = self._client.CustomObjectsApi().get_namespaced_custom_object(
                 group=self._group,

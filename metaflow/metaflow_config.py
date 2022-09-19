@@ -334,9 +334,6 @@ EVENT_SOURCE_AUTH_TOKEN = from_conf(
 )  # Optional string literal of auth token
 # Note: If auth is enabled on the underlying event source then either both AUTH_SECRET
 # and AUTH_KEY must be populated or AUTH_TOKEN.
-EVENT_DISPATCH_IMAGE = from_conf(
-    "METAFLOW_EVENT_DISPATCH_IMAGE", "kevinob/event-trigger:latest"
-)  # Image used by event dispatch pods
 
 # MAX_ATTEMPTS is the maximum number of attempts, including the first
 # task, retries, and the final fallback task and its retries.

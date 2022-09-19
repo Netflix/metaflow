@@ -4,11 +4,7 @@ import re
 from metaflow import current
 from metaflow.decorators import FlowDecorator, StepDecorator, flow_decorators
 from metaflow.exception import MetaflowException
-from .util import (
-    are_events_configured,
-    current_flow_name,
-    valid_statuses,
-)
+from .util import are_events_configured
 
 ERR_MSG = """Make sure configuration entries METAFLOW_EVENT_SOURCE_NAME, METAFLOW_EVENT_SOURCE_URL, and 
 METAFLOW_EVENT_SERVICE_ACCOUNT are correct.
@@ -19,10 +15,6 @@ If authentication is required and credentials are stored in a Kubernetes secret,
 METAFLOW_EVENT_AUTH_SECRET and METAFLOW_EVENT_AUTH_KEY.
 
 If an authentication token is used, verify METAFLOW_EVENT_AUTH_TOKEN has the correct value.
-"""
-
-BAD_EVENT_ERR_MSG = """"The event field is empty. Verify the event name begins with an alphanumeric
-character and doesn't begin with the reserved prefix 'metaflow_'.
 """
 
 BAD_AGGREGATE_MAPPING_MSG = """Event field mappings for multiple events or flows must be a dict of
@@ -60,19 +52,6 @@ class BadEventMappingsException(MetaflowException):
 BAD_AGGREGATE_MAPPING_ERROR = BadEventMappingsException(msg=BAD_AGGREGATE_MAPPING_MSG)
 
 BAD_MAPPING_ERROR = BadEventMappingsException(msg=BAD_MAPPING_MSG)
-
-
-def sanitize_user_events(events):
-    results = []
-    for name in events:
-        # NATS uses dots as a subtopic delimiter
-        name = name.replace(".", "-")
-        name = name.lower()
-        # METAFLOW_ and metaflow_ prefixes are reserved
-        name = re.sub("^metaflow_", "", name)
-        if name != "":
-            results.append(name)
-    return results
 
 
 def validate_mappings(mappings, aggregate):
@@ -123,8 +102,6 @@ class TriggerOnDecorator(FlowDecorator):
         "events": [],
         "data": None,
         "mappings": {},
-        "trigger_set": None,
-        "error": None,
     }
     options = {
         "flow": dict(
@@ -157,6 +134,8 @@ class TriggerOnDecorator(FlowDecorator):
     def flow_init(
         self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
     ):
+        self.attributes["trigger_set"] = None
+        self.attributes["error"] = None
         if are_events_configured():
             self._option_values = options
             (flows, events) = self._read_inputs()
@@ -170,22 +149,16 @@ class TriggerOnDecorator(FlowDecorator):
             is_aggregate = (len(flows) + len(events)) > 1
             validated = validate_mappings(mappings, is_aggregate)
             for flow in flows:
-                info = TriggerInfo()
+                info = TriggerInfo(TriggerInfo.LIFECYCLE_EVENT)
                 info.name = flow
                 info.status = "succeeded"
-                info.type = TriggerInfo.LIFECYCLE_EVENT
                 info.mappings = validated
                 self.attributes["trigger_set"].append(info)
-            if len(events) > 0:
-                sanitized = sanitize_user_events(events)
-                if len(sanitized) != len(events):
-                    raise BadEventNameException(BAD_EVENT_ERR_MSG)
-                for event in events:
-                    info = TriggerInfo()
-                    info.name = event
-                    info.type = TriggerInfo.USER_EVENT
-                    info.mappings = validated
-                    self.attributes["trigger_set"].append(info)
+            for event in events:
+                info = TriggerInfo(TriggerInfo.USER_EVENT)
+                info.name = event
+                info.mappings = validated
+                self.attributes["trigger_set"].append(info)
 
         else:
             # Defer raising an error in case user has specified --ignore-triggers
@@ -269,11 +242,12 @@ class TriggerInfo:
     LIFECYCLE_EVENT = 0
     USER_EVENT = 1
 
-    def __init__(self):
-        self.type = self.LIFECYCLE_EVENT
+    def __init__(self, type):
+        self.type = type
+        self._project = None
+        self._branch = None
         self._name = None
         self.status = None
-        self._formatted_name = None
         self.mappings = {}
 
     @property
@@ -283,17 +257,20 @@ class TriggerInfo:
     @name.setter
     def name(self, new_name):
         self._name = new_name
-        self._formatted_name = new_name.lower().replace("_", "-")
 
     @property
     def formatted_name(self):
-        return self._formatted_name
+        if self._project is not None and self._branch is not None:
+            formatted = "-".join(
+                [self._project.replace("_", ""), self._branch, self._name]
+            ).lower()
+        else:
+            formatted = self._name.lower()
+        return formatted.replace(".", "-")
 
     def add_namespacing(self, project, branch):
-        if project is not None and branch is not None:
-            self._formatted_name = ".".join([project, branch, self._name])
-        else:
-            self._formatted_name = self._name.lower().replace("_", "-")
+        self._project = project
+        self._branch = branch
 
     def has_mappings(self):
         return self._name in self.mappings

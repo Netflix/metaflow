@@ -254,6 +254,8 @@ from .aws.aws_client import Boto3ClientProvider
 AWS_CLIENT_PROVIDERS = [Boto3ClientProvider]
 _merge_lists(AWS_CLIENT_PROVIDERS, _ext_plugins["AWS_CLIENT_PROVIDERS"], "name")
 
+from .argo.eventing import send_event
+
 
 # Erase all temporary names to avoid leaking things
 # We leave '_ext_plugins' because it is used in

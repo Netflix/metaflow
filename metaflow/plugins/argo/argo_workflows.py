@@ -35,7 +35,6 @@ from metaflow.metaflow_config import (
     EVENT_SOURCE_AUTH_KEY,
     EVENT_SOURCE_AUTH_TOKEN,
     EVENT_SERVICE_ACCOUNT,
-    EVENT_DISPATCH_IMAGE,
 )
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
@@ -45,8 +44,6 @@ from .event_decorators import TriggerInfo
 from .argo_client import ArgoClient
 from .util import (
     are_events_configured,
-    current_flow_name,
-    encode_json,
     event_topic,
     format_sensor_name,
     list_to_prose,
@@ -151,14 +148,14 @@ class ArgoWorkflows(object):
 
         self.parameters = self._process_parameters()
         self._workflow_template = self._compile()
-        self._trigger_on_template = self._compile_trigger_on_template()
+        self._sensor_template = self._compile_sensor_template()
         self._cron = self._cron()
 
     def __str__(self):
         return str(self._workflow_template)
 
-    def trigger_on_template(self):
-        return self._trigger_on_template
+    def sensor_template(self):
+        return self._sensor_template
 
     def deploy(self):
         try:
@@ -167,15 +164,13 @@ class ArgoWorkflows(object):
                 self.name, self._workflow_template.to_json()
             )
             if are_events_configured():
-                if self._trigger_on_template is not None:
-                    client.register_trigger_on_template(
-                        self._trigger_on_template.name,
-                        self._trigger_on_template.to_json(),
+                if self._sensor_template is not None:
+                    client.register_sensor_template(
+                        self._sensor_template.name,
+                        self._sensor_template.to_json(),
                     )
                 else:
-                    client.disable_existing_trigger_on_template(
-                        format_sensor_name(current_flow_name())
-                    )
+                    client.disable_sensor(format_sensor_name(self.name))
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
 
@@ -1070,7 +1065,7 @@ class ArgoWorkflows(object):
                     )
 
     def _make_lifecycle_hook_container_template(self, env, status):
-        t = WorkflowLifecycleHookContainerTemplate(current_flow_name(), status)
+        t = WorkflowLifecycleHookContainerTemplate(self.name, status)
         t.set_env_vars(env)
         return t
 
@@ -1095,26 +1090,23 @@ class ArgoWorkflows(object):
             int(minutes_between_retries),
         )
 
-    def _compile_trigger_on_template(self):
+    def _compile_sensor_template(self):
         for decorator in flow_decorators():
             if (
                 decorator.name == "trigger_on"
                 and not decorator.attributes["trigger_set"].is_empty()
             ):
                 trigger_set = decorator.attributes["trigger_set"]
-                parameters = self._process_parameters(include_values=False)
-                calling_flow = current_flow_name()
                 (project_name, branch_name) = project_and_branch()
                 trigger_set.add_namespacing(project_name, branch_name)
-                t = SensorTemplate(calling_flow, parameters)
+                t = SensorTemplate(self.name, self.parameters)
                 for trigger in trigger_set.triggers:
-                    print(trigger)
                     t.add_trigger(trigger)
                     if trigger.type == TriggerInfo.LIFECYCLE_EVENT:
                         self._triggering_flows.append(trigger.name)
                     elif trigger.type == TriggerInfo.USER_EVENT:
                         self._triggering_events.append(trigger.name)
-                t.annotation({"metaflow/flow_name": calling_flow})
+                t.annotation({"metaflow/flow_name": self.name})
                 t.annotation({"metaflow/owner": self.username})
                 t.annotation({"metaflow/user": EVENT_SERVICE_ACCOUNT})
                 t.annotation({"metaflow/production_token": self.production_token})
@@ -1578,7 +1570,7 @@ class WorkflowLifecycleHookContainerTemplate(object):
         event_payload = {
             "payload": {
                 "event_name": "metaflow_flow_run_%s" % lifecycle_event,
-                "flow_name": flow_name,
+                "flow_name": flow_name.replace(".", "-"),
                 "timestamp": "TS",
             }
         }
@@ -1599,9 +1591,9 @@ class WorkflowLifecycleHookContainerTemplate(object):
                 'PAYLOAD="$(echo \'%s\' | sed -e "s/\\"TS\\"/${TS}/g")"' % text,
                 # Publish event
                 'nats --user=$NATS_TOKEN -s $METAFLOW_EVENT_ENDPOINT pub $METAFLOW_EVENT_PATH "${PAYLOAD}"',
-                "echo ${PAYLOAD}",
             ]
         else:
+            # TODO: Use existing container bootstrap logic to call webhook event sources
             commands = [
                 # Update pkg index
                 "apt-get update",
@@ -1612,7 +1604,7 @@ class WorkflowLifecycleHookContainerTemplate(object):
                 # Create event payload with current UTC timestamp
                 'PAYLOAD="$(echo \'%s\' | sed -e "s/\\"TS\\"/${TS}/g")"' % text,
                 # Publish event
-                'curl -XPOST --data-binary "${PAYLOAD}" $METAFLOW_EVENT_URL',
+                'curl -H"content-type: application/json" -XPOST --data "${PAYLOAD}" $METAFLOW_EVENT_SOURCE_URL',
             ]
         self.command = ["bash", "-c", " && ".join(commands)]
 
@@ -1705,10 +1697,6 @@ class SensorTemplate:
         elif info.type == TriggerInfo.USER_EVENT:
             name = self._unique_name("user-event")
         filters = self._build_filters(info)
-        print(
-            "trigger flow name: %s, formatted name: %s"
-            % (info.name, info.formatted_name)
-        )
         event = {
             "name": name,
             "eventSourceName": EVENT_SOURCE_NAME,
@@ -1740,7 +1728,7 @@ class SensorTemplate:
             return {
                 "exprs": [
                     {
-                        "expr": ('event_name == "%s"' % (info.name)),
+                        "expr": ('event_name == "%s"' % info.formatted_name),
                         "fields": [
                             {"name": "event_name", "path": "body.payload.event_name"},
                         ],
@@ -1780,6 +1768,17 @@ class SensorTemplate:
                         "dest": "spec.arguments.parameters.%d.value" % i,
                     }
                 )
+            else:
+                dependency = list(self.dependency_names.values())[0]
+                assignments.append(
+                    {
+                        "src": {
+                            "dependencyName": dependency,
+                            "dataKey": "body.payload.data.%s" % param_name,
+                        },
+                        "dest": "spec.arguments.parameters.%d.value" % i,
+                    }
+                )
             i += 1
         return assignments
 
@@ -1797,9 +1796,10 @@ class SensorTemplate:
 
     def to_json(self):
         result = self.payload.copy()
+        gen_name = self.calling_flow.replace(".", "-").replace("_", "")
         spec = {
             "dependencies": self.dependencies,
-            "template": {"serviceAccountName": "operate-workflow-sa"},
+            "template": {"serviceAccountName": EVENT_SERVICE_ACCOUNT},
         }
         triggered_template = {
             "template": {
@@ -1809,10 +1809,12 @@ class SensorTemplate:
                         "resource": {
                             "apiVersion": "argoproj.io/v1alpha1",
                             "kind": "Workflow",
-                            "metadata": {"generateName": self.calling_flow + "-"},
+                            "metadata": {"generateName": gen_name + "-"},
                             "spec": {
                                 "arguments": {"parameters": self.parameters},
-                                "workflowTemplateRef": {"name": self.calling_flow},
+                                "workflowTemplateRef": {
+                                    "name": self.calling_flow.replace("_", "")
+                                },
                             },
                         }
                     },
