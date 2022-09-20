@@ -1,4 +1,5 @@
 from functools import partial
+import json
 import re
 import os
 import sys
@@ -118,18 +119,19 @@ class Decorator(object):
         if len(top) == 1:
             return cls()
         else:
-            name, attrspec = top
-            attrs = dict(
-                map(lambda x: x.strip(), a.split("="))
-                for a in re.split(""",(?=[\s\w]+=)""", attrspec.strip("\"'"))
-            )
+            _, attrspec = top
+            attrs = {}
+            for a in re.split(""",(?=[\s\w]+=)""", attrspec):
+                name, val = a.split("=")
+                attrs[name.strip()] = json.loads(val.strip())
             return cls(attributes=attrs)
 
     def make_decorator_spec(self):
         attrs = {k: v for k, v in self.attributes.items() if v is not None}
         if attrs:
-            attrstr = ",".join("%s=%s" % x for x in attrs.items())
-            return "%s:%s" % (self.name, attrstr)
+            attrstr = ",".join("%s=%s" % (k, json.dumps(v)) for k, v in attrs.items())
+            s = "%s:%s" % (self.name, attrstr)
+            return s
         else:
             return self.name
 

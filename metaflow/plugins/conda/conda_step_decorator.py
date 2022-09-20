@@ -95,13 +95,7 @@ class CondaStepDecorator(StepDecorator):
         base_deps = self.base_attributes["libraries"]
         deps.update(base_deps)
         step_deps = self.attributes["libraries"]
-        if isinstance(step_deps, (unicode, basestring)):
-            step_deps = step_deps.strip("\"{}'")
-            if step_deps:
-                step_deps = dict(
-                    map(lambda x: x.strip().strip("\"'"), a.split(":"))
-                    for a in step_deps.split(",")
-                )
+
         deps.update(step_deps)
         return deps
 
