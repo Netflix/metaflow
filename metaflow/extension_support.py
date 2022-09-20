@@ -272,6 +272,7 @@ _extension_points = [
     "datatools",
     "exceptions",
     "toplevel",
+    "cmd",
 ]
 
 
