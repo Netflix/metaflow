@@ -329,7 +329,13 @@ def test_kubernetes_service_account_compile_only() -> None:
 
         flow_yaml = get_compiled_yaml(compile_to_yaml_cmd, yaml_file_path)
 
+    # check we set serviceAccountName for workflow pods per individual IAM role
     assert flow_yaml["spec"]["serviceAccountName"] == service_account
+    # check we set serviceaccount env variable for spark use
+    for step in flow_yaml["spec"]["templates"]:
+        if step.get("container"):
+            env = {env["name"] for env in step["container"]["env"]}
+            assert "METAFLOW_KUBERNETES_SERVICE_ACCOUNT" in env
 
 
 def test_toleration_and_affinity_compile_only() -> None:
