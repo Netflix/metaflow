@@ -115,23 +115,35 @@ class Decorator(object):
 
     @classmethod
     def _parse_decorator_spec(cls, deco_spec):
-        top = deco_spec.split(":", 1)
-        if len(top) == 1:
+        # print("REC: TL deco_spec is @@%s@@" % deco_spec)
+        if len(deco_spec) == 0:
             return cls()
-        else:
-            _, attrspec = top
-            attrs = {}
-            for a in re.split(""",(?=[\s\w]+=)""", attrspec):
-                name, val = a.split("=")
-                attrs[name.strip()] = json.loads(val.strip())
-            return cls(attributes=attrs)
+
+        attrs = {}
+        # TODO: Do we really want to allow spaces in the names of attributes?!?
+        for a in re.split(""",(?=[\s\w]+=)""", deco_spec):
+            name, val = a.split("=")
+            # print(
+            #    "REC: GOT @@%s@@ = @@%s@@"
+            #    % (name.strip(), val.strip().replace('\\"', '"'))
+            # )
+            attrs[name.strip()] = json.loads(val.strip().replace('\\"', '"'))
+            # print(
+            #    "REC: Set @@%s@@ = @@%s@@ of type %s"
+            #    % (name.strip(), attrs[name.strip()], type(attrs[name.strip()]))
+            # )
+        return cls(attributes=attrs)
 
     def make_decorator_spec(self):
         attrs = {k: v for k, v in self.attributes.items() if v is not None}
         if attrs:
-            attrstr = ",".join("%s=%s" % (k, json.dumps(v)) for k, v in attrs.items())
-            s = "%s:%s" % (self.name, attrstr)
-            return s
+            attrstr = ",".join(
+                "%s=%s" % (k, json.dumps(v).replace('"', '\\"'))
+                for k, v in attrs.items()
+            )
+            return "%s:%s" % (self.name, attrstr)
+            # print("SPEC IS @@%s@@" % s)
+            # return s
         else:
             return self.name
 
@@ -452,8 +464,12 @@ def _attach_decorators_to_step(step, decospecs):
     from .plugins import STEP_DECORATORS
 
     decos = {decotype.name: decotype for decotype in STEP_DECORATORS}
+    import traceback
+
+    # print("REC: DECOSPECS ARE %s" % str(decospecs))
     for decospec in decospecs:
-        deconame = decospec.strip("'").split(":")[0]
+        splits = decospec.split(":", 1)
+        deconame = splits[0]
         if deconame not in decos:
             raise UnknownStepDecoratorException(deconame)
         # Attach the decorator to step if it doesn't have the decorator
@@ -464,7 +480,9 @@ def _attach_decorators_to_step(step, decospecs):
             or decos[deconame].allow_multiple
         ):
             # if the decorator is present in a step and is of type allow_mutliple then add the decorator to the step
-            deco = decos[deconame]._parse_decorator_spec(decospec)
+            deco = decos[deconame]._parse_decorator_spec(
+                splits[1] if len(splits) > 1 else ""
+            )
             step.decorators.append(deco)
 
 
