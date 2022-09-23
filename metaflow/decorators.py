@@ -14,6 +14,13 @@ from .exception import (
 from metaflow._vendor import click
 
 
+try:
+    unicode
+except NameError:
+    unicode = str
+    basestring = str
+
+
 class BadStepDecoratorException(MetaflowException):
     headline = "Syntax error"
 
@@ -127,7 +134,20 @@ class Decorator(object):
             #    "REC: GOT @@%s@@ = @@%s@@"
             #    % (name.strip(), val.strip().replace('\\"', '"'))
             # )
-            attrs[name.strip()] = json.loads(val.strip().replace('\\"', '"'))
+            try:
+                val_parsed = json.loads(val.strip().replace('\\"', '"'))
+            except json.JSONDecodeError:
+                # In this case, we try to convert to either an int or a float or
+                # leave as is. Prefer ints if possible.
+                try:
+                    val_parsed = int(val.strip())
+                except ValueError:
+                    try:
+                        val_parsed = float(val.strip())
+                    except ValueError:
+                        val_parsed = val.strip()
+
+            attrs[name.strip()] = val_parsed
             # print(
             #    "REC: Set @@%s@@ = @@%s@@ of type %s"
             #    % (name.strip(), attrs[name.strip()], type(attrs[name.strip()]))
@@ -137,10 +157,16 @@ class Decorator(object):
     def make_decorator_spec(self):
         attrs = {k: v for k, v in self.attributes.items() if v is not None}
         if attrs:
-            attrstr = ",".join(
-                "%s=%s" % (k, json.dumps(v).replace('"', '\\"'))
-                for k, v in attrs.items()
-            )
+            attr_list = []
+            # We dump simple types directly as string to get around the nightmare quote
+            # escaping but for more complex types (typically dictionaries or lists),
+            # we dump using JSON.
+            for k, v in attrs.items():
+                if isinstance(v, (int, float, unicode, basestring)):
+                    attr_list.append("%s=%s" % (k, str(v)))
+                else:
+                    attr_list.append("%s=%s" % (k, json.dumps(v).replace('"', '\\"')))
+            attrstr = ",".join(attr_list)
             return "%s:%s" % (self.name, attrstr)
             # print("SPEC IS @@%s@@" % s)
             # return s
@@ -464,7 +490,6 @@ def _attach_decorators_to_step(step, decospecs):
     from .plugins import STEP_DECORATORS
 
     decos = {decotype.name: decotype for decotype in STEP_DECORATORS}
-    import traceback
 
     # print("REC: DECOSPECS ARE %s" % str(decospecs))
     for decospec in decospecs:
@@ -479,7 +504,8 @@ def _attach_decorators_to_step(step, decospecs):
             deconame not in [deco.name for deco in step.decorators]
             or decos[deconame].allow_multiple
         ):
-            # if the decorator is present in a step and is of type allow_mutliple then add the decorator to the step
+            # if the decorator is present in a step and is of type allow_multiple
+            # then add the decorator to the step
             deco = decos[deconame]._parse_decorator_spec(
                 splits[1] if len(splits) > 1 else ""
             )
