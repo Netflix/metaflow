@@ -1009,7 +1009,7 @@ try:
 except Exception as e:
     _ext_debug("\tWARNING: ignoring all plugins due to error during import: %s" % e)
     print(
-        "WARNING: Plugins did not load -- ignoring all of them which may not "
+        "WARNING: Command extensions did not load -- ignoring all of them which may not "
         "be what you want: %s" % e
     )
     _clis = []
