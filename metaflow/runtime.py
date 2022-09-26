@@ -254,12 +254,12 @@ class NativeRuntime(object):
 
                     self._logger(msg, system_msg=True)
                     if len(self._unprocessed_steps) == 0:
-                        msg = "No steps are pending."
+                        msg = "All steps have started."
                     else:
                         if len(self._unprocessed_steps) == 1:
-                            msg = "1 step is pending: "
+                            msg = "1 step has not started: "
                         else:
-                            msg = "%d steps are pending: " % len(
+                            msg = "%d steps have not started: " % len(
                                 self._unprocessed_steps
                             )
                         msg += "%s." % ", ".join(self._unprocessed_steps)
