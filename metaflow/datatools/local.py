@@ -121,18 +121,6 @@ class Local(object):
         key = to_unicode(key)
         if key.startswith("local://"):
             return key[8:]
-        elif key[0] != "/":
-            if current.is_running_flow:
-                raise MetaflowLocalURLException(
-                    "Specify Local(run=self) when you use Local inside a running "
-                    "flow. Otherwise you have to use Local with full "
-                    "local:// urls or absolute paths."
-                )
-            else:
-                raise MetaflowLocalURLException(
-                    "Initialize Local with an 'localroot' or 'run' if you don't "
-                    "want to specify full local:// urls or absolute paths."
-                )
         else:
             return key
 

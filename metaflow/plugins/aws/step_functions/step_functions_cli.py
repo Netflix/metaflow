@@ -6,7 +6,6 @@ import re
 from distutils.version import LooseVersion
 
 from metaflow import current, decorators, parameters, JSONType
-from metaflow.includefile import FilePathClass
 from metaflow.metaflow_config import (
     METADATA_SERVICE_VERSION_CHECK,
     SFN_STATE_MACHINE_PREFIX,
@@ -428,10 +427,8 @@ def trigger(obj, run_id_file=None, **kwargs):
         val = kwargs.get(param.name.replace("-", "_").lower())
         if param.kwargs.get("type") == JSONType:
             val = json.dumps(val)
-        elif isinstance(param.kwargs.get("type"), FilePathClass):
-            if isinstance(val, parameters.DelayedEvaluationParameter):
-                val = val()
-            val = json.dumps(val.descriptor)
+        elif isinstance(val, parameters.DelayedEvaluationParameter):
+            val = val(return_json=True)
         return val
 
     params = {

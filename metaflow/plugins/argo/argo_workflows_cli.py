@@ -7,7 +7,6 @@ from distutils.version import LooseVersion
 from hashlib import sha1
 
 from metaflow import JSONType, current, decorators, parameters
-from metaflow.includefile import FilePathClass
 from metaflow._vendor import click
 from metaflow.metaflow_config import METADATA_SERVICE_VERSION_CHECK
 from metaflow.exception import MetaflowException, MetaflowInternalError
@@ -488,10 +487,8 @@ def trigger(obj, run_id_file=None, **kwargs):
         val = kwargs.get(param.name.replace("-", "_").lower())
         if param.kwargs.get("type") == JSONType:
             val = json.dumps(val)
-        elif isinstance(param.kwargs.get("type"), FilePathClass):
-            if isinstance(val, parameters.DelayedEvaluationParameter):
-                val = val()
-            val = json.dumps(val.descriptor)
+        elif isinstance(val, parameters.DelayedEvaluationParameter):
+            val = val(return_json=True)
         return val
 
     params = {

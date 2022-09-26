@@ -107,27 +107,22 @@ class FilePathClass(click.ParamType):
             return value
 
         # Value will be a string containing one of two things:
-        #  - a JSON blob indicating that the file has already been uploaded. The
-        #    scenario this happens in is as follows:
+        #  - Scenario A: a JSON blob indicating that the file has already been uploaded.
+        #    This scenario this happens in is as follows:
         #      + `step-functions create` is called and the IncludeFile has a default
         #        value. At the time of creation, the file is uploaded and a URL is
         #        returned; this URL is packaged in a blob by Uploader and passed to
         #        step-functions as the value of the parameter.
         #      + when the step function actually runs, the value is passed to click
         #        through METAFLOW_INIT_XXX; this value is the one returned above
-        #    This will be scenario A.
-        #  - A path. The path can either be:
-        #      + <prefix>://<something> like s3://foo/bar or local:///foo/bar
-        #      + an actual path to a local file like /foo/bar
+        #  - Scenario B: A path. The path can either be:
+        #      + B.1: <prefix>://<something> like s3://foo/bar or local:///foo/bar
+        #        (right now, we are disabling support for this because the artifact
+        #        can change unlike all other artifacts. It is trivial to re-enable
+        #      + B.2: an actual path to a local file like /foo/bar
         #    In the first case, we just store an *external* reference to it (so we
         #    won't upload anything). In the second case, we will want to upload something
         #    but we only do that in the DelayedEvaluationParameter step.
-        #    This will be scenario B subdivided in B.1 for the <prefix> case and B.2
-        #    for the other case.
-
-        # This should not happen but being safe
-        if value is None:
-            return None
 
         # ctx can be one of two things:
         #  - the click context (when called normally)
@@ -148,8 +143,7 @@ class FilePathClass(click.ParamType):
                 value = json.loads(value)
             except json.JSONDecodeError as e:
                 raise MetaflowException(
-                    "Parameter '%s' (%s) is a malformed JSON value: %s"
-                    % (param.name, value, e)
+                    "IncludeFile '%s' (value: %s) is malformed" % (param.name, value)
                 )
             # All processing has already been done so we just convert to a
             # IncludedFile
@@ -160,18 +154,22 @@ class FilePathClass(click.ParamType):
         prefix_pos = path.find("://")
         if prefix_pos > 0:
             # Scenario B.1
-            if DATACLIENTS.get(path[:prefix_pos]) is None:
-                self.fail(
-                    "IncludeFile: no handler for external file of type '%s' "
-                    "(given path is '%s')" % (path[:prefix_pos], path)
-                )
-            # We don't need to do anything more -- the file is already uploaded so we
-            # just return a blob indicating how to get the file.
-            return IncludedFile(
-                CURRENT_UPLOADER.encode_url(
-                    "external", path, is_text=self._is_text, encoding=self._encoding
-                )
+            raise MetaflowException(
+                "IncludeFile using a direct reference to a file in cloud storage is no "
+                "longer supported. Contact the Metaflow team if you need this supported"
             )
+            # if DATACLIENTS.get(path[:prefix_pos]) is None:
+            #     self.fail(
+            #         "IncludeFile: no handler for external file of type '%s' "
+            #         "(given path is '%s')" % (path[:prefix_pos], path)
+            #     )
+            # # We don't need to do anything more -- the file is already uploaded so we
+            # # just return a blob indicating how to get the file.
+            # return IncludedFile(
+            #     CURRENT_UPLOADER.encode_url(
+            #         "external", path, is_text=self._is_text, encoding=self._encoding
+            #     )
+            # )
         else:
             # Scenario B.2
             # Check if this is a valid local file
@@ -199,10 +197,8 @@ class FilePathClass(click.ParamType):
                 echo=ctx.logger,
             )
 
-            return DelayedEvaluationParameter(
-                ctx.parameter_name,
-                "default",
-                lambda ctx=lambda_ctx: IncludedFile(
+            def _delayed_eval_func(ctx=lambda_ctx, return_json=False):
+                incl_file = IncludedFile(
                     CURRENT_UPLOADER.store(
                         ctx.flow_name,
                         ctx.path,
@@ -211,6 +207,14 @@ class FilePathClass(click.ParamType):
                         DATACLIENTS[ctx.handler_type],
                         ctx.echo,
                     )
+                )
+                if return_json:
+                    return json.dumps(incl_file.descriptor)
+                return incl_file
+
+            return (
+                DelayedEvaluationParameter(
+                    ctx.parameter_name, "default", _delayed_eval_func
                 ),
             )
 
@@ -264,11 +268,17 @@ class IncludeFile(Parameter):
         # will take care of evaluating things.
         v = kwargs.get("default")
         if v is not None:
-            # The default may itself be a callable in which case we wrap it in
-            # a DeployTimeField just like Parameter does.
-            # In the end, we will have a DeployTimeField wrapping this DeployTimeField
-            # and we will properly extract in _eval_default.
+            # If the default is a callable, we have two DeployTimeField:
+            #  - the callable nature of the default will require us to "call" the default
+            #    (so that is the outer DeployTimeField)
+            #  - IncludeFile defaults are always DeployTimeFields (since they need to be
+            #    uploaded)
+            #
+            # Therefore, if the default value is itself a callable, we will have
+            # a DeployTimeField (upload the file) wrapping another DeployTimeField
+            # (call the default)
             if callable(v) and not isinstance(v, DeployTimeField):
+                # If default is a callable, make it a DeployTimeField (the inner one)
                 v = DeployTimeField(name, str, "default", v, return_str=True)
             kwargs["default"] = DeployTimeField(
                 name,
@@ -293,6 +303,8 @@ class IncludeFile(Parameter):
 
     @staticmethod
     def _eval_default(is_text, encoding, default_path):
+        # NOTE: If changing name of this function, check comments that refer to it to
+        # update it.
         def do_eval(ctx, deploy_time):
             if isinstance(default_path, DeployTimeField):
                 d = default_path(deploy_time=deploy_time)
@@ -354,7 +366,6 @@ class UploaderV1:
         with handler() as client:
             url = client.put(path, buf.getvalue(), overwrite=False)
 
-        echo("File persisted at %s" % url)
         return cls.encode_url(cls.file_type, url, is_text=is_text, encoding=encoding)
 
     @classmethod
@@ -411,7 +422,12 @@ class UploaderV2:
 
     @classmethod
     def encode_url(cls, url_type, url, **kwargs):
-        return_value = {"type": cls.file_type, "sub-type": url_type, "url": url}
+        return_value = {
+            "note": "Internal representation of IncludeFile(%s)" % url,
+            "type": cls.file_type,
+            "sub-type": url_type,
+            "url": url,
+        }
         return_value.update(kwargs)
         return return_value
 
@@ -420,6 +436,7 @@ class UploaderV2:
         r = UploaderV1.store(flow_name, path, is_text, encoding, handler, echo)
 
         # In V2, we store size for faster access
+        r["note"] = "Internal representation of IncludeFile(%s)" % path
         r["type"] = cls.file_type
         r["sub-type"] = "uploaded"
         r["size"] = os.stat(path).st_size

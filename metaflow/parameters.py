@@ -195,8 +195,11 @@ class DelayedEvaluationParameter(object):
     by click when the command line option is processed. For some parameters, like
     IncludeFile, this is too early as it would mean we would trigger the upload
     of the file too early. If a parameter converts to a DelayedEvaluationParameter
-    through the usual Click mechanisms, `_set_constants` knows to call it again to
-    finish converting it. In that case, it will be called with no parameters
+    object through the usual click mechanisms, `_set_constants` knows to invoke the
+    __call__ method on that DelayedEvaluationParameter; in that case, the __call__
+    method is invoked without any parameter. The return_json parameter will be used
+    by schedulers when they need to convert DelayedEvaluationParameters to JSON to
+    store them.
     """
 
     def __init__(self, name, field, fun):
@@ -204,9 +207,9 @@ class DelayedEvaluationParameter(object):
         self._field = field
         self._fun = fun
 
-    def __call__(self):
+    def __call__(self, return_json=False):
         try:
-            return self._fun()
+            return self._fun(return_json)
         except Exception as e:
             raise ParameterFieldFailed(self._name, self._field)
 

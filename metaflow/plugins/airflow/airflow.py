@@ -183,14 +183,8 @@ class Airflow(object):
             FilePathClass.name: "string",
         }
 
-        def _file_path_parser(v):
-            if isinstance(v, DelayedEvaluationParameter):
-                v = v()
-            return v.descriptor
-
         type_parser = {
             bool.__name__: lambda v: str(v),
-            FilePathClass.name: _file_path_parser,
         }
 
         for var, param in self.flow._get_parameters():
