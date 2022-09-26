@@ -122,7 +122,6 @@ class Decorator(object):
 
     @classmethod
     def _parse_decorator_spec(cls, deco_spec):
-        # print("REC: TL deco_spec is @@%s@@" % deco_spec)
         if len(deco_spec) == 0:
             return cls()
 
@@ -130,10 +129,6 @@ class Decorator(object):
         # TODO: Do we really want to allow spaces in the names of attributes?!?
         for a in re.split(""",(?=[\s\w]+=)""", deco_spec):
             name, val = a.split("=")
-            # print(
-            #    "REC: GOT @@%s@@ = @@%s@@"
-            #    % (name.strip(), val.strip().replace('\\"', '"'))
-            # )
             try:
                 val_parsed = json.loads(val.strip().replace('\\"', '"'))
             except json.JSONDecodeError:
@@ -148,10 +143,6 @@ class Decorator(object):
                         val_parsed = val.strip()
 
             attrs[name.strip()] = val_parsed
-            # print(
-            #    "REC: Set @@%s@@ = @@%s@@ of type %s"
-            #    % (name.strip(), attrs[name.strip()], type(attrs[name.strip()]))
-            # )
         return cls(attributes=attrs)
 
     def make_decorator_spec(self):
@@ -168,8 +159,6 @@ class Decorator(object):
                     attr_list.append("%s=%s" % (k, json.dumps(v).replace('"', '\\"')))
             attrstr = ",".join(attr_list)
             return "%s:%s" % (self.name, attrstr)
-            # print("SPEC IS @@%s@@" % s)
-            # return s
         else:
             return self.name
 
@@ -491,7 +480,6 @@ def _attach_decorators_to_step(step, decospecs):
 
     decos = {decotype.name: decotype for decotype in STEP_DECORATORS}
 
-    # print("REC: DECOSPECS ARE %s" % str(decospecs))
     for decospec in decospecs:
         splits = decospec.split(":", 1)
         deconame = splits[0]
