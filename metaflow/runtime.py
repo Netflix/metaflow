@@ -253,9 +253,7 @@ class NativeRuntime(object):
                             )
 
                     self._logger(msg, system_msg=True)
-                    if len(self._unprocessed_steps) == 0:
-                        msg = "All steps have started."
-                    else:
+                    if len(self._unprocessed_steps) > 0:
                         if len(self._unprocessed_steps) == 1:
                             msg = "1 step has not started: "
                         else:
@@ -263,7 +261,7 @@ class NativeRuntime(object):
                                 self._unprocessed_steps
                             )
                         msg += "%s." % ", ".join(self._unprocessed_steps)
-                    self._logger(msg, system_msg=True)
+                        self._logger(msg, system_msg=True)
 
         except KeyboardInterrupt as ex:
             self._logger("Workflow interrupted.", system_msg=True, bad=True)
