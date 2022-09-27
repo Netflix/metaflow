@@ -11,7 +11,8 @@ from metaflow._vendor import click
 from metaflow.metaflow_config import METADATA_SERVICE_VERSION_CHECK
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.package import MetaflowPackage
-from metaflow.plugins import EnvironmentDecorator, KubernetesDecorator
+from metaflow.plugins.environment_decorator import EnvironmentDecorator
+from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
 
 # TODO: Move production_token to utils
 from metaflow.plugins.aws.step_functions.production_token import (

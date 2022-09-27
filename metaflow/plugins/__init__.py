@@ -1,6 +1,169 @@
-import sys
+import importlib
 import traceback
-import types
+
+from metaflow.extension_support import get_modules, multiload_all, _ext_debug
+
+_plugin_categories = {
+    "step_decorator": lambda x: x.name,
+    "flow_decorator": lambda x: x.name,
+    "environment": lambda x: x.TYPE,
+    "metadata": lambda x: x.TYPE,
+    "datastore": lambda x: x.TYPE,
+    "sidecar": None,
+    "logging_sidecar": None,
+    "monitor_sidecar": None,
+    "aws_provider": lambda x: x.name,
+    "cli": lambda x: list(x.commands)[0]
+    if len(x.commands) == 1
+    else "too many commands",
+}
+
+
+def add_plugin_support(g):
+    for category in _plugin_categories:
+        g.update(
+            {
+                "__%ss_exclusions" % category: [],
+                "__%ss" % category: {},
+            }
+        )
+
+        def _exclude(names, exclude_from=g["__%ss_exclusions" % category]):
+            exclude_from.extend(names)
+
+        def _add(
+            name,
+            path,
+            cls_name,
+            pkg=g["__package__"],
+            add_to=g["__%ss" % category],
+            category=category,
+        ):
+            if path[0] == ".":
+                pkg_components = pkg.split(".")
+                i = 1
+                while path[i] == ".":
+                    i += 1
+                # We deal with multiple periods at the start
+                if i > len(pkg_components):
+                    raise ValueError("Path '%s' exits out of metaflow module" % path)
+                path = (
+                    ".".join(pkg_components[: -i + 1] if i > 1 else pkg_components)
+                    + path[i - 1 :]
+                )
+            _ext_debug(
+                "    Adding %s: %s from %s.%s" % (category, name, path, cls_name)
+            )
+            add_to[name] = (path, cls_name)
+
+        g.update(
+            {
+                "%s_add" % category: _add,
+                "%s_exclude" % category: _exclude,
+            }
+        )
+
+
+add_plugin_support(globals())
+
+# Add new CLI commands here
+cli_add("package", ".package_cli", "cli")
+cli_add("batch", ".aws.batch.batch_cli", "cli")
+cli_add("kubernetes", ".kubernetes.kubernetes_cli", "cli")
+cli_add("step-functions", ".aws.step_functions.step_functions_cli", "cli")
+cli_add("airflow", ".airflow.airflow_cli", "cli")
+cli_add("argo-workflows", ".argo.argo_workflows_cli", "cli")
+cli_add("card", ".cards.card_cli", "cli")
+cli_add("tag", ".tag_cli", "cli")
+
+# Add new step decorators here
+step_decorator_add("catch", ".catch_decorator", "CatchDecorator")
+step_decorator_add("timeout", ".timeout_decorator", "TimeoutDecorator")
+step_decorator_add("environment", ".environment_decorator", "EnvironmentDecorator")
+step_decorator_add("parallel", ".parallel_decorator", "ParallelDecorator")
+step_decorator_add("retry", ".retry_decorator", "RetryDecorator")
+step_decorator_add("resources", ".resources_decorator", "ResourcesDecorator")
+step_decorator_add("batch", ".aws.batch.batch_decorator", "BatchDecorator")
+step_decorator_add(
+    "kubernetes", ".kubernetes.kubernetes_decorator", "KubernetesDecorator"
+)
+step_decorator_add(
+    "argo_workflows_internal",
+    ".argo.argo_workflows_decorator",
+    "ArgoWorkflowsInternalDecorator",
+)
+step_decorator_add(
+    "step_functions_internal",
+    ".aws.step_functions.step_functions_decorator",
+    "StepFunctionsInternalDecorator",
+)
+step_decorator_add(
+    "unbounded_test_foreach_internal",
+    ".test_unbounded_foreach_decorator",
+    "InternalTestUnboundedForeachDecorator",
+)
+from .test_unbounded_foreach_decorator import InternalTestUnboundedForeachInput
+
+step_decorator_add("conda", ".conda.conda_step_decorator", "CondaStepDecorator")
+step_decorator_add("card", ".cards.card_decorator", "CardDecorator")
+step_decorator_add(
+    "pytorch_parallel", ".frameworks.pytorch", "PytorchParallelDecorator"
+)
+step_decorator_add(
+    "airflow_internal", ".airflow.airflow_decorator", "AirflowInternalDecorator"
+)
+
+# Add new flow decorators here
+# Every entry here becomes a class-level flow decorator.
+# Add an entry here if you need a new flow-level annotation. Be
+# careful with the choice of name though - they become top-level
+# imports from the metaflow package.
+flow_decorator_add("conda_base", ".conda.conda_flow_decorator", "CondaFlowDecorator")
+flow_decorator_add(
+    "schedule", ".aws.step_functions.schedule_decorator", "ScheduleDecorator"
+)
+flow_decorator_add("project", ".project_decorator", "ProjectDecorator")
+
+# Add environments here
+environment_add("conda", ".conda.conda_environment", "CondaEnvironment")
+
+# Add metadata providers here
+metadata_add("service", ".metadata.service", "ServiceMetadataProvider")
+metadata_add("local", ".metadata.local", "LocalMetadataProvider")
+
+# Add datastore here
+datastore_add("local", ".datastores.local_storage", "LocalStorage")
+datastore_add("s3", ".datastores.s3_storage", "S3Storage")
+datastore_add("azure", ".datastores.azure_storage", "AzureStorage")
+
+# Add non monitoring/logging sidecars here
+sidecar_add(
+    "save_logs_periodically",
+    "..mflog.save_logs_periodically",
+    "SaveLogsPeriodicallySidecar",
+)
+sidecar_add("heartbeat", "metaflow.metadata.heartbeat", "MetadataHeartBeat")
+
+# Add logging sidecars here
+logging_sidecar_add("debugLogger", ".debug_logger", "DebugEventLogger")
+logging_sidecar_add("nullSidecarLogger", "metaflow.event_logger", "NullEventLogger")
+
+# Add monitor sidecars here
+monitor_sidecar_add("debugMonitor", ".debug_monitor", "DebugMonitor")
+monitor_sidecar_add("nullSidecarMonitor", "metaflow.monitor", "NullMonitor")
+
+# Add AWS client providers here
+aws_provider_add("boto3", ".aws.aws_client", "Boto3ClientProvider")
+
+
+def _merge_plugins(base, module, category):
+    # Add to base things from the module and remove anything the module wants to remove
+    base.update(getattr(module, "__%ss" % category, {}))
+    excl = getattr(module, "__%ss_exclusions" % category, [])
+    for n in excl:
+        _ext_debug("    Module '%s' removing %s %s" % (module.__name__, category, n))
+        if n in base:
+            del base[n]
 
 
 def _merge_lists(base, overrides, attr):
@@ -14,57 +177,42 @@ def _merge_lists(base, overrides, attr):
     base[:] = l[:]
 
 
-def _merge_funcs(base_func, override_func):
-    # IMPORTANT: This is a `get_plugin_cli` type of function and we need to *delay*
-    # evaluation of it until after the flowspec is loaded.
-    old_default = base_func.__defaults__[0]
-    r = lambda: base_func(old_default) + override_func()
-
-    base_func.__defaults__ = (r,)
-
-
-_expected_extensions = {
-    "FLOW_DECORATORS": (
-        [],
-        lambda base, overrides: _merge_lists(base, overrides, "name"),
-    ),
-    "STEP_DECORATORS": (
-        [],
-        lambda base, overrides: _merge_lists(base, overrides, "name"),
-    ),
-    "ENVIRONMENTS": (
-        [],
-        lambda base, overrides: _merge_lists(base, overrides, "TYPE"),
-    ),
-    "METADATA_PROVIDERS": (
-        [],
-        lambda base, overrides: _merge_lists(base, overrides, "TYPE"),
-    ),
-    "SIDECARS": ({}, lambda base, overrides: base.update(overrides)),
-    "LOGGING_SIDECARS": ({}, lambda base, overrides: base.update(overrides)),
-    "MONITOR_SIDECARS": ({}, lambda base, overrides: base.update(overrides)),
-    "AWS_CLIENT_PROVIDERS": (
-        [],
-        lambda base, overrides: _merge_lists(base, overrides, "name"),
-    ),
-    "get_plugin_cli": (lambda l=None: [] if l is None else l(), _merge_funcs),
-}
+def _lazy_plugin_resolve(category):
+    d = globals()["__%ss" % category]
+    name_extractor = _plugin_categories[category]
+    if not name_extractor:
+        # If we have no name function, it means we just use the name in the dictionary
+        # and we return a dictionary.
+        to_return = {}
+    else:
+        to_return = []
+    for name, (path, cls_name) in d.items():
+        plugin_module = importlib.import_module(path)
+        cls = getattr(plugin_module, cls_name, None)
+        if cls is None:
+            raise ValueError("'%s' not found in module '%s'" % (cls_name, path))
+        if name_extractor and name_extractor(cls) != name:
+            raise ValueError(
+                "%s.%s: expected name to be '%s' but got '%s' instead"
+                % (path, cls_name, name, name_extractor(cls))
+            )
+        globals()[cls_name] = cls
+        if name_extractor is not None:
+            to_return.append(cls)
+        else:
+            to_return[name] = cls
+    return to_return
 
 
 try:
-    from metaflow.extension_support import get_modules, multiload_all, _ext_debug
-
     _modules_to_import = get_modules("plugins")
 
     multiload_all(_modules_to_import, "plugins", globals())
 
     # Build an ordered list
-    _ext_plugins = {k: v[0] for k, v in _expected_extensions.items()}
-    for m in _modules_to_import:
-        for k, v in _expected_extensions.items():
-            module_override = m.module.__dict__.get(k)
-            if module_override is not None:
-                v[1](_ext_plugins[k], module_override)
+    for c in _plugin_categories:
+        for m in _modules_to_import:
+            _merge_plugins(globals()["__%ss" % c], m.module, c)
 except Exception as e:
     _ext_debug("\tWARNING: ignoring all plugins due to error during import: %s" % e)
     print(
@@ -72,108 +220,31 @@ except Exception as e:
         "be what you want: %s" % e
     )
     traceback.print_exc()
-    _ext_plugins = {k: v[0] for k, v in _expected_extensions.items()}
-
-_ext_debug("\tWill import the following plugins: %s" % str(_ext_plugins))
 
 
 def get_plugin_cli():
-    # it is important that CLIs are not imported when
-    # __init__ is imported. CLIs may use e.g.
-    # parameters.add_custom_parameters which requires
-    # that the flow is imported first
-
-    # Add new CLI commands in this list
-    from . import package_cli
-    from .aws.batch import batch_cli
-    from .kubernetes import kubernetes_cli
-    from .aws.step_functions import step_functions_cli
-    from .airflow import airflow_cli
-    from .argo import argo_workflows_cli
-    from .cards import card_cli
-    from . import tag_cli
-
-    return _ext_plugins["get_plugin_cli"]() + [
-        package_cli.cli,
-        batch_cli.cli,
-        card_cli.cli,
-        kubernetes_cli.cli,
-        step_functions_cli.cli,
-        airflow_cli.cli,
-        argo_workflows_cli.cli,
-        tag_cli.cli,
-    ]
+    return _lazy_plugin_resolve("cli")
 
 
-# Add new decorators in this list
-from .catch_decorator import CatchDecorator
-from .timeout_decorator import TimeoutDecorator
-from .environment_decorator import EnvironmentDecorator
-from .parallel_decorator import ParallelDecorator
-from .retry_decorator import RetryDecorator
-from .resources_decorator import ResourcesDecorator
-from .aws.batch.batch_decorator import BatchDecorator
-from .kubernetes.kubernetes_decorator import KubernetesDecorator
-from .argo.argo_workflows_decorator import ArgoWorkflowsInternalDecorator
-from .aws.step_functions.step_functions_decorator import StepFunctionsInternalDecorator
-from .test_unbounded_foreach_decorator import (
-    InternalTestUnboundedForeachDecorator,
-    InternalTestUnboundedForeachInput,
-)
-from .conda.conda_step_decorator import CondaStepDecorator
-from .cards.card_decorator import CardDecorator
-from .frameworks.pytorch import PytorchParallelDecorator
-from .airflow.airflow_decorator import AirflowInternalDecorator
+STEP_DECORATORS = _lazy_plugin_resolve("step_decorator")
+FLOW_DECORATORS = _lazy_plugin_resolve("flow_decorator")
+ENVIRONMENTS = _lazy_plugin_resolve("environment")
+METADATA_PROVIDERS = _lazy_plugin_resolve("metadata")
+DATASTORES = _lazy_plugin_resolve("datastore")
+SIDECARS = _lazy_plugin_resolve("sidecar")
+LOGGING_SIDECARS = _lazy_plugin_resolve("logging_sidecar")
+MONITOR_SIDECARS = _lazy_plugin_resolve("monitor_sidecar")
 
+SIDECARS.update(LOGGING_SIDECARS)
+SIDECARS.update(MONITOR_SIDECARS)
 
-STEP_DECORATORS = [
-    CatchDecorator,
-    TimeoutDecorator,
-    EnvironmentDecorator,
-    ResourcesDecorator,
-    RetryDecorator,
-    BatchDecorator,
-    CardDecorator,
-    KubernetesDecorator,
-    StepFunctionsInternalDecorator,
-    CondaStepDecorator,
-    ParallelDecorator,
-    PytorchParallelDecorator,
-    InternalTestUnboundedForeachDecorator,
-    AirflowInternalDecorator,
-    ArgoWorkflowsInternalDecorator,
-]
-_merge_lists(STEP_DECORATORS, _ext_plugins["STEP_DECORATORS"], "name")
+AWS_CLIENT_PROVIDERS = _lazy_plugin_resolve("aws_provider")
 
-# Add Conda environment
-from .conda.conda_environment import CondaEnvironment
-
-ENVIRONMENTS = [CondaEnvironment]
-_merge_lists(ENVIRONMENTS, _ext_plugins["ENVIRONMENTS"], "TYPE")
-
-# Metadata providers
-from .metadata import LocalMetadataProvider, ServiceMetadataProvider
-
-METADATA_PROVIDERS = [LocalMetadataProvider, ServiceMetadataProvider]
-_merge_lists(METADATA_PROVIDERS, _ext_plugins["METADATA_PROVIDERS"], "TYPE")
-
-# Every entry in this list becomes a class-level flow decorator.
-# Add an entry here if you need a new flow-level annotation. Be
-# careful with the choice of name though - they become top-level
-# imports from the metaflow package.
-from .conda.conda_flow_decorator import CondaFlowDecorator
-from .aws.step_functions.schedule_decorator import ScheduleDecorator
-from .project_decorator import ProjectDecorator
-
-
-FLOW_DECORATORS = [
-    CondaFlowDecorator,
-    ScheduleDecorator,
-    ProjectDecorator,
-]
-_merge_lists(FLOW_DECORATORS, _ext_plugins["FLOW_DECORATORS"], "name")
-
-# Cards
+# Cards; due to the way cards were designed, it is harder to make them fit
+# in the _lazy_plugin_resolve mechanism. This should be OK because it is unlikely that
+# cards will need to be *removed*. No card should be too specific (for example, no
+# card should be something just for Airflow, or Argo or step-functions -- those should
+# be added externally).
 from .cards.card_modules.basic import (
     DefaultCard,
     TaskSpecCard,
@@ -208,58 +279,20 @@ CARDS = [
     DefaultCardJSON,
 ]
 _merge_lists(CARDS, MF_EXTERNAL_CARDS, "type")
-# Sidecars
-from ..mflog.save_logs_periodically import SaveLogsPeriodicallySidecar
-from metaflow.metadata.heartbeat import MetadataHeartBeat
-
-SIDECARS = {
-    "save_logs_periodically": SaveLogsPeriodicallySidecar,
-    "heartbeat": MetadataHeartBeat,
-}
-SIDECARS.update(_ext_plugins["SIDECARS"])
-
-# Add logger
-from .debug_logger import DebugEventLogger
-from metaflow.event_logger import NullEventLogger
-
-LOGGING_SIDECARS = {
-    DebugEventLogger.TYPE: DebugEventLogger,
-    NullEventLogger.TYPE: NullEventLogger,
-}
-LOGGING_SIDECARS.update(_ext_plugins["LOGGING_SIDECARS"])
-
-# Add monitor
-from .debug_monitor import DebugMonitor
-from metaflow.monitor import NullMonitor
-
-MONITOR_SIDECARS = {
-    DebugMonitor.TYPE: DebugMonitor,
-    NullMonitor.TYPE: NullMonitor,
-}
-MONITOR_SIDECARS.update(_ext_plugins["MONITOR_SIDECARS"])
-
-SIDECARS.update(LOGGING_SIDECARS)
-SIDECARS.update(MONITOR_SIDECARS)
-
-from .aws.aws_client import Boto3ClientProvider
-
-AWS_CLIENT_PROVIDERS = [Boto3ClientProvider]
-_merge_lists(AWS_CLIENT_PROVIDERS, _ext_plugins["AWS_CLIENT_PROVIDERS"], "name")
-
 
 # Erase all temporary names to avoid leaking things
-# We leave '_ext_plugins' because it is used in
-# a function (so it needs to stick around)
+# We leave '_lazy_plugin_resolve' and whatever it needs
+# because it is used in a function (so it needs to stick around)
 for _n in [
+    "_merge_plugins",
     "_merge_lists",
-    "_merge_funcs",
-    "_expected_extensions",
     "get_modules",
     "multiload_all",
+    "_ext_debug",
     "_modules_to_import",
-    "k",
-    "v",
-    "module_override",
+    "c",
+    "m",
+    "e",
 ]:
     try:
         del globals()[_n]

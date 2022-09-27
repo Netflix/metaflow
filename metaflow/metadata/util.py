@@ -5,7 +5,7 @@ import tarfile
 from distutils.dir_util import copy_tree
 
 from metaflow import util
-from metaflow.datastore.local_storage import LocalStorage
+from metaflow.plugins.datastores.local_storage import LocalStorage
 
 
 def sync_local_metadata_to_datastore(metadata_local_dir, task_ds):

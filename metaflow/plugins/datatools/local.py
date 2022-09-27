@@ -1,9 +1,8 @@
 import os
 
-from ..current import current
-from ..exception import MetaflowException
-from ..metaflow_config import DATATOOLS_LOCALROOT, DATATOOLS_SUFFIX
-from ..util import to_unicode
+from metaflow.exception import MetaflowException
+from metaflow.metaflow_config import DATATOOLS_LOCALROOT, DATATOOLS_SUFFIX
+from metaflow.util import to_unicode
 
 
 class MetaflowLocalURLException(MetaflowException):

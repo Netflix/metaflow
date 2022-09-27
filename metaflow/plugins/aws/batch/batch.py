@@ -7,7 +7,7 @@ import shlex
 import time
 
 from metaflow import util
-from metaflow.datatools.s3tail import S3Tail
+from metaflow.plugins.datatools.s3.s3tail import S3Tail
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
     BATCH_METADATA_SERVICE_URL,

@@ -136,7 +136,7 @@ def default_metadata():
     if default:
         current_metadata = default[0]
     else:
-        from metaflow.plugins.metadata import LocalMetadataProvider
+        from metaflow.plugins.metadata.local import LocalMetadataProvider
 
         current_metadata = LocalMetadataProvider
     return get_metadata()

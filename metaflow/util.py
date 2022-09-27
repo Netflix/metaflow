@@ -191,7 +191,7 @@ def resolve_identity():
 
 
 def get_latest_run_id(echo, flow_name):
-    from metaflow.datastore.local_storage import LocalStorage
+    from metaflow.plugins.datastores.local_storage import LocalStorage
 
     local_root = LocalStorage.datastore_root
     if local_root is None:
@@ -207,7 +207,7 @@ def get_latest_run_id(echo, flow_name):
 
 
 def write_latest_run_id(obj, run_id):
-    from metaflow.datastore.local_storage import LocalStorage
+    from metaflow.plugins.datastores.local_storage import LocalStorage
 
     if LocalStorage.datastore_root is None:
         LocalStorage.datastore_root = LocalStorage.get_datastore_root_from_config(

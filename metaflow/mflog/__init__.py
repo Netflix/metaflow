@@ -147,7 +147,7 @@ def tail_logs(prefix, stdout_tail, stderr_tail, echo, has_log_updates):
 
 def get_log_tailer(log_url, datastore_type):
     if datastore_type == "s3":
-        from metaflow.datatools.s3tail import S3Tail
+        from metaflow.plugins.datatools.s3.s3tail import S3Tail
 
         return S3Tail(log_url)
     elif datastore_type == "azure":

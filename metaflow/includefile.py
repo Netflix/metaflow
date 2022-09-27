@@ -46,7 +46,7 @@ _DelayedExecContext = namedtuple(
 
 
 # From here on out, this is the IncludeFile implementation.
-from .datatools import Local, S3
+from metaflow.plugins.datatools import Local, S3
 from metaflow.plugins.azure.includefile_support import Azure
 
 DATACLIENTS = {"local": Local, "s3": S3, "azure": Azure}

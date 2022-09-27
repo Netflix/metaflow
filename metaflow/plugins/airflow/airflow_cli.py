@@ -7,7 +7,7 @@ from metaflow._vendor import click
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.package import MetaflowPackage
 from hashlib import sha1
-from metaflow.plugins import KubernetesDecorator
+from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
 from metaflow.util import get_username, to_bytes, to_unicode
 
 from .airflow import Airflow

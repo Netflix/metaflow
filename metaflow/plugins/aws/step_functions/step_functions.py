@@ -8,11 +8,10 @@ import string
 import random
 import uuid
 
-from metaflow.exception import MetaflowException, MetaflowInternalError
-from metaflow.plugins import ResourcesDecorator, BatchDecorator, RetryDecorator
+from metaflow.exception import MetaflowException
 from metaflow.parameters import deploy_time_eval
 from metaflow.decorators import flow_decorators
-from metaflow.util import compress_list, dict_to_cli_options, to_pascalcase
+from metaflow.util import dict_to_cli_options, to_pascalcase
 from metaflow.metaflow_config import (
     SFN_IAM_ROLE,
     EVENTS_SFN_ACCESS_IAM_ROLE,
