@@ -19,7 +19,7 @@ setup(
     package_data={"metaflow": ["tutorials/*/*"]},
     entry_points="""
         [console_scripts]
-        metaflow=metaflow.main_cli:main
+        metaflow=metaflow.main_cli:start
       """,
     install_requires=[
         "requests",
