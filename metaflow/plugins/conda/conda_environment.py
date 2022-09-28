@@ -42,8 +42,8 @@ class CondaEnvironment(MetaflowEnvironment):
         echo("Bootstrapping conda environment..." + "(this could take a few minutes)")
         self.base_env.init_environment(echo)
 
-    def validate_environment(self, echo):
-        return self.base_env.validate_environment(echo)
+    def validate_environment(self, echo, datastore_type):
+        return self.base_env.validate_environment(echo, datastore_type)
 
     def decospecs(self):
         # Apply conda decorator and base environment's decorators to all steps
