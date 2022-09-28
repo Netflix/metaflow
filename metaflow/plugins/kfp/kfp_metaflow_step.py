@@ -15,6 +15,7 @@ from metaflow.plugins.kfp.kfp_constants import (
     INPUT_PATHS_ENV_NAME,
     KFP_METAFLOW_FOREACH_SPLITS_PATH,
     LOGS_DIR,
+    PRECEDING_COMPONENT_INPUTS_PATH,
     RETRY_COUNT,
     SPLIT_INDEX_ENV_NAME,
     STDERR_PATH,
@@ -233,6 +234,9 @@ def _command(
 @click.option("--namespace", required=False, default="")
 @click.option("--is_split_index/--no-need_split_index", default=False)
 @click.option("--passed_in_split_indexes")
+@click.option("--preceding_component_inputs_json")
+@click.option("--preceding_component_outputs_json")
+@click.option("--preceding_component_outputs_dict")
 @click.option("--script_name")
 @click.option("--step_name")
 @click.option("--tags_json")
@@ -253,6 +257,9 @@ def kfp_metaflow_step(
     namespace: str,
     is_split_index: bool,
     passed_in_split_indexes: str,  # only if is_inside_foreach
+    preceding_component_inputs_json: str,  # fields to return from Flow state to KFP
+    preceding_component_outputs_json: str,  # fields to be pushed into Flow state from KFP
+    preceding_component_outputs_dict: str,  # json string of type Dict[str, str]
     script_name: str,
     step_name: str,
     tags_json: str,
@@ -269,6 +276,10 @@ def kfp_metaflow_step(
     metaflow_configs: Dict[str, str] = json.loads(metaflow_configs_json)
     tags: List[str] = json.loads(tags_json)
     sys_tags: List[str] = json.loads(sys_tags_json)
+    preceding_component_inputs: List[str] = json.loads(preceding_component_inputs_json)
+    preceding_component_outputs: List[str] = json.loads(
+        preceding_component_outputs_json
+    )
 
     if volume_dir == "":
         volume_dir = None
@@ -291,6 +302,14 @@ def kfp_metaflow_step(
 
     # expose passed KFP passed in arguments as environment variables to
     # the bash command
+    kwargs: Dict[str, str] = {}
+    for arg in preceding_component_outputs_dict.split(","):
+        if arg:  # ensure arg is not an empty string
+            key, value = arg.split("=")
+            kwargs[key] = value
+    preceding_component_outputs_env: Dict[str, str] = {
+        field: kwargs[field] for field in preceding_component_outputs
+    }
     cmd_template: str = _command(
         volume_dir,
         step_cli,
@@ -317,6 +336,9 @@ def kfp_metaflow_step(
     env: Dict[str, str] = {
         **os.environ,
         **metaflow_configs_new,
+        "PRECEDING_COMPONENT_INPUTS": json.dumps(preceding_component_inputs),
+        "PRECEDING_COMPONENT_OUTPUTS": json.dumps(preceding_component_outputs),
+        **preceding_component_outputs_env,
     }
     if flow_parameters_json is not None:
         env["METAFLOW_PARAMETERS"] = flow_parameters_json
@@ -349,6 +371,20 @@ def kfp_metaflow_step(
         #   withParam value could not be parsed as a JSON list: ['0', '1']
         values.append(json.dumps(task_context_dict.get("foreach_splits", [])))
         output_paths.append("/tmp/outputs/foreach_splits")
+
+    # read fields to return from Flow state to KFP
+    if len(preceding_component_inputs) > 0:
+        # File written by kfp_decorator.py:task_finished
+        with open(PRECEDING_COMPONENT_INPUTS_PATH, "r") as file:
+            preceding_component_inputs_dict: Dict = json.load(file)
+            values.extend(list(preceding_component_inputs_dict.values()))
+
+    # We replicate what is done in the KFP SDK _container_op.py,
+    # see: https://github.com/kubeflow/pipelines/blob/master/sdk/python/kfp/dsl/_container_op.py
+    # We write outputs to a tmp file, which KFP internally uses to produces the output
+    # of the container op.
+    for preceding_component_input in preceding_component_inputs:
+        output_paths.append(f"/tmp/outputs/{preceding_component_input}")
 
     # Write all the outputs of the kfp_step_function into the appropriate
     # output files which KFP uses to produce outputs for the container op.

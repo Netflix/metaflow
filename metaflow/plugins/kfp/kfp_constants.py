@@ -4,6 +4,7 @@
 import os
 
 KFP_METAFLOW_FOREACH_SPLITS_PATH = "/tmp/kfp_metaflow_foreach_splits_dict.json"
+PRECEDING_COMPONENT_INPUTS_PATH = "/tmp/preceding_component_inputs.json"
 
 SPLIT_INDEX_SEPARATOR = "_"
 PASSED_IN_SPLIT_INDEXES_ENV_NAME = "PASSED_IN_SPLIT_INDEXES_ENV_NAME"

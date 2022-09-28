@@ -98,6 +98,29 @@ class KfpComponent(object):
         self.environment_decorator = environment_decorator
         self.total_retries = total_retries
 
+        self.preceding_kfp_func: Callable = (
+            kfp_decorator.attributes.get("preceding_component", None)
+            if kfp_decorator
+            else None
+        )
+
+        def bindings(binding_name: str) -> List[str]:
+            if kfp_decorator:
+                binding_fields = kfp_decorator.attributes[binding_name]
+                if isinstance(binding_fields, str):
+                    return binding_fields.split(" ")
+                else:
+                    return binding_fields
+            else:
+                return []
+
+        self.preceding_component_inputs: List[str] = bindings(
+            "preceding_component_inputs"
+        )
+        self.preceding_component_outputs: List[str] = bindings(
+            "preceding_component_outputs"
+        )
+
 
 class KubeflowPipelines(object):
     def __init__(
@@ -709,14 +732,35 @@ class KubeflowPipelines(object):
             def build_kfp_dag(
                 node: DAGNode,
                 passed_in_split_indexes: str = "",
+                preceding_kfp_component_op: ContainerOp = None,
+                preceding_component_outputs_dict: Dict[str, dsl.PipelineParam] = None,
                 workflow_uid: str = None,
                 shared_volumes: Dict[str, Dict[str, PipelineVolume]] = None,
             ):
                 if node.name in visited:
                     return
 
+                if preceding_component_outputs_dict is None:
+                    preceding_component_outputs_dict = {}
+
                 if shared_volumes is None:
                     shared_volumes = {}
+
+                # If any of this node's children has a preceding_kfp_func then
+                # create (kfp_decorator_component, preceding_component_inputs)
+                next_kfp_decorator_component: Optional[KfpComponent] = None
+                preceding_component_inputs: List[str] = []
+                if any(
+                    step_name_to_kfp_component[child].preceding_kfp_func
+                    for child in node.out_funcs
+                ):
+                    next_kfp_decorator_component: KfpComponent = (
+                        step_name_to_kfp_component[node.out_funcs[0]]
+                    )
+                    # fields to return from Flow state to KFP
+                    preceding_component_inputs: List[
+                        str
+                    ] = next_kfp_decorator_component.preceding_component_inputs
 
                 kfp_component: KfpComponent = step_name_to_kfp_component[node.name]
                 step_variables: StepVariables = self._create_step_variables(node)
@@ -737,6 +781,8 @@ class KubeflowPipelines(object):
                     metaflow_run_id,
                     flow_parameters_json,
                     passed_in_split_indexes,
+                    preceding_component_inputs,
+                    preceding_component_outputs_dict,
                 )
                 visited[node.name] = metaflow_step_op
 
@@ -752,7 +798,35 @@ class KubeflowPipelines(object):
                         kfp_component.total_retries, policy="Always"
                     )
 
+                if preceding_kfp_component_op:
+                    metaflow_step_op.after(preceding_kfp_component_op)
+
+                # If any of this node's children has a preceding_kfp_func then
+                # create (next_preceding_component_outputs_dict, next_kfp_component_op)
+                # to pass along to next step
                 next_kfp_component_op: Optional[ContainerOp] = None
+                next_preceding_component_outputs_dict: Dict[str, dsl.PipelineParam] = {}
+                if next_kfp_decorator_component:
+                    next_kfp_component_op: ContainerOp = next_kfp_decorator_component.preceding_kfp_func(
+                        *[
+                            metaflow_step_op.outputs[mf_field]
+                            for mf_field in next_kfp_decorator_component.preceding_component_inputs
+                        ]
+                    )
+
+                    next_kfp_component_op.after(metaflow_step_op)
+
+                    num_outputs = len(
+                        next_kfp_decorator_component.preceding_component_outputs
+                    )
+                    next_preceding_component_outputs_dict = {
+                        name: (
+                            next_kfp_component_op.outputs[name]
+                            if num_outputs > 1
+                            else next_kfp_component_op.output
+                        )
+                        for name in next_kfp_decorator_component.preceding_component_outputs
+                    }
 
                 KubeflowPipelines._set_container_resources(
                     metaflow_step_op, kfp_component, workflow_uid, shared_volumes
@@ -772,6 +846,8 @@ class KubeflowPipelines(object):
                         build_kfp_dag(
                             self.graph[next_step_name],
                             split_index,
+                            preceding_kfp_component_op=next_kfp_component_op,
+                            preceding_component_outputs_dict=next_preceding_component_outputs_dict,
                             workflow_uid=workflow_uid,
                             shared_volumes=shared_volumes,
                         )
@@ -781,6 +857,8 @@ class KubeflowPipelines(object):
                     build_kfp_dag(
                         self.graph[node.matching_join],
                         passed_in_split_indexes,
+                        preceding_kfp_component_op=next_kfp_component_op,
+                        preceding_component_outputs_dict=next_preceding_component_outputs_dict,
                         workflow_uid=workflow_uid,
                         shared_volumes=shared_volumes,
                     )
@@ -800,6 +878,8 @@ class KubeflowPipelines(object):
                             build_kfp_dag(
                                 step_node,
                                 passed_in_split_indexes,
+                                preceding_kfp_component_op=next_kfp_component_op,
+                                preceding_component_outputs_dict=next_preceding_component_outputs_dict,
                                 workflow_uid=workflow_uid,
                                 shared_volumes=shared_volumes,
                             )
@@ -910,6 +990,8 @@ class KubeflowPipelines(object):
         metaflow_run_id: str,
         flow_parameters_json: str,
         passed_in_split_indexes: str,
+        preceding_component_inputs: List[str],
+        preceding_component_outputs_dict: Dict[str, dsl.PipelineParam],
     ) -> ContainerOp:
         # TODO (hariharans): https://zbrt.atl.zillow.net/browse/AIP-5406
         #   (Title: Clean up output formatting of workflow and pod specs in container op)
@@ -926,6 +1008,8 @@ class KubeflowPipelines(object):
             f" --metaflow_run_id {metaflow_run_id}"
             f" --monitor {flow_variables.monitor}"
             f' --passed_in_split_indexes "{passed_in_split_indexes}"'
+            f" --preceding_component_inputs_json {json.dumps(json.dumps(preceding_component_inputs))}"
+            f" --preceding_component_outputs_json {json.dumps(json.dumps(kfp_component.preceding_component_outputs))}"
             f" --script_name {os.path.basename(sys.argv[0])}"
             f" --step_name {step_variables.step_name}"
             f" --tags_json {json.dumps(json.dumps(flow_variables.tags))}"
@@ -945,6 +1029,12 @@ class KubeflowPipelines(object):
             metaflow_execution_cmd += f" --namespace {flow_variables.namespace}"
         if step_variables.is_split_index:
             metaflow_execution_cmd += " --is_split_index"
+
+        metaflow_execution_cmd += ' --preceding_component_outputs_dict "'
+        for key in preceding_component_outputs_dict:
+            # TODO: understand how KFP maps the parameter
+            metaflow_execution_cmd += f"{key}={preceding_component_outputs_dict[key]},"
+        metaflow_execution_cmd += '"'
 
         # bash -ec used because Docker starts a single process and thus to run
         # multiple bash commands, we use bash -ec to chain them.
@@ -969,6 +1059,10 @@ class KubeflowPipelines(object):
         file_outputs: Dict[str, str] = {}
         if node.type == "foreach":
             file_outputs["foreach_splits"] = "/tmp/outputs/foreach_splits/data"
+        for preceding_component_input in preceding_component_inputs:
+            file_outputs[
+                preceding_component_input
+            ] = f"/tmp/outputs/{preceding_component_input}/data"
 
         container_op = dsl.ContainerOp(
             name=node.name,
