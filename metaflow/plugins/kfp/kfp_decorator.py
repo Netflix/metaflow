@@ -26,13 +26,15 @@ StepOpBinding = NamedTuple(
 
 class KfpInternalDecorator(StepDecorator):
     """
-    preceding_component_inputs:
+    **`preceding_component` feature is no longer supported as of Q3 2022.**
+
+    [Deprecated] preceding_component_inputs:
       preceding_component_outputs are returned by the KFP component to incorporate
       back into Metaflow Flow state.  We do this by having the previous step
       return these as a namedtuple to KFP.  They are saved to
       PRECEDING_COMPONENT_INPUTS_PATH in task_finished
 
-    preceding_component_outputs:
+    [Deprecated] preceding_component_outputs:
       preceding_component_inputs are Flow state fields to expose to a KFP step by
       returning them as KFP step return values.  It is a list of KFP component
       returned namedtuple to bind to Metaflow self state.  These are
@@ -68,6 +70,12 @@ class KfpInternalDecorator(StepDecorator):
         super(KfpInternalDecorator, self).__init__(attributes, statically_defined)
 
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
+        if self.attributes["preceding_component"] is not None:
+            raise NotImplementedError(
+                "KFP preceding component is no longer supported. "
+                "Please contact AIP team if you have a use case that requires this feature."
+            )
+
         if self.attributes["preceding_component"] is not None:
             node = graph[step]
             if step == "start":
