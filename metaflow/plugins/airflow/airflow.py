@@ -21,7 +21,7 @@ from metaflow.metaflow_config import (
     AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
     DATASTORE_SYSROOT_AZURE,
     DATASTORE_CARD_AZUREROOT,
-    AIRFLOW_KUBERNETES_CONN_ID
+    AIRFLOW_KUBERNETES_CONN_ID,
 )
 from metaflow.parameters import deploy_time_eval
 from metaflow.plugins.kubernetes.kubernetes import Kubernetes
@@ -477,7 +477,7 @@ class Airflow(object):
             k8s_operator_args["kubernetes_conn_id"] = AIRFLOW_KUBERNETES_CONN_ID
         else:
             k8s_operator_args["in_cluster"] = True
-            
+
         if k8s_deco.attributes["secrets"]:
             if isinstance(k8s_deco.attributes["secrets"], str):
                 k8s_operator_args["secrets"] = k8s_deco.attributes["secrets"].split(",")
