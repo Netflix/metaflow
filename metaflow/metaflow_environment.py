@@ -28,7 +28,7 @@ class MetaflowEnvironment(object):
         """
         pass
 
-    def validate_environment(self, echo):
+    def validate_environment(self, echo, datastore_type):
         """
         Run before any command to validate that we are operating in
         a desired environment.
