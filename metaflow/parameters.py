@@ -209,7 +209,7 @@ class DelayedEvaluationParameter(object):
 
     def __call__(self, return_json=False):
         try:
-            return self._fun(return_json)
+            return self._fun(return_json=return_json)
         except Exception as e:
             raise ParameterFieldFailed(self._name, self._field)
 
