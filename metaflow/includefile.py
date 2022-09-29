@@ -212,10 +212,10 @@ class FilePathClass(click.ParamType):
                     return json.dumps(incl_file.descriptor)
                 return incl_file
 
-            return (
-                DelayedEvaluationParameter(
-                    ctx.parameter_name, "default", _delayed_eval_func
-                ),
+            return DelayedEvaluationParameter(
+                ctx.parameter_name,
+                "default",
+                functools.partial(_delayed_eval_func, ctx=lambda_ctx),
             )
 
     def __str__(self):
