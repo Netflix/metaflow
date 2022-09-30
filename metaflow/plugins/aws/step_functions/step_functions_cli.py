@@ -428,7 +428,7 @@ def trigger(obj, run_id_file=None, **kwargs):
         if param.kwargs.get("type") == JSONType:
             val = json.dumps(val)
         elif isinstance(val, parameters.DelayedEvaluationParameter):
-            val = val(return_json=True)
+            val = val(return_str=True)
         return val
 
     params = {

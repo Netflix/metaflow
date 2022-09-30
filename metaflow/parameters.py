@@ -197,9 +197,9 @@ class DelayedEvaluationParameter(object):
     of the file too early. If a parameter converts to a DelayedEvaluationParameter
     object through the usual click mechanisms, `_set_constants` knows to invoke the
     __call__ method on that DelayedEvaluationParameter; in that case, the __call__
-    method is invoked without any parameter. The return_json parameter will be used
-    by schedulers when they need to convert DelayedEvaluationParameters to JSON to
-    store them.
+    method is invoked without any parameter. The return_str parameter will be used
+    by schedulers when they need to convert DelayedEvaluationParameters to a
+    string to store them
     """
 
     def __init__(self, name, field, fun):
@@ -207,9 +207,9 @@ class DelayedEvaluationParameter(object):
         self._field = field
         self._fun = fun
 
-    def __call__(self, return_json=False):
+    def __call__(self, return_str=False):
         try:
-            return self._fun(return_json=return_json)
+            return self._fun(return_str=return_str)
         except Exception as e:
             raise ParameterFieldFailed(self._name, self._field)
 

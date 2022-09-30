@@ -486,11 +486,10 @@ def trigger(obj, run_id_file=None, **kwargs):
     def _convert_value(param):
         # Swap `-` with `_` in parameter name to match click's behavior
         val = kwargs.get(param.name.replace("-", "_").lower())
-        val = kwargs.get(param.name.replace("-", "_").lower())
         if param.kwargs.get("type") == JSONType:
             val = json.dumps(val)
         elif isinstance(val, parameters.DelayedEvaluationParameter):
-            val = val(return_json=True)
+            val = val(return_str=True)
         return val
 
     params = {

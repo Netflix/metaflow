@@ -18,7 +18,7 @@ class LocalObject(object):
     """
     This object represents a local object. It is a very thin wrapper
     to allow it to be used in the same way as the S3Object (only as needed
-    in this usecase)
+    in the IncludeFile use case)
 
     Get or list calls return one or more of LocalObjects.
     """

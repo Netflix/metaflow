@@ -196,7 +196,7 @@ class FilePathClass(click.ParamType):
                 echo=ctx.logger,
             )
 
-            def _delayed_eval_func(ctx=lambda_ctx, return_json=False):
+            def _delayed_eval_func(ctx=lambda_ctx, return_str=False):
                 incl_file = IncludedFile(
                     CURRENT_UPLOADER.store(
                         ctx.flow_name,
@@ -207,7 +207,7 @@ class FilePathClass(click.ParamType):
                         ctx.echo,
                     )
                 )
-                if return_json:
+                if return_str:
                     return json.dumps(incl_file.descriptor)
                 return incl_file
 
