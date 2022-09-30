@@ -8,11 +8,10 @@ import time
 
 from metaflow import util
 from metaflow.datatools.s3tail import S3Tail
-from metaflow.exception import MetaflowException, MetaflowInternalError
+from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
     BATCH_METADATA_SERVICE_URL,
     DATATOOLS_S3ROOT,
-    DATASTORE_LOCAL_DIR,
     DATASTORE_SYSROOT_S3,
     DEFAULT_METADATA,
     BATCH_METADATA_SERVICE_HEADERS,
@@ -20,7 +19,6 @@ from metaflow.metaflow_config import (
     DATASTORE_CARD_S3ROOT,
     S3_ENDPOINT_URL,
 )
-from metaflow.mflog.mflog import refine, set_should_persist
 from metaflow.mflog import (
     export_mflog_env_vars,
     bash_capture_logs,
@@ -60,10 +58,10 @@ class Batch(object):
             stderr_path=STDERR_PATH,
             **task_spec
         )
-        init_cmds = environment.get_package_commands(code_package_url)
+        init_cmds = environment.get_package_commands(code_package_url, "s3")
         init_expr = " && ".join(init_cmds)
         step_expr = bash_capture_logs(
-            " && ".join(environment.bootstrap_commands(step_name) + step_cmds)
+            " && ".join(environment.bootstrap_commands(step_name, "s3") + step_cmds)
         )
 
         # construct an entry point that

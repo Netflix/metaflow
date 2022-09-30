@@ -254,6 +254,9 @@ class KubernetesJob(object):
         return self
 
     def environment_variable(self, name, value):
+        # Never set to None
+        if value is None:
+            return self
         self._kwargs["environment_variables"] = dict(
             self._kwargs.get("environment_variables", {}), **{name: value}
         )

@@ -4,6 +4,7 @@ import time
 from .mflog import refine, set_should_persist
 
 from metaflow.util import to_unicode
+from metaflow.exception import MetaflowInternalError
 
 # Log source indicates the system that *minted the timestamp*
 # for the logline. This means that for a single task we can
@@ -142,3 +143,19 @@ def tail_logs(prefix, stdout_tail, stderr_tail, echo, has_log_updates):
     # tailed.
     _available_logs(stdout_tail, "stdout", echo)
     _available_logs(stderr_tail, "stderr", echo)
+
+
+def get_log_tailer(log_url, datastore_type):
+    if datastore_type == "s3":
+        from metaflow.datatools.s3tail import S3Tail
+
+        return S3Tail(log_url)
+    elif datastore_type == "azure":
+        from metaflow.plugins.azure.azure_tail import AzureTail
+
+        return AzureTail(log_url)
+    else:
+        raise MetaflowInternalError(
+            "Log tailing implementation missing for datastore type %s"
+            % (datastore_type,)
+        )

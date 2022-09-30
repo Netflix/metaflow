@@ -18,7 +18,6 @@ from .parameters import (
 )
 from .util import get_username
 
-
 import functools
 
 # _tracefunc_depth = 0
@@ -49,7 +48,7 @@ _DelayedExecContext = namedtuple(
 # From here on out, this is the IncludeFile implementation.
 from .datatools import Local, S3
 
-DATACLIENTS = {"local": Local, "s3": S3}
+DATACLIENTS = {"local": Local, "s3": S3}  # TODO: Re-add azure: , "azure": Azure}
 
 
 class IncludedFile(object):

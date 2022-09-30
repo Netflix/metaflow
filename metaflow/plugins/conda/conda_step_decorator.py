@@ -18,14 +18,14 @@ from metaflow.decorators import StepDecorator
 from metaflow.extension_support import EXT_PKG
 from metaflow.metaflow_environment import InvalidEnvironmentException
 from metaflow.metadata import MetaDatum
-from metaflow.metaflow_config import get_pinned_conda_libs, CONDA_PACKAGE_S3ROOT
+from metaflow.metaflow_config import (
+    get_pinned_conda_libs,
+)
 from metaflow.util import get_metaflow_root
-from metaflow.datastore import LocalStorage
-from metaflow.datatools import S3
-from metaflow.unbounded_foreach import UBF_CONTROL
+from metaflow.datastore import DATASTORES, LocalStorage
 
 from ..env_escape import generate_trampolines
-from . import read_conda_manifest, write_to_conda_manifest
+from . import read_conda_manifest, write_to_conda_manifest, get_conda_package_root
 from .conda import Conda
 
 try:
@@ -90,7 +90,7 @@ class CondaStepDecorator(StepDecorator):
         )
 
     def _lib_deps(self):
-        deps = get_pinned_conda_libs(self._python_version())
+        deps = get_pinned_conda_libs(self._python_version(), self.flow_datastore.TYPE)
 
         base_deps = self.base_attributes["libraries"]
         deps.update(base_deps)
@@ -151,7 +151,11 @@ class CondaStepDecorator(StepDecorator):
                 }
             else:
                 payload = cached_deps[env_id]
-            if self.flow_datastore.TYPE == "s3" and "cache_urls" not in payload:
+
+            if (
+                self.flow_datastore.TYPE in ("s3", "azure")
+                and "cache_urls" not in payload
+            ):
                 payload["cache_urls"] = self._cache_env()
             write_to_conda_manifest(ds_root, self.flow.name, env_id, payload)
             CondaStepDecorator.environments = CondaStepDecorator.conda.environments(
@@ -172,7 +176,6 @@ class CondaStepDecorator(StepDecorator):
         for package_info in self.conda.package_info(env_id):
             url = urlparse(package_info["url"])
             path = os.path.join(
-                CONDA_PACKAGE_S3ROOT,
                 url.netloc,
                 url.path.lstrip("/"),
                 package_info["md5"],
@@ -191,8 +194,19 @@ class CondaStepDecorator(StepDecorator):
             files.append((path, tarball_path))
         if to_download:
             Pool(8).map(_download, to_download)
-        with S3() as s3:
-            s3.put_files(files, overwrite=False)
+
+        list_of_path_and_filehandle = [
+            (path, open(tarball_path, "rb")) for path, tarball_path in files
+        ]
+
+        # We need our own storage backend so that we can customize datastore_root on it
+        # in a clearly safe way, without the existing backend owned by FlowDatastore
+        storage_impl = DATASTORES[self.flow_datastore.TYPE]
+        storage = storage_impl(get_conda_package_root(self.flow_datastore.TYPE))
+        storage.save_bytes(
+            list_of_path_and_filehandle, len_hint=len(list_of_path_and_filehandle)
+        )
+
         return [files[0] for files in files]
 
     def _prepare_step_environment(self, step_name, ds_root):

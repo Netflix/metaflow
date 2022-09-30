@@ -1,3 +1,5 @@
+import builtins
+import traceback
 from metaflow._vendor import click
 import json
 import os
@@ -31,50 +33,10 @@ def echo_always(line, **kwargs):
     click.secho(line, **kwargs)
 
 
-@click.group(invoke_without_command=True)
+@click.group()
 @click.pass_context
 def main(ctx):
-    global echo
-    echo = echo_always
-
-    import metaflow
-
-    echo("Metaflow ", fg="magenta", bold=True, nl=False)
-
-    if ctx.invoked_subcommand is None:
-        echo("(%s): " % metaflow.__version__, fg="magenta", bold=False, nl=False)
-    else:
-        echo("(%s)\n" % metaflow.__version__, fg="magenta", bold=False)
-
-    if ctx.invoked_subcommand is None:
-        echo("More data science, less engineering\n", fg="magenta")
-
-        # metaflow URL
-        echo("http://docs.metaflow.org", fg="cyan", nl=False)
-        echo(" - Read the documentation")
-
-        # metaflow chat
-        echo("http://chat.metaflow.org", fg="cyan", nl=False)
-        echo(" - Chat with us")
-
-        # metaflow help email
-        echo("help@metaflow.org", fg="cyan", nl=False)
-        echo("        - Get help by email\n")
-
-        # print a short list of next steps.
-        short_help = {
-            "tutorials": "Browse and access metaflow tutorials.",
-            "configure": "Configure metaflow to access the cloud.",
-            "status": "Display the current working tree.",
-            "help": "Show all available commands to run.",
-        }
-
-        echo("Commands:", bold=False)
-
-        for cmd, desc in short_help.items():
-            echo("  metaflow {0:<10} ".format(cmd), fg="cyan", bold=False, nl=False)
-
-            echo("%s" % desc)
+    pass
 
 
 @main.command(help="Show all available commands.")
@@ -284,7 +246,7 @@ def get_config_path(profile):
     return path
 
 
-def overwrite_config(profile):
+def confirm_overwrite_config(profile):
     path = get_config_path(profile)
     if os.path.exists(path):
         if not click.confirm(
@@ -425,7 +387,7 @@ def import_from(profile, input_filename):
     echo('"%s"' % input_path, fg="cyan")
 
     # Persist configuration.
-    overwrite_config(profile)
+    confirm_overwrite_config(profile)
     persist_env(env_dict, profile)
 
 
@@ -437,8 +399,16 @@ def import_from(profile, input_filename):
     help="Configure a named profile. Activate the profile by setting "
     "`METAFLOW_PROFILE` environment variable.",
 )
-def sandbox(profile):
-    overwrite_config(profile)
+@click.option(
+    "--overwrite/--no-overwrite",
+    "-o/",
+    default=False,
+    show_default=True,
+    help="Overwrite profile configuration without asking",
+)
+def sandbox(profile, overwrite):
+    if not overwrite:
+        confirm_overwrite_config(profile)
     # Prompt for user input.
     encoded_str = click.prompt(
         "Following instructions from "
@@ -502,6 +472,29 @@ def configure_s3_datastore(existing_env):
     return env
 
 
+def configure_azure_datastore(existing_env):
+    env = {}
+    # Set Azure Blob Storage as default datastore.
+    env["METAFLOW_DEFAULT_DATASTORE"] = "azure"
+    # Set Azure Blob Storage folder for datastore.
+    # TODO rename this Blob Endpoint!
+    env["METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"] = click.prompt(
+        cyan("[METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT]")
+        + " Azure Storage Account URL, for the account holding the Blob container to be used. "
+        + "(E.g. https://<storage_account>.blob.core.windows.net/)",
+        default=existing_env.get("METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"),
+        show_default=True,
+    )
+    env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = click.prompt(
+        cyan("[METAFLOW_DATASTORE_SYSROOT_AZURE]")
+        + " Azure Blob Storage folder for Metaflow artifact storage "
+        + "(Format: <container_name>/<prefix>)",
+        default=existing_env.get("METAFLOW_DATASTORE_SYSROOT_AZURE"),
+        show_default=True,
+    )
+    return env
+
+
 def configure_metadata_service(existing_env):
     empty_profile = False
     if not existing_env:
@@ -521,7 +514,7 @@ def configure_metadata_service(existing_env):
         cyan("[METAFLOW_SERVICE_INTERNAL_URL]")
         + yellow(" (optional)")
         + " URL for Metaflow Service "
-        + "(Accessible only within VPC).",
+        + "(Accessible only within VPC [AWS] or a Kubernetes cluster [if the service runs in one]).",
         default=existing_env.get(
             "METAFLOW_SERVICE_INTERNAL_URL", env["METAFLOW_SERVICE_URL"]
         ),
@@ -538,7 +531,45 @@ def configure_metadata_service(existing_env):
     return env
 
 
-def configure_datastore_and_metadata(existing_env):
+def configure_azure_datastore_and_metadata(existing_env):
+    empty_profile = False
+    if not existing_env:
+        empty_profile = True
+    env = {}
+
+    # Configure Azure Blob Storage as the datastore.
+    use_azure_as_datastore = click.confirm(
+        "\nMetaflow can use "
+        + yellow("Azure Blob Storage as the storage backend")
+        + " for all code and data artifacts on "
+        + "Azure.\nAzure Blob Storage is a strict requirement if you "
+        + "intend to execute your flows on a Kubernetes cluster on Azure (AKS or self-managed)"
+        + ".\nWould you like to configure Azure Blob Storage "
+        + "as the default storage backend?",
+        default=empty_profile
+        or existing_env.get("METAFLOW_DEFAULT_DATASTORE", "") == "azure",
+        abort=False,
+    )
+    if use_azure_as_datastore:
+        env.update(configure_azure_datastore(existing_env))
+
+    # Configure Metadata service for tracking.
+    if click.confirm(
+        "\nMetaflow can use a "
+        + yellow("remote Metadata Service to track")
+        + " and persist flow execution metadata.\nConfiguring the "
+        "service is a requirement if you intend to schedule your "
+        "flows with Kubernetes on Azure (AKS or self-managed).\nWould you like to "
+        "configure the Metadata Service?",
+        default=empty_profile
+        or existing_env.get("METAFLOW_DEFAULT_METADATA", "") == "service",
+        abort=False,
+    ):
+        env.update(configure_metadata_service(existing_env))
+    return env
+
+
+def configure_aws_datastore_and_metadata(existing_env):
     empty_profile = False
     if not existing_env:
         empty_profile = True
@@ -747,6 +778,15 @@ def configure_kubernetes(existing_env):
         default=existing_env.get("METAFLOW_KUBERNETES_CONTAINER_IMAGE", ""),
         show_default=True,
     )
+    # Set default Kubernetes secrets to source into pod envs
+    env["METAFLOW_KUBERNETES_SECRETS"] = click.prompt(
+        cyan("[METAFLOW_KUBERNETES_SECRETS]")
+        + yellow(" (optional)")
+        + " Comma-delimited list of secret names. Jobs will"
+        " gain environment variables from these secrets. ",
+        default=existing_env.get("METAFLOW_KUBERNETES_SECRETS", ""),
+        show_default=True,
+    )
 
     return env
 
@@ -775,6 +815,77 @@ def verify_aws_credentials(ctx):
         ctx.abort()
 
 
+def verify_azure_credentials(ctx):
+    # Verify that the user has configured AWS credentials on their computer.
+    if not click.confirm(
+        "\nMetaflow relies on "
+        + yellow("Azure access credentials")
+        + " present on your computer to access resources on Azure."
+        "\nBefore proceeding further, please confirm that you "
+        "have already configured these access credentials on "
+        "this computer.",
+        default=True,
+    ):
+        echo(
+            "There are many ways to setup your Azure access credentials. You "
+            "can get started by getting familiar with the following: ",
+            nl=False,
+            fg="yellow",
+        )
+        echo("")
+        echo(
+            "- https://docs.microsoft.com/en-us/cli/azure/authenticate-azure-cli",
+            fg="cyan",
+        )
+        echo(
+            "- https://docs.microsoft.com/en-us/cli/azure/azure-cli-configuration",
+            fg="cyan",
+        )
+        ctx.abort()
+
+
+@configure.command(help="Configure metaflow to access Azure Blob Storage.")
+@click.option(
+    "--profile",
+    "-p",
+    default="",
+    help="Configure a named profile. Activate the profile by setting "
+    "`METAFLOW_PROFILE` environment variable.",
+)
+@click.pass_context
+def azure(ctx, profile):
+
+    # Greet the user!
+    echo(
+        "Welcome to Metaflow! Follow the prompts to configure your installation.\n",
+        bold=True,
+    )
+
+    # Check for existing configuration.
+    if not confirm_overwrite_config(profile):
+        ctx.abort()
+
+    verify_azure_credentials(ctx)
+
+    existing_env = get_env(profile)
+
+    env = {}
+    env.update(configure_azure_datastore_and_metadata(existing_env))
+
+    persist_env({k: v for k, v in env.items() if v}, profile)
+
+    # Prompt user to also configure Kubernetes for compute if using azure
+    if env.get("METAFLOW_DEFAULT_DATASTORE") == "azure":
+        click.echo(
+            "\nFinal note! Metaflow can scale your flows by "
+            + yellow("executing your steps on Kubernetes.")
+            + "\nYou may use Azure Kubernetes Service (AKS)"
+            " or a self-managed Kubernetes cluster on Azure VMs."
+            + " If/when your Kubernetes cluster is ready for use,"
+            " please run 'metaflow configure kubernetes'.",
+        )
+
+
 @configure.command(help="Configure metaflow to access self-managed AWS resources.")
 @click.option(
     "--profile",
@@ -793,7 +904,7 @@ def aws(ctx, profile):
     )
 
     # Check for existing configuration.
-    if not overwrite_config(profile):
+    if not confirm_overwrite_config(profile):
         ctx.abort()
 
     verify_aws_credentials(ctx)
@@ -804,7 +915,7 @@ def aws(ctx, profile):
         empty_profile = True
 
     env = {}
-    env.update(configure_datastore_and_metadata(existing_env))
+    env.update(configure_aws_datastore_and_metadata(existing_env))
 
     # Configure AWS Batch for compute if using S3
     if env.get("METAFLOW_DEFAULT_DATASTORE") == "s3":
@@ -845,30 +956,23 @@ def kubernetes(ctx, profile):
     check_kubernetes_config(ctx)
 
     # Check for existing configuration.
-    if not overwrite_config(profile):
+    if not confirm_overwrite_config(profile):
         ctx.abort()
-
-    verify_aws_credentials(ctx)
 
     existing_env = get_env(profile)
 
     env = existing_env.copy()
 
-    if existing_env.get("METAFLOW_DEFAULT_DATASTORE") == "s3":
-        # Skip S3 configuration if it is already configured
-        pass
-    elif not existing_env.get("METAFLOW_DEFAULT_DATASTORE"):
-        env.update(configure_s3_datastore(existing_env))
-    else:
-        # If configured to use something else, offer to switch to S3
-        click.confirm(
-            "\nMetaflow on Kubernetes needs to use Amazon S3 as a datastore, "
-            + "but your existing configuration is not using Amazon S3. "
-            + "Would you like to reconfigure it to use Amazon S3?",
-            default=True,
-            abort=True,
+    # We used to push user straight to S3 configuration inline.
+    # Now that we support >1 cloud, it gets too complicated.
+    # Therefore, we instruct the user to configure datastore first, by
+    # a separate command.
+    if existing_env.get("METAFLOW_DEFAULT_DATASTORE") == "local":
+        click.echo(
+            "\nCannot run Kubernetes with local datastore. Please run"
+            " 'metaflow configure aws' or 'metaflow configure azure'."
         )
-        env.update(configure_s3_datastore(existing_env))
+        click.abort()
 
     # Configure remote metadata.
     if existing_env.get("METAFLOW_DEFAULT_METADATA") == "service":
@@ -891,4 +995,78 @@ def kubernetes(ctx, profile):
     persist_env({k: v for k, v in env.items() if v}, profile)
 
 
-main()
+try:
+    from metaflow.extension_support import get_modules, load_module, _ext_debug
+
+    _modules_to_import = get_modules("cmd")
+    _clis = []
+    # Reverse to maintain "latest" overrides (in Click, the first one will get it)
+    for m in reversed(_modules_to_import):
+        _get_clis = m.module.__dict__.get("get_cmd_clis")
+        if _get_clis:
+            _clis.extend(_get_clis())
+
+except Exception as e:
+    _ext_debug("\tWARNING: ignoring all plugins due to error during import: %s" % e)
+    print(
+        "WARNING: Command extensions did not load -- ignoring all of them which may not "
+        "be what you want: %s" % e
+    )
+    _clis = []
+    traceback.print_exc()
+
+
+@click.command(
+    cls=click.CommandCollection,
+    sources=_clis + [main],
+    invoke_without_command=True,
+)
+@click.pass_context
+def start(ctx):
+    global echo
+    echo = echo_always
+
+    import metaflow
+
+    echo("Metaflow ", fg="magenta", bold=True, nl=False)
+
+    if ctx.invoked_subcommand is None:
+        echo("(%s): " % metaflow.__version__, fg="magenta", bold=False, nl=False)
+    else:
+        echo("(%s)\n" % metaflow.__version__, fg="magenta", bold=False)
+
+    if ctx.invoked_subcommand is None:
+        echo("More data science, less engineering\n", fg="magenta")
+
+        # metaflow URL
+        echo("http://docs.metaflow.org", fg="cyan", nl=False)
+        echo(" - Read the documentation")
+
+        # metaflow chat
+        echo("http://chat.metaflow.org", fg="cyan", nl=False)
+        echo(" - Chat with us")
+
+        # metaflow help email
+        echo("help@metaflow.org", fg="cyan", nl=False)
+        echo("        - Get help by email\n")
+
+        print(ctx.get_help())
+
+
+start()
+
+for _n in [
+    "get_modules",
+    "load_module",
+    "_modules_to_import",
+    "m",
+    "_get_clis",
+    "_clis",
+    "ext_debug",
+    "e",
+]:
+    try:
+        del globals()[_n]
+    except KeyError:
+        pass
+del globals()["_n"]

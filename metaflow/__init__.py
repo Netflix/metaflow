@@ -102,13 +102,16 @@ from .current import current
 
 # Flow spec
 from .flowspec import FlowSpec
-from .includefile import IncludeFile
+
 from .parameters import Parameter, JSONTypeClass
 
 JSONType = JSONTypeClass()
 
 # data layer
 from .datatools import S3
+
+# includefile
+from .includefile import IncludeFile
 
 # Decorators
 from .decorators import step, _import_plugin_decorators

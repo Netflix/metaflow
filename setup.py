@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-version = "2.7.6"
+version = "2.7.12"
 
 setup(
     include_package_data=True,
@@ -19,7 +19,7 @@ setup(
     package_data={"metaflow": ["tutorials/*/*"]},
     entry_points="""
         [console_scripts]
-        metaflow=metaflow.main_cli:main
+        metaflow=metaflow.main_cli:start
       """,
     install_requires=[
         "requests",

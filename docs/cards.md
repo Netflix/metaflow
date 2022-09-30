@@ -229,8 +229,8 @@ The JS and CSS are created after building the JS and CSS from the [cards-ui](../
 def train(self):
     from metaflow.cards import Markdown
     from metaflow import current
-    current.card.append(Markdown('# This is present in the blank card with id "a"'))
-    current.card['a'].append(Markdown('# This is present in the default card'))
+    current.card['a'].append(Markdown('# This is present in the blank card with id "a"'))
+    current.card.append(Markdown('# This is present in the default card'))
     self.t = dict(
         hi = 1,
         hello = 2

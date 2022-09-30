@@ -229,6 +229,8 @@ class DataStoreStorage(object):
             BufferedIOBase.
         overwrite : bool
             True if the objects can be overwritten. Defaults to False.
+            Even when False, it is NOT an error condition to see an existing object.
+            Simply do not perform the upload operation.
         len_hint : int
             Estimated number of items produced by the iterator
 
