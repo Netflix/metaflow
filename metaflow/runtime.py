@@ -255,12 +255,12 @@ class NativeRuntime(object):
                     self._logger(msg, system_msg=True)
                     if len(self._unprocessed_steps) > 0:
                         if len(self._unprocessed_steps) == 1:
-                            msg = "1 step has not started: "
+                            msg = "%s step has not started" % self._unprocessed_steps[0]
                         else:
                             msg = "%d steps have not started: " % len(
                                 self._unprocessed_steps
                             )
-                        msg += "%s." % ", ".join(self._unprocessed_steps)
+                            msg += "%s." % ", ".join(self._unprocessed_steps)
                         self._logger(msg, system_msg=True)
 
         except KeyboardInterrupt as ex:
