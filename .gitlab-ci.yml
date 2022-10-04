@@ -15,10 +15,10 @@ variables:
   IMAGE_REPOSITORY_TAG_PATH_KFP_STEP: 'image_tag_file_kfp_step.txt'
   # Run on the Internal cluster only on commit.
   # We run the tests via the integration test framework for Non-Prod/Prod.
-  DEPLOY_INTERNAL: "false"
+  DEPLOY_INTERNAL: "true"
   DEPLOY_NONPROD: "false"
   DEPLOY_PROD: "false"
-  DEPLOY_SANDBOX: "true"
+  DEPLOY_SANDBOX: "false"
   PUBLISH: "true"
 
 stages:
@@ -51,7 +51,6 @@ stages:
   extends: .generate_kubeconfig
   stage: test
   variables:
-    DEBUG_LOGGING: "True"
     GIT_STRATEGY: none
     PIPELINE_VERSION: "1.0"
   script:
