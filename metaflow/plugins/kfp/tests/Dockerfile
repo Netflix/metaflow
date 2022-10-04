@@ -12,7 +12,14 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2
     ./aws/install; \
     rm -rf aws awscliv2.zip
 
+ENV ARGO_VERSION=v3.4.1
+RUN curl -sLO https://github.com/argoproj/argo-workflows/releases/download/${ARGO_VERSION}/argo-linux-amd64.gz; \
+    gunzip argo-linux-amd64.gz; \
+    chmod +x argo-linux-amd64; \
+    sudo mv ./argo-linux-amd64 /usr/local/bin/argo
+
 COPY . /home/zservice/metaflow
+
 RUN --mount=type=cache,target=/home/zservice/.cache/pip \
     pip install --upgrade --force-reinstall \
     -i https://artifactory.zgtools.net/artifactory/api/pypi/analytics-python/simple \
