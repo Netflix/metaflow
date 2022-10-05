@@ -49,6 +49,10 @@ non_standard_test_flows = [
     "toleration_and_affinity_flow.py",
 ]
 
+disabled_test_flows = [
+    "kfp_flow.py",  # kfp_preceding_component feature has been deprecated.
+]
+
 
 def _python():
     if R.use_r():
@@ -63,7 +67,7 @@ def obtain_flow_file_paths(flow_dir_path: str) -> List[str]:
         for file_name in listdir(flow_dir_path)
         if isfile(join(flow_dir_path, file_name))
         and not file_name.startswith(".")
-        and not file_name in non_standard_test_flows
+        and not file_name in non_standard_test_flows + disabled_test_flows
     ]
     return file_paths
 

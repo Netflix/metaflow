@@ -55,17 +55,6 @@ class ResourcesDecorator(StepDecorator):
         Not for KFP
         AWS Batch: The value for the size (in MiB) of the /dev/shm volume for this step.
             This parameter maps to the --shm-size option to docker run .
-    local_storage: Union[int, str]
-        Not for AWS Batch.
-        KFP: Local ephemeral storage required.
-            Defaults None - relying on Kubernetes defaults.
-            **Note:** If you need to increase local ephemeral storage,
-            then we recommend requesting storage which creates a volume instead.
-            This is local disk storage per step and lost after the step.
-            Default unit is MB. See notes above for more units.
-    local_storage_limit: Union[int, str]
-        Not for AWS Batch.
-        KFP: Local ephemeral storage limit.
     volume: Union[int, str]
         Not for AWS Batch.
         KFP: Attaches a volume which by default is not accessible to subsequent steps.
@@ -97,8 +86,9 @@ class ResourcesDecorator(StepDecorator):
         "shared_memory": None,
         # Only KFP supported attributes
         "gpu_vendor": None,
-        "local_storage": None,
         "volume": None,
         "volume_mode": "ReadWriteOnce",
         "volume_dir": "/opt/metaflow_volume",
+        # Deprecated - kept only to show a meaningful error message
+        "local_storage": None,
     }
