@@ -46,7 +46,7 @@ class ParallelUBF(UnboundedForeachInput):
         return item or 0  # item is None for the control task, but it is also split 0
 
 
-TFlowSpec = TypeVar("TFlowSpec", "FlowSpec")
+TFlowSpec = TypeVar("TFlowSpec", bound="FlowSpec")
 
 
 class FlowSpec(object):

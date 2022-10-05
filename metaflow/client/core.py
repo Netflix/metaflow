@@ -208,7 +208,7 @@ def default_namespace() -> str:
     return get_namespace()
 
 
-TMetaflowObject = TypeVar("TMetaflowObject", "MetaflowObject")
+TMetaflowObject = TypeVar("TMetaflowObject", bound="MetaflowObject")
 
 
 class MetaflowObject(object):
