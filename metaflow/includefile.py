@@ -5,6 +5,7 @@ import json
 import os
 
 from hashlib import sha1
+from typing import Dict
 
 from metaflow._vendor import click
 
@@ -300,7 +301,13 @@ class IncludeFile(Parameter):
     """
 
     def __init__(
-        self, name, required=False, is_text=True, encoding=None, help=None, **kwargs
+        self,
+        name: str,
+        required: bool = False,
+        is_text: bool = True,
+        encoding: str = None,
+        help: str = None,
+        **kwargs: Dict[str, str]
     ):
         # Defaults are DeployTimeField
         v = kwargs.get("default")

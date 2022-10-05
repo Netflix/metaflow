@@ -39,29 +39,25 @@ class KubernetesDecorator(StepDecorator):
 
     Parameters
     ----------
-    cpu : int
-        Number of CPUs required for this step. Defaults to 1. If `@resources` is
+    cpu : int, default: 1
+        Number of CPUs required for this step. If `@resources` is
         also present, the maximum value from all decorators is used.
-    memory : int
-        Memory size (in MB) required for this step. Defaults to 4096 (4GB). If
+    memory : int, default: 4096
+        Memory size (in MB) required for this step. If
         `@resources` is also present, the maximum value from all decorators is
         used.
-    disk : int
-        Disk size (in MB) required for this step. Defaults to 10GB. If
+    disk : int, default: 10240
+        Disk size (in MB) required for this step. If
         `@resources` is also present, the maximum value from all decorators is
         used.
-    image : str
+    image : str, default: None
         Docker image to use when launching on Kubernetes. If not specified, a
         default Docker image mapping to the current version of Python is used.
-    service_account : str
-        Kubernetes service account to use when launching pod in Kubernetes. If
-        not specified, the value of `METAFLOW_KUBERNETES_SERVICE_ACCOUNT` is
-        used from Metaflow configuration.
-    namespace : str
-        Kubernetes namespace to use when launching pod in Kubernetes. If
-        not specified, the value of `METAFLOW_KUBERNETES_NAMESPACE` is used
-        from Metaflow configuration.
-    secrets : List[str]
+    service_account : str, default: METAFLOW_KUBERNETES_SERVICE_ACCOUNT
+        Kubernetes service account to use when launching pod in Kubernetes.
+    namespace : str, default: METAFLOW_KUBERNETES_NAMESPACE
+        Kubernetes namespace to use when launching pod in Kubernetes.
+    secrets : List[str], default: None
         Kubernetes secrets to use when launching pod in Kubernetes. These
         secrets are in addition to the ones defined in `METAFLOW_KUBERNETES_SECRETS`
         in Metaflow configuration.

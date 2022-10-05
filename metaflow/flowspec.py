@@ -5,6 +5,7 @@ import traceback
 
 from itertools import islice
 from types import FunctionType, MethodType
+from typing import Any, Callable, List, Optional, Sequence, Tuple, TypeVar
 
 from . import cmd_with_io
 from .parameters import Parameter
@@ -43,6 +44,9 @@ class ParallelUBF(UnboundedForeachInput):
 
     def __getitem__(self, item):
         return item or 0  # item is None for the control task, but it is also split 0
+
+
+TFlowSpec = TypeVar("TFlowSpec", "FlowSpec")
 
 
 class FlowSpec(object):
@@ -232,7 +236,7 @@ class FlowSpec(object):
         return cmd_with_io.cmd(cmdline, input=input, output=output)
 
     @property
-    def index(self):
+    def index(self) -> Optional[int]:
         """
         The index of this foreach branch.
 
@@ -252,7 +256,7 @@ class FlowSpec(object):
             return self._foreach_stack[-1].index
 
     @property
-    def input(self):
+    def input(self) -> Optional[Any]:
         """
         The value of the foreach artifact in this foreach branch.
 
@@ -270,7 +274,7 @@ class FlowSpec(object):
         """
         return self._find_input()
 
-    def foreach_stack(self):
+    def foreach_stack(self) -> List[Tuple[int, int, Any]]:
         """
         Returns the current stack of foreach indexes and values for the current step.
 
@@ -354,7 +358,12 @@ class FlowSpec(object):
                     )
             return self._cached_input[stack_index]
 
-    def merge_artifacts(self, inputs, exclude=[], include=[]):
+    def merge_artifacts(
+        self,
+        inputs: Sequence[TFlowSpec],
+        exclude: Optional[List[str]] = None,
+        include: Optional[List[str]] = None,
+    ):
         """
         Helper function for merging artifacts in a join step.
 
@@ -406,6 +415,8 @@ class FlowSpec(object):
             This exception is thrown in case an artifact specified in `include` cannot
             be found.
         """
+        include = include or []
+        exclude = exclude or []
         node = self._graph[self._current_step]
         if node.type != "join":
             msg = (
@@ -489,7 +500,7 @@ class FlowSpec(object):
             )
             raise InvalidNextException(msg)
 
-    def next(self, *dsts, **kwargs):
+    def next(self, *dsts: Callable[..., None], **kwargs):
         """
         Indicates the next step to execute after this step has completed.
 

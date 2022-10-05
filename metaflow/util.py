@@ -51,14 +51,14 @@ except NameError:
     from shlex import quote as _quote
 
 if sys.version_info >= (3, 7):
-    from collections import namedtuple
+    from typing import NamedTuple
 
-    namedtuple_with_defaults = namedtuple
+    namedtuple_with_defaults = NamedTuple
 else:
-    from collections import namedtuple
+    from typing import NamedTuple
 
-    def namedtuple_with_defaults(typename, field_names, defaults=()):
-        T = namedtuple(typename, field_names)
+    def namedtuple_with_defaults(typename, field_descr, defaults=()):
+        T = NamedTuple(typename, field_descr)
         T.__new__.__defaults__ = (None,) * len(T._fields)
         prototype = T(*defaults)
         T.__new__.__defaults__ = tuple(prototype)

@@ -1,3 +1,6 @@
+from metaflow.client.core import Task
+
+
 class MetaflowCard(object):
     """
     Metaflow cards derive from this base class.
@@ -43,7 +46,7 @@ class MetaflowCard(object):
         except ImportError:
             return None
 
-    def render(self, task):
+    def render(self, task: Task) -> str:
         """
         Produce custom card contents in HTML.
 

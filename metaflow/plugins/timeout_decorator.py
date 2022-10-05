@@ -25,11 +25,11 @@ class TimeoutDecorator(StepDecorator):
 
     Parameters
     ----------
-    seconds : int
+    seconds : int, default: 0
         Number of seconds to wait prior to timing out.
-    minutes : int
+    minutes : int, default: 0
         Number of minutes to wait prior to timing out.
-    hours : int
+    hours : int, default: 0
         Number of hours to wait prior to timing out.
     """
 

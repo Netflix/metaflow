@@ -1,3 +1,5 @@
+from typing import Optional, Union
+from metaflow.client.core import Task
 from metaflow.datastore import DATASTORES, FlowDataStore
 from metaflow.metaflow_config import DATASTORE_CARD_SUFFIX
 from .card_resolver import resolve_paths_from_task, resumed_info
@@ -53,7 +55,7 @@ class Card:
         # Tempfile to open stuff in browser
         self._temp_file = None
 
-    def get(self):
+    def get(self) -> str:
         """
         Retrieves the HTML contents of the card from the
         Metaflow datastore.
@@ -69,15 +71,20 @@ class Card:
         return self._html
 
     @property
-    def path(self):
+    def path(self) -> str:
         """
         The path of the card in the datastore which uniquely
         identifies the card.
+
+        Returns
+        -------
+        str
+            Path to the card
         """
         return self._path
 
     @property
-    def id(self):
+    def id(self) -> Optional[str]:
         """
         The ID of the card, if specified with `@card(id=ID)`.
         """
@@ -86,7 +93,7 @@ class Card:
     def __str__(self):
         return "<Card at '%s'>" % self._path
 
-    def view(self):
+    def view(self) -> None:
         """
         Opens the card in a local web browser.
 
@@ -195,7 +202,12 @@ class CardContainer:
         return "\n".join(main_html)
 
 
-def get_cards(task, id=None, type=None, follow_resumed=True):
+def get_cards(
+    task: Union[str, Task],
+    id: Optional[str] = None,
+    type: Optional[str] = None,
+    follow_resumed: bool = True,
+) -> CardContainer:
     """
     Get cards related to a `Task`.
 
@@ -209,13 +221,13 @@ def get_cards(task, id=None, type=None, follow_resumed=True):
     task : str or `Task`
         A `Task` object or pathspec `{flow_name}/{run_id}/{step_name}/{task_id}` that
         uniquely identifies a task.
-    id : str (optional)
+    id : str, optional
         The ID of card to retrieve if multiple cards are present.
-    type : str (optional)
+    type : str, optional
         The type of card to retrieve if multiple cards are present.
-    follow_resumed : bool (optional)
+    follow_resumed : bool, default: True
         If the task has been resumed, then setting this flag will resolve the card for
-        the origin task. Defaults to True.
+        the origin task.
 
     Returns
     -------

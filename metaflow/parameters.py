@@ -1,5 +1,5 @@
 import json
-from collections import namedtuple
+from typing import Any, Callable, Dict, NamedTuple
 
 from metaflow._vendor import click
 
@@ -20,9 +20,15 @@ except NameError:
 # ParameterContext allows deploy-time functions modify their
 # behavior based on the context. We can add fields here without
 # breaking backwards compatibility but don't remove any fields!
-ParameterContext = namedtuple(
+ParameterContext = NamedTuple(
     "ParameterContext",
-    ["flow_name", "user_name", "parameter_name", "logger", "ds_type"],
+    [
+        ("flow_name", str),
+        ("user_name", str),
+        ("parameter_name", str),
+        ("logger", Callable[..., None]),
+        ("ds_type", str),
+    ],
 )
 
 # currently we execute only one flow per process, so we can treat
@@ -203,7 +209,7 @@ class Parameter(object):
         If True, show the default value in the help text (default: True).
     """
 
-    def __init__(self, name, **kwargs):
+    def __init__(self, name: str, **kwargs: Dict[str, Any]):
         self.name = name
         self.kwargs = kwargs
         # TODO: check that the type is one of the supported types

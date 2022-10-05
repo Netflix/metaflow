@@ -1,3 +1,4 @@
+from typing import Any, List, Optional, Union
 from .basic import (
     LogComponent,
     ErrorComponent,
@@ -32,13 +33,15 @@ class Artifact(UserComponent):
     ----------
     artifact : object
         Any Python object.
-    name : str
+    name : str, optional
         Optional label for the object.
-    compressed : bool
-        Use a truncated representation (default: True).
+    compressed : bool, default: True
+        Use a truncated representation.
     """
 
-    def __init__(self, artifact, name=None, compressed=True):
+    def __init__(
+        self, artifact: Any, name: Optional[str] = None, compressed: bool = True
+    ):
         self._artifact = artifact
         self._name = name
         self._task_to_dict = TaskToDict(only_repr=compressed)
@@ -87,13 +90,19 @@ class Table(UserComponent):
 
     Parameters
     ----------
-    data : List[List[str|MetaflowCardComponent]]
+    data : List[List[str or MetaflowCardComponent]], optional
         List (rows) of lists (columns). Each item can be a string or a `MetaflowCardComponent`.
-    headers : List[str]
+    headers : List[str], optional
         Optional header row for the table.
     """
 
-    def __init__(self, data=[[]], headers=[]):
+    def __init__(
+        self,
+        data: Optional[List[List[Union[str, MetaflowCardComponent]]]] = None,
+        headers: Optional[List[str]] = None,
+    ):
+        data = data or [[]]
+        headers = headers or []
         header_bool, data_bool = TableComponent.validate(headers, data)
         self._headers = []
         self._data = [[]]
@@ -103,15 +112,15 @@ class Table(UserComponent):
             self._data = data
 
     @classmethod
-    def from_dataframe(cls, dataframe=None, truncate=True):
+    def from_dataframe(cls, dataframe=None, truncate: bool = True):
         """
         Create a `Table` based on a Pandas dataframe.
 
         Parameters
         ----------
-        dataframe : pandas.DataFrame
+        dataframe : pandas.DataFrame, optional
             Pandas dataframe.
-        truncate : bool
+        truncate : bool, default: True
             Truncate large dataframe instead of showing all rows (default: True).
         """
         task_to_dict = TaskToDict()
@@ -255,7 +264,7 @@ class Image(UserComponent):
         return parsed_image
 
     @classmethod
-    def from_pil_image(cls, pilimage, label=None):
+    def from_pil_image(cls, pilimage, label: Optional[str] = None):
         """
         Create an `Image` from a PIL image.
 
@@ -263,7 +272,7 @@ class Image(UserComponent):
         ----------
         pilimage : PIL.Image
             a PIL image object.
-        label : str
+        label : str, optional
             Optional label for the image.
         """
         try:
@@ -303,7 +312,7 @@ class Image(UserComponent):
             )
 
     @classmethod
-    def from_matplotlib(cls, plot, label=None):
+    def from_matplotlib(cls, plot, label: Optional[str] = None):
         """
         Create an `Image` from a Matplotlib plot.
 
@@ -311,8 +320,8 @@ class Image(UserComponent):
         ----------
         plot : matplotlib.axes.Axes
             a PIL axes (plot) object.
-        label : str
-            Label for the image (optional)
+        label : str, optional
+            Optional label for the image.
         """
         import io
 
