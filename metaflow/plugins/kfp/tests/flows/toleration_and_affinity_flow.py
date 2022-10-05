@@ -4,7 +4,6 @@ from metaflow import FlowSpec, accelerator, resources, step
 class TolerationAndAffinityFlow(FlowSpec):
     @accelerator(type="nvidia-tesla-v100")
     @resources(
-        local_storage="242",
         cpu="0.6",
         memory="2G",
     )
