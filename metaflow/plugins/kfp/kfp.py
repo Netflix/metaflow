@@ -39,6 +39,9 @@ from metaflow.metaflow_config import (
     KFP_USER_DOMAIN,
     KUBERNETES_SERVICE_ACCOUNT,
     METAFLOW_USER,
+    ZILLOW_INDIVIDUAL_NAMESPACE,
+    ZILLOW_ZODIAC_SERVICE,
+    ZILLOW_ZODIAC_TEAM,
     from_conf,
 )
 from metaflow.plugins import EnvironmentDecorator, KfpInternalDecorator
@@ -671,6 +674,23 @@ class KubeflowPipelines(object):
             owner = owner.split("@")[0]
         container_op.add_pod_label("zodiac.zillowgroup.net/owner", owner)
 
+        # Add in Zodiac service and team labels to the kfp pods if the environment variable is
+        # present in the notebook (individual profile notebooks only) and set them. These labels
+        # are not being added by poddefaults as they were removed. Workflows launched in project
+        # profiles still get these labels added via poddefaults. Also adds in logging topic
+        # annotation as this value is specific to zodiac service as well.
+        if ZILLOW_ZODIAC_SERVICE and ZILLOW_ZODIAC_TEAM:
+            container_op.add_pod_label(
+                "zodiac.zillowgroup.net/service", ZILLOW_ZODIAC_SERVICE
+            )
+            container_op.add_pod_label(
+                "zodiac.zillowgroup.net/team", ZILLOW_ZODIAC_TEAM
+            )
+            container_op.add_pod_annotation(
+                "logging.zgtools.net/topic",
+                f"log.fluentd-z1.{ZILLOW_ZODIAC_SERVICE}.dev",
+            )
+
     def create_kfp_pipeline_from_flow_graph(self) -> Tuple[Callable, PipelineConf]:
         """
         Returns a KFP DSL Pipeline function by walking the Metaflow Graph
@@ -703,21 +723,26 @@ class KubeflowPipelines(object):
                             ),
                         )
                     )
+                # adding in additional env variable for spark to identify if workflow was
+                # launched from a notebook in an individual namespace.
+                env_vars = {
+                    "INDIVIDUAL_NAMESPACE": ZILLOW_INDIVIDUAL_NAMESPACE,
+                }
                 # add in env variable for ServiceAccount for Zillow Spark solution
                 if KUBERNETES_SERVICE_ACCOUNT:
-                    env_var = {
-                        "METAFLOW_KUBERNETES_SERVICE_ACCOUNT": KUBERNETES_SERVICE_ACCOUNT
-                    }
-                    # need to be added separately from above as there is no valueFrom/fieldRef from the env
-                    # var. leaving as a list format in the event future env variables need to be added without
-                    # a fieldRef value_from similar to this env variable.
-                    for name, resource in env_var.items():
-                        op.container.add_env_variable(
-                            V1EnvVar(
-                                name=name,
-                                value=resource,
-                            )
+                    env_vars[
+                        "METAFLOW_KUBERNETES_SERVICE_ACCOUNT"
+                    ] = KUBERNETES_SERVICE_ACCOUNT
+                # need to be added separately from above as there is no valueFrom/fieldRef from the env
+                # var. leaving as a list format in the event future env variables need to be added without
+                # a fieldRef value_from similar to this env variable.
+                for name, resource in env_vars.items():
+                    op.container.add_env_variable(
+                        V1EnvVar(
+                            name=name,
+                            value=resource,
                         )
+                    )
 
         pipeline_conf = None  # return variable
 
