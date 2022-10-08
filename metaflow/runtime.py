@@ -255,7 +255,9 @@ class NativeRuntime(object):
                     self._logger(msg, system_msg=True)
                     if len(self._unprocessed_steps) > 0:
                         if len(self._unprocessed_steps) == 1:
-                            msg = "%s step has not started" % self._unprocessed_steps[0]
+                            msg = "%s step has not started" % (
+                                next(iter(self._unprocessed_steps)),
+                            )
                         else:
                             msg = "%d steps have not started: " % len(
                                 self._unprocessed_steps
