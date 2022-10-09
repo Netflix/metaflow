@@ -363,7 +363,7 @@ class FlowSpec(object):
         inputs: Sequence[TFlowSpec],
         exclude: Optional[List[str]] = None,
         include: Optional[List[str]] = None,
-    ):
+    ) -> None:
         """
         Helper function for merging artifacts in a join step.
 
@@ -500,7 +500,7 @@ class FlowSpec(object):
             )
             raise InvalidNextException(msg)
 
-    def next(self, *dsts: Callable[..., None], **kwargs):
+    def next(self, *dsts: Callable[..., None], **kwargs) -> None:
         """
         Indicates the next step to execute after this step has completed.
 

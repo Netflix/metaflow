@@ -9,9 +9,7 @@ import subprocess
 from io import RawIOBase, BytesIO, BufferedIOBase
 from itertools import chain, starmap
 from tempfile import mkdtemp, NamedTemporaryFile
-from typing import Dict, Iterable, List, Optional, Tuple, Union
-
-from metaflow.client.core import Run
+from typing import Dict, Iterable, List, Optional, Tuple, TypeVar, Union
 
 from .. import FlowSpec
 from ..current import current
@@ -28,6 +26,7 @@ from ..util import (
     url_quote,
     url_unquote,
 )
+
 from ..exception import MetaflowException
 from ..debug import debug
 
@@ -60,6 +59,7 @@ PutValue = Union[RawIOBase, BufferedIOBase, str, bytes]
 S3GetObject = namedtuple_with_defaults(
     "S3GetObject", [("key", str), ("offset", int), ("length", int)]
 )
+S3GetObject.__module__ = __name__
 
 S3PutObject = namedtuple_with_defaults(
     "S3PutObject",
@@ -72,12 +72,14 @@ S3PutObject = namedtuple_with_defaults(
     ],
     defaults=(None, None, None, None),
 )
+S3PutObject.__module__ = __name__
 
 RangeInfo = namedtuple_with_defaults(
     "RangeInfo",
     [("total_size", int), ("request_offset", int), ("request_length", int)],
     defaults=(0, -1),
 )
+RangeInfo.__module__ = __name__
 
 RANGE_MATCH = re.compile(r"bytes (?P<start>[0-9]+)-(?P<end>[0-9]+)/(?P<total>[0-9]+)")
 
@@ -404,6 +406,9 @@ class S3Client(object):
         )
 
 
+TRun = TypeVar("TRun", bound="Run")
+
+
 class S3(object):
     """
     The Metaflow S3 client.
@@ -468,7 +473,7 @@ class S3(object):
         tmproot: str = ".",
         bucket: Optional[str] = None,
         prefix: Optional[str] = None,
-        run: Optional[Union[FlowSpec, Run]] = None,
+        run: Optional[Union[FlowSpec, TRun]] = None,
         s3root: Optional[str] = None,
         **kwargs
     ):
