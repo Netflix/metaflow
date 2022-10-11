@@ -57,13 +57,17 @@ class Azure(object):
         with storage.load_bytes([short_key]) as load_result:
             for _, tmpfile, _ in load_result:
                 if tmpfile is None:
-                    azure_object = AzureObject(uri_style_key, None, False)
+                    azure_object = AzureObject(uri_style_key, None, False, None)
                 else:
                     if not self._tmpdir:
                         self._tmpdir = mkdtemp(prefix="metaflow.includefile.azure.")
                     output_file_path = os.path.join(self._tmpdir, str(uuid.uuid4()))
                     shutil.move(tmpfile, output_file_path)
-                    azure_object = AzureObject(uri_style_key, output_file_path, True)
+                    # Beats making another Azure API call!
+                    sz = os.stat(output_file_path).st_size
+                    azure_object = AzureObject(
+                        uri_style_key, output_file_path, True, sz
+                    )
                 break
         return azure_object
 
@@ -74,12 +78,29 @@ class Azure(object):
         # We fabricate a uri scheme to fit into existing includefile code (just like local://)
         return "azure://%s" % key
 
+    def info(self, key=None, return_missing=False):
+        # We fabricate a uri scheme to fit into existing includefile code (just like local://)
+        if not key.startswith("azure://"):
+            raise MetaflowInternalError(
+                msg="Expected Azure object key to start with 'azure://'"
+            )
+        # aliasing this purely for clarity
+        uri_style_key = key
+        short_key = key[8:]
+        storage = self._get_storage_backend(short_key)
+        blob_size = storage.size_file(short_key)
+        blob_exists = blob_size is not None
+        if not blob_exists and not return_missing:
+            raise MetaflowException("Azure blob '%s' not found" % uri_style_key)
+        return AzureObject(uri_style_key, None, blob_exists, blob_size)
+
 
 class AzureObject(object):
-    def __init__(self, url, path, exists):
+    def __init__(self, url, path, exists, size):
         self._path = path
         self._url = url
         self._exists = exists
+        self._size = size
 
     @property
     def path(self):
@@ -92,3 +113,7 @@ class AzureObject(object):
     @property
     def exists(self):
         return self._exists
+
+    @property
+    def size(self):
+        return self._size
