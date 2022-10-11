@@ -25,6 +25,8 @@ def send_event(event_name, event_data={}):
             branch.replace(".", "-"),
             event_name,
         )
+    else:
+        event_name = event_name.replace(".", "-")
     if re.fullmatch("[a-z0-9\-_\.]+", event_name) is None:
         raise BadEventNameException(
             ("Attempted to send '%s'. " % event_name)
