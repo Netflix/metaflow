@@ -312,6 +312,8 @@ KUBERNETES_CONTAINER_REGISTRY = (
 AIRFLOW_KUBERNETES_STARTUP_TIMEOUT = from_conf(
     "METAFLOW_AIRFLOW_KUBERNETES_STARTUP_TIMEOUT_SECONDS", 60 * 60
 )
+# This configuration sets `kubernetes_conn_id` in airflow's KubernetesPodOperator.
+AIRFLOW_KUBERNETES_CONN_ID = from_conf("METAFLOW_AIRFLOW_KUBERNETES_CONN_ID", None)
 
 
 ###
