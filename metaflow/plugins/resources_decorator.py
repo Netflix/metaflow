@@ -27,7 +27,7 @@ class ResourcesDecorator(StepDecorator):
         Number of GPUs required for this step.
     memory : int, default: 4096
         Memory size (in MB) required for this step.
-    shared_memory : int, default: None
+    shared_memory : int, optional
         The value for the size (in MiB) of the /dev/shm volume for this step.
         This parameter maps to the `--shm-size` option in Docker.
     """

@@ -14,7 +14,7 @@ class ScheduleDecorator(FlowDecorator):
         Run the workflow daily.
     weekly : bool, default: False
         Run the workflow weekly.
-    cron : str, default: None
+    cron : str, optional
         Run the workflow at [a custom Cron schedule](https://docs.aws.amazon.com/eventbridge/latest/userguide/scheduled-events.html#cron-expressions)
         specified by this expression.
     """

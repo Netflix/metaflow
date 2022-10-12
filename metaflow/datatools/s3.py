@@ -408,6 +408,8 @@ class S3Client(object):
 
 TRun = TypeVar("TRun", bound="Run")
 
+TS3 = TypeVar("TS3", bound="S3")
+
 
 class S3(object):
     """
@@ -526,7 +528,7 @@ class S3(object):
         )
         self._tmpdir = mkdtemp(dir=tmproot, prefix="metaflow.s3.")
 
-    def __enter__(self):
+    def __enter__(self) -> TS3:
         return self
 
     def __exit__(self, *args):

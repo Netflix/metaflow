@@ -87,7 +87,7 @@ class FlowSpec(object):
 
         Parameters
         ----------
-        use_cli : bool, optional, default: True
+        use_cli : bool, default: True
             Set to True if the flow is invoked from __main__ or the command line
         """
 

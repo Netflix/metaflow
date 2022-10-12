@@ -16,7 +16,7 @@ class CondaFlowDecorator(FlowDecorator):
     libraries : Dict[str, str], default: {}
         Libraries to use for this flow. The key is the name of the package
         and the value is the version to use.
-    python : str, default: None
+    python : str, optional
         Version of Python to use, e.g. '3.7.4'. A default value of None means
         to use the current Python version.
     disabled : bool, default: False

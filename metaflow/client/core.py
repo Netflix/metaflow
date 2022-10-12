@@ -162,7 +162,7 @@ def namespace(ns: Optional[str]) -> Optional[str]:
 
     Parameters
     ----------
-    ns : str or None
+    ns : str, optional
         Namespace to switch to or None to ignore namespaces.
 
     Returns

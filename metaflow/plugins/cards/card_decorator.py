@@ -34,7 +34,7 @@ class CardDecorator(StepDecorator):
     ----------
     type : str, default: 'default'
         Card type.
-    id : str, default: None
+    id : str, optional, default: None
         If multiple cards are present, use this id to identify this card.
     options : Dict[str, Any], default: {}
         Options passed to the card. The contents depend on the card type.
