@@ -329,7 +329,7 @@ class Image(UserComponent):
             if _full_classname(plot) == "matplotlib.figure.Figure":
                 figure = plot
 
-            # If it is not valid figure the check if it is matplotlib.axes.Axes or a matplotlib.axes._subplots.AxesSubplot
+            # If it is not valid figure then check if it is matplotlib.axes.Axes or a matplotlib.axes._subplots.AxesSubplot
             # These contain the `get_figure` function to get the main figure object.
             if figure is None:
                 if getattr(plot, "get_figure", None) is None:
