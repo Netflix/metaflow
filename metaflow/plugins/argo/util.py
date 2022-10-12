@@ -1,6 +1,4 @@
-import base64
-import json
-import re
+from datetime import datetime
 
 from metaflow.metaflow_config import (
     EVENT_SOURCE_URL,
@@ -28,6 +26,21 @@ def event_topic():
     if len(url_chunks) < 2:
         raise BadEventConfig(msg="EVENT_SOURCE_URL missing topic.")
     return url_chunks[-1]
+
+
+def make_event_body(event_name, event_type, event_data=dict(), capture_time=False):
+    timestamp = "TS"
+    if capture_time:
+        timestamp = int(datetime.utcnow().timestamp())
+    return {
+        "payload": {
+            "event_name": event_name,
+            "event_data": event_data,
+            "event_type": event_type,
+            "pathspec": current.pathspec,
+            "timestamp": timestamp,
+        }
+    }
 
 
 def current_flow_name():

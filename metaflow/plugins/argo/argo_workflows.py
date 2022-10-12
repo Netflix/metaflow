@@ -47,6 +47,7 @@ from .util import (
     event_topic,
     format_sensor_name,
     list_to_prose,
+    make_event_body,
     project_and_branch,
 )
 
@@ -1567,14 +1568,8 @@ class WorkflowLifecycleHookContainerTemplate(object):
         self._image = "ubuntu:22.04"
         self._env = dict()
         self.name = "on-" + lifecycle_event
-        event_payload = {
-            "payload": {
-                "event_name": "metaflow_flow_run_%s" % lifecycle_event,
-                "flow_name": flow_name.replace(".", "-"),
-                "timestamp": "TS",
-            }
-        }
-        text = json.dumps(event_payload)
+        body = make_event_body(flow_name.replace(".", "-"), "metaflow_system")
+        text = json.dumps(body)
         if EVENT_SOURCE_URL.startswith("nats://"):
             commands = [
                 # Update pkg index
@@ -1662,6 +1657,7 @@ class WorkflowLifecycleHookContainerTemplate(object):
                 "command": self.command,
                 "resources": self._requests,
                 "env": self.env,
+                "failFast": True,
             },
         }
 
@@ -1714,11 +1710,11 @@ class SensorTemplate:
                 "exprs": [
                     {
                         "expr": (
-                            'flow_name == "%s" && event_name == "metaflow_flow_run_%s"'
-                            % (info.formatted_name, info.status)
+                            'event_name == "%s" && event_type == "metaflow_system"'
+                            % (info.formatted_name)
                         ),
                         "fields": [
-                            {"name": "flow_name", "path": "body.payload.flow_name"},
+                            {"name": "event_type", "path": "body.payload.event_type"},
                             {"name": "event_name", "path": "body.payload.event_name"},
                         ],
                     },
@@ -1728,8 +1724,12 @@ class SensorTemplate:
             return {
                 "exprs": [
                     {
-                        "expr": ('event_name == "%s"' % info.formatted_name),
+                        "expr": (
+                            'event_name == "%s" && event_type == "metaflow_user"'
+                            % (info.formatted_name)
+                        ),
                         "fields": [
+                            {"name": "event_type", "path": "body.payload.event_type"},
                             {"name": "event_name", "path": "body.payload.event_name"},
                         ],
                     },

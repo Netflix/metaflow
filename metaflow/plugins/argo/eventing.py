@@ -6,9 +6,14 @@ import re
 import sys
 from urllib import parse
 
+from metaflow.metaflow_config import EVENT_SOURCE_URL
 from metaflow.current import current
 from metaflow.exception import MetaflowException, MetaflowExceptionWrapper
-from metaflow.plugins.argo.util import current_flow_name, project_and_branch
+from metaflow.plugins.argo.util import (
+    current_flow_name,
+    project_and_branch,
+    make_event_body,
+)
 import requests
 
 
@@ -32,38 +37,27 @@ def send_event(event_name, event_data={}):
             ("Attempted to send '%s'. " % event_name)
             + "Event names can only contain lowercase characters, digits, '.', '_', and '-'."
         )
+    body = make_event_body(
+        event_name, "metaflow_user", event_data=event_data, capture_time=True
+    )
     event_source_url = os.getenv("METAFLOW_EVENT_SOURCE")
     if event_source_url.startswith("nats://"):
-        # TODO: Make this work
-        raise MetaflowException("Sending user events via NATS isn't supported.")
-    _send_webhook_event(event_source_url, flow_name, event_name, event_data)
-    # if event_source_url is not None and event_source_url.startswith("nats://"):
-    #     asyncio.run(_send_nats_event(event_source_url, flow_name, event_name, event_data))
-    # else:
-    #     _send_webhook_event(event_source_url, flow_name, event_name, event_data)
+        asyncio.run(_send_nats_event(event_source_url, body))
+    else:
+        _send_webhook_event(event_source_url, body)
 
 
-def _send_webhook_event(event_url, flow_name, event_name, event_data):
-    ts = int(datetime.utcnow().timestamp())
+def _send_webhook_event(event_url, body):
     try:
-        payload = {
-            "payload": {
-                "flow_name": flow_name,
-                "event_name": event_name,
-                "pathspec": current.pathspec,
-                "timestamp": ts,
-                "data": event_data,
-            }
-        }
         resp = requests.post(
-            event_url, headers={"content-type": "application/json"}, json=payload
+            event_url, headers={"content-type": "application/json"}, json=body
         )
         resp.raise_for_status()
     except Exception as e:
         raise MetaflowExceptionWrapper(e)
 
 
-async def _send_nats_event(flow_name, event_name, event_data):
+async def _send_nats_event(event_url, body):
     try:
         import nats
 
@@ -76,24 +70,14 @@ async def _send_nats_event(flow_name, event_name, event_data):
             "or equivalent through your favorite Python package manager."
             % sys.executable
         )
-    ts = int(datetime.utcnow().timestamp())
     auth_token = os.getenv("NATS_TOKEN")
-    parsed = parse.urlparse(EVENT_SOURCE_URL)
+    parsed = parse.urlparse(event_url)
     topic = parsed.path.replace("/", "")
     server = "%s://%s" % (parsed.scheme, parsed.netloc)
-    payload = {
-        "payload": {
-            "flow_name": flow_name,
-            "event_name": event_name,
-            "pathspec": current.pathspec,
-            "timestamp": ts,
-            "data": event_data,
-        }
-    }
-    body = bytes(json.dumps(payload), "utf-8")
+    raw_body = bytes(json.dumps(body), "utf-8")
     try:
         conn = await nats.connect(server, token=auth_token)
-        await conn.publish(topic, body)
+        await conn.publish(topic, raw_body)
         await conn.drain()
     except Exception as e:
         raise MetaflowExceptionWrapper(e)
