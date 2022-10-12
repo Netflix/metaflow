@@ -42,7 +42,11 @@ class Azure(object):
             shutil.rmtree(self._tmpdir)
 
     def get(self, key=None, return_missing=False):
-        """Key MUST be a fully qualified path.  <container_name>/b/l/o/b/n/a/m/e"""
+        """Key MUST be a fully qualified path with uri scheme.  azure://<container_name>/b/l/o/b/n/a/m/e"""
+        # Azure.get() is meant for use within includefile.py ONLY.
+        # All existing call sites set return_missing=True.
+        #
+        # Support for return_missing=False may be added if/when the situation changes.
         if not return_missing:
             raise MetaflowException("Azure object supports only return_missing=True")
         # We fabricate a uri scheme to fit into existing includefile code (just like local://)
