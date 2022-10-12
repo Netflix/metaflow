@@ -82,16 +82,6 @@ def validate_mappings(mappings, aggregate):
     return mappings
 
 
-def validate_data(deco_name, data):
-    for key in data.keys():
-        if type(key) != str:
-            raise MetaflowException(
-                msg="@%s requires data to be a dict with string keys: %s"
-                % (deco_name, str(key))
-            )
-    return data
-
-
 class TriggerOnDecorator(FlowDecorator):
 
     name = "trigger_on"

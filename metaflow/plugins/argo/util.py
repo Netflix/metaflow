@@ -35,8 +35,8 @@ def make_event_body(event_name, event_type, event_data=dict(), capture_time=Fals
     return {
         "payload": {
             "event_name": event_name,
-            "event_data": event_data,
             "event_type": event_type,
+            "data": event_data,
             "pathspec": current.pathspec,
             "timestamp": timestamp,
         }

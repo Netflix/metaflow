@@ -1737,8 +1737,6 @@ class SensorTemplate:
             }
 
     def _build_event_field_transforms(self, info):
-        if info.mappings is None or info.name not in info.mappings:
-            return
         current_mappings = info.mappings[info.name]
         buf = StringIO()
         for parameter_name in current_mappings.keys():
