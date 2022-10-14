@@ -479,11 +479,37 @@ class KubeflowPipelines(object):
             return None
 
     @staticmethod
-    def _set_container_resources(
+    def _set_container_volume(
         container_op: ContainerOp,
         kfp_component: KfpComponent,
         workflow_uid: str,
-        shared_volumes: Dict[str, Dict[str, PipelineVolume]],
+        shared_volumes: Dict[str, Dict[str, Tuple[ResourceOp, PipelineVolume]]],
+    ) -> ResourceOp:
+        resource_requirements: Dict[str, Any] = kfp_component.resource_requirements
+        resource_op: Optional[ResourceOp] = None
+
+        if "volume" in resource_requirements:
+            mode = resource_requirements["volume_mode"]
+            volume_dir = resource_requirements["volume_dir"]
+
+            if mode == "ReadWriteMany":
+                # ReadWriteMany shared volumes are created way before
+                (resource_op, volume) = shared_volumes[kfp_component.step_name]
+                container_op.add_pvolumes(volume)
+            else:
+                (resource_op, volume) = KubeflowPipelines._create_volume(
+                    step_name=kfp_component.step_name,
+                    size=resource_requirements["volume"],
+                    workflow_uid=workflow_uid,
+                    mode=mode,
+                )
+                container_op.add_pvolumes({volume_dir: volume})
+
+        return resource_op
+
+    @staticmethod
+    def _set_container_resources(
+        container_op: ContainerOp, kfp_component: KfpComponent
     ):
         resource_requirements: Dict[str, Any] = kfp_component.resource_requirements
         if "memory" in resource_requirements:
@@ -499,21 +525,7 @@ class KubeflowPipelines(object):
                 resource_requirements["gpu"],
                 vendor=gpu_vendor if gpu_vendor else "nvidia",
             )
-        if "volume" in resource_requirements:
-            mode = resource_requirements["volume_mode"]
-            volume_dir = resource_requirements["volume_dir"]
 
-            if mode == "ReadWriteMany":
-                # ReadWriteMany shared volumes are created way before
-                container_op.add_pvolumes(shared_volumes[kfp_component.step_name])
-            else:
-                volume = KubeflowPipelines._create_volume(
-                    step_name=kfp_component.step_name,
-                    size=resource_requirements["volume"],
-                    workflow_uid=workflow_uid,
-                    mode=mode,
-                )
-                container_op.add_pvolumes({volume_dir: volume})
         if "shared_memory" in resource_requirements:
             memory_volume = PipelineVolume(
                 volume=V1Volume(
@@ -592,7 +604,7 @@ class KubeflowPipelines(object):
         size: str,
         workflow_uid: str,
         mode: str,
-    ) -> PipelineVolume:
+    ) -> Tuple[ResourceOp, PipelineVolume]:
         volume_name = (
             sanitize_k8s_name(step_name) if mode == "ReadWriteMany" else "{{pod.name}}"
         )
@@ -625,9 +637,10 @@ class KubeflowPipelines(object):
             attribute_outputs=attribute_outputs,
         )
 
-        return PipelineVolume(
+        volume = PipelineVolume(
             name=f"{volume_name}-volume", pvc=resource.outputs["name"]
         )
+        return (resource, volume)
 
     def _set_container_labels(
         self, container_op: ContainerOp, node: DAGNode, metaflow_run_id: str
@@ -751,6 +764,7 @@ class KubeflowPipelines(object):
             flow_parameters_json: str = None,
         ):
             visited: Dict[str, ContainerOp] = {}
+            visited_resource_ops: Dict[str, ResourceOp] = {}
 
             def build_kfp_dag(
                 node: DAGNode,
@@ -758,7 +772,9 @@ class KubeflowPipelines(object):
                 preceding_kfp_component_op: ContainerOp = None,
                 preceding_component_outputs_dict: Dict[str, dsl.PipelineParam] = None,
                 workflow_uid: str = None,
-                shared_volumes: Dict[str, Dict[str, PipelineVolume]] = None,
+                shared_volumes: Dict[
+                    str, Dict[str, Tuple[ResourceOp, PipelineVolume]]
+                ] = None,
             ):
                 if node.name in visited:
                     return
@@ -852,8 +868,14 @@ class KubeflowPipelines(object):
                     }
 
                 KubeflowPipelines._set_container_resources(
+                    metaflow_step_op, kfp_component
+                )
+                resource_op: ResourceOp = KubeflowPipelines._set_container_volume(
                     metaflow_step_op, kfp_component, workflow_uid, shared_volumes
                 )
+                if resource_op:
+                    visited_resource_ops[node.name] = resource_op
+
                 self._set_container_labels(metaflow_step_op, node, metaflow_run_id)
 
                 if node.type == "foreach":
@@ -955,6 +977,8 @@ class KubeflowPipelines(object):
                 node = self.graph[step]
                 for parent_step in node.in_funcs:
                     visited[node.name].after(visited[parent_step])
+                    if node.name in visited_resource_ops:
+                        visited_resource_ops[node.name].after(visited[parent_step])
 
             if s3_sensor_op:
                 visited["start"].after(s3_sensor_op)
@@ -977,14 +1001,14 @@ class KubeflowPipelines(object):
     def create_shared_volumes(
         step_name_to_kfp_component: Dict[str, KfpComponent],
         workflow_uid_op: ContainerOp,
-    ) -> Dict[str, Dict[str, PipelineVolume]]:
+    ) -> Dict[str, Dict[str, Tuple[ResourceOp, PipelineVolume]]]:
         """
         A volume to be shared across foreach split nodes, but not downstream steps.
         An example use case is PyTorch distributed training where gradients are communicated
         via the shared volume.
         Returns: Dict[step_name, Dict[volume_dir, PipelineVolume]]
         """
-        shared_volumes: Dict[str, Dict[str, PipelineVolume]] = {}
+        shared_volumes: Dict[str, Dict[str, Tuple[ResourceOp, PipelineVolume]]] = {}
 
         for kfp_component in step_name_to_kfp_component.values():
             resources = kfp_component.resource_requirements
@@ -993,14 +1017,17 @@ class KubeflowPipelines(object):
                 and resources["volume_mode"] == "ReadWriteMany"
             ):
                 volume_dir = resources["volume_dir"]
-                shared_volumes[kfp_component.step_name] = {
-                    volume_dir: KubeflowPipelines._create_volume(
-                        step_name=f"{kfp_component.step_name}-shared",
-                        size=resources["volume"],
-                        workflow_uid=workflow_uid_op.output,
-                        mode=resources["volume_mode"],
-                    )
-                }
+                (resource_op, volume) = KubeflowPipelines._create_volume(
+                    step_name=f"{kfp_component.step_name}-shared",
+                    size=resources["volume"],
+                    workflow_uid=workflow_uid_op.output,
+                    mode=resources["volume_mode"],
+                )
+                shared_volumes[kfp_component.step_name] = (
+                    resource_op,
+                    {volume_dir: volume},
+                )
+
         return shared_volumes
 
     def _create_metaflow_step_op(
