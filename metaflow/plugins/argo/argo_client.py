@@ -3,6 +3,7 @@ import os
 import sys
 
 from metaflow.exception import MetaflowException
+from metaflow.plugins.kubernetes.kubernetes_client import KubernetesClient
 
 
 class ArgoClientException(MetaflowException):
@@ -12,45 +13,22 @@ class ArgoClientException(MetaflowException):
 class ArgoClient(object):
     def __init__(self, namespace=None):
 
-        try:
-            from kubernetes import client, config
-        except (NameError, ImportError):
-            raise MetaflowException(
-                "Could not import module 'kubernetes'.\n\nInstall kubernetes "
-                "Python package (https://pypi.org/project/kubernetes/) first.\n"
-                "You can install the module by executing - "
-                "%s -m pip install kubernetes\n"
-                "or equivalent through your favorite Python package manager."
-                % sys.executable
-            )
-
-        if os.getenv("KUBERNETES_SERVICE_HOST"):
-            # We are inside a pod, authenticate via ServiceAccount assigned
-            # to us
-            config.load_incluster_config()
-        else:
-            # Use kubeconfig, likely $HOME/.kube/config
-            # TODO (savin):
-            #     1. Support generating kubeconfig on the fly using boto3
-            #     2. Support auth via OIDC -
-            #        https://docs.aws.amazon.com/eks/latest/userguide/authenticate-oidc-identity-provider.html
-            config.load_kube_config()
-
-        self._client = client
+        self._kubernetes_client = KubernetesClient()
         self._namespace = namespace or "default"
         self._group = "argoproj.io"
         self._version = "v1alpha1"
 
     def get_workflow_template(self, name):
+        client = self._kubernetes_client.get()
         try:
-            return self._client.CustomObjectsApi().get_namespaced_custom_object(
+            return client.CustomObjectsApi().get_namespaced_custom_object(
                 group=self._group,
                 version=self._version,
                 namespace=self._namespace,
                 plural="workflowtemplates",
                 name=name,
             )
-        except self._client.rest.ApiException as e:
+        except client.rest.ApiException as e:
             if e.status == 404:
                 return None
             raise ArgoClientException(
@@ -60,10 +38,11 @@ class ArgoClient(object):
     def register_workflow_template(self, name, workflow_template):
         # Unfortunately, Kubernetes client does not handle optimistic
         # concurrency control by itself unlike kubectl
+        client = self._kubernetes_client.get()
         try:
             workflow_template["metadata"][
                 "resourceVersion"
-            ] = self._client.CustomObjectsApi().get_namespaced_custom_object(
+            ] = client.CustomObjectsApi().get_namespaced_custom_object(
                 group=self._group,
                 version=self._version,
                 namespace=self._namespace,
@@ -74,19 +53,17 @@ class ArgoClient(object):
             ][
                 "resourceVersion"
             ]
-        except self._client.rest.ApiException as e:
+        except client.rest.ApiException as e:
             if e.status == 404:
                 try:
-                    return (
-                        self._client.CustomObjectsApi().create_namespaced_custom_object(
-                            group=self._group,
-                            version=self._version,
-                            namespace=self._namespace,
-                            plural="workflowtemplates",
-                            body=workflow_template,
-                        )
+                    return client.CustomObjectsApi().create_namespaced_custom_object(
+                        group=self._group,
+                        version=self._version,
+                        namespace=self._namespace,
+                        plural="workflowtemplates",
+                        body=workflow_template,
                     )
-                except self._client.rest.ApiException as e:
+                except client.rest.ApiException as e:
                     raise ArgoClientException(
                         json.loads(e.body)["message"]
                         if e.body is not None
@@ -97,7 +74,7 @@ class ArgoClient(object):
                     json.loads(e.body)["message"] if e.body is not None else e.reason
                 )
         try:
-            return self._client.CustomObjectsApi().replace_namespaced_custom_object(
+            return client.CustomObjectsApi().replace_namespaced_custom_object(
                 group=self._group,
                 version=self._version,
                 namespace=self._namespace,
@@ -105,12 +82,13 @@ class ArgoClient(object):
                 body=workflow_template,
                 name=name,
             )
-        except self._client.rest.ApiException as e:
+        except client.rest.ApiException as e:
             raise ArgoClientException(
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
     def trigger_workflow_template(self, name, parameters={}):
+        client = self._kubernetes_client.get()
         body = {
             "apiVersion": "argoproj.io/v1alpha1",
             "kind": "Workflow",
@@ -126,14 +104,14 @@ class ArgoClient(object):
             },
         }
         try:
-            return self._client.CustomObjectsApi().create_namespaced_custom_object(
+            return client.CustomObjectsApi().create_namespaced_custom_object(
                 group=self._group,
                 version=self._version,
                 namespace=self._namespace,
                 plural="workflows",
                 body=body,
             )
-        except self._client.rest.ApiException as e:
+        except client.rest.ApiException as e:
             raise ArgoClientException(
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
@@ -141,6 +119,7 @@ class ArgoClient(object):
     def schedule_workflow_template(self, name, schedule=None):
         # Unfortunately, Kubernetes client does not handle optimistic
         # concurrency control by itself unlike kubectl
+        client = self._kubernetes_client.get()
         body = {
             "apiVersion": "argoproj.io/v1alpha1",
             "kind": "CronWorkflow",
@@ -154,7 +133,7 @@ class ArgoClient(object):
         try:
             body["metadata"][
                 "resourceVersion"
-            ] = self._client.CustomObjectsApi().get_namespaced_custom_object(
+            ] = client.CustomObjectsApi().get_namespaced_custom_object(
                 group=self._group,
                 version=self._version,
                 namespace=self._namespace,
@@ -165,22 +144,20 @@ class ArgoClient(object):
             ][
                 "resourceVersion"
             ]
-        except self._client.rest.ApiException as e:
+        except client.rest.ApiException as e:
             # Scheduled workflow does not exist and we want to schedule a workflow
             if e.status == 404:
                 if schedule is None:
                     return
                 try:
-                    return (
-                        self._client.CustomObjectsApi().create_namespaced_custom_object(
-                            group=self._group,
-                            version=self._version,
-                            namespace=self._namespace,
-                            plural="cronworkflows",
-                            body=body,
-                        )
+                    return client.CustomObjectsApi().create_namespaced_custom_object(
+                        group=self._group,
+                        version=self._version,
+                        namespace=self._namespace,
+                        plural="cronworkflows",
+                        body=body,
                     )
-                except self._client.rest.ApiException as e:
+                except client.rest.ApiException as e:
                     raise ArgoClientException(
                         json.loads(e.body)["message"]
                         if e.body is not None
@@ -191,7 +168,7 @@ class ArgoClient(object):
                     json.loads(e.body)["message"] if e.body is not None else e.reason
                 )
         try:
-            return self._client.CustomObjectsApi().replace_namespaced_custom_object(
+            return client.CustomObjectsApi().replace_namespaced_custom_object(
                 group=self._group,
                 version=self._version,
                 namespace=self._namespace,
@@ -199,7 +176,7 @@ class ArgoClient(object):
                 body=body,
                 name=name,
             )
-        except self._client.rest.ApiException as e:
+        except client.rest.ApiException as e:
             raise ArgoClientException(
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
