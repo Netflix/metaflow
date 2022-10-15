@@ -230,8 +230,12 @@ def create(
             "Airflow DAG file name cannot be the same as flow file name"
         )
 
-    obj.echo("Compiling *%s* to Airflow DAG..." % obj.dag_name, bold=True)
+    # Validate if the workflow is correctly parsed.
+    _validate_workflow(
+        obj.flow, obj.graph, obj.flow_datastore, obj.metadata, workflow_timeout
+    )
 
+    obj.echo("Compiling *%s* to Airflow DAG..." % obj.dag_name, bold=True)
     token = resolve_token(
         obj.dag_name,
         obj.token_prefix,
@@ -277,11 +281,6 @@ def make_flow(
     worker_pool,
     file,
 ):
-    # Validate if the workflow is correctly parsed.
-    _validate_workflow(
-        obj.flow, obj.graph, obj.flow_datastore, obj.metadata, workflow_timeout
-    )
-
     # Attach @kubernetes.
     decorators._attach_decorators(obj.flow, [KubernetesDecorator.name])
 
@@ -360,8 +359,31 @@ def _validate_foreach_constraints(graph):
 
 
 def _validate_workflow(flow, graph, flow_datastore, metadata, workflow_timeout):
+    seen = set()
+    for var, param in flow._get_parameters():
+        # Throw an exception if the parameter is specified twice.
+        norm = param.name.lower()
+        if norm in seen:
+            raise MetaflowException(
+                "Parameter *%s* is specified twice. "
+                "Note that parameter names are "
+                "case-insensitive." % param.name
+            )
+        seen.add(norm)
+        if "default" not in param.kwargs:
+            raise MetaflowException(
+                "Parameter *%s* does not have a "
+                "default value. "
+                "A default value is required for parameters when deploying flows on Airflow."
+            )
     # check for other compute related decorators.
     for node in graph:
+        if node.parallel_foreach:
+            raise AirflowException(
+                "Deploying flows with @parallel decorator(s) "
+                "to Airflow is not supported currently."
+            )
+
         if node.type == "foreach":
             raise NotSupportedException(
                 "Step *%s* is a foreach step and Foreach steps are not currently supported with Airflow."

@@ -5,6 +5,7 @@ import random
 import string
 import sys
 from datetime import datetime, timedelta
+from metaflow.includefile import FilePathClass
 
 import metaflow.util as util
 from metaflow.decorators import flow_decorators
@@ -23,7 +24,7 @@ from metaflow.metaflow_config import (
     DATASTORE_CARD_AZUREROOT,
     AIRFLOW_KUBERNETES_CONN_ID,
 )
-from metaflow.parameters import deploy_time_eval
+from metaflow.parameters import DelayedEvaluationParameter, deploy_time_eval
 from metaflow.plugins.kubernetes.kubernetes import Kubernetes
 
 # TODO: Move chevron to _vendor
@@ -175,38 +176,18 @@ class Airflow(object):
         return None
 
     def _process_parameters(self):
-        seen = set()
         airflow_params = []
         type_transform_dict = {
             int.__name__: "integer",
             str.__name__: "string",
             bool.__name__: "string",
             float.__name__: "number",
-            JSONTypeClass.name: "string",
         }
-        type_parser = {bool.__name__: lambda v: str(v)}
 
         for var, param in self.flow._get_parameters():
-            # Throw an exception if the parameter is specified twice.
-            norm = param.name.lower()
-            if norm in seen:
-                raise MetaflowException(
-                    "Parameter *%s* is specified twice. "
-                    "Note that parameter names are "
-                    "case-insensitive." % param.name
-                )
-            seen.add(norm)
-
             # Airflow requires defaults set for parameters.
-            if "default" not in param.kwargs:
-                raise MetaflowException(
-                    "Parameter *%s* does not have a "
-                    "default value. "
-                    "A default value is required for parameters when deploying flows on Airflow."
-                )
             value = deploy_time_eval(param.kwargs.get("default"))
             # Setting airflow related param args.
-            param_type = param.kwargs.get("type")
             airflow_param = dict(
                 name=param.name,
             )
@@ -214,18 +195,21 @@ class Airflow(object):
                 airflow_param["default"] = value
             if param.kwargs.get("help"):
                 airflow_param["description"] = param.kwargs.get("help")
-            if param_type is not None:
-                # Todo (fast-follow): Check if we can support more `click.Param` types
-                param_type_name = getattr(param_type, "__name__", None)
-                if not param_type_name and isinstance(param_type, JSONTypeClass):
-                    # `JSONTypeClass` has no __name__ attribute so we need to explicitly check if
-                    # `param_type` is an instance of `JSONTypeClass``
-                    param_type_name = param_type.name
 
-                if param_type_name in type_transform_dict:
-                    airflow_param["type"] = type_transform_dict[param_type_name]
-                    if param_type_name in type_parser and value is not None:
-                        airflow_param["default"] = type_parser[param_type_name](value)
+            # Since we will always have a default value and `deploy_time_eval` resolved that to an actual value
+            # we can just use the `default` to infer the object's type.
+            # This avoids parsing/indentifying types like `JSONType` or `FilePathClass`
+            # which are returned by calling `param.kwargs.get("type")`
+            param_type = type(airflow_param["default"])
+
+            # extract the name of the type and resolve the type-name
+            # compatible with Airflow.
+            param_type_name = getattr(param_type, "__name__", None)
+            if param_type_name in type_transform_dict:
+                airflow_param["type"] = type_transform_dict[param_type_name]
+
+            if param_type_name == bool.__name__:
+                airflow_param["default"] = str(airflow_param["default"])
 
             airflow_params.append(airflow_param)
 
@@ -610,11 +594,6 @@ class Airflow(object):
     def compile(self):
         # Visit every node of the flow and recursively build the state machine.
         def _visit(node, workflow, exit_node=None):
-            if node.parallel_foreach:
-                raise AirflowException(
-                    "Deploying flows with @parallel decorator(s) "
-                    "to Airflow is not supported currently."
-                )
             parent_is_foreach = any(  # Any immediate parent is a foreach node.
                 self.graph[n].type == "foreach" for n in node.in_funcs
             )
