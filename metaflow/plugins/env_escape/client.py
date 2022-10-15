@@ -77,9 +77,21 @@ class Client(object):
         )
 
         # Read override configuration
-        sys.path.insert(0, config_dir)
+        # We can't just import the "overrides" module because that does not
+        # distinguish it from other modules named "overrides" (either a third party
+        # lib -- there is one -- or just other escaped modules). We therefore load
+        # a fuller path to distinguish them from one another.
+        pkg_components = []
+        prefix, last_basename = os.path.split(config_dir)
+        while last_basename not in ("metaflow", "metaflow_extensions"):
+            pkg_components.append(last_basename)
+            prefix, last_basename = os.path.split(prefix)
+
+        sys.path.insert(0, os.path.join(prefix, last_basename))
         try:
-            override_module = importlib.import_module("overrides")
+            override_module = importlib.import_module(
+                ".overrides", package=".".join(reversed(pkg_components))
+            )
             override_values = override_module.__dict__.values()
         except ImportError:
             # We ignore so the file can be non-existent if not needed
@@ -90,27 +102,6 @@ class Client(object):
             )
         sys.path = sys.path[1:]
 
-        # Determine all overrides
-        self._overrides = {}
-        self._getattr_overrides = {}
-        self._setattr_overrides = {}
-        for override in override_values:
-            if isinstance(override, (LocalOverride, LocalAttrOverride)):
-                for obj_name, obj_funcs in override.obj_mapping.items():
-                    if isinstance(override, LocalOverride):
-                        override_dict = self._overrides.setdefault(obj_name, {})
-                    elif override.is_setattr:
-                        override_dict = self._setattr_overrides.setdefault(obj_name, {})
-                    else:
-                        override_dict = self._getattr_overrides.setdefault(obj_name, {})
-                    if isinstance(obj_funcs, str):
-                        obj_funcs = (obj_funcs,)
-                    for name in obj_funcs:
-                        if name in override_dict:
-                            raise ValueError(
-                                "%s was already overridden for %s" % (name, obj_name)
-                            )
-                        override_dict[name] = override.func
         self._proxied_objects = {}
 
         # Wait for the socket to be up on the other side; we also check if the
@@ -150,6 +141,32 @@ class Client(object):
                 response[FIELD_CONTENT]["classes"], response[FIELD_CONTENT]["proxied"]
             )
         }
+
+        # Determine all overrides
+        self._overrides = {}
+        self._getattr_overrides = {}
+        self._setattr_overrides = {}
+        for override in override_values:
+            if isinstance(override, (LocalOverride, LocalAttrOverride)):
+                for obj_name, obj_funcs in override.obj_mapping.items():
+                    if obj_name not in self._proxied_classes:
+                        raise ValueError(
+                            "%s does not refer to a proxied or override type" % obj_name
+                        )
+                    if isinstance(override, LocalOverride):
+                        override_dict = self._overrides.setdefault(obj_name, {})
+                    elif override.is_setattr:
+                        override_dict = self._setattr_overrides.setdefault(obj_name, {})
+                    else:
+                        override_dict = self._getattr_overrides.setdefault(obj_name, {})
+                    if isinstance(obj_funcs, str):
+                        obj_funcs = (obj_funcs,)
+                    for name in obj_funcs:
+                        if name in override_dict:
+                            raise ValueError(
+                                "%s was already overridden for %s" % (name, obj_name)
+                            )
+                        override_dict[name] = override.func
 
         # Proxied standalone functions are functions that are proxied
         # as part of other objects like defaultdict for which we create a

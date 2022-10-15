@@ -117,18 +117,19 @@ class Server(object):
         for override in override_values:
             if isinstance(override, (RemoteAttrOverride, RemoteOverride)):
                 for obj_name, obj_funcs in override.obj_mapping.items():
+                    obj_type = self._known_classes.get(
+                        obj_name, self._proxied_types.get(obj_name)
+                    )
+                    if obj_type is None:
+                        raise ValueError(
+                            "%s does not refer to a proxied or exported type" % obj_name
+                        )
                     if isinstance(override, RemoteOverride):
-                        override_dict = self._overrides.setdefault(
-                            self._known_classes[obj_name], {}
-                        )
+                        override_dict = self._overrides.setdefault(obj_type, {})
                     elif override.is_setattr:
-                        override_dict = self._setattr_overrides.setdefault(
-                            self._known_classes[obj_name], {}
-                        )
+                        override_dict = self._setattr_overrides.setdefault(obj_type, {})
                     else:
-                        override_dict = self._getattr_overrides.setdefault(
-                            self._known_classes[obj_name], {}
-                        )
+                        override_dict = self._getattr_overrides.setdefault(obj_type, {})
                     if isinstance(obj_funcs, str):
                         obj_funcs = (obj_funcs,)
                     for name in obj_funcs:
