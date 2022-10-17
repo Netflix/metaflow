@@ -81,3 +81,76 @@ async def _send_nats_event(event_url, body):
         await conn.drain()
     except Exception as e:
         raise MetaflowExceptionWrapper(e)
+
+
+class TriggerSet:
+    def __init__(self, project, branch):
+        project_decorator = None
+        self._project = project
+        self._branch = branch
+        self.triggers = []
+
+    def append(self, trigger_info):
+        trigger_info.add_namespacing(self._project, self._branch)
+        self.triggers.append(trigger_info)
+
+    def add_namespacing(self, project, branch):
+        self._project = project
+        self._branch = branch
+        for t in self.triggers:
+            t.add_namespacing(self._project, self._branch)
+
+    def is_empty(self):
+        return len(self.triggers) == 0
+
+    def __len__(self):
+        return len(self.triggers)
+
+
+class TriggerInfo:
+
+    LIFECYCLE_EVENT = 0
+    USER_EVENT = 1
+
+    def __init__(self, type):
+        self.type = type
+        self._project = None
+        self._branch = None
+        self._name = None
+        self.status = None
+        self.mappings = {}
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, new_name):
+        self._name = new_name
+
+    @property
+    def formatted_name(self):
+        if self._project is not None and self._branch is not None:
+            formatted = "-".join(
+                [self._project.replace("_", ""), self._branch, self._name]
+            ).lower()
+        else:
+            formatted = self._name.lower()
+        return formatted.replace(".", "-")
+
+    def add_namespacing(self, project, branch):
+        self._project = project
+        self._branch = branch
+
+    def has_mappings(self):
+        return self._name in self.mappings
+
+    def __str__(self):
+        data = {
+            "type": self.type,
+            "name": self._formatted_name,
+            "original_name": self._name,
+            "status": self.status,
+            "mappings": len(self.mappings),
+        }
+        return json.dumps(data, indent=4)

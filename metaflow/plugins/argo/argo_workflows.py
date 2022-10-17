@@ -40,7 +40,7 @@ from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_v
 from metaflow.parameters import deploy_time_eval
 from metaflow.util import compress_list, dict_to_cli_options, to_camelcase
 
-from .event_decorators import TriggerInfo
+from .eventing import TriggerInfo
 from .argo_client import ArgoClient
 from .util import (
     are_events_configured,
@@ -1094,13 +1094,17 @@ class ArgoWorkflows(object):
     def _compile_sensor_template(self):
         for decorator in flow_decorators():
             if (
-                decorator.name == "trigger_on"
+                decorator.name in ["trigger_on", "trigger_on_finish"]
                 and not decorator.attributes["trigger_set"].is_empty()
             ):
                 trigger_set = decorator.attributes["trigger_set"]
                 (project_name, branch_name) = project_and_branch()
                 trigger_set.add_namespacing(project_name, branch_name)
-                t = SensorTemplate(self.name, self.parameters)
+                t = SensorTemplate(
+                    self.name,
+                    self.parameters,
+                    decorator.attributes.get("parsed_reset_after"),
+                )
                 for trigger in trigger_set.triggers:
                     t.add_trigger(trigger)
                     if trigger.type == TriggerInfo.LIFECYCLE_EVENT:
@@ -1666,7 +1670,7 @@ class WorkflowLifecycleHookContainerTemplate(object):
 
 
 class SensorTemplate:
-    def __init__(self, calling_flow, parameters):
+    def __init__(self, calling_flow, parameters, reset_after):
         self.name = format_sensor_name(calling_flow)
         self.calling_flow = calling_flow
         self.parameters = parameters
@@ -1674,6 +1678,8 @@ class SensorTemplate:
         self.dependency_names = {}
         self.transformed_fields = {}
         self.parameter_assignments = None
+        self.assigned_dep_names = []
+        self.reset_after = reset_after
         self.count = 0
         self.payload = {
             "apiVersion": "argoproj.io/v1alpha1",
@@ -1682,16 +1688,17 @@ class SensorTemplate:
             "metadata": {"annotations": {}, "labels": {}, "name": self.name},
         }
 
-    def _unique_name(self, prefix):
+    def _assign_dep_name(self, prefix):
         result = "%s-%d" % (prefix, self.count)
         self.count += 1
+        self.assigned_dep_names.append(result)
         return result
 
     def add_trigger(self, info):
         if info.type == TriggerInfo.LIFECYCLE_EVENT:
-            name = self._unique_name("lifecycle-event")
+            name = self._assign_dep_name("lifecycle-event")
         elif info.type == TriggerInfo.USER_EVENT:
-            name = self._unique_name("user-event")
+            name = self._assign_dep_name("user-event")
         filters = self._build_filters(info)
         event = {
             "name": name,
@@ -1819,6 +1826,17 @@ class SensorTemplate:
                 },
             }
         }
+        if len(self.assigned_dep_names) > 1:
+            conditions = " && ".join(self.assigned_dep_names)
+            template = triggered_template["template"]
+            template["conditions"] = conditions
+            cron = "%d %d * * *" % (
+                self.reset_after.tm_min,
+                self.reset_after.tm_hour,
+            )
+            reset = [{"byTime": {"cron": cron}}]
+            template["conditionsReset"] = reset
+            triggered_template["template"] = template
         triggered_template["template"]["k8s"][
             "parameters"
         ] = self._build_parameter_assignments()

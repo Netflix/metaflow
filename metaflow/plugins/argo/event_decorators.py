@@ -1,10 +1,12 @@
 import json
 import re
+from time import strptime
 
 from metaflow import current
-from metaflow.decorators import FlowDecorator, StepDecorator, flow_decorators
-from metaflow.exception import MetaflowException
+from metaflow.decorators import FlowDecorator
+from metaflow.exception import MetaflowException, MetaflowExceptionWrapper
 from .util import are_events_configured
+from .eventing import TriggerSet, TriggerInfo
 
 ERR_MSG = """Make sure configuration entries METAFLOW_EVENT_SOURCE_NAME, METAFLOW_EVENT_SOURCE_URL, and 
 METAFLOW_EVENT_SERVICE_ACCOUNT are correct.
@@ -40,6 +42,15 @@ Examples
 @trigger_on(event="first", mappings={"alpha": "alpha_value", "delta": "delta_value"})
 """
 
+BAD_RESET_AFTER_MSG = """reset_after must use either 24-hour time or 12-hour time with locale appropriate AM/PM.
+
+Examples
+--------
+@trigger_on_finish(flows=["FirstFlow", "SecondFlow"], reset_after="23:59")
+
+@trigger_on_finish(flows=["FirstFlow", "SecondFlow"], reset_after="11:59PM")
+"""
+
 
 class BadEventNameException(MetaflowException):
     headline = "Bad or missing event name detected"
@@ -47,6 +58,10 @@ class BadEventNameException(MetaflowException):
 
 class BadEventMappingsException(MetaflowException):
     headline = "Bad event field mappings detected"
+
+
+class BadResetAfterException(MetaflowException):
+    headline = "Bad reset after time detected"
 
 
 BAD_AGGREGATE_MAPPING_ERROR = BadEventMappingsException(msg=BAD_AGGREGATE_MAPPING_MSG)
@@ -82,7 +97,98 @@ def validate_mappings(mappings, aggregate):
     return mappings
 
 
-class TriggerOnDecorator(FlowDecorator):
+class TriggerDecorator(FlowDecorator):
+    def _parse_time(self):
+        parsed_time = None
+        reset_after = self.attributes.get("reset_after", "23:59")
+        try:
+            parsed_time = strptime(reset_after, "%H:%M")
+            self.attributes["parsed_reset_after"] = parsed_time
+        except ValueError:
+            try:
+                parsed_time = strptime(reset_after, "%H:%M%p")
+                self.attributes["parsed_reset_after"] = parsed_time
+            except ValueError:
+                raise BadResetAfterException(msg=BAD_RESET_AFTER_MSG)
+
+
+class TriggerOnFinishDecorator(TriggerDecorator):
+
+    name = "trigger_on_finish"
+    defaults = {"flow": None, "flows": [], "reset_after": "23:59"}
+    options = {
+        "flow": dict(
+            is_flag=False,
+            show_default=True,
+            help="Trigger the current flow when the named flow completes.",
+        ),
+        "flows": dict(
+            is_flag=False,
+            show_default=False,
+            help="Trigger the current flow when all named flows complete.",
+        ),
+        "reset_after": dict(
+            is_flag=False,
+            show_default=True,
+            help="Reset wait state after specified number of hours.",
+        ),
+    }
+
+    def flow_init(
+        self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
+    ):
+        self.attributes["trigger_set"] = None
+        self.attributes["error"] = None
+        if are_events_configured():
+            self._option_values = options
+            flows = self._read_inputs()
+            self._parse_time()
+            if "project_name" in current:
+                self.attributes["trigger_set"] = TriggerSet(
+                    current.project_name, current.branch_name
+                )
+            else:
+                self.attributes["trigger_set"] = TriggerSet(None, None)
+            for flow in flows:
+                info = TriggerInfo(TriggerInfo.LIFECYCLE_EVENT)
+                info.name = flow
+                info.status = "succeeded"
+                self.attributes["trigger_set"].append(info)
+        else:
+            # Defer raising an error in case user has specified --ignore-triggers
+            self.error = {
+                "event_decorator_error": {
+                    "message": ERR_MSG,
+                    "headline": ("@%s requires eventing support" % self.name),
+                }
+            }
+
+    def _read_inputs(self):
+        self._fix_plurals()
+        flow_name = self.attributes.get("flow")
+        if flow_name == "":
+            flow_name = None
+        flow_names = self.attributes.get("flows")
+        if flow_name is None and len(flow_names) == 0:
+            raise MetaflowException(
+                msg=("@%s needs at least one flow name." % self.name)
+            )
+
+        if flow_name is not None:
+            flow_names.append(flow_name)
+        return flow_names
+
+    def _fix_plurals(self):
+        flow_name = self.attributes.get("flow")
+        if flow_name == "":
+            flow_name = None
+        flow_names = self.attributes.get("flows")
+        if type(flow_names) == str and flow_name is None:
+            self.attributes["flow"] = flow_names
+            self.attributes["flows"] = []
+
+
+class TriggerOnDecorator(TriggerDecorator):
 
     name = "trigger_on"
     defaults = {
@@ -92,12 +198,13 @@ class TriggerOnDecorator(FlowDecorator):
         "events": [],
         "data": None,
         "mappings": {},
+        "reset_after": "23:59",
     }
     options = {
         "flow": dict(
             is_flag=False,
             show_default=True,
-            help="Trigger the current flow when this flow completes.",
+            help="Trigger the current flow when the named flow completes.",
         ),
         "flows": dict(
             is_flag=False,
@@ -119,6 +226,11 @@ class TriggerOnDecorator(FlowDecorator):
             show_default=True,
             help="Mapping of flow parameters to event fields.",
         ),
+        "reset_after": dict(
+            is_flag=False,
+            show_default=True,
+            help="Reset wait state after specified number of hours.",
+        ),
     }
 
     def flow_init(
@@ -138,17 +250,19 @@ class TriggerOnDecorator(FlowDecorator):
             mappings = self.attributes.get("mappings")
             is_aggregate = (len(flows) + len(events)) > 1
             validated = validate_mappings(mappings, is_aggregate)
+            self._parse_time()
             for flow in flows:
                 info = TriggerInfo(TriggerInfo.LIFECYCLE_EVENT)
                 info.name = flow
                 info.status = "succeeded"
                 info.mappings = validated
                 self.attributes["trigger_set"].append(info)
-            for event in events:
-                info = TriggerInfo(TriggerInfo.USER_EVENT)
-                info.name = event
-                info.mappings = validated
-                self.attributes["trigger_set"].append(info)
+            if events is not None:
+                for event in events:
+                    info = TriggerInfo(TriggerInfo.USER_EVENT)
+                    info.name = event
+                    info.mappings = validated
+                    self.attributes["trigger_set"].append(info)
 
         else:
             # Defer raising an error in case user has specified --ignore-triggers
@@ -201,76 +315,3 @@ class TriggerOnDecorator(FlowDecorator):
         if type(event_names) == str and event_name is None:
             self.attributes["event"] = event_names
             self.attributes["events"] = []
-
-
-class TriggerSet:
-    def __init__(self, project, branch):
-        project_decorator = None
-        self._project = project
-        self._branch = branch
-        self.triggers = []
-
-    def append(self, trigger_info):
-        trigger_info.add_namespacing(self._project, self._branch)
-        self.triggers.append(trigger_info)
-
-    def add_namespacing(self, project, branch):
-        self._project = project
-        self._branch = branch
-        for t in self.triggers:
-            t.add_namespacing(self._project, self._branch)
-
-    def is_empty(self):
-        return len(self.triggers) == 0
-
-    def __len__(self):
-        return len(self.triggers)
-
-
-class TriggerInfo:
-
-    LIFECYCLE_EVENT = 0
-    USER_EVENT = 1
-
-    def __init__(self, type):
-        self.type = type
-        self._project = None
-        self._branch = None
-        self._name = None
-        self.status = None
-        self.mappings = {}
-
-    @property
-    def name(self):
-        return self._name
-
-    @name.setter
-    def name(self, new_name):
-        self._name = new_name
-
-    @property
-    def formatted_name(self):
-        if self._project is not None and self._branch is not None:
-            formatted = "-".join(
-                [self._project.replace("_", ""), self._branch, self._name]
-            ).lower()
-        else:
-            formatted = self._name.lower()
-        return formatted.replace(".", "-")
-
-    def add_namespacing(self, project, branch):
-        self._project = project
-        self._branch = branch
-
-    def has_mappings(self):
-        return self._name in self.mappings
-
-    def __str__(self):
-        data = {
-            "type": self.type,
-            "name": self._formatted_name,
-            "original_name": self._name,
-            "status": self.status,
-            "mappings": len(self.mappings),
-        }
-        return json.dumps(data, indent=4)
