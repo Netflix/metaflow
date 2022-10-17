@@ -70,6 +70,8 @@ class Server(object):
                 "Cannot import server_mappings from '%s': %s" % (sys.path[0], str(e))
             )
         try:
+            # We know this is the "right" overrides since we are launched in the
+            # directory containing it.
             override_module = importlib.import_module("overrides")
             override_values = override_module.__dict__.values()
         except ImportError:
