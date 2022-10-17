@@ -33,7 +33,7 @@ from .communication.socket_bytestream import SocketByteStream
 
 from .data_transferer import DataTransferer, ObjReference
 from .exception_transferer import load_exception
-from .override_decorators import LocalAttrOverride, LocalOverride
+from .override_decorators import LocalAttrOverride, LocalException, LocalOverride
 from .stub import create_class
 
 BIND_TIMEOUT = 0.1
@@ -86,9 +86,10 @@ class Client(object):
         while last_basename not in ("metaflow", "metaflow_extensions"):
             pkg_components.append(last_basename)
             prefix, last_basename = os.path.split(prefix)
+        pkg_components.append(last_basename)
 
-        sys.path.insert(0, os.path.join(prefix, last_basename))
         try:
+            sys.path.insert(0, prefix)
             override_module = importlib.import_module(
                 ".overrides", package=".".join(reversed(pkg_components))
             )
@@ -100,7 +101,8 @@ class Client(object):
             raise RuntimeError(
                 "Cannot import overrides from '%s': %s" % (sys.path[0], str(e))
             )
-        sys.path = sys.path[1:]
+        finally:
+            sys.path = sys.path[1:]
 
         self._proxied_objects = {}
 
@@ -146,6 +148,7 @@ class Client(object):
         self._overrides = {}
         self._getattr_overrides = {}
         self._setattr_overrides = {}
+        self._exception_overrides = {}
         for override in override_values:
             if isinstance(override, (LocalOverride, LocalAttrOverride)):
                 for obj_name, obj_funcs in override.obj_mapping.items():
@@ -167,6 +170,11 @@ class Client(object):
                                 "%s was already overridden for %s" % (name, obj_name)
                             )
                         override_dict[name] = override.func
+            if isinstance(override, LocalException):
+                cur_ex = self._exception_overrides.get(override.class_path, None)
+                if cur_ex is not None:
+                    raise ValueError("Exception %s redefined" % override.class_path)
+                self._exception_overrides[override.class_path] = override.wrapped_class
 
         # Proxied standalone functions are functions that are proxied
         # as part of other objects like defaultdict for which we create a
@@ -225,6 +233,9 @@ class Client(object):
 
     def get_exports(self):
         return self._export_info
+
+    def get_local_exception_overrides(self):
+        return self._exception_overrides
 
     def stub_request(self, stub, request_type, *args, **kwargs):
         # Encode the operation to send over the wire and wait for the response
