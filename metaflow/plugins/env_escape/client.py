@@ -51,10 +51,11 @@ class Client(object):
         data_transferer.defaultProtocol = max_pickle_version
 
         self._config_dir = config_dir
+        server_path, server_config = os.path.split(config_dir)
         # The client launches the server when created; we use
         # Unix sockets for now
         server_module = ".".join([__package__, "server"])
-        self._socket_path = "/tmp/%s_%d" % (os.path.basename(config_dir), os.getpid())
+        self._socket_path = "/tmp/%s_%d" % (server_config, os.getpid())
         if os.path.exists(self._socket_path):
             raise RuntimeError("Existing socket: %s" % self._socket_path)
         env = os.environ.copy()
@@ -66,9 +67,10 @@ class Client(object):
                 "-m",
                 server_module,
                 str(max_pickle_version),
+                server_config,
                 self._socket_path,
             ],
-            cwd=config_dir,
+            cwd=server_path,
             env=env,
             stdout=PIPE,
             stderr=PIPE,

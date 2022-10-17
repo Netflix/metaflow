@@ -60,19 +60,20 @@ BIND_RETRY = 1
 
 
 class Server(object):
-    def __init__(self, max_pickle_version):
+    def __init__(self, config_dir, max_pickle_version):
 
         self._max_pickle_version = data_transferer.defaultProtocol = max_pickle_version
         try:
-            mappings = importlib.import_module("server_mappings")
+            mappings = importlib.import_module(".server_mappings", package=config_dir)
         except Exception as e:
             raise RuntimeError(
                 "Cannot import server_mappings from '%s': %s" % (sys.path[0], str(e))
             )
         try:
-            # We know this is the "right" overrides since we are launched in the
-            # directory containing it.
-            override_module = importlib.import_module("overrides")
+            # Import module as a relative package to make sure that it is consistent
+            # with how the client does it -- this enables us to do the same type of
+            # relative imports in overrides
+            override_module = importlib.import_module(".overrides", package=config_dir)
             override_values = override_module.__dict__.values()
         except ImportError:
             # We ignore so the file can be non-existent if not needed
@@ -478,6 +479,7 @@ class Server(object):
 
 if __name__ == "__main__":
     max_pickle_version = int(sys.argv[1])
-    socket_path = sys.argv[2]
-    s = Server(max_pickle_version)
+    config_dir = sys.argv[2]
+    socket_path = sys.argv[3]
+    s = Server(config_dir, max_pickle_version)
     s.serve(path=socket_path)
