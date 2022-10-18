@@ -148,8 +148,8 @@ class ArgoWorkflows(object):
         self._run_id = "argo-{{workflow.name}}"
 
         self.parameters = self._process_parameters()
-        self._workflow_template = self._compile()
         self._sensor_template = self._compile_sensor_template()
+        self._workflow_template = self._compile()
         self._cron = self._cron()
 
     def __str__(self):
@@ -460,7 +460,9 @@ class ArgoWorkflows(object):
                 # Set the entrypoint to flow name
                 .entrypoint(self.flow.name)
                 # Set succeeded lifecycle hook
-                .lifecycle_hooks(self.flow.name, ignore_events=self._ignore_events)
+                .lifecycle_hooks(self.flow.name, self._ignore_events)
+                # Set metadata update hook
+                .metadata_update_hook(self._sensor_template)
                 # Top-level DAG template(s)
                 .templates(self._dag_templates())
                 # Container templates
@@ -1064,10 +1066,25 @@ class ArgoWorkflows(object):
                     yield self._make_lifecycle_hook_container_template(
                         template_env, "succeeded"
                     )
+                    if self._sensor_template is not None:
+                        template_env["ARGO_WORKFLOW_NAME"] = "{{workflow.name}}"
+                        template_env["METAFLOW_RUN_ID"] = self._run_id
+                        template_env[
+                            "METAFLOW_SERVICE_URL"
+                        ] = BATCH_METADATA_SERVICE_URL
+                        template_env["METAFLOW_SERVICE_HEADERS"] = json.dumps(
+                            BATCH_METADATA_SERVICE_HEADERS
+                        )
+                        yield self._make_metadata_hook_container_template(template_env)
 
     def _make_lifecycle_hook_container_template(self, env, status):
         t = WorkflowLifecycleHookContainerTemplate(self.name, status)
         t.set_env_vars(env)
+        return t
+
+    def _make_metadata_hook_container_template(self, template_env):
+        t = WorkflowMetadataHookContainerTemplate()
+        t.set_env_vars(template_env)
         return t
 
     def _get_retries(self, node):
@@ -1256,7 +1273,7 @@ class WorkflowSpec(object):
             self.payload["templates"].append(template.to_json())
         return self
 
-    def lifecycle_hooks(self, name, ignore_events=False):
+    def lifecycle_hooks(self, name, ignore_events):
         if not ignore_events:
             name = name.replace("_", "-").lower()
             success = {
@@ -1264,7 +1281,21 @@ class WorkflowSpec(object):
                 "expression": 'workflow.status == "Succeeded"',
             }
             success_name = "mf-" + name + "-succeeded"
+            if "hooks" not in self.payload:
+                self.payload["hooks"] = dict()
             self.payload["hooks"] = {success_name: success}
+        return self
+
+    def metadata_update_hook(self, sensor_template):
+        if sensor_template is not None:
+            running = {
+                "template": "on-run-started",
+                "expression": 'workflow.status == "Running"',
+            }
+            running_name = "mf-run-started"
+            if "hooks" not in self.payload:
+                self.payload["hooks"] = dict()
+            self.payload["hooks"][running_name] = running
         return self
 
     def to_json(self):
@@ -1533,15 +1564,6 @@ class DAGTask(object):
     def __str__(self):
         return json.dumps(self.payload, indent=4)
 
-    def _unique_hook_name(self, task_name):
-        i = 1
-        base_name = "emit-event-%s-" % task_name
-        hook_name = base_name + str(i)
-        while hook_name in self.payload["hooks"]:
-            i += 1
-            hook_name = base_name + str(i)
-        return hook_name
-
 
 class Arguments(object):
     # https://argoproj.github.io/argo-workflows/fields/#arguments
@@ -1562,6 +1584,43 @@ class Arguments(object):
 
     def __str__(self):
         return json.dumps(self.payload, indent=4)
+
+
+class WorkflowMetadataHookContainerTemplate:
+    def __init__(self):
+        self._name = "on-run-started"
+        self._env = dict()
+        self.command = self._build_command()
+
+    def _build_command(self):
+        return " && ".join(
+            ["pip3 install -qqq requests", "python3 -c \"print('Hello')\""]
+        )
+
+    def set_env_vars(self, vars):
+        updated = [
+            {"name": key, "value": str(vars[key])}
+            for key in vars.keys()
+            if vars[key] is not None
+        ]
+        self._env = updated
+        return self
+
+    def to_json(self):
+        return {
+            "name": self._name,
+            "container": {
+                "image": "python:3.8",
+                "command": ["/bin/sh", "-c"],
+                "args": [self.command],
+                "env": self._env,
+                "failFast": True,
+                "resources": {"requests": {"cpu": "1", "memory": "512M"}},
+            },
+        }
+
+    def __str__(self):
+        return json.dumps(self.to_json(), indent=4)
 
 
 class WorkflowLifecycleHookContainerTemplate(object):
@@ -1774,11 +1833,19 @@ class SensorTemplate:
                     }
                 )
             else:
-                dependency = list(self.dependency_names.values())[0]
+                first_user_event_dep = None
+                for dep in self.dependencies:
+                    if dep["name"].startswith("user-event"):
+                        first_user_event_dep = dep
+                        break
+                if first_user_event_dep is None:
+                    raise MetaflowException(
+                        "No user event found to populate parameter %s" % param_name
+                    )
                 assignments.append(
                     {
                         "src": {
-                            "dependencyName": dependency,
+                            "dependencyName": first_user_event_dep["name"],
                             "dataKey": "body.payload.data.%s" % param_name,
                         },
                         "dest": "spec.arguments.parameters.%d.value" % i,
