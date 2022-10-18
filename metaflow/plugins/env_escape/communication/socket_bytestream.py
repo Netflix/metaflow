@@ -58,6 +58,9 @@ class SocketByteStream(ByteStream):
                         m,
                         min(count, MAX_MSG_SIZE),
                     )
+                    # If we don't receive anything, we reached EOF
+                    if nbytes == 0:
+                        raise socket.error()
                     count -= nbytes
                     m = m[nbytes:]
                 except socket.timeout:
