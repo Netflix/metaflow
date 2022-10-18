@@ -54,13 +54,14 @@ class GS(object):
         with storage.load_bytes([subpath]) as load_result:
             for _, tmpfile, _ in load_result:
                 if tmpfile is None:
-                    gs_object = GSObject(key, None, False)
+                    gs_object = GSObject(key, None, False, None)
                 else:
                     if not self._tmpdir:
                         self._tmpdir = mkdtemp(prefix="metaflow.includefile.gs.")
                     output_file_path = os.path.join(self._tmpdir, str(uuid.uuid4()))
                     shutil.move(tmpfile, output_file_path)
-                    gs_object = GSObject(key, output_file_path, True)
+                    sz = os.stat(output_file_path).st_size
+                    gs_object = GSObject(key, output_file_path, True, sz)
                 break
         return gs_object
 
@@ -70,12 +71,25 @@ class GS(object):
         storage.save_bytes([(subpath, io.BytesIO(obj))], overwrite=overwrite)
         return key
 
+    def info(self, key=None, return_missing=False):
+        if not key.startswith("gs://"):
+            raise MetaflowInternalError(
+                msg="Expected GS object key to start with 'gs://'"
+            )
+        storage, subpath = self._get_storage_backend_and_subpath(key)
+        blob_size = storage.size_file(subpath)
+        blob_exists = blob_size is not None
+        if not blob_exists and not return_missing:
+            raise MetaflowException("GS object '%s' not found" % key)
+        return GSObject(key, None, blob_exists, blob_size)
+
 
 class GSObject(object):
-    def __init__(self, url, path, exists):
+    def __init__(self, url, path, exists, size):
         self._path = path
         self._url = url
         self._exists = exists
+        self._size = size
 
     @property
     def path(self):
@@ -88,3 +102,7 @@ class GSObject(object):
     @property
     def exists(self):
         return self._exists
+
+    @property
+    def size(self):
+        return self._size
