@@ -205,6 +205,9 @@ class CardDecorator(StepDecorator):
             "environment": self._environment.TYPE,
             "datastore": self._flow_datastore.TYPE,
             "datastore-root": self._flow_datastore.datastore_root,
+            "no-pylint": True,
+            "event-logger": "nullSidecarLogger",
+            "monitor": "nullSidecarMonitor",
             # We don't provide --with as all execution is taking place in
             # the context of the main processs
         }
