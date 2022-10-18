@@ -25,11 +25,14 @@ def send_event(event_name, event_data={}):
     flow_name = current_flow_name()
     (project, branch) = project_and_branch()
     if project is not None:
-        event_name = "%s-%s-%s" % (
-            project.replace(".", "-").replace("_", ""),
-            branch.replace(".", "-"),
-            event_name,
-        )
+        event_name = (
+            "%s-%s-%s"
+            % (
+                project.replace("_", ""),
+                branch,
+                event_name,
+            )
+        ).replace(".", "-")
     else:
         event_name = event_name.replace(".", "-")
     if re.fullmatch("[a-z0-9\-_\.]+", event_name) is None:
