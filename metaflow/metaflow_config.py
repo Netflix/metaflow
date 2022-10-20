@@ -349,6 +349,53 @@ for typ in DEBUG_OPTIONS:
     vars()["DEBUG_%s" % typ.upper()] = from_conf("DEBUG_%s" % typ.upper())
 
 ###
+# Plugin configuration
+# List of plugins that are enabled.
+###
+_plugin_defaults = {
+    "clis": [
+        "airflow",
+        "argo-workflows",
+        "batch",
+        "card",
+        "kubernetes",
+        "package",
+        "step-functions",
+        "tag",
+    ],
+    "step_decorators": [
+        "airflow_internal",
+        "argo_workflows_internal",
+        "batch",
+        "catch",
+        "card",
+        "conda",
+        "environment",
+        "kubernetes",
+        "parallel",
+        "pytorch_parallel",
+        "resources",
+        "retry",
+        "step_functions_internal",
+        "timeout",
+        "unbounded_test_foreach_internal",
+    ],
+    "flow_decorators": ["conda_base", "project", "schedule"],
+    "environments": ["conda"],
+    "metadata_providers": ["local", "service"],
+    "datastores": ["azure", "local", "s3"],
+    "sidecars": ["heartbeat", "save_logs_periodically"],
+    "logging_sidecars": ["debugLogger", "nullSidecarLogger"],
+    "monitor_sidecars": ["debugMonitor", "nullSidecarMonitor"],
+    "aws_client_providers": ["boto3"],
+}
+
+for plugin_category, defaults in _plugin_defaults.items():
+    vars()["TOGGLE_%s" % plugin_category.upper()] = from_conf(
+        "TOGGLE_%s" % plugin_category.upper(), defaults
+    )
+
+###
 # AWS Sandbox configuration
 ###
 # Boolean flag for metaflow AWS sandbox access
@@ -442,6 +489,8 @@ try:
                     vars()["DEBUG_%s" % typ.upper()] = from_conf(
                         "DEBUG_%s" % typ.upper()
                     )
+            elif n.startswith("TOGGLE_") and n[7:].lower() in _plugin_defaults:
+                vars()[n].extend(o)
             elif n == "get_pinned_conda_libs":
 
                 def _new_get_pinned_conda_libs(

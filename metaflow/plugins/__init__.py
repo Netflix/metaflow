@@ -21,15 +21,8 @@ _plugin_categories = {
 
 def add_plugin_support(g):
     for category in _plugin_categories:
-        g.update(
-            {
-                "__%ss_exclusions" % category: [],
-                "__%ss" % category: {},
-            }
-        )
 
-        def _exclude(names, exclude_from=g["__%ss_exclusions" % category]):
-            exclude_from.extend(names)
+        g["__%ss" % category] = {}
 
         def _add(
             name,
@@ -46,7 +39,7 @@ def add_plugin_support(g):
                     i += 1
                 # We deal with multiple periods at the start
                 if i > len(pkg_components):
-                    raise ValueError("Path '%s' exits out of metaflow module" % path)
+                    raise ValueError("Path '%s' exits out of Metaflow module" % path)
                 path = (
                     ".".join(pkg_components[: -i + 1] if i > 1 else pkg_components)
                     + path[i - 1 :]
@@ -56,12 +49,7 @@ def add_plugin_support(g):
             )
             add_to[name] = (path, cls_name)
 
-        g.update(
-            {
-                "%s_add" % category: _add,
-                "%s_exclude" % category: _exclude,
-            }
-        )
+        g["%s_add" % category] = _add
 
 
 add_plugin_support(globals())
@@ -157,13 +145,8 @@ aws_provider_add("boto3", ".aws.aws_client", "Boto3ClientProvider")
 
 
 def _merge_plugins(base, module, category):
-    # Add to base things from the module and remove anything the module wants to remove
+    # Add to base things from the module
     base.update(getattr(module, "__%ss" % category, {}))
-    excl = getattr(module, "__%ss_exclusions" % category, [])
-    for n in excl:
-        _ext_debug("    Module '%s' removing %s %s" % (module.__name__, category, n))
-        if n in base:
-            del base[n]
 
 
 def _merge_lists(base, overrides, attr):
@@ -178,7 +161,21 @@ def _merge_lists(base, overrides, attr):
 
 
 def _lazy_plugin_resolve(category):
-    d = globals()["__%ss" % category]
+    # We look at TOGGLE_<category> in metaflow_config and build a list of plugins
+    # we need
+    import metaflow.metaflow_config as config
+
+    list_of_plugins = getattr(config, "TOGGLE_%sS" % category.upper())
+    set_of_plugins = set()
+    for p in list_of_plugins:
+        if p.startswith("-"):
+            set_of_plugins.discard(p[1:])
+        elif p.startswith("+"):
+            set_of_plugins.add(p[1:])
+        else:
+            set_of_plugins.add(p)
+
+    available_plugins = globals()["__%ss" % category]
     name_extractor = _plugin_categories[category]
     if not name_extractor:
         # If we have no name function, it means we just use the name in the dictionary
@@ -186,7 +183,13 @@ def _lazy_plugin_resolve(category):
         to_return = {}
     else:
         to_return = []
-    for name, (path, cls_name) in d.items():
+    for name in set_of_plugins:
+        path, cls_name = available_plugins.get(name, (None, None))
+        if path is None:
+            raise ValueError(
+                "Configuration requested %s plugin '%s' but no such plugin is available"
+                % (category, name)
+            )
         plugin_module = importlib.import_module(path)
         cls = getattr(plugin_module, cls_name, None)
         if cls is None:
