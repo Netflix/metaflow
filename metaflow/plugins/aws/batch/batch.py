@@ -9,16 +9,7 @@ import time
 from metaflow import util
 from metaflow.plugins.datatools.s3.s3tail import S3Tail
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import (
-    BATCH_METADATA_SERVICE_URL,
-    DATATOOLS_S3ROOT,
-    DATASTORE_SYSROOT_S3,
-    DEFAULT_METADATA,
-    BATCH_METADATA_SERVICE_HEADERS,
-    BATCH_EMIT_TAGS,
-    DATASTORE_CARD_S3ROOT,
-    S3_ENDPOINT_URL,
-)
+from metaflow.metaflow_config import config_values, BATCH_EMIT_TAGS
 from metaflow.mflog import (
     export_mflog_env_vars,
     bash_capture_logs,
@@ -217,20 +208,19 @@ class Batch(object):
             .swappiness(swappiness)
             .timeout_in_secs(run_time_limit)
             .task_id(attrs.get("metaflow.task_id"))
-            .environment_variable("AWS_DEFAULT_REGION", self._client.region())
+        )
+
+        for k, v in config_values():
+            job.environment_variable(k, v)
+
+        job = (
+            job.environment_variable("AWS_DEFAULT_REGION", self._client.region())
             .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
             .environment_variable("METAFLOW_CODE_URL", code_package_url)
             .environment_variable("METAFLOW_CODE_DS", code_package_ds)
             .environment_variable("METAFLOW_USER", attrs["metaflow.user"])
-            .environment_variable("METAFLOW_SERVICE_URL", BATCH_METADATA_SERVICE_URL)
-            .environment_variable(
-                "METAFLOW_SERVICE_HEADERS", json.dumps(BATCH_METADATA_SERVICE_HEADERS)
-            )
-            .environment_variable("METAFLOW_DATASTORE_SYSROOT_S3", DATASTORE_SYSROOT_S3)
-            .environment_variable("METAFLOW_DATATOOLS_S3ROOT", DATATOOLS_S3ROOT)
             .environment_variable("METAFLOW_DEFAULT_DATASTORE", "s3")
-            .environment_variable("METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA)
-            .environment_variable("METAFLOW_CARD_S3ROOT", DATASTORE_CARD_S3ROOT)
+            .environment_variable("METAFLOW_DEFAULT_METADATA", self.metadata.TYPE)
             .environment_variable("METAFLOW_RUNTIME_ENVIRONMENT", "aws-batch")
         )
         # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync between the local user
@@ -238,8 +228,6 @@ class Batch(object):
         # on the remote AWS Batch instance; this happens when METAFLOW_DATASTORE_SYSROOT_LOCAL
         # is NOT set (see get_datastore_root_from_config in datastore/local.py).
         # add METAFLOW_S3_ENDPOINT_URL
-        if S3_ENDPOINT_URL is not None:
-            job.environment_variable("METAFLOW_S3_ENDPOINT_URL", S3_ENDPOINT_URL)
 
         for name, value in env.items():
             job.environment_variable(name, value)

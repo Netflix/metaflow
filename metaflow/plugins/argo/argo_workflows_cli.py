@@ -8,7 +8,7 @@ from hashlib import sha1
 
 from metaflow import JSONType, current, decorators, parameters
 from metaflow._vendor import click
-from metaflow.metaflow_config import METADATA_SERVICE_VERSION_CHECK
+from metaflow.metaflow_config import SERVICE_VERSION_CHECK
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.package import MetaflowPackage
 from metaflow.plugins.environment_decorator import EnvironmentDecorator
@@ -146,7 +146,7 @@ def create(
 
     obj.echo("Deploying *%s* to Argo Workflows..." % obj.workflow_name, bold=True)
 
-    if METADATA_SERVICE_VERSION_CHECK:
+    if SERVICE_VERSION_CHECK:
         # TODO: Consider dispelling with this check since it's been 2 years since the
         #       needed metadata service changes have been available in open-source. It's
         #       likely that Metaflow users may not have access to metadata service from

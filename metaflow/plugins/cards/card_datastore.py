@@ -10,12 +10,12 @@ import shutil
 
 from metaflow.plugins.datastores.local_storage import LocalStorage
 from metaflow.metaflow_config import (
-    DATASTORE_CARD_S3ROOT,
-    DATASTORE_CARD_LOCALROOT,
+    CARD_S3ROOT,
+    CARD_LOCALROOT,
     DATASTORE_LOCAL_DIR,
-    DATASTORE_CARD_SUFFIX,
-    DATASTORE_CARD_AZUREROOT,
-    SKIP_CARD_DUAL_WRITE,
+    CARD_SUFFIX,
+    CARD_AZUREROOT,
+    SKIP_CARD_DUALWRITE,
 )
 import metaflow.metaflow_config as metaflow_config
 
@@ -47,17 +47,15 @@ class CardDatastore(object):
     @classmethod
     def get_storage_root(cls, storage_type):
         if storage_type == "s3":
-            return DATASTORE_CARD_S3ROOT
+            return CARD_S3ROOT
         elif storage_type == "azure":
-            return DATASTORE_CARD_AZUREROOT
+            return CARD_AZUREROOT
         elif storage_type == "local":
             # Borrowing some of the logic from LocalStorage.get_storage_root
-            result = DATASTORE_CARD_LOCALROOT
+            result = CARD_LOCALROOT
             if result is None:
                 current_path = os.getcwd()
-                check_dir = os.path.join(
-                    current_path, DATASTORE_LOCAL_DIR, DATASTORE_CARD_SUFFIX
-                )
+                check_dir = os.path.join(current_path, DATASTORE_LOCAL_DIR, CARD_SUFFIX)
                 check_dir = os.path.realpath(check_dir)
                 orig_path = check_dir
                 while not os.path.isdir(check_dir):
@@ -66,7 +64,7 @@ class CardDatastore(object):
                         break  # We are no longer making upward progress
                     current_path = new_path
                     check_dir = os.path.join(
-                        current_path, DATASTORE_LOCAL_DIR, DATASTORE_CARD_SUFFIX
+                        current_path, DATASTORE_LOCAL_DIR, CARD_SUFFIX
                     )
                 result = orig_path
 
@@ -194,7 +192,7 @@ class CardDatastore(object):
         card_path_with_steps = self.get_card_location(
             self._get_write_path(), card_file_name, card_html, card_id=card_id
         )
-        if SKIP_CARD_DUAL_WRITE:
+        if SKIP_CARD_DUALWRITE:
             self._backend.save_bytes(
                 [(card_path_with_steps, BytesIO(bytes(card_html, "utf-8")))],
                 overwrite=overwrite,

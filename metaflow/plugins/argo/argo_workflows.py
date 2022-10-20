@@ -8,20 +8,11 @@ from metaflow import current
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
-    BATCH_METADATA_SERVICE_HEADERS,
-    BATCH_METADATA_SERVICE_URL,
-    DATASTORE_CARD_S3ROOT,
-    DATASTORE_SYSROOT_S3,
-    DATATOOLS_S3ROOT,
-    DEFAULT_METADATA,
+    config_values,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
     KUBERNETES_SECRETS,
-    S3_ENDPOINT_URL,
-    AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
-    DATASTORE_SYSROOT_AZURE,
-    DATASTORE_CARD_AZUREROOT,
 )
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
@@ -603,7 +594,7 @@ class ArgoWorkflows(object):
                     # For supporting sandboxes, ensure that a custom script is executed
                     # before anything else is executed. The script is passed in as an
                     # env var.
-                    '${METAFLOW_INIT_SCRIPT:+eval \\"${METAFLOW_INIT_SCRIPT}\\"}',
+                    '${METAFLOW_INIT_SCRIPT:+eval \\"${METAFLOW_METAFLOW_INIT_SCRIPT}\\"}',
                     "mkdir -p $PWD/.logs",
                     task_id_expr,
                     mflog_expr,
@@ -748,27 +739,18 @@ class ArgoWorkflows(object):
             )
             env.update(
                 {
+                    **{k: v for k, v in config_values()},
                     **{
-                        # These values are needed by Metaflow to set it's internal
+                        # These values are needed by Metaflow to set its internal
                         # state appropriately
                         "METAFLOW_CODE_URL": self.code_package_url,
                         "METAFLOW_CODE_SHA": self.code_package_sha,
                         "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
-                        "METAFLOW_SERVICE_URL": BATCH_METADATA_SERVICE_URL,
-                        "METAFLOW_SERVICE_HEADERS": json.dumps(
-                            BATCH_METADATA_SERVICE_HEADERS
-                        ),
                         "METAFLOW_USER": "argo-workflows",
-                        "METAFLOW_DATASTORE_SYSROOT_S3": DATASTORE_SYSROOT_S3,
-                        "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
                         "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
-                        "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
-                        "METAFLOW_CARD_S3ROOT": DATASTORE_CARD_S3ROOT,
                         "METAFLOW_KUBERNETES_WORKLOAD": 1,
                         "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
                         "METAFLOW_OWNER": self.username,
-                    },
-                    **{
                         # Some optional values for bookkeeping
                         "METAFLOW_FLOW_NAME": self.flow.name,
                         "METAFLOW_STEP_NAME": node.name,
@@ -779,22 +761,11 @@ class ArgoWorkflows(object):
                         "ARGO_WORKFLOW_TEMPLATE": self.name,
                         "ARGO_WORKFLOW_NAME": "{{workflow.name}}",
                         "ARGO_WORKFLOW_NAMESPACE": KUBERNETES_NAMESPACE,
+                        "METAFLOW_INIT_SCRIPT": KUBERNETES_SANDBOX_INIT_SCRIPT,
                     },
                     **self.metadata.get_runtime_environment("argo-workflows"),
                 }
             )
-            # add METAFLOW_S3_ENDPOINT_URL
-            env["METAFLOW_S3_ENDPOINT_URL"] = S3_ENDPOINT_URL
-
-            # support Metaflow sandboxes
-            env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
-
-            # Azure stuff
-            env[
-                "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
-            ] = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
-            env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = DATASTORE_SYSROOT_AZURE
-            env["METAFLOW_DATASTORE_CARD_AZUREROOT"] = DATASTORE_CARD_AZUREROOT
 
             metaflow_version = self.environment.get_environment_info()
             metaflow_version["flow_name"] = self.graph.name

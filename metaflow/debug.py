@@ -23,7 +23,7 @@ class Debug(object):
         import metaflow.metaflow_config as config
 
         for typ in config.DEBUG_OPTIONS:
-            if getattr(config, "METAFLOW_DEBUG_%s" % typ.upper()):
+            if getattr(config, "DEBUG_%s" % typ.upper()):
                 op = partial(self.log, typ)
             else:
                 op = self.noop

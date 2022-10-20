@@ -7,7 +7,7 @@ from distutils.version import LooseVersion
 
 from metaflow import current, decorators, parameters, JSONType
 from metaflow.metaflow_config import (
-    METADATA_SERVICE_VERSION_CHECK,
+    SERVICE_VERSION_CHECK,
     SFN_STATE_MACHINE_PREFIX,
 )
 from metaflow.exception import MetaflowException, MetaflowInternalError
@@ -139,7 +139,7 @@ def create(
         "Deploying *%s* to AWS Step Functions..." % obj.state_machine_name, bold=True
     )
 
-    if METADATA_SERVICE_VERSION_CHECK:
+    if SERVICE_VERSION_CHECK:
         check_metadata_service_version(obj)
 
     token = resolve_token(

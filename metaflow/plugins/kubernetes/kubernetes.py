@@ -6,20 +6,7 @@ import time
 
 from metaflow import current, util
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import (
-    BATCH_METADATA_SERVICE_HEADERS,
-    BATCH_METADATA_SERVICE_URL,
-    DATASTORE_CARD_S3ROOT,
-    DATASTORE_SYSROOT_S3,
-    DATATOOLS_S3ROOT,
-    DEFAULT_AWS_CLIENT_PROVIDER,
-    DEFAULT_METADATA,
-    KUBERNETES_SANDBOX_INIT_SCRIPT,
-    S3_ENDPOINT_URL,
-    AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
-    DATASTORE_SYSROOT_AZURE,
-    DATASTORE_CARD_AZUREROOT,
-)
+from metaflow.metaflow_config import config_values, KUBERNETES_SANDBOX_INIT_SCRIPT
 from metaflow.mflog import (
     BASH_SAVE_LOGS,
     bash_capture_logs,
@@ -148,62 +135,44 @@ class Kubernetes(object):
         env={},
     ):
 
-        job = (
-            KubernetesClient()
-            .job(
-                generate_name="t-",
-                namespace=namespace,
-                service_account=service_account,
-                secrets=secrets,
-                node_selector=node_selector,
-                command=self._command(
-                    flow_name=flow_name,
-                    run_id=run_id,
-                    step_name=step_name,
-                    task_id=task_id,
-                    attempt=attempt,
-                    code_package_url=code_package_url,
-                    step_cmds=[step_cli],
-                ),
-                image=docker_image,
-                cpu=cpu,
-                memory=memory,
-                disk=disk,
-                gpu=gpu,
-                gpu_vendor=gpu_vendor,
-                timeout_in_seconds=run_time_limit,
-                # Retries are handled by Metaflow runtime
-                retries=0,
+        job = KubernetesClient().job(
+            generate_name="t-",
+            namespace=namespace,
+            service_account=service_account,
+            secrets=secrets,
+            node_selector=node_selector,
+            command=self._command(
+                flow_name=flow_name,
+                run_id=run_id,
                 step_name=step_name,
-            )
-            .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
+                task_id=task_id,
+                attempt=attempt,
+                code_package_url=code_package_url,
+                step_cmds=[step_cli],
+            ),
+            image=docker_image,
+            cpu=cpu,
+            memory=memory,
+            disk=disk,
+            gpu=gpu,
+            gpu_vendor=gpu_vendor,
+            timeout_in_seconds=run_time_limit,
+            # Retries are handled by Metaflow runtime
+            retries=0,
+            step_name=step_name,
+        )
+
+        for k, v in config_values():
+            job.environment_variable(k, v)
+        job = (
+            job.environment_variable("METAFLOW_CODE_SHA", code_package_sha)
             .environment_variable("METAFLOW_CODE_URL", code_package_url)
             .environment_variable("METAFLOW_CODE_DS", code_package_ds)
             .environment_variable("METAFLOW_USER", user)
-            .environment_variable("METAFLOW_SERVICE_URL", BATCH_METADATA_SERVICE_URL)
-            .environment_variable(
-                "METAFLOW_SERVICE_HEADERS",
-                json.dumps(BATCH_METADATA_SERVICE_HEADERS),
-            )
-            .environment_variable("METAFLOW_DATASTORE_SYSROOT_S3", DATASTORE_SYSROOT_S3)
-            .environment_variable("METAFLOW_DATATOOLS_S3ROOT", DATATOOLS_S3ROOT)
             .environment_variable("METAFLOW_DEFAULT_DATASTORE", self._datastore.TYPE)
-            .environment_variable("METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA)
+            .environment_variable("METAFLOW_DEFAULT_METADATA", self._metadata.TYPE)
             .environment_variable("METAFLOW_KUBERNETES_WORKLOAD", 1)
             .environment_variable("METAFLOW_RUNTIME_ENVIRONMENT", "kubernetes")
-            .environment_variable("METAFLOW_CARD_S3ROOT", DATASTORE_CARD_S3ROOT)
-            .environment_variable(
-                "METAFLOW_DEFAULT_AWS_CLIENT_PROVIDER", DEFAULT_AWS_CLIENT_PROVIDER
-            )
-            .environment_variable("METAFLOW_S3_ENDPOINT_URL", S3_ENDPOINT_URL)
-            .environment_variable(
-                "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT",
-                AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
-            )
-            .environment_variable(
-                "METAFLOW_DATASTORE_SYSROOT_AZURE", DATASTORE_SYSROOT_AZURE
-            )
-            .environment_variable("METAFLOW_CARD_AZUREROOT", DATASTORE_CARD_AZUREROOT)
             # support Metaflow sandboxes
             .environment_variable(
                 "METAFLOW_INIT_SCRIPT", KUBERNETES_SANDBOX_INIT_SCRIPT

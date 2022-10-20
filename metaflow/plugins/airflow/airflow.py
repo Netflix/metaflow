@@ -11,17 +11,10 @@ import metaflow.util as util
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
-    BATCH_METADATA_SERVICE_HEADERS,
-    BATCH_METADATA_SERVICE_URL,
-    DATASTORE_CARD_S3ROOT,
-    DATASTORE_SYSROOT_S3,
-    DATATOOLS_S3ROOT,
+    config_values,
     KUBERNETES_SERVICE_ACCOUNT,
     KUBERNETES_SECRETS,
-    AIRFLOW_KUBERNETES_STARTUP_TIMEOUT,
-    AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
-    DATASTORE_SYSROOT_AZURE,
-    DATASTORE_CARD_AZUREROOT,
+    AIRFLOW_KUBERNETES_STARTUP_TIMEOUT_SECONDS,
     AIRFLOW_KUBERNETES_CONN_ID,
 )
 from metaflow.parameters import DelayedEvaluationParameter, deploy_time_eval
@@ -344,36 +337,29 @@ class Airflow(object):
             # Question to (savin) : Should we have username set over here for created by since it is the airflow installation that is creating the jobs.
             # Technically the "user" is the stakeholder but should these labels be present.
         }
-        additional_mf_variables = {
-            "METAFLOW_CODE_SHA": self.code_package_sha,
-            "METAFLOW_CODE_URL": self.code_package_url,
-            "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
-            "METAFLOW_USER": user,
-            "METAFLOW_SERVICE_URL": BATCH_METADATA_SERVICE_URL,
-            "METAFLOW_SERVICE_HEADERS": json.dumps(BATCH_METADATA_SERVICE_HEADERS),
-            "METAFLOW_DATASTORE_SYSROOT_S3": DATASTORE_SYSROOT_S3,
-            "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
-            "METAFLOW_DEFAULT_DATASTORE": "s3",
-            "METAFLOW_DEFAULT_METADATA": "service",
-            "METAFLOW_KUBERNETES_WORKLOAD": str(
-                1
-            ),  # This is used by kubernetes decorator.
-            "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
-            "METAFLOW_CARD_S3ROOT": DATASTORE_CARD_S3ROOT,
-            "METAFLOW_RUN_ID": AIRFLOW_MACROS.RUN_ID,
-            "METAFLOW_AIRFLOW_TASK_ID": AIRFLOW_MACROS.TASK_ID
-            if not self.contains_foreach
-            else AIRFLOW_MACROS.FOREACH_TASK_ID,
-            "METAFLOW_AIRFLOW_DAG_RUN_ID": AIRFLOW_MACROS.AIRFLOW_RUN_ID,
-            "METAFLOW_AIRFLOW_JOB_ID": AIRFLOW_MACROS.AIRFLOW_JOB_ID,
-            "METAFLOW_PRODUCTION_TOKEN": self.production_token,
-            "METAFLOW_ATTEMPT_NUMBER": AIRFLOW_MACROS.ATTEMPT,
-        }
-        env[
-            "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
-        ] = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
-        env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = DATASTORE_SYSROOT_AZURE
-        env["METAFLOW_DATASTORE_CARD_AZUREROOT"] = DATASTORE_CARD_AZUREROOT
+        additional_mf_variables = {k: v for k, v in config_values()}
+        additional_mf_variables.update(
+            {
+                "METAFLOW_CODE_SHA": self.code_package_sha,
+                "METAFLOW_CODE_URL": self.code_package_url,
+                "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
+                "METAFLOW_USER": user,
+                "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
+                "METAFLOW_DEFAULT_METADATA": self.metadata.TYPE,
+                "METAFLOW_KUBERNETES_WORKLOAD": str(
+                    1
+                ),  # This is used by kubernetes decorator.
+                "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
+                "METAFLOW_RUN_ID": AIRFLOW_MACROS.RUN_ID,
+                "METAFLOW_AIRFLOW_TASK_ID": AIRFLOW_MACROS.TASK_ID
+                if not self.contains_foreach
+                else AIRFLOW_MACROS.FOREACH_TASK_ID,
+                "METAFLOW_AIRFLOW_DAG_RUN_ID": AIRFLOW_MACROS.AIRFLOW_RUN_ID,
+                "METAFLOW_AIRFLOW_JOB_ID": AIRFLOW_MACROS.AIRFLOW_JOB_ID,
+                "METAFLOW_PRODUCTION_TOKEN": self.production_token,
+                "METAFLOW_ATTEMPT_NUMBER": AIRFLOW_MACROS.ATTEMPT,
+            }
+        )
         env.update(additional_mf_variables)
 
         service_account = (
@@ -448,7 +434,7 @@ class Airflow(object):
             env_vars=[dict(name=k, value=v) for k, v in env.items() if v is not None],
             labels=labels,
             task_id=node.name,
-            startup_timeout_seconds=AIRFLOW_KUBERNETES_STARTUP_TIMEOUT,
+            startup_timeout_seconds=AIRFLOW_KUBERNETES_STARTUP_TIMEOUT_SECONDS,
             get_logs=True,
             do_xcom_push=True,
             log_events_on_failure=True,
