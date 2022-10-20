@@ -1,5 +1,3 @@
-import base64
-from datetime import datetime
 from io import StringIO
 import json
 import os
@@ -47,7 +45,6 @@ from .util import (
     event_topic,
     format_sensor_name,
     list_to_prose,
-    make_event_body,
     project_and_branch,
 )
 
@@ -341,6 +338,15 @@ class ArgoWorkflows(object):
                 )
             else:
                 parameters.append(dict(name=param.name))
+
+        # Add parameters to hold any triggering events
+        if not self._ignore_events and are_events_configured():
+            for decorator in flow_decorators():
+                if decorator.name in ["trigger_on_finish", "trigger_on"]:
+                    trigger_set = decorator.attributes["trigger_set"]
+                    for i in range(len(trigger_set)):
+                        parameters.append(dict(name="mf-event-%d" % i, value=None))
+
         return parameters
 
     def _compile(self):
@@ -711,6 +717,13 @@ class ArgoWorkflows(object):
                     self.code_package_url, self.flow_datastore.TYPE
                 )
             )
+            # If events are enabled and we're using a NATS event source
+            # then inject nats-py into the environment
+            if not self._ignore_events and are_events_configured():
+                if EVENT_SOURCE_URL.startswith("nats://"):
+                    init_cmds = init_cmds.replace(
+                        "pip install requests -qqq", "pip install -qqq requests nats-py"
+                    )
             step_cmds = self.environment.bootstrap_commands(
                 node.name, self.flow_datastore.TYPE
             )
@@ -759,6 +772,8 @@ class ArgoWorkflows(object):
                         "--%s={{workflow.parameters.%s}}"
                         % (parameter["name"], parameter["name"])
                         for parameter in self.parameters
+                        # Skip "system" event parameters
+                        if not parameter["name"].startswith("mf-")
                     ]
                 )
                 if self.tags:
@@ -1054,7 +1069,11 @@ class ArgoWorkflows(object):
                 if self._ignore_events:
                     return
                 elif are_events_configured():
-                    template_env = {"METAFLOW_EVENT_SOURCE_NAME": EVENT_SOURCE_NAME}
+                    template_env = {
+                        "METAFLOW_EVENT_SOURCE_NAME": EVENT_SOURCE_NAME,
+                        "METAFLOW_FLOW_NAME": self.flow.name,
+                        "METAFLOW_RUN_ID": self._run_id,
+                    }
                     if EVENT_SOURCE_URL.startswith("nats://"):
                         parsed = parse.urlparse(EVENT_SOURCE_URL)
                         template_env["METAFLOW_EVENT_ENDPOINT"] = parsed.netloc
@@ -1067,8 +1086,6 @@ class ArgoWorkflows(object):
                         template_env, "succeeded"
                     )
                     if self._sensor_template is not None:
-                        template_env["ARGO_WORKFLOW_NAME"] = "{{workflow.name}}"
-                        template_env["METAFLOW_RUN_ID"] = self._run_id
                         template_env[
                             "METAFLOW_SERVICE_URL"
                         ] = BATCH_METADATA_SERVICE_URL
@@ -1082,9 +1099,9 @@ class ArgoWorkflows(object):
         t.set_env_vars(env)
         return t
 
-    def _make_metadata_hook_container_template(self, template_env):
-        t = WorkflowMetadataHookContainerTemplate()
-        t.set_env_vars(template_env)
+    def _make_metadata_hook_container_template(self, env):
+        t = WorkflowMetadataHookContainerTemplate(self.parameters)
+        t.set_env_vars(env)
         return t
 
     def _get_retries(self, node):
@@ -1280,10 +1297,9 @@ class WorkflowSpec(object):
                 "template": "on-succeeded",
                 "expression": 'workflow.status == "Succeeded"',
             }
-            success_name = "mf-" + name + "-succeeded"
             if "hooks" not in self.payload:
                 self.payload["hooks"] = dict()
-            self.payload["hooks"] = {success_name: success}
+            self.payload["hooks"] = {"mf-run-succeeded": success}
         return self
 
     def metadata_update_hook(self, sensor_template):
@@ -1587,14 +1603,65 @@ class Arguments(object):
 
 
 class WorkflowMetadataHookContainerTemplate:
-    def __init__(self):
+    def __init__(self, parameters):
         self._name = "on-run-started"
         self._env = dict()
-        self.command = self._build_command()
+        self.command = self._build_command(parameters)
 
-    def _build_command(self):
+    def _build_command(self, parameters):
+        python_source = "".join(
+            [
+                "import json,os,re,time,requests;",
+                "raw_events='{{workflow.parameters}}'.replace('name:', '\"name\":').replace('value:', '\"value\":');",
+            ]
+            + [
+                """
+            # Argo doesn't wrap the name and value field names in quotes
+            # so we use a regex to find them and fix
+            matches=re.findall(r'(mf-event-[0-9]+)',raw_events)
+            for m in matches:
+                raw_events=raw_events.replace(m, '"%s"' % m)
+            triggering_events=json.loads(raw_events);
+            """.replace(
+                    "            ", ""
+                )
+            ]
+            + [
+                'headers=json.loads(os.getenv("METAFLOW_SERVICE_HEADERS"));',
+                'base_url=os.getenv("METAFLOW_SERVICE_URL");',
+                'flow_name=os.getenv("METAFLOW_FLOW_NAME");',
+                'run_id=os.getenv("METAFLOW_RUN_ID");',
+                'md_url="%sflows/%s/runs/%s/steps/start/tasks" % (base_url,flow_name,run_id);',
+            ]
+            + [
+                """tasks=[];
+                while tasks==[]:
+                    time.sleep(1);
+                    resp=requests.get(url=md_url,headers=headers);
+                    resp.raise_for_status();
+                    tasks=resp.json()
+                task=tasks[0];
+                """.replace(
+                    "                ", ""
+                )
+            ]
+            + [
+                'task_url="%s/%s/metadata"%(md_url,task["task_id"]);',
+                'md={"flow_id": flow_name, "run_number": run_id, "step_name": "start"};',
+                'md["task_id"]=task["task_id"];md["field_name"]="trigger_events";',
+                'md["type"]="trigger_events";md["value"]=triggering_events;',
+                "resp=requests.post(url=task_url,headers=headers,json=[md]);",
+                'print("Triggering event(s) metadata update status: %d" % resp.status_code);',
+                'print("Triggering event(s) metadata:");print("%s" % json.dumps(md, indent=4));'
+                "resp.raise_for_status()",
+            ]
+        )
+
         return " && ".join(
-            ["pip3 install -qqq requests", "python3 -c \"print('Hello')\""]
+            [
+                "pip install -qqq requests",
+                'python -c "%s"' % python_source.replace('"', '\\"'),
+            ]
         )
 
     def set_env_vars(self, vars):
@@ -1617,6 +1684,11 @@ class WorkflowMetadataHookContainerTemplate:
                 "failFast": True,
                 "resources": {"requests": {"cpu": "1", "memory": "512M"}},
             },
+            "failFast": True,
+            "retryStrategy": {
+                "limit": "1",
+                "retryPolicy": "OnFailure",
+            },
         }
 
     def __str__(self):
@@ -1628,43 +1700,66 @@ class WorkflowLifecycleHookContainerTemplate(object):
         tree = lambda: defaultdict(tree)
         self.payload = tree()
         self._requests = {"requests": {"cpu": "1", "memory": "512M"}}
-        self._image = "ubuntu:22.04"
         self._env = dict()
         self.name = "on-" + lifecycle_event
-        body = make_event_body(flow_name.replace(".", "-"), "metaflow_system")
-        text = json.dumps(body)
+        self.command = self._build_command(flow_name)
+
+    def _build_command(self, flow_name):
+        event_name = flow_name.replace(".", "-")
+        common_code = [
+            'flow_name="%s";' % event_name,
+            'run_id=os.getenv("METAFLOW_RUN_ID");',
+            "timestamp=int(datetime.datetime.timestamp(datetime.datetime.utcnow()));",
+            'pathspec="/flows/%s/runs/%s" % (flow_name, run_id);',
+            'payload=json.dumps({"payload":{"event_name":flow_name,"event_type":"metaflow_system","data":{},"pathspec":pathspec,"timestamp":timestamp}});',
+        ]
         if EVENT_SOURCE_URL.startswith("nats://"):
-            commands = [
-                # Update pkg index
-                "apt-get update",
-                # Install curl
-                "apt-get -y install curl",
-                # Fetch NATS package
-                "/usr/bin/curl -o natscli.deb -L https://github.com/nats-io/natscli/releases/download/v0.0.34/nats-0.0.34-amd64.deb",
-                # Install it
-                "dpkg -i natscli.deb",
-                # Get current timestamp
-                "TS=$(date -u +%s)",
-                # Create event payload with current UTC timestamp
-                'PAYLOAD="$(echo \'%s\' | sed -e "s/\\"TS\\"/${TS}/g")"' % text,
-                # Publish event
-                'nats --user=$NATS_TOKEN -s $METAFLOW_EVENT_ENDPOINT pub $METAFLOW_EVENT_PATH "${PAYLOAD}"',
-            ]
+            commands = ["pip install -qqq nats-py"]
+            python_source = "".join(
+                ["import asyncio,datetime,json,os,sys,time,nats;"]
+                + common_code
+                + [
+                    'auth_token=os.getenv("NATS_TOKEN");',
+                    'server=os.getenv("METAFLOW_EVENT_ENDPOINT");',
+                    'topic=os.getenv("METAFLOW_EVENT_PATH");',
+                ]
+                + [
+                    """
+                    raw_payload=bytes(payload, "UTF-8")
+                    async def send_it():
+                        try:
+                            conn = await nats.connect(server, token=auth_token)
+                            await conn.publish(topic, raw_payload)
+                            await conn.drain()
+                            print("Lifecycle event successfully sent to %s/%s" % (server, topic))
+                        except Exception as e:
+                            print(e,file=sys.stderr,flush=True)
+                            sys.exit(1)
+                    asyncio.run(send_it())
+                    time.sleep(300)
+                    sys.exit(0)
+                """.replace(
+                        "                    ", ""
+                    )
+                ]
+            )
         else:
-            # TODO: Use existing container bootstrap logic to call webhook event sources
-            commands = [
-                # Update pkg index
-                "apt-get update",
-                # Install curl
-                "apt-get -y install curl",
-                # Get current timestamp
-                "TS=$(date -u +%s)",
-                # Create event payload with current UTC timestamp
-                'PAYLOAD="$(echo \'%s\' | sed -e "s/\\"TS\\"/${TS}/g")"' % text,
-                # Publish event
-                'curl -H"content-type: application/json" -XPOST --data "${PAYLOAD}" $METAFLOW_EVENT_SOURCE_URL',
-            ]
-        self.command = ["bash", "-c", " && ".join(commands)]
+            commands = ["pip install -qqq requests"]
+            python_source = "".join(
+                ["import datetime,json,os,time,requests;"]
+                + common_code
+                + [
+                    'event_url=os.getenv("METAFLOW_EVENT_SOURCE_URL");'
+                    'headers={"content-type": "json"};'
+                    "resp=requests.post(url=event_url,headers=headers,json=payload);",
+                    "print('Lifecycle event sent status: %d' % resp.status_code);",
+                    "resp.raise_for_status();",
+                    "time.sleep(300)",
+                ]
+            )
+        final_source = 'python -c "%s"' % python_source.replace('"', '\\"')
+        commands.append(final_source)
+        return " && ".join(commands)
 
     @property
     def name(self):
@@ -1673,14 +1768,6 @@ class WorkflowLifecycleHookContainerTemplate(object):
     @name.setter
     def name(self, name):
         self._name = name
-
-    @property
-    def command(self):
-        return self._command
-
-    @command.setter
-    def command(self, commands):
-        self._command = commands
 
     @property
     def env(self):
@@ -1716,11 +1803,16 @@ class WorkflowLifecycleHookContainerTemplate(object):
         return {
             "name": self.name,
             "container": {
-                "image": self._image,
-                "command": self.command,
+                "image": "python:3.8",
+                "command": ["/bin/sh", "-c"],
+                "args": [self.command],
                 "resources": self._requests,
                 "env": self.env,
-                "failFast": True,
+            },
+            "failFast": True,
+            "retryStrategy": {
+                "limit": "1",
+                "retryPolicy": "OnFailure",
             },
         }
 
@@ -1818,9 +1910,23 @@ class SensorTemplate:
     def _build_parameter_assignments(self):
         assignments = []
         i = 0
+        j = 0
         for param in self.parameters:
             param_name = param["name"]
-            if param_name in self.transformed_fields:
+            if param_name.startswith("mf-"):
+                dep = self.dependencies[j]
+                assignments.append(
+                    {
+                        "src": {
+                            "dependencyName": dep["name"],
+                            "dataKey": "body.payload",
+                        },
+                        "dest": "spec.arguments.parameters.%d.value" % i,
+                    }
+                )
+                j += 1
+
+            elif param_name in self.transformed_fields:
                 name = self.transformed_fields[param_name]
                 dependency = self.dependency_names[name]
                 assignments.append(

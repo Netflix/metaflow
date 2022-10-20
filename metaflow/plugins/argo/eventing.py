@@ -12,13 +12,24 @@ from metaflow.exception import MetaflowException, MetaflowExceptionWrapper
 from metaflow.plugins.argo.util import (
     current_flow_name,
     project_and_branch,
-    make_event_body,
 )
 import requests
 
 
 class BadEventNameException(MetaflowException):
     headline = "Bad event name detected"
+
+
+def make_event_body(event_name, event_type, event_data=dict()):
+    return {
+        "payload": {
+            "event_name": event_name,
+            "event_type": event_type,
+            "data": event_data,
+            "pathspec": current.pathspec,
+            "timestamp": int(datetime.utcnow().timestamp()),
+        }
+    }
 
 
 def send_event(event_name, event_data={}):
@@ -40,9 +51,8 @@ def send_event(event_name, event_data={}):
             ("Attempted to send '%s'. " % event_name)
             + "Event names can only contain lowercase characters, digits, '.', '_', and '-'."
         )
-    body = make_event_body(
-        event_name, "metaflow_user", event_data=event_data, capture_time=True
-    )
+    body = make_event_body(event_name, "metaflow_user", event_data=event_data)
+
     event_source_url = os.getenv("METAFLOW_EVENT_SOURCE")
     if event_source_url.startswith("nats://"):
         asyncio.run(_send_nats_event(event_source_url, body))

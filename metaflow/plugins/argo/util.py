@@ -28,21 +28,6 @@ def event_topic():
     return url_chunks[-1]
 
 
-def make_event_body(event_name, event_type, event_data=dict(), capture_time=False):
-    timestamp = "TS"
-    if capture_time:
-        timestamp = int(datetime.utcnow().timestamp())
-    return {
-        "payload": {
-            "event_name": event_name,
-            "event_type": event_type,
-            "data": event_data,
-            "pathspec": current.pathspec,
-            "timestamp": timestamp,
-        }
-    }
-
-
 def current_flow_name():
     flow_name = current.get("project_flow_name")
     if flow_name is None:
