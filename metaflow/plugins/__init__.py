@@ -7,22 +7,25 @@ _plugin_categories = {
     "step_decorator": lambda x: x.name,
     "flow_decorator": lambda x: x.name,
     "environment": lambda x: x.TYPE,
-    "metadata": lambda x: x.TYPE,
+    "metadata_provider": lambda x: x.TYPE,
     "datastore": lambda x: x.TYPE,
     "sidecar": None,
     "logging_sidecar": None,
     "monitor_sidecar": None,
-    "aws_provider": lambda x: x.name,
+    "aws_client_provider": lambda x: x.name,
     "cli": lambda x: list(x.commands)[0]
     if len(x.commands) == 1
     else "too many commands",
 }
 
 
-def add_plugin_support(g):
+def add_plugin_support(g, base_init=False):
     for category in _plugin_categories:
 
         g["__%ss" % category] = {}
+
+        if base_init:
+            g["__ext_add_%ss" % category] = []
 
         def _add(
             name,
@@ -45,14 +48,24 @@ def add_plugin_support(g):
                     + path[i - 1 :]
                 )
             _ext_debug(
-                "    Adding %s: %s from %s.%s" % (category, name, path, cls_name)
+                "        Adding %s: %s from %s.%s" % (category, name, path, cls_name)
             )
             add_to[name] = (path, cls_name)
 
         g["%s_add" % category] = _add
 
 
-add_plugin_support(globals())
+def del_plugin_support(g):
+    for category in _plugin_categories:
+        # Need to keep CLI around since it is used in a function
+        if category == "cli":
+            continue
+        del g["__%ss" % category]
+        del g["__ext_add_%ss" % category]
+        del g["%s_add" % category]
+
+
+add_plugin_support(globals(), base_init=True)
 
 # Add new CLI commands here
 cli_add("package", ".package_cli", "cli")
@@ -116,8 +129,8 @@ flow_decorator_add("project", ".project_decorator", "ProjectDecorator")
 environment_add("conda", ".conda.conda_environment", "CondaEnvironment")
 
 # Add metadata providers here
-metadata_add("service", ".metadata.service", "ServiceMetadataProvider")
-metadata_add("local", ".metadata.local", "LocalMetadataProvider")
+metadata_provider_add("service", ".metadata.service", "ServiceMetadataProvider")
+metadata_provider_add("local", ".metadata.local", "LocalMetadataProvider")
 
 # Add datastore here
 datastore_add("local", ".datastores.local_storage", "LocalStorage")
@@ -141,12 +154,11 @@ monitor_sidecar_add("debugMonitor", ".debug_monitor", "DebugMonitor")
 monitor_sidecar_add("nullSidecarMonitor", "metaflow.monitor", "NullMonitor")
 
 # Add AWS client providers here
-aws_provider_add("boto3", ".aws.aws_client", "Boto3ClientProvider")
+aws_client_provider_add("boto3", ".aws.aws_client", "Boto3ClientProvider")
 
 
-def _merge_plugins(base, module, category):
-    # Add to base things from the module
-    base.update(getattr(module, "__%ss" % category, {}))
+def _get_ext_plugins(module, category):
+    return getattr(module, "__%ss" % category, {})
 
 
 def _merge_lists(base, overrides, attr):
@@ -165,7 +177,13 @@ def _lazy_plugin_resolve(category):
     # we need
     import metaflow.metaflow_config as config
 
-    list_of_plugins = getattr(config, "TOGGLE_%sS" % category.upper())
+    # By default, everything added in an extension is *enabled* (which is probably what
+    # users want since they add the extension). We add these first
+    list_of_plugins = list(globals()["__ext_add_%ss" % category])
+    list_of_plugins.extend(getattr(config, "ENABLED_%sS" % category.upper()))
+    _ext_debug(
+        "For %s, got raw list of plugins as: %s" % (category, str(list_of_plugins))
+    )
     set_of_plugins = set()
     for p in list_of_plugins:
         if p.startswith("-"):
@@ -183,6 +201,9 @@ def _lazy_plugin_resolve(category):
         to_return = {}
     else:
         to_return = []
+    _ext_debug(
+        "For %s, resolved list of plugins is: %s" % (category, str(set_of_plugins))
+    )
     for name in set_of_plugins:
         path, cls_name = available_plugins.get(name, (None, None))
         if path is None:
@@ -215,7 +236,10 @@ try:
     # Build an ordered list
     for c in _plugin_categories:
         for m in _modules_to_import:
-            _merge_plugins(globals()["__%ss" % c], m.module, c)
+            globals()["__%ss" % c].update(_get_ext_plugins(m.module, c))
+            globals()["__ext_add_%ss" % c].extend(
+                list(_get_ext_plugins(m.module, c).keys())
+            )
 except Exception as e:
     _ext_debug("\tWARNING: ignoring all plugins due to error during import: %s" % e)
     print(
@@ -232,7 +256,7 @@ def get_plugin_cli():
 STEP_DECORATORS = _lazy_plugin_resolve("step_decorator")
 FLOW_DECORATORS = _lazy_plugin_resolve("flow_decorator")
 ENVIRONMENTS = _lazy_plugin_resolve("environment")
-METADATA_PROVIDERS = _lazy_plugin_resolve("metadata")
+METADATA_PROVIDERS = _lazy_plugin_resolve("metadata_provider")
 DATASTORES = _lazy_plugin_resolve("datastore")
 SIDECARS = _lazy_plugin_resolve("sidecar")
 LOGGING_SIDECARS = _lazy_plugin_resolve("logging_sidecar")
@@ -241,7 +265,7 @@ MONITOR_SIDECARS = _lazy_plugin_resolve("monitor_sidecar")
 SIDECARS.update(LOGGING_SIDECARS)
 SIDECARS.update(MONITOR_SIDECARS)
 
-AWS_CLIENT_PROVIDERS = _lazy_plugin_resolve("aws_provider")
+AWS_CLIENT_PROVIDERS = _lazy_plugin_resolve("aws_client_provider")
 
 # Cards; due to the way cards were designed, it is harder to make them fit
 # in the _lazy_plugin_resolve mechanism. This should be OK because it is unlikely that
@@ -286,12 +310,15 @@ _merge_lists(CARDS, MF_EXTERNAL_CARDS, "type")
 # Erase all temporary names to avoid leaking things
 # We leave '_lazy_plugin_resolve' and whatever it needs
 # because it is used in a function (so it needs to stick around)
+del_plugin_support(globals())
 for _n in [
-    "_merge_plugins",
+    "cli_add",
+    "add_plugin_support",
+    "del_plugin_support",
+    "_get_ext_plugins",
     "_merge_lists",
     "get_modules",
     "multiload_all",
-    "_ext_debug",
     "_modules_to_import",
     "c",
     "m",

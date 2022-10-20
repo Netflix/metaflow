@@ -11,11 +11,11 @@ from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from .util import echo_always
 
 
-def add_cmd_support(g):
-    g.update({"__cmds_exclusions": [], "__cmds": {}})
+def add_cmd_support(g, base_init=False):
+    g["__cmds"] = {}
 
-    def _exclude(names, exclude_from=g["__cmds_exclusions"]):
-        exclude_from.extend(names)
+    if base_init:
+        g["__ext_add_cmds"] = []
 
     def _add(name, path, cli, pkg=g["__package__"], add_to=g["__cmds"]):
         if path[0] == ".":
@@ -33,10 +33,10 @@ def add_cmd_support(g):
         _ext_debug("    Adding cmd: %s from %s.%s" % (name, path, cli))
         add_to[name] = (path, cli)
 
-    g.update({"cmd_add": _add, "cmd_exclude": _exclude})
+    g["cmd_add"] = _add
 
 
-add_cmd_support(globals())
+add_cmd_support(globals(), base_init=True)
 
 
 @click.group()
@@ -94,19 +94,35 @@ cmd_add("configure", ".configure_cmd", "cli")
 cmd_add("tutorials", ".tutorials_cmd", "cli")
 
 
-def _merge_cmds(base, module):
-    # Add to base things from the module and remove anything the module wants to remove
-    base.update(getattr(module, "__cmds", {}))
-    excl = getattr(module, "__cmds_exclusions", [])
-    for n in excl:
-        _ext_debug("    Module '%s' removing cmd %s" % (module.__name__, n))
-        if n in base:
-            del base[n]
+def _get_ext_cmds(module):
+    return getattr(module, "__cmds", {})
 
 
 def _lazy_cmd_resolve():
+    from metaflow.metaflow_config import ENABLED_CMDS
+
+    list_of_cmds = list(globals()["__ext_add_cmds"])
+    list_of_cmds.extend(ENABLED_CMDS)
+    _ext_debug("Got raw list of commands as: %s" % str(list_of_cmds))
+
+    set_of_commands = set()
+    for p in list_of_cmds:
+        if p.startswith("-"):
+            set_of_commands.discard(p[1:])
+        elif p.startswith("+"):
+            set_of_commands.add(p[1:])
+        else:
+            set_of_commands.add(p)
+    _ext_debug("Resolved list of commands is: %s" % str(list_of_cmds))
+
     to_return = [main]
-    for name, (path, cli) in __cmds.items():
+    for name in set_of_commands:
+        path, cli = __cmds.get(name, (None, None))
+        if path is None:
+            raise ValueError(
+                "Configuration requested command '%s' but no such command is available"
+                % name
+            )
         plugin_module = importlib.import_module(path)
         cls = getattr(plugin_module, cli, None)
         if cli is None:
@@ -128,7 +144,8 @@ def _lazy_cmd_resolve():
 try:
     _modules_to_import = get_modules("cmd")
     for m in _modules_to_import:
-        _merge_cmds(__cmds, m.module)
+        globals()["__cmds"].update(_get_ext_cmds(m.module))
+        globals()["__ext_add_cmds"].extend(list(_get_ext_cmds(m.module).keys()))
 
 except Exception as e:
     _ext_debug("\tWARNING: ignoring all plugins due to error during import: %s" % e)
@@ -177,16 +194,21 @@ def start(ctx):
         print(ctx.get_help())
 
 
-start()
+if __name__ == "__main__":
+    start()
 
 for _n in [
+    "__cmds",
+    "__ext_add_cmds",
+    "add_cmd_support",
+    "cmd_add",
     "get_modules",
     "load_module",
     "_modules_to_import",
     "m",
-    "_get_clis",
+    "_get_ext_cmds",
     "_clis",
-    "ext_debug",
+    "_ext_debug",
     "e",
 ]:
     try:

@@ -388,11 +388,12 @@ _plugin_defaults = {
     "logging_sidecars": ["debugLogger", "nullSidecarLogger"],
     "monitor_sidecars": ["debugMonitor", "nullSidecarMonitor"],
     "aws_client_providers": ["boto3"],
+    "cmds": ["configure", "tutorials"],
 }
 
 for plugin_category, defaults in _plugin_defaults.items():
-    vars()["TOGGLE_%s" % plugin_category.upper()] = from_conf(
-        "TOGGLE_%s" % plugin_category.upper(), defaults
+    vars()["ENABLED_%s" % plugin_category.upper()] = from_conf(
+        "ENABLED_%s" % plugin_category.upper(), defaults
     )
 
 ###
@@ -490,7 +491,7 @@ try:
                         "DEBUG_%s" % typ.upper()
                     )
             elif n.startswith("TOGGLE_") and n[7:].lower() in _plugin_defaults:
-                vars()[n].extend(o)
+                vars()["ENABLED_%s" % n[7:]].extend(o)
             elif n == "get_pinned_conda_libs":
 
                 def _new_get_pinned_conda_libs(
@@ -511,7 +512,7 @@ finally:
         "m",
         "n",
         "o",
-        "type",
+        "typ",
         "ext_modules",
         "get_modules",
         "_new_get_pinned_conda_libs",
