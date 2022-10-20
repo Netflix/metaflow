@@ -8,9 +8,9 @@ from metaflow import current
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
-    BATCH_METADATA_SERVICE_HEADERS,
-    BATCH_METADATA_SERVICE_URL,
-    DATASTORE_CARD_S3ROOT,
+    SERVICE_HEADERS,
+    SERVICE_URL,
+    CARD_S3ROOT,
     DATASTORE_SYSROOT_S3,
     DATATOOLS_S3ROOT,
     DEFAULT_METADATA,
@@ -21,7 +21,7 @@ from metaflow.metaflow_config import (
     S3_ENDPOINT_URL,
     AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
     DATASTORE_SYSROOT_AZURE,
-    DATASTORE_CARD_AZUREROOT,
+    CARD_AZUREROOT,
 )
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
@@ -759,16 +759,14 @@ class ArgoWorkflows(object):
                         "METAFLOW_CODE_URL": self.code_package_url,
                         "METAFLOW_CODE_SHA": self.code_package_sha,
                         "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
-                        "METAFLOW_SERVICE_URL": BATCH_METADATA_SERVICE_URL,
-                        "METAFLOW_SERVICE_HEADERS": json.dumps(
-                            BATCH_METADATA_SERVICE_HEADERS
-                        ),
+                        "METAFLOW_SERVICE_URL": SERVICE_URL,
+                        "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
                         "METAFLOW_USER": "argo-workflows",
                         "METAFLOW_DATASTORE_SYSROOT_S3": DATASTORE_SYSROOT_S3,
                         "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
                         "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
                         "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
-                        "METAFLOW_CARD_S3ROOT": DATASTORE_CARD_S3ROOT,
+                        "METAFLOW_CARD_S3ROOT": CARD_S3ROOT,
                         "METAFLOW_KUBERNETES_WORKLOAD": 1,
                         "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
                         "METAFLOW_OWNER": self.username,
@@ -799,7 +797,7 @@ class ArgoWorkflows(object):
                 "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
             ] = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
             env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = DATASTORE_SYSROOT_AZURE
-            env["METAFLOW_DATASTORE_CARD_AZUREROOT"] = DATASTORE_CARD_AZUREROOT
+            env["METAFLOW_DATASTORE_CARD_AZUREROOT"] = CARD_AZUREROOT
 
             metaflow_version = self.environment.get_environment_info()
             metaflow_version["flow_name"] = self.graph.name
