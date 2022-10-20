@@ -1095,7 +1095,7 @@ class ArgoWorkflows(object):
                         yield self._make_metadata_hook_container_template(template_env)
 
     def _make_lifecycle_hook_container_template(self, env, status):
-        t = WorkflowLifecycleHookContainerTemplate(self.name, status)
+        t = WorkflowLifecycleHookContainerTemplate(self.flow.name, status)
         t.set_env_vars(env)
         return t
 
@@ -1308,10 +1308,9 @@ class WorkflowSpec(object):
                 "template": "on-run-started",
                 "expression": 'workflow.status == "Running"',
             }
-            running_name = "mf-run-started"
             if "hooks" not in self.payload:
                 self.payload["hooks"] = dict()
-            self.payload["hooks"][running_name] = running
+            self.payload["hooks"]["mf-run-started"] = running
         return self
 
     def to_json(self):
@@ -1647,8 +1646,7 @@ class WorkflowMetadataHookContainerTemplate:
             ]
             + [
                 'task_url="%s/%s/metadata"%(md_url,task["task_id"]);',
-                'md={"flow_id": flow_name, "run_number": run_id, "step_name": "start"};',
-                'md["task_id"]=task["task_id"];md["field_name"]="trigger_events";',
+                'md=dict();md["field_name"]="trigger_events";',
                 'md["type"]="trigger_events";md["value"]=triggering_events;',
                 "resp=requests.post(url=task_url,headers=headers,json=[md]);",
                 'print("Triggering event(s) metadata update status: %d" % resp.status_code);',
@@ -1700,23 +1698,23 @@ class WorkflowLifecycleHookContainerTemplate(object):
         tree = lambda: defaultdict(tree)
         self.payload = tree()
         self._requests = {"requests": {"cpu": "1", "memory": "512M"}}
-        self._env = dict()
+        self._env = None
         self.name = "on-" + lifecycle_event
         self.command = self._build_command(flow_name)
 
     def _build_command(self, flow_name):
-        event_name = flow_name.replace(".", "-")
         common_code = [
-            'flow_name="%s";' % event_name,
             'run_id=os.getenv("METAFLOW_RUN_ID");',
+            'flow_name="%s";' % flow_name,
             "timestamp=int(datetime.datetime.timestamp(datetime.datetime.utcnow()));",
             'pathspec="/flows/%s/runs/%s" % (flow_name, run_id);',
             'payload=json.dumps({"payload":{"event_name":flow_name,"event_type":"metaflow_system","data":{},"pathspec":pathspec,"timestamp":timestamp}});',
         ]
+
         if EVENT_SOURCE_URL.startswith("nats://"):
             commands = ["pip install -qqq nats-py"]
             python_source = "".join(
-                ["import asyncio,datetime,json,os,sys,time,nats;"]
+                ["import asyncio,datetime,json,pathlib,os,sys,time,nats;"]
                 + common_code
                 + [
                     'auth_token=os.getenv("NATS_TOKEN");',
@@ -1731,7 +1729,7 @@ class WorkflowLifecycleHookContainerTemplate(object):
                             conn = await nats.connect(server, token=auth_token)
                             await conn.publish(topic, raw_payload)
                             await conn.drain()
-                            print("Lifecycle event successfully sent to %s/%s" % (server, topic))
+                            print("Lifecycle event successfully sent to %s/%s" % (server, topic), flush=True)
                         except Exception as e:
                             print(e,file=sys.stderr,flush=True)
                             sys.exit(1)
@@ -1752,7 +1750,7 @@ class WorkflowLifecycleHookContainerTemplate(object):
                     'event_url=os.getenv("METAFLOW_EVENT_SOURCE_URL");'
                     'headers={"content-type": "json"};'
                     "resp=requests.post(url=event_url,headers=headers,json=payload);",
-                    "print('Lifecycle event sent status: %d' % resp.status_code);",
+                    "print('Lifecycle event sent status: %d' % resp.status_code, flush=True);",
                     "resp.raise_for_status();",
                     "time.sleep(300)",
                 ]
