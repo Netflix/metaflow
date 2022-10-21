@@ -8,7 +8,7 @@ from io import BytesIO
 import os
 import shutil
 
-from metaflow.datastore.local_storage import LocalStorage
+from metaflow.plugins.datastores.local_storage import LocalStorage
 from metaflow.metaflow_config import (
     CARD_S3ROOT,
     CARD_LOCALROOT,

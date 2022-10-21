@@ -10,13 +10,13 @@ from io import RawIOBase, BytesIO, BufferedIOBase
 from itertools import chain, starmap
 from tempfile import mkdtemp, NamedTemporaryFile
 
-from .. import FlowSpec
-from ..current import current
-from ..metaflow_config import (
+from metaflow import FlowSpec
+from metaflow.current import current
+from metaflow.metaflow_config import (
     DATATOOLS_S3ROOT,
     S3_RETRY_COUNT,
 )
-from ..util import (
+from metaflow.util import (
     namedtuple_with_defaults,
     is_stringish,
     to_bytes,
@@ -25,8 +25,8 @@ from ..util import (
     url_quote,
     url_unquote,
 )
-from ..exception import MetaflowException
-from ..debug import debug
+from metaflow.exception import MetaflowException
+from metaflow.debug import debug
 
 try:
     # python2

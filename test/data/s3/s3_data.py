@@ -13,7 +13,7 @@ except:
     # python3
     from urllib.parse import urlparse
 
-from metaflow.datatools.s3 import S3PutObject
+from metaflow.plugins.datatools.s3 import S3PutObject
 
 from metaflow.util import to_fileobj, to_bytes, url_quote
 

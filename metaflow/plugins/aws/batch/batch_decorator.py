@@ -8,7 +8,7 @@ from metaflow import util
 from metaflow import R, current
 
 from metaflow.decorators import StepDecorator
-from metaflow.plugins import ResourcesDecorator
+from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.metadata import MetaDatum
 from metaflow.metadata.util import sync_local_metadata_to_datastore

@@ -9,7 +9,9 @@ import random
 import uuid
 
 from metaflow.exception import MetaflowException, MetaflowInternalError
-from metaflow.plugins import ResourcesDecorator, BatchDecorator, RetryDecorator
+from metaflow.plugins.aws.batch.batch_decorator import BatchDecorator
+from metaflow.plugins.resources_decorator import ResourcesDecorator
+from metaflow.plugins.retry_decorator import RetryDecorator
 from metaflow.parameters import deploy_time_eval
 from metaflow.decorators import flow_decorators
 from metaflow.util import compress_list, dict_to_cli_options, to_pascalcase

@@ -12,7 +12,7 @@ from metaflow.metaflow_config import (
 )
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.package import MetaflowPackage
-from metaflow.plugins import BatchDecorator
+from metaflow.plugins.aws.batch.batch_decorator import BatchDecorator
 from metaflow.tagging_util import validate_tags
 from metaflow.util import get_username, to_bytes, to_unicode
 

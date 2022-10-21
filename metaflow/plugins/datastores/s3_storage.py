@@ -2,9 +2,9 @@ import os
 
 from itertools import starmap
 
-from ..datatools.s3 import S3, S3Client, S3PutObject
-from ..metaflow_config import DATASTORE_SYSROOT_S3, ARTIFACT_LOCALROOT
-from .datastore_storage import CloseAfterUse, DataStoreStorage
+from metaflow.plugins.datatools.s3.s3 import S3, S3Client, S3PutObject
+from metaflow.metaflow_config import DATASTORE_SYSROOT_S3, ARTIFACT_LOCALROOT
+from metaflow.datastore.datastore_storage import CloseAfterUse, DataStoreStorage
 
 
 try:

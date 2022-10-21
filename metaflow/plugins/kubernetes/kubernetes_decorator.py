@@ -19,7 +19,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_SERVICE_ACCOUNT,
     KUBERNETES_SECRETS,
 )
-from metaflow.plugins import ResourcesDecorator
+from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.sidecar import Sidecar
 

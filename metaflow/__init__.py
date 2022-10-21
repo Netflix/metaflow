@@ -108,7 +108,11 @@ from .parameters import Parameter, JSONTypeClass
 JSONType = JSONTypeClass()
 
 # data layer
-from .datatools import S3
+# For historical reasons, we make metaflow.plugins.datatools accessible as
+# metaflow.datatools. S3 is also a tool that has historically been available at the
+# TL so keep as is.
+lazy_load_aliases({"metaflow.datatools": "metaflow.plugins.datatools"})
+from .plugins.datatools import S3
 
 # includefile
 from .includefile import IncludeFile
