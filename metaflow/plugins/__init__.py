@@ -145,6 +145,14 @@ STEP_DECORATORS = [
 ]
 _merge_lists(STEP_DECORATORS, _ext_plugins["STEP_DECORATORS"], "name")
 
+# Datastores
+from .datastores.azure_storage import AzureStorage
+from .datastores.gs_storage import GSStorage
+from .datastores.local_storage import LocalStorage
+from .datastores.s3_storage import S3Storage
+
+DATASTORES = [AzureStorage, GSStorage, LocalStorage, S3Storage]
+
 # Add Conda environment
 from .conda.conda_environment import CondaEnvironment
 

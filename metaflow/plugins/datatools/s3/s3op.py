@@ -20,16 +20,14 @@ from boto3.s3.transfer import TransferConfig
 try:
     # python2
     from urlparse import urlparse
-    from Queue import Full as QueueFull
 except:
     # python3
     from urllib.parse import urlparse
-    from queue import Full as QueueFull
 
 if __name__ == "__main__":
     # When launched standalone, point to our parent metaflow
     sys.path.insert(
-        0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+        0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../"))
     )
 
 from metaflow._vendor import click
@@ -38,7 +36,7 @@ from metaflow._vendor import click
 # multiprocessing.Pool because https://bugs.python.org/issue31886
 from metaflow.util import TempDir, url_quote, url_unquote
 from metaflow.multicore_utils import parallel_map
-from metaflow.datatools.s3util import (
+from metaflow.plugins.datatools.s3.s3util import (
     aws_retry,
     read_in_chunks,
     get_timestamp,
@@ -192,7 +190,7 @@ def worker(result_file_name, queue, mode, s3config):
 
     with open(result_file_name, "w") as result_file:
         try:
-            from metaflow.datatools.s3util import get_s3_client
+            from metaflow.plugins.datatools.s3.s3util import get_s3_client
 
             s3, client_error = get_s3_client(
                 s3_role_arn=s3config.role,
@@ -436,7 +434,7 @@ class S3Ops(object):
         self.client_error = None
 
     def reset_client(self, hard_reset=False):
-        from metaflow.datatools.s3util import get_s3_client
+        from metaflow.plugins.datatools.s3.s3util import get_s3_client
 
         if hard_reset or self.s3 is None:
             self.s3, self.client_error = get_s3_client(

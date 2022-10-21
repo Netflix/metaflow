@@ -22,7 +22,6 @@ from metaflow.metaflow_config import (
     get_pinned_conda_libs,
 )
 from metaflow.util import get_metaflow_root
-from metaflow.datastore import DATASTORES, LocalStorage
 
 from ..env_escape import generate_trampolines
 from . import read_conda_manifest, write_to_conda_manifest, get_conda_package_root
@@ -158,6 +157,9 @@ class CondaStepDecorator(StepDecorator):
         return env_id
 
     def _cache_env(self):
+        # Move here to avoid circular imports
+        from metaflow.plugins import DATASTORES
+
         def _download(entry):
             url, local_path = entry
             with requests.get(url, stream=True) as r:
@@ -195,7 +197,7 @@ class CondaStepDecorator(StepDecorator):
 
         # We need our own storage backend so that we can customize datastore_root on it
         # in a clearly safe way, without the existing backend owned by FlowDatastore
-        storage_impl = DATASTORES[self.flow_datastore.TYPE]
+        storage_impl = [d for d in DATASTORES if d.TYPE == self.flow_datastore.TYPE][0]
         storage = storage_impl(get_conda_package_root(self.flow_datastore.TYPE))
         storage.save_bytes(
             list_of_path_and_filehandle, len_hint=len(list_of_path_and_filehandle)
@@ -310,6 +312,9 @@ class CondaStepDecorator(StepDecorator):
         generate_trampolines(self.metaflow_home)
 
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
+        # Move here to avoid circular import
+        from metaflow.plugins.datastores.local_storage import LocalStorage
+
         if environment.TYPE != "conda":
             raise InvalidEnvironmentException(
                 "The *@conda* decorator requires " "--environment=conda"

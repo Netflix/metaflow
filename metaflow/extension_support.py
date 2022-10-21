@@ -267,9 +267,9 @@ if _py_ver >= (3, 4):
 _extension_points = [
     "plugins.env_escape",
     "plugins.cards",
+    "plugins.datatools",
     "plugins",
     "config",
-    "datatools",
     "exceptions",
     "toplevel",
     "cmd",

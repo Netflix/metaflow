@@ -6,7 +6,6 @@ import os
 import time
 
 from types import MethodType, FunctionType
-from metaflow.datastore import flow_datastore
 
 from metaflow.datastore.exceptions import DataException
 
