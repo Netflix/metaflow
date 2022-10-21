@@ -1095,7 +1095,7 @@ class ArgoWorkflows(object):
                         yield self._make_metadata_hook_container_template(template_env)
 
     def _make_lifecycle_hook_container_template(self, env, status):
-        t = WorkflowLifecycleHookContainerTemplate(self.flow.name, status)
+        t = WorkflowLifecycleHookContainerTemplate(self.name, status)
         t.set_env_vars(env)
         return t
 
@@ -1605,27 +1605,22 @@ class WorkflowMetadataHookContainerTemplate:
     def __init__(self, parameters):
         self._name = "on-run-started"
         self._env = dict()
-        self.command = self._build_command(parameters)
+        event_parameters = [
+            p["name"] for p in parameters if p["name"].startswith("mf-event")
+        ]
+        self.command = self._build_command(event_parameters)
 
     def _build_command(self, parameters):
+        expand_params = ""
+        for p in parameters:
+            expand_params += "{{=toJson(workflow.parameters['%s'])}}" % p
+            if p != parameters[-1]:
+                expand_params += ","
+
         python_source = "".join(
             [
                 "import json,os,re,time,requests;",
-                "raw_events='{{workflow.parameters}}'.replace('name:', '\"name\":').replace('value:', '\"value\":');",
-            ]
-            + [
-                """
-            # Argo doesn't wrap the name and value field names in quotes
-            # so we use a regex to find them and fix
-            matches=re.findall(r'(mf-event-[0-9]+)',raw_events)
-            for m in matches:
-                raw_events=raw_events.replace(m, '"%s"' % m)
-            triggering_events=json.loads(raw_events);
-            """.replace(
-                    "            ", ""
-                )
-            ]
-            + [
+                "triggers=[" + expand_params + "];",
                 'headers=json.loads(os.getenv("METAFLOW_SERVICE_HEADERS"));',
                 'base_url=os.getenv("METAFLOW_SERVICE_URL");',
                 'flow_name=os.getenv("METAFLOW_FLOW_NAME");',
@@ -1634,23 +1629,24 @@ class WorkflowMetadataHookContainerTemplate:
             ]
             + [
                 """tasks=[];
-                while tasks==[]:
-                    time.sleep(1);
-                    resp=requests.get(url=md_url,headers=headers);
-                    resp.raise_for_status();
-                    tasks=resp.json()
-                task=tasks[0];
-                """.replace(
-                    "                ", ""
+            while tasks==[]:
+                time.sleep(1);
+                resp=requests.get(url=md_url,headers=headers);
+                resp.raise_for_status();
+                tasks=resp.json()
+            task=tasks[0];
+            """.replace(
+                    "            ", ""
                 )
             ]
             + [
                 'task_url="%s/%s/metadata"%(md_url,task["task_id"]);',
+                'print("Posting trigger metadata to %s" % task_url, flush=True);'
                 'md=dict();md["field_name"]="trigger_events";',
-                'md["type"]="trigger_events";md["value"]=triggering_events;',
+                'md["type"]="trigger_events";md["value"]=json.dumps(triggers);',
+                'print("Triggering event(s) metadata:");print("%s" % json.dumps(md, indent=4), flush=True);'
                 "resp=requests.post(url=task_url,headers=headers,json=[md]);",
                 'print("Triggering event(s) metadata update status: %d" % resp.status_code);',
-                'print("Triggering event(s) metadata:");print("%s" % json.dumps(md, indent=4));'
                 "resp.raise_for_status()",
             ]
         )
@@ -1694,21 +1690,22 @@ class WorkflowMetadataHookContainerTemplate:
 
 
 class WorkflowLifecycleHookContainerTemplate(object):
-    def __init__(self, flow_name, lifecycle_event):
+    def __init__(self, event_name, lifecycle_event):
         tree = lambda: defaultdict(tree)
         self.payload = tree()
         self._requests = {"requests": {"cpu": "1", "memory": "512M"}}
         self._env = None
         self.name = "on-" + lifecycle_event
-        self.command = self._build_command(flow_name)
+        self.command = self._build_command(event_name)
 
-    def _build_command(self, flow_name):
+    def _build_command(self, event_name):
         common_code = [
             'run_id=os.getenv("METAFLOW_RUN_ID");',
-            'flow_name="%s";' % flow_name,
+            'flow_name=os.getenv("METAFLOW_FLOW_NAME");'
+            'event_name="%s";' % event_name.replace(".", "-"),
             "timestamp=int(datetime.datetime.timestamp(datetime.datetime.utcnow()));",
-            'pathspec="/flows/%s/runs/%s" % (flow_name, run_id);',
-            'payload=json.dumps({"payload":{"event_name":flow_name,"event_type":"metaflow_system","data":{},"pathspec":pathspec,"timestamp":timestamp}});',
+            'pathspec="%s/runs/%s" % (flow_name, run_id);',
+            'payload=json.dumps({"payload":{"event_name":event_name,"event_type":"metaflow_system","data":{},"pathspec":pathspec,"timestamp":timestamp}});',
         ]
 
         if EVENT_SOURCE_URL.startswith("nats://"):
