@@ -6,23 +6,26 @@ from os.path import expanduser
 
 from metaflow.util import to_unicode
 from metaflow._vendor import click
+from metaflow.util import to_unicode
 
 
 from .util import echo_always, makedirs
 
-# NOTE: This code needs to be in sync with metaflow/metaflow_config.py.
-METAFLOW_CONFIGURATION_DIR = expanduser(
-    os.environ.get("METAFLOW_HOME", "~/.metaflowconfig")
-)
 
 echo = echo_always
+
 # NOTE: This code needs to be in sync with metaflow/metaflow_config.py.
 METAFLOW_CONFIGURATION_DIR = expanduser(
     os.environ.get("METAFLOW_HOME", "~/.metaflowconfig")
 )
 
 
-@main.group(help="Configure Metaflow to access the cloud.")
+@click.group()
+def cli():
+    pass
+
+
+@cli.group(help="Configure Metaflow to access the cloud.")
 def configure():
     makedirs(METAFLOW_CONFIGURATION_DIR)
 
@@ -880,7 +883,7 @@ def kubernetes(ctx, profile):
             "\nCannot run Kubernetes with local datastore. Please run"
             " 'metaflow configure aws' or 'metaflow configure azure'."
         )
-        click.abort()
+        click.Abort()
 
     # Configure remote metadata.
     if existing_env.get("METAFLOW_DEFAULT_METADATA") == "service":

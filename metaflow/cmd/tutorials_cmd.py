@@ -8,7 +8,12 @@ from .util import echo_always, makedirs
 echo = echo_always
 
 
-@main.group(help="Browse and access the metaflow tutorial episodes.")
+@click.group()
+def cli():
+    pass
+
+
+@cli.group(help="Browse and access the metaflow tutorial episodes.")
 def tutorials():
     pass
 

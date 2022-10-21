@@ -1,7 +1,7 @@
-import traceback
-from metaflow._vendor import click
 import os
+import traceback
 
+from metaflow._vendor import click
 
 from metaflow.plugins.datastores.local_storage import LocalStorage
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
@@ -10,7 +10,6 @@ from .util import echo_always
 
 
 @click.group()
-@click.pass_context
 def main(ctx):
     pass
 
@@ -81,10 +80,13 @@ except Exception as e:
     _clis = []
     traceback.print_exc()
 
+from .configure_cmd import cli as configure_cli
+from .tutorials_cmd import cli as tutorials_cli
+
 
 @click.command(
     cls=click.CommandCollection,
-    sources=_clis + [main],
+    sources=_clis + [main, configure_cli, tutorials_cli],
     invoke_without_command=True,
 )
 @click.pass_context
