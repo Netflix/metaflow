@@ -410,7 +410,7 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
 # TODO - move step and init under a separate 'internal' subcommand
 
 
-@cli.command(help="Internal command to execute a single task.")
+@cli.command(help="Internal command to execute a single task.", hidden=True)
 @click.argument("step-name")
 @click.option(
     "--run-id",
@@ -593,7 +593,7 @@ def step(
 
 
 @parameters.add_custom_parameters(deploy_mode=False)
-@cli.command(help="Internal command to initialize a run.")
+@cli.command(help="Internal command to initialize a run.", hidden=True)
 @click.option(
     "--run-id",
     default=None,

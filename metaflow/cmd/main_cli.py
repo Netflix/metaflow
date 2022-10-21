@@ -1,16 +1,46 @@
+import importlib
 import os
 import traceback
 
 from metaflow._vendor import click
 
+from metaflow.extension_support import get_modules, _ext_debug
 from metaflow.plugins.datastores.local_storage import LocalStorage
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 
 from .util import echo_always
 
 
+def add_cmd_support(g, base_init=False):
+    g["__cmds"] = {}
+
+    if base_init:
+        g["__ext_add_cmds"] = []
+
+    def _add(name, path, cli, pkg=g["__package__"], add_to=g["__cmds"]):
+        if path[0] == ".":
+            pkg_components = pkg.split(".")
+            i = 1
+            while i < len(path) and path[i] == ".":
+                i += 1
+            # We deal with multiple periods at the start
+            if i > len(pkg_components):
+                raise ValueError("Path '%s' exits out of metaflow module" % path)
+            path = (
+                ".".join(pkg_components[: -i + 1] if i > 1 else pkg_components)
+                + path[i - 1 :]
+            )
+        _ext_debug("    Adding cmd: %s from %s.%s" % (name, path, cli))
+        add_to[name] = (path, cli)
+
+    g["cmd_add"] = _add
+
+
+add_cmd_support(globals(), base_init=True)
+
+
 @click.group()
-def main(ctx):
+def main():
     pass
 
 
@@ -60,16 +90,62 @@ def status():
         echo("* %s" % flow, fg="cyan")
 
 
-try:
-    from metaflow.extension_support import get_modules, load_module, _ext_debug
+cmd_add("configure", ".configure_cmd", "cli")
+cmd_add("tutorials", ".tutorials_cmd", "cli")
 
+
+def _get_ext_cmds(module):
+    return getattr(module, "__cmds", {})
+
+
+def _lazy_cmd_resolve():
+    from metaflow.metaflow_config import ENABLED_CMDS
+
+    list_of_cmds = list(globals()["__ext_add_cmds"])
+    list_of_cmds.extend(ENABLED_CMDS)
+    _ext_debug("Got raw list of commands as: %s" % str(list_of_cmds))
+
+    set_of_commands = set()
+    for p in list_of_cmds:
+        if p.startswith("-"):
+            set_of_commands.discard(p[1:])
+        elif p.startswith("+"):
+            set_of_commands.add(p[1:])
+        else:
+            set_of_commands.add(p)
+    _ext_debug("Resolved list of commands is: %s" % str(list_of_cmds))
+
+    to_return = [main]
+    for name in set_of_commands:
+        path, cli = __cmds.get(name, (None, None))
+        if path is None:
+            raise ValueError(
+                "Configuration requested command '%s' but no such command is available"
+                % name
+            )
+        plugin_module = importlib.import_module(path)
+        cls = getattr(plugin_module, cli, None)
+        if cli is None:
+            raise ValueError("'%s' not found in module '%s'" % (cli, path))
+        all_cmds = list(cls.commands)
+        if len(all_cmds) > 1:
+            raise ValueError(
+                "%s.%s defines more than one command -- use a group" % (path, cli)
+            )
+        if all_cmds[0] != name:
+            raise ValueError(
+                "%s.%s: expected name to be '%s' but got '%s' instead"
+                % (path, cli, name, all_cmds[0])
+            )
+        to_return.append(cls)
+    return to_return
+
+
+try:
     _modules_to_import = get_modules("cmd")
-    _clis = []
-    # Reverse to maintain "latest" overrides (in Click, the first one will get it)
-    for m in reversed(_modules_to_import):
-        _get_clis = m.module.__dict__.get("get_cmd_clis")
-        if _get_clis:
-            _clis.extend(_get_clis())
+    for m in _modules_to_import:
+        globals()["__cmds"].update(_get_ext_cmds(m.module))
+        globals()["__ext_add_cmds"].extend(list(_get_ext_cmds(m.module).keys()))
 
 except Exception as e:
     _ext_debug("\tWARNING: ignoring all plugins due to error during import: %s" % e)
@@ -80,13 +156,10 @@ except Exception as e:
     _clis = []
     traceback.print_exc()
 
-from .configure_cmd import cli as configure_cli
-from .tutorials_cmd import cli as tutorials_cli
-
 
 @click.command(
     cls=click.CommandCollection,
-    sources=_clis + [main, configure_cli, tutorials_cli],
+    sources=_lazy_cmd_resolve(),
     invoke_without_command=True,
 )
 @click.pass_context
@@ -121,16 +194,21 @@ def start(ctx):
         print(ctx.get_help())
 
 
-start()
+if __name__ == "__main__":
+    start()
 
 for _n in [
+    "__cmds",
+    "__ext_add_cmds",
+    "add_cmd_support",
+    "cmd_add",
     "get_modules",
     "load_module",
     "_modules_to_import",
     "m",
-    "_get_clis",
+    "_get_ext_cmds",
     "_clis",
-    "ext_debug",
+    "_ext_debug",
     "e",
 ]:
     try:

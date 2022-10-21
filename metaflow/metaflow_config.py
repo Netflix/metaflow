@@ -289,6 +289,54 @@ for typ in DEBUG_OPTIONS:
     vars()["DEBUG_%s" % typ.upper()] = from_conf("DEBUG_%s" % typ.upper())
 
 ###
+# Plugin configuration
+# List of plugins that are enabled.
+###
+_plugin_defaults = {
+    "clis": [
+        "airflow",
+        "argo-workflows",
+        "batch",
+        "card",
+        "kubernetes",
+        "package",
+        "step-functions",
+        "tag",
+    ],
+    "step_decorators": [
+        "airflow_internal",
+        "argo_workflows_internal",
+        "batch",
+        "catch",
+        "card",
+        "conda",
+        "environment",
+        "kubernetes",
+        "parallel",
+        "pytorch_parallel",
+        "resources",
+        "retry",
+        "step_functions_internal",
+        "timeout",
+        "unbounded_test_foreach_internal",
+    ],
+    "flow_decorators": ["conda_base", "project", "schedule"],
+    "environments": ["conda"],
+    "metadata_providers": ["local", "service"],
+    "datastores": ["azure", "gs", "local", "s3"],
+    "sidecars": ["heartbeat", "save_logs_periodically"],
+    "logging_sidecars": ["debugLogger", "nullSidecarLogger"],
+    "monitor_sidecars": ["debugMonitor", "nullSidecarMonitor"],
+    "aws_client_providers": ["boto3"],
+    "cmds": ["configure", "tutorials"],
+}
+
+for plugin_category in _plugin_defaults:
+    upper_category = plugin_category.upper()
+    vars()["ENABLED_%s" % upper_category] = from_conf("ENABLED_%s" % upper_category)
+    vars()["_TOGGLE_%s" % upper_category] = []
+
+###
 # AWS Sandbox configuration
 ###
 # Boolean flag for metaflow AWS sandbox access
@@ -381,6 +429,8 @@ try:
                     vars()["DEBUG_%s" % typ.upper()] = from_conf(
                         "DEBUG_%s" % typ.upper()
                     )
+            elif n.startswith("TOGGLE_") and n[7:].lower() in _plugin_defaults:
+                vars()["_TOGGLE_%s" % n[7:]].extend(o)
             elif n == "get_pinned_conda_libs":
 
                 def _new_get_pinned_conda_libs(
@@ -395,13 +445,29 @@ try:
                 globals()[n] = _new_get_pinned_conda_libs
             elif not n.startswith("__") and not isinstance(o, types.ModuleType):
                 globals()[n] = o
+    # Resolve all the ENABLED_* variables. The rules are the following:
+    #  - if ENABLED_* is non None, it means it was either set directly by the user
+    #    in a configuration file, on the command line or by an extension. In that case
+    #    we honor those wishes and completely ignore the extensions' toggles.
+    #  - if ENABLED_* is None, we populate it with the defaults here and use the TOGGLE_
+    #    to produce the final list.
+    # The rationale behind this is to support both a configuration option where the
+    # plugins enabled are explicitly listed (typical in a lot of software) but also to
+    # support a "configuration-less" version where the installation of the extensions
+    # determines what is activated.
+    for plugin_category, defaults in _plugin_defaults.items():
+        upper_category = plugin_category.upper()
+        if vars()["ENABLED_%s" % upper_category] is None:
+            vars()["ENABLED_%s" % upper_category] = (
+                defaults + vars()["_TOGGLE_%s" % upper_category]
+            )
 finally:
     # Erase all temporary names to avoid leaking things
     for _n in [
         "m",
         "n",
         "o",
-        "type",
+        "typ",
         "ext_modules",
         "get_modules",
         "_new_get_pinned_conda_libs",
@@ -411,6 +477,7 @@ finally:
         "v",
         "f1",
         "f2",
+        "upper_category",
     ]:
         try:
             del globals()[_n]
