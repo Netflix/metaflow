@@ -3,6 +3,7 @@ import json
 import os
 import shlex
 import sys
+import time
 from collections import defaultdict
 from urllib import parse
 
@@ -137,6 +138,7 @@ class ArgoWorkflows(object):
         self._ignore_events = ignore_events
         self._triggering_flows = []
         self._triggering_events = []
+        self._reset_at = None
 
         # The values with curly braces '{{}}' are made available by Argo
         # Workflows. Unfortunately, there are a few bugs in Argo which prevent
@@ -262,13 +264,20 @@ class ArgoWorkflows(object):
                             "are received",
                         )
                 else:
-                    message = message + "."
+                    message = message
             else:
-                template = "%s %s %s %s."
+                template = "%s %s %s %s"
                 if event_ref == "event":
                     message = template % (message, event_ref, events, "is received")
                 else:
                     message = template % (message, event_ref, events, "are received")
+            if self._reset_at is not None:
+                message = "%s before %s." % (
+                    message,
+                    time.strftime("%H:%M UTC", self._reset_at),
+                )
+            else:
+                message += "."
             return message
 
         else:
@@ -1134,10 +1143,11 @@ class ArgoWorkflows(object):
                 trigger_set = decorator.attributes["trigger_set"]
                 (project_name, branch_name) = project_and_branch()
                 trigger_set.add_namespacing(project_name, branch_name)
+                self._reset_at = decorator.attributes.get("parsed_reset_at")
                 t = SensorTemplate(
                     self.name,
                     self.parameters,
-                    decorator.attributes.get("parsed_reset_after"),
+                    decorator.attributes.get("parsed_reset_at"),
                 )
                 for trigger in trigger_set.triggers:
                     t.add_trigger(trigger)
@@ -1816,7 +1826,7 @@ class WorkflowLifecycleHookContainerTemplate(object):
 
 
 class SensorTemplate:
-    def __init__(self, calling_flow, parameters, reset_after):
+    def __init__(self, calling_flow, parameters, reset_at):
         self.name = format_sensor_name(calling_flow)
         self.calling_flow = calling_flow
         self.parameters = parameters
@@ -1825,7 +1835,7 @@ class SensorTemplate:
         self.transformed_fields = {}
         self.parameter_assignments = None
         self.assigned_dep_names = []
-        self.reset_after = reset_after
+        self.reset_at = reset_at
         self.count = 0
         self.payload = {
             "apiVersion": "argoproj.io/v1alpha1",
@@ -1998,12 +2008,13 @@ class SensorTemplate:
             conditions = " && ".join(self.assigned_dep_names)
             template = triggered_template["template"]
             template["conditions"] = conditions
-            cron = "%d %d * * *" % (
-                self.reset_after.tm_min,
-                self.reset_after.tm_hour,
-            )
-            reset = [{"byTime": {"cron": cron}}]
-            template["conditionsReset"] = reset
+            if self.reset_at is not None:
+                cron = "%d %d * * *" % (
+                    self.reset_at.tm_min,
+                    self.reset_at.tm_hour,
+                )
+                reset = [{"byTime": {"cron": cron}}]
+                template["conditionsReset"] = reset
             triggered_template["template"] = template
         triggered_template["template"]["k8s"][
             "parameters"

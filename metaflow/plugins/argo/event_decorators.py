@@ -42,13 +42,13 @@ Examples
 @trigger_on(event="first", mappings={"alpha": "alpha_value", "delta": "delta_value"})
 """
 
-BAD_RESET_AFTER_MSG = """reset_after must use either 24-hour time or 12-hour time with locale appropriate AM/PM.
+BAD_RESET_AFTER_MSG = """reset_at must use either 24-hour time or 12-hour time with locale appropriate AM/PM.
 
 Examples
 --------
-@trigger_on_finish(flows=["FirstFlow", "SecondFlow"], reset_after="23:59")
+@trigger_on_finish(flows=["FirstFlow", "SecondFlow"], reset_at="23:59")
 
-@trigger_on_finish(flows=["FirstFlow", "SecondFlow"], reset_after="11:59PM")
+@trigger_on_finish(flows=["FirstFlow", "SecondFlow"], reset_at="11:59PM")
 """
 
 
@@ -100,22 +100,25 @@ def validate_mappings(mappings, aggregate):
 class TriggerDecorator(FlowDecorator):
     def _parse_time(self):
         parsed_time = None
-        reset_after = self.attributes.get("reset_after", "23:59")
-        try:
-            parsed_time = strptime(reset_after, "%H:%M")
-            self.attributes["parsed_reset_after"] = parsed_time
-        except ValueError:
+        reset_at = self.attributes.get("reset_at", "")
+        if reset_at == "":
+            self.attributes["parsed_reset_at"] = None
+        else:
             try:
-                parsed_time = strptime(reset_after, "%H:%M%p")
-                self.attributes["parsed_reset_after"] = parsed_time
+                parsed_time = strptime(reset_at, "%H:%M")
+                self.attributes["parsed_reset_at"] = parsed_time
             except ValueError:
-                raise BadResetAfterException(msg=BAD_RESET_AFTER_MSG)
+                try:
+                    parsed_time = strptime(reset_at, "%I:%M%p")
+                    self.attributes["parsed_reset_at"] = parsed_time
+                except ValueError:
+                    raise BadResetAfterException(msg=BAD_RESET_AFTER_MSG)
 
 
 class TriggerOnFinishDecorator(TriggerDecorator):
 
     name = "trigger_on_finish"
-    defaults = {"flow": None, "flows": [], "reset_after": "23:59"}
+    defaults = {"flow": None, "flows": [], "reset_at": ""}
     options = {
         "flow": dict(
             is_flag=False,
@@ -127,7 +130,7 @@ class TriggerOnFinishDecorator(TriggerDecorator):
             show_default=False,
             help="Trigger the current flow when all named flows complete.",
         ),
-        "reset_after": dict(
+        "reset_at": dict(
             is_flag=False,
             show_default=True,
             help="Reset wait state after specified number of hours.",
@@ -198,7 +201,7 @@ class TriggerOnDecorator(TriggerDecorator):
         "events": [],
         "data": None,
         "mappings": {},
-        "reset_after": "23:59",
+        "reset_at": "",
     }
     options = {
         "flow": dict(
@@ -226,7 +229,7 @@ class TriggerOnDecorator(TriggerDecorator):
             show_default=True,
             help="Mapping of flow parameters to event fields.",
         ),
-        "reset_after": dict(
+        "reset_at": dict(
             is_flag=False,
             show_default=True,
             help="Reset wait state after specified number of hours.",
