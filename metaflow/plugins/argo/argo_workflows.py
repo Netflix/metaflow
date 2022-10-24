@@ -1097,9 +1097,9 @@ class ArgoWorkflows(object):
                     if self._sensor_template is not None:
                         template_env[
                             "METAFLOW_SERVICE_URL"
-                        ] = BATCH_METADATA_SERVICE_URL
+                        ] = SERVICE_INTERNAL_URL
                         template_env["METAFLOW_SERVICE_HEADERS"] = json.dumps(
-                            BATCH_METADATA_SERVICE_HEADERS
+                            SERVICE_HEADERS
                         )
                         yield self._make_metadata_hook_container_template(template_env)
 

@@ -3,6 +3,7 @@ import os
 import sys
 
 from os.path import expanduser
+from urllib.parse import urlparse
 
 from metaflow.util import to_unicode
 from metaflow._vendor import click
@@ -904,3 +905,188 @@ def kubernetes(ctx, profile):
     env.update(configure_kubernetes(existing_env))
 
     persist_env({k: v for k, v in env.items() if v}, profile)
+
+
+@configure.command(help="Configure metaflow to use eventing.")
+@click.option(
+    "--profile",
+    "-p",
+    default="",
+    help="Configure a named profile. Activate the profile by setting "
+    "`METAFLOW_PROFILE` environment variable.",
+)
+@click.pass_context
+def events(ctx, profile):
+    # Greet the user!
+    echo(
+        "Welcome to Metaflow! Follow the prompts to configure your installation.\n",
+        bold=True,
+    )
+    check_kubernetes_config(ctx)
+    # Check for existing configuration.
+    if not confirm_overwrite_config(profile):
+        ctx.abort()
+    existing_env = get_env(profile)
+
+    env = existing_env.copy()
+    env.update(configure_argo_events(existing_env))
+    persist_env({k: v for k, v in env.items() if v}, profile)
+
+
+def read_hidden_input(prompt, confirm_prompt, retry=True):
+    while True:
+        value = click.prompt(prompt, hide_input=True)
+        confirm_value = click.prompt(confirm_prompt, hide_input=True)
+        if value == confirm_value:
+            return value
+        elif not retry:
+            raise click.BadParameter("Values do not match")
+        else:
+            echo("Values do not match")
+
+
+def configure_argo_events(env):
+    event_source_name = click.prompt(
+        cyan("[METAFLOW_EVENT_SOURCE_NAME]") + " Name of Argo Events event source"
+    )
+    env["METAFLOW_EVENT_SOURCE_NAME"] = event_source_name
+    source_type = click.prompt(
+        "Does %s event source use http, https, or nats?" % event_source_name,
+        type=click.Choice(["http", "https", "nats"], case_sensitive=False),
+        default="http",
+        show_choices=False,
+    )
+
+    def validator(text):
+        p = urlparse(text)
+
+        if p.netloc == "":
+            raise click.BadParameter("Event source URL missing host and port")
+        if source_type.lower() in ["http", "https"]:
+            if p.scheme not in ["http", "https"]:
+                raise click.BadParameter(
+                    "Web hook URLs must begin with either 'http://' or 'https://'"
+                )
+        else:
+            if p.scheme != "nats":
+                raise click.BadParameter(
+                    "nats message bus URLs must begin with 'nats://'"
+                )
+        if p.path == "":
+            if source_type.lower() == "nats":
+                message = "URL must include nats message bus event topic"
+            else:
+                message = "URL must include path to event endpoint"
+            raise click.BadParameter(message)
+        return p.geturl()
+
+    env["METAFLOW_EVENT_SOURCE_URL"] = click.prompt(
+        cyan("[METAFLOW_EVENT_SOURCE_URL]")
+        + " URL for event source '%s', including protocol" % event_source_name,
+        value_proc=validator,
+    )
+
+    requires_auth = click.confirm(
+        "Does the event source '%s' require authentication?" % event_source_name,
+        default=True,
+    )
+    if requires_auth:
+        auth_type = click.prompt(
+            "Does the event source use a Kubernetes secret or auth token?",
+            type=click.Choice(["secret", "token"], case_sensitive=False),
+            default="secret",
+        )
+        if auth_type.lower() == "secret":
+            auth_secret = click.prompt(
+                cyan("[METAFLOW_EVENT_AUTH_SECRET]") + " Name of Kubernetes secret"
+            )
+            env["METAFLOW_EVENT_AUTH_SECRET"] = auth_secret
+            env["METAFLOW_EVENT_AUTH_KEY"] = click.prompt(
+                cyan("[METAFLOW_EVENT_AUTH_KEY]")
+                + " Name of key within secret '%s'" % auth_secret
+            )
+        else:
+            prefix = cyan("[METAFLOW_EVENT_SOURCE_AUTH_TOKEN]")
+            prompt = prefix + " Enter auth token"
+            confirm_prompt = prefix + " Enter auth token again to confirm"
+            token = read_hidden_input(prompt, confirm_prompt, retry=True)
+    env["METAFLOW_EVENT_SERVICE_ACCOUNT"] = click.prompt(
+        cyan("[METAFLOW_EVENT_SERVICE_ACCOUNT]") + " Argo Events service account name",
+        default="operate-workflow-sa",
+    )
+    return env
+
+
+try:
+    from metaflow.extension_support import get_modules, load_module, _ext_debug
+
+    _modules_to_import = get_modules("cmd")
+    _clis = []
+    # Reverse to maintain "latest" overrides (in Click, the first one will get it)
+    for m in reversed(_modules_to_import):
+        _get_clis = m.module.__dict__.get("get_cmd_clis")
+        if _get_clis:
+            _clis.extend(_get_clis())
+
+except Exception as e:
+    _ext_debug("\tWARNING: ignoring all plugins due to error during import: %s" % e)
+    print(
+        "WARNING: Command extensions did not load -- ignoring all of them which may not "
+        "be what you want: %s" % e
+    )
+
+
+@click.command(
+    cls=click.CommandCollection,
+    sources=_clis,
+    invoke_without_command=True,
+)
+@click.pass_context
+def start(ctx):
+    global echo
+    echo = echo_always
+
+    import metaflow
+
+    echo("Metaflow ", fg="magenta", bold=True, nl=False)
+
+    if ctx.invoked_subcommand is None:
+        echo("(%s): " % metaflow.__version__, fg="magenta", bold=False, nl=False)
+    else:
+        echo("(%s)\n" % metaflow.__version__, fg="magenta", bold=False)
+
+    if ctx.invoked_subcommand is None:
+        echo("More data science, less engineering\n", fg="magenta")
+
+        # metaflow URL
+        echo("http://docs.metaflow.org", fg="cyan", nl=False)
+        echo(" - Read the documentation")
+
+        # metaflow chat
+        echo("http://chat.metaflow.org", fg="cyan", nl=False)
+        echo(" - Chat with us")
+
+        # metaflow help email
+        echo("help@metaflow.org", fg="cyan", nl=False)
+        echo("        - Get help by email\n")
+
+        print(ctx.get_help())
+
+
+start()
+
+for _n in [
+    "get_modules",
+    "load_module",
+    "_modules_to_import",
+    "m",
+    "_get_clis",
+    "_clis",
+    "ext_debug",
+    "e",
+]:
+    try:
+        del globals()[_n]
+    except KeyError:
+        pass
+del globals()["_n"]
