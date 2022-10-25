@@ -182,10 +182,11 @@ class ArgoClient(object):
             )
 
     def register_sensor_template(self, name, sensor_template):
+        client = self._kubernetes_client.get()
         try:
             sensor_template["metadata"][
                 "resourceVersion"
-            ] = self._client.CustomObjectsApi().get_namespaced_custom_object(
+            ] = client.CustomObjectsApi().get_namespaced_custom_object(
                 group=self._group,
                 version=self._version,
                 namespace=self._namespace,
@@ -196,19 +197,17 @@ class ArgoClient(object):
             ][
                 "resourceVersion"
             ]
-        except self._client.rest.ApiException as e:
+        except client.rest.ApiException as e:
             if e.status == 404:
                 try:
-                    return (
-                        self._client.CustomObjectsApi().create_namespaced_custom_object(
-                            group=self._group,
-                            version=self._version,
-                            namespace=self._namespace,
-                            plural="sensors",
-                            body=sensor_template,
-                        )
+                    return client.CustomObjectsApi().create_namespaced_custom_object(
+                        group=self._group,
+                        version=self._version,
+                        namespace=self._namespace,
+                        plural="sensors",
+                        body=sensor_template,
                     )
-                except self._client.rest.ApiException as e:
+                except client.rest.ApiException as e:
                     raise ArgoClientException(
                         json.loads(e.body)["message"]
                         if e.body is not None
@@ -219,7 +218,7 @@ class ArgoClient(object):
                     json.loads(e.body)["message"] if e.body is not None else e.reason
                 )
         try:
-            return self._client.CustomObjectsApi().replace_namespaced_custom_object(
+            return client.CustomObjectsApi().replace_namespaced_custom_object(
                 group=self._group,
                 version=self._version,
                 namespace=self._namespace,
@@ -227,14 +226,15 @@ class ArgoClient(object):
                 name=name,
                 body=sensor_template,
             )
-        except self._client.rest.ApiException as e:
+        except client.rest.ApiException as e:
             raise ArgoClientException(
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
     def disable_sensor(self, name):
+        client = self._kubernetes_client.get()
         try:
-            sensor = self._client.CustomObjectsApi().get_namespaced_custom_object(
+            sensor = client.CustomObjectsApi().get_namespaced_custom_object(
                 group=self._group,
                 version=self._version,
                 namespace=self._namespace,
@@ -261,7 +261,7 @@ class ArgoClient(object):
 
             sensor["spec"]["dependencies"] = [first_dep]
             sensor["spec"]["filters"] = []
-            self._client.CustomObjectsApi().replace_namespaced_custom_object(
+            client.CustomObjectsApi().replace_namespaced_custom_object(
                 group=self._group,
                 version=self._version,
                 namespace=self._namespace,
@@ -270,7 +270,7 @@ class ArgoClient(object):
                 body=sensor,
             )
 
-        except self._client.rest.ApiException as e:
+        except client.rest.ApiException as e:
             if e.status == 404:
                 return False
 

@@ -906,8 +906,7 @@ class ArgoWorkflows(object):
                     **self.metadata.get_runtime_environment("argo-workflows"),
                 }
             )
-            if retry_count is not None:
-                env["METAFLOW_RETRY_COUNT"] = retry_count
+            env["METAFLOW_RETRY_COUNT"] = retry_count
             # add METAFLOW_S3_ENDPOINT_URL
             env["METAFLOW_S3_ENDPOINT_URL"] = S3_ENDPOINT_URL
 
@@ -1082,15 +1081,8 @@ class ArgoWorkflows(object):
                         "METAFLOW_EVENT_SOURCE_NAME": EVENT_SOURCE_NAME,
                         "METAFLOW_FLOW_NAME": self.flow.name,
                         "METAFLOW_RUN_ID": self._run_id,
+                        "METAFLOW_EVENT_SOURCE_URL": EVENT_SOURCE_URL
                     }
-                    if EVENT_SOURCE_URL.startswith("nats://"):
-                        parsed = parse.urlparse(EVENT_SOURCE_URL)
-                        template_env["METAFLOW_EVENT_ENDPOINT"] = parsed.netloc
-                        template_env["METAFLOW_EVENT_PATH"] = parsed.path.replace(
-                            "/", ""
-                        )
-                    else:
-                        template_env["METAFLOW_EVENT_SOURCE_URL"] = EVENT_SOURCE_URL
                     yield self._make_lifecycle_hook_container_template(
                         template_env, "succeeded"
                     )
@@ -1301,15 +1293,16 @@ class WorkflowSpec(object):
         return self
 
     def lifecycle_hooks(self, name, ignore_events):
-        if not ignore_events:
-            name = name.replace("_", "-").lower()
-            success = {
-                "template": "on-succeeded",
-                "expression": 'workflow.status == "Succeeded"',
-            }
-            if "hooks" not in self.payload:
-                self.payload["hooks"] = dict()
-            self.payload["hooks"] = {"mf-run-succeeded": success}
+        if ignore_events:
+            return self
+        name = name.replace("_", "-").lower()
+        success = {
+            "template": "on-succeeded",
+            "expression": 'workflow.status == "Succeeded"',
+        }
+        if "hooks" not in self.payload:
+            self.payload["hooks"] = dict()
+        self.payload["hooks"] = {"mf-run-succeeded": success}
         return self
 
     def metadata_update_hook(self, sensor_template):
@@ -1713,20 +1706,23 @@ class WorkflowLifecycleHookContainerTemplate(object):
             'run_id=os.getenv("METAFLOW_RUN_ID");',
             'flow_name=os.getenv("METAFLOW_FLOW_NAME");'
             'event_name="%s";' % event_name.replace(".", "-"),
-            "timestamp=int(datetime.datetime.timestamp(datetime.datetime.utcnow()));",
-            'pathspec="%s/runs/%s" % (flow_name, run_id);',
-            'payload=json.dumps({"payload":{"event_name":event_name,"event_type":"metaflow_system","data":{},"pathspec":pathspec,"timestamp":timestamp}});',
+            "timestamp=int(datetime.datetime.timestamp(datetime.datetime.utcnow()) * 1000);"
+            'pathspec="%s/%s" % (flow_name, run_id);',
+            'payload={"payload":{"event_name":event_name,"event_type":"metaflow_system","data":{},"pathspec":pathspec,"timestamp":timestamp}};',
         ]
 
         if EVENT_SOURCE_URL.startswith("nats://"):
             commands = ["pip install -qqq nats-py"]
             python_source = "".join(
-                ["import asyncio,datetime,json,pathlib,os,sys,time,nats;"]
+                ["import asyncio,datetime,json,pathlib,os,re,sys,time,nats;",
+                "from urllib.parse import urlparse;"]
                 + common_code
                 + [
-                    'auth_token=os.getenv("NATS_TOKEN");',
-                    'server=os.getenv("METAFLOW_EVENT_ENDPOINT");',
-                    'topic=os.getenv("METAFLOW_EVENT_PATH");',
+                    'parsed=urllib.parse.urlparse(os.getenv("METAFLOW_EVENT_URL"));'
+                    'server=parsed.netloc;'
+                    'topic=parsed.path.replace("/", "");'
+                    'auth_token=re.sub("^token: ", "", os.getenv("NATS_TOKEN"));',
+                    "payload=json.dumps(payload);",
                 ]
                 + [
                     """
@@ -1742,8 +1738,7 @@ class WorkflowLifecycleHookContainerTemplate(object):
                             sys.exit(1)
                     asyncio.run(send_it())
                     time.sleep(300)
-                    sys.exit(0)
-                """.replace(
+                    sys.exit(0)""".replace(
                         "                    ", ""
                     )
                 ]
@@ -1751,7 +1746,7 @@ class WorkflowLifecycleHookContainerTemplate(object):
         else:
             commands = ["pip install -qqq requests"]
             python_source = "".join(
-                ["import datetime,json,os,time,requests;"]
+                ["import json,os,time,requests;", "from datetime import datetime;"]
                 + common_code
                 + [
                     'event_url=os.getenv("METAFLOW_EVENT_SOURCE_URL");'

@@ -154,13 +154,6 @@ def create(
     obj.echo("Deploying *%s* to Argo Workflows..." % obj.workflow_name, bold=True)
     if ignore_events:
         obj.echo("Workflow trigger setup and event dispatch will be skipped.")
-    else:
-        data = current.get("event_decorator_error")
-        if data is not None:
-            err = MetaflowException(msg=data["message"])
-            if "headline" in data:
-                err.headline = data["headline"]
-            raise err
 
     if SERVICE_VERSION_CHECK:
         # TODO: Consider dispelling with this check since it's been 2 years since the
