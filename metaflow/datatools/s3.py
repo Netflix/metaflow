@@ -1060,9 +1060,8 @@ class S3(object):
 
         url = self._url(key)
         src = urlparse(url)
-        extra_args = None
+        extra_args = {"ServerSideEncryption": "AES256"}
         if content_type or metadata:
-            extra_args = {}
             if content_type:
                 extra_args["ContentType"] = content_type
             if metadata:
@@ -1231,6 +1230,7 @@ class S3(object):
                 if error_code == 404:
                     raise MetaflowS3NotFound(url)
                 elif error_code == 403:
+                    print("BAH", err)
                     raise MetaflowS3AccessDenied(url)
                 elif error_code == 416:
                     raise MetaflowS3InvalidRange(err)

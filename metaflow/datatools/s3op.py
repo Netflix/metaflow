@@ -250,13 +250,14 @@ def worker(result_file_name, queue, mode, s3config):
                         # No pre-op so we upload
                         do_upload = True
                     if do_upload:
-                        extra = None
+                        extra = {"ServerSideEncryption": "AES256"}
                         if url.content_type or url.metadata:
                             extra = {}
                             if url.content_type:
                                 extra["ContentType"] = url.content_type
                             if url.metadata is not None:
                                 extra["Metadata"] = url.metadata
+
                         s3.upload_file(url.local, url.bucket, url.path, ExtraArgs=extra)
                         # We indicate that the file was uploaded
                         result_file.write("%d %d\n" % (idx, 0))
