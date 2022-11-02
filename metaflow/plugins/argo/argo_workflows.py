@@ -389,7 +389,9 @@ class ArgoWorkflows(object):
 
             if node.name == "start":
                 # Start node has no dependencies.
-                dag_task = DAGTask(self._sanitize(node.name)).template(self._sanitize(node.name))
+                dag_task = DAGTask(self._sanitize(node.name)).template(
+                    self._sanitize(node.name)
+                )
             elif (
                 node.is_inside_foreach
                 and self.graph[node.in_funcs[0]].type == "foreach"
@@ -420,7 +422,9 @@ class ArgoWorkflows(object):
                 ]
                 dag_task = (
                     DAGTask(self._sanitize(node.name))
-                    .dependencies([self._sanitize(in_func) for in_func in node.in_funcs])
+                    .dependencies(
+                        [self._sanitize(in_func) for in_func in node.in_funcs]
+                    )
                     .template(self._sanitize(node.name))
                     .arguments(Arguments().parameters(parameters))
                 )
@@ -498,7 +502,7 @@ class ArgoWorkflows(object):
                 )
                 join_foreach_task = (
                     DAGTask(self._sanitize(self.graph[node.matching_join].name))
-                    .template(self.graph[node.matching_join].name)
+                    .template(self._sanitize(self.graph[node.matching_join].name))
                     .dependencies([foreach_template_name])
                     .arguments(
                         Arguments().parameters(
@@ -888,7 +892,7 @@ class ArgoWorkflows(object):
                     # defined.
                     to_camelcase(
                         kubernetes_sdk.V1Container(
-                            name=node.name,
+                            name=self._sanitize(node.name),
                             command=cmds,
                             env=[
                                 kubernetes_sdk.V1EnvVar(name=k, value=str(v))
