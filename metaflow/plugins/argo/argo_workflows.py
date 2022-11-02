@@ -389,7 +389,9 @@ class ArgoWorkflows(object):
 
             if node.name == "start":
                 # Start node has no dependencies.
-                dag_task = DAGTask(self._sanitize(node.name)).template(self._sanitize(node.name))
+                dag_task = DAGTask(self._sanitize(node.name)).template(
+                    self._sanitize(node.name)
+                )
             elif (
                 node.is_inside_foreach
                 and self.graph[node.in_funcs[0]].type == "foreach"
@@ -420,7 +422,9 @@ class ArgoWorkflows(object):
                 ]
                 dag_task = (
                     DAGTask(self._sanitize(node.name))
-                    .dependencies([self._sanitize(in_func) for in_func in node.in_funcs])
+                    .dependencies(
+                        [self._sanitize(in_func) for in_func in node.in_funcs]
+                    )
                     .template(self._sanitize(node.name))
                     .arguments(Arguments().parameters(parameters))
                 )
