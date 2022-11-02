@@ -429,6 +429,12 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
     help="A comma-separated list of pathspecs specifying inputs for this step.",
 )
 @click.option(
+    "--input-paths-filename",
+    type=click.Path(exists=True, readable=True, dir_okay=False, resolve_path=True),
+    help="A filename containing the argument typically passed to `input-paths`",
+    hidden=True,
+)
+@click.option(
     "--split-index",
     type=int,
     default=None,
@@ -506,6 +512,7 @@ def step(
     run_id=None,
     task_id=None,
     input_paths=None,
+    input_paths_filename=None,
     split_index=None,
     opt_namespace=None,
     retry_count=None,
@@ -544,6 +551,10 @@ def step(
     cli_args._set_step_kwargs(step_kwargs)
 
     ctx.obj.metadata.add_sticky_tags(tags=opt_tag)
+    if not input_paths and input_paths_filename:
+        with open(input_paths_filename, mode="r", encoding="utf-8") as f:
+            input_paths = f.read().strip(" \n\"'")
+
     paths = decompress_list(input_paths) if input_paths else []
 
     task = MetaflowTask(
