@@ -201,7 +201,7 @@ class ResourcesFlow(FlowSpec):
 
         self.next(self.join_step)
 
-    @resources(volume="12G")
+    @resources(volume="12G", volume_type="gp3-300-3000")
     @step
     def join_step(self, inputs):
         output = subprocess.check_output(
