@@ -144,6 +144,9 @@ class MetaflowEnvironment(object):
             "mflog 'Failed to download code package from %s "
             "after 6 tries. Exiting...' && exit 1; "
             "fi" % code_package_url,
+            "if [ `sha1sum job.tar | cut -d ' ' -f1` != $METAFLOW_CODE_SHA ]; then "
+            "mflog 'Hash does not match for code package from %s. Exiting...' && exit 1; "
+            "fi" % code_package_url,
             "TAR_OPTIONS='--warning=no-timestamp' tar xf job.tar",
             "mflog 'Task is starting.'",
         ]
