@@ -18,6 +18,7 @@ from metaflow.metaflow_config import (
     EVENTS_SFN_ACCESS_IAM_ROLE,
     SFN_DYNAMO_DB_TABLE,
     SFN_EXECUTION_LOG_GROUP_ARN,
+    S3_ENDPOINT_URL,
 )
 from metaflow import R
 
@@ -393,6 +394,10 @@ class StepFunctions(object):
         if env_deco:
             env = env_deco[0].attributes["vars"]
 
+        # add METAFLOW_S3_ENDPOINT_URL
+        if S3_ENDPOINT_URL is not None:
+            env["METAFLOW_S3_ENDPOINT_URL"] = S3_ENDPOINT_URL
+
         if node.name == "start":
             # Initialize parameters for the flow in the `start` step.
             parameters = self._process_parameters()
@@ -579,6 +584,10 @@ class StepFunctions(object):
                 )
             env["METAFLOW_SFN_DYNAMO_DB_TABLE"] = SFN_DYNAMO_DB_TABLE
 
+        # It makes no sense to set env vars to None (shows up as "None" string)
+        env_without_none_values = {k: v for k, v in env.items() if v is not None}
+        del env
+
         # Resolve AWS Batch resource requirements.
         batch_deco = [deco for deco in node.decorators if deco.name == "batch"][0]
         resources = {}
@@ -619,7 +628,7 @@ class StepFunctions(object):
                 shared_memory=resources["shared_memory"],
                 max_swap=resources["max_swap"],
                 swappiness=resources["swappiness"],
-                env=env,
+                env=env_without_none_values,
                 attrs=attrs,
                 host_volumes=resources["host_volumes"],
             )
@@ -670,8 +679,8 @@ class StepFunctions(object):
             "--environment=%s" % self.environment.TYPE,
             "--datastore=%s" % self.flow_datastore.TYPE,
             "--datastore-root=%s" % self.flow_datastore.datastore_root,
-            "--event-logger=%s" % self.event_logger.logger_type,
-            "--monitor=%s" % self.monitor.monitor_type,
+            "--event-logger=%s" % self.event_logger.TYPE,
+            "--monitor=%s" % self.monitor.TYPE,
             "--no-pylint",
             "--with=step_functions_internal",
         ]

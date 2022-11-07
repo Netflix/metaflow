@@ -6,8 +6,9 @@ repos:
       - id: check-yaml
       - id: check-json
   - repo: https://github.com/ambv/black
-    rev: 21.9b0
+    rev: 21.12b0
     hooks:
       - id: black
         language_version: python3
         exclude: "^metaflow/_vendor/"
+        additional_dependencies: ["click<8.1.0"]

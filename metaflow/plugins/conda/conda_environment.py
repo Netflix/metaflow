@@ -31,17 +31,19 @@ class CondaEnvironment(MetaflowEnvironment):
             # the default 'default environment'
             self.base_env = MetaflowEnvironment(self.flow)
         else:
-            self.base_env = [e for e in ENVIRONMENTS + [MetaflowEnvironment] if e.TYPE == DEFAULT_ENVIRONMENT][0](
-                self.flow
-            )
+            self.base_env = [
+                e
+                for e in ENVIRONMENTS + [MetaflowEnvironment]
+                if e.TYPE == DEFAULT_ENVIRONMENT
+            ][0](self.flow)
 
     def init_environment(self, echo):
         # Print a message for now
         echo("Bootstrapping conda environment..." + "(this could take a few minutes)")
         self.base_env.init_environment(echo)
 
-    def validate_environment(self, echo):
-        return self.base_env.validate_environment(echo)
+    def validate_environment(self, echo, datastore_type):
+        return self.base_env.validate_environment(echo, datastore_type)
 
     def decospecs(self):
         # Apply conda decorator and base environment's decorators to all steps
@@ -68,13 +70,14 @@ class CondaEnvironment(MetaflowEnvironment):
     def set_local_root(self, ds_root):
         self.local_root = ds_root
 
-    def bootstrap_commands(self, step_name):
+    def bootstrap_commands(self, step_name, datastore_type):
         # Bootstrap conda and execution environment for step
         env_id = self._get_env_id(step_name)
         if env_id is not None:
             return [
                 "echo 'Bootstrapping environment...'",
-                'python -m metaflow.plugins.conda.batch_bootstrap "%s" %s' % (self.flow.name, env_id),
+                'python -m metaflow.plugins.conda.batch_bootstrap "%s" %s "%s"'
+                % (self.flow.name, env_id, datastore_type),
                 "echo 'Environment bootstrapped.'",
             ]
         return []
@@ -111,7 +114,9 @@ class CondaEnvironment(MetaflowEnvironment):
         if info is None or env_id is None:
             return {"type": "conda"}
         info = json.loads(info)
-        _, blobdata = cls._filecache.get_data(info["ds_type"], flow_name, info["location"], info["sha"])
+        _, blobdata = cls._filecache.get_data(
+            info["ds_type"], flow_name, info["location"], info["sha"]
+        )
         with tarfile.open(fileobj=BytesIO(blobdata), mode="r:gz") as tar:
             conda_file = tar.extractfile(CONDA_MAGIC_FILE)
         if conda_file is None:
@@ -124,8 +129,8 @@ class CondaEnvironment(MetaflowEnvironment):
         }
         return new_info
 
-    def get_package_commands(self, code_package_url):
-        return self.base_env.get_package_commands(code_package_url)
+    def get_package_commands(self, code_package_url, datastore_type):
+        return self.base_env.get_package_commands(code_package_url, datastore_type)
 
     def get_environment_info(self):
         return self.base_env.get_environment_info()

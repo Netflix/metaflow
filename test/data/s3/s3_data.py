@@ -125,6 +125,10 @@ PUT_PREFIX = "put_tests"
 
 ExpectedResult = namedtuple("ExpectedResult", "size checksum content_type metadata range")
 
+ExpectedRange = namedtuple(
+    "ExpectedRange", "total_size result_offset result_size req_offset req_size"
+)
+
 
 class RandomFile(object):
 
@@ -158,7 +162,7 @@ class RandomFile(object):
 
     def size_from_range(self, start, length):
         if self.size is None:
-            return None
+            return None, None
         if length:
             if length > 0:
                 end = length + start
@@ -171,7 +175,9 @@ class RandomFile(object):
 
         if end > self.size:
             end = self.size
-        return end - start
+        if start >= end:
+            return None, None
+        return end - start, start
 
     def fileobj(self):
         if self.size is not None:
@@ -217,12 +223,21 @@ def _format_test_cases(dataset, meta=None, ranges=None):
             # checksum and create a new dictionary
             for k, (obj, content_type, usermeta) in objs.items():
                 for offset, length in ranges.values():
+                    expected_size, real_offset = obj.size_from_range(offset, length)
+                    if expected_size is None or expected_size > obj.size:
+                        continue
                     files[k][(offset, length)] = ExpectedResult(
-                        size=obj.size_from_range(offset, length),
+                        size=expected_size,
                         checksum=obj.checksum(offset, length),
                         content_type=content_type,
                         metadata=usermeta,
-                        range=(offset, length),
+                        range=ExpectedRange(
+                            total_size=obj.size,
+                            result_offset=real_offset,
+                            result_size=expected_size,
+                            req_offset=offset,
+                            req_size=length,
+                        ),
                     )
 
         ids.append(prefix)

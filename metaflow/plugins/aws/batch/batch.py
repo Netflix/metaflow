@@ -8,18 +8,17 @@ import time
 
 from metaflow import util
 from metaflow.datatools.s3tail import S3Tail
-from metaflow.exception import MetaflowException, MetaflowInternalError
+from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
     BATCH_METADATA_SERVICE_URL,
     DATATOOLS_S3ROOT,
-    DATASTORE_LOCAL_DIR,
     DATASTORE_SYSROOT_S3,
     DEFAULT_METADATA,
     BATCH_METADATA_SERVICE_HEADERS,
     BATCH_EMIT_TAGS,
     DATASTORE_CARD_S3ROOT,
+    S3_ENDPOINT_URL,
 )
-from metaflow.mflog.mflog import refine, set_should_persist
 from metaflow.mflog import (
     export_mflog_env_vars,
     bash_capture_logs,
@@ -54,11 +53,16 @@ class Batch(object):
 
     def _command(self, environment, code_package_url, step_name, step_cmds, task_spec):
         mflog_expr = export_mflog_env_vars(
-            datastore_type="s3", stdout_path=STDOUT_PATH, stderr_path=STDERR_PATH, **task_spec
+            datastore_type="s3",
+            stdout_path=STDOUT_PATH,
+            stderr_path=STDERR_PATH,
+            **task_spec
         )
-        init_cmds = environment.get_package_commands(code_package_url)
+        init_cmds = environment.get_package_commands(code_package_url, "s3")
         init_expr = " && ".join(init_cmds)
-        step_expr = bash_capture_logs(" && ".join(environment.bootstrap_commands(step_name) + step_cmds))
+        step_expr = bash_capture_logs(
+            " && ".join(environment.bootstrap_commands(step_name, "s3") + step_cmds)
+        )
 
         # construct an entry point that
         # 1) initializes the mflog environment (mflog_expr)
@@ -120,7 +124,11 @@ class Batch(object):
         found = False
         for job in jobs:
             found = True
-            echo("{name} [{id}] ({status})".format(name=job["jobName"], id=job["jobId"], status=job["status"]))
+            echo(
+                "{name} [{id}] ({status})".format(
+                    name=job["jobName"], id=job["jobId"], status=job["status"]
+                )
+            )
         if not found:
             echo("No running AWS Batch jobs found.")
 
@@ -139,7 +147,10 @@ class Batch(object):
                     )
                 )
             except Exception as e:
-                echo("Failed to terminate AWS Batch job %s [%s]" % (job["jobId"], repr(e)))
+                echo(
+                    "Failed to terminate AWS Batch job %s [%s]"
+                    % (job["jobId"], repr(e))
+                )
         if not found:
             echo("No running AWS Batch jobs found.")
 
@@ -180,7 +191,11 @@ class Batch(object):
             self._client.job()
             .job_name(job_name)
             .job_queue(queue)
-            .command(self._command(self.environment, code_package_url, step_name, [step_cli], task_spec))
+            .command(
+                self._command(
+                    self.environment, code_package_url, step_name, [step_cli], task_spec
+                )
+            )
             .image(image)
             .iam_role(iam_role)
             .execution_role(execution_role)
@@ -211,7 +226,9 @@ class Batch(object):
             .environment_variable("METAFLOW_CODE_DS", code_package_ds)
             .environment_variable("METAFLOW_USER", attrs["metaflow.user"])
             .environment_variable("METAFLOW_SERVICE_URL", BATCH_METADATA_SERVICE_URL)
-            .environment_variable("METAFLOW_SERVICE_HEADERS", json.dumps(BATCH_METADATA_SERVICE_HEADERS))
+            .environment_variable(
+                "METAFLOW_SERVICE_HEADERS", json.dumps(BATCH_METADATA_SERVICE_HEADERS)
+            )
             .environment_variable("METAFLOW_DATASTORE_SYSROOT_S3", DATASTORE_SYSROOT_S3)
             .environment_variable("METAFLOW_DATATOOLS_S3ROOT", DATATOOLS_S3ROOT)
             .environment_variable("METAFLOW_DEFAULT_DATASTORE", "s3")
@@ -223,8 +240,13 @@ class Batch(object):
         # instance and the remote AWS Batch instance assumes metadata is stored in DATASTORE_LOCAL_DIR
         # on the remote AWS Batch instance; this happens when METAFLOW_DATASTORE_SYSROOT_LOCAL
         # is NOT set (see get_datastore_root_from_config in datastore/local.py).
+        # add METAFLOW_S3_ENDPOINT_URL
+        if S3_ENDPOINT_URL is not None:
+            job.environment_variable("METAFLOW_S3_ENDPOINT_URL", S3_ENDPOINT_URL)
+
         for name, value in env.items():
             job.environment_variable(name, value)
+
         if attrs:
             for key, value in attrs.items():
                 job.parameter(key, value)
@@ -274,7 +296,8 @@ class Batch(object):
             queue = next(self._client.active_job_queues(), None)
             if queue is None:
                 raise BatchException(
-                    "Unable to launch AWS Batch job. No job queue " " specified and no valid & enabled queue found."
+                    "Unable to launch AWS Batch job. No job queue "
+                    " specified and no valid & enabled queue found."
                 )
         job = self.create_job(
             step_name,
@@ -317,16 +340,28 @@ class Batch(object):
                     if not child_jobs:
                         child_statuses = ""
                     else:
-                        status_keys = set([child_job.status for child_job in child_jobs])
+                        status_keys = set(
+                            [child_job.status for child_job in child_jobs]
+                        )
                         status_counts = [
                             (
                                 status,
-                                len([child_job.status == status for child_job in child_jobs]),
+                                len(
+                                    [
+                                        child_job.status == status
+                                        for child_job in child_jobs
+                                    ]
+                                ),
                             )
                             for status in status_keys
                         ]
                         child_statuses = " (parallel node status: [{}])".format(
-                            ", ".join(["{}:{}".format(status, num) for (status, num) in sorted(status_counts)])
+                            ", ".join(
+                                [
+                                    "{}:{}".format(status, num)
+                                    for (status, num) in sorted(status_counts)
+                                ]
+                            )
                         )
                     status = job.status
                     echo(
@@ -376,7 +411,9 @@ class Batch(object):
                 ]
                 if msg is not None
             )
-            raise BatchException("%s " "This could be a transient error. " "Use @retry to retry." % msg)
+            raise BatchException(
+                "%s " "This could be a transient error. " "Use @retry to retry." % msg
+            )
         else:
             if self.job.is_running:
                 # Kill the job if it is still running by throwing an exception.

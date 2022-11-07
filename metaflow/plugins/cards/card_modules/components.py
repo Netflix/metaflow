@@ -8,7 +8,7 @@ from .basic import (
     MarkdownComponent,
 )
 from .card import MetaflowCardComponent
-from .convert_to_native_type import TaskToDict
+from .convert_to_native_type import TaskToDict, _full_classname
 from .renderer_tools import render_safely
 
 
@@ -18,20 +18,24 @@ class UserComponent(MetaflowCardComponent):
 
 class Artifact(UserComponent):
     """
-    This class helps visualize any variable on the `MetaflowCard`.
-    The variable will be truncated using `reprlib.Repr.repr()`.
+    A pretty-printed version of any Python object.
 
-    ### Usage :
-    ```python
-    @card
-    @step
-    def my_step(self):
-        from metaflow.cards import Artifact
-        from metaflow import current
-        x = dict(a=2,b=2..)
-        current.card.append(Artifact(x)) # Adds a name to the artifact
-        current.card.append(Artifact(x,'my artifact name'))
+    Large objects are truncated using Python's built-in [`reprlib`](https://docs.python.org/3/library/reprlib.html).
+
+    Example:
     ```
+    from datetime import datetime
+    current.card.append(Artifact({'now': datetime.utcnow()}))
+    ```
+
+    Parameters
+    ----------
+    artifact : object
+        Any Python object.
+    name : str
+        Optional label for the object.
+    compressed : bool
+        Use a truncated representation (default: True).
     """
 
     def __init__(self, artifact, name=None, compressed=True):
@@ -50,49 +54,43 @@ class Artifact(UserComponent):
 
 class Table(UserComponent):
     """
-    This class helps visualize information in the form of a table in a `MetaflowCard`.
-    `Table` can take other `MetaflowCardComponent`s like `Artifact`, `Image`, `Markdown` and `Error` as sub elements.
+    A table.
 
-    ### Parameters
-    - `data` (List[List[Any]]) : The data to see in the table. Input is a 2d list that contains native types or `MetaflowCardComponent`s like `Artifact`, `Image`, `Markdown` and `Error`. Doesn't play friendly with `dict` as a sub-element. If passing a `dict`, pass it via `Artifact`. Example : `Table([[Artifact(my_dictionary)]])`. If a non serializable object is passed as a sub-element then the table cell on the `MetaflowCard` will show up as `<object>`. columns.  Defaults to [[]].
-    - `headers` (List[str]) : The names of the columns.  Defaults to [].
+    The contents of the table can be text or numerical data, a Pandas dataframe,
+    or other card components: `Artifact`, `Image`, `Markdown` objects.
 
-    ### Usage with other components:
-    ```python
-    @card
-    @step
-    def my_step(self):
-        from metaflow.cards import Table, Artifact
-        from metaflow import current
-        x = dict(a=2,b=2..)
-        y = dict(b=3,c=2..)
-        # Can take other components as arguments
-        current.card.append(
-            Table([[
-                Artifact(x), # Adds a name to the artifact
-                Artifact(y), # Adds a name to the artifact
-            ]])
-        current.card.append(Artifact(x,'my artifact name'))
+    Example: Text and artifacts
     ```
-    ### Usage with dataframes:
-    ```python
-    @card
-    @step
-    def my_step(self):
-        from metaflow.cards import Table
-        from metaflow import current
-        # Can be created from a dataframe
-        import pandas as pd
-        import numpy as np
-        current.card.append(
-            Table.from_dataframe(
-                pandas.DataFrame(
-                    np.random.randint(0, 100, size=(15, 4)),
-                    columns=list("ABCD"),
-                )
+    from metaflow.cards import Table, Artifact
+    current.card.append(
+        Table([
+            ['first row', Artifact({'a': 2})],
+            ['second row', Artifact(3)]
+        ])
+    )
+    ```
+
+    Example: Table from a Pandas dataframe
+    ```
+    from metaflow.cards import Table
+    import pandas as pd
+    import numpy as np
+    current.card.append(
+        Table.from_dataframe(
+            pd.DataFrame(
+                np.random.randint(0, 100, size=(15, 4)),
+                columns=list("ABCD")
             )
         )
+    )
     ```
+
+    Parameters
+    ----------
+    data : List[List[str|MetaflowCardComponent]]
+        List (rows) of lists (columns). Each item can be a string or a `MetaflowCardComponent`.
+    headers : List[str]
+        Optional header row for the table.
     """
 
     def __init__(self, data=[[]], headers=[]):
@@ -106,10 +104,22 @@ class Table(UserComponent):
 
     @classmethod
     def from_dataframe(cls, dataframe=None, truncate=True):
+        """
+        Create a `Table` based on a Pandas dataframe.
+
+        Parameters
+        ----------
+        dataframe : pandas.DataFrame
+            Pandas dataframe.
+        truncate : bool
+            Truncate large dataframe instead of showing all rows (default: True).
+        """
         task_to_dict = TaskToDict()
         object_type = task_to_dict.object_type(dataframe)
         if object_type == "pandas.core.frame.DataFrame":
-            table_data = task_to_dict._parse_pandas_dataframe(dataframe, truncate=truncate)
+            table_data = task_to_dict._parse_pandas_dataframe(
+                dataframe, truncate=truncate
+            )
             return_val = cls(data=table_data["data"], headers=table_data["headers"])
             return return_val
         else:
@@ -138,66 +148,60 @@ class Table(UserComponent):
 
     @render_safely
     def render(self):
-        return TableComponent(headers=self._headers, data=self._render_subcomponents()).render()
+        return TableComponent(
+            headers=self._headers, data=self._render_subcomponents()
+        ).render()
 
 
 class Image(UserComponent):
     """
-    This class helps visualize an image in a `MetaflowCard`. `Image`s can be created direcly from `bytes` or `PIL.Image`s or Matplotib figures.
+    An image.
 
-    ### Parameters
-    - `src` (bytes) : The image source in `bytes`.
-    - `label` (str) : Label to the image show on the `MetaflowCard`.
+    `Image`s can be created direcly from PNG/JPG/GIF `bytes`, `PIL.Image`s,
+    or Matplotib figures. Note that the image data is embedded in the card,
+    so no external files are required to show the image.
 
-    ### Usage
-    ```python
-    @card
-    @step
-    def my_step(self):
-        from metaflow.cards import Image
-        from metaflow import current
-        import requests
-        current.card.append(
-            Image(
-                requests.get("https://www.gif-vif.com/hacker-cat.gif").content,
-                "Image From Bytes",
-            ),
+    Example: Create an `Image` from bytes:
+    ```
+    current.card.append(
+        Image(
+            requests.get("https://www.gif-vif.com/hacker-cat.gif").content,
+            "Image From Bytes"
         )
+    )
     ```
 
-    #### `Image.from_matplotlib` :
-    ```python
-    @card
-    @step
-    def my_step(self):
-        from metaflow.cards import Image
-        from metaflow import current
-        import pandas as pd
-        import numpy as np
-        current.card.append(
-            Image.from_matplotlib(
-                pandas.DataFrame(
-                    np.random.randint(0, 100, size=(15, 4)),
-                    columns=list("ABCD"),
-                ).plot()
-            )
-        )
+    Example: Create an `Image` from a Matplotlib figure
     ```
-    #### `Image.from_pil_image` :
-    ```python
-    @card
-    @step
-    def my_step(self):
-        from metaflow.cards import Image
-        from metaflow import current
-        from PIL import Image as PILImage
-        current.card.append(
-            Image.from_pil_image(
-                PILImage.fromarray(np.random.randn(1024, 768), "RGB"),
-                "From PIL Image",
-            ),
+    import pandas as pd
+    import numpy as np
+    current.card.append(
+        Image.from_matplotlib(
+            pandas.DataFrame(
+                np.random.randint(0, 100, size=(15, 4)),
+                columns=list("ABCD"),
+            ).plot()
         )
+    )
     ```
+
+    Example: Create an `Image` from a [PIL](https://pillow.readthedocs.io/) Image
+    ```
+    from PIL import Image as PILImage
+    current.card.append(
+        Image.from_pil_image(
+            PILImage.fromarray(np.random.randn(1024, 768), "RGB"),
+            "From PIL Image"
+        )
+    )
+    ```
+
+    Parameters
+    ----------
+    src : bytes
+        The image data in `bytes`.
+    label : str
+        Optional label for the image.
     """
 
     @staticmethod
@@ -213,11 +217,15 @@ class Image(UserComponent):
                 self._src = self._bytes_to_base64(src)
             except TypeError:
                 self._error_comp = ErrorComponent(
-                    self.render_fail_headline("first argument should be of type `bytes` or vaild image base64 string"),
+                    self.render_fail_headline(
+                        "first argument should be of type `bytes` or vaild image base64 string"
+                    ),
                     "Type of %s is invalid" % (str(type(src))),
                 )
             except ValueError:
-                self._error_comp = ErrorComponent(self.render_fail_headline("Bytes not parsable as image"), "")
+                self._error_comp = ErrorComponent(
+                    self.render_fail_headline("Bytes not parsable as image"), ""
+                )
             except Exception as e:
                 import traceback
 
@@ -230,7 +238,9 @@ class Image(UserComponent):
                 self._src = src
             else:
                 self._error_comp = ErrorComponent(
-                    self.render_fail_headline("first argument should be of type `bytes` or vaild image base64 string"),
+                    self.render_fail_headline(
+                        "first argument should be of type `bytes` or vaild image base64 string"
+                    ),
                     "String %s is invalid base64 string" % src,
                 )
 
@@ -246,6 +256,16 @@ class Image(UserComponent):
 
     @classmethod
     def from_pil_image(cls, pilimage, label=None):
+        """
+        Create an `Image` from a PIL image.
+
+        Parameters
+        ----------
+        pilimage : PIL.Image
+            a PIL image object.
+        label : str
+            Optional label for the image.
+        """
         try:
             import io
 
@@ -253,19 +273,27 @@ class Image(UserComponent):
             task_to_dict = TaskToDict()
             if task_to_dict.object_type(pilimage) != PIL_IMAGE_PATH:
                 return ErrorComponent(
-                    cls.render_fail_headline("first argument for `Image` should be of type %s" % PIL_IMAGE_PATH),
-                    "Type of %s is invalid. Type of %s required" % (task_to_dict.object_type(pilimage), PIL_IMAGE_PATH),
+                    cls.render_fail_headline(
+                        "first argument for `Image` should be of type %s"
+                        % PIL_IMAGE_PATH
+                    ),
+                    "Type of %s is invalid. Type of %s required"
+                    % (task_to_dict.object_type(pilimage), PIL_IMAGE_PATH),
                 )
             img_byte_arr = io.BytesIO()
             try:
                 pilimage.save(img_byte_arr, format="PNG")
             except OSError as e:
-                return ErrorComponent(cls.render_fail_headline("PIL Image Not Parsable"), "%s" % repr(e))
+                return ErrorComponent(
+                    cls.render_fail_headline("PIL Image Not Parsable"), "%s" % repr(e)
+                )
             img_byte_arr = img_byte_arr.getvalue()
             parsed_image = task_to_dict.parse_image(img_byte_arr)
             if parsed_image is not None:
                 return cls(src=parsed_image, label=label)
-            return ErrorComponent(cls.render_fail_headline("PIL Image Not Parsable"), "")
+            return ErrorComponent(
+                cls.render_fail_headline("PIL Image Not Parsable"), ""
+            )
         except:
             import traceback
 
@@ -276,10 +304,19 @@ class Image(UserComponent):
 
     @classmethod
     def from_matplotlib(cls, plot, label=None):
+        """
+        Create an `Image` from a Matplotlib plot.
+
+        Parameters
+        ----------
+        plot :  matplotlib.figure.Figure or matplotlib.axes.Axes or matplotlib.axes._subplots.AxesSubplot
+            a PIL axes (plot) object.
+        label : str
+            Label for the image (optional)
+        """
         import io
 
         try:
-            plt = getattr(plot, "get_figure", None)
             try:
                 import matplotlib.pyplot as pyplt
             except ImportError:
@@ -287,20 +324,35 @@ class Image(UserComponent):
                     cls.render_fail_headline("Matplotlib cannot be imported"),
                     "%s" % traceback.format_exc(),
                 )
-            if plt is None:
-                return ErrorComponent(
-                    cls.render_fail_headline("Invalid Type. Object %s is not from `matlplotlib`" % type(plot)),
-                    "",
-                )
+            # First check if it is a valid Matplotlib figure.
+            figure = None
+            if _full_classname(plot) == "matplotlib.figure.Figure":
+                figure = plot
+
+            # If it is not valid figure then check if it is matplotlib.axes.Axes or a matplotlib.axes._subplots.AxesSubplot
+            # These contain the `get_figure` function to get the main figure object.
+            if figure is None:
+                if getattr(plot, "get_figure", None) is None:
+                    return ErrorComponent(
+                        cls.render_fail_headline(
+                            "Invalid Type. Object %s is not from `matplotlib`"
+                            % type(plot)
+                        ),
+                        "",
+                    )
+                else:
+                    figure = plot.get_figure()
+
             task_to_dict = TaskToDict()
-            figure = plot.get_figure()
             img_bytes_arr = io.BytesIO()
             figure.savefig(img_bytes_arr, format="PNG")
             parsed_image = task_to_dict.parse_image(img_bytes_arr.getvalue())
             pyplt.close(figure)
             if parsed_image is not None:
                 return cls(src=parsed_image, label=label)
-            return ErrorComponent(cls.render_fail_headline("Matplotlib plot's image is not parsable"), "")
+            return ErrorComponent(
+                cls.render_fail_headline("Matplotlib plot's image is not parsable"), ""
+            )
         except:
             import traceback
 
@@ -316,7 +368,9 @@ class Image(UserComponent):
 
         if self._src is not None:
             return ImageComponent(src=self._src, label=self._label).render()
-        return ErrorComponent(self.render_fail_headline("`Image` Component `src` argument is `None`"), "").render()
+        return ErrorComponent(
+            self.render_fail_headline("`Image` Component `src` argument is `None`"), ""
+        ).render()
 
 
 class Error(UserComponent):
@@ -356,24 +410,19 @@ class Error(UserComponent):
 
 class Markdown(UserComponent):
     """
-    This class helps visualize Markdown on the `MetaflowCard`
+    A block of text formatted in Markdown.
 
-    ### Parameters
-    - `text` (str) : A markdown string
-
-    ### Usage
-    ```python
-    @card
-    @step
-    def my_step(self):
-        from metaflow.cards import Markdown
-        from metaflow import current
-        current.card.append(
-            Markdown("# This is a header appended from @step code")
-        )
-        ...
+    Example:
+    ```
+    current.card.append(
+        Markdown("# This is a header appended from `@step` code")
+    )
     ```
 
+    Parameters
+    ----------
+    text : str
+        Text formatted in Markdown.
     """
 
     def __init__(self, text=None):

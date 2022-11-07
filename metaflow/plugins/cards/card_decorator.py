@@ -22,6 +22,24 @@ def warning_message(message, logger=None, ts=False):
 
 
 class CardDecorator(StepDecorator):
+    """
+    Creates a human-readable report, a Metaflow Card, after this step completes.
+
+    Note that you may add multiple `@card` decorators in a step with different parameters.
+
+    Parameters
+    ----------
+    type : str
+        Card type (default: 'default').
+    id : str
+        If multiple cards are present, use this id to identify this card.
+    options : Dict
+        Options passed to the card. The contents depend on the card type.
+    timeout : int
+        Interrupt reporting if it takes more than this many seconds
+        (default: 45).
+    """
+
     name = "card"
     defaults = {
         "type": "default",
@@ -73,20 +91,7 @@ class CardDecorator(StepDecorator):
         self._logger = logger
         self.card_options = None
 
-        # Populate the defaults which may be missing.
-        missing_keys = set(self.defaults.keys()) - set(self.attributes.keys())
-        for k in missing_keys:
-            self.attributes[k] = self.defaults[k]
-
-        # when instantiation happens from the CLI we sometimes get stringified JSON and sometimes a dict for the
-        # `options` attributes. Hence we need to check for both and serialized.
-        if type(self.attributes["options"]) is str:
-            try:
-                self.card_options = json.loads(self.attributes["options"])
-            except json.decoder.JSONDecodeError:
-                self.card_options = self.defaults["options"]
-        else:
-            self.card_options = self.attributes["options"]
+        self.card_options = self.attributes["options"]
 
         evt_name = "step-init"
         # `'%s-%s'%(evt_name,step_name)` ensures that we capture this once per @card per @step.
@@ -191,6 +196,9 @@ class CardDecorator(StepDecorator):
             "environment": self._environment.TYPE,
             "datastore": self._flow_datastore.TYPE,
             "datastore-root": self._flow_datastore.datastore_root,
+            "no-pylint": True,
+            "event-logger": "nullSidecarLogger",
+            "monitor": "nullSidecarMonitor",
             # We don't provide --with as all execution is taking place in
             # the context of the main processs
         }
@@ -226,8 +234,7 @@ class CardDecorator(StepDecorator):
         if self._user_set_card_id is not None:
             cmd += ["--id", str(self._user_set_card_id)]
 
-        # Doing this because decospecs parse information as str, since some non-runtime decorators pass it as bool we parse bool to str
-        if str(self.attributes["save_errors"]) == "True":
+        if self.attributes["save_errors"]:
             cmd += ["--render-error-card"]
 
         if temp_file is not None:

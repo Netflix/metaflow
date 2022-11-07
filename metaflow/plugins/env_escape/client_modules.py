@@ -147,10 +147,9 @@ class ModuleImporter(object):
             )
             atexit.register(_clean_client, self._client)
 
+            # Get information about overrides and what the server knows about
             exports = self._client.get_exports()
-            sys.path.insert(0, self._config_dir)
-            overrides = importlib.import_module("overrides")
-            sys.path = sys.path[1:]
+            ex_overrides = self._client.get_local_exception_overrides()
 
             prefixes = set()
             export_classes = exports.get("classes", [])
@@ -161,15 +160,6 @@ class ModuleImporter(object):
             for name in itertools.chain(export_classes, export_functions, export_values):
                 splits = name.rsplit(".", 1)
                 prefixes.add(splits[0])
-
-            # Look for any exception overrides
-            ex_overrides = {}
-            for override in overrides.__dict__.values():
-                if isinstance(override, LocalException):
-                    cur_ex = ex_overrides.get(override.class_path, None)
-                    if cur_ex is not None:
-                        raise ValueError("Exception %s redefined" % override.class_path)
-                    ex_overrides[override.class_path] = override.wrapped_class
 
             # Now look at the exceptions coming from the server
             formed_exception_classes = {}

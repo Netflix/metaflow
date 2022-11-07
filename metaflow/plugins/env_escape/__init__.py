@@ -43,12 +43,31 @@ from .client_modules import create_modules
 # environment (like the ones created through the Conda plugin) and we will therefore
 # consider that as the environment we escape to.
 # Note that it is important to store the value back in the environment to make
-# it available to any sub-process that launch sa well.
+# it available to any sub-process that launch as well (ie: when we re-launch WITHIN
+# the conda environment).
 # We also store the maximum protocol version that we support for pickle so that
-# we can determine what to use
+# we can determine what to use.
+#
+# In the case of a bootstrap code (for example on Batch), the subprocess mechanism is
+# not used to determine the outside environment but the `generate_trampolines` function
+# in this file is called directly by the remote bootstrap code which operates *outside*
+# of the created conda environment so it has the same effect
 ENV_ESCAPE_PY = os.environ.get("METAFLOW_ENV_ESCAPE_PY", sys.executable)
-ENV_ESCAPE_PATHS = os.environ.get("METAFLOW_ENV_ESCAPE_PATHS", os.pathsep.join(sys.path))
-ENV_ESCAPE_PICKLE_VERSION = os.environ.get("METAFLOW_ENV_ESCAPE_PICKLE_VERSION", str(pickle.HIGHEST_PROTOCOL))
+
+_cur_sys_paths = sys.path
+if len(_cur_sys_paths) > 0 and _cur_sys_paths[0] == "":
+    # This means "current working directory". We actually replace it with the current
+    # working directory because when the env escape server is launched, it is launched
+    # in a different directory and would therefore not have the exact same path
+    # specifications (which is not what we want)
+    _cur_sys_paths[0] = os.getcwd()
+
+ENV_ESCAPE_PATHS = os.environ.get(
+    "METAFLOW_ENV_ESCAPE_PATHS", os.pathsep.join(_cur_sys_paths)
+)
+ENV_ESCAPE_PICKLE_VERSION = os.environ.get(
+    "METAFLOW_ENV_ESCAPE_PICKLE_VERSION", str(pickle.HIGHEST_PROTOCOL)
+)
 os.environ["METAFLOW_ENV_ESCAPE_PICKLE_VERSION"] = ENV_ESCAPE_PICKLE_VERSION
 os.environ["METAFLOW_ENV_ESCAPE_PATHS"] = ENV_ESCAPE_PATHS
 os.environ["METAFLOW_ENV_ESCAPE_PY"] = ENV_ESCAPE_PY
@@ -66,7 +85,9 @@ def generate_trampolines(out_dir):
 
     paths = [os.path.join(os.path.dirname(os.path.abspath(__file__)), "configurations")]
     for m in get_modules("plugins.env_escape"):
-        paths.extend([os.path.join(x, "configurations") for x in list(m.module.__path__)])
+        paths.extend(
+            [os.path.join(x, "configurations") for x in list(m.module.__path__)]
+        )
 
     for rootpath in paths:
         for path in os.listdir(rootpath):
@@ -123,9 +144,13 @@ def load():
             # print("Env escape using executable {python_executable}")
         else:
             # Inverse logic as above here.
-            if sys.executable == "{python_executable}":
-                return
-            raise RuntimeError("Trying to override '%s' when module exists in system" % prefix)
+            if sys.executable != "{python_executable}":
+                # We use the package locally and warn user.
+                print("Not using environment escape for '%s' as module present" % prefix)
+            # In both cases, we don't load our loader since
+            # the package is locally present
+            sys.path = old_paths
+            return
     sys.path = old_paths
     m = ModuleImporter("{python_executable}", "{pythonpath}", {max_pickle_version}, "{path}", {prefixes})
     sys.meta_path.insert(0, m)
@@ -150,7 +175,9 @@ load()
 def init(python_executable, pythonpath, max_pickle_version):
     # This function will look in the configurations directory and setup
     # the proper overrides
-    config_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "configurations")
+    config_dir = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "configurations"
+    )
 
     for path in os.listdir(config_dir):
         path = os.path.join(config_dir, path)

@@ -75,6 +75,22 @@ def assert_equals(expected, got):
         raise ExpectationFailed(expected, got)
 
 
+def assert_equals_metadata(expected, got, exclude_keys=None):
+    # Check if the keys match
+    exclude_keys = set(exclude_keys if exclude_keys is not None else [])
+    k1_set = set(expected.keys()).difference(exclude_keys)
+    k2_set = set(got.keys()).difference(exclude_keys)
+    sym_diff = k1_set.symmetric_difference(k2_set)
+    if len(sym_diff) > 0:
+        raise ExpectationFailed("keys: %s" % str(k1_set), "keys: %s" % str(k2_set))
+    # At this point, we compare the metadata values, types and dates.
+    for k in k1_set:
+        if expected[k] != got[k]:
+            raise ExpectationFailed(
+                "[%s]: %s" % (k, str(expected[k])), "[%s]: %s" % (k, str(got[k]))
+            )
+
+
 def assert_exception(func, exception):
     try:
         func()
@@ -125,6 +141,30 @@ class MetaflowCheck(object):
         raise NotImplementedError()
 
     def list_cards(self, step, task, card_type=None):
+        raise NotImplementedError()
+
+    def get_user_tags(self):
+        raise NotImplementedError()
+
+    def get_system_tags(self):
+        raise NotImplementedError()
+
+    def add_tag(self, tag):
+        raise NotImplementedError()
+
+    def add_tags(self, tags):
+        raise NotImplementedError()
+
+    def remove_tag(self, tag):
+        raise NotImplementedError()
+
+    def remove_tags(self, tags):
+        raise NotImplementedError()
+
+    def replace_tag(self, tag_to_remove, tag_to_add):
+        raise NotImplementedError()
+
+    def replace_tags(self, tags_to_remove, tags_to_add):
         raise NotImplementedError()
 
 

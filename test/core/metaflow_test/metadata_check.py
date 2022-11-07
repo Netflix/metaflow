@@ -25,7 +25,6 @@ class MetadataCheck(MetaflowCheck):
     def _test_namespace(self):
         from metaflow.client import Flow, get_namespace, namespace, default_namespace
         from metaflow.exception import MetaflowNamespaceMismatch
-        import os
 
         # test 1) METAFLOW_USER should be the default
         assert_equals("user:%s" % os.environ.get("METAFLOW_USER"), get_namespace())
@@ -166,3 +165,27 @@ class MetadataCheck(MetaflowCheck):
 
         iterator = get_cards(self.run[step][task], type=card_type, id=card_id)
         return iterator
+
+    def get_user_tags(self):
+        return self.run.user_tags
+
+    def get_system_tags(self):
+        return self.run.system_tags
+
+    def add_tag(self, tag):
+        return self.run.add_tag(tag)
+
+    def add_tags(self, tags):
+        return self.run.add_tags(tags)
+
+    def remove_tag(self, tag):
+        return self.run.remove_tag(tag)
+
+    def remove_tags(self, tags):
+        return self.run.remove_tags(tags)
+
+    def replace_tag(self, tag_to_remove, tag_to_add):
+        return self.run.replace_tag(tag_to_remove, tag_to_add)
+
+    def replace_tags(self, tags_to_remove, tags_to_add):
+        return self.run.replace_tags(tags_to_remove, tags_to_add)

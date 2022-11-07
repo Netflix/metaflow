@@ -185,7 +185,7 @@ def list_available_cards(
                 with open(file, "w") as f:
                     json.dump(dump_dict, f)
             else:
-                ctx.obj.echo_always(json.dumps(dump_dict, indent=4))
+                ctx.obj.echo_always(json.dumps(dump_dict, indent=4), err=False)
         # if you have to list many in json format then return
         return dict(pathspec=pathspec, cards=json_arr)
 
@@ -305,7 +305,7 @@ def list_many_cards(
             with open(file, "w") as f:
                 json.dump(js_list, f)
         else:
-            ctx.obj.echo_always(json.dumps(js_list, indent=4))
+            ctx.obj.echo_always(json.dumps(js_list, indent=4), err=False)
 
 
 @click.group()

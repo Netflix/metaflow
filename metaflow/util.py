@@ -174,15 +174,20 @@ def get_username():
     return None
 
 
-def resolve_identity():
+def resolve_identity_as_tuple():
     prod_token = os.environ.get("METAFLOW_PRODUCTION_TOKEN")
     if prod_token:
-        return "production:%s" % prod_token
+        return "production", prod_token
     user = get_username()
     if user and user != "root":
-        return "user:%s" % user
+        return "user", user
     else:
         raise MetaflowUnknownUser()
+
+
+def resolve_identity():
+    identity_type, identity_value = resolve_identity_as_tuple()
+    return "%s:%s" % (identity_type, identity_value)
 
 
 def get_latest_run_id(echo, flow_name):
@@ -373,6 +378,25 @@ def which(cmd, mode=os.F_OK | os.X_OK, path=None):
                         return name
 
         return None
+
+
+def to_camelcase(obj):
+    """
+    Convert all keys of a json to camel case from snake case.
+    """
+    if isinstance(obj, (str, int, float)):
+        return obj
+    if isinstance(obj, dict):
+        res = obj.__class__()
+        for k in obj:
+            res[
+                re.sub(r"(?!^)_([a-zA-Z])", lambda x: x.group(1).upper(), k)
+            ] = to_camelcase(obj[k])
+    elif isinstance(obj, (list, set, tuple)):
+        res = obj.__class__(to_camelcase(v) for v in obj)
+    else:
+        return obj
+    return res
 
 
 def to_pascalcase(obj):

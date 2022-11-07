@@ -1,10 +1,10 @@
-import os
 import json
 import logging
-import pkg_resources
+import os
 import sys
 import types
 
+import pkg_resources
 
 from metaflow.exception import MetaflowException
 
@@ -34,8 +34,39 @@ def init_config():
 METAFLOW_CONFIG = init_config()
 
 
-def from_conf(name, default=None):
-    return os.environ.get(name, METAFLOW_CONFIG.get(name, default))
+def from_conf(name, default=None, validate_fn=None):
+    """
+    First try to pull value from environment, then from metaflow config JSON.
+
+    Prior to a value being returned, we will validate using validate_fn (if provided).
+    Only non-None values are validated.
+
+    validate_fn should accept (name, value).
+    If the value validates, return None, else raise an MetaflowException.
+    """
+    value_from_env = os.environ.get(name, None)
+    value_from_config = METAFLOW_CONFIG.get(name, default)
+    if value_from_env is not None:
+        value = value_from_env
+    else:
+        value = value_from_config
+    if validate_fn and value is not None:
+        validate_fn(name, value)
+    return value
+
+
+def _get_validate_choice_fn(choices):
+    """Returns a validate_fn for use with from_conf().
+    The validate_fn will check a value against a list of allowed choices.
+    """
+
+    def _validate_choice(name, value):
+        if value not in choices:
+            raise MetaflowException(
+                "%s must be set to one of %s. Got '%s'." % (name, choices, value)
+            )
+
+    return _validate_choice
 
 
 ###
@@ -58,45 +89,9 @@ DATASTORE_LOCAL_DIR = ".metaflow"
 DATASTORE_SYSROOT_LOCAL = from_conf("METAFLOW_DATASTORE_SYSROOT_LOCAL")
 # S3 bucket and prefix to store artifacts for 's3' datastore.
 DATASTORE_SYSROOT_S3 = from_conf("METAFLOW_DATASTORE_SYSROOT_S3")
-# S3 datatools root location
-DATATOOLS_SUFFIX = from_conf("METAFLOW_DATATOOLS_SUFFIX", "data")
-DATATOOLS_S3ROOT = from_conf(
-    "METAFLOW_DATATOOLS_S3ROOT",
-    os.path.join(from_conf("METAFLOW_DATASTORE_SYSROOT_S3"), DATATOOLS_SUFFIX)
-    if from_conf("METAFLOW_DATASTORE_SYSROOT_S3")
-    else None,
-)
-# Local datatools root location
-DATATOOLS_LOCALROOT = from_conf(
-    "METAFLOW_DATATOOLS_LOCALROOT",
-    os.path.join(from_conf("METAFLOW_DATASTORE_SYSROOT_LOCAL"), DATATOOLS_SUFFIX)
-    if from_conf("METAFLOW_DATASTORE_SYSROOT_LOCAL")
-    else None,
-)
+# Azure Blob Storage container and blob prefix
+DATASTORE_SYSROOT_AZURE = from_conf("METAFLOW_DATASTORE_SYSROOT_AZURE")
 
-# The root directory to save artifact pulls in, when using S3
-ARTIFACT_LOCALROOT = from_conf("METAFLOW_ARTIFACT_LOCALROOT", os.getcwd())
-
-# Cards related config variables
-DATASTORE_CARD_SUFFIX = "mf.cards"
-DATASTORE_CARD_LOCALROOT = from_conf("METAFLOW_CARD_LOCALROOT")
-DATASTORE_CARD_S3ROOT = from_conf(
-    "METAFLOW_CARD_S3ROOT",
-    os.path.join(from_conf("METAFLOW_DATASTORE_SYSROOT_S3"), DATASTORE_CARD_SUFFIX)
-    if from_conf("METAFLOW_DATASTORE_SYSROOT_S3")
-    else None,
-)
-CARD_NO_WARNING = from_conf("METAFLOW_CARD_NO_WARNING", False)
-
-# S3 endpoint url
-S3_ENDPOINT_URL = from_conf("METAFLOW_S3_ENDPOINT_URL", None)
-S3_VERIFY_CERTIFICATE = from_conf("METAFLOW_S3_VERIFY_CERTIFICATE", None)
-
-# S3 retry configuration
-# This is useful if you want to "fail fast" on S3 operations; use with caution
-# though as this may increase failures. Note that this is the number of *retries*
-# so setting it to 0 means each operation will be tried once.
-S3_RETRY_COUNT = int(from_conf("METAFLOW_S3_RETRY_COUNT", 7))
 
 ###
 # Datastore local cache
@@ -116,6 +111,109 @@ CLIENT_CACHE_MAX_TASKDATASTORE_COUNT = int(
 
 
 ###
+# Datatools (S3) configuration
+###
+# S3 endpoint url
+S3_ENDPOINT_URL = from_conf("METAFLOW_S3_ENDPOINT_URL", None)
+S3_VERIFY_CERTIFICATE = from_conf("METAFLOW_S3_VERIFY_CERTIFICATE", None)
+
+# S3 retry configuration
+# This is useful if you want to "fail fast" on S3 operations; use with caution
+# though as this may increase failures. Note that this is the number of *retries*
+# so setting it to 0 means each operation will be tried once.
+S3_RETRY_COUNT = int(from_conf("METAFLOW_S3_RETRY_COUNT", 7))
+
+# Threshold to start printing warnings for an AWS retry
+RETRY_WARNING_THRESHOLD = 3
+
+# S3 datatools root location
+DATATOOLS_SUFFIX = from_conf("METAFLOW_DATATOOLS_SUFFIX", "data")
+DATATOOLS_S3ROOT = from_conf(
+    "METAFLOW_DATATOOLS_S3ROOT",
+    os.path.join(from_conf("METAFLOW_DATASTORE_SYSROOT_S3"), DATATOOLS_SUFFIX)
+    if from_conf("METAFLOW_DATASTORE_SYSROOT_S3")
+    else None,
+)
+
+DATATOOLS_DEFAULT_CLIENT_PARAMS = from_conf(
+    "METAFLOW_DATATOOLS_CLIENT_PARAMS",
+    "{}",
+)
+try:
+    DATATOOLS_DEFAULT_CLIENT_PARAMS = json.loads(DATATOOLS_DEFAULT_CLIENT_PARAMS)
+    if S3_ENDPOINT_URL:
+        DATATOOLS_DEFAULT_CLIENT_PARAMS["endpoint_url"] = S3_ENDPOINT_URL
+    if S3_VERIFY_CERTIFICATE:
+        DATATOOLS_DEFAULT_CLIENT_PARAMS["verify"] = S3_VERIFY_CERTIFICATE
+except json.JSONDecodeError:
+    raise ValueError(
+        "Value for METAFLOW_DATATOOLS_CLIENT_PARAMS is not valid JSON: %s"
+        % DATATOOLS_DEFAULT_CLIENT_PARAMS
+    )
+
+DATATOOLS_DEFAULT_SESSION_VARS = from_conf("METAFLOW_DATATOOLS_SESSION_VARS", "{}")
+try:
+    DATATOOLS_DEFAULT_SESSION_VARS = json.loads(DATATOOLS_DEFAULT_SESSION_VARS)
+except json.JSONDecodeError:
+    raise ValueError(
+        "Value for METAFLOW_DATATOOLS_SESSION_VARS is not valid JSON: %s"
+        % DATATOOLS_DEFAULT_SESSION_VARS
+    )
+
+# Azure datatools root location
+# Note: we do not expose an actual datatools library for Azure (like we do for S3)
+# Similar to DATATOOLS_LOCALROOT, this is used ONLY by the IncludeFile's internal implementation.
+DATATOOLS_AZUREROOT = from_conf(
+    "METAFLOW_DATATOOLS_AZUREROOT",
+    os.path.join(from_conf("METAFLOW_DATASTORE_SYSROOT_AZURE"), DATATOOLS_SUFFIX)
+    if from_conf("METAFLOW_DATASTORE_SYSROOT_AZURE")
+    else None,
+)
+# Local datatools root location
+DATATOOLS_LOCALROOT = from_conf(
+    "METAFLOW_DATATOOLS_LOCALROOT",
+    os.path.join(from_conf("METAFLOW_DATASTORE_SYSROOT_LOCAL"), DATATOOLS_SUFFIX)
+    if from_conf("METAFLOW_DATASTORE_SYSROOT_LOCAL")
+    else None,
+)
+
+# The root directory to save artifact pulls in, when using S3 or Azure
+ARTIFACT_LOCALROOT = from_conf("METAFLOW_ARTIFACT_LOCALROOT", os.getcwd())
+
+# Cards related config variables
+DATASTORE_CARD_SUFFIX = "mf.cards"
+DATASTORE_CARD_LOCALROOT = from_conf("METAFLOW_CARD_LOCALROOT")
+DATASTORE_CARD_S3ROOT = from_conf(
+    "METAFLOW_CARD_S3ROOT",
+    os.path.join(from_conf("METAFLOW_DATASTORE_SYSROOT_S3"), DATASTORE_CARD_SUFFIX)
+    if from_conf("METAFLOW_DATASTORE_SYSROOT_S3")
+    else None,
+)
+DATASTORE_CARD_AZUREROOT = from_conf(
+    "METAFLOW_CARD_AZUREROOT",
+    os.path.join(from_conf("METAFLOW_DATASTORE_SYSROOT_AZURE"), DATASTORE_CARD_SUFFIX)
+    if from_conf("METAFLOW_DATASTORE_SYSROOT_AZURE")
+    else None,
+)
+CARD_NO_WARNING = from_conf("METAFLOW_CARD_NO_WARNING", False)
+
+SKIP_CARD_DUAL_WRITE = from_conf("METAFLOW_SKIP_CARD_DUALWRITE", False)
+
+# Azure storage account URL
+AZURE_STORAGE_BLOB_SERVICE_ENDPOINT = from_conf(
+    "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
+)
+
+# Azure storage can use process-based parallelism instead of threads.
+# Processes perform better for high throughput workloads (e.g. many huge artifacts)
+AZURE_STORAGE_WORKLOAD_TYPE = from_conf(
+    "METAFLOW_AZURE_STORAGE_WORKLOAD_TYPE",
+    "general",
+    validate_fn=_get_validate_choice_fn(["general", "high_throughput"]),
+)
+
+
+###
 # Metadata configuration
 ###
 METADATA_SERVICE_URL = from_conf("METAFLOW_SERVICE_URL")
@@ -124,6 +222,8 @@ METADATA_SERVICE_AUTH_KEY = from_conf("METAFLOW_SERVICE_AUTH_KEY")
 METADATA_SERVICE_HEADERS = json.loads(from_conf("METAFLOW_SERVICE_HEADERS", "{}"))
 if METADATA_SERVICE_AUTH_KEY is not None:
     METADATA_SERVICE_HEADERS["x-api-key"] = METADATA_SERVICE_AUTH_KEY
+# Checks version compatibility with Metadata service
+METADATA_SERVICE_VERSION_CHECK = from_conf("METAFLOW_SERVICE_VERSION_CHECK", True)
 
 # Default container image
 DEFAULT_CONTAINER_IMAGE = from_conf("METAFLOW_DEFAULT_CONTAINER_IMAGE")
@@ -178,22 +278,37 @@ SFN_EXECUTION_LOG_GROUP_ARN = from_conf("METAFLOW_SFN_EXECUTION_LOG_GROUP_ARN")
 ###
 # Kubernetes namespace to use for all objects created by Metaflow
 KUBERNETES_NAMESPACE = from_conf("METAFLOW_KUBERNETES_NAMESPACE", "default")
-# Service account to use by K8S jobs created by Metaflow
+# Default service account to use by K8S jobs created by Metaflow
 KUBERNETES_SERVICE_ACCOUNT = from_conf("METAFLOW_KUBERNETES_SERVICE_ACCOUNT")
+# Default node selectors to use by K8S jobs created by Metaflow - foo=bar,baz=bab
+KUBERNETES_NODE_SELECTOR = from_conf("METAFLOW_KUBERNETES_NODE_SELECTOR", "")
+KUBERNETES_SECRETS = from_conf("METAFLOW_KUBERNETES_SECRETS", "")
+# Default GPU vendor to use by K8S jobs created by Metaflow (supports nvidia, amd)
+KUBERNETES_GPU_VENDOR = from_conf("METAFLOW_KUBERNETES_GPU_VENDOR", "nvidia")
 # Default container image for K8S
 KUBERNETES_CONTAINER_IMAGE = from_conf("METAFLOW_KUBERNETES_CONTAINER_IMAGE") or DEFAULT_CONTAINER_IMAGE
 # Default container registry for K8S
 KUBERNETES_CONTAINER_REGISTRY = from_conf("METAFLOW_KUBERNETES_CONTAINER_REGISTRY") or DEFAULT_CONTAINER_REGISTRY
 #
 
+##
+# Airflow Configuration
+##
+# This configuration sets `startup_timeout_seconds` in airflow's KubernetesPodOperator.
+AIRFLOW_KUBERNETES_STARTUP_TIMEOUT = from_conf(
+    "METAFLOW_AIRFLOW_KUBERNETES_STARTUP_TIMEOUT_SECONDS", 60 * 60
+)
+# This configuration sets `kubernetes_conn_id` in airflow's KubernetesPodOperator.
+AIRFLOW_KUBERNETES_CONN_ID = from_conf("METAFLOW_AIRFLOW_KUBERNETES_CONN_ID", None)
+
+
 ###
 # Conda configuration
 ###
 # Conda package root location on S3
-CONDA_PACKAGE_S3ROOT = from_conf(
-    "METAFLOW_CONDA_PACKAGE_S3ROOT",
-    "%s/conda" % from_conf("METAFLOW_DATASTORE_SYSROOT_S3"),
-)
+CONDA_PACKAGE_S3ROOT = from_conf("METAFLOW_CONDA_PACKAGE_S3ROOT")
+# Conda package root location on Azure
+CONDA_PACKAGE_AZUREROOT = from_conf("METAFLOW_CONDA_PACKAGE_AZUREROOT")
 
 # Use an alternate dependency resolver for conda packages instead of conda
 # Mamba promises faster package dependency resolution times, which
@@ -230,6 +345,7 @@ if AWS_SANDBOX_ENABLED:
     METADATA_SERVICE_HEADERS["x-api-key"] = AWS_SANDBOX_API_KEY
     SFN_STATE_MACHINE_PREFIX = from_conf("METAFLOW_AWS_SANDBOX_STACK_NAME")
 
+KUBERNETES_SANDBOX_INIT_SCRIPT = from_conf("METAFLOW_KUBERNETES_SANDBOX_INIT_SCRIPT")
 
 # MAX_ATTEMPTS is the maximum number of attempts, including the first
 # task, retries, and the final fallback task and its retries.
@@ -264,11 +380,22 @@ def get_version(pkg):
 
 # PINNED_CONDA_LIBS are the libraries that metaflow depends on for execution
 # and are needed within a conda environment
-def get_pinned_conda_libs(python_version):
-    return {
+def get_pinned_conda_libs(python_version, datastore_type):
+    pins = {
         "requests": ">=2.21.0",
-        "boto3": ">=1.14.0",
     }
+    if datastore_type == "s3":
+        pins["boto3"] = ">=1.14.0"
+    elif datastore_type == "azure":
+        pins["azure-identity"] = ">=1.10.0"
+        pins["azure-storage-blob"] = ">=12.12.0"
+    elif datastore_type == "local":
+        pass
+    else:
+        raise MetaflowException(
+            msg="conda lib pins for datastore %s are undefined" % (datastore_type,)
+        )
+    return pins
 
 
 # Check if there are extensions to Metaflow to load and override everything
@@ -286,9 +413,11 @@ try:
                     vars()["METAFLOW_DEBUG_%s" % typ.upper()] = from_conf("METAFLOW_DEBUG_%s" % typ.upper())
             elif n == "get_pinned_conda_libs":
 
-                def _new_get_pinned_conda_libs(python_version, f1=globals()[n], f2=o):
-                    d1 = f1(python_version)
-                    d2 = f2(python_version)
+                def _new_get_pinned_conda_libs(
+                    python_version, datastore_type, f1=globals()[n], f2=o
+                ):
+                    d1 = f1(python_version, datastore_type)
+                    d2 = f2(python_version, datastore_type)
                     for k, v in d2.items():
                         d1[k] = v if k not in d1 else ",".join([d1[k], v])
                     return d1

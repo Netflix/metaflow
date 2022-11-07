@@ -5,7 +5,7 @@ import sys
 
 from collections import OrderedDict, defaultdict, namedtuple
 from copy import copy
-from datetime import datetime
+from datetime import datetime, timedelta
 
 ObjReference = namedtuple("ObjReference", "value_type class_name identifier")
 
@@ -38,13 +38,14 @@ _types = [
     defaultdict,
     OrderedDict,
     datetime,
+    timedelta,
 ]
 
 _container_types = (list, tuple, set, frozenset, dict, defaultdict, OrderedDict)
 
 if sys.version_info[0] >= 3:
     _types.extend([InvalidLong, InvalidUnicode])
-    _simple_types = (bool, int, float, complex, bytearray, bytes, datetime)
+    _simple_types = (bool, int, float, complex, bytearray, bytes, datetime, timedelta)
 else:
     _types.extend([long, unicode])  # noqa F821
     _simple_types = (
@@ -57,6 +58,7 @@ else:
         unicode,  # noqa F821
         long,  # noqa F821
         datetime,
+        timedelta,
     )
 
 _types_to_encoding = {x: idx for idx, x in enumerate(_types)}

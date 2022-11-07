@@ -3,6 +3,14 @@ import os
 import json
 import fcntl
 
+from metaflow.exception import MetaflowException, MetaflowInternalError
+from metaflow.metaflow_config import (
+    CONDA_PACKAGE_S3ROOT,
+    DATASTORE_SYSROOT_S3,
+    CONDA_PACKAGE_AZUREROOT,
+    DATASTORE_SYSROOT_AZURE,
+)
+
 CONDA_MAGIC_FILE = "conda.dependencies"
 
 
@@ -42,3 +50,30 @@ def write_to_conda_manifest(ds_root, flow_name, key, value):
                 raise
         finally:
             fcntl.flock(f, fcntl.LOCK_UN)
+
+
+def get_conda_package_root(datastore_type):
+    # Yes, code duplication. But easier to read this way, at N=2
+    if datastore_type == "s3":
+        if CONDA_PACKAGE_S3ROOT is None:
+            if DATASTORE_SYSROOT_S3 is None:
+                raise MetaflowException(
+                    msg="METAFLOW_DATASTORE_SYSROOT_S3 must be set!"
+                )
+            return "%s/conda" % DATASTORE_SYSROOT_S3
+        else:
+            return CONDA_PACKAGE_S3ROOT
+    elif datastore_type == "azure":
+        if CONDA_PACKAGE_AZUREROOT is None:
+            if DATASTORE_SYSROOT_AZURE is None:
+                raise MetaflowException(
+                    msg="METAFLOW_DATASTORE_SYSROOT_AZURE must be set!"
+                )
+            return "%s/conda" % DATASTORE_SYSROOT_AZURE
+        else:
+            return CONDA_PACKAGE_AZUREROOT
+    else:
+        raise MetaflowInternalError(
+            msg="Unsupported storage backend '%s' for working with Conda"
+            % (datastore_type,)
+        )

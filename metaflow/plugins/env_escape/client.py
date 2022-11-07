@@ -33,7 +33,7 @@ from .communication.socket_bytestream import SocketByteStream
 
 from .data_transferer import DataTransferer, ObjReference
 from .exception_transferer import load_exception
-from .override_decorators import LocalAttrOverride, LocalOverride
+from .override_decorators import LocalAttrOverride, LocalException, LocalOverride
 from .stub import create_class
 
 BIND_TIMEOUT = 0.1
@@ -51,10 +51,11 @@ class Client(object):
         data_transferer.defaultProtocol = max_pickle_version
 
         self._config_dir = config_dir
+        server_path, server_config = os.path.split(config_dir)
         # The client launches the server when created; we use
         # Unix sockets for now
         server_module = ".".join([__package__, "server"])
-        self._socket_path = "/tmp/%s_%d" % (os.path.basename(config_dir), os.getpid())
+        self._socket_path = "/tmp/%s_%d" % (server_config, os.getpid())
         if os.path.exists(self._socket_path):
             raise RuntimeError("Existing socket: %s" % self._socket_path)
         env = os.environ.copy()
@@ -66,9 +67,10 @@ class Client(object):
                 "-m",
                 server_module,
                 str(max_pickle_version),
-                config_dir,
+                server_config,
                 self._socket_path,
             ],
+            cwd=server_path,
             env=env,
             stdout=PIPE,
             stderr=PIPE,
@@ -77,29 +79,33 @@ class Client(object):
         )
 
         # Read override configuration
-        sys.path.insert(0, config_dir)
-        override_module = importlib.import_module("overrides")
-        sys.path = sys.path[1:]
+        # We can't just import the "overrides" module because that does not
+        # distinguish it from other modules named "overrides" (either a third party
+        # lib -- there is one -- or just other escaped modules). We therefore load
+        # a fuller path to distinguish them from one another.
+        pkg_components = []
+        prefix, last_basename = os.path.split(config_dir)
+        while last_basename not in ("metaflow", "metaflow_extensions"):
+            pkg_components.append(last_basename)
+            prefix, last_basename = os.path.split(prefix)
+        pkg_components.append(last_basename)
 
-        # Determine all overrides
-        self._overrides = {}
-        self._getattr_overrides = {}
-        self._setattr_overrides = {}
-        for override in override_module.__dict__.values():
-            if isinstance(override, (LocalOverride, LocalAttrOverride)):
-                for obj_name, obj_funcs in override.obj_mapping.items():
-                    if isinstance(override, LocalOverride):
-                        override_dict = self._overrides.setdefault(obj_name, {})
-                    elif override.is_setattr:
-                        override_dict = self._setattr_overrides.setdefault(obj_name, {})
-                    else:
-                        override_dict = self._getattr_overrides.setdefault(obj_name, {})
-                    if isinstance(obj_funcs, str):
-                        obj_funcs = (obj_funcs,)
-                    for name in obj_funcs:
-                        if name in override_dict:
-                            raise ValueError("%s was already overridden for %s" % (name, obj_name))
-                        override_dict[name] = override.func
+        try:
+            sys.path.insert(0, prefix)
+            override_module = importlib.import_module(
+                ".overrides", package=".".join(reversed(pkg_components))
+            )
+            override_values = override_module.__dict__.values()
+        except ImportError:
+            # We ignore so the file can be non-existent if not needed
+            override_values = []
+        except Exception as e:
+            raise RuntimeError(
+                "Cannot import overrides from '%s': %s" % (sys.path[0], str(e))
+            )
+        finally:
+            sys.path = sys.path[1:]
+
         self._proxied_objects = {}
 
         # Wait for the socket to be up on the other side; we also check if the
@@ -108,7 +114,8 @@ class Client(object):
             returncode = self._server_process.poll()
             if returncode is not None:
                 raise RuntimeError(
-                    "Server did not properly start: %s" % self._server_process.stderr.read(),
+                    "Server did not properly start: %s"
+                    % self._server_process.stderr.read(),
                 )
             time.sleep(1)
         # Open up the channel and setup the datastransfer pipeline
@@ -128,11 +135,48 @@ class Client(object):
         self._poller.register(self._channel, select.POLLIN | select.POLLHUP)
 
         # Get all exports that we are proxying
-        response = self._communicate({FIELD_MSGTYPE: MSG_CONTROL, FIELD_OPTYPE: CONTROL_GETEXPORTS})
+        response = self._communicate(
+            {FIELD_MSGTYPE: MSG_CONTROL, FIELD_OPTYPE: CONTROL_GETEXPORTS}
+        )
 
         self._proxied_classes = {
-            k: None for k in itertools.chain(response[FIELD_CONTENT]["classes"], response[FIELD_CONTENT]["proxied"])
+            k: None
+            for k in itertools.chain(
+                response[FIELD_CONTENT]["classes"], response[FIELD_CONTENT]["proxied"]
+            )
         }
+
+        # Determine all overrides
+        self._overrides = {}
+        self._getattr_overrides = {}
+        self._setattr_overrides = {}
+        self._exception_overrides = {}
+        for override in override_values:
+            if isinstance(override, (LocalOverride, LocalAttrOverride)):
+                for obj_name, obj_funcs in override.obj_mapping.items():
+                    if obj_name not in self._proxied_classes:
+                        raise ValueError(
+                            "%s does not refer to a proxied or override type" % obj_name
+                        )
+                    if isinstance(override, LocalOverride):
+                        override_dict = self._overrides.setdefault(obj_name, {})
+                    elif override.is_setattr:
+                        override_dict = self._setattr_overrides.setdefault(obj_name, {})
+                    else:
+                        override_dict = self._getattr_overrides.setdefault(obj_name, {})
+                    if isinstance(obj_funcs, str):
+                        obj_funcs = (obj_funcs,)
+                    for name in obj_funcs:
+                        if name in override_dict:
+                            raise ValueError(
+                                "%s was already overridden for %s" % (name, obj_name)
+                            )
+                        override_dict[name] = override.func
+            if isinstance(override, LocalException):
+                cur_ex = self._exception_overrides.get(override.class_path, None)
+                if cur_ex is not None:
+                    raise ValueError("Exception %s redefined" % override.class_path)
+                self._exception_overrides[override.class_path] = override.wrapped_class
 
         # Proxied standalone functions are functions that are proxied
         # as part of other objects like defaultdict for which we create a
@@ -172,7 +216,9 @@ class Client(object):
         if self._server_process is not None:
             # Attempt to send it a terminate signal and then wait and kill
             try:
-                self._channel.send({FIELD_MSGTYPE: MSG_CONTROL, FIELD_OPTYPE: CONTROL_SHUTDOWN})
+                self._channel.send(
+                    {FIELD_MSGTYPE: MSG_CONTROL, FIELD_OPTYPE: CONTROL_SHUTDOWN}
+                )
                 self._channel.recv(timeout=10)  # If we receive, we are sure we
                 # are good
             except:  # noqa E722
@@ -189,6 +235,9 @@ class Client(object):
 
     def get_exports(self):
         return self._export_info
+
+    def get_local_exception_overrides(self):
+        return self._exception_overrides
 
     def stub_request(self, stub, request_type, *args, **kwargs):
         # Encode the operation to send over the wire and wait for the response
@@ -215,7 +264,8 @@ class Client(object):
             raise load_exception(self._datatransferer, response[FIELD_CONTENT])
         elif response_type == MSG_INTERNAL_ERROR:
             raise RuntimeError(
-                "Error in the server runtime:\n\n===== SERVER TRACEBACK =====\n%s" % response[FIELD_CONTENT]
+                "Error in the server runtime:\n\n===== SERVER TRACEBACK =====\n%s"
+                % response[FIELD_CONTENT]
             )
 
     def encode(self, obj):
@@ -276,9 +326,13 @@ class Client(object):
         # transferred
         if getattr(obj, "___connection___", None) == self:
             # This is something we can transfer over
-            return ObjReference(VALUE_LOCAL, obj.___remote_class_name___, obj.___identifier___)
+            return ObjReference(
+                VALUE_LOCAL, obj.___remote_class_name___, obj.___identifier___
+            )
 
-        raise ValueError("Cannot send object of type %s from client to server" % type(obj))
+        raise ValueError(
+            "Cannot send object of type %s from client to server" % type(obj)
+        )
 
     def unpickle_object(self, obj):
         # This function is called when the server sends a remote reference.
