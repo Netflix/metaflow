@@ -16,6 +16,9 @@ from metaflow.metaflow_config import (
 
 TEST_S3_RETRY = "TEST_S3_RETRY" in os.environ
 
+TRANSIENT_RETRY_LINE_CONTENT = "<none>"
+TRANSIENT_RETRY_START_LINE = "### RETRY INPUTS ###"
+
 
 def get_s3_client(s3_role_arn=None, s3_session_vars=None, s3_client_params=None):
     from metaflow.plugins.aws.aws_client import get_aws_client

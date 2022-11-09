@@ -6,16 +6,13 @@ import time
 import shutil
 import random
 import subprocess
-from io import RawIOBase, BytesIO, BufferedIOBase
+from io import RawIOBase, BufferedIOBase
 from itertools import chain, starmap
 from tempfile import mkdtemp, NamedTemporaryFile
 
 from .. import FlowSpec
 from ..current import current
-from ..metaflow_config import (
-    DATATOOLS_S3ROOT,
-    S3_RETRY_COUNT,
-)
+from ..metaflow_config import DATATOOLS_S3ROOT, S3_RETRY_COUNT, S3_TRANSIENT_RETRY_COUNT
 from ..util import (
     namedtuple_with_defaults,
     is_stringish,
@@ -35,7 +32,13 @@ except:
     # python3
     from urllib.parse import urlparse
 
-from .s3util import get_s3_client, read_in_chunks, get_timestamp
+from .s3util import (
+    get_s3_client,
+    read_in_chunks,
+    get_timestamp,
+    TRANSIENT_RETRY_START_LINE,
+    TRANSIENT_RETRY_LINE_CONTENT,
+)
 
 try:
     import boto3
@@ -46,6 +49,11 @@ try:
     boto_found = True
 except:
     boto_found = False
+
+
+TEST_INJECT_RETRYABLE_FAILURES = int(
+    os.environ.get("METAFLOW_S3_TEST_RETRYABLE_FAILURES", 0)
+)
 
 
 def ensure_unicode(x):
@@ -497,6 +505,9 @@ class S3(object):
                 s3_session_vars=self._s3_session_vars,
                 s3_client_params=self._s3_client_params,
             ),
+        )
+        self._s3_inject_failures = kwargs.get(
+            "inject_failure_rate", TEST_INJECT_RETRYABLE_FAILURES
         )
         self._tmpdir = mkdtemp(dir=tmproot, prefix="metaflow.s3.")
 
@@ -1277,7 +1288,7 @@ class S3(object):
                 )
             )
             inputfile.flush()
-            stdout, stderr = self._s3op_with_retries(
+            stdout_lines, stderr = self._s3op_with_retries(
                 op, inputs=inputfile.name, **options
             )
             if stderr:
@@ -1287,7 +1298,7 @@ class S3(object):
                     "Error: %s" % (prefixes_and_ranges[0], stderr)
                 )
             else:
-                for line in stdout.splitlines():
+                for line in stdout_lines:
                     yield tuple(map(url_unquote, line.strip(b"\n").split(b" ")))
 
     def _put_many_files(self, url_info, overwrite):
@@ -1308,9 +1319,9 @@ class S3(object):
             lines = [to_bytes(json.dumps(x)) for x in url_dicts]
             inputfile.write(b"\n".join(lines))
             inputfile.flush()
-            stdout, stderr = self._s3op_with_retries(
+            stdout_lines, stderr = self._s3op_with_retries(
                 "put",
-                filelist=inputfile.name,
+                inputs=inputfile.name,
                 verbose=False,
                 overwrite=overwrite,
                 listing=True,
@@ -1323,7 +1334,7 @@ class S3(object):
                 )
             else:
                 urls = set()
-                for line in stdout.splitlines():
+                for line in stdout_lines:
                     url, _, _ = map(url_unquote, line.strip(b"\n").split(b" "))
                     urls.add(url)
                 return [(info["key"], url) for _, url, info in url_info if url in urls]
@@ -1332,13 +1343,22 @@ class S3(object):
         from . import s3op
 
         cmdline = [sys.executable, os.path.abspath(s3op.__file__), mode]
+        recursive_get = False
         for key, value in options.items():
             key = key.replace("_", "-")
             if isinstance(value, bool):
                 if value:
-                    cmdline.append("--%s" % key)
+                    if mode == "get" and key == "recursive":
+                        # We make a note of this because for transient retries, we
+                        # don't pass the recursive flag since we already did all the
+                        # listing we needed
+                        recursive_get = True
+                    else:
+                        cmdline.append("--%s" % key)
                 else:
                     cmdline.append("--no-%s" % key)
+            elif key == "inputs":
+                base_input_filename = value
             else:
                 cmdline.extend(("--%s" % key, value))
         if self._s3_role is not None:
@@ -1348,32 +1368,228 @@ class S3(object):
         if self._s3_client_params is not None:
             cmdline.extend(("--s3clientparams", json.dumps(self._s3_client_params)))
 
-        for i in range(S3_RETRY_COUNT + 1):
+        def _get_inject_failures():
+            if mode == "list":
+                return 0
+            return min(90, self._s3_inject_failures)
+
+        retry_count = 0
+        transient_retry_count = 0
+        inject_failures = _get_inject_failures()
+        out_lines = []
+        pending_retries = []
+        loop_count = 0
+        last_ok_count = 0
+        total_ok_count = 0
+
+        def _reset():
+            nonlocal transient_retry_count, inject_failures, out_lines, pending_retries
+            nonlocal loop_count, last_ok_count, total_ok_count
+            transient_retry_count = 0
+            inject_failures = _get_inject_failures()
+            if mode != "put":
+                # For put, even after retries, we keep around whatever we already
+                # uploaded. This is because uploading with overwrite=False is not
+                # an idempotent operation and so some files could be uploaded during
+                # the first try which we should report back.
+                out_lines = []
+            pending_retries = []
+            loop_count = 0
+            last_ok_count = 0
+            total_ok_count = 0  # Reset to zero even if we keep out_lines
+
+        def _update_out_lines(out_lines, ok_lines, resize=False):
+            if resize:
+                # This is the first time around; we make the list big enough. Typically,
+                # there is nothing in out_lines but in some cases (a retry after a
+                # partial result), there may be stuff in it
+                out_lines.extend([None] * (len(ok_lines) - len(out_lines)))
+            for l in ok_lines:
+                idx, rest = l.split(b" ", maxsplit=1)
+                if rest.decode(encoding="utf-8") != TRANSIENT_RETRY_LINE_CONTENT:
+                    out_lines[int(idx.decode(encoding="utf-8"))] = rest
+
+        def _internal(last_ok_count, pending_retries, out_lines, inject_failures):
+            # NOTE: Make sure to update pending_retries and out_lines in place
+            addl_cmdline = []
+            if len(pending_retries) == 0 and recursive_get:
+                # First time around (or after a fatal failure)
+                addl_cmdline = ["--recursive"]
             with NamedTemporaryFile(
                 dir=self._tmpdir,
                 mode="wb+",
                 delete=not debug.s3client,
-                prefix="metaflow.s3op.stderr",
+                prefix="metaflow.s3op.stderr.",
             ) as stderr:
-                try:
-                    debug.s3client_exec(cmdline)
-                    stdout = subprocess.check_output(
-                        cmdline, cwd=self._tmpdir, stderr=stderr.file
-                    )
-                    return stdout, None
-                except subprocess.CalledProcessError as ex:
-                    stderr.seek(0)
-                    err_out = stderr.read().decode("utf-8", errors="replace")
-                    stderr.seek(0)
-                    if ex.returncode == s3op.ERROR_URL_NOT_FOUND:
-                        raise MetaflowS3NotFound(err_out)
-                    elif ex.returncode == s3op.ERROR_URL_ACCESS_DENIED:
-                        raise MetaflowS3AccessDenied(err_out)
-                    elif ex.returncode == s3op.ERROR_INVALID_RANGE:
-                        raise MetaflowS3InvalidRange(err_out)
-                    print("Error with S3 operation:", err_out)
-                    # only sleep if retrying
-                    if S3_RETRY_COUNT > 0:
-                        self._jitter_sleep(i)
+                with NamedTemporaryFile(
+                    dir=self._tmpdir,
+                    mode="wb",
+                    delete=not debug.s3client,
+                    prefix="metaflow.s3op.transientretry.",
+                ) as tmp_input:
+                    if len(pending_retries) > 0:
+                        # We try a little bit more than the previous success (to still
+                        # be aggressive but not too much). If there is a lot of
+                        # transient errors and we are having issues pushing through
+                        # things, this will shrink more and more until we are doing a
+                        # single operation at a time. If things start going better, it
+                        # will increase by 20% every round.
+                        max_count = min(int(last_ok_count * 1.2), len(pending_retries))
+                        tmp_input.writelines(pending_retries[:max_count])
+                        tmp_input.flush()
+                        debug.s3client_exec(
+                            "Have %d pending; succeeded in %d => trying for %d and "
+                            "leaving %d for the next round"
+                            % (
+                                len(pending_retries),
+                                last_ok_count,
+                                max_count,
+                                len(pending_retries) - max_count,
+                            )
+                        )
+                        del pending_retries[:max_count]
 
-        return None, err_out
+                        input_filename = tmp_input.name
+                    else:
+                        input_filename = base_input_filename
+
+                    addl_cmdline.extend(["--inputs", input_filename])
+
+                    # Check if we want to inject failures (for testing)
+                    if inject_failures > 0:
+                        addl_cmdline.extend(["--inject-failure", str(inject_failures)])
+                        # Logic here is to have higher and lower failure rates to try to
+                        # exercise as much of the code as possible. The failure rate
+                        # trends towards 0.
+                        if loop_count % 2 == 0:
+                            inject_failures = int(inject_failures / 3)
+                        else:
+                            inject_failures = min(90, int(inject_failures * 1.5))
+                    try:
+                        debug.s3client_exec(cmdline + addl_cmdline)
+                        stdout = subprocess.check_output(
+                            cmdline + addl_cmdline,
+                            cwd=self._tmpdir,
+                            stderr=stderr.file,
+                        )
+                        ok_lines = stdout.splitlines()
+                        _update_out_lines(out_lines, ok_lines, resize=loop_count == 0)
+                        return (len(ok_lines), 0, inject_failures, None)
+                    except subprocess.CalledProcessError as ex:
+                        if ex.returncode == s3op.ERROR_TRANSIENT_RETRY:
+                            # In this special case, we failed transiently on *some* of
+                            # the files but not necessarily all. This is typically
+                            # caused by limits on the number of operations that can
+                            # occur per second or some other temporary limitation.
+                            # We will retry only those that we failed on and we will not
+                            # count this as a retry *unless* we are making no forward
+                            # progress. In effect, we consider that as long as *some*
+                            # operations are going through, we should just keep going as
+                            # if it was a single operation.
+                            ok_lines = ex.stdout.splitlines()
+                            stderr.seek(0)
+                            do_output = False
+                            retry_lines = []
+                            for l in stderr:
+                                if do_output:
+                                    retry_lines.append(l)
+                                    continue
+                                if (
+                                    l.decode(encoding="utf-8")
+                                    == "%s\n" % TRANSIENT_RETRY_START_LINE
+                                ):
+                                    do_output = True
+                            stderr.seek(0)
+                            if do_output is False:
+                                return (
+                                    0,
+                                    0,
+                                    inject_failures,
+                                    "Could not find inputs to retry",
+                                )
+                            else:
+                                _update_out_lines(
+                                    out_lines, ok_lines, resize=loop_count == 0
+                                )
+                                pending_retries.extend(retry_lines)
+
+                                return (
+                                    len(ok_lines),
+                                    len(retry_lines),
+                                    inject_failures,
+                                    None,
+                                )
+
+                        # Here, this is a "normal" failure that we need to send back up
+                        stderr.seek(0)
+                        err_out = stderr.read().decode("utf-8", errors="replace")
+                        stderr.seek(0)
+                        if ex.returncode == s3op.ERROR_URL_NOT_FOUND:
+                            raise MetaflowS3NotFound(err_out)
+                        elif ex.returncode == s3op.ERROR_URL_ACCESS_DENIED:
+                            raise MetaflowS3AccessDenied(err_out)
+                        elif ex.returncode == s3op.ERROR_INVALID_RANGE:
+                            raise MetaflowS3InvalidRange(err_out)
+
+                        # Here, this is some other error that we will retry. We still
+                        # update the successful lines
+                        ok_lines = ex.stdout.splitlines()
+                        _update_out_lines(out_lines, ok_lines, resize=loop_count == 0)
+                        return 0, 0, inject_failures, err_out
+
+        while retry_count <= S3_RETRY_COUNT:
+            (
+                last_ok_count,
+                last_retry_count,
+                inject_failures,
+                err_out,
+            ) = _internal(last_ok_count, pending_retries, out_lines, inject_failures)
+            if err_out or (
+                last_retry_count != 0
+                and (
+                    last_ok_count == 0
+                    or transient_retry_count > S3_TRANSIENT_RETRY_COUNT
+                )
+            ):
+                # We had a fatal failure or we made No progress or we are out of
+                # transient retries
+                # so we will restart from scratch (being very conservative)
+                retry_count += 1
+                err_msg = err_out
+                if err_msg is None and last_ok_count == 0:
+                    err_msg = "No progress"
+                if err_msg is None:
+                    err_msg = "Too many transient errors"
+                print(
+                    "S3 non-transient error (attempt #%d): %s" % (retry_count, err_msg)
+                )
+                _reset()
+                if retry_count <= S3_RETRY_COUNT:
+                    self._jitter_sleep(retry_count)
+                continue
+            elif last_retry_count != 0:
+                # This is just a transient failure so we will try again
+                transient_retry_count += 1
+                total_ok_count += last_ok_count
+                print(
+                    "Transient S3 failure (attempt #%d) -- total success: %d, "
+                    "last attempt %d/%d -- remaining: %d"
+                    % (
+                        transient_retry_count,
+                        total_ok_count,
+                        last_ok_count,
+                        last_ok_count + last_retry_count,
+                        len(pending_retries),
+                    )
+                )
+                if inject_failures == 0:
+                    # Don't sleep when we are "faking" the failures
+                    self._jitter_sleep(transient_retry_count)
+
+            loop_count += 1
+            if len(pending_retries) == 0:
+                break
+
+        # At this point, we check out_lines; strip None which can happen for puts that
+        # didn't upload files
+        return [o for o in out_lines if o is not None], err_out
