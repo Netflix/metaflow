@@ -80,14 +80,14 @@ def assert_results(
         metadata = expected_result.metadata
         range_to_match = expected_result.range
         if size is None:
-            assert s3obj.exists == False
-            assert s3obj.downloaded == False
+            assert s3obj.exists is False
+            assert s3obj.downloaded is False
         else:
-            assert s3obj.exists == True
+            assert s3obj.exists is True
             if info_only:
-                assert s3obj.downloaded == False
+                assert s3obj.downloaded is False
             else:
-                assert s3obj.downloaded == True
+                assert s3obj.downloaded is True
                 # local file exists?
                 assert os.path.exists(s3obj.path)
                 # blob is ok?
@@ -131,7 +131,7 @@ def assert_results(
                         )
                 # metadata is OK
                 if metadata is None:
-                    assert s3obj.metadata == None
+                    assert s3obj.metadata is None
                 else:
                     s3objmetadata = s3obj.metadata
                     assert s3objmetadata is not None
@@ -668,7 +668,7 @@ def test_list_paths(s3root, prefixes, expected):
                 s3objs = s3.list_paths([url])
                 assert [e for e in s3objs if e.exists] == []
         else:
-            suffix = url[len(s3root) :]
+            suffix = url[len(s3root):]
             expected_keys = suffix.split("/")
             if len(expected_keys) > 20:
                 # speed optimization: exclude crazy long paths
@@ -751,7 +751,7 @@ def test_get_recursive(s3root, prefixes, expected):
         if len(prefixes) == 1:
             [prefix] = prefixes
             s3root = os.path.join(s3root, prefix)
-            keys = {url[len(s3root) + 1 :] for url in expected_exists}
+            keys = {url[len(s3root) + 1:] for url in expected_exists}
             assert {e.key for e in s3objs} == keys
 
         local_files = [s3obj.path for s3obj in s3objs]

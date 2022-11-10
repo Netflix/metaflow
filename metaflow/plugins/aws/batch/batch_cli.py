@@ -191,7 +191,7 @@ def step(
     if input_paths:
         max_size = 30 * 1024
         split_vars = {
-            "METAFLOW_INPUT_PATHS_%d" % (i // max_size): input_paths[i : i + max_size]
+            "METAFLOW_INPUT_PATHS_%d" % (i // max_size): input_paths[i: i + max_size]
             for i in range(0, len(input_paths), max_size)
         }
         kwargs["input_paths"] = "".join("${%s}" % s for s in split_vars.keys())

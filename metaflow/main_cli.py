@@ -107,7 +107,7 @@ def get_tutorial_metadata(tutorial_path):
     metadata["description"] = paragraphs[0].split("**")[1]
     header = paragraphs[0].split("\n")
     header = header[0].split(":")
-    metadata["episode"] = header[0].strip()[len("Episode ") :]
+    metadata["episode"] = header[0].strip()[len("Episode "):]
     metadata["title"] = header[1].strip()
 
     for paragraph in paragraphs[1:]:
@@ -418,7 +418,8 @@ def sandbox(profile, overwrite):
     )
     # Decode the bytes to env_dict.
     try:
-        import base64, zlib
+        import base64
+        import zlib
         from metaflow.util import to_bytes
 
         env_dict = json.loads(

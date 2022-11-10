@@ -249,7 +249,7 @@ class WindowsChunkedWriter(object):
 
         while written < total_to_write:
             to_write = min(total_to_write - written, MAX_BYTES_WRITTEN)
-            self.__wrapped.write(text[written : written + to_write])
+            self.__wrapped.write(text[written: written + to_write])
             written += to_write
 
 

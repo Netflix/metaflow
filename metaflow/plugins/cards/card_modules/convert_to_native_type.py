@@ -213,7 +213,7 @@ class TaskToDict:
         supported_type = False
         large_object = False
         obj_type_name = self._get_object_type(data_object)
-        if obj_type_name == None:
+        if obj_type_name is None:
             return rep.repr(data_object), obj_type_name, supported_type, large_object
         elif self._only_repr:
             return (

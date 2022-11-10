@@ -326,7 +326,8 @@ def _validate_foreach_constraints(graph):
     def traverse_graph(node, state):
         if node.type == "foreach" and node.is_inside_foreach:
             raise NotSupportedException(
-                "Step *%s* is a foreach step called within a foreach step. This type of graph is currently not supported with Airflow."
+                "Step *%s* is a foreach step called within a foreach step. "
+                "This type of graph is currently not supported with Airflow."
                 % node.name
             )
 

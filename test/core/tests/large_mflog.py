@@ -17,7 +17,8 @@ NUM_LINES = 5000
     def split(self):
         self.arr = range(NUM_FOREACH)
 
-        import random, string
+        import random
+        import string
 
         self.random_log_prefix = "".join(
             [random.choice(string.ascii_lowercase) for _ in range(5)]

@@ -235,7 +235,7 @@ class AirflowDAGArgs(object):
             "email_on_retry": bool,
             "retries": int,
             "retry_delay": timedelta,
-            "queue": str,  #  which queue to target when running this job. Not all executors implement queue management, the CeleryExecutor does support targeting specific queues.
+            "queue": str,  # which queue to target when running this job. Not all executors implement queue management, the CeleryExecutor does support targeting specific queues.
             "pool": str,  # the slot pool this task should run in, slot pools are a way to limit concurrency for certain tasks
             "priority_weight": int,
             "wait_for_downstream": bool,
@@ -503,7 +503,7 @@ class AirflowTask(object):
 
     @classmethod
     def from_dict(cls, task_dict, flow_name=None, flow_contains_foreach=False):
-        op_args = {} if not "operator_args" in task_dict else task_dict["operator_args"]
+        op_args = {} if "operator_args" not in task_dict else task_dict["operator_args"]
         is_mapper_node = (
             False if "is_mapper_node" not in task_dict else task_dict["is_mapper_node"]
         )

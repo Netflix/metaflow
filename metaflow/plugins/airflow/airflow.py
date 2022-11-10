@@ -244,7 +244,8 @@ class Airflow(object):
     def _make_input_path(self, step_name, only_task_id=False):
         """
         This is set using the `airflow_internal` decorator to help pass state.
-        This will pull the `TASK_ID_XCOM_KEY` xcom which holds task-ids. The key is set via the `MetaflowKubernetesOperator`.
+        This will pull the `TASK_ID_XCOM_KEY` xcom which holds task-ids.
+        The key is set via the `MetaflowKubernetesOperator`.
         """
         task_id_string = "/%s/{{ task_instance.xcom_pull(task_ids='%s',key='%s') }}" % (
             step_name,
@@ -261,8 +262,10 @@ class Airflow(object):
         """
         This function will transform the node's specification into Airflow compatible operator arguments.
         Since this function is long, below is the summary of the two major duties it performs:
-            1. Based on the type of the graph node (start/linear/foreach/join etc.) it will decide how to set the input paths
-            2. Based on node's decorator specification convert the information into a job spec for the KubernetesPodOperator.
+            1. Based on the type of the graph node (start/linear/foreach/join etc.)
+                it will decide how to set the input paths
+            2. Based on node's decorator specification convert the information into
+                a job spec for the KubernetesPodOperator.
         """
         # Add env vars from the optional @environment decorator.
         env_deco = [deco for deco in node.decorators if deco.name == "environment"]
@@ -304,7 +307,8 @@ class Airflow(object):
                 # One key thing about xcoms is that they are immutable and only accepted if the task
                 # doesn't fail.
                 # From airflow docs :
-                # "Note: If the first task run is not succeeded then on every retry task XComs will be cleared to make the task run idempotent."
+                # "Note: If the first task run is not succeeded then on every retry task
+                # XComs will be cleared to make the task run idempotent."
                 input_paths = self._make_input_path(node.in_funcs[0])
             else:
                 # this is a split scenario where there can be more than one input paths.
@@ -341,7 +345,8 @@ class Airflow(object):
             "app.kubernetes.io/name": "metaflow-task",
             "app.kubernetes.io/part-of": "metaflow",
             "app.kubernetes.io/created-by": user,
-            # Question to (savin) : Should we have username set over here for created by since it is the airflow installation that is creating the jobs.
+            # Question to (savin) : Should we have username set over here for created by since it is the
+            # airflow installation that is creating the jobs.
             # Technically the "user" is the stakeholder but should these labels be present.
         }
         additional_mf_variables = {

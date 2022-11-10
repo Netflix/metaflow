@@ -162,7 +162,7 @@ class RandomFile(object):
                     ).hexdigest()
                 else:
                     self.cached_digests[lookup_key] = sha1(
-                        self._data[start : start + length]
+                        self._data[start: start + length]
                     ).hexdigest()
             return self.cached_digests[lookup_key]
 

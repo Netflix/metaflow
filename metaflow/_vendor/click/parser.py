@@ -73,7 +73,7 @@ def _unpack_args(args, nargs_spec):
     if spos is not None:
         rv[spos] = tuple(args)
         args = []
-        rv[spos + 1 :] = reversed(rv[spos + 1 :])
+        rv[spos + 1:] = reversed(rv[spos + 1:])
 
     return tuple(rv), list(args)
 

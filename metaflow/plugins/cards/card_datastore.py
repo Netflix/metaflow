@@ -132,7 +132,7 @@ class CardDatastore(object):
                 task_id,
                 "cards",
             ]
-        if sysroot == "" or sysroot == None:
+        if sysroot == "" or sysroot is None:
             pth_arr.pop(0)
         return os.path.join(*pth_arr)
 
