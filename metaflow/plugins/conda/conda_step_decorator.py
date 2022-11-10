@@ -40,7 +40,7 @@ class CondaStepDecorator(StepDecorator):
     Specifies the Conda environment for the step.
 
     Information in this decorator will augment any
-    attributes set in the `@conda_base` flow-level decorator. Hence
+    attributes set in the `@conda_base` flow-level decorator. Hence,
     you can use `@conda_base` to set common libraries required by all
     steps and use `@conda` to specify step-specific additions.
 
@@ -266,7 +266,7 @@ class CondaStepDecorator(StepDecorator):
         else:
             # If there is no "INFO" file, we will actually create one in this new
             # place because we won't be able to properly resolve the EXT_PKG extensions
-            # the same way as outside conda (looking at distributions, etc). In a
+            # the same way as outside conda (looking at distributions, etc.). In a
             # Conda environment, as shown below (where we set self.addl_paths), all
             # EXT_PKG extensions are PYTHONPATH extensions. Instead of re-resolving,
             # we use the resolved information that is written out to the INFO file.
@@ -295,7 +295,7 @@ class CondaStepDecorator(StepDecorator):
                 )
             else:
                 # This is a namespace package, we therefore create a bunch of directories
-                # so we can symlink in those separately and we will add those paths
+                # so that we can symlink in those separately, and we will add those paths
                 # to the PYTHONPATH for the interpreter. Note that we don't symlink
                 # to the parent of the package because that could end up including
                 # more stuff we don't want

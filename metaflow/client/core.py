@@ -361,7 +361,7 @@ class MetaflowObject(object):
                 raise MetaflowNotFound(
                     "Attempt can only be smaller than %d" % MAX_ATTEMPTS
                 )
-            # NOTE: It is possible that no attempt exists but we can't
+            # NOTE: It is possible that no attempt exists, but we can't
             # distinguish between "attempt will happen" and "no such
             # attempt exists".
 
@@ -651,7 +651,7 @@ class MetaflowObject(object):
         if self._parent is None:
             pathspec = self.pathspec
             parent_pathspec = pathspec[: pathspec.rfind("/")]
-            # Only artifacts and tasks have attempts right now so we get the
+            # Only artifacts and tasks have attempts right now, so we get the
             # right parent if we are an artifact.
             attempt_to_pass = self._attempt if self._NAME == "artifact" else None
             # We can skip the namespace check because if self._NAME = 'run',
@@ -754,7 +754,7 @@ class MetaflowCode(object):
     `MetaflowCode` includes a package of the user-defined `FlowSpec` class and supporting
     files, as well as a snapshot of the Metaflow library itself.
 
-    Currently `MetaflowCode` objects are stored only for `Run`s that have at least one `Step`
+    Currently, `MetaflowCode` objects are stored only for `Run`s that have at least one `Step`
     executing outside the user's local environment.
 
     You can extract code in the directory `snapshot` like so:

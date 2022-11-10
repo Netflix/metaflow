@@ -3,10 +3,10 @@
 # provided a lot of what went into the implementation here in
 # the discussion to issue1602 in the Python bug tracker.
 #
-# There are some general differences in regards to how this works
+# There are some general differences in regard to how this works
 # compared to the original patches as we do not need to patch
 # the entire interpreter but just work in our little world of
-# echo and prmopt.
+# echo and prompt.
 import ctypes
 import io
 import os

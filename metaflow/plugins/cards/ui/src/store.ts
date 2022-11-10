@@ -12,7 +12,7 @@ export const setCardData: (cardDataId: string) => void = (cardDataId) => {
     const data = JSON.parse(atob((window as any).__MF_DATA__[cardDataId])) as types.CardResponse;
     cardData.set(data);
   } catch (error) {
-    // for now we are loading an example card if there is no string
+    // for now, we are loading an example card if there is no string
     fetch("/card-example.json")
       .then((resp) => resp.json())
       .then((data: types.CardResponse) => {

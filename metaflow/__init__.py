@@ -39,7 +39,7 @@ access results
 # More questions?
 
 If you have any questions, feel free to post a bug report/question on the
-Metaflow Github page.
+Metaflow GitHub page.
 """
 
 import importlib

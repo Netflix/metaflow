@@ -6,7 +6,7 @@ from ._functools import method_cache
 # from jaraco.text 3.5
 class FoldedCase(str):
     """
-    A case insensitive string class; behaves just like str
+    A case-insensitive string class; behaves just like str
     except compares equal when the only variation is case.
 
     >>> s = FoldedCase('hello world')
@@ -83,7 +83,7 @@ class FoldedCase(str):
         return super().lower().__contains__(other.lower())
 
     def in_(self, other):
-        "Does self appear in other?"
+        """Does `self` appear in `other`?"""
         return self in FoldedCase(other)
 
     # cache lower since it's likely to be called frequently.

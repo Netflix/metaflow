@@ -267,12 +267,12 @@ class Distribution:
         """Return the parsed metadata for this Distribution.
 
         The returned object will have keys that name the various bits of
-        metadata.  See PEP 566 for details.
+        metadata. See PEP 566 for details.
         """
         text = (
             self.read_text('METADATA')
             or self.read_text('PKG-INFO')
-            # This last clause is here to support old egg-info files.  Its
+            # This last clause is here to support old egg-info files. Its
             # effect is to just end up using the PathDistribution's self._path
             # (which points to the egg-info file) attribute unchanged.
             or self.read_text('')

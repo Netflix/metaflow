@@ -150,7 +150,7 @@ class MetadataCheck(MetaflowCheck):
             card_iter = None
         card_data = None
         # Since there are many cards possible for a taskspec, we check for hash to assert a single card.
-        # If the id argument is present then there will be a single cards anyways.
+        # If the id argument is present then there will be a single cards anyway.
         if card_iter is not None:
             if len(card_iter) > 0:
                 if card_hash is None:

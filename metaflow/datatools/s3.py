@@ -96,7 +96,7 @@ class S3Object(object):
     This object represents a path or an object in S3,
     with an optional local copy.
 
-    `S3Object`s are not instantiated directly but they are returned
+    `S3Object`s are not instantiated directly, but they are returned
     by many methods of the `S3` client.
     """
 
@@ -323,7 +323,7 @@ class S3Object(object):
         If the object corresponds to a partially downloaded object, returns
         information of what was downloaded.
 
-        The returned object has the follwing fields:
+        The returned object has the following fields:
         - `total_size`: Size of the object in S3.
         - `request_offset`: The starting offset.
         - `request_length`: The number of bytes downloaded.
@@ -478,7 +478,7 @@ class S3(object):
             parsed = urlparse(to_unicode(s3root))
             if parsed.scheme != "s3":
                 raise MetaflowS3URLException(
-                    "s3root needs to be an S3 URL prefxied with s3://."
+                    "s3root needs to be an S3 URL prefixed with s3://."
                 )
             self._s3root = s3root.rstrip("/")
         else:
@@ -605,7 +605,7 @@ class S3(object):
         -------
         List[`S3Object`]
             S3Objects under the given paths, including prefixes (directories) that
-            do not corresponding to leaf objects.
+            do not correspond to leaf objects.
         """
 
         def _list(keys):
@@ -623,7 +623,7 @@ class S3(object):
 
     def list_recursive(self, keys=None):
         """
-        List all objects recursives under the given prefixes.
+        List all objects recursively under the given prefixes.
 
         If multiple keys are specified, listings are done in parallel. All objects
         returned have `.exists == True` as this call always returns leaf objects.
@@ -1029,7 +1029,7 @@ class S3(object):
         content_type : str
             Optional MIME type for the object.
         metadata : Dict
-            A JSON-encodeable dictionary of additional headers to be stored
+            A JSON-encodable dictionary of additional headers to be stored
             as metadata with the object.
 
         Returns
@@ -1100,7 +1100,7 @@ class S3(object):
 
         Each object to be uploaded can be specified in two ways:
 
-        1. As a a `(key, obj)` tuple where `key` is a string specifying
+        1. As a `(key, obj)` tuple where `key` is a string specifying
            the path and `obj` is a string or a bytes object.
 
         2. As a `S3PutObject` which contains additional metadata to be
@@ -1169,7 +1169,7 @@ class S3(object):
 
         Each file to be uploaded can be specified in two ways:
 
-        1. As a a `(key, path)` tuple where `key` is a string specifying
+        1. As a `(key, path)` tuple where `key` is a string specifying
            the S3 path and `path` is the path to a local file.
 
         2. As a `S3PutObject` which contains additional metadata to be

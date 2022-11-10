@@ -157,8 +157,8 @@ class Image(UserComponent):
     """
     An image.
 
-    `Image`s can be created direcly from PNG/JPG/GIF `bytes`, `PIL.Image`s,
-    or Matplotib figures. Note that the image data is embedded in the card,
+    `Images can be created directly from PNG/JPG/GIF `bytes`, `PIL.Image`s,
+    or Matplotlib figures. Note that the image data is embedded in the card,
     so no external files are required to show the image.
 
     Example: Create an `Image` from bytes:
@@ -218,7 +218,7 @@ class Image(UserComponent):
             except TypeError:
                 self._error_comp = ErrorComponent(
                     self.render_fail_headline(
-                        "first argument should be of type `bytes` or vaild image base64 string"
+                        "first argument should be of type `bytes` or valid image base64 string"
                     ),
                     "Type of %s is invalid" % (str(type(src))),
                 )
@@ -239,7 +239,7 @@ class Image(UserComponent):
             else:
                 self._error_comp = ErrorComponent(
                     self.render_fail_headline(
-                        "first argument should be of type `bytes` or vaild image base64 string"
+                        "first argument should be of type `bytes` or valid image base64 string"
                     ),
                     "String %s is invalid base64 string" % src,
                 )

@@ -79,7 +79,7 @@ class ArgoWorkflows(object):
         # scheduling new steps as soon as it detects that one of the DAG nodes
         # has failed. After waiting for all the scheduled DAG nodes to run till
         # completion, Argo with fail the DAG. This implies that after a node
-        # has failed, it may be a while before the entire DAG is marked as
+        # has failed, it may be awhile before the entire DAG is marked as
         # failed. There is nothing Metaflow can do here for failing even
         # faster (as of Argo 3.2).
         #
@@ -269,7 +269,7 @@ class ArgoWorkflows(object):
         # Steps in FlowSpec are represented as DAGTasks.
         # A DAGTask can reference to -
         #     a ContainerTemplate (for linear steps..) or
-        #     another DAGTemplate (for nested foreaches).
+        #     another DAGTemplate (for nested `foreach`s).
         #
         # While we could have very well inlined container templates inside a DAGTask,
         # unfortunately Argo variable substitution ({{pod.name}}) doesn't work as
@@ -576,7 +576,7 @@ class ArgoWorkflows(object):
                 task_str += "-{{inputs.parameters.input-paths}}"
             if any(self.graph[n].type == "foreach" for n in node.in_funcs):
                 task_str += "-{{inputs.parameters.split-index}}"
-            # Generated task_ids need to be non numeric - see register_task_id in
+            # Generated task_ids need to be non-numeric - see register_task_id in
             # service.py. We do so by prefixing `t-`
             task_id_expr = (
                 "export METAFLOW_TASK_ID="
@@ -670,8 +670,8 @@ class ArgoWorkflows(object):
                 if self.tags:
                     init.extend("--tag %s" % tag for tag in self.tags)
                 # if the start step gets retried, we must be careful
-                # not to regenerate multiple parameters tasks. Hence
-                # we check first if _parameters exists already
+                # not to regenerate multiple parameters tasks. Hence,
+                # we check first if _parameters exists already.
                 exists = entrypoint + [
                     "dump",
                     "--max-value-size=0",
@@ -744,7 +744,7 @@ class ArgoWorkflows(object):
             # variables -
             #   (1) User-specified environment variables through @environment
             #   (2) Metaflow runtime specific environment variables
-            #   (3) @kubernetes, @argo_workflows_internal book-keeping environment
+            #   (3) @kubernetes, @argo_workflows_internal bookkeeping environment
             #       variables
             env = dict(
                 [deco for deco in node.decorators if deco.name == "environment"][
@@ -857,7 +857,7 @@ class ArgoWorkflows(object):
                     minutes_between_retries=minutes_between_retries,
                 ).metadata(
                     ObjectMeta().annotation("metaflow/step_name", node.name)
-                    # Unfortuntely, we can't set the task_id since it is generated
+                    # Unfortunately, we can't set the task_id since it is generated
                     # inside the pod. However, it can be inferred from the annotation
                     # set by argo-workflows - `workflows.argoproj.io/outputs` - refer
                     # the field 'task-id' in 'parameters'
@@ -1185,7 +1185,7 @@ class Template(object):
         return self
 
     def container(self, container):
-        # Lucklily this can simply be V1Container and we are spared from writing more
+        # Luckily this can simply be V1Container and we are spared from writing more
         # boilerplate - https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1Container.md.
         self.payload["container"] = container
         return self

@@ -5,7 +5,7 @@ import re
 
 def deindent_docstring(doc):
     if doc:
-        # Find the indent to remove from the doctring. We consider the following possibilities:
+        # Find the indent to remove from the docstring. We consider the following possibilities:
         # Option 1:
         #  """This is the first line
         #    This is the second line
@@ -186,7 +186,7 @@ class FlowGraph(object):
 
     def _postprocess(self):
         # any node who has a foreach as any of its split parents
-        # has is_inside_foreach=True *unless* all of those foreaches
+        # has is_inside_foreach=True *unless* all of those `foreach`s
         # are joined by the node
         for node in self.nodes.values():
             foreaches = [

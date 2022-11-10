@@ -17,7 +17,7 @@ class ResumeStartStepTest(MetaflowTest):
         if is_resumed():
             self.data = "foo"
             # Verify that the `current` singleton contains the correct origin
-            # run_id by double checking with the environment variables used
+            # run_id by double-checking with the environment variables used
             # for tests.
             self.actual_origin_run_id = current.origin_run_id
             from metaflow_test import origin_run_id_for_resume

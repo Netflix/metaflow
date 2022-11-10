@@ -190,7 +190,7 @@ class CardDatastore(object):
         # It would especially happen for users who are accessing cards created by a newer
         # MF client from an older version of MF client.
         # It will also easily end up breaking the metaflow-ui (which maybe using a client from an older version).
-        # Hence we are writing cards to both paths so that we can introduce breaking changes later in the future.
+        # Hence, we are writing cards to both paths so that we can introduce breaking changes later in the future.
         card_path_with_steps = self.get_card_location(
             self._get_write_path(), card_file_name, card_html, card_id=card_id
         )

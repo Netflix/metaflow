@@ -63,7 +63,7 @@ class _WrappedModule(object):
         elif name in self._exception_classes:
             return self._exception_classes[name]
         else:
-            # Try to see if this is a sub-module that we can load
+            # Try to see if this is a submodule that we can load
             m = None
             try:
                 m = self._loader.load_module(".".join([self._prefix, name]))
@@ -206,8 +206,8 @@ class ModuleImporter(object):
 
             # We will make sure that we create modules even for "empty" prefixes
             # because packages are always loaded hierarchically so if we have
-            # something in a.b.c but nothing directly in a, we still need to
-            # create a module named a. There is probably a better way of doing this
+            # something in `a.b.c` but nothing directly in `a`, we still need to
+            # create a module named `a`. There is probably a better way of doing this
             all_prefixes = list(prefixes)
             for prefix in all_prefixes:
                 parts = prefix.split(".")
@@ -243,7 +243,7 @@ class ModuleImporter(object):
 
 
 def create_modules(python_executable, pythonpath, max_pickle_version, path, prefixes):
-    # This is a extra verification to make sure we are not trying to use the
+    # This is an extra verification to make sure we are not trying to use the
     # environment escape for something that is in the system
     for prefix in prefixes:
         try:

@@ -20,7 +20,7 @@ class PackageMetadata(Protocol):
 
     def get_all(self, name: str, failobj: _T = ...) -> Union[List[Any], _T]:
         """
-        Return all values associated with a possibly multi-valued key.
+        Return all values associated with a possibly multivalued key.
         """
 
     @property

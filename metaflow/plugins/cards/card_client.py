@@ -129,7 +129,7 @@ class CardContainer:
     ```
     cards = get_cards(MyTask)
 
-    # retrive by index
+    # retrieve by index
     first_card = cards[0]
 
     # check length
@@ -199,7 +199,7 @@ def get_cards(task, id=None, type=None, follow_resumed=True):
     """
     Get cards related to a `Task`.
 
-    Note that `get_cards` resolves the cards contained by the task but it doesn't actually
+    Note that `get_cards` resolves the cards contained by the task, but it doesn't actually
     retrieve them from the datastore. Actual card contents are retrieved lazily either when
     the card is rendered in a notebook to when you call `Card.get`. This means that
     `get_cards` is a fast call even when individual cards contain a lot of data.
@@ -231,11 +231,11 @@ def get_cards(task, id=None, type=None, follow_resumed=True):
         if len(task_str.split("/")) != 4:
             # Exception that pathspec is not of correct form
             raise IncorrectPathspecException(task_str)
-        # set namepsace as None so that we don't face namespace mismatch error.
+        # set namespace as None so that we don't face namespace mismatch error.
         namespace(None)
         task = Task(task_str)
     elif not isinstance(task, Task):
-        # Exception that the task argument should of form `Task` or `str`
+        # Exception that the task argument should be of form `Task` or `str`
         raise IncorrectArguementException(_TYPE(task))
 
     if follow_resumed:
@@ -259,7 +259,7 @@ def _get_flow_datastore(task):
     # Resolve datastore type
     ds_type = None
     # We need to set the correct datastore root here so that
-    # we can ensure the the card client picks up the correct path to the cards
+    # we can ensure that the card client picks up the correct path to the cards
 
     meta_dict = task.metadata_dict
     ds_type = meta_dict.get("ds-type", None)

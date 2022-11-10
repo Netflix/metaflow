@@ -57,7 +57,7 @@ def find_vendored_libs(vendor_dir, whitelist, whitelist_dirs):
             vendored_libs.append(item.name)
         elif item.is_file() and item.name not in whitelist:
             vendored_libs.append(item.stem)  # without extension
-        else:  # not a dir or a file not in the whilelist
+        else:  # not a dir or a file not in the whitelist
             continue
         paths.append(item)
     return vendored_libs, paths

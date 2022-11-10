@@ -80,7 +80,7 @@ def _load_external_cards():
                     # every card should only be inheriting a MetaflowCard
                     continue
                 if not getattr(c, "type", None):
-                    # todo Warn user of non existant `type` in MetaflowCard
+                    # todo Warn user of nonexistent `type` in MetaflowCard
                     continue
                 if c.type in external_cards:
                     # todo Warn user of duplicate card

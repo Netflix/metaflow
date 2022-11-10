@@ -268,7 +268,7 @@ def test_put_one_benchmark(benchmark, tempdir, s3root, blobs, expected):
                 f.write(data.data)
             yield key, path
 
-    # Generate all files before the test so we don't time this
+    # Generate all files before the test so that we don't time this
     all_files = list(_generate_files(blobs))
 
     def _do():
@@ -755,7 +755,7 @@ def test_get_recursive(s3root, prefixes, expected):
             assert {e.key for e in s3objs} == keys
 
         local_files = [s3obj.path for s3obj in s3objs]
-    # local files must not exist outside of the S3 context
+    # local files must not exist outside the S3 context
     for path in local_files:
         assert not os.path.exists(path)
 

@@ -118,7 +118,7 @@ class Client(object):
                     % self._server_process.stderr.read(),
                 )
             time.sleep(1)
-        # Open up the channel and setup the datastransfer pipeline
+        # Open up the channel and set up the datatransferer pipeline
         self._channel = Channel(SocketByteStream.unixconnect(self._socket_path))
         self._datatransferer = DataTransferer(self)
 
@@ -204,7 +204,7 @@ class Client(object):
             self._poller.unregister(self._channel)
             last_evts = self._poller.poll(5)
             for fd, _ in last_evts:
-                # Readlines will never block here because bufsize is set to
+                # Readlines will never block here because `bufsize` is set to
                 # 1 (line buffering)
                 if fd == self._server_process.stdout.fileno():
                     sys.stdout.write(self._server_process.stdout.readline())
@@ -366,17 +366,17 @@ class Client(object):
             for fd, _ in evt_list:
                 if fd == self._channel.fileno():
                     # We deal with this last as this basically gives us the
-                    # response so we stop looking at things on stdout/stderr
+                    # response, so we stop looking at things on stdout/stderr
                     response_ready = True
-                # Readlines will never block here because bufsize is set to 1
+                # Readlines will never block here because `bufsize` is set to 1
                 # (line buffering)
                 elif fd == self._server_process.stdout.fileno():
                     sys.stdout.write(self._server_process.stdout.readline())
                 elif fd == self._server_process.stderr.fileno():
                     sys.stderr.write(self._server_process.stderr.readline())
-        # We make sure there is nothing left to read. On the server side, a
-        # flush happens before we respond so we read until we get an exception;
-        # this is non blocking
+        # We make sure there is nothing left to read. On the server side a
+        # flush happens before we respond, so we read until we get an exception;
+        # this is non-blocking
         while True:
             try:
                 line = self._server_process.stdout.readline()

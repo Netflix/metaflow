@@ -188,7 +188,7 @@ def is_incomplete_argument(current_params, cmd_param):
         argument as already entered
     :param cmd_param: the current command parameter
     :return: whether or not the last argument is incomplete and
-        corresponds to this cmd_param. In other words whether or not the
+        corresponds to this cmd_param. In other words whether or not
         this cmd_param argument can still accept values
     """
     if not isinstance(cmd_param, Argument):

@@ -9,7 +9,7 @@ def get_long_description() -> str:
 setup(
     name="metaflow-card-via-init",
     version="1.0.0",
-    description="A desription of your card",
+    description="A description of your card",
     long_description=get_long_description(),
     long_description_content_type="text/markdown",
     author="Your Name",

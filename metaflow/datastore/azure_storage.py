@@ -174,13 +174,13 @@ AZURE_STORAGE_DEFAULT_SCOPE = "https://storage.azure.com/.default"
 
 class _AzureRootClient(object):
     """
-    This exists independently from AzureBlobStorage as a wrapper around SDK clients.
+    This exists independent of AzureBlobStorage as a wrapper around SDK clients.
     It carries around parameters needed to construct Azure SDK clients on demand.
 
     _AzureRootClient objects will be passed from main to worker threads or processes. They
     must be picklable. We delay constructing Azure SDK objects because they are not picklable.
 
-    For example, azure.core.TokenCredential objects are not picklable. Therefore we pass around an
+    For example, azure.core.TokenCredential objects are not picklable. Therefore, we pass around an
     AccessToken (token) instead, and construct TokenCredential on demand in the target thread (or process).
     Note that we do this to amortize credential retrieval cost across threads (or processes). Depending on
     the credential methods available to DefaultAzureCredential, credential retrieval can be expensive.

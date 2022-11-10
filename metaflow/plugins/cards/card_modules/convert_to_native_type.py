@@ -102,7 +102,7 @@ class TaskToDict:
     def _create_task_data_dict(self, task):
 
         task_data_dict = {}
-        type_infered_objects = {"images": {}, "tables": {}}
+        type_inferred_objects = {"images": {}, "tables": {}}
         for data in task:
             try:
                 data_object = data.data
@@ -124,11 +124,11 @@ class TaskToDict:
             type_resolved_obj = self._extract_type_infered_object(data_object)
             if type_resolved_obj is not None:
                 if type_resolved_obj.is_image:
-                    type_infered_objects["images"][data.id] = type_resolved_obj.data
+                    type_inferred_objects["images"][data.id] = type_resolved_obj.data
                 elif type_resolved_obj.is_table:
-                    type_infered_objects["tables"][data.id] = type_resolved_obj.data
+                    type_inferred_objects["tables"][data.id] = type_resolved_obj.data
 
-        return task_data_dict, type_infered_objects
+        return task_data_dict, type_inferred_objects
 
     def object_type(self, object):
         return self._get_object_type(object)
@@ -140,7 +140,7 @@ class TaskToDict:
             import imghdr
 
             resp = imghdr.what(None, h=data_object)
-            # Only accept types suppored on the web
+            # Only accept types supported on the web
             # https://developer.mozilla.org/en-US/docs/Web/Media/Formats/Image_types
             if resp is not None and resp in ["gif", "png", "jpeg", "webp"]:
                 return self._parse_image(data_object, resp)
@@ -154,7 +154,7 @@ class TaskToDict:
             import imghdr
 
             resp = imghdr.what(None, h=data_object)
-            # Only accept types suppored on the web
+            # Only accept types supported on the web
             # https://developer.mozilla.org/en-US/docs/Web/Media/Formats/Image_types
             if resp is not None and resp in ["gif", "png", "jpeg", "webp"]:
                 return TypeResolvedObject(

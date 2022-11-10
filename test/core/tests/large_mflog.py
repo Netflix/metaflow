@@ -86,7 +86,7 @@ NUM_LINES = 5000
 
                 for i, (_, _, stream_type, idx, tstamp) in enumerate(task_lines):
                     # test that loglines originate from the correct stream
-                    # and they are properly ordered
+                    # and are properly ordered
                     assert_equals(stream_type, stream)
                     assert_equals(int(idx), i)
 

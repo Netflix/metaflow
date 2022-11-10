@@ -865,8 +865,8 @@ def before_run(obj, tags, decospecs):
     # This is a very common use case of --with.
     #
     # A downside is that we need to have the following decorators handling
-    # in two places in this module and we need to make sure that
-    # _init_step_decorators doesn't get called twice.
+    # in two places in this module and make sure _init_step_decorators
+    # doesn't get called twice.
     if decospecs:
         decorators._attach_decorators(obj.flow, decospecs)
         obj.graph = FlowGraph(obj.flow.__class__)
@@ -1045,7 +1045,7 @@ def start(
     )
 
     # It is important to initialize flow decorators early as some of the
-    # things they provide may be used by some of the objects initialize after.
+    # things they provide may be used by some of the objects initialized after.
     decorators._init_flow_decorators(
         ctx.obj.flow,
         ctx.obj.graph,

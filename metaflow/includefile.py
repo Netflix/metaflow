@@ -100,7 +100,7 @@ class FilePathClass(click.ParamType):
         self._encoding = encoding
 
     def convert(self, value, param, ctx):
-        # Click can call convert multiple times so we need to make sure to only
+        # Click can call convert multiple times, so we need to make sure to only
         # convert once. This function will return a DelayedEvaluationParameter
         # (if it needs to still perform an upload) or an IncludedFile if not
         if isinstance(value, (DelayedEvaluationParameter, IncludedFile)):
@@ -121,7 +121,7 @@ class FilePathClass(click.ParamType):
         #        can change unlike all other artifacts. It is trivial to re-enable
         #      + B.2: an actual path to a local file like /foo/bar
         #    In the first case, we just store an *external* reference to it (so we
-        #    won't upload anything). In the second case, we will want to upload something
+        #    won't upload anything). In the second case we will want to upload something,
         #    but we only do that in the DelayedEvaluationParameter step.
 
         # ctx can be one of two things:
@@ -138,15 +138,14 @@ class FilePathClass(click.ParamType):
             )
 
         if len(value) > 0 and value[0] == "{":
-            # This is a blob; no URL starts with "{". We are thus in scenario A
+            # This is a blob; no URL starts with `{`. We are thus in scenario A
             try:
                 value = json.loads(value)
             except json.JSONDecodeError as e:
                 raise MetaflowException(
                     "IncludeFile '%s' (value: %s) is malformed" % (param.name, value)
                 )
-            # All processing has already been done so we just convert to a
-            # IncludedFile
+            # All processing has already been done, so we just convert to an `IncludedFile`
             return IncludedFile(value)
 
         path = os.path.expanduser(value)
@@ -186,7 +185,7 @@ class FilePathClass(click.ParamType):
                 )
 
             # Now that we have done preliminary checks, we will delay uploading it
-            # until later (so it happens after PyLint checks the flow but we prepare
+            # until later (so it happens after PyLint checks the flow, but we prepare
             # everything for it)
             lambda_ctx = _DelayedExecContext(
                 flow_name=ctx.flow_name,
@@ -315,8 +314,8 @@ class IncludeFile(Parameter):
                 val = fp.convert(d, None, ctx)
                 if isinstance(val, DelayedEvaluationParameter):
                     val = val()
-                # At this point, this is an IncludedFile but we need to make it
-                # into a string so it can be properly saved.
+                # At this point this is an IncludedFile, but we need to make it
+                # into a string so that it can be properly saved.
                 return json.dumps(val.descriptor)
             else:
                 return d
@@ -387,7 +386,7 @@ class UploaderV1:
             obj = client.get(url, return_missing=True)
             if obj.exists:
                 if descriptor["type"] == cls.file_type:
-                    # We saved this file directly so we know how to read it out
+                    # We saved this file directly, so we know how to read it out
                     with gzip.GzipFile(filename=obj.path, mode="rb") as f:
                         if descriptor["is_text"]:
                             return io.TextIOWrapper(
@@ -447,7 +446,7 @@ class UploaderV2:
         if descriptor["sub-type"] == "uploaded":
             return descriptor["size"]
         else:
-            # This was a file that was external so we get information on it
+            # This was a file that was external, so we get information on it
             url = descriptor["url"]
             handler = cls._get_handler(url)
             with handler() as client:
@@ -468,7 +467,7 @@ class UploaderV2:
             obj = client.get(url, return_missing=True)
             if obj.exists:
                 if descriptor["sub-type"] == "uploaded":
-                    # We saved this file directly so we know how to read it out
+                    # We saved this file directly, so we know how to read it out
                     with gzip.GzipFile(filename=obj.path, mode="rb") as f:
                         if descriptor["is_text"]:
                             return io.TextIOWrapper(

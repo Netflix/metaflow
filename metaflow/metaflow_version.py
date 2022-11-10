@@ -20,7 +20,7 @@ GIT_COMMAND = "git"
 if name == "nt":
 
     def find_git_on_windows():
-        """find the path to the git executable on windows"""
+        """find the path to the git executable on Windows"""
         # first see if git is in the path
         try:
             check_output(["where", "/Q", "git"])
@@ -29,7 +29,7 @@ if name == "nt":
         # catch the exception thrown if git was not found
         except CalledProcessError:
             pass
-        # There are several locations git.exe may be hiding
+        # There are several locations where git.exe may be hiding
         possible_locations = []
         # look in program files for msysgit
         if "PROGRAMFILES(X86)" in environ:
@@ -38,7 +38,7 @@ if name == "nt":
             )
         if "PROGRAMFILES" in environ:
             possible_locations.append("%s/Git/cmd/git.exe" % environ["PROGRAMFILES"])
-        # look for the github version of git
+        # look for the GitHub version of git
         if "LOCALAPPDATA" in environ:
             github_dir = "%s/GitHub" % environ["LOCALAPPDATA"]
             if path.isdir(github_dir):

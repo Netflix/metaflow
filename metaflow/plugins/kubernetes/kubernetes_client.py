@@ -38,8 +38,8 @@ class KubernetesClient(object):
         else:
             # Use kubeconfig, likely $HOME/.kube/config
             # TODO (savin):
-            #     1. Support generating kubeconfig on the fly using boto3
-            #     2. Support auth via OIDC - https://docs.aws.amazon.com/eks/latest/userguide/authenticate-oidc-identity-provider.html
+            #  1. Support generating kubeconfig on the fly using boto3
+            #  2. Support auth via OIDC - https://docs.aws.amazon.com/eks/latest/userguide/authenticate-oidc-identity-provider.html
             config.load_kube_config()
         self._client = client
         self._client_refresh_timestamp = time.time()

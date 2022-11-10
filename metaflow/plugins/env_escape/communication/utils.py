@@ -4,7 +4,7 @@ import socket
 def __try_op__(op_name, op, retries, *args):
     """
     A helper function to retry an operation that timed out on a socket. After
-    the retries are expired a socket.timeout is raised.
+    the retries are expired a `socket.timeout` is raised.
 
     Parameters
     ----------
@@ -24,7 +24,7 @@ def __try_op__(op_name, op, retries, *args):
     Raises
     ------
     socket.timeout
-        If all retries are exhausted, socket.timeout is raised
+        If all retries are exhausted, `socket.timeout` is raised
 
     """
     for i in range(retries):

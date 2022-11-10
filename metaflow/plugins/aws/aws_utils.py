@@ -17,7 +17,7 @@ def get_docker_registry(image_uri):
             [@:]                - The separator must be either "@" or ":"
             ?                   - The separator is optional
         ((?<=[@:]).*)?      - [GROUP 2] TAG / DIGEST
-            (?<=[@:])           - A tag / digest must be preceeded by "@" or ":"
+            (?<=[@:])           - A tag / digest must be preceded by "@" or ":"
             .*                  - Capture rest of tag / digest
             ?                   - A tag / digest is optional
     Examples:
@@ -85,7 +85,7 @@ def compute_resource_attributes(decos, compute_deco, resource_defaults):
                         # about precision more that .001 for resources anyway.
                         result[k] = str(max(float(my_val or 0), float(v or 0)))
                     except ValueError:
-                        # Here, we don't have ints so we compare the value and raise
+                        # Here we don't have ints, so we compare the value and raise
                         # an exception if not equal
                         if my_val != v:
                             raise MetaflowException(

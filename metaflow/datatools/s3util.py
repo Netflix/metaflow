@@ -86,7 +86,7 @@ def aws_retry(f):
 # because of https://bugs.python.org/issue42853 (Py3 bug); this also helps
 # keep memory consumption lower
 # NOTE: For some weird reason, if you pass a large value to
-# read, it delays the call so we always pass it either what
+# read it delays the call, so we always pass it either what
 # remains or 2GB, whichever is smallest.
 def read_in_chunks(dst, src, src_sz, max_chunk_size):
     remaining = src_sz

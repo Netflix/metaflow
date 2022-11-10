@@ -76,7 +76,7 @@ class S3Url(object):
 
 
 # We use error codes instead of Exceptions, which are trickier to
-# handle reliably in a multi-process world
+# handle reliably in a multiprocess world
 ERROR_INVALID_URL = 4
 ERROR_NOT_FULL_PATH = 5
 ERROR_URL_NOT_FOUND = 6
@@ -234,7 +234,7 @@ def worker(result_file_name, queue, mode, s3config):
                                 )
                             json.dump(args, f)
                         # Finally, we push out the size to the result_pipe since
-                        # the size is used for verification and other purposes and
+                        # the size is used for verification and other purposes, and
                         # we want to avoid file operations for this simple process
                         result_file.write("%d %d\n" % (idx, resp["ContentLength"]))
                 else:
@@ -453,7 +453,7 @@ class S3Ops(object):
                 raise
 
 
-# We want to reuse an s3 client instance over multiple operations.
+# We want to reuse an S3 client instance over multiple operations.
 # This is accomplished by op_ functions below.
 
 
@@ -903,7 +903,7 @@ def get(
         if not recursive and not src.path:
             exit(ERROR_NOT_FULL_PATH, url)
         urllist.append(url)
-    # Construct a url->size mapping and get content-type and metadata if needed
+    # Construct a URL->size mapping and get content-type and metadata if needed
     op = None
     dl_op = "download"
     if recursive:

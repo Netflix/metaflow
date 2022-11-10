@@ -198,7 +198,7 @@ class Airflow(object):
 
             # Since we will always have a default value and `deploy_time_eval` resolved that to an actual value
             # we can just use the `default` to infer the object's type.
-            # This avoids parsing/indentifying types like `JSONType` or `FilePathClass`
+            # This avoids parsing/identifying types like `JSONType` or `FilePathClass`
             # which are returned by calling `param.kwargs.get("type")`
             param_type = type(airflow_param["default"])
 
@@ -220,11 +220,11 @@ class Airflow(object):
         steps,
     ):
         """
-        This function is meant to compress the input paths and it specifically doesn't use
-        `metaflow.util.compress_list` under the hood. The reason is because the `AIRFLOW_MACROS.RUN_ID` is a complicated macro string
-        that doesn't behave nicely with `metaflow.util.decompress_list` since the `decompress_util`
-        function expects a string which doesn't contain any delimiter characters and the run-id string does.
-        Hence we have a custom compression string created via `_compress_input_path` function instead of `compress_list`.
+        This function is meant to compress the input paths, and it specifically doesn't use
+        `metaflow.util.compress_list` under the hood. The reason is that the `AIRFLOW_MACROS.RUN_ID` is a complicated
+        macro string that doesn't behave nicely with `metaflow.util.decompress_list`, since the `decompress_util`
+        function expects a string which doesn't contain any delimiter characters and the run-id string does. Hence, we
+        have a custom compression string created via `_compress_input_path` function instead of `compress_list`.
         """
         return "%s:" % (AIRFLOW_MACROS.RUN_ID) + ",".join(
             self._make_input_path(step, only_task_id=True) for step in steps
@@ -539,7 +539,7 @@ class Airflow(object):
                 params.extend("--tag %s" % tag for tag in self.tags)
 
             # If the start step gets retried, we must be careful not to
-            # regenerate multiple parameters tasks. Hence we check first if
+            # regenerate multiple parameters tasks. Hence, we check first if
             # _parameters exists already.
             exists = entrypoint + [
                 # Dump the parameters task
@@ -674,7 +674,8 @@ class Airflow(object):
     def _create_defaults(self):
         defu_ = {
             "owner": get_username(),
-            # If set on a task, doesn’t run the task in the current DAG run if the previous run of the task has failed.
+            # If set on a task and the previous run of the task has failed,
+            # it will not run the task in the current DAG run.
             "depends_on_past": False,
             # TODO: Enable emails
             "execution_timeout": timedelta(days=5),

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-This module started out as largely a copy paste from the stdlib's
+This module started out as largely a copy/paste from the stdlib's
 optparse module with the features removed that we do not need from
 optparse because we implement them in Click on a higher level (for
 instance type handling, help formatting and a lot more).
@@ -68,7 +68,7 @@ def _unpack_args(args, nargs_spec):
             spos = len(rv)
             rv.append(None)
 
-    # spos is the position of the wildcard (star).  If it's not `None`,
+    # spos is the position of the wildcard (star). If it's not `None`,
     # we fill it with the remainder.
     if spos is not None:
         rv[spos] = tuple(args)
@@ -194,8 +194,8 @@ class ParsingState(object):
 
 class OptionParser(object):
     """The option parser is an internal class that is ultimately used to
-    parse options and arguments.  It's modelled after optparse and brings
-    a similar but vastly simplified API.  It should generally not be used
+    parse options and arguments. It's modelled after optparse and brings
+    a similar but vastly simplified API. It should generally not be used
     directly as the high level Click classes wrap it for you.
 
     It's not nearly as extensible as optparse or argparse as it does not
@@ -207,15 +207,15 @@ class OptionParser(object):
     """
 
     def __init__(self, ctx=None):
-        #: The :class:`~click.Context` for this parser.  This might be
+        #: The :class:`~click.Context` for this parser. This might be
         #: `None` for some advanced use cases.
         self.ctx = ctx
         #: This controls how the parser deals with interspersed arguments.
         #: If this is set to `False`, the parser will stop on the first
-        #: non-option.  Click uses this to implement nested subcommands
+        #: non-option. Click uses this to implement nested subcommands
         #: safely.
         self.allow_interspersed_args = True
-        #: This tells the parser how to deal with unknown options.  By
+        #: This tells the parser how to deal with unknown options. By
         #: default it will error out (which is sensible), but there is a
         #: second mode where it will ignore it and continue processing
         #: after shifting all the unknown options into the resulting args.
@@ -229,10 +229,10 @@ class OptionParser(object):
         self._args = []
 
     def add_option(self, opts, dest, action=None, nargs=1, const=None, obj=None):
-        """Adds a new option named `dest` to the parser.  The destination
+        """Adds a new option named `dest` to the parser. The destination
         is not inferred (unlike with optparse) and needs to be explicitly
-        provided.  Action can be any of ``store``, ``store_const``,
-        ``append``, ``appnd_const`` or ``count``.
+        provided. Action can be any of ``store``, ``store_const``,
+        ``append``, ``append_const`` or ``count``.
 
         The `obj` can be used to identify the option in the order list
         that is returned from the parser.
@@ -260,8 +260,8 @@ class OptionParser(object):
     def parse_args(self, args):
         """Parses positional arguments and returns ``(values, args, order)``
         for the parsed options and arguments as well as the leftover
-        arguments if there are any.  The order is a list of objects as they
-        appear on the command line.  If arguments appear multiple times they
+        arguments if there are any. The order is a list of objects as they
+        appear on the command line. If arguments appear multiple times they
         will be memorized multiple times as well.
         """
         state = ParsingState(args)
@@ -310,7 +310,7 @@ class OptionParser(object):
         # been removed from largs).
         #
         # The while loop will usually consume 1 or more arguments per pass.
-        # If it consumes 1 (eg. arg is an option that takes no arguments),
+        # If it consumes 1 (e.g. arg is an option that takes no arguments),
         # then after _process_arg() is done the situation is:
         #
         #   largs = subset of [arg0, ..., arg(i)]
@@ -329,7 +329,7 @@ class OptionParser(object):
         if option.takes_value:
             # At this point it's safe to modify rargs by injecting the
             # explicit value, because no exception is raised in this
-            # branch.  This means that the inserted value will be fully
+            # branch. This means that the inserted value will be fully
             # consumed.
             if explicit_value is not None:
                 state.rargs.insert(0, explicit_value)
@@ -393,15 +393,15 @@ class OptionParser(object):
 
         # If we got any unknown options we re-combinate the string of the
         # remaining options and re-attach the prefix, then report that
-        # to the state as new larg.  This way there is basic combinatorics
+        # to the state as new larg. This way there is basic combinatorics
         # that can be achieved while still ignoring unknown arguments.
         if self.ignore_unknown_options and unknown_options:
             state.largs.append("{}{}".format(prefix, "".join(unknown_options)))
 
     def _process_opts(self, arg, state):
         explicit_value = None
-        # Long option handling happens in two parts.  The first part is
-        # supporting explicitly attached values.  In any case, we will try
+        # Long option handling happens in two parts. The first part is
+        # supporting explicitly attached values. In any case, we will try
         # to long match the option first.
         if "=" in arg:
             long_opt, explicit_value = arg.split("=", 1)
@@ -410,13 +410,13 @@ class OptionParser(object):
         norm_long_opt = normalize_opt(long_opt, self.ctx)
 
         # At this point we will match the (assumed) long option through
-        # the long option matching code.  Note that this allows options
+        # the long option matching code. Note that this allows options
         # like "-foo" to be matched as long options.
         try:
             self._match_long_opt(norm_long_opt, explicit_value, state)
         except NoSuchOption:
             # At this point the long option matching failed, and we need
-            # to try with short options.  However there is a special rule
+            # to try with short options. However, there is a special rule
             # which says, that if we have a two character options prefix
             # (applies to "--foo" for instance), we do not dispatch to the
             # short option code and will instead raise the no option

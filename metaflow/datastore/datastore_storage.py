@@ -262,7 +262,7 @@ class DataStoreStorage(object):
             Metadata will be None if no metadata is present; otherwise it is
             a dictionary of metadata associated with the object.
 
-            Note that the file at `file_path` may no longer be accessible outside of
+            Note that the file at `file_path` may no longer be accessible outside
             the scope of the returned object.
 
             The order of items in the list is not to be relied on (ie: rely on the key

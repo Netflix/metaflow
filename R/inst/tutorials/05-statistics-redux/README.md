@@ -6,7 +6,7 @@ running on remote compute. In this example we re-run the 'stats.R' workflow
 adding the '--with batch' command line argument. This instructs Metaflow to run
 all your steps on AWS batch without changing any code. You can control the
 behavior with additional arguments, like '--max-workers'. For this example,
-'max-workers' is used to limit the number of parallel genre specific statistics
+'max-workers' is used to limit the number of parallel genre-specific statistics
 computations.
 You can then access the data artifacts (even the local CSV file) from anywhere
 because the data is being stored in AWS S3.**

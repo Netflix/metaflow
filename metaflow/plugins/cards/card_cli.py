@@ -154,7 +154,7 @@ def timeout(time):
     except TimeoutError:
         pass
     finally:
-        # Unregister the signal so it won't be triggered
+        # Unregister the signal so that it won't be triggered
         # if the timeout is not reached.
         signal.signal(signal.SIGALRM, signal.SIG_IGN)
 
@@ -480,7 +480,7 @@ def create(
             % (filtered_card.type, timeout),
             fg="green",
         )
-        # If the card is Instatiatable then
+        # If the card is Instantiatable then
         # first instantiate; If instantiation has a TypeError
         # then check for render_error_card and accordingly
         # store the exception as a string or raise the exception
@@ -642,7 +642,7 @@ def get(
 @click.option(
     "--file",
     default=None,
-    help="Save the avaliable card list to file.",
+    help="Save the available card list to file.",
 )
 @click.pass_context
 def list(
