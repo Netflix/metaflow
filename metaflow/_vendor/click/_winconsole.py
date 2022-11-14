@@ -3,10 +3,10 @@
 # provided a lot of what went into the implementation here in
 # the discussion to issue1602 in the Python bug tracker.
 #
-# There are some general differences in regard to how this works
+# There are some general differences in regards to how this works
 # compared to the original patches as we do not need to patch
 # the entire interpreter but just work in our little world of
-# echo and prompt.
+# echo and prmopt.
 import ctypes
 import io
 import os
@@ -249,7 +249,7 @@ class WindowsChunkedWriter(object):
 
         while written < total_to_write:
             to_write = min(total_to_write - written, MAX_BYTES_WRITTEN)
-            self.__wrapped.write(text[written: written + to_write])
+            self.__wrapped.write(text[written : written + to_write])
             written += to_write
 
 

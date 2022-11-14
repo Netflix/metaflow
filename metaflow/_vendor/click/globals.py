@@ -4,9 +4,9 @@ _local = local()
 
 
 def get_current_context(silent=False):
-    """Returns the current click context. This can be used as a way to
-    access the current context object from anywhere. This is a more implicit
-    alternative to the :func:`pass_context` decorator. This function is
+    """Returns the current click context.  This can be used as a way to
+    access the current context object from anywhere.  This is a more implicit
+    alternative to the :func:`pass_context` decorator.  This function is
     primarily useful for helpers such as :func:`echo` which might be
     interested in changing its behavior based on the current context.
 
@@ -15,7 +15,7 @@ def get_current_context(silent=False):
     .. versionadded:: 5.0
 
     :param silent: if set to `True` the return value is `None` if no context
-                   is available. The default behavior is to raise a
+                   is available.  The default behavior is to raise a
                    :exc:`RuntimeError`.
     """
     try:
@@ -36,7 +36,7 @@ def pop_context():
 
 
 def resolve_color_default(color=None):
-    """Internal helper to get the default value of the color flag. If a
+    """"Internal helper to get the default value of the color flag.  If a
     value is passed it's returned unchanged, otherwise it's looked up from
     the current context.
     """

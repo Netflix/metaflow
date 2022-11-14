@@ -22,7 +22,7 @@ from .types import Path
 from .utils import echo
 from .utils import LazyFile
 
-# The prompt functions to use. The doc tools currently override these
+# The prompt functions to use.  The doc tools currently override these
 # functions to customize how they work.
 visible_prompt_func = raw_input
 
@@ -84,10 +84,10 @@ def prompt(
     err=False,
     show_choices=True,
 ):
-    """Prompts a user for input. This is a convenience function that can
+    """Prompts a user for input.  This is a convenience function that can
     be used to prompt a user for input later.
 
-    If the user aborts the input by sending an interrupt signal, this
+    If the user aborts the input by sending a interrupt signal, this
     function will catch it and raise a :exc:`Abort` exception.
 
     .. versionadded:: 7.0
@@ -100,7 +100,7 @@ def prompt(
        Added the `err` parameter.
 
     :param text: the text to show for the prompt.
-    :param default: the default value to use if no input happens. If this
+    :param default: the default value to use if no input happens.  If this
                     is not given it will prompt until it's aborted.
     :param hide_input: if this is set to true then the input value will
                        be hidden.
@@ -174,7 +174,7 @@ def confirm(
 ):
     """Prompts for confirmation (yes/no question).
 
-    If the user aborts the input by sending an interrupt signal this
+    If the user aborts the input by sending a interrupt signal this
     function will catch it and raise a :exc:`Abort` exception.
 
     .. versionadded:: 4.0
@@ -271,7 +271,7 @@ def echo_via_pager(text_or_generator, color=None):
 
     :param text_or_generator: the text to page, or alternatively, a
                               generator emitting the text to page.
-    :param color: controls if the pager supports ANSI colors or not. The
+    :param color: controls if the pager supports ANSI colors or not.  The
                   default is autodetection.
     """
     color = resolve_color_default(color)
@@ -308,17 +308,17 @@ def progressbar(
     color=None,
 ):
     """This function creates an iterable context manager that can be used
-    to iterate over something while showing a progress bar. It will
+    to iterate over something while showing a progress bar.  It will
     either iterate over the `iterable` or `length` items (that are counted
-    up). While iteration happens, this function will print a rendered
+    up).  While iteration happens, this function will print a rendered
     progress bar to the given `file` (defaults to stdout) and will attempt
-    to calculate remaining time and more. By default, this progress bar
+    to calculate remaining time and more.  By default, this progress bar
     will not be rendered if the file is not a terminal.
 
-    The context manager creates the progress bar. When the context
-    manager is entered the progress bar is already created. With every
+    The context manager creates the progress bar.  When the context
+    manager is entered the progress bar is already created.  With every
     iteration over the progress bar, the iterable passed to the bar is
-    advanced and the bar is updated. When the context manager exits,
+    advanced and the bar is updated.  When the context manager exits,
     a newline is printed and the progress bar is finalized on screen.
 
     Note: The progress bar is currently designed for use cases where the
@@ -338,7 +338,7 @@ def progressbar(
 
     Alternatively, if no iterable is specified, one can manually update the
     progress bar through the `update()` method instead of directly
-    iterating over the progress bar. The update method accepts the number
+    iterating over the progress bar.  The update method accepts the number
     of steps to increment the bar with::
 
         with progressbar(length=chunks.total_bytes) as bar:
@@ -349,14 +349,14 @@ def progressbar(
     .. versionadded:: 2.0
 
     .. versionadded:: 4.0
-       Added the `color` parameter. Added a `update` method to the
+       Added the `color` parameter.  Added a `update` method to the
        progressbar object.
 
-    :param iterable: an iterable to iterate over. If not provided the length
+    :param iterable: an iterable to iterate over.  If not provided the length
                      is required.
-    :param length: the number of items to iterate over. By default, the
+    :param length: the number of items to iterate over.  By default the
                    progressbar will attempt to ask the iterator about its
-                   length, which might or might not work. If an iterable is
+                   length, which might or might not work.  If an iterable is
                    also provided this parameter can be used to override the
                    length.  If an iterable is not provided the progress bar
                    will iterate over a range of that length.
@@ -421,8 +421,8 @@ def clear():
     """
     if not isatty(sys.stdout):
         return
-    # If we're on Windows and don't have colorama available, then we
-    # clear the screen by shelling out. Otherwise, we can use an escape
+    # If we're on Windows and we don't have colorama available, then we
+    # clear the screen by shelling out.  Otherwise we can use an escape
     # sequence.
     if WIN:
         os.system("cls")
@@ -442,7 +442,7 @@ def style(
     reset=True,
 ):
     """Styles a text with ANSI styles and returns the new string.  By
-    default, the styling is self-contained which means that at the end
+    default the styling is self contained which means that at the end
     of the string a reset code is issued.  This can be prevented by
     passing ``reset=False``.
 

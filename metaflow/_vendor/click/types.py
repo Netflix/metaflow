@@ -15,7 +15,7 @@ from .utils import safecall
 
 
 class ParamType(object):
-    """Helper for converting values through types. The following is
+    """Helper for converting values through types.  The following is
     necessary for a valid type:
 
     *   it needs a name
@@ -34,9 +34,9 @@ class ParamType(object):
     name = None
 
     #: if a list of this type is expected and the value is pulled from a
-    #: string environment variable, this is what splits it up. `None`
-    #: means any whitespace. For all parameters the general rule is that
-    #: whitespace splits them up. The exception are paths and files which
+    #: string environment variable, this is what splits it up.  `None`
+    #: means any whitespace.  For all parameters the general rule is that
+    #: whitespace splits them up.  The exception are paths and files which
     #: are split by ``os.path.pathsep`` by default (":" on Unix and ";" on
     #: Windows).
     envvar_list_splitter = None
@@ -56,7 +56,7 @@ class ParamType(object):
         """
 
     def convert(self, value, param, ctx):
-        """Converts the value. This is not invoked for values that are
+        """Converts the value.  This is not invoked for values that are
         `None` (the missing value).
         """
         return value
@@ -66,7 +66,7 @@ class ParamType(object):
         into small chunks depending on the defined envvar list splitter.
 
         If the splitter is set to `None`, which means that whitespace splits,
-        then leading and trailing whitespace is ignored. Otherwise, leading
+        then leading and trailing whitespace is ignored.  Otherwise, leading
         and trailing splitters usually lead to empty items being included.
         """
         return (rv or "").split(self.envvar_list_splitter)
@@ -147,8 +147,8 @@ class Choice(ParamType):
 
     See :ref:`choice-opts` for an example.
 
-    :param case_sensitive: Set to `False` to make choices case-insensitive.
-        Defaults to `True`.
+    :param case_sensitive: Set to false to make choices case
+        insensitive. Defaults to true.
     """
 
     name = "choice"
@@ -272,7 +272,7 @@ class IntParamType(ParamType):
 
 class IntRange(IntParamType):
     """A parameter that works similar to :data:`click.INT` but restricts
-    the value to fit into a range. The default behavior is to fail if the
+    the value to fit into a range.  The default behavior is to fail if the
     value falls outside the range, but it can also be silently clamped
     between the two edges.
 
@@ -346,7 +346,7 @@ class FloatParamType(ParamType):
 
 class FloatRange(FloatParamType):
     """A parameter that works similar to :data:`click.FLOAT` but restricts
-    the value to fit into a range. The default behavior is to fail if the
+    the value to fit into a range.  The default behavior is to fail if the
     value falls outside the range, but it can also be silently clamped
     between the two edges.
 
@@ -438,15 +438,15 @@ class UUIDParameterType(ParamType):
 
 
 class File(ParamType):
-    """Declares a parameter to be a file for reading or writing. The file
+    """Declares a parameter to be a file for reading or writing.  The file
     is automatically closed once the context tears down (after the command
     finished working).
 
-    Files can be opened for reading or writing. The special value ``-``
+    Files can be opened for reading or writing.  The special value ``-``
     indicates stdin or stdout depending on the mode.
 
     By default, the file is opened for reading text data, but it can also be
-    opened in binary mode or for writing. The encoding parameter can be used
+    opened in binary mode or for writing.  The encoding parameter can be used
     to force a specific encoding.
 
     The `lazy` flag controls if the file should be opened immediately or upon
@@ -458,7 +458,7 @@ class File(ParamType):
 
     Starting with Click 2.0, files can also be opened atomically in which
     case all writes go into a separate file in the same folder and upon
-    completion the file will be moved over to the original location. This
+    completion the file will be moved over to the original location.  This
     is useful if a file regularly read by other users is modified.
 
     See :ref:`file-args` for more information.
@@ -504,9 +504,9 @@ class File(ParamType):
                 value, self.mode, self.encoding, self.errors, atomic=self.atomic
             )
             # If a context is provided, we automatically close the file
-            # at the end of the context execution (or flush out). If a
+            # at the end of the context execution (or flush out).  If a
             # context does not exist, it's the caller's responsibility to
-            # properly close the file. This for instance happens when the
+            # properly close the file.  This for instance happens when the
             # type is used with prompts.
             if ctx is not None:
                 if should_close:
@@ -525,16 +525,16 @@ class File(ParamType):
 
 
 class Path(ParamType):
-    """The path type is similar to the :class:`File` type, but it performs
-    different checks. First of all, instead of returning an open file
-    handle it returns just the filename. Secondly, it can perform various
+    """The path type is similar to the :class:`File` type but it performs
+    different checks.  First of all, instead of returning an open file
+    handle it returns just the filename.  Secondly, it can perform various
     basic checks about what the file or directory should be.
 
     .. versionchanged:: 6.0
        `allow_dash` was added.
 
     :param exists: if set to true, the file or directory needs to exist for
-                   this value to be valid. If this is not required and a
+                   this value to be valid.  If this is not required and a
                    file does indeed not exist, then all further checks are
                    silently skipped.
     :param file_okay: controls if a file is a possible value.
@@ -542,7 +542,7 @@ class Path(ParamType):
     :param writable: if true, a writable check is performed.
     :param readable: if true, a readable check is performed.
     :param resolve_path: if this is true, then the path is fully resolved
-                         before the value is passed onwards. This means
+                         before the value is passed onwards.  This means
                          that it's absolute and symlinks are resolved.  It
                          will not expand a tilde-prefix, as this is
                          supposed to be done by the shell only.

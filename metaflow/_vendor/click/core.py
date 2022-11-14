@@ -158,8 +158,8 @@ def iter_params_for_processing(invocation_order, declaration_order):
 
 class Context(object):
     """The context is a special internal object that holds state relevant
-    for the script execution at every single level. It's normally invisible
-    to commands unless they opt into getting access to it.
+    for the script execution at every single level.  It's normally invisible
+    to commands unless they opt-in to getting access to it.
 
     The context is useful as it can pass internal objects around and can
     control special execution features such as reading data from
@@ -185,57 +185,57 @@ class Context(object):
 
     :param command: the command class for this context.
     :param parent: the parent context.
-    :param info_name: the info name for this invocation. Generally this
+    :param info_name: the info name for this invocation.  Generally this
                       is the most descriptive name for the script or
-                      command. For the toplevel script it is usually
-                      the name of the script, for lower-level commands it's
+                      command.  For the toplevel script it is usually
+                      the name of the script, for commands below it it's
                       the name of the script.
     :param obj: an arbitrary object of user data.
     :param auto_envvar_prefix: the prefix to use for automatic environment
-                               variables. If this is `None` then reading
-                               from environment variables is disabled. This
+                               variables.  If this is `None` then reading
+                               from environment variables is disabled.  This
                                does not affect manually set environment
                                variables which are always read.
     :param default_map: a dictionary (like object) with default values
                         for parameters.
-    :param terminal_width: the width of the terminal. The default is
-                           to inherit from parent context. If no context
-                           defines the terminal width then auto-detection
-                           will be applied.
+    :param terminal_width: the width of the terminal.  The default is
+                           inherit from parent context.  If no context
+                           defines the terminal width then auto
+                           detection will be applied.
     :param max_content_width: the maximum width for content rendered by
                               Click (this currently only affects help
-                              pages). This defaults to 80 characters if
-                              not overridden. In other words: even if the
+                              pages).  This defaults to 80 characters if
+                              not overridden.  In other words: even if the
                               terminal is larger than that, Click will not
                               format things wider than 80 characters by
-                              default. In addition to that, formatters might
+                              default.  In addition to that, formatters might
                               add some safety mapping on the right.
     :param resilient_parsing: if this flag is enabled then Click will
                               parse without any interactivity or callback
-                              invocation. Default values will also be
-                              ignored. This is useful for implementing
+                              invocation.  Default values will also be
+                              ignored.  This is useful for implementing
                               things such as completion support.
     :param allow_extra_args: if this is set to `True` then extra arguments
                              at the end will not raise an error and will be
-                             kept on the context. The default is to inherit
+                             kept on the context.  The default is to inherit
                              from the command.
     :param allow_interspersed_args: if this is set to `False` then options
-                                    and arguments cannot be mixed. The
+                                    and arguments cannot be mixed.  The
                                     default is to inherit from the command.
     :param ignore_unknown_options: instructs click to ignore options it does
                                    not know and keeps them for later
                                    processing.
     :param help_option_names: optionally a list of strings that define how
-                              the default help parameter is named. The
+                              the default help parameter is named.  The
                               default is ``['--help']``.
     :param token_normalize_func: an optional function that is used to
                                  normalize tokens (options, choices,
-                                 etc.). This for instance can be used to
-                                 implement case-insensitive behavior.
-    :param color: controls if the terminal supports ANSI colors or not. The
-                  default is autodetection. This is only needed if ANSI
+                                 etc.).  This for instance can be used to
+                                 implement case insensitive behavior.
+    :param color: controls if the terminal supports ANSI colors or not.  The
+                  default is autodetection.  This is only needed if ANSI
                   codes are used in texts that Click prints which is by
-                  default not the case. This for instance would affect
+                  default not the case.  This for instance would affect
                   help output.
     :param show_default: if True, shows defaults for all options.
                     Even if an option is later created with show_default=False,
@@ -272,9 +272,9 @@ class Context(object):
         self.params = {}
         #: the leftover arguments.
         self.args = []
-        #: protected arguments. These are arguments that are prepended
+        #: protected arguments.  These are arguments that are prepended
         #: to `args` when certain parsing scenarios are encountered but
-        #: must be never propagated to another arguments. This is used
+        #: must be never propagated to another arguments.  This is used
         #: to implement nested parsing.
         self.protected_args = []
         if obj is None and parent is not None:
@@ -299,8 +299,8 @@ class Context(object):
         #: the name of the subcommand to execute.
         #:
         #: If chaining is enabled this will be set to ``'*'`` in case
-        #: any commands are executed. It is however not possible to
-        #: figure out which ones. If you require this knowledge you
+        #: any commands are executed.  It is however not possible to
+        #: figure out which ones.  If you require this knowledge you
         #: should use a :func:`resultcallback`.
         self.invoked_subcommand = None
 
@@ -335,8 +335,8 @@ class Context(object):
             ignore_unknown_options = command.ignore_unknown_options
         #: Instructs click to ignore options that a command does not
         #: understand and will store it on the context for later
-        #: processing. This is primarily useful for situations where you
-        #: want to call into external programs. Generally this pattern is
+        #: processing.  This is primarily useful for situations where you
+        #: want to call into external programs.  Generally this pattern is
         #: strongly discouraged because it's not possibly to losslessly
         #: forward all arguments.
         #:
@@ -355,11 +355,11 @@ class Context(object):
         if token_normalize_func is None and parent is not None:
             token_normalize_func = parent.token_normalize_func
 
-        #: An optional normalization function for tokens. This is
+        #: An optional normalization function for tokens.  This is
         #: options, choices, commands etc.
         self.token_normalize_func = token_normalize_func
 
-        #: Indicates if resilient parsing is enabled. In that case Click
+        #: Indicates if resilient parsing is enabled.  In that case Click
         #: will do its best to not cause any failures and default values
         #: will be ignored. Useful for completion.
         self.resilient_parsing = resilient_parsing
@@ -409,7 +409,7 @@ class Context(object):
         """This helper method can be used with the context object to promote
         it to the current thread local (see :func:`get_current_context`).
         The default behavior of this is to invoke the cleanup functions which
-        can be disabled by setting `cleanup` to `False`. The cleanup
+        can be disabled by setting `cleanup` to `False`.  The cleanup
         functions are typically used for things such as closing file handles.
 
         If the cleanup is intended the context object can also be directly
@@ -428,7 +428,7 @@ class Context(object):
         .. versionadded:: 5.0
 
         :param cleanup: controls if the cleanup functions should be run or
-                        not. The default is to run these functions.  In
+                        not.  The default is to run these functions.  In
                         some situations the context only wants to be
                         temporarily pushed in which case this can be disabled.
                         Nested pushes automatically defer the cleanup.
@@ -445,13 +445,13 @@ class Context(object):
     @property
     def meta(self):
         """This is a dictionary which is shared with all the contexts
-        that are nested. It exists so that click utilities can store some
-        state here if they need to. It is however the responsibility of
+        that are nested.  It exists so that click utilities can store some
+        state here if they need to.  It is however the responsibility of
         that code to manage this dictionary well.
 
-        The keys are supposed to be unique dotted strings. For instance,
-        module paths are a good choice for it. What is stored in there is
-        irrelevant for the operation of click. However, what is important is
+        The keys are supposed to be unique dotted strings.  For instance
+        module paths are a good choice for it.  What is stored in there is
+        irrelevant for the operation of click.  However what is important is
         that code that places data here adheres to the general semantics of
         the system.
 
@@ -478,8 +478,8 @@ class Context(object):
 
     def call_on_close(self, f):
         """This decorator remembers a function as callback that should be
-        executed when the context tears down. This is most useful to bind
-        resource handling to the script execution. For instance, file objects
+        executed when the context tears down.  This is most useful to bind
+        resource handling to the script execution.  For instance, file objects
         opened by the :class:`File` type will register their close callbacks
         here.
 
@@ -496,8 +496,8 @@ class Context(object):
 
     @property
     def command_path(self):
-        """The computed command path. This is used for the ``usage``
-        information on the help page. It's automatically created by
+        """The computed command path.  This is used for the ``usage``
+        information on the help page.  It's automatically created by
         combining the info names of the chain of contexts to the root.
         """
         rv = ""
@@ -532,7 +532,7 @@ class Context(object):
         return rv
 
     def lookup_default(self, name):
-        """Looks up the default for a parameter name. This by default
+        """Looks up the default for a parameter name.  This by default
         looks into the :attr:`default_map` if available.
         """
         if self.default_map is not None:
@@ -570,7 +570,7 @@ class Context(object):
         return self.command.get_help(self)
 
     def invoke(*args, **kwargs):  # noqa: B902
-        """Invokes a command callback in exactly the way it expects. There
+        """Invokes a command callback in exactly the way it expects.  There
         are two ways to invoke this method:
 
         1.  the first argument can be a callback and all other arguments and
@@ -631,7 +631,7 @@ class Context(object):
 class BaseCommand(object):
     """The base command implements the minimal API contract of commands.
     Most code will never use this as it does not implement a lot of useful
-    functionality, but it can act as the direct subclass of alternative
+    functionality but it can act as the direct subclass of alternative
     parsing methods that do not depend on the Click parser.
 
     For instance, this can be used to bridge Click and other systems like
@@ -639,8 +639,8 @@ class BaseCommand(object):
 
     Because base commands do not implement a lot of the API that other
     parts of Click take for granted, they are not supported for all
-    operations.  For instance, they usually cannot be used with the
-    decorators, and they have no built-in callback system.
+    operations.  For instance, they cannot be used with the decorators
+    usually and they have no built-in callback system.
 
     .. versionchanged:: 2.0
        Added the `context_settings` parameter.
@@ -682,10 +682,10 @@ class BaseCommand(object):
         off the parsing and create a new :class:`Context`.  It does not
         invoke the actual command callback though.
 
-        :param info_name: the info name for this invocation.  Generally this
+        :param info_name: the info name for this invokation.  Generally this
                           is the most descriptive name for the script or
                           command.  For the toplevel script it's usually
-                          the name of the script, for lower commands it's
+                          the name of the script, for commands below it it's
                           the name of the script.
         :param args: the arguments to parse as list of strings.
         :param parent: the parent context if available.
@@ -846,7 +846,7 @@ class Command(BaseCommand):
     :param params: the parameters to register with this command.  This can
                    be either :class:`Option` or :class:`Argument` objects.
     :param help: the help string to use for this command.
-    :param epilog: like the help string, but it's printed at the end of the
+    :param epilog: like the help string but it's printed at the end of the
                    help page after everything else.
     :param short_help: the short help to use for this command.  This is
                        shown on the command listing of the parent command.
@@ -883,7 +883,7 @@ class Command(BaseCommand):
         self.callback = callback
         #: the list of parameters for this command in the order they
         #: should show up in the help page and execute.  Eager parameters
-        #: will automatically be handled before non-eager ones.
+        #: will automatically be handled before non eager ones.
         self.params = params or []
         # if a form feed (page break) is found in the help text, truncate help
         # text to the content preceding the first form feed
@@ -1084,7 +1084,7 @@ class MultiCommand(Command):
                                to indicate the subcommand place.
     :param chain: if this is set to `True` chaining of multiple subcommands
                   is enabled.  This restricts the form of commands in that
-                  they cannot have optional arguments, but it allows
+                  they cannot have optional arguments but it allows
                   multiple commands to be chained together.
     :param result_callback: the result callback to attach to this multi
                             command.
@@ -1244,8 +1244,8 @@ class MultiCommand(Command):
         ctx.args = []
         ctx.protected_args = []
 
-        # If we're not in chain mode we only allow the invocation of a
-        # single command, but we also inform the current context about the
+        # If we're not in chain mode, we only allow the invocation of a
+        # single command but we also inform the current context about the
         # name of the command to invoke.
         if not self.chain:
             # Make sure the context is entered so we do not clean up
@@ -1447,8 +1447,8 @@ class Parameter(object):
     :param expose_value: if this is `True` then the value is passed onwards
                          to the command callback and stored on the context,
                          otherwise it's skipped.
-    :param is_eager: eager values are processed before non-eager ones.  This
-                     should not be set for arguments or it will invert the
+    :param is_eager: eager values are processed before non eager ones.  This
+                     should not be set for arguments or it will inverse the
                      order of processing.
     :param envvar: a string or list of strings that are environment variables
                    that should be checked.
@@ -1509,7 +1509,7 @@ class Parameter(object):
 
     @property
     def human_readable_name(self):
-        """Returns the human-readable name of this parameter.  This is the
+        """Returns the human readable name of this parameter.  This is the
         same as the name for options, but the metavar for arguments.
         """
         return self.name
@@ -1663,7 +1663,7 @@ class Option(Parameter):
     :param show_envvar: controls if an environment variable should be shown on
                         the help page.  Normally, environment variables
                         are not shown.
-    :param prompt: if set to `True` or a non-empty string then the user will be
+    :param prompt: if set to `True` or a non empty string then the user will be
                    prompted for input.  If set to `True` the prompt will be the
                    option name capitalized.
     :param confirmation_prompt: if set then the value will need to be confirmed
@@ -1672,7 +1672,7 @@ class Option(Parameter):
                        hidden from the user.  This is useful for password
                        input.
     :param is_flag: forces this option to act as a flag.  The default is
-                    auto-detection.
+                    auto detection.
     :param flag_value: which value should be used for this flag if it's
                        enabled.  This is set to a boolean automatically if
                        the option string contains a slash to mark two options.
@@ -1905,9 +1905,9 @@ class Option(Parameter):
         return ("; " if any_prefix_is_slash else " / ").join(rv), help
 
     def get_default(self, ctx):
-        # If we're a non-boolean flag our default is more complex because
+        # If we're a non boolean flag our default is more complex because
         # we need to look at all flags in the same group to figure out
-        # if we're the default one in which case we return the flag
+        # if we're the the default one in which case we return the flag
         # value as default.
         if self.is_flag and not self.is_bool_flag:
             for param in ctx.command.params:

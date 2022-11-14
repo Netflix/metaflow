@@ -115,7 +115,7 @@ class Result(object):
 
 class CliRunner(object):
     """The CLI runner provides functionality to invoke a Click command line
-    script for unittesting purposes in a isolated environment. This only
+    script for unittesting purposes in a isolated environment.  This only
     works in single-threaded systems without any concurrency as it changes the
     global interpreter state.
 

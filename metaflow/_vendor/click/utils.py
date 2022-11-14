@@ -81,9 +81,9 @@ def make_default_short_help(help, max_length=45):
 
 
 class LazyFile(object):
-    """A lazy file works like a regular file, but it does not fully open
-    the file- it only performs some basic checks early to see if the
-    filename parameter makes sense. This is useful for safely opening
+    """A lazy file works like a regular file but it does not fully open
+    the file but it does perform some basic checks early to see if the
+    filename parameter does make sense.  This is useful for safely opening
     files for writing.
     """
 
@@ -116,8 +116,8 @@ class LazyFile(object):
         return "<unopened file '{}' {}>".format(self.name, self.mode)
 
     def open(self):
-        """Opens the file if it's not yet open. This call might fail with
-        a :exc:`FileError`. Not handling this error will produce an error
+        """Opens the file if it's not yet open.  This call might fail with
+        a :exc:`FileError`.  Not handling this error will produce an error
         that Click shows.
         """
         if self._f is not None:
@@ -140,7 +140,7 @@ class LazyFile(object):
 
     def close_intelligently(self):
         """This function only closes the file if it was opened by the lazy
-        file wrapper. For instance this will never close stdin.
+        file wrapper.  For instance this will never close stdin.
         """
         if self.should_close:
             self.close()
@@ -177,19 +177,19 @@ class KeepOpenFile(object):
 
 
 def echo(message=None, file=None, nl=True, err=False, color=None):
-    """Prints a message plus a newline to the given file or stdout. On
+    """Prints a message plus a newline to the given file or stdout.  On
     first sight, this looks like the print function, but it has improved
     support for handling Unicode and binary data that does not fail no
     matter how badly configured the system is.
 
     Primarily it means that you can print binary data as well as Unicode
     data on both 2.x and 3.x to the given file in the most appropriate way
-    possible. This is a very carefree function in that it will try its
-    best to not fail. As of Click 6.0 this includes support for unicode
+    possible.  This is a very carefree function in that it will try its
+    best to not fail.  As of Click 6.0 this includes support for unicode
     output on the Windows console.
 
     In addition to that, if `colorama`_ is installed, the echo function will
-    also support clever handling of ANSI codes. Essentially it will then
+    also support clever handling of ANSI codes.  Essentially it will then
     do the following:
 
     -   add transparent handling of ANSI color codes on Windows.
@@ -200,7 +200,7 @@ def echo(message=None, file=None, nl=True, err=False, color=None):
 
     .. versionchanged:: 6.0
        As of Click 6.0 the echo function will properly support unicode
-       output on the windows console. Not that click does not modify
+       output on the windows console.  Not that click does not modify
        the interpreter in any way which means that `sys.stdout` or the
        print statement or function will still not provide unicode support.
 
@@ -217,10 +217,10 @@ def echo(message=None, file=None, nl=True, err=False, color=None):
     :param message: the message to print
     :param file: the file to write to (defaults to ``stdout``)
     :param err: if set to true the file defaults to ``stderr`` instead of
-                ``stdout``. This is faster and easier than calling
+                ``stdout``.  This is faster and easier than calling
                 :func:`get_text_stderr` yourself.
     :param nl: if set to `True` (the default) a newline is printed afterwards.
-    :param color: controls if the terminal supports ANSI colors or not. The
+    :param color: controls if the terminal supports ANSI colors or not.  The
                   default is autodetection.
     """
     if file is None:
@@ -242,8 +242,8 @@ def echo(message=None, file=None, nl=True, err=False, color=None):
 
     # If there is a message, and we're in Python 3, and the value looks
     # like bytes, we manually need to find the binary stream and write the
-    # message in there. This is done separately so that most stream
-    # types will work as you would expect. e.g. you can write to StringIO
+    # message in there.  This is done separately so that most stream
+    # types will work as you would expect.  Eg: you can write to StringIO
     # for other cases.
     if message and not PY2 and is_bytes(message):
         binary_file = _find_binary_writer(file)
@@ -253,9 +253,9 @@ def echo(message=None, file=None, nl=True, err=False, color=None):
             binary_file.flush()
             return
 
-    # ANSI-style support. If there is no message, or we are dealing with
-    # bytes, nothing is happening. If we are connected to a file we want
-    # to strip colors. If we are on Windows we either wrap the stream
+    # ANSI-style support.  If there is no message or we are dealing with
+    # bytes nothing is happening.  If we are connected to a file we want
+    # to strip colors.  If we are on windows we either wrap the stream
     # to strip the color or we use the colorama support to translate the
     # ansi codes to API calls.
     if message and not is_bytes(message):
@@ -274,13 +274,13 @@ def echo(message=None, file=None, nl=True, err=False, color=None):
 
 
 def get_binary_stream(name):
-    """Returns a system stream for byte processing. This essentially
-    returns the stream from the sys module with the given name, but it
+    """Returns a system stream for byte processing.  This essentially
+    returns the stream from the sys module with the given name but it
     solves some compatibility issues between different Python versions.
     Primarily this function is necessary for getting binary streams on
     Python 3.
 
-    :param name: the name of the stream to open. Valid names are ``'stdin'``,
+    :param name: the name of the stream to open.  Valid names are ``'stdin'``,
                  ``'stdout'`` and ``'stderr'``
     """
     opener = binary_streams.get(name)
@@ -290,12 +290,12 @@ def get_binary_stream(name):
 
 
 def get_text_stream(name, encoding=None, errors="strict"):
-    """Returns a system stream for text processing. This usually returns
+    """Returns a system stream for text processing.  This usually returns
     a wrapped stream around a binary stream returned from
     :func:`get_binary_stream` but it also can take shortcuts on Python 3
     for already correctly configured streams.
 
-    :param name: the name of the stream to open. Valid names are ``'stdin'``,
+    :param name: the name of the stream to open.  Valid names are ``'stdin'``,
                  ``'stdout'`` and ``'stderr'``
     :param encoding: overrides the detected default encoding.
     :param errors: overrides the default error mode.
@@ -310,11 +310,11 @@ def open_file(
     filename, mode="r", encoding=None, errors="strict", lazy=False, atomic=False
 ):
     """This is similar to how the :class:`File` works but for manual
-    usage. Files are opened non-lazy by default. This can open regular
+    usage.  Files are opened non lazy by default.  This can open regular
     files as well as stdin/stdout if ``'-'`` is passed.
 
     If stdin/stdout is returned the stream is wrapped so that the context
-    manager will not close the stream accidentally. This makes it possible
+    manager will not close the stream accidentally.  This makes it possible
     to always use the function like this without having to worry to
     accidentally close a standard stream::
 
@@ -328,7 +328,7 @@ def open_file(
     :param encoding: the encoding to use.
     :param errors: the error handling for this file.
     :param lazy: can be flipped to true to open the file lazily.
-    :param atomic: in atomic mode writes go into a temporary file, which is
+    :param atomic: in atomic mode writes go into a temporary file and it's
                    moved on close.
     """
     if lazy:
@@ -341,12 +341,12 @@ def open_file(
 
 def get_os_args():
     """This returns the argument part of sys.argv in the most appropriate
-    form for processing. What this means is that this return value is in
+    form for processing.  What this means is that this return value is in
     a format that works for Click to process but does not necessarily
     correspond well to what's actually standard for the interpreter.
 
     On most environments the return value is ``sys.argv[:1]`` unchanged.
-    However, if you are on Windows and running Python 2 the return value
+    However if you are on Windows and running Python 2 the return value
     will actually be a list of unicode strings instead because the
     default behavior on that platform otherwise will not be able to
     carry all possible values that sys.argv can have.
@@ -361,13 +361,13 @@ def get_os_args():
 
 
 def format_filename(filename, shorten=False):
-    """Formats a filename for user display. The main purpose of this
-    function is to ensure that the filename can be displayed at all. This
+    """Formats a filename for user display.  The main purpose of this
+    function is to ensure that the filename can be displayed at all.  This
     will decode the filename to unicode if necessary in a way that it will
-    not fail. Optionally, it can shorten the filename to not include the
+    not fail.  Optionally, it can shorten the filename to not include the
     full path to the filename.
 
-    :param filename: formats a filename for UI display. This will also convert
+    :param filename: formats a filename for UI display.  This will also convert
                      the filename into unicode without failing.
     :param shorten: this optionally shortens the filename to strip of the
                     path that leads up to it.
@@ -378,7 +378,7 @@ def format_filename(filename, shorten=False):
 
 
 def get_app_dir(app_name, roaming=True, force_posix=False):
-    r"""Returns the config folder for the application. The default behavior
+    r"""Returns the config folder for the application.  The default behavior
     is to return whatever is most appropriate for the operating system.
 
     To give you an idea, for an app called ``"Foo Bar"``, something like
@@ -403,7 +403,7 @@ def get_app_dir(app_name, roaming=True, force_posix=False):
 
     .. versionadded:: 2.0
 
-    :param app_name: the application name. This should be properly capitalized
+    :param app_name: the application name.  This should be properly capitalized
                      and can contain whitespace.
     :param roaming: controls if the folder should be roaming or not on Windows.
                     Has no affect otherwise.
@@ -434,7 +434,7 @@ class PacifyFlushWrapper(object):
     """This wrapper is used to catch and suppress BrokenPipeErrors resulting
     from ``.flush()`` being called on broken pipe during the shutdown/final-GC
     of the Python interpreter. Notably ``.flush()`` is always called on
-    ``sys.stdout`` and ``sys.stderr``. To have minimal impact on any
+    ``sys.stdout`` and ``sys.stderr``. So as to have minimal impact on any
     other cleanup code, and the case where the underlying file is not a broken
     pipe, all calls and attributes are proxied.
     """

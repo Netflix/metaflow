@@ -2,7 +2,7 @@ from itertools import filterfalse
 
 
 def unique_everseen(iterable, key=None):
-    """List unique elements, preserving order. Remember all elements ever seen."""
+    "List unique elements, preserving order. Remember all elements ever seen."
     # unique_everseen('AAAABBBCCDAABBB') --> A B C D
     # unique_everseen('ABBCcAD', str.lower) --> A B C D
     seen = set()
@@ -49,7 +49,7 @@ def always_iterable(obj, base_type=(str, bytes)):
     returns ``True`` won't be considered iterable.
 
         >>> obj = {'a': 1}
-        >>> list(always_iterable(obj))  # Iterate over the dictionary's keys
+        >>> list(always_iterable(obj))  # Iterate over the dict's keys
         ['a']
         >>> list(always_iterable(obj, base_type=dict))  # Treat dicts as a unit
         [{'a': 1}]

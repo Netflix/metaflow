@@ -101,7 +101,7 @@ class _NonClosingTextIOWrapper(io.TextIOWrapper):
 
 class _FixupStream(object):
     """The new io interface needs more from streams than streams
-    traditionally implement. As such, this fix-up code is necessary in
+    traditionally implement.  As such, this fix-up code is necessary in
     some circumstances.
 
     The forcing of readable and writable flags are there because some tools
@@ -180,14 +180,14 @@ if PY2:
     _identifier_re = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
     # For Windows, we need to force stdout/stdin/stderr to binary if it's
-    # fetched for that. This obviously is not the most correct way to do
-    # it as it changes global state. Unfortunately, there does not seem to
+    # fetched for that.  This obviously is not the most correct way to do
+    # it as it changes global state.  Unfortunately, there does not seem to
     # be a clear better way to do it as just reopening the file in binary
     # mode does not change anything.
     #
     # An option would be to do what Python 3 does and to open the file as
     # binary only, patch it back to the system, and then use a wrapper
-    # stream that converts newlines. It's not quite clear what's the
+    # stream that converts newlines.  It's not quite clear what's the
     # correct option here.
     #
     # This code also lives in _winconsole for the fallback to the console
@@ -291,7 +291,7 @@ else:
         except Exception:
             return default
             # This happens in some cases where the stream was already
-            # closed. In this case, we assume the default.
+            # closed.  In this case, we assume the default.
 
     def _is_binary_writer(stream, default=False):
         try:
@@ -308,7 +308,7 @@ else:
     def _find_binary_reader(stream):
         # We need to figure out if the given stream is already binary.
         # This can happen because the official docs recommend detaching
-        # the streams to get binary streams. Some code might do this, so
+        # the streams to get binary streams.  Some code might do this, so
         # we need to deal with this case explicitly.
         if _is_binary_reader(stream, False):
             return stream
@@ -322,8 +322,8 @@ else:
 
     def _find_binary_writer(stream):
         # We need to figure out if the given stream is already binary.
-        # This can happen because the official docs recommend detaching
-        # the streams to get binary streams. Some code might do this, so
+        # This can happen because the official docs recommend detatching
+        # the streams to get binary streams.  Some code might do this, so
         # we need to deal with this case explicitly.
         if _is_binary_writer(stream, False):
             return stream
@@ -338,8 +338,8 @@ else:
     def _stream_is_misconfigured(stream):
         """A stream is misconfigured if its encoding is ASCII."""
         # If the stream does not have an encoding set, we assume it's set
-        # to ASCII. This appears to happen in certain unittest
-        # environments. It's not quite clear what the correct behavior is
+        # to ASCII.  This appears to happen in certain unittest
+        # environments.  It's not quite clear what the correct behavior is
         # but this at least will force Click to recover somehow.
         return is_ascii_encoding(getattr(stream, "encoding", None) or "ascii")
 
@@ -513,8 +513,8 @@ def _wrap_io_open(file, mode, encoding, errors):
 def open_stream(filename, mode="r", encoding=None, errors="strict", atomic=False):
     binary = "b" in mode
 
-    # Standard streams first. These are simple because they don't need
-    # special handling for the atomic flag. It's entirely ignored.
+    # Standard streams first.  These are simple because they don't need
+    # special handling for the atomic flag.  It's entirely ignored.
     if filename == "-":
         if any(m in mode for m in ["w", "a", "x"]):
             if binary:
@@ -541,9 +541,9 @@ def open_stream(filename, mode="r", encoding=None, errors="strict", atomic=False
     if "w" not in mode:
         raise ValueError("Atomic writes only make sense with `w`-mode.")
 
-    # Atomic writes are more complicated. They work by opening a file
+    # Atomic writes are more complicated.  They work by opening a file
     # as a proxy in the same folder and then using the fdopen
-    # functionality to wrap it in a Python file. Then we wrap it in an
+    # functionality to wrap it in a Python file.  Then we wrap it in an
     # atomic file that moves the file over on close.
     import errno
     import random
@@ -639,8 +639,8 @@ def strip_ansi(value):
 
 def _is_jupyter_kernel_output(stream):
     if WIN:
-        # TODO: Couldn't test on Windows, shouldn't try to support until
-        #  someone tests the details wrt colorama.
+        # TODO: Couldn't test on Windows, should't try to support until
+        # someone tests the details wrt colorama.
         return
 
     while isinstance(stream, (_FixupStream, _NonClosingTextIOWrapper)):
@@ -658,7 +658,7 @@ def should_strip_ansi(stream=None, color=None):
 
 
 # If we're on Windows, we provide transparent integration through
-# colorama. This will make ANSI colors through the echo function
+# colorama.  This will make ANSI colors through the echo function
 # work automatically.
 if WIN:
     # Windows has a smaller terminal
@@ -690,7 +690,7 @@ if WIN:
 
         def auto_wrap_for_ansi(stream, color=None):
             """This function wraps a stream so that calls through colorama
-            are issued to the win32 console API to recolor on demand. It
+            are issued to the win32 console API to recolor on demand.  It
             also ensures to reset the colors if a write call is interrupted
             to not destroy the console afterwards.
             """

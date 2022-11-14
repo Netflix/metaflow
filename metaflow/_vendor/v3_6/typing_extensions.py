@@ -79,7 +79,7 @@ if PEP_560:
     __all__.extend(["get_args", "get_origin", "get_type_hints"])
 
 # The functions below are modified copies of typing internal helpers.
-# They are needed by `_ProtocolMeta` and they provide support for PEP 646.
+# They are needed by _ProtocolMeta and they provide support for PEP 646.
 
 
 def _no_slots_copy(dct):
@@ -175,7 +175,7 @@ else:
 
     NoReturn = _NoReturn(_root=True)
 
-# Some unconstrained type variables. These are used by the container types.
+# Some unconstrained type variables.  These are used by the container types.
 # (These are not for export.)
 T = typing.TypeVar('T')  # Any type.
 KT = typing.TypeVar('KT')  # Key type.
@@ -394,7 +394,7 @@ _overload_dummy = typing._overload_dummy  # noqa
 overload = typing.overload
 
 
-# This is not a real generic class. Don't use outside annotations.
+# This is not a real generic class.  Don't use outside annotations.
 Type = typing.Type
 
 # Various ABCs mimicking those in collections.abc.
@@ -1778,22 +1778,21 @@ else:
         they are also supported in user-defined Generics at runtime.
         See class Generic for more information on generic types.  An
         example for annotating a decorator::
-            ```
-            T = TypeVar('T')
-            P = ParamSpec('P')
 
-            def add_logging(f: Callable[P, T]) -> Callable[P, T]:
-                '''A type-safe decorator to add logging to a function.'''
-                def inner(*args: P.args, **kwargs: P.kwargs) -> T:
-                    logging.info(f'{f.__name__} was called')
-                    return f(*args, **kwargs)
-                return inner
+           T = TypeVar('T')
+           P = ParamSpec('P')
 
-            @add_logging
-            def add_two(x: float, y: float) -> float:
-                '''Add two numbers together.'''
-                return x + y
-            ```
+           def add_logging(f: Callable[P, T]) -> Callable[P, T]:
+               '''A type-safe decorator to add logging to a function.'''
+               def inner(*args: P.args, **kwargs: P.kwargs) -> T:
+                   logging.info(f'{f.__name__} was called')
+                   return f(*args, **kwargs)
+               return inner
+
+           @add_logging
+           def add_two(x: float, y: float) -> float:
+               '''Add two numbers together.'''
+               return x + y
 
         Parameter specification variables defined with covariant=True or
         contravariant=True can be used to declare covariant or contravariant
@@ -2019,7 +2018,7 @@ elif sys.version_info[:2] >= (3, 9):
     @_TypeGuardForm
     def TypeGuard(self, parameters):
         """Special typing form used to annotate the return type of a user-defined
-        type guard function. ``TypeGuard`` only accepts a single type argument.
+        type guard function.  ``TypeGuard`` only accepts a single type argument.
         At runtime, functions marked this way should return a boolean.
 
         ``TypeGuard`` aims to benefit *type narrowing* -- a technique used by static
@@ -2417,7 +2416,7 @@ elif sys.version_info[:2] >= (3, 9):
     def Required(self, parameters):
         """A special typing construct to mark a key of a total=False TypedDict
         as required. For example:
-            ```
+
             class Movie(TypedDict, total=False):
                 title: Required[str]
                 year: int
@@ -2426,7 +2425,7 @@ elif sys.version_info[:2] >= (3, 9):
                 title='The Matrix',  # typechecker error if key is omitted
                 year=1999,
             )
-            ```
+
         There is no runtime checking that a required key is actually provided
         when instantiating a related TypedDict.
         """
@@ -2533,7 +2532,7 @@ else:
     class _Required(_MaybeRequired, _root=True):
         """A special typing construct to mark a key of a total=False TypedDict
         as required. For example:
-            ```
+
             class Movie(TypedDict, total=False):
                 title: Required[str]
                 year: int
@@ -2542,7 +2541,7 @@ else:
                 title='The Matrix',  # typechecker error if key is omitted
                 year=1999,
             )
-            ```
+
         There is no runtime checking that a required key is actually provided
         when instantiating a related TypedDict.
         """
@@ -2701,7 +2700,7 @@ class TypeVarTuple:
     the star operator: ``*Ts``. The signature of ``Array`` then behaves
     as if we had simply written ``class Array(Generic[T1, T2]): ...``.
     In contrast to ``Generic[T1, T2]``, however, ``Generic[*Shape]`` allows
-    us to parameterize the class with an *arbitrary* number of type parameters.
+    us to parameterise the class with an *arbitrary* number of type parameters.
 
     Type variable tuples can be used anywhere a normal ``TypeVar`` can.
     This includes class definitions, as shown above, as well as function
@@ -2899,7 +2898,7 @@ else:
 
 # We have to do some monkey patching to deal with the dual nature of
 # Unpack/TypeVarTuple:
-# - We want `Unpack` to be a kind of `TypeVar` so it gets accepted in
+# - We want Unpack to be a kind of TypeVar so it gets accepted in
 #   Generic[Unpack[Ts]]
 # - We want it to *not* be treated as a TypeVar for the purposes of
 #   counting generic parameters, so that when we subscript a generic,
