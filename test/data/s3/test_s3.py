@@ -668,7 +668,7 @@ def test_list_paths(s3root, prefixes, expected):
                 s3objs = s3.list_paths([url])
                 assert [e for e in s3objs if e.exists] == []
         else:
-            suffix = url[len(s3root):]
+            suffix = url[len(s3root) :]
             expected_keys = suffix.split("/")
             if len(expected_keys) > 20:
                 # speed optimization: exclude crazy long paths
@@ -751,7 +751,7 @@ def test_get_recursive(s3root, prefixes, expected):
         if len(prefixes) == 1:
             [prefix] = prefixes
             s3root = os.path.join(s3root, prefix)
-            keys = {url[len(s3root) + 1:] for url in expected_exists}
+            keys = {url[len(s3root) + 1 :] for url in expected_exists}
             assert {e.key for e in s3objs} == keys
 
         local_files = [s3obj.path for s3obj in s3objs]

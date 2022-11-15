@@ -98,7 +98,7 @@ class Batch(object):
             if regex in job["jobName"]:
                 jobs.append(job["jobId"])
         if run_id is not None:
-            run_id = run_id[run_id.startswith("sfn-") and len("sfn-"):]
+            run_id = run_id[run_id.startswith("sfn-") and len("sfn-") :]
         for job in self._client.describe_jobs(jobs):
             parameters = job["parameters"]
             match = (

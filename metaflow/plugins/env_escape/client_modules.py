@@ -238,7 +238,7 @@ class ModuleImporter(object):
         for idx in reversed([pos for pos, char in enumerate(name) if char == "."]):
             base_name = self._aliases.get(name[:idx])
             if base_name is not None:
-                return ".".join([base_name, name[idx + 1:]])
+                return ".".join([base_name, name[idx + 1 :]])
         return name
 
 

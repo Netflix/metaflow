@@ -457,7 +457,7 @@ def _get_extension_packages():
                     for idx, ext_list in enumerate(list_ext_points):
                         if (
                             len(parts) > len(ext_list) + 2
-                            and parts[2: 2 + len(ext_list)] == ext_list
+                            and parts[2 : 2 + len(ext_list)] == ext_list
                         ):
                             # Check if this is an "init" file
                             config_module = None
@@ -606,7 +606,7 @@ def _get_extension_packages():
                 cur_depth = len(parts)
                 # relative_root strips out metaflow_extensions
                 relative_root = "/".join(parts[base_depth:])
-                relative_module = ".".join(parts[base_depth - 1:])
+                relative_module = ".".join(parts[base_depth - 1 :])
                 files_to_include.extend(
                     [
                         "/".join([relative_root, f]) if relative_root else f
@@ -654,7 +654,7 @@ def _get_extension_packages():
                     # We want at least a TL name and something under
                     tl_name = parts[base_depth]
                     tl_fullname = "%s[%s]" % (package_path, tl_name)
-                    prefix_match = parts[base_depth + 1:]
+                    prefix_match = parts[base_depth + 1 :]
                     for idx, ext_list in enumerate(list_ext_points):
                         if prefix_match == ext_list:
                             # We check to see if this is an actual extension point
@@ -997,7 +997,7 @@ class _LazyFinder(MetaPathFinder):
         except ValueError:
             orig_idx = -1
         if orig_idx > -1 and ".".join(name_parts[:orig_idx]) in self._handled:
-            orig_name = ".".join(name_parts[:orig_idx] + name_parts[orig_idx + 1:])
+            orig_name = ".".join(name_parts[:orig_idx] + name_parts[orig_idx + 1 :])
             _ext_debug("Looking for original module '%s'" % orig_name)
             prefix = ".".join(name_parts[:orig_idx])
             self._temp_excluded_prefix.add(prefix)

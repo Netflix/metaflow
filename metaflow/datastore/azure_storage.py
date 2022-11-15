@@ -365,7 +365,7 @@ class _AzureRootClient(object):
                     top_level_blob_prefix is not None
                     and name[: len(top_level_blob_prefix)] == top_level_blob_prefix
                 ):
-                    name = name[len(top_level_blob_prefix) + 1:]
+                    name = name[len(top_level_blob_prefix) + 1 :]
 
                 # DataStorage.list_content_result is not pickle-able, because it is defined
                 # inline as a class member. So let's just return a regular tuple. list_content()

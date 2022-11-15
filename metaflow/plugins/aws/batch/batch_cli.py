@@ -191,7 +191,7 @@ def step(
     if input_paths:
         max_size = 30 * 1024
         split_vars = {
-            "METAFLOW_INPUT_PATHS_%d" % (i // max_size): input_paths[i: i + max_size]
+            "METAFLOW_INPUT_PATHS_%d" % (i // max_size): input_paths[i : i + max_size]
             for i in range(0, len(input_paths), max_size)
         }
         kwargs["input_paths"] = "".join("${%s}" % s for s in split_vars.keys())
@@ -201,7 +201,7 @@ def step(
     if num_parallel and num_parallel > 1:
         # For multinode, we need to add a placeholder that can be mutated by the caller
         step_args += " [multinode-args]"
-    step_cli = u"{entrypoint} {top_args} step {step} {step_args}".format(
+    step_cli = "{entrypoint} {top_args} step {step} {step_args}".format(
         entrypoint=entrypoint,
         top_args=top_args,
         step=step_name,

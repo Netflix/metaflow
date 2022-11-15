@@ -45,7 +45,7 @@ class BatchClient(object):
         )
 
     def describe_jobs(self, job_ids):
-        for jobIds in [job_ids[i: i + 100] for i in range(0, len(job_ids), 100)]:
+        for jobIds in [job_ids[i : i + 100] for i in range(0, len(job_ids), 100)]:
             for jobs in self._client.describe_jobs(jobs=jobIds)["jobs"]:
                 yield jobs
 
