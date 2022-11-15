@@ -14,7 +14,7 @@ class BasicLogTest(MetaflowTest):
         import sys
 
         msg1 = "stdout: A regular message.\n"
-        msg2 = u"stdout: A message with unicode: \u5e74\n"
+        msg2 = "stdout: A message with unicode: \u5e74\n"
         sys.stdout.write(msg1)
         if not sys.stdout.encoding:
             sys.stdout.write(msg2.encode("utf8"))
@@ -22,7 +22,7 @@ class BasicLogTest(MetaflowTest):
             sys.stdout.write(msg2)
 
         msg3 = "stderr: A regular message.\n"
-        msg4 = u"stderr: A message with unicode: \u5e74\n"
+        msg4 = "stderr: A message with unicode: \u5e74\n"
         sys.stderr.write(msg3)
         if not sys.stderr.encoding:
             sys.stderr.write(msg4.encode("utf8"))
@@ -35,11 +35,11 @@ class BasicLogTest(MetaflowTest):
 
     def check_results(self, flow, checker):
         msg1 = "stdout: A regular message.\n"
-        msg2 = u"stdout: A message with unicode: \u5e74\n"
+        msg2 = "stdout: A message with unicode: \u5e74\n"
         stdout_combined_msg = "".join([msg1, msg2, ""])
 
         msg3 = "stderr: A regular message.\n"
-        msg4 = u"stderr: A message with unicode: \u5e74\n"
+        msg4 = "stderr: A message with unicode: \u5e74\n"
         stderr_combined_msg = "".join([msg3, msg4, ""])
 
         for step in flow:
