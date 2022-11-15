@@ -77,7 +77,7 @@ class Table(UserComponent):
     import numpy as np
     current.card.append(
         Table.from_dataframe(
-            pandas.DataFrame(
+            pd.DataFrame(
                 np.random.randint(0, 100, size=(15, 4)),
                 columns=list("ABCD")
             )

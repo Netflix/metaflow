@@ -361,9 +361,9 @@ class Airflow(object):
             "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
             "METAFLOW_CARD_S3ROOT": DATASTORE_CARD_S3ROOT,
             "METAFLOW_RUN_ID": AIRFLOW_MACROS.RUN_ID,
-            "METAFLOW_AIRFLOW_TASK_ID": AIRFLOW_MACROS.TASK_ID
-            if not self.contains_foreach
-            else AIRFLOW_MACROS.FOREACH_TASK_ID,
+            "METAFLOW_AIRFLOW_TASK_ID": AIRFLOW_MACROS.create_task_id(
+                self.contains_foreach
+            ),
             "METAFLOW_AIRFLOW_DAG_RUN_ID": AIRFLOW_MACROS.AIRFLOW_RUN_ID,
             "METAFLOW_AIRFLOW_JOB_ID": AIRFLOW_MACROS.AIRFLOW_JOB_ID,
             "METAFLOW_PRODUCTION_TOKEN": self.production_token,
@@ -431,9 +431,7 @@ class Airflow(object):
                 self.flow.name,
                 AIRFLOW_MACROS.RUN_ID,
                 node.name,
-                AIRFLOW_MACROS.TASK_ID
-                if not self.contains_foreach
-                else AIRFLOW_MACROS.FOREACH_TASK_ID,
+                AIRFLOW_MACROS.create_task_id(self.contains_foreach),
                 AIRFLOW_MACROS.ATTEMPT,
                 code_package_url=self.code_package_url,
                 step_cmds=self._step_cli(
@@ -512,10 +510,8 @@ class Airflow(object):
 
         if node.name == "start":
             # We need a separate unique ID for the special _parameters task
-            task_id_params = "%s-params" % (
-                AIRFLOW_MACROS.TASK_ID
-                if not self.contains_foreach
-                else AIRFLOW_MACROS.FOREACH_TASK_ID
+            task_id_params = "%s-params" % AIRFLOW_MACROS.create_task_id(
+                self.contains_foreach
             )
             # Export user-defined parameters into runtime environment
             param_file = "".join(
@@ -564,9 +560,7 @@ class Airflow(object):
             "step",
             node.name,
             "--run-id %s" % AIRFLOW_MACROS.RUN_ID,
-            "--task-id %s" % AIRFLOW_MACROS.TASK_ID
-            if not self.contains_foreach
-            else AIRFLOW_MACROS.FOREACH_TASK_ID,
+            "--task-id %s" % AIRFLOW_MACROS.create_task_id(self.contains_foreach),
             "--retry-count %s" % AIRFLOW_MACROS.ATTEMPT,
             "--max-user-code-retries %d" % user_code_retries,
             "--input-paths %s" % paths,
@@ -651,7 +645,9 @@ class Airflow(object):
             tags=self.tags,
             file_path=self._file_path,
             graph_structure=self.graph_structure,
-            metadata=dict(contains_foreach=self.contains_foreach),
+            metadata=dict(
+                contains_foreach=self.contains_foreach, flow_name=self.flow.name
+            ),
             **airflow_dag_args
         )
         workflow = _visit(self.graph["start"], workflow)
