@@ -25,5 +25,4 @@ if OTEL_ENDPOINT:
         tracing = metaflow.tracing_otel.tracing
         post_fork = metaflow.tracing_otel.post_fork
     except ImportError:
-        # print("Warning: using no-op tracing", file=sys.stderr)
         pass

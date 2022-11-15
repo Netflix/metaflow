@@ -66,6 +66,11 @@ def init_tracing():
     span_processor = BatchSpanProcessor(span_exporter)
     tracer_provider.add_span_processor(span_processor)
 
+    import requests
+    from opentelemetry.instrumentation.requests import RequestsInstrumentor
+
+    RequestsInstrumentor().instrument()
+
 
 @contextlib.contextmanager
 def post_fork():
