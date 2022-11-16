@@ -459,9 +459,7 @@ class Editor(object):
             environ = None
         try:
             c = subprocess.Popen(
-                '{} "{}"'.format(editor, filename),
-                env=environ,
-                shell=True,
+                '{} "{}"'.format(editor, filename), env=environ, shell=True,
             )
             exit_code = c.wait()
             if exit_code != 0:
@@ -565,11 +563,11 @@ def open_url(url, wait=False, locate=False):
 
 
 def _translate_ch_to_exc(ch):
-    if ch == "\x03":
+    if ch == u"\x03":
         raise KeyboardInterrupt()
-    if ch == "\x04" and not WIN:  # Unix-like, Ctrl+D
+    if ch == u"\x04" and not WIN:  # Unix-like, Ctrl+D
         raise EOFError()
-    if ch == "\x1a" and WIN:  # Windows, Ctrl+Z
+    if ch == u"\x1a" and WIN:  # Windows, Ctrl+Z
         raise EOFError()
 
 
@@ -616,12 +614,13 @@ if WIN:
             func = msvcrt.getwch
 
         rv = func()
-        if rv in ("\x00", "\xe0"):
+        if rv in (u"\x00", u"\xe0"):
             # \x00 and \xe0 are control characters that indicate special key,
             # see above.
             rv += func()
         _translate_ch_to_exc(rv)
         return rv
+
 
 else:
     import tty

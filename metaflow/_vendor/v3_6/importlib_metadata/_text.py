@@ -94,6 +94,6 @@ class FoldedCase(str):
     def index(self, sub):
         return self.lower().index(sub.lower())
 
-    def split(self, splitter=" ", maxsplit=0):
+    def split(self, splitter=' ', maxsplit=0):
         pattern = re.compile(re.escape(splitter), re.I)
         return pattern.split(self, maxsplit)
