@@ -48,12 +48,14 @@ from metaflow.plugins import EnvironmentDecorator, KfpInternalDecorator
 from metaflow.plugins.kfp.kfp_constants import S3_SENSOR_RETRY_COUNT
 from metaflow.plugins.kfp.kfp_decorator import KfpException
 
+
 from ...graph import DAGNode
 from ...metaflow_environment import MetaflowEnvironment
 from ...plugins.resources_decorator import ResourcesDecorator
 from ..aws.batch.batch_decorator import BatchDecorator
 from ..aws.step_functions.schedule_decorator import ScheduleDecorator
 from .accelerator_decorator import AcceleratorDecorator
+from .interruptible_decorator import interruptibleDecorator
 from .kfp_foreach_splits import KfpForEachSplits, graph_to_task_ids
 
 # TODO: @schedule
@@ -91,6 +93,7 @@ class KfpComponent(object):
         resource_requirements: Dict[str, str],
         kfp_decorator: KfpInternalDecorator,
         accelerator_decorator: AcceleratorDecorator,
+        interruptible_decorator: interruptibleDecorator,
         environment_decorator: EnvironmentDecorator,
         total_retries: int,
     ):
@@ -98,6 +101,7 @@ class KfpComponent(object):
         self.resource_requirements = resource_requirements
         self.kfp_decorator = kfp_decorator
         self.accelerator_decorator = accelerator_decorator
+        self.interruptible_decorator = interruptible_decorator
         self.environment_decorator = environment_decorator
         self.total_retries = total_retries
 
@@ -409,6 +413,14 @@ class KubeflowPipelines(object):
                     ),
                     None,  # default
                 ),
+                interruptible_decorator=next(
+                    (
+                        deco
+                        for deco in node.decorators
+                        if isinstance(deco, interruptibleDecorator)
+                    ),
+                    None,  # default
+                ),
                 environment_decorator=next(
                     (
                         deco
@@ -542,6 +554,8 @@ class KubeflowPipelines(object):
             )
             container_op.add_pvolumes({"dev/shm": memory_volume})
 
+        affinity_match_expressions: List[V1NodeSelectorRequirement] = []
+
         if kfp_component.accelerator_decorator:
             accelerator_type: Optional[
                 str
@@ -549,23 +563,13 @@ class KubeflowPipelines(object):
 
             if accelerator_type:
                 # ensures we only select a node with the correct accelerator type (based on selector)
-                node_selector = V1NodeSelector(
-                    node_selector_terms=[
-                        V1NodeSelectorTerm(
-                            match_expressions=[
-                                V1NodeSelectorRequirement(
-                                    key="k8s.amazonaws.com/accelerator",
-                                    operator="In",
-                                    values=[accelerator_type],
-                                )
-                            ]
-                        )
-                    ]
+                affinity_match_expressions.append(
+                    V1NodeSelectorRequirement(
+                        key="k8s.amazonaws.com/accelerator",
+                        operator="In",
+                        values=[accelerator_type],
+                    )
                 )
-                node_affinity = V1NodeAffinity(
-                    required_during_scheduling_ignored_during_execution=node_selector
-                )
-                affinity = V1Affinity(node_affinity=node_affinity)
                 # ensures the pod created has the correct toleration corresponding to the taint
                 # on the accelerator node for it to be scheduled on that node
                 toleration = V1Toleration(
@@ -576,7 +580,6 @@ class KubeflowPipelines(object):
                     operator="Equal",
                     value=accelerator_type,
                 )
-                container_op.add_affinity(affinity)
                 container_op.add_toleration(toleration)
 
         elif "gpu" not in resource_requirements:
@@ -587,6 +590,40 @@ class KubeflowPipelines(object):
             )
             if toleration:
                 container_op.add_toleration(toleration)
+
+        if kfp_component.interruptible_decorator:
+            affinity_match_expressions.append(
+                V1NodeSelectorRequirement(
+                    key="karpenter.sh/capacity-type",
+                    operator="In",
+                    values=["spot"],
+                )
+            )
+
+            # ensures the pod created has the correct toleration corresponding to the taint
+            # on the spot node for it to be scheduled on that node
+            toleration = V1Toleration(
+                # the `effect` parameter must be specified at the top!
+                # otherwise, there is undefined behavior
+                effect="NoSchedule",
+                key="karpenter.sh/capacity-type",
+                operator="Equal",
+                value="spot",
+            )
+            # container_op.add_affinity(affinity)
+            container_op.add_toleration(toleration)
+
+        if len(affinity_match_expressions) > 0:
+            node_selector = V1NodeSelector(
+                node_selector_terms=[
+                    V1NodeSelectorTerm(match_expressions=affinity_match_expressions)
+                ]
+            )
+            node_affinity = V1NodeAffinity(
+                required_during_scheduling_ignored_during_execution=node_selector
+            )
+            affinity = V1Affinity(node_affinity=node_affinity)
+            container_op.add_affinity(affinity)
 
     # used by the workflow_uid_op and the s3_sensor_op to tighten resources
     # to ensure customers don't bear unnecesarily large costs
@@ -1074,7 +1111,12 @@ class KubeflowPipelines(object):
             f" --sys_tags_json {json.dumps(json.dumps(flow_variables.sys_tags))}"
             f" --task_id {step_variables.task_id}"
             f" --user_code_retries {step_variables.user_code_retries}"
-            " --workflow_name {{workflow.name}}"
+            + (
+                " --is-interruptible "
+                if kfp_component.interruptible_decorator
+                else " --not-interruptible "
+            )
+            + " --workflow_name {{workflow.name}}"
         )
 
         if node.name == "start":

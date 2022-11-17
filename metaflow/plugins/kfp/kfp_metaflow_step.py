@@ -171,6 +171,7 @@ def _command(
     passed_in_split_indexes: str,
     step_name: str,
     flow_name: str,
+    is_interruptible: bool,
 ) -> str:
     """
     Analogous to batch.py
@@ -196,7 +197,7 @@ def _command(
         stderr_path=STDERR_PATH,
     )
 
-    if volume_dir:
+    if volume_dir and not is_interruptible:
         clean_volume_cmd: str = f"rm -rf {os.path.join(volume_dir, '*')}"
     else:
         clean_volume_cmd: str = "true"
@@ -244,6 +245,7 @@ def _command(
 @click.option("--task_id")
 @click.option("--user_code_retries", type=int)
 @click.option("--workflow_name")
+@click.option("--is-interruptible/--not-interruptible", default=False)
 def kfp_metaflow_step(
     volume_dir: str,
     environment: str,
@@ -267,6 +269,7 @@ def kfp_metaflow_step(
     task_id: str,
     user_code_retries: int,
     workflow_name: str,
+    is_interruptible: bool,
 ) -> None:
     """
     (1) Renders and runs the Metaflow package_commands and Metaflow step
@@ -317,6 +320,7 @@ def kfp_metaflow_step(
         passed_in_split_indexes,
         step_name,
         flow_name,
+        is_interruptible,
     )
     cmd: str = cmd_template.format(
         run_id=metaflow_run_id,

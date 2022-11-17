@@ -114,6 +114,7 @@ from .cards.card_decorator import CardDecorator
 from .frameworks.pytorch import PytorchParallelDecorator
 from .kfp.kfp_decorator import KfpInternalDecorator
 from .kfp.accelerator_decorator import AcceleratorDecorator
+from .kfp.interruptible_decorator import interruptibleDecorator
 
 
 STEP_DECORATORS = [
@@ -131,6 +132,7 @@ STEP_DECORATORS = [
     PytorchParallelDecorator,
     InternalTestUnboundedForeachDecorator,
     AcceleratorDecorator,
+    interruptibleDecorator,
     KfpInternalDecorator,
 ]
 _merge_lists(STEP_DECORATORS, _ext_plugins["STEP_DECORATORS"], "name")
