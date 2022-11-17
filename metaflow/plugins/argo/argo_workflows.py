@@ -797,7 +797,7 @@ class ArgoWorkflows(object):
                 "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
             ] = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
             env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = DATASTORE_SYSROOT_AZURE
-            env["METAFLOW_DATASTORE_CARD_AZUREROOT"] = CARD_AZUREROOT
+            env["METAFLOW_CARD_AZUREROOT"] = CARD_AZUREROOT
 
             metaflow_version = self.environment.get_environment_info()
             metaflow_version["flow_name"] = self.graph.name

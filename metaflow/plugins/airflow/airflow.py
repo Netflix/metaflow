@@ -378,7 +378,7 @@ class Airflow(object):
             "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
         ] = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
         env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = DATASTORE_SYSROOT_AZURE
-        env["METAFLOW_DATASTORE_CARD_AZUREROOT"] = CARD_AZUREROOT
+        env["METAFLOW_CARD_AZUREROOT"] = CARD_AZUREROOT
         env.update(additional_mf_variables)
 
         service_account = (
