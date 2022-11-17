@@ -323,6 +323,8 @@ class Kubernetes(object):
                         "Increase the available memory by specifying "
                         "@resource(memory=...) for the step. "
                     )
+                if int(exit_code) == 134:
+                    raise KubernetesException("%s (exit code %s)" % (msg, exit_code))
                 else:
                     msg = "%s (exit code %s)" % (msg, exit_code)
             raise KubernetesException(
