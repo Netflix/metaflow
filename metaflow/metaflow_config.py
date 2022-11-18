@@ -88,13 +88,13 @@ DATATOOLS_S3ROOT = from_conf(
     else None,
 )
 
-DATATOOLS_CLIENT_PARAMS = from_conf("DATATOOLS_CLIENT_PARAMS", "{}")
+DATATOOLS_CLIENT_PARAMS = from_conf("DATATOOLS_CLIENT_PARAMS", {})
 if S3_ENDPOINT_URL:
     DATATOOLS_CLIENT_PARAMS["endpoint_url"] = S3_ENDPOINT_URL
 if S3_VERIFY_CERTIFICATE:
     DATATOOLS_CLIENT_PARAMS["verify"] = S3_VERIFY_CERTIFICATE
 
-DATATOOLS_SESSION_VARS = from_conf("DATATOOLS_SESSION_VARS", "{}")
+DATATOOLS_SESSION_VARS = from_conf("DATATOOLS_SESSION_VARS", {})
 
 # Azure datatools root location
 # Note: we do not expose an actual datatools library for Azure (like we do for S3)
@@ -152,7 +152,7 @@ AZURE_STORAGE_WORKLOAD_TYPE = from_conf(
 SERVICE_URL = from_conf("SERVICE_URL")
 SERVICE_RETRY_COUNT = from_conf("SERVICE_RETRY_COUNT", 5)
 SERVICE_AUTH_KEY = from_conf("SERVICE_AUTH_KEY", propagate=False)
-SERVICE_HEADERS = from_conf("SERVICE_HEADERS", "{}")
+SERVICE_HEADERS = from_conf("SERVICE_HEADERS", {})
 if SERVICE_AUTH_KEY is not None:
     SERVICE_HEADERS["x-api-key"] = SERVICE_AUTH_KEY
 # Checks version compatibility with Metadata service
@@ -238,9 +238,7 @@ AIRFLOW_KUBERNETES_STARTUP_TIMEOUT_SECONDS = from_conf(
     "AIRFLOW_KUBERNETES_STARTUP_TIMEOUT_SECONDS", 60 * 60, propagate=False
 )
 # This configuration sets `kubernetes_conn_id` in airflow's KubernetesPodOperator.
-AIRFLOW_KUBERNETES_CONN_ID = from_conf(
-    "AIRFLOW_KUBERNETES_CONN_ID", None, propagate=False
-)
+AIRFLOW_KUBERNETES_CONN_ID = from_conf("AIRFLOW_KUBERNETES_CONN_ID", propagate=False)
 
 
 ###
@@ -270,7 +268,7 @@ for typ in DEBUG_OPTIONS:
 # AWS Sandbox configuration
 ###
 # Boolean flag for metaflow AWS sandbox access
-AWS_SANDBOX_ENABLED = from_conf("AWS_SANDBOX_ENABLED", propagate=False)
+AWS_SANDBOX_ENABLED = from_conf("AWS_SANDBOX_ENABLED", False, propagate=False)
 # Metaflow AWS sandbox auth endpoint
 AWS_SANDBOX_STS_ENDPOINT_URL = SERVICE_URL
 # Metaflow AWS sandbox API auth key
