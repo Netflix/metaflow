@@ -75,7 +75,7 @@ def aws_retry(f):
                 last_exc = ex
                 # exponential backoff for real failures
                 if not (TEST_S3_RETRY and i == 0):
-                    time.sleep(2 ** i + random.randint(0, 5))
+                    time.sleep(2**i + random.randint(0, 5))
         raise last_exc
 
     return retry_wrapper

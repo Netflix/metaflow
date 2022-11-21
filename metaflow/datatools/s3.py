@@ -1252,7 +1252,7 @@ class S3(object):
 
     # add some jitter to make sure retries are not synchronized
     def _jitter_sleep(self, trynum, multiplier=2):
-        interval = multiplier ** trynum + random.randint(0, 10)
+        interval = multiplier**trynum + random.randint(0, 10)
         time.sleep(interval)
 
     # NOTE: re: _read_many_files and _put_many_files
