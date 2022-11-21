@@ -98,6 +98,12 @@ ERROR_TRANSIENT_RETRY = 12
 
 
 def format_triplet(idx, prefix, url="", local=""):
+    # We prefix each output with the index corresponding to the line number on the
+    # initial request (ie: prior to any transient errors). This allows us to
+    # properly maintain the order in which things were requested even in the presence
+    # of transient retries where we do not know what succeeds and what does not.
+    # Basically, when we retry an operation, we can trace it back to its original
+    # position in the first request.
     return " ".join(
         [str(idx)] + [url_quote(x).decode("utf-8") for x in (prefix, url, local)]
     )
@@ -830,6 +836,7 @@ def put(
                 r = json.loads(line)
                 input_line_idx = r.get("idx")
                 if input_line_idx is not None:
+                    # We only have input indices if we have a transient retry.
                     is_transient_retry = True
                 else:
                     input_line_idx = line_idx

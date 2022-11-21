@@ -1369,18 +1369,23 @@ class S3(object):
             cmdline.extend(("--s3clientparams", json.dumps(self._s3_client_params)))
 
         def _get_inject_failures():
+            # list mode does not do retries on transient failures (there is no
+            # SlowDown handling) so we never inject a failure rate
             if mode == "list":
                 return 0
+            # Otherwise, we cap the failure rate at 90%
             return min(90, self._s3_inject_failures)
 
-        retry_count = 0
-        transient_retry_count = 0
+        retry_count = 0  # Number of retries (excluding transient failures)
+        transient_retry_count = 0  # Number of transient retries (per TL retry)
         inject_failures = _get_inject_failures()
-        out_lines = []
-        pending_retries = []
+        out_lines = []  # Lines that will be returned in the end
+        pending_retries = (
+            []
+        )  # Inputs that need to be retried due to a transient failure
         loop_count = 0
-        last_ok_count = 0
-        total_ok_count = 0
+        last_ok_count = 0  # Number of inputs that were successful in the last try
+        total_ok_count = 0  # Total number of OK inputs
 
         def _reset():
             nonlocal transient_retry_count, inject_failures, out_lines, pending_retries
@@ -1407,9 +1412,13 @@ class S3(object):
             for l in ok_lines:
                 idx, rest = l.split(b" ", maxsplit=1)
                 if rest.decode(encoding="utf-8") != TRANSIENT_RETRY_LINE_CONTENT:
+                    # Update the proper location in the out_lines array; we maintain
+                    # position as if transient retries did not exist. This
+                    # makes sure that order is respected even in the presence of
+                    # transient retries.
                     out_lines[int(idx.decode(encoding="utf-8"))] = rest
 
-        def _internal(last_ok_count, pending_retries, out_lines, inject_failures):
+        def try_s3_op(last_ok_count, pending_retries, out_lines, inject_failures):
             # NOTE: Make sure to update pending_retries and out_lines in place
             addl_cmdline = []
             if len(pending_retries) == 0 and recursive_get:
@@ -1467,11 +1476,13 @@ class S3(object):
                             inject_failures = min(90, int(inject_failures * 1.5))
                     try:
                         debug.s3client_exec(cmdline + addl_cmdline)
+                        # Run the operation.
                         stdout = subprocess.check_output(
                             cmdline + addl_cmdline,
                             cwd=self._tmpdir,
                             stderr=stderr.file,
                         )
+                        # Here we did not have any error -- transient or otherwise.
                         ok_lines = stdout.splitlines()
                         _update_out_lines(out_lines, ok_lines, resize=loop_count == 0)
                         return (len(ok_lines), 0, inject_failures, None)
@@ -1498,6 +1509,8 @@ class S3(object):
                                     l.decode(encoding="utf-8")
                                     == "%s\n" % TRANSIENT_RETRY_START_LINE
                                 ):
+                                    # Look for a special marker as the start of the
+                                    # "failed inputs that need to be retried"
                                     do_output = True
                             stderr.seek(0)
                             if do_output is False:
@@ -1520,7 +1533,8 @@ class S3(object):
                                     None,
                                 )
 
-                        # Here, this is a "normal" failure that we need to send back up
+                        # Here, this is a "normal" failure that we need to send back up.
+                        # These failures are not retried.
                         stderr.seek(0)
                         err_out = stderr.read().decode("utf-8", errors="replace")
                         stderr.seek(0)
@@ -1543,7 +1557,7 @@ class S3(object):
                 last_retry_count,
                 inject_failures,
                 err_out,
-            ) = _internal(last_ok_count, pending_retries, out_lines, inject_failures)
+            ) = try_s3_op(last_ok_count, pending_retries, out_lines, inject_failures)
             if err_out or (
                 last_retry_count != 0
                 and (
@@ -1551,8 +1565,9 @@ class S3(object):
                     or transient_retry_count > S3_TRANSIENT_RETRY_COUNT
                 )
             ):
-                # We had a fatal failure or we made No progress or we are out of
-                # transient retries
+                # We had a fatal failure (err_out is not None)
+                # or we made no progress (last_ok_count is 0)
+                # or we are out of transient retries
                 # so we will restart from scratch (being very conservative)
                 retry_count += 1
                 err_msg = err_out
@@ -1568,7 +1583,8 @@ class S3(object):
                     self._jitter_sleep(retry_count)
                 continue
             elif last_retry_count != 0:
-                # This is just a transient failure so we will try again
+                # During our last try, we did not manage to process everything we wanted
+                # due to a transient failure so we try again.
                 transient_retry_count += 1
                 total_ok_count += last_ok_count
                 print(
@@ -1587,6 +1603,7 @@ class S3(object):
                     self._jitter_sleep(transient_retry_count)
 
             loop_count += 1
+            # If we have no more things to try, we break out of the loop.
             if len(pending_retries) == 0:
                 break
 
