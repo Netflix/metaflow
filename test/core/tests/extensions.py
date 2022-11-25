@@ -16,6 +16,7 @@ class ExtensionsTest(MetaflowTest):
         from metaflow.plugins.nondecoplugin import my_value
 
         from metaflow.exception import MetaflowTestException
+        from metaflow.plugins.frameworks.pytorch import NewPytorchParallelDecorator
 
         self.plugin_value = my_value
         self.tl_value = tl_value
