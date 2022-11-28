@@ -145,12 +145,6 @@ class KubernetesDecorator(StepDecorator):
                     "@kubernetes does not support parallel execution currently."
                 )
 
-            # If GPU count is specified, explicitly set it in self.attributes.
-            for k, v in deco.attributes.items():
-                if k == "gpu" and v != None:
-                    self.attributes['gpu'] = v
-
-
         # Set run time limit for the Kubernetes job.
         self.run_time_limit = get_run_time_limit_for_task(decos)
         if self.run_time_limit < 60:
@@ -162,7 +156,10 @@ class KubernetesDecorator(StepDecorator):
         for deco in decos:
             if isinstance(deco, ResourcesDecorator):
                 for k, v in deco.attributes.items():
-                    # TODO: Special case GPUs when they are introduced in @resources.
+                    # If GPU count is specified, explicitly set it in self.attributes.
+                    if k == "gpu" and v != None:
+                        self.attributes["gpu"] = v
+
                     if k in self.attributes:
                         if self.defaults[k] is None:
                             # skip if expected value isn't an int/float
