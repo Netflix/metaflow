@@ -6,4 +6,4 @@ from .test_step_decorator import TestStepDecorator
 
 STEP_DECORATORS = [TestStepDecorator]
 
-__mf_promote_submodules__ = ["nondecoplugin"]
+__mf_promote_submodules__ = ["nondecoplugin", "frameworks"]
