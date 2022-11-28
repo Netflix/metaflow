@@ -85,7 +85,7 @@ class StepFunctions(object):
     def trigger_explanation(self):
         if self._cron:
             # Sometime in the future, we should vendor (or write) a utility
-            # that can translate cron specifications into a human readable
+            # that can translate cron specifications into a human-readable
             # format and push to the user for a better UX, someday.
             return (
                 "This workflow triggers automatically "
@@ -171,8 +171,8 @@ class StepFunctions(object):
         # Dump parameters into `Parameters` input field.
         input = json.dumps({"Parameters": json.dumps(parameters)})
         # AWS Step Functions limits input to be 32KiB, but AWS Batch
-        # has it's own limitation of 30KiB for job specification length.
-        # Reserving 10KiB for rest of the job sprecification leaves 20KiB
+        # has its own limitation of 30KiB for job specification length.
+        # Reserving 10KiB for rest of the job specification leaves 20KiB
         # for us, which should be enough for most use cases for now.
         if len(input) > 20480:
             raise StepFunctionsException(
@@ -464,7 +464,7 @@ class StepFunctions(object):
                     "${METAFLOW_PARENT_TASK_IDS}" % node.in_funcs[0]
                 )
                 # Unfortunately, AWS Batch only allows strings as value types
-                # in it's specification and we don't have any way to concatenate
+                # in its specification, and we don't have any way to concatenate
                 # the task ids array from the parent steps within AWS Step
                 # Functions and pass it down to AWS Batch. We instead have to
                 # rely on publishing the state to DynamoDb and fetching it back
@@ -522,7 +522,7 @@ class StepFunctions(object):
                         # parent tasks. We filter the Map state to only output
                         # `$.[0]`, since we don't need any of the other outputs,
                         # that information is available to us from AWS DynamoDB.
-                        # This has a nice side-effect of making our foreach
+                        # This has a nice side effect of making our foreach
                         # splits infinitely scalable because otherwise we would
                         # be bounded by the 32K state limit for the outputs. So,
                         # instead of referencing `Parameters` fields by index
@@ -594,7 +594,7 @@ class StepFunctions(object):
         # Set AWS DynamoDb Table Name for state tracking for for-eaches.
         # There are three instances when metaflow runtime directly interacts
         # with AWS DynamoDB.
-        #   1. To set the cardinality of foreaches (which are subsequently)
+        #   1. To set the cardinality of `foreach`s (which are subsequently)
         #      read prior to the instantiation of the Map state by AWS Step
         #      Functions.
         #   2. To set the input paths from the parent steps of a foreach join.
@@ -764,7 +764,7 @@ class StepFunctions(object):
                 params.extend("--tag %s" % tag for tag in self.tags)
 
             # If the start step gets retried, we must be careful not to
-            # regenerate multiple parameters tasks. Hence we check first if
+            # regenerate multiple parameters tasks. Hence, we check first if
             # _parameters exists already.
             exists = entrypoint + [
                 "dump",

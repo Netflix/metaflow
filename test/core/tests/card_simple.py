@@ -3,8 +3,8 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
 
 class CardDecoratorBasicTest(MetaflowTest):
     """
-    Test that checks if the card decorator stores the information as intended for a built in card
-    - sets the pathspec in the a task
+    Test that checks if the card decorator stores the information as intended for a built-in card
+    - sets the pathspec in the task
     - Checker Asserts that taskpathspec in the card and the one set in the task match.
     """
 

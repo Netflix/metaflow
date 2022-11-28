@@ -33,8 +33,8 @@ items to operate on (for example, all the keys to fetch) than to call the same
 API multiple times with a single key at a time. All APIs are designed with
 batch processing in mind where it makes sense.
 
-#### Separation of responsabilities
-Each class implements few functionalities and we attempted to maximize reuse.
+#### Separation of responsibilities
+Each class implements few functionalities, and we attempted to maximize reuse.
 The idea is that this will also help in developing newer implementations going
 forward and being able to surgically change a few things while keeping most of
 the code the same.
@@ -46,7 +46,7 @@ Before going into the design of the datastore itself, it is worth considering
 
 Metaflow considers a datastore to have a `datastore_root` which is the base
 directory of the datastore. Within that directory, Metaflow will create multiple
-sub-directories, one per flow (identified by the name of the flow). Within each
+subdirectories, one per flow (identified by the name of the flow). Within each
 of those directories, Metaflow will create one directory per run as well as
 a `data` directory which will contain all the artifacts ever produced by that
 flow.
@@ -73,7 +73,7 @@ The datastore has several components (starting at the lowest-level):
 - a `FlowDataStore` ties everything together. A `FlowDataStore` will include
   a `ContentAddressedStore` and all the `TaskDataStore`s for all the tasks that
   are part of the flow. The `FlowDataStore` includes functions to find the
-  `TaskDataStore` for a given task as well as save and load data directly (
+  `TaskDataStore` for a given task as well as to save and load data directly (
   this is used primarily for data that is not tied to a single task, for example
   code packages which are more tied to runs).
 
@@ -111,7 +111,7 @@ additional operations:
  - transforms the data prior to storing; we currently only compress the data but
    other operations are possible.
    
-Data is always de-duplicated but you can choose to skip the transformation step
+Data is always de-duplicated, but you can choose to skip the transformation step
 by telling the content address store that the data should be stored `raw` (ie:
 with no transformation). Note that the de-duplication logic happens *prior* to
 any transformation (so the transformation itself will not impact the de-duplication
@@ -120,7 +120,7 @@ logic).
 Content stored by the content addressed store is addressable using a `key` which is
 returned when `save_blobs` is called. `raw` objects can also directly be accessed
 using a `uri` (also returned by `save_blobs`); the `uri` will point to the location
-of the `raw` bytes in the underlying `DataStoreStorage` (so for exmaple a local
+of the `raw` bytes in the underlying `DataStoreStorage` (so, for example, a local
 filesystem path or a S3 path). Objects that are not `raw` do not return a `uri`
 as they should only be accessed through the content addressed store.
 
@@ -155,7 +155,7 @@ At a high level, the `TaskDataStore` is responsible for:
  - storing artifacts (functions like `save_artifacts`, `persist` help with this)
  - storing other metadata about the task execution; this can include logs,
    general information about the task, user-level metadata and any other information
-   the user wishes the persist about the task. Functions for this include
+   the user wishes to persist about the task. Functions for this include
    `save_logs` and `save_metadata`. Internally, functions like `done` will
    also store information about the task.
 

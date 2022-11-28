@@ -29,7 +29,7 @@ Concurrency is practically never needed during the first two phases.
 
 We divide the concurrency constructs into two categories: Primary and
 Secondary. Whenever possible, you should prefer the constructs in
-the first category. The patterns are well established and they have
+the first category. The patterns are well established and have
 been used successfully in the core Metaflow modules, `runtime.py`
 and `task.py`. The constructs in the second category can be used in
 subprocesses, outside the core code paths in `runtime.py` and `task.py`.
@@ -109,7 +109,7 @@ delay, to avoid the parent from blocking.
 
 The sidecar subprocess may die for various reasons, in which case
 messages sent to it by the parent may be lost. To keep communication
-essentially non-blocking and fast, there is no blocking acklowdgement of
+essentially non-blocking and fast, there is no blocking acknowledgement of
 successful message processing by the sidecar. Hence the communication is
 lossy. In this sense, communication with a sidecar is more akin to UDP
 than TCP.
@@ -139,7 +139,7 @@ Use a sidecar if you need a task that runs during scheduling or
 execution of user code. A sidecar task can not perform any critical
 operations that must succeed in order for a task or a run to be
 considered valid. This makes sidecars suitable only for opportunistic,
-best effort tasks.
+best-effort tasks.
 
 ### 3. Data Parallelism
 

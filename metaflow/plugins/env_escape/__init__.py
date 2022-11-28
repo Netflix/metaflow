@@ -51,7 +51,7 @@ from .client_modules import create_modules
 # In the case of a bootstrap code (for example on Batch), the subprocess mechanism is
 # not used to determine the outside environment but the `generate_trampolines` function
 # in this file is called directly by the remote bootstrap code which operates *outside*
-# of the created conda environment so it has the same effect
+# of the created conda environment, so it has the same effect
 ENV_ESCAPE_PY = os.environ.get("METAFLOW_ENV_ESCAPE_PY", sys.executable)
 
 _cur_sys_paths = sys.path

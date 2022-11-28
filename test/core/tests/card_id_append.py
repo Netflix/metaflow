@@ -28,7 +28,7 @@ class CardsWithIdTest(MetaflowTest):
     @tag('card(type="test_non_editable_card",id="abc")')
     @steps(0, ["end"])
     def step_end(self):
-        # If the card is default non editable, we can still access it via `current.card[id]`
+        # If the card is default non-editable, we can still access it via `current.card[id]`
         from metaflow import current
         from metaflow.plugins.cards.card_modules.test_cards import TestStringComponent
         import random

@@ -48,7 +48,7 @@ def download_conda_packages(flow_name, env_id, datastore_type):
         # the URLs before downloading them appropriately. Of course, a change can be
         # made to allow the datastore to consume full URLs as well instead of this
         # change, but given that change's far-reaching consequences, we introduce this
-        # workfaround.
+        # workaround.
         # https://github.com/Netflix/metaflow/commit/fbd6c9d8a819fad647958c9fa869153ab37bc0ca#diff-1ecbb40de8aba5b41e149987de4aa797a47f4498e5e4e3f63a53d4283dcdf941R198
         if env["cache_urls"][0].startswith("s3://"):
             from metaflow.datatools import S3

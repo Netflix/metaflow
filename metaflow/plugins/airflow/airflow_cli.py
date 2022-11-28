@@ -322,11 +322,12 @@ def make_flow(
 
 
 def _validate_foreach_constraints(graph):
-    # Todo :Invoke this function when we integrate foreach's
+    # Todo :Invoke this function when we integrate `foreach`s
     def traverse_graph(node, state):
         if node.type == "foreach" and node.is_inside_foreach:
             raise NotSupportedException(
-                "Step *%s* is a foreach step called within a foreach step. This type of graph is currently not supported with Airflow."
+                "Step *%s* is a foreach step called within a foreach step. "
+                "This type of graph is currently not supported with Airflow."
                 % node.name
             )
 
@@ -339,7 +340,7 @@ def _validate_foreach_constraints(graph):
 
             if len(state["foreach_stack"]) > 2:
                 raise NotSupportedException(
-                    "The foreach step *%s* created by step *%s* needs to have an immidiate join step. "
+                    "The foreach step *%s* created by step *%s* needs to have an immediate join step. "
                     "Step *%s* is invalid since it is a linear step with a foreach. "
                     "This type of graph is currently not supported with Airflow."
                     % (

@@ -15,7 +15,7 @@ from itertools import chain
 #
 # This file provides the support for Metaflow's extension mechanism which allows
 # a Metaflow developer to extend metaflow by providing a package `metaflow_extensions`.
-# Multiple such packages can be provided and they will all be loaded into Metaflow in a
+# Multiple such packages can be provided, and they will all be loaded into Metaflow in a
 # way that is transparent to the user.
 #
 # NOTE: The conventions used here may change over time and this is an advanced feature.
@@ -52,7 +52,7 @@ from itertools import chain
 #       - package_mfext_package: allows the packaging of a single extension
 #       - package_mfext_all: packages all extensions
 #
-# The get_aliases_modules is used by Pylint to ignore some of the errors arrising from
+# The get_aliases_modules is used by Pylint to ignore some of the errors arising from
 # aliasing packages
 
 __all__ = (
@@ -324,7 +324,7 @@ def _get_extension_packages():
     # We have more information on distributions (including dependencies) and more
     # effective ways to get file information from them (they include the full list of
     # files installed) so we treat them separately from packages purely in PYTHONPATH.
-    # They are also the more likely way that users will have extensions present so
+    # They are also the more likely way that users will have extensions present, so
     # we optimize for that case.
 
     # At this point, we look at all the paths and create a set. As we find distributions
@@ -342,7 +342,7 @@ def _get_extension_packages():
     # first return B and THEN A. We may want
     # other ways of specifying "load me after this if it exists" without depending on
     # the package. One way would be to rely on the description and have that info there.
-    # Not sure of the use though so maybe we can skip for now.
+    # Not sure of the use, though, so maybe we can skip for now.
 
     # Key: distribution name/package path
     # Value: Dict containing:
@@ -382,8 +382,8 @@ def _get_extension_packages():
             _ext_debug("Found extension package '%s'..." % dist.metadata["Name"])
 
             # Remove the path from the paths to search. This is not 100% accurate because
-            # it is possible that at that same location there is a package and a non
-            # package but it is exceedingly unlikely so we are going to ignore this.
+            # it is possible that at that same location there is a package and a non-package,
+            # but it is exceedingly unlikely, so we are going to ignore this.
             dist_root = dist.locate_file(EXT_PKG).as_posix()
             all_paths.discard(dist_root)
 
@@ -574,13 +574,13 @@ def _get_extension_packages():
     _ext_debug("'%s' distributions order is %s" % (EXT_PKG, str(mf_pkg_list)))
 
     # We check if we have any additional packages that were not yet installed that
-    # we need to use. We always put them *last* in the load order and we put them
+    # we need to use. We always put them *last* in the load order and put them
     # alphabetically.
     all_paths_list = list(all_paths)
     all_paths_list.sort()
 
     # This block of code is the equivalent of the one above for distributions except
-    # for PYTHONPATH packages. The functionality is identical but it looks a little
+    # for PYTHONPATH packages. The functionality is identical, but it looks a little
     # different because we construct the file list instead of having it nicely provided
     # to us.
     package_name_to_path = dict()
@@ -588,7 +588,7 @@ def _get_extension_packages():
         _ext_debug("Non installed packages present at %s" % str(all_paths))
         for package_count, package_path in enumerate(all_paths_list):
             # We give an alternate name for the visible package name. It is
-            # not exposed to the end user but used to refer to the package and it
+            # not exposed to the end user but used to refer to the package, and it
             # doesn't provide much additional information to have the full path
             # particularly when it is on a remote machine.
             # We keep a temporary mapping around for error messages while loading for
@@ -752,8 +752,8 @@ def _get_extension_packages():
 
         # v is a dict distributionName/packagePath -> (dict tl_name -> MFPackage)
         l = [v[pkg].values() for pkg in mf_pkg_list if pkg in v]
-        # In the case of the plugins.cards extension, we allow those packages
-        # to be ns packages so we only list the package once (in its first position).
+        # In the case of the plugins.cards extension we allow those packages
+        # to be ns packages, so we only list the package once (in its first position).
         # In all other cases, we error out if we don't have a configuration file for the
         # package (either a __init__.py of an explicit mfextinit_*.py)
         final_list = []
@@ -797,7 +797,7 @@ def _attempt_load_module(module_name):
                 errored_names.append("%s.%s" % (errored_names[-1], p))
             if not (isinstance(e, ModuleNotFoundError) and e.name in errored_names):
                 print(
-                    "The following exception ocurred while trying to load '%s' ('%s')"
+                    "The following exception occurred while trying to load '%s' ('%s')"
                     % (EXT_PKG, module_name)
                 )
                 raise
@@ -869,7 +869,7 @@ def _filter_files_package(package_name):
             # Behavior is as follows:
             #  - if nothing specified, include all files (so do nothing here)
             #  - if include_suffixes, only include those suffixes
-            #  - if *not* include_suffixes but exclude_suffixes, include everthing *except*
+            #  - if *not* include_suffixes but exclude_suffixes, include everything *except*
             #    files ending with that suffix
             if include_suffixes:
                 new_files = [
@@ -910,7 +910,7 @@ class _AliasLoader(Loader):
                     "No module found '%s' (aliasing '%s')" % (spec.name, self._orig)
                 )
         elif isinstance(self._orig, types.ModuleType):
-            # We are aliasing a module so we just return that one
+            # We are aliasing a module, so we just return that one
             return self._orig
         else:
             return super().create_module(spec)
@@ -949,7 +949,7 @@ class _OrigLoader(Loader):
             # Perform all actions of the original loader
             self._orig_loader.exec_module(module)
         except BaseException:
-            raise  # We re-raise it always; the finally clause will still restore things
+            raise  # We re-raise it always; the `finally` clause will still restore things
         else:
             # It loaded, we move and rename appropriately
             module.__spec__.name = self._fullname
@@ -982,7 +982,7 @@ class _LazyFinder(MetaPathFinder):
         #   - A module: the module to load
         self._handled = handled if handled else {}
 
-        # This is used to revert back to regular loading when trying to load
+        # This is used to revert to regular loading when trying to load
         # the over-ridden module
         self._temp_excluded_prefix = set()
 

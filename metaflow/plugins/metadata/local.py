@@ -448,12 +448,12 @@ class LocalMetadataProvider(MetadataProvider):
         selfname = os.path.join(subpath, "_self.json")
         self._makedirs(subpath)
         if os.path.isfile(selfname):
-            # There is a race here but we are not aiming to make this as solid as
-            # the metadata service. This is used primarily for concurrent resumes
+            # There is a race here, but we are not aiming to make this as solid as
+            # the metadata service. This is used primarily for concurrent resumes,
             # so it is highly unlikely that this combination (multiple resumes of
             # the same flow on the same machine) happens.
             return False
-        # In this case, the metadata information does not exist so we create it
+        # In this case the metadata information does not exist, so we create it
         self._save_meta(
             subpath,
             {

@@ -198,7 +198,7 @@ class Airflow(object):
 
             # Since we will always have a default value and `deploy_time_eval` resolved that to an actual value
             # we can just use the `default` to infer the object's type.
-            # This avoids parsing/indentifying types like `JSONType` or `FilePathClass`
+            # This avoids parsing/identifying types like `JSONType` or `FilePathClass`
             # which are returned by calling `param.kwargs.get("type")`
             param_type = type(airflow_param["default"])
 
@@ -220,11 +220,11 @@ class Airflow(object):
         steps,
     ):
         """
-        This function is meant to compress the input paths and it specifically doesn't use
-        `metaflow.util.compress_list` under the hood. The reason is because the `AIRFLOW_MACROS.RUN_ID` is a complicated macro string
-        that doesn't behave nicely with `metaflow.util.decompress_list` since the `decompress_util`
-        function expects a string which doesn't contain any delimiter characters and the run-id string does.
-        Hence we have a custom compression string created via `_compress_input_path` function instead of `compress_list`.
+        This function is meant to compress the input paths, and it specifically doesn't use
+        `metaflow.util.compress_list` under the hood. The reason is that the `AIRFLOW_MACROS.RUN_ID` is a complicated
+        macro string that doesn't behave nicely with `metaflow.util.decompress_list`, since the `decompress_util`
+        function expects a string which doesn't contain any delimiter characters and the run-id string does. Hence, we
+        have a custom compression string created via `_compress_input_path` function instead of `compress_list`.
         """
         return "%s:" % (AIRFLOW_MACROS.RUN_ID) + ",".join(
             self._make_input_path(step, only_task_id=True) for step in steps
@@ -244,7 +244,8 @@ class Airflow(object):
     def _make_input_path(self, step_name, only_task_id=False):
         """
         This is set using the `airflow_internal` decorator to help pass state.
-        This will pull the `TASK_ID_XCOM_KEY` xcom which holds task-ids. The key is set via the `MetaflowKubernetesOperator`.
+        This will pull the `TASK_ID_XCOM_KEY` xcom which holds task-ids.
+        The key is set via the `MetaflowKubernetesOperator`.
         """
         task_id_string = "/%s/{{ task_instance.xcom_pull(task_ids='%s',key='%s') }}" % (
             step_name,
@@ -261,8 +262,10 @@ class Airflow(object):
         """
         This function will transform the node's specification into Airflow compatible operator arguments.
         Since this function is long, below is the summary of the two major duties it performs:
-            1. Based on the type of the graph node (start/linear/foreach/join etc.) it will decide how to set the input paths
-            2. Based on node's decorator specification convert the information into a job spec for the KubernetesPodOperator.
+            1. Based on the type of the graph node (start/linear/foreach/join etc.)
+                it will decide how to set the input paths
+            2. Based on node's decorator specification convert the information into
+                a job spec for the KubernetesPodOperator.
         """
         # Add env vars from the optional @environment decorator.
         env_deco = [deco for deco in node.decorators if deco.name == "environment"]
@@ -304,7 +307,8 @@ class Airflow(object):
                 # One key thing about xcoms is that they are immutable and only accepted if the task
                 # doesn't fail.
                 # From airflow docs :
-                # "Note: If the first task run is not succeeded then on every retry task XComs will be cleared to make the task run idempotent."
+                # "Note: If the first task run is not succeeded then on every retry task
+                # XComs will be cleared to make the task run idempotent."
                 input_paths = self._make_input_path(node.in_funcs[0])
             else:
                 # this is a split scenario where there can be more than one input paths.
@@ -341,7 +345,8 @@ class Airflow(object):
             "app.kubernetes.io/name": "metaflow-task",
             "app.kubernetes.io/part-of": "metaflow",
             "app.kubernetes.io/created-by": user,
-            # Question to (savin) : Should we have username set over here for created by since it is the airflow installation that is creating the jobs.
+            # Question to (savin) : Should we have username set over here for created by since it is the
+            # airflow installation that is creating the jobs.
             # Technically the "user" is the stakeholder but should these labels be present.
         }
         additional_mf_variables = {
@@ -539,7 +544,7 @@ class Airflow(object):
                 params.extend("--tag %s" % tag for tag in self.tags)
 
             # If the start step gets retried, we must be careful not to
-            # regenerate multiple parameters tasks. Hence we check first if
+            # regenerate multiple parameters tasks. Hence, we check first if
             # _parameters exists already.
             exists = entrypoint + [
                 # Dump the parameters task
@@ -674,7 +679,8 @@ class Airflow(object):
     def _create_defaults(self):
         defu_ = {
             "owner": get_username(),
-            # If set on a task, doesn’t run the task in the current DAG run if the previous run of the task has failed.
+            # If set on a task and the previous run of the task has failed,
+            # it will not run the task in the current DAG run.
             "depends_on_past": False,
             # TODO: Enable emails
             "execution_timeout": timedelta(days=5),

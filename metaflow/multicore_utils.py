@@ -31,8 +31,8 @@ def _spawn(func, arg, dir):
     with NamedTemporaryFile(prefix="parallel_map_", dir=dir, delete=False) as tmpfile:
         output_file = tmpfile.name
 
-    # make sure stdout and stderr are flushed before forking. Otherwise
-    # we may print multiple copies of the same output
+    # Make sure stdout and stderr are flushed before forking,
+    # or else we may print multiple copies of the same output
     sys.stderr.flush()
     sys.stdout.flush()
     pid = os.fork()
@@ -47,13 +47,13 @@ def _spawn(func, arg, dir):
             exit_code = 0
         except:
             # we must not let any exceptions escape this function
-            # which might trigger unintended side-effects
+            # which might trigger unintended side effects
             traceback.print_exc()
         finally:
             sys.stderr.flush()
             sys.stdout.flush()
             # we can't use sys.exit(0) here since it raises SystemExit
-            # that may have unintended side-effects (e.g. triggering
+            # that may have unintended side effects (e.g. triggering
             # finally blocks).
             os._exit(exit_code)
 

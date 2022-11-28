@@ -222,7 +222,7 @@ def _make_method(method_type, connection, class_name, name, doc):
 
 class MetaWithConnection(StubMetaClass):
     # The use of this metaclass is so that we can support two modes when
-    # instantiating a sub-class of Stub. Suppose we have a class Foo which is a stub.
+    # instantiating a subclass of Stub. Suppose we have a class Foo which is a stub.
     # There are two ways Foo is initialized:
     #  - when it is returned from the remote side, in which case we do
     #    Foo(class_name, connection, identifier)
@@ -234,7 +234,7 @@ class MetaWithConnection(StubMetaClass):
     # see if the first one is the connection which would indicate that we are in
     # the first case. If that is the case, we just pass everything down to the
     # super __call__ and go our merry way. If this is not the case, we will
-    # use the connection we saved when creating this meta class and call
+    # use the connection we saved when creating this metaclass and call
     # OP_INIT to create the object
 
     def __new__(cls, class_name, base_classes, class_dict, connection):

@@ -50,7 +50,7 @@ def test_compute_resource_attributes():
 def test_compute_resource_attributes_string():
     """Test string-valued resource attributes"""
 
-    # if default is None, and the value is not set in @batch, the value is not included in computed attributes in the end
+    # if default is None and the value is not set in @batch, the value is not included in computed attributes in the end
     assert compute_resource_attributes(
         [], MockDeco("batch", {}), {"cpu": "1", "instance_type": None}
     ) == {"cpu": "1"}

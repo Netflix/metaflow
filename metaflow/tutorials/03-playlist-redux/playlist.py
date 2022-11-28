@@ -8,7 +8,7 @@ class PlayListFlow(FlowSpec):
 
     The flow performs the following steps:
 
-    1) Load the genre specific statistics from the MovieStatsFlow.
+    1) Load the genre-specific statistics from the MovieStatsFlow.
     2) In parallel branches:
        - A) Build a playlist from the top grossing films in the requested genre.
        - B) Choose a random movie.
@@ -55,7 +55,7 @@ class PlayListFlow(FlowSpec):
         """
         import pandas
 
-        # Concatenate all the genre specific data frames and choose a random
+        # Concatenate all the genre-specific data frames and choose a random
         # movie.
         df = pandas.concat(
             [

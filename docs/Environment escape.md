@@ -20,7 +20,7 @@ but *some* can execute in another Python environment.
 At a high-level, the environment escape plugin allows a Python interpreter to
 forward calls to another interpreter. To set semantics, we will say that a
 *client* interpreter escapes to a *server* interpreter. The *server* interpreter
-operates in a slave-like mode with regards to the *client*. To give a concrete
+operates in a slave-like mode with regard to the *client*. To give a concrete
 example, imagine a package ``data_accessor`` that is available in the base
 environment you are executing in but not in your Conda environment. When
 executing within the Conda environment, the *client* interpreter is the Conda
@@ -69,7 +69,7 @@ identifier to find the correct stub. There is therefore a **one-to-one mapping
 between stub objects on the client and backing objects on the server**.
 
 The next method called on ```job``` is ```wait``` which returns ```None```. In
-this system, by design, only certain objects are able to be transferred between
+this system, by design, only certain objects may be transferred between
 the client and the server:
 - any Python basic type; this can be extended to any object that can be pickled
   without any external library;
@@ -224,9 +224,9 @@ everything to the server:
   performs computations at the request of the client when the client is unable
   to do so.
 
-  The server is thus started by the client and the client is responsible for
-  terminating it when it dies. A big part of the client and server code consist
-  in loading the configuration for the emulated module, particularly the
+  The server is thus started by the client, and the client is responsible for
+  terminating the server when it dies. A big part of the client and server code 
+  consist in loading the configuration for the emulated module, particularly the
   overrides.
 
   The steps to bringing up the client/server connection are as follows:
@@ -274,7 +274,7 @@ used).
 
 ## Defining an emulated module
 
-To define an emulated module, you need to create a sub directory in
+To define an emulated module, you need to create a subdirectory in
 ```plugins/env_escape/configurations``` called ```emulate_<name>``` where
 ```<name>``` is the name of the library you want to emulate. It can be a "list"
 where ```__``` is the list separator; this allows multiple libraries to be
@@ -286,9 +286,9 @@ create two files:
   - ```EXPORTED_CLASSES```: This is a dictionary of dictionary describing the
     whitelisted classes. The outermost key is either a string or a tuple of
     strings and corresponds to the "module" name (it doesn't really have to be
-    the module but the prefix of the full name of the whitelisted class)). The
+    the module but the prefix of the full name of the whitelisted class). The
     inner key is a string and corresponds to the suffix of the whitelisted
-    class. Finally, the value is the class that the class maps to internally. If
+    class. Finally, the value is the class to which the class maps internally. If
     the outermost key is a tuple, all strings in that tuple will be considered
     aliases of one another.
   - ```EXPORTED_FUNCTIONS```: This is the same structure as
@@ -324,7 +324,7 @@ create two files:
   define how attributes are accessed. Note that this is not restricted to
   attributes accessed using the ```getattr``` and ```setattr``` functions but
   any attribute. Both of these functions take as arguments ```stub```,
-  ```name``` and ```func``` which is the function to call to call the remote
+  ```name``` and ```func``` which is the function to call in order to call the remote
   ```getattr``` or ```setattr```. The ```setattr``` version takes an additional
   ```value``` argument. The remote versions simply take the target object and
   the name of the attribute (and ```value``` if it is a ```setattr``` override)

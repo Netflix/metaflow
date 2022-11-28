@@ -1,5 +1,6 @@
 import json
 
+
 # Define message enums
 # Unfortunately we can't use enums because they are not supported
 # officially in Python2

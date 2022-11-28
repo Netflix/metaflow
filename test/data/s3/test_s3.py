@@ -80,14 +80,14 @@ def assert_results(
         metadata = expected_result.metadata
         range_to_match = expected_result.range
         if size is None:
-            assert s3obj.exists == False
-            assert s3obj.downloaded == False
+            assert s3obj.exists is False
+            assert s3obj.downloaded is False
         else:
-            assert s3obj.exists == True
+            assert s3obj.exists is True
             if info_only:
-                assert s3obj.downloaded == False
+                assert s3obj.downloaded is False
             else:
-                assert s3obj.downloaded == True
+                assert s3obj.downloaded is True
                 # local file exists?
                 assert os.path.exists(s3obj.path)
                 # blob is ok?
@@ -131,7 +131,7 @@ def assert_results(
                         )
                 # metadata is OK
                 if metadata is None:
-                    assert s3obj.metadata == None
+                    assert s3obj.metadata is None
                 else:
                     s3objmetadata = s3obj.metadata
                     assert s3objmetadata is not None
@@ -268,7 +268,7 @@ def test_put_one_benchmark(benchmark, tempdir, s3root, blobs, expected):
                 f.write(data.data)
             yield key, path
 
-    # Generate all files before the test so we don't time this
+    # Generate all files before the test so that we don't time this
     all_files = list(_generate_files(blobs))
 
     def _do():
@@ -755,7 +755,7 @@ def test_get_recursive(s3root, prefixes, expected):
             assert {e.key for e in s3objs} == keys
 
         local_files = [s3obj.path for s3obj in s3objs]
-    # local files must not exist outside of the S3 context
+    # local files must not exist outside the S3 context
     for path in local_files:
         assert not os.path.exists(path)
 

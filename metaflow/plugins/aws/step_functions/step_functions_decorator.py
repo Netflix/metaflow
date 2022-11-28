@@ -45,7 +45,7 @@ class StepFunctionsInternalDecorator(StepDecorator):
             # continue so no need to do anything here.
             return
 
-        # For foreaches, we need to dump the cardinality of the fanout
+        # For `foreach`s, we need to dump the cardinality of the fanout
         # into AWS DynamoDb so that AWS Step Functions can properly configure
         # the Map job, in the absence of any better message passing feature
         # between the states.
