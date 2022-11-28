@@ -1,4 +1,5 @@
 from datetime import datetime
+import io
 
 from metaflow.metaflow_config import (
     EVENT_SOURCE_URL,
@@ -87,3 +88,37 @@ def list_to_prose(items, singular, use_quotes=False, plural=None):
     else:
         result = ""
     return (item_type, result)
+
+class SourceCodeBuffer:
+
+    def __init__(self):
+        self.imports = []
+        self.debug_counter = 1
+        self.buf = io.StringIO(newline='\n')
+
+    def add_imports(self, import_names):
+        self.imports += import_names
+
+    def add_line(self, line, indent=0):
+        indenting = ""
+        for i in range(0, indent):
+            indenting += "    "
+        self.buf.write(indenting)
+        self.buf.write(line)
+        self.buf.write("\n")
+
+    def getvalue(self, line_numbers=False):
+        final = io.StringIO()
+        for i in self.imports:
+            final.write("import %s\n" % i)
+        final.write("\n")
+        final.write(self.buf.getvalue())
+        if not line_numbers:
+            return final.getvalue()
+        lines = final.getvalue().splitlines(keepends=True)
+        n = 1
+        updated = []
+        for line in lines:
+            updated.append("%d: %s" % (n, line))
+            n += 1
+        return "".join(updated)
