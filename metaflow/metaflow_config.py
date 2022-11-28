@@ -33,7 +33,7 @@ DEFAULT_AWS_CLIENT_PROVIDER = from_conf("DEFAULT_AWS_CLIENT_PROVIDER", "boto3")
 ###
 # Path to the local directory to store artifacts for 'local' datastore.
 DATASTORE_LOCAL_DIR = ".metaflow"
-DATASTORE_SYSROOT_LOCAL = from_conf("DATASTORE_SYSROOT_LOCAL", propagate=False)
+DATASTORE_SYSROOT_LOCAL = from_conf("DATASTORE_SYSROOT_LOCAL")
 # S3 bucket and prefix to store artifacts for 's3' datastore.
 DATASTORE_SYSROOT_S3 = from_conf("DATASTORE_SYSROOT_S3")
 # Azure Blob Storage container and blob prefix
@@ -46,19 +46,15 @@ DATASTORE_SYSROOT_AZURE = from_conf("DATASTORE_SYSROOT_AZURE")
 # Cache is only local on the host machine so do not propagate values
 
 # Path to the client cache
-CLIENT_CACHE_PATH = from_conf(
-    "CLIENT_CACHE_PATH", "/tmp/metaflow_client", propagate=False
-)
+CLIENT_CACHE_PATH = from_conf("CLIENT_CACHE_PATH", "/tmp/metaflow_client")
 # Maximum size (in bytes) of the cache
-CLIENT_CACHE_MAX_SIZE = from_conf("CLIENT_CACHE_MAX_SIZE", 10000, propagate=False)
+CLIENT_CACHE_MAX_SIZE = from_conf("CLIENT_CACHE_MAX_SIZE", 10000)
 # Maximum number of cached Flow and TaskDatastores in the cache
 CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT = from_conf(
-    "CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT", 50, propagate=False
+    "CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT", 50
 )
 CLIENT_CACHE_MAX_TASKDATASTORE_COUNT = from_conf(
-    "CLIENT_CACHE_MAX_TASKDATASTORE_COUNT",
-    CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT * 100,
-    propagate=False,
+    "CLIENT_CACHE_MAX_TASKDATASTORE_COUNT", CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT * 100
 )
 
 
@@ -67,8 +63,8 @@ CLIENT_CACHE_MAX_TASKDATASTORE_COUNT = from_conf(
 ###
 # Both values are included in CLIENT_PARAMS so don't propagate
 # S3 endpoint url
-S3_ENDPOINT_URL = from_conf("S3_ENDPOINT_URL", propagate=False)
-S3_VERIFY_CERTIFICATE = from_conf("S3_VERIFY_CERTIFICATE", propagate=False)
+S3_ENDPOINT_URL = from_conf("S3_ENDPOINT_URL")
+S3_VERIFY_CERTIFICATE = from_conf("S3_VERIFY_CERTIFICATE")
 
 # S3 retry configuration
 # This is useful if you want to "fail fast" on S3 operations; use with caution
@@ -111,15 +107,14 @@ DATATOOLS_LOCALROOT = from_conf(
     os.path.join(DATASTORE_SYSROOT_LOCAL, DATATOOLS_SUFFIX)
     if DATASTORE_SYSROOT_LOCAL
     else None,
-    propagate=False,
 )
 
 # The root directory to save artifact pulls in, when using S3 or Azure
-ARTIFACT_LOCALROOT = from_conf("ARTIFACT_LOCALROOT", os.getcwd(), propagate=False)
+ARTIFACT_LOCALROOT = from_conf("ARTIFACT_LOCALROOT", os.getcwd())
 
 # Cards related config variables
 CARD_SUFFIX = "mf.cards"
-CARD_LOCALROOT = from_conf("CARD_LOCALROOT", propagate=False)
+CARD_LOCALROOT = from_conf("CARD_LOCALROOT")
 CARD_S3ROOT = from_conf(
     "CARD_S3ROOT",
     os.path.join(DATASTORE_SYSROOT_S3, CARD_SUFFIX) if DATASTORE_SYSROOT_S3 else None,
@@ -151,35 +146,33 @@ AZURE_STORAGE_WORKLOAD_TYPE = from_conf(
 ###
 SERVICE_URL = from_conf("SERVICE_URL")
 SERVICE_RETRY_COUNT = from_conf("SERVICE_RETRY_COUNT", 5)
-SERVICE_AUTH_KEY = from_conf("SERVICE_AUTH_KEY", propagate=False)
+SERVICE_AUTH_KEY = from_conf("SERVICE_AUTH_KEY")
 SERVICE_HEADERS = from_conf("SERVICE_HEADERS", {})
 if SERVICE_AUTH_KEY is not None:
     SERVICE_HEADERS["x-api-key"] = SERVICE_AUTH_KEY
 # Checks version compatibility with Metadata service
-SERVICE_VERSION_CHECK = from_conf("SERVICE_VERSION_CHECK", True, propagate=False)
+SERVICE_VERSION_CHECK = from_conf("SERVICE_VERSION_CHECK", True)
 
 # Default container image
-DEFAULT_CONTAINER_IMAGE = from_conf("DEFAULT_CONTAINER_IMAGE", propagate=False)
+DEFAULT_CONTAINER_IMAGE = from_conf("DEFAULT_CONTAINER_IMAGE")
 # Default container registry
-DEFAULT_CONTAINER_REGISTRY = from_conf("DEFAULT_CONTAINER_REGISTRY", propagate=False)
+DEFAULT_CONTAINER_REGISTRY = from_conf("DEFAULT_CONTAINER_REGISTRY")
 
 ###
 # AWS Batch configuration
 ###
 # IAM role for AWS Batch container with Amazon S3 access
 # (and AWS DynamoDb access for AWS StepFunctions, if enabled)
-ECS_S3_ACCESS_IAM_ROLE = from_conf("ECS_S3_ACCESS_IAM_ROLE", propagate=False)
+ECS_S3_ACCESS_IAM_ROLE = from_conf("ECS_S3_ACCESS_IAM_ROLE")
 # IAM role for AWS Batch container for AWS Fargate
-ECS_FARGATE_EXECUTION_ROLE = from_conf("ECS_FARGATE_EXECUTION_ROLE", propagate=False)
+ECS_FARGATE_EXECUTION_ROLE = from_conf("ECS_FARGATE_EXECUTION_ROLE")
 # Job queue for AWS Batch
-BATCH_JOB_QUEUE = from_conf("BATCH_JOB_QUEUE", propagate=False)
+BATCH_JOB_QUEUE = from_conf("BATCH_JOB_QUEUE")
 # Default container image for AWS Batch
-BATCH_CONTAINER_IMAGE = from_conf(
-    "BATCH_CONTAINER_IMAGE", DEFAULT_CONTAINER_IMAGE, propagate=False
-)
+BATCH_CONTAINER_IMAGE = from_conf("BATCH_CONTAINER_IMAGE", DEFAULT_CONTAINER_IMAGE)
 # Default container registry for AWS Batch
 BATCH_CONTAINER_REGISTRY = from_conf(
-    "BATCH_CONTAINER_REGISTRY", DEFAULT_CONTAINER_REGISTRY, propagate=False
+    "BATCH_CONTAINER_REGISTRY", DEFAULT_CONTAINER_REGISTRY
 )
 # Metadata service URL for AWS Batch
 SERVICE_INTERNAL_URL = from_conf("SERVICE_INTERNAL_URL", SERVICE_URL)
@@ -188,46 +181,46 @@ SERVICE_INTERNAL_URL = from_conf("SERVICE_INTERNAL_URL", SERVICE_URL)
 # it requires `Batch:TagResource` permissions which may not be available
 # in all Metaflow deployments. Hopefully, some day we can flip the
 # default to True.
-BATCH_EMIT_TAGS = from_conf("BATCH_EMIT_TAGS", False, propagate=False)
+BATCH_EMIT_TAGS = from_conf("BATCH_EMIT_TAGS", False)
 
 ###
 # AWS Step Functions configuration
 ###
 # IAM role for AWS Step Functions with AWS Batch and AWS DynamoDb access
 # https://docs.aws.amazon.com/step-functions/latest/dg/batch-iam.html
-SFN_IAM_ROLE = from_conf("SFN_IAM_ROLE", propagate=False)
+SFN_IAM_ROLE = from_conf("SFN_IAM_ROLE")
 # AWS DynamoDb Table name (with partition key - `pathspec` of type string)
-SFN_DYNAMO_DB_TABLE = from_conf("SFN_DYNAMO_DB_TABLE", propagate=False)
+SFN_DYNAMO_DB_TABLE = from_conf("SFN_DYNAMO_DB_TABLE")
 # IAM role for AWS Events with AWS Step Functions access
 # https://docs.aws.amazon.com/eventbridge/latest/userguide/auth-and-access-control-eventbridge.html
-EVENTS_SFN_ACCESS_IAM_ROLE = from_conf("EVENTS_SFN_ACCESS_IAM_ROLE", propagate=False)
+EVENTS_SFN_ACCESS_IAM_ROLE = from_conf("EVENTS_SFN_ACCESS_IAM_ROLE")
 # Prefix for AWS Step Functions state machines. Set to stack name for Metaflow
 # sandbox.
-SFN_STATE_MACHINE_PREFIX = from_conf("SFN_STATE_MACHINE_PREFIX", propagate=False)
+SFN_STATE_MACHINE_PREFIX = from_conf("SFN_STATE_MACHINE_PREFIX")
 # Optional AWS CloudWatch Log Group ARN for emitting AWS Step Functions state
 # machine execution logs. This needs to be available when using the
 # `step-functions create --log-execution-history` command.
-SFN_EXECUTION_LOG_GROUP_ARN = from_conf("SFN_EXECUTION_LOG_GROUP_ARN", propagate=False)
+SFN_EXECUTION_LOG_GROUP_ARN = from_conf("SFN_EXECUTION_LOG_GROUP_ARN")
 
 ###
 # Kubernetes configuration
 ###
 # Kubernetes namespace to use for all objects created by Metaflow
-KUBERNETES_NAMESPACE = from_conf("KUBERNETES_NAMESPACE", "default", propagate=False)
+KUBERNETES_NAMESPACE = from_conf("KUBERNETES_NAMESPACE", "default")
 # Default service account to use by K8S jobs created by Metaflow
-KUBERNETES_SERVICE_ACCOUNT = from_conf("KUBERNETES_SERVICE_ACCOUNT", propagate=False)
+KUBERNETES_SERVICE_ACCOUNT = from_conf("KUBERNETES_SERVICE_ACCOUNT")
 # Default node selectors to use by K8S jobs created by Metaflow - foo=bar,baz=bab
-KUBERNETES_NODE_SELECTOR = from_conf("KUBERNETES_NODE_SELECTOR", "", propagate=False)
-KUBERNETES_SECRETS = from_conf("KUBERNETES_SECRETS", "", propagate=False)
+KUBERNETES_NODE_SELECTOR = from_conf("KUBERNETES_NODE_SELECTOR", "")
+KUBERNETES_SECRETS = from_conf("KUBERNETES_SECRETS", "")
 # Default GPU vendor to use by K8S jobs created by Metaflow (supports nvidia, amd)
-KUBERNETES_GPU_VENDOR = from_conf("KUBERNETES_GPU_VENDOR", "nvidia", propagate=False)
+KUBERNETES_GPU_VENDOR = from_conf("KUBERNETES_GPU_VENDOR", "nvidia")
 # Default container image for K8S
 KUBERNETES_CONTAINER_IMAGE = from_conf(
-    "KUBERNETES_CONTAINER_IMAGE", DEFAULT_CONTAINER_IMAGE, propagate=False
+    "KUBERNETES_CONTAINER_IMAGE", DEFAULT_CONTAINER_IMAGE
 )
 # Default container registry for K8S
 KUBERNETES_CONTAINER_REGISTRY = from_conf(
-    "KUBERNETES_CONTAINER_REGISTRY", DEFAULT_CONTAINER_REGISTRY, propagate=False
+    "KUBERNETES_CONTAINER_REGISTRY", DEFAULT_CONTAINER_REGISTRY
 )
 
 ##
@@ -235,10 +228,10 @@ KUBERNETES_CONTAINER_REGISTRY = from_conf(
 ##
 # This configuration sets `startup_timeout_seconds` in airflow's KubernetesPodOperator.
 AIRFLOW_KUBERNETES_STARTUP_TIMEOUT_SECONDS = from_conf(
-    "AIRFLOW_KUBERNETES_STARTUP_TIMEOUT_SECONDS", 60 * 60, propagate=False
+    "AIRFLOW_KUBERNETES_STARTUP_TIMEOUT_SECONDS", 60 * 60
 )
 # This configuration sets `kubernetes_conn_id` in airflow's KubernetesPodOperator.
-AIRFLOW_KUBERNETES_CONN_ID = from_conf("AIRFLOW_KUBERNETES_CONN_ID", propagate=False)
+AIRFLOW_KUBERNETES_CONN_ID = from_conf("AIRFLOW_KUBERNETES_CONN_ID")
 
 
 ###
@@ -252,9 +245,7 @@ CONDA_PACKAGE_AZUREROOT = from_conf("CONDA_PACKAGE_AZUREROOT")
 # Use an alternate dependency resolver for conda packages instead of conda
 # Mamba promises faster package dependency resolution times, which
 # should result in an appreciable speedup in flow environment initialization.
-CONDA_DEPENDENCY_RESOLVER = from_conf(
-    "CONDA_DEPENDENCY_RESOLVER", "conda", propagate=False
-)
+CONDA_DEPENDENCY_RESOLVER = from_conf("CONDA_DEPENDENCY_RESOLVER", "conda")
 
 ###
 # Debug configuration
@@ -268,17 +259,15 @@ for typ in DEBUG_OPTIONS:
 # AWS Sandbox configuration
 ###
 # Boolean flag for metaflow AWS sandbox access
-AWS_SANDBOX_ENABLED = from_conf("AWS_SANDBOX_ENABLED", False, propagate=False)
+AWS_SANDBOX_ENABLED = from_conf("AWS_SANDBOX_ENABLED", False)
 # Metaflow AWS sandbox auth endpoint
 AWS_SANDBOX_STS_ENDPOINT_URL = SERVICE_URL
 # Metaflow AWS sandbox API auth key
-AWS_SANDBOX_API_KEY = from_conf("AWS_SANDBOX_API_KEY", propagate=False)
+AWS_SANDBOX_API_KEY = from_conf("AWS_SANDBOX_API_KEY")
 # Internal Metadata URL
-AWS_SANDBOX_INTERNAL_SERVICE_URL = from_conf(
-    "AWS_SANDBOX_INTERNAL_SERVICE_URL", propagate=False
-)
+AWS_SANDBOX_INTERNAL_SERVICE_URL = from_conf("AWS_SANDBOX_INTERNAL_SERVICE_URL")
 # AWS region
-AWS_SANDBOX_REGION = from_conf("AWS_SANDBOX_REGION", propagate=False)
+AWS_SANDBOX_REGION = from_conf("AWS_SANDBOX_REGION")
 
 
 # Finalize configuration
@@ -286,11 +275,9 @@ if AWS_SANDBOX_ENABLED:
     os.environ["AWS_DEFAULT_REGION"] = AWS_SANDBOX_REGION
     SERVICE_INTERNAL_URL = AWS_SANDBOX_INTERNAL_SERVICE_URL
     SERVICE_HEADERS["x-api-key"] = AWS_SANDBOX_API_KEY
-    SFN_STATE_MACHINE_PREFIX = from_conf("AWS_SANDBOX_STACK_NAME", propagate=False)
+    SFN_STATE_MACHINE_PREFIX = from_conf("AWS_SANDBOX_STACK_NAME")
 
-KUBERNETES_SANDBOX_INIT_SCRIPT = from_conf(
-    "KUBERNETES_SANDBOX_INIT_SCRIPT", propagate=False
-)
+KUBERNETES_SANDBOX_INIT_SCRIPT = from_conf("KUBERNETES_SANDBOX_INIT_SCRIPT")
 
 # MAX_ATTEMPTS is the maximum number of attempts, including the first
 # task, retries, and the final fallback task and its retries.

@@ -6,12 +6,11 @@ from collections import namedtuple
 from metaflow.exception import MetaflowException
 from metaflow.util import is_stringish
 
-ConfigValue = namedtuple("ConfigValue", "value serializer is_propagate is_default")
+ConfigValue = namedtuple("ConfigValue", "value serializer is_default")
 
 NON_CHANGED_VALUES = 1
-NON_PROPAGATED_VALUES = 2
-NULL_VALUES = 4
-ALL_VALUES = 7
+NULL_VALUES = 2
+ALL_VALUES = 3
 
 
 def init_config():
@@ -44,20 +43,15 @@ def config_values(include=0):
     # are not default. This is the common use case because in all other cases, the code
     # is sufficient to recreate the value (ie: there is no external source for the value)
     for name, config_value in _all_configs.items():
-        if (
-            (config_value.value is not None or include & NULL_VALUES)
-            and (config_value.is_propagate or include & NON_PROPAGATED_VALUES)
-            and (not config_value.is_default or include & NON_CHANGED_VALUES)
+        if (config_value.value is not None or include & NULL_VALUES) and (
+            not config_value.is_default or include & NON_CHANGED_VALUES
         ):
             yield name, config_value.serializer(config_value.value)
 
 
-def from_conf(name, default=None, validate_fn=None, propagate=True):
+def from_conf(name, default=None, validate_fn=None):
     """
     First try to pull value from environment, then from metaflow config JSON
-
-    propagate indicates if this is a value that should be propagated to remote execution
-    environments.
 
     Prior to a value being returned, we will validate using validate_fn (if provided).
     Only non-None values are validated.
@@ -88,7 +82,6 @@ def from_conf(name, default=None, validate_fn=None, propagate=True):
             _all_configs[env_name] = ConfigValue(
                 value=value,
                 serializer=json.dumps,
-                is_propagate=propagate,
                 is_default=is_default,
             )
             return value
@@ -108,7 +101,6 @@ def from_conf(name, default=None, validate_fn=None, propagate=True):
     _all_configs[env_name] = ConfigValue(
         value=value,
         serializer=str,
-        is_propagate=propagate,
         is_default=is_default,
     )
     return value
