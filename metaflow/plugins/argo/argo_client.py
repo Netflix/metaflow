@@ -4,7 +4,7 @@ import sys
 
 from metaflow.exception import MetaflowException
 from metaflow.plugins.kubernetes.kubernetes_client import KubernetesClient
-
+from .util import format_sensor_name
 
 class ArgoClientException(MetaflowException):
     headline = "Argo Client error"
@@ -181,7 +181,11 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
-    def register_sensor_template(self, name, sensor_template):
+    def register_sensor_template(self, name, template=None):
+        name = format_sensor_name(name)
+        if template is None:
+            return self.disable_sensor(name)
+        sensor_template = template.to_json()
         client = self._kubernetes_client.get()
         try:
             sensor_template["metadata"][
@@ -205,7 +209,7 @@ class ArgoClient(object):
                         version=self._version,
                         namespace=self._namespace,
                         plural="sensors",
-                        body=sensor_template,
+                        body=sensor_template
                     )
                 except client.rest.ApiException as e:
                     raise ArgoClientException(

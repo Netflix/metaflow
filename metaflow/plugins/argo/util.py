@@ -45,9 +45,7 @@ def format_sensor_name(flow_name):
     # Argo's internal NATS bus throws an error when attempting to
     # create a persistent queue for the sensor when the sensor name
     # contains '.' which is NATS' topic delimiter.
-    updated = flow_name.replace("_", "").replace(".", "-").lower()
-    return "mf-" + updated + "-trigger"
-
+    return flow_name.replace("_", "").replace(".", "-").lower()
 
 def are_events_configured():
     return (

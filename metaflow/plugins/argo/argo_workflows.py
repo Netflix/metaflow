@@ -5,9 +5,8 @@ import shlex
 import sys
 import time
 from collections import defaultdict
-from urllib import parse
 
-from metaflow.current import current
+from metaflow import current
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
@@ -164,14 +163,7 @@ class ArgoWorkflows(object):
             client.register_workflow_template(
                 self.name, self._workflow_template.to_json()
             )
-            if are_events_configured():
-                if self._sensor_template is not None:
-                    client.register_sensor_template(
-                        self._sensor_template.name,
-                        self._sensor_template.to_json(),
-                    )
-                else:
-                    client.disable_sensor(format_sensor_name(self.name))
+            client.register_sensor_template(self.name, template=self._sensor_template)
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
 
@@ -1791,9 +1783,9 @@ class WorkflowLifecycleHookContainerTemplate(object):
 
 
 class SensorTemplate:
-    def __init__(self, calling_flow, parameters, reset_at):
-        self.name = format_sensor_name(calling_flow)
-        self.calling_flow = calling_flow
+    def __init__(self, target_flow, parameters, reset_at):
+        self.name = format_sensor_name(target_flow)
+        self.target_flow = target_flow
         self.parameters = parameters
         self.dependencies = []
         self.dependency_names = {}
@@ -1944,24 +1936,23 @@ class SensorTemplate:
 
     def to_json(self):
         result = self.payload.copy()
-        gen_name = self.calling_flow.replace(".", "-").replace("_", "")
         spec = {
             "dependencies": self.dependencies,
             "template": {"serviceAccountName": EVENT_SERVICE_ACCOUNT},
         }
         triggered_template = {
             "template": {
-                "name": self.name,
+                "name": self.target_flow,
                 "k8s": {
                     "source": {
                         "resource": {
                             "apiVersion": "argoproj.io/v1alpha1",
                             "kind": "Workflow",
-                            "metadata": {"generateName": gen_name + "-"},
+                            "metadata": {"generateName": self.target_flow + "-"},
                             "spec": {
                                 "arguments": {"parameters": self.parameters},
                                 "workflowTemplateRef": {
-                                    "name": self.calling_flow.replace("_", "")
+                                    "name": self.target_flow
                                 },
                             },
                         }
