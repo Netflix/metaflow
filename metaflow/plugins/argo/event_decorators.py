@@ -115,82 +115,6 @@ class TriggerDecorator(FlowDecorator):
                     raise BadResetAfterException(msg=BAD_RESET_AFTER_MSG)
 
 
-class TriggerOnFinishDecorator(TriggerDecorator):
-
-    name = "trigger_on_finish"
-    defaults = {"flow": None, "flows": [], "reset_at": ""}
-    options = {
-        "flow": dict(
-            is_flag=False,
-            show_default=True,
-            help="Trigger the current flow when the named flow completes.",
-        ),
-        "flows": dict(
-            is_flag=False,
-            show_default=False,
-            help="Trigger the current flow when all named flows complete.",
-        ),
-        "reset_at": dict(
-            is_flag=False,
-            show_default=True,
-            help="Reset wait state after specified number of hours.",
-        ),
-    }
-
-    def flow_init(
-        self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
-    ):
-        self.attributes["trigger_set"] = None
-        self.attributes["error"] = None
-        if are_events_configured():
-            self._option_values = options
-            flows = self._read_inputs()
-            self._parse_time()
-            if "project_name" in current:
-                self.attributes["trigger_set"] = TriggerSet(
-                    current.project_name, current.branch_name
-                )
-            else:
-                self.attributes["trigger_set"] = TriggerSet(None, None)
-            for flow in flows:
-                info = TriggerInfo(TriggerInfo.LIFECYCLE_EVENT)
-                info.name = flow
-                info.status = "succeeded"
-                self.attributes["trigger_set"].append(info)
-        else:
-            # Defer raising an error in case user has specified --ignore-triggers
-            self.error = {
-                "event_decorator_error": {
-                    "message": ERR_MSG,
-                    "headline": ("@%s requires eventing support" % self.name),
-                }
-            }
-
-    def _read_inputs(self):
-        self._fix_plurals()
-        flow_name = self.attributes.get("flow")
-        if flow_name == "":
-            flow_name = None
-        flow_names = self.attributes.get("flows")
-        if flow_name is None and len(flow_names) == 0:
-            raise MetaflowException(
-                msg=("@%s needs at least one flow name." % self.name)
-            )
-
-        if flow_name is not None:
-            flow_names.append(flow_name)
-        return flow_names
-
-    def _fix_plurals(self):
-        flow_name = self.attributes.get("flow")
-        if flow_name == "":
-            flow_name = None
-        flow_names = self.attributes.get("flows")
-        if type(flow_names) == str and flow_name is None:
-            self.attributes["flow"] = flow_names
-            self.attributes["flows"] = []
-
-
 class TriggerOnDecorator(TriggerDecorator):
 
     name = "trigger_on"
@@ -251,7 +175,9 @@ class TriggerOnDecorator(TriggerDecorator):
             else:
                 self.attributes["trigger_set"] = TriggerSet(None, None)
             mappings = self.attributes.get("mappings")
-            is_aggregate = (len(flows) + len(events)) > 1
+            is_aggregate = (len(flows) > 1) or (
+                events is not None and len(flows) + len(events) > 1
+            )
             validated = validate_mappings(mappings, is_aggregate)
             self._parse_time()
             for flow in flows:
@@ -318,3 +244,26 @@ class TriggerOnDecorator(TriggerDecorator):
         if type(event_names) == str and event_name is None:
             self.attributes["event"] = event_names
             self.attributes["events"] = []
+
+
+class TriggerOnFinishDecorator(TriggerOnDecorator):
+
+    name = "trigger_on_finish"
+    defaults = {"flow": None, "flows": [], "reset_at": ""}
+    options = {
+        "flow": dict(
+            is_flag=False,
+            show_default=True,
+            help="Trigger the current flow when the named flow completes.",
+        ),
+        "flows": dict(
+            is_flag=False,
+            show_default=False,
+            help="Trigger the current flow when all named flows complete.",
+        ),
+        "reset_at": dict(
+            is_flag=False,
+            show_default=True,
+            help="Reset wait state after specified number of hours.",
+        ),
+    }

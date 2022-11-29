@@ -156,7 +156,7 @@ class TriggerInfo:
         self._branch = branch
 
     def has_mappings(self):
-        return self._name in self.mappings
+        return self.mappings is not None and self._name in self.mappings
 
     def __str__(self):
         data = {
