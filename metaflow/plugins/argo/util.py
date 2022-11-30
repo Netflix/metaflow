@@ -47,14 +47,6 @@ def format_sensor_name(flow_name):
     # contains '.' which is NATS' topic delimiter.
     return flow_name.replace("_", "-").replace(".", "-").lower()
 
-def are_events_configured():
-    return (
-        EVENT_SOURCE_NAME is not None
-        and EVENT_SOURCE_URL is not None
-        and EVENT_SERVICE_ACCOUNT is not None
-    )
-
-
 def list_to_prose(items, singular, formatter=None, use_quotes=False, plural=None):
     if formatter is not None:
         items = [formatter(item) for item in items]

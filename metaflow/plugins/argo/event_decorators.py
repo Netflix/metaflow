@@ -5,7 +5,6 @@ from time import strptime
 from metaflow import current
 from metaflow.decorators import FlowDecorator
 from metaflow.exception import MetaflowException, MetaflowExceptionWrapper
-from .util import are_events_configured
 from .eventing import TriggerSet, TriggerInfo
 
 ERR_MSG = """Make sure configuration entries METAFLOW_EVENT_SOURCE_NAME, METAFLOW_EVENT_SOURCE_URL, and 
@@ -165,50 +164,40 @@ class TriggerOnDecorator(TriggerDecorator):
     ):
         self.attributes["trigger_set"] = None
         self.attributes["error"] = None
-        if are_events_configured():
-            self._option_values = options
-            (flows, events) = self._read_inputs()
-            project_name = None
-            branch_name = None
-            # @project has already been evaluated
-            if "project_name" in current:
-                project_name = current.get("project_name")
-                branch_name = current.get("branch_name")
-            else:
-                project = flow._flow_decorators.get("project")
-                if project:
-                    raise MetaflowException(
-                        "Move @project below @{}. ".format(self.name) +
-                        "Project namespacing must be applied before triggers are built."
-                    )
-            self.attributes["trigger_set"] = TriggerSet(project_name, branch_name)
-            mappings = self.attributes.get("mappings")
-            is_aggregate = (len(flows) > 1) or (
-                events is not None and len(flows) + len(events) > 1
-            )
-            validated = validate_mappings(mappings, is_aggregate)
-            self._parse_time()
-            for flow in flows:
-                info = TriggerInfo(TriggerInfo.LIFECYCLE_EVENT)
-                info.name = flow
-                info.status = "succeeded"
+        self._option_values = options
+        (flows, events) = self._read_inputs()
+        project_name = None
+        branch_name = None
+        # @project has already been evaluated
+        if "project_name" in current:
+            project_name = current.get("project_name")
+            branch_name = current.get("branch_name")
+        else:
+            project = flow._flow_decorators.get("project")
+            if project:
+                raise MetaflowException(
+                    "Move @project below @{}. ".format(self.name) +
+                    "Project namespacing must be applied before triggers are built."
+                )
+        self.attributes["trigger_set"] = TriggerSet(project_name, branch_name)
+        mappings = self.attributes.get("mappings")
+        is_aggregate = (len(flows) > 1) or (
+            events is not None and len(flows) + len(events) > 1
+        )
+        validated = validate_mappings(mappings, is_aggregate)
+        self._parse_time()
+        for flow in flows:
+            info = TriggerInfo(TriggerInfo.LIFECYCLE_EVENT)
+            info.name = flow
+            info.status = "succeeded"
+            info.mappings = validated
+            self.attributes["trigger_set"].append(info)
+        if events is not None:
+            for event in events:
+                info = TriggerInfo(TriggerInfo.USER_EVENT)
+                info.name = event
                 info.mappings = validated
                 self.attributes["trigger_set"].append(info)
-            if events is not None:
-                for event in events:
-                    info = TriggerInfo(TriggerInfo.USER_EVENT)
-                    info.name = event
-                    info.mappings = validated
-                    self.attributes["trigger_set"].append(info)
-
-        else:
-            # Defer raising an error in case user has specified --ignore-triggers
-            self.error = {
-                "event_decorator_error": {
-                    "message": ERR_MSG,
-                    "headline": ("@%s requires eventing support" % self.name),
-                }
-            }
 
     def _read_inputs(self):
         self._fix_plurals()

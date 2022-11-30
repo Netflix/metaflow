@@ -41,7 +41,6 @@ from metaflow.util import compress_list, dict_to_cli_options, to_camelcase
 from .eventing import TriggerInfo
 from .argo_client import ArgoClient
 from .util import (
-    are_events_configured,
     event_topic,
     format_sensor_name,
     list_to_prose,
@@ -139,7 +138,7 @@ class ArgoWorkflows(object):
         self._triggering_flows = []
         self._triggering_events = []
         self._reset_at = None
-
+        self._sensor_template = None
         # The values with curly braces '{{}}' are made available by Argo
         # Workflows. Unfortunately, there are a few bugs in Argo which prevent
         # us from accessing these values as liberally as we would like to - e.g,
@@ -147,7 +146,8 @@ class ArgoWorkflows(object):
         self._run_id = "argo-{{workflow.name}}"
 
         self.parameters = self._process_parameters()
-        self._sensor_template = self._compile_sensor_template()
+        if not self._ignore_events:
+            self._sensor_template = self._compile_sensor_template()
         self._workflow_template = self._compile()
         self._cron = self._cron()
 
@@ -350,7 +350,7 @@ class ArgoWorkflows(object):
                 parameters.append(dict(name=param.name))
 
         # Add parameters to hold any triggering events
-        if not self._ignore_events and are_events_configured():
+        if not self._ignore_events:
             for decorator in flow_decorators():
                 if decorator.name in ["trigger_on_finish", "trigger_on"]:
                     trigger_set = decorator.attributes["trigger_set"]
@@ -729,7 +729,7 @@ class ArgoWorkflows(object):
             )
             # If events are enabled and we're using a NATS event source
             # then inject nats-py into the environment
-            if not self._ignore_events and are_events_configured():
+            if not self._ignore_events:
                 if EVENT_SOURCE_URL.startswith("nats://"):
                     init_cmds = init_cmds.replace(
                         "pip install requests -qqq", "pip install -qqq requests nats-py"
@@ -1075,9 +1075,7 @@ class ArgoWorkflows(object):
             )
 
             if node.name == "end":
-                if self._ignore_events:
-                    return
-                elif are_events_configured():
+                if not self._ignore_events:
                     template_env = {
                         "METAFLOW_EVENT_SOURCE_NAME": EVENT_SOURCE_NAME,
                         "METAFLOW_FLOW_NAME": self.flow.name,
