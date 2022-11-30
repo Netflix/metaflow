@@ -8,7 +8,7 @@ from metaflow import current, util
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
     SERVICE_HEADERS,
-    SERVICE_URL,
+    SERVICE_INTERNAL_URL,
     CARD_S3ROOT,
     DATASTORE_SYSROOT_S3,
     DATATOOLS_S3ROOT,
@@ -180,7 +180,7 @@ class Kubernetes(object):
             .environment_variable("METAFLOW_CODE_URL", code_package_url)
             .environment_variable("METAFLOW_CODE_DS", code_package_ds)
             .environment_variable("METAFLOW_USER", user)
-            .environment_variable("METAFLOW_SERVICE_URL", SERVICE_URL)
+            .environment_variable("METAFLOW_SERVICE_URL", SERVICE_INTERNAL_URL)
             .environment_variable(
                 "METAFLOW_SERVICE_HEADERS",
                 json.dumps(SERVICE_HEADERS),

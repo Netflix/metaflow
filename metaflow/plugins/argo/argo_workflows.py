@@ -9,7 +9,7 @@ from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
     SERVICE_HEADERS,
-    SERVICE_URL,
+    SERVICE_INTERNAL_URL,
     CARD_S3ROOT,
     DATASTORE_SYSROOT_S3,
     DATATOOLS_S3ROOT,
@@ -759,7 +759,7 @@ class ArgoWorkflows(object):
                         "METAFLOW_CODE_URL": self.code_package_url,
                         "METAFLOW_CODE_SHA": self.code_package_sha,
                         "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
-                        "METAFLOW_SERVICE_URL": SERVICE_URL,
+                        "METAFLOW_SERVICE_URL": SERVICE_INTERNAL_URL,
                         "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
                         "METAFLOW_USER": "argo-workflows",
                         "METAFLOW_DATASTORE_SYSROOT_S3": DATASTORE_SYSROOT_S3,

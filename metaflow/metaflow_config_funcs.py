@@ -39,7 +39,7 @@ _all_configs = {}
 
 
 def config_values(include=0):
-    # By default, we just return non-null values that are marked as "propagate" and that
+    # By default, we just return non-null values and that
     # are not default. This is the common use case because in all other cases, the code
     # is sufficient to recreate the value (ie: there is no external source for the value)
     for name, config_value in _all_configs.items():

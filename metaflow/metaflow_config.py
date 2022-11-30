@@ -12,13 +12,16 @@ from metaflow.metaflow_config_funcs import from_conf, get_validate_choice_fn
 if sys.platform == "darwin":
     os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
 
+## NOTE: Just like Click's auto_envar_prefix `METAFLOW` (see in cli.py), all environment
+## variables here are also named METAFLOW_XXX. So, for example, in the statement:
+## `DEFAULT_DATASTORE = from_conf("DEFAULT_DATASTORE", "local")`, to override the default
+## value, either set `METAFLOW_DEFAULT_DATASTORE` in your configuration file or set
+## an environment variable called `METAFLOW_DEFAULT_DATASTORE`
 
 ###
 # Default configuration
 ###
 
-# Propagate defaults to be able to read what the user sets in configuration files/envs;
-# this will *not* propagate things set on the command line
 DEFAULT_DATASTORE = from_conf("DEFAULT_DATASTORE", "local")
 DEFAULT_ENVIRONMENT = from_conf("DEFAULT_ENVIRONMENT", "local")
 DEFAULT_EVENT_LOGGER = from_conf("DEFAULT_EVENT_LOGGER", "nullSidecarLogger")
@@ -43,7 +46,6 @@ DATASTORE_SYSROOT_AZURE = from_conf("DATASTORE_SYSROOT_AZURE")
 ###
 # Datastore local cache
 ###
-# Cache is only local on the host machine so do not propagate values
 
 # Path to the client cache
 CLIENT_CACHE_PATH = from_conf("CLIENT_CACHE_PATH", "/tmp/metaflow_client")
@@ -61,8 +63,6 @@ CLIENT_CACHE_MAX_TASKDATASTORE_COUNT = from_conf(
 ###
 # Datatools (S3) configuration
 ###
-# Both values are included in CLIENT_PARAMS so don't propagate
-# S3 endpoint url
 S3_ENDPOINT_URL = from_conf("S3_ENDPOINT_URL")
 S3_VERIFY_CERTIFICATE = from_conf("S3_VERIFY_CERTIFICATE")
 

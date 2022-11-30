@@ -10,7 +10,7 @@ from metaflow import util
 from metaflow.datatools.s3tail import S3Tail
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
-    INTERNAL_SERVICE_URL,
+    SERVICE_INTERNAL_URL,
     DATATOOLS_S3ROOT,
     DATASTORE_SYSROOT_S3,
     DEFAULT_METADATA,
@@ -222,7 +222,7 @@ class Batch(object):
             .environment_variable("METAFLOW_CODE_URL", code_package_url)
             .environment_variable("METAFLOW_CODE_DS", code_package_ds)
             .environment_variable("METAFLOW_USER", attrs["metaflow.user"])
-            .environment_variable("METAFLOW_SERVICE_URL", INTERNAL_SERVICE_URL)
+            .environment_variable("METAFLOW_SERVICE_URL", SERVICE_INTERNAL_URL)
             .environment_variable(
                 "METAFLOW_SERVICE_HEADERS", json.dumps(SERVICE_HEADERS)
             )
