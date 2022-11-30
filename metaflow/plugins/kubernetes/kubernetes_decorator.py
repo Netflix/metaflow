@@ -156,7 +156,10 @@ class KubernetesDecorator(StepDecorator):
         for deco in decos:
             if isinstance(deco, ResourcesDecorator):
                 for k, v in deco.attributes.items():
-                    # TODO: Special case GPUs when they are introduced in @resources.
+                    # If GPU count is specified, explicitly set it in self.attributes.
+                    if k == "gpu" and v != None:
+                        self.attributes["gpu"] = v
+
                     if k in self.attributes:
                         if self.defaults[k] is None:
                             # skip if expected value isn't an int/float
