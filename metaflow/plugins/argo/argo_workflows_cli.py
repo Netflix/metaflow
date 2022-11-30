@@ -207,7 +207,14 @@ def create(
             )
         flow.schedule()
         obj.echo("What will trigger execution of the workflow:", bold=True)
-        obj.echo(flow.trigger_explanation(), indent=True)
+        (cron_reason, event_reason) = flow.trigger_reasons()
+        if cron_reason is None:
+            obj.echo(event_reason, indent=True)
+        else:
+            obj.echo(cron_reason, indent=True)
+            if event_reason is not None:
+                obj.echo("OR", indent=True)
+                obj.echo(event_reason, indent=True)
 
         # response = ArgoWorkflows.trigger(obj.workflow_name)
         # run_id = "argo-" + response["metadata"]["name"]

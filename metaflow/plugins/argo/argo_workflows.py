@@ -222,14 +222,22 @@ class ArgoWorkflows(object):
         except Exception as e:
             raise ArgoWorkflowsSchedulingException(str(e))
 
-    def trigger_explanation(self):
+    def trigger_reasons(self):
+        cron_reason = None
+        event_reason = None
         if self._cron:
-            return (
-                "This workflow triggers automatically via the CronWorkflow *%s*."
-                % self.name
-            )
-        elif len(self._triggering_flows) > 0 or len(self._triggering_events) > 0:
-            (flow_ref, flows) = list_to_prose(self._triggering_flows, "flow")
+            cron_reason = ("This workflow triggers automatically via the CronWorkflow *%s*."
+                % self.name)
+
+        if len(self._triggering_flows) > 0 or len(self._triggering_events) > 0:
+
+            def format_flow_name(flow_name):
+                (project, branch) = project_and_branch()
+                if project is not None:
+                    flow_name = ".".join([project.replace("_", ""), branch, flow_name])
+                return flow_name.lower()
+
+            (flow_ref, flows) = list_to_prose(self._triggering_flows, "flow", formatter=format_flow_name)
             (event_ref, events) = list_to_prose(
                 self._triggering_events, "event", use_quotes=True
             )
@@ -237,9 +245,9 @@ class ArgoWorkflows(object):
             if flows != "":
                 template = "%s %s %s %s"
                 if flow_ref == "flow":
-                    message = template % (message, flow_ref, flows, "succeeds")
+                    message = template % (message, flow_ref, flows, "finishes")
                 else:
-                    message = template % (message, flow_ref, flows, "succeed")
+                    message = template % (message, flow_ref, flows, "finish")
                 if events != "":
                     template = "%s and the %s %s %s."
                     if event_ref == "event":
@@ -271,10 +279,11 @@ class ArgoWorkflows(object):
                 )
             else:
                 message += "."
-            return message
+            event_reason = message
 
-        else:
-            return "No triggers defined. You need to launch this workflow manually."
+        if cron_reason is None and event_reason is None:
+            cron_reason = "No triggers defined. You need to launch this workflow manually."
+        return (cron_reason, event_reason)
 
     @classmethod
     def get_existing_deployment(cls, name):

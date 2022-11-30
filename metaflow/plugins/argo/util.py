@@ -55,7 +55,9 @@ def are_events_configured():
     )
 
 
-def list_to_prose(items, singular, use_quotes=False, plural=None):
+def list_to_prose(items, singular, formatter=None, use_quotes=False, plural=None):
+    if formatter is not None:
+        items = [formatter(item) for item in items]
     item_count = len(items)
     if plural is None:
         plural = singular + "s"
