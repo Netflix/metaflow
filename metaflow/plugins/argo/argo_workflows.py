@@ -1696,7 +1696,8 @@ class WorkflowLifecycleHookContainerTemplate(object):
 
     def _build_command(self, event_name):
         psb = SourceCodeBuffer()
-        if EVENT_SOURCE_URL.startswith("nats://"):
+        using_nats = EVENT_SOURCE_URL.startswith("nats://")
+        if using_nats:
             commands = ["pip install -qqq nats-py"]
             psb.add_imports(["asyncio", "datetime", "json", "pathlib", "os", "re", "sys", "time", "urllib.parse", "nats"])
             psb.add_line('async def send_it(payload):')
@@ -1711,11 +1712,11 @@ class WorkflowLifecycleHookContainerTemplate(object):
         psb.add_line('event_url=os.getenv("METAFLOW_EVENT_SOURCE_URL")')
         psb.add_line('run_id=os.getenv("METAFLOW_RUN_ID")')
         psb.add_line('flow_name=os.getenv("METAFLOW_FLOW_NAME")')
-        psb.add_line('event_name="%s"' % event_name.replace(".", "-"))
+        psb.add_line('event_name="%s"' % event_name)
         psb.add_line('timestamp=int(datetime.datetime.timestamp(datetime.datetime.utcnow()) * 1000)',)
         psb.add_line('pathspec="%s/%s" % (flow_name, run_id)')
         psb.add_line('payload=json.dumps({"payload":{"event_name":event_name,"event_type":"metaflow_system","data":{},"pathspec":pathspec,"timestamp":timestamp}})')
-        if EVENT_SOURCE_URL.startswith("nats://"):
+        if using_nats:
             psb.add_line('parsed=urllib.parse.urlparse(event_url)')
             psb.add_line('server=parsed.netloc')
             psb.add_line('topic=parsed.path[1:]')
