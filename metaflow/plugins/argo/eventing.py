@@ -7,6 +7,7 @@ import sys
 from urllib import parse
 
 from metaflow.metaflow_config import EVENT_SOURCE_URL
+from metaflow.plugins.project_decorator import apply_project_namespacing
 from metaflow.current import current
 from metaflow.exception import MetaflowException, MetaflowExceptionWrapper
 from metaflow.plugins.argo.util import (
@@ -32,20 +33,19 @@ def make_event_body(event_name, event_type, event_data=dict()):
     }
 
 
-def send_event(event_name, event_data={}):
+def send_event(event_name, event_data={}, use_project=False):
     flow_name = current_flow_name()
-    (project, branch) = project_and_branch()
-    if project is not None:
-        event_name = (
-            "%s-%s-%s"
+    if use_project:
+        (project, branch) = project_and_branch()
+        if project is not None:
+            event_name = (
+            "%s.%s.%s"
             % (
                 project.replace("_", ""),
                 branch,
                 event_name,
             )
-        ).replace(".", "-")
-    else:
-        event_name = event_name.replace(".", "-")
+        )
     if re.fullmatch("[a-z0-9\-_\.]+", event_name) is None:
         raise BadEventNameException(
             ("Attempted to send '%s'. " % event_name)
@@ -143,13 +143,14 @@ class TriggerInfo:
 
     @property
     def formatted_name(self):
-        if self._project is not None and self._branch is not None:
-            formatted = "-".join(
-                [self._project.replace("_", "-"), self._branch, self._name]
-            ).lower()
+        if self.type == TriggerInfo.LIFECYCLE_EVENT:
+            if self._project is not None:
+                formatted = apply_project_namespacing(self._name, self._project, self._branch)
+            else:
+                formatted = self._name.lower()
         else:
             formatted = self._name.lower()
-        return formatted.replace(".", "-")
+        return formatted
 
     def add_namespacing(self, project, branch):
         self._project = project

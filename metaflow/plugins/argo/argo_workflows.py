@@ -232,9 +232,10 @@ class ArgoWorkflows(object):
         if len(self._triggering_flows) > 0 or len(self._triggering_events) > 0:
 
             def format_flow_name(flow_name):
+                from metaflow.plugins.project_decorator import apply_project_namespacing
                 (project, branch) = project_and_branch()
                 if project is not None:
-                    flow_name = ".".join([project.replace("_", ""), branch, flow_name])
+                    flow_name = apply_project_namespacing(flow_name, project, branch)
                 return flow_name.lower()
 
             (flow_ref, flows) = list_to_prose(self._triggering_flows, "flow", formatter=format_flow_name)
@@ -277,8 +278,6 @@ class ArgoWorkflows(object):
                     message,
                     time.strftime("%H:%M UTC", self._reset_at),
                 )
-            else:
-                message += "."
             event_reason = message
 
         if cron_reason is None and event_reason is None:

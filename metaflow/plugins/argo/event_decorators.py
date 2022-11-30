@@ -168,12 +168,20 @@ class TriggerOnDecorator(TriggerDecorator):
         if are_events_configured():
             self._option_values = options
             (flows, events) = self._read_inputs()
+            project_name = None
+            branch_name = None
+            # @project has already been evaluated
             if "project_name" in current:
-                self.attributes["trigger_set"] = TriggerSet(
-                    current.project_name, current.branch_name
-                )
+                project_name = current.get("project_name")
+                branch_name = current.get("branch_name")
             else:
-                self.attributes["trigger_set"] = TriggerSet(None, None)
+                project = flow._flow_decorators.get("project")
+                if project:
+                    raise MetaflowException(
+                        "Move @project below @{}. ".format(self.name) +
+                        "Project namespacing must be applied before triggers are built."
+                    )
+            self.attributes["trigger_set"] = TriggerSet(project_name, branch_name)
             mappings = self.attributes.get("mappings")
             is_aggregate = (len(flows) > 1) or (
                 events is not None and len(flows) + len(events) > 1
