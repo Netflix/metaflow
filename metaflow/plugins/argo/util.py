@@ -45,7 +45,7 @@ def format_sensor_name(flow_name):
     # Argo's internal NATS bus throws an error when attempting to
     # create a persistent queue for the sensor when the sensor name
     # contains '.' which is NATS' topic delimiter.
-    return flow_name.replace("_", "-").replace(".", "-").lower()
+    return flow_name.replace(".", "-").lower()
 
 def list_to_prose(items, singular, formatter=None, use_quotes=False, plural=None):
     if formatter is not None:

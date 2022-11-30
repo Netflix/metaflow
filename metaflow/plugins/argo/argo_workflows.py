@@ -476,7 +476,7 @@ class ArgoWorkflows(object):
                 # Set the entrypoint to flow name
                 .entrypoint(self.flow.name)
                 # Set succeeded lifecycle hook
-                .lifecycle_hooks(self.flow.name, self._ignore_events)
+                .lifecycle_hooks(self._ignore_events)
                 # Set metadata update hook
                 .metadata_update_hook(self._sensor_template)
                 # Top-level DAG template(s)
@@ -1095,7 +1095,16 @@ class ArgoWorkflows(object):
                         yield self._make_metadata_hook_container_template(resources["image"], template_env)
 
     def _make_lifecycle_hook_container_template(self, image, env, status):
-        t = WorkflowLifecycleHookContainerTemplate(image, self.name, status)
+        (project, _) = project_and_branch()
+        chunks = self.name.split(".")
+        flow_name = self.name
+        if project is not None:
+            chunks = self.name.split(".")
+            if len(chunks) > 1:
+                chunks[0] = project
+                flow_name = ".".join(chunks)
+        event_name = "{}.finished".format(flow_name)
+        t = WorkflowLifecycleHookContainerTemplate(image, event_name, status)
         t.set_env_vars(env)
         return t
 
@@ -1291,10 +1300,9 @@ class WorkflowSpec(object):
             self.payload["templates"].append(template.to_json())
         return self
 
-    def lifecycle_hooks(self, name, ignore_events):
+    def lifecycle_hooks(self, ignore_events):
         if ignore_events:
             return self
-        name = name.replace("_", "-").lower()
         success = {
             "template": "on-succeeded",
             "expression": 'workflow.status == "Succeeded"',
@@ -1837,7 +1845,7 @@ class SensorTemplate:
                 "exprs": [
                     {
                         "expr": (
-                            'event_name == "%s" && event_type == "metaflow_system"'
+                            'event_name == "%s.finished" && event_type == "metaflow_system"'
                             % (info.formatted_name)
                         ),
                         "fields": [

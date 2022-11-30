@@ -41,7 +41,7 @@ def send_event(event_name, event_data={}, use_project=False):
             event_name = (
             "%s.%s.%s"
             % (
-                project.replace("_", ""),
+                project,
                 branch,
                 event_name,
             )
@@ -146,6 +146,9 @@ class TriggerInfo:
         if self.type == TriggerInfo.LIFECYCLE_EVENT:
             if self._project is not None:
                 formatted = apply_project_namespacing(self._name, self._project, self._branch)
+                chunks = formatted.split(".")
+                chunks[0] = self._project
+                formatted = ".".join(chunks)
             else:
                 formatted = self._name.lower()
         else:
