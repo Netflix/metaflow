@@ -145,7 +145,7 @@ class TriggerInfo:
     def formatted_name(self):
         if self._project is not None and self._branch is not None:
             formatted = "-".join(
-                [self._project.replace("_", ""), self._branch, self._name]
+                [self._project.replace("_", "-"), self._branch, self._name]
             ).lower()
         else:
             formatted = self._name.lower()

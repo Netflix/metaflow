@@ -1845,11 +1845,9 @@ class SensorTemplate:
                 "exprs": [
                     {
                         "expr": (
-                            'event_name == "%s" && event_type == "metaflow_user"'
-                            % (info.formatted_name)
+                            'event_name == "%s"' % (info.name)
                         ),
                         "fields": [
-                            {"name": "event_type", "path": "body.payload.event_type"},
                             {"name": "event_name", "path": "body.payload.event_name"},
                         ],
                     },

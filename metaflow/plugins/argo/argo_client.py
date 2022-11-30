@@ -181,10 +181,10 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
-    def register_sensor_template(self, name, template=None):
-        name = format_sensor_name(name)
+    def register_sensor_template(self, wf_template_name, template=None):
+        wf_template_name = format_sensor_name(wf_template_name)
         if template is None:
-            return self.disable_sensor(name)
+            return self.disable_sensor(wf_template_name)
         sensor_template = template.to_json()
         client = self._kubernetes_client.get()
         try:
@@ -195,7 +195,7 @@ class ArgoClient(object):
                 version=self._version,
                 namespace=self._namespace,
                 plural="sensors",
-                name=name,
+                name=wf_template_name,
             )[
                 "metadata"
             ][
@@ -227,7 +227,7 @@ class ArgoClient(object):
                 version=self._version,
                 namespace=self._namespace,
                 plural="sensors",
-                name=name,
+                name=wf_template_name,
                 body=sensor_template,
             )
         except client.rest.ApiException as e:
@@ -246,13 +246,13 @@ class ArgoClient(object):
                 name=name,
             )
             del sensor["status"]
-            # Change expression to something which will never match, effectively
+            # Change expression to something which should never match, effectively
             # disabling the trigger
             first_dep = sensor["spec"]["dependencies"][0]
             first_dep["filters"] = {
                 "exprs": [
                     {
-                        "expr": 'event_name == ""',
+                        "expr": 'event_name == "__disabled__"',
                         "fields": [
                             {
                                 "name": "event_name",
