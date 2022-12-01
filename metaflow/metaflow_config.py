@@ -107,9 +107,9 @@ DATATOOLS_AZUREROOT = from_conf(
 # Note: we do not expose an actual datatools library for GS (like we do for S3)
 # Similar to DATATOOLS_LOCALROOT, this is used ONLY by the IncludeFile's internal implementation.
 DATATOOLS_GSROOT = from_conf(
-    "METAFLOW_DATATOOLS_GSROOT",
-    os.path.join(from_conf("METAFLOW_DATASTORE_SYSROOT_GS"), DATATOOLS_SUFFIX)
-    if from_conf("METAFLOW_DATASTORE_SYSROOT_GS")
+    "DATATOOLS_GSROOT",
+    os.path.join(DATASTORE_SYSROOT_GS, DATATOOLS_SUFFIX)
+    if DATASTORE_SYSROOT_GS
     else None,
 )
 # Local datatools root location
