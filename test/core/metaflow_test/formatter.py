@@ -19,7 +19,7 @@ class FlowFormatter(object):
         self.valid = True
 
         for step in self.steps:
-            if step.required and not step in self.used:
+            if step.required and step not in self.used:
                 self.valid = False
 
     def _format_method(self, step):

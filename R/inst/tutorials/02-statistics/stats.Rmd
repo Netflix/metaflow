@@ -5,7 +5,7 @@ output:
     df_print: paged
 ---
 
-MovieStatsFlow loads the movie metadata CSV file into a Pandas Dataframe and computes some movie genre specific statistics. You can use this notebook and the Metaflow client to eyeball the results and make some simple plots.
+MovieStatsFlow loads the movie metadata CSV file into a Pandas Dataframe and computes some movie genre-specific statistics. You can use this notebook and the Metaflow client to eyeball the results and make some simple plots.
 
 ```{r}
 suppressPackageStartupMessages(library(metaflow))

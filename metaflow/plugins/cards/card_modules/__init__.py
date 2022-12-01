@@ -37,7 +37,8 @@ def _get_external_card_packages():
             # - a regular package support
             card_packages.append(m.module)
         else:
-            # This is to support current system where you have a namespace package and then sub packages that have __init__.py
+            # This is to support current system where you have a namespace package and then sub packages
+            # that have __init__.py
             for _, card_mod, ispkg_c in iter_namespace(m.module):
                 # Iterate submodules of metaflow_extensions.X.plugins.cards
                 # For example metaflow_extensions.X.plugins.cards.monitoring
@@ -80,7 +81,7 @@ def _load_external_cards():
                     # every card should only be inheriting a MetaflowCard
                     continue
                 if not getattr(c, "type", None):
-                    # todo Warn user of non existant `type` in MetaflowCard
+                    # todo Warn user of nonexistent `type` in MetaflowCard
                     continue
                 if c.type in external_cards:
                     # todo Warn user of duplicate card

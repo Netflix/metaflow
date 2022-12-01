@@ -7,8 +7,8 @@ import os
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
-    DATATOOLS_DEFAULT_CLIENT_PARAMS,
-    DATATOOLS_DEFAULT_SESSION_VARS,
+    DATATOOLS_CLIENT_PARAMS,
+    DATATOOLS_SESSION_VARS,
     S3_RETRY_COUNT,
     RETRY_WARNING_THRESHOLD,
 )
@@ -27,12 +27,8 @@ def get_s3_client(s3_role_arn=None, s3_session_vars=None, s3_client_params=None)
         "s3",
         with_error=True,
         role_arn=s3_role_arn,
-        session_vars=s3_session_vars
-        if s3_session_vars
-        else DATATOOLS_DEFAULT_SESSION_VARS,
-        client_params=s3_client_params
-        if s3_client_params
-        else DATATOOLS_DEFAULT_CLIENT_PARAMS,
+        session_vars=s3_session_vars if s3_session_vars else DATATOOLS_SESSION_VARS,
+        client_params=s3_client_params if s3_client_params else DATATOOLS_CLIENT_PARAMS,
     )
 
 
@@ -78,7 +74,7 @@ def aws_retry(f):
                 last_exc = ex
                 # exponential backoff for real failures
                 if not (TEST_S3_RETRY and i == 0):
-                    time.sleep(2 ** i + random.randint(0, 5))
+                    time.sleep(2**i + random.randint(0, 5))
         raise last_exc
 
     return retry_wrapper
@@ -89,7 +85,7 @@ def aws_retry(f):
 # because of https://bugs.python.org/issue42853 (Py3 bug); this also helps
 # keep memory consumption lower
 # NOTE: For some weird reason, if you pass a large value to
-# read, it delays the call so we always pass it either what
+# read it delays the call, so we always pass it either what
 # remains or 2GB, whichever is smallest.
 def read_in_chunks(dst, src, src_sz, max_chunk_size):
     remaining = src_sz

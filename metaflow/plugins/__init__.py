@@ -15,7 +15,7 @@ def _merge_lists(base, overrides, attr):
 
 
 def _merge_funcs(base_func, override_func):
-    # IMPORTANT: This is a `get_plugin_cli` type of function and we need to *delay*
+    # IMPORTANT: This is a `get_plugin_cli` type of function, and we need to *delay*
     # evaluation of it until after the flowspec is loaded.
     old_default = base_func.__defaults__[0]
     r = lambda: base_func(old_default) + override_func()

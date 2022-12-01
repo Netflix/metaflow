@@ -52,7 +52,7 @@ class ParallelDecorator(StepDecorator):
             return _step_func_with_setup
 
     def setup_distributed_env(self, flow):
-        # Overridden by subclasses to setup particular framework's environment.
+        # Overridden by subclasses to set up particular framework's environment.
         pass
 
 

@@ -152,7 +152,7 @@ class TaskDataStore(object):
                 if self._attempt is None:
                     self._attempt = max_attempt
                 elif max_attempt is None or self._attempt > max_attempt:
-                    # In this case, the attempt does not exist so we can't load
+                    # In this case the attempt does not exist, so we can't load
                     # anything
                     self._objects = {}
                     self._info = {}
@@ -576,7 +576,7 @@ class TaskDataStore(object):
             # Conservatively check if the actual object is None,
             # in case the artifact is stored using a different python version.
             # Note that if an object is None and stored in Py2 and accessed in
-            # Py3, this test will fail and we will fallback to the slow path. This
+            # Py3, this test will fail and we will fall back to the slow path. This
             # is intended (being conservative)
             if obj_type == str(type(None)):
                 return True
@@ -688,7 +688,7 @@ class TaskDataStore(object):
             self._info.update(flow._datastore._info)
 
         # we create a list of valid_artifacts in advance, outside of
-        # artifacts_iter so we can provide a len_hint below
+        # artifacts_iter, so we can provide a len_hint below
         valid_artifacts = []
         for var in dir(flow):
             if var.startswith("__") or var in flow._EPHEMERAL:

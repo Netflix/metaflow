@@ -21,7 +21,7 @@ class CondaEnvironment(MetaflowEnvironment):
         self.flow = flow
         self.local_root = None
         # A conda environment sits on top of whatever default environment
-        # the user has so we get that environment to be able to forward
+        # the user has, so we get that environment to be able to forward
         # any calls we don't handle specifically to that one.
         from ...plugins import ENVIRONMENTS
         from metaflow.metaflow_config import DEFAULT_ENVIRONMENT

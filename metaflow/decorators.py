@@ -128,7 +128,7 @@ class Decorator(object):
         attrs = {}
         # TODO: Do we really want to allow spaces in the names of attributes?!?
         for a in re.split(""",(?=[\s\w]+=)""", deco_spec):
-            name, val = a.split("=")
+            name, val = a.split("=", 1)
             try:
                 val_parsed = json.loads(val.strip().replace('\\"', '"'))
             except json.JSONDecodeError:
@@ -177,7 +177,7 @@ class FlowDecorator(Decorator):
     options = {}
 
     def __init__(self, *args, **kwargs):
-        # Note that this assumes we are executing one flow per process so we have a global list of
+        # Note that this assumes we are executing one flow per process, so we have a global list of
         # _flow_decorators. A similar setup is used in parameters.
         self._flow_decorators.append(self)
         super(FlowDecorator, self).__init__(*args, **kwargs)
@@ -196,7 +196,7 @@ class FlowDecorator(Decorator):
         options that should be passed to subprocesses (tasks). The option
         names should be a subset of the keys in self.options.
 
-        If the decorator has a non-empty set of options in self.options, you
+        If the decorator has a non-empty set of options in `self.options`, you
         probably want to return the assigned values in this method.
         """
         return []

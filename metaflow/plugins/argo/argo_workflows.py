@@ -8,9 +8,9 @@ from metaflow import current
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
-    BATCH_METADATA_SERVICE_HEADERS,
-    BATCH_METADATA_SERVICE_URL,
-    DATASTORE_CARD_S3ROOT,
+    SERVICE_HEADERS,
+    SERVICE_INTERNAL_URL,
+    CARD_S3ROOT,
     DATASTORE_SYSROOT_S3,
     DATATOOLS_S3ROOT,
     DEFAULT_METADATA,
@@ -21,7 +21,7 @@ from metaflow.metaflow_config import (
     S3_ENDPOINT_URL,
     AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
     DATASTORE_SYSROOT_AZURE,
-    DATASTORE_CARD_AZUREROOT,
+    CARD_AZUREROOT,
 )
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
@@ -79,7 +79,7 @@ class ArgoWorkflows(object):
         # scheduling new steps as soon as it detects that one of the DAG nodes
         # has failed. After waiting for all the scheduled DAG nodes to run till
         # completion, Argo with fail the DAG. This implies that after a node
-        # has failed, it may be a while before the entire DAG is marked as
+        # has failed, it may be awhile before the entire DAG is marked as
         # failed. There is nothing Metaflow can do here for failing even
         # faster (as of Argo 3.2).
         #
@@ -269,7 +269,7 @@ class ArgoWorkflows(object):
         # Steps in FlowSpec are represented as DAGTasks.
         # A DAGTask can reference to -
         #     a ContainerTemplate (for linear steps..) or
-        #     another DAGTemplate (for nested foreaches).
+        #     another DAGTemplate (for nested `foreach`s).
         #
         # While we could have very well inlined container templates inside a DAGTask,
         # unfortunately Argo variable substitution ({{pod.name}}) doesn't work as
@@ -576,7 +576,7 @@ class ArgoWorkflows(object):
                 task_str += "-{{inputs.parameters.input-paths}}"
             if any(self.graph[n].type == "foreach" for n in node.in_funcs):
                 task_str += "-{{inputs.parameters.split-index}}"
-            # Generated task_ids need to be non numeric - see register_task_id in
+            # Generated task_ids need to be non-numeric - see register_task_id in
             # service.py. We do so by prefixing `t-`
             task_id_expr = (
                 "export METAFLOW_TASK_ID="
@@ -670,8 +670,8 @@ class ArgoWorkflows(object):
                 if self.tags:
                     init.extend("--tag %s" % tag for tag in self.tags)
                 # if the start step gets retried, we must be careful
-                # not to regenerate multiple parameters tasks. Hence
-                # we check first if _parameters exists already
+                # not to regenerate multiple parameters tasks. Hence,
+                # we check first if _parameters exists already.
                 exists = entrypoint + [
                     "dump",
                     "--max-value-size=0",
@@ -744,7 +744,7 @@ class ArgoWorkflows(object):
             # variables -
             #   (1) User-specified environment variables through @environment
             #   (2) Metaflow runtime specific environment variables
-            #   (3) @kubernetes, @argo_workflows_internal book-keeping environment
+            #   (3) @kubernetes, @argo_workflows_internal bookkeeping environment
             #       variables
             env = dict(
                 [deco for deco in node.decorators if deco.name == "environment"][
@@ -759,16 +759,14 @@ class ArgoWorkflows(object):
                         "METAFLOW_CODE_URL": self.code_package_url,
                         "METAFLOW_CODE_SHA": self.code_package_sha,
                         "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
-                        "METAFLOW_SERVICE_URL": BATCH_METADATA_SERVICE_URL,
-                        "METAFLOW_SERVICE_HEADERS": json.dumps(
-                            BATCH_METADATA_SERVICE_HEADERS
-                        ),
+                        "METAFLOW_SERVICE_URL": SERVICE_INTERNAL_URL,
+                        "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
                         "METAFLOW_USER": "argo-workflows",
                         "METAFLOW_DATASTORE_SYSROOT_S3": DATASTORE_SYSROOT_S3,
                         "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
                         "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
                         "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
-                        "METAFLOW_CARD_S3ROOT": DATASTORE_CARD_S3ROOT,
+                        "METAFLOW_CARD_S3ROOT": CARD_S3ROOT,
                         "METAFLOW_KUBERNETES_WORKLOAD": 1,
                         "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
                         "METAFLOW_OWNER": self.username,
@@ -799,7 +797,7 @@ class ArgoWorkflows(object):
                 "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
             ] = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
             env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = DATASTORE_SYSROOT_AZURE
-            env["METAFLOW_DATASTORE_CARD_AZUREROOT"] = DATASTORE_CARD_AZUREROOT
+            env["METAFLOW_CARD_AZUREROOT"] = CARD_AZUREROOT
 
             metaflow_version = self.environment.get_environment_info()
             metaflow_version["flow_name"] = self.graph.name
@@ -857,7 +855,7 @@ class ArgoWorkflows(object):
                     minutes_between_retries=minutes_between_retries,
                 ).metadata(
                     ObjectMeta().annotation("metaflow/step_name", node.name)
-                    # Unfortuntely, we can't set the task_id since it is generated
+                    # Unfortunately, we can't set the task_id since it is generated
                     # inside the pod. However, it can be inferred from the annotation
                     # set by argo-workflows - `workflows.argoproj.io/outputs` - refer
                     # the field 'task-id' in 'parameters'
@@ -1185,7 +1183,7 @@ class Template(object):
         return self
 
     def container(self, container):
-        # Lucklily this can simply be V1Container and we are spared from writing more
+        # Luckily this can simply be V1Container and we are spared from writing more
         # boilerplate - https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1Container.md.
         self.payload["container"] = container
         return self

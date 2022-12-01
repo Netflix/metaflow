@@ -42,9 +42,12 @@ def read_file(path):
 
 class DefaultComponent(MetaflowCardComponent):
     """
-    The `DefaultCard` and the `BlankCard` use a JS framework that build the HTML dynamically from JSON. The `DefaultComponent` is the base component that helps build the JSON when `render` is called.
+    The `DefaultCard` and the `BlankCard` use a JS framework that build the HTML dynamically from JSON.
+    The `DefaultComponent` is the base component that helps build the JSON when `render` is called.
 
-    The underlying JS framewok consists of various types of objects. These can be found in: "metaflow/plugins/cards/ui/types.ts". The `type` attribute in a `DefaultComponent` corresponds to the type of component in the Javascript framework.
+    The underlying JS framework consists of various types of objects.
+    These can be found in: "metaflow/plugins/cards/ui/types.ts".
+    The `type` attribute in a `DefaultComponent` corresponds to the type of component in the Javascript framework.
     """
 
     type = None
@@ -443,12 +446,12 @@ class TaskInfoComponent(MetaflowCardComponent):
             if k not in param_ids
         ]
         if len(artifactlist) > 0:
-            artrifact_component = ArtifactsComponent(data=artifactlist).render()
+            artifact_component = ArtifactsComponent(data=artifactlist).render()
         else:
-            artrifact_component = TitleComponent(text="No Artifacts")
+            artifact_component = TitleComponent(text="No Artifacts")
 
         artifact_section = SectionComponent(
-            title="Artifacts", contents=[artrifact_component]
+            title="Artifacts", contents=[artifact_component]
         ).render()
         dag_component = SectionComponent(
             title="DAG", contents=[DagComponent(data=task_data_dict["graph"]).render()]

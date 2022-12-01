@@ -319,7 +319,7 @@ class FileCache(object):
 
     def _garbage_collect(self):
         now = time.time()
-        while self._objects and self._total > self._max_size * 1024 ** 2:
+        while self._objects and self._total > self._max_size * 1024**2:
             if now - self._objects[0][0] < NEW_FILE_QUARANTINE:
                 break
             ctime, size, path = self._objects.pop(0)

@@ -22,7 +22,7 @@ class KubernetesProviderNotFound(Exception):
 
 
 class ForeachIncompatibleException(Exception):
-    headline = "Airflow version is incompatible to support Metaflow foreach's."
+    headline = "Airflow version is incompatible to support Metaflow `foreach`s."
 
 
 class IncompatibleVersionException(Exception):
@@ -38,7 +38,7 @@ class IncompatibleVersionException(Exception):
 
 class IncompatibleKubernetesProviderVersionException(Exception):
     headline = (
-        "Kubernetes Provider version is incompatible with Metaflow foreach's. "
+        "Kubernetes Provider version is incompatible with Metaflow `foreach`s. "
         "Install the provider via "
         "`%s -m pip install apache-airflow-providers-cncf-kubernetes==%s`"
     ) % (sys.executable, KUBERNETES_PROVIDER_FOREACH_VERSION)
@@ -65,7 +65,7 @@ def create_absolute_version_number(version):
     return abs_version
 
 
-def _validate_dyanmic_mapping_compatibility():
+def _validate_dynamic_mapping_compatibility():
     from airflow.version import version
 
     af_ver = create_absolute_version_number(version)
@@ -143,7 +143,7 @@ class AIRFLOW_MACROS:
     # concatenate the string using a `/`. Since run-id will keep changing and stepname will be
     # the same task id will change. Since airflow doesn't encourage dynamic rewriting of dags
     # we can rename steps in a foreach with indexes (eg. `stepname-$index`) to create those steps.
-    # Hence : Foreachs will require some special form of plumbing.
+    # Hence : `foreach`s will require some special form of plumbing.
     # https://stackoverflow.com/questions/62962386/can-an-airflow-task-dynamically-generate-a-dag-at-runtime
     TASK_ID = (
         "%s-{{ [run_id, ti.task_id, dag_run.dag_id] | task_id_creator  }}"
@@ -157,7 +157,8 @@ class AIRFLOW_MACROS:
 
     # Airflow run_ids are of the form : "manual__2022-03-15T01:26:41.186781+00:00"
     # Such run-ids break the `metaflow.util.decompress_list`; this is why we hash the runid
-    # We do echo -n because emits line breaks and we dont want to consider that since it we want same hash value when retrieved in python.
+    # We do `echo -n` because it emits line breaks, and we don't want to consider that, since we want same hash value
+    # when retrieved in python.
     RUN_ID_SHELL = (
         "%s-$(echo -n {{ run_id }}-{{ dag_run.dag_id }} | md5sum | awk '{print $1}' | awk '{print substr ($0, 0, %s)}')"
         % (RUN_ID_PREFIX, str(RUN_HASH_ID_LEN))
@@ -234,7 +235,7 @@ class AirflowDAGArgs(object):
             "email_on_retry": bool,
             "retries": int,
             "retry_delay": timedelta,
-            "queue": str,  #  which queue to target when running this job. Not all executors implement queue management, the CeleryExecutor does support targeting specific queues.
+            "queue": str,  # which queue to target when running this job. Not all executors implement queue management, the CeleryExecutor does support targeting specific queues.
             "pool": str,  # the slot pool this task should run in, slot pools are a way to limit concurrency for certain tasks
             "priority_weight": int,
             "wait_for_downstream": bool,
@@ -312,7 +313,7 @@ def _kubernetes_pod_operator_args(operator_args):
             # Default timeout in airflow is 120. I can remove `startup_timeout_seconds` for now. how should we expose it to the user?
         }
     )
-    # We need to explicity add the `client.V1EnvVar` over here because
+    # We need to explicitly add the `client.V1EnvVar` over here because
     # `pod_runtime_info_envs` doesn't accept arguments in dictionary form and strictly
     # Requires objects of type `client.V1EnvVar`
     additional_env_vars = [
@@ -334,23 +335,24 @@ def _kubernetes_pod_operator_args(operator_args):
     resources = args.get("resources")
     # KubernetesPodOperator version 4.2.0 renamed `resources` to
     # `container_resources` (https://github.com/apache/airflow/pull/24673) / (https://github.com/apache/airflow/commit/45f4290712f5f779e57034f81dbaab5d77d5de85)
-    # This was done because `KubernetesPodOperator` didn't play nice with dynamic task mapping
-    # and they had to deprecate the `resources` argument. Hence the below codepath checks for the version of `KubernetesPodOperator`
+    # This was done because `KubernetesPodOperator` didn't play nice with dynamic task mapping and they had to
+    # deprecate the `resources` argument. Hence, the below code path checks for the version of `KubernetesPodOperator`
     # and then sets the argument. If the version < 4.2.0 then we set the argument as `resources`.
     # If it is > 4.2.0 then we set the argument as `container_resources`
-    # The `resources` argument of KuberentesPodOperator is going to be deprecated soon in the future.
-    # So we will only use it for `KuberentesPodOperator` version < 4.2.0
-    # The `resources` argument will also not work for foreach's.
+    # The `resources` argument of `KubernetesPodOperator` is going to be deprecated soon in the future.
+    # So we will only use it for `KubernetesPodOperator` version < 4.2.0
+    # The `resources` argument will also not work for `foreach`s.
     provider_version = get_kubernetes_provider_version()
     k8s_op_ver = create_absolute_version_number(provider_version)
     if k8s_op_ver is None or k8s_op_ver < create_absolute_version_number(
         KUBERNETES_PROVIDER_FOREACH_VERSION
     ):
         # Since the provider version is less than `4.2.0` so we need to use the `resources` argument
-        # We need to explicitly parse `resources`/`container_resources` to k8s.V1ResourceRequirements otherwise airflow tries
-        # to parse dictionaries to `airflow.providers.cncf.kubernetes.backcompat.pod.Resources` object via
-        # `airflow.providers.cncf.kubernetes.backcompat.backward_compat_converts.convert_resources` function.
-        # This fails many times since the dictionary structure it expects is not the same as `client.V1ResourceRequirements`.
+        # We need to explicitly parse `resources`/`container_resources` to `k8s.V1ResourceRequirements`,
+        # otherwise airflow tries to parse dictionaries to `airflow.providers.cncf.kubernetes.backcompat.pod.Resources`
+        # object via `airflow.providers.cncf.kubernetes.backcompat.backward_compat_converts.convert_resources` function.
+        # This fails many times since the dictionary structure it expects is not the same as
+        # `client.V1ResourceRequirements`.
         args["resources"] = client.V1ResourceRequirements(
             requests=resources["requests"],
             limits=None if "limits" not in resources else resources["limits"],
@@ -373,7 +375,7 @@ def _kubernetes_pod_operator_args(operator_args):
     return args
 
 
-def get_metaflow_kuberentes_operator():
+def get_metaflow_kubernetes_operator():
     try:
         from airflow.contrib.operators.kubernetes_pod_operator import (
             KubernetesPodOperator,
@@ -401,7 +403,7 @@ def get_metaflow_kuberentes_operator():
         The only change we introduce to the method is to explicitly modify xcom relating to `return_values`.
         We do this so that the `XComArg` object can work with `expand` function.
 
-        2. So that we can introduce an keyword argument named `mapper_arr`.
+        2. So that we can introduce a keyword argument named `mapper_arr`.
         This keyword argument can help as a dummy argument for the `KubernetesPodOperator.partial().expand` method. Any Airflow Operator can be dynamically mapped to runtime artifacts using `Operator.partial(**kwargs).extend(**mapper_kwargs)` post the introduction of [Dynamic Task Mapping](https://airflow.apache.org/docs/apache-airflow/stable/concepts/dynamic-task-mapping.html).
         The `expand` function takes keyword arguments taken by the operator.
 
@@ -412,9 +414,9 @@ def get_metaflow_kuberentes_operator():
         Oddly dynamic task mapping [doesn't support XCom values from any other key except](https://github.com/apache/airflow/blob/8a34d25049a060a035d4db4a49cd4a0d0b07fb0b/airflow/models/mappedoperator.py#L150) `return_values`
         The values of XCom passed by the `KubernetesPodOperator` are mapped to the `return_values` XCom key.
 
-        The biggest problem this creates is that the values of the Foreach cadinality are stored inside the dictionary of `return_values` and cannot be accessed trivially like : `XComArg(task)['foreach_key']` since they are resolved during runtime.
-        This puts us in a bind since the only xcom we can retrieve is the full dictionary and we cannot pass that as the iteratable for the mapper tasks.
-        Hence we inherit the `execute` method and push custom xcom keys (needed by downstream tasks such as metaflow taskids) and modify `return_values` captured from the container whenever a foreach related xcom is passed.
+        The biggest problem this creates is that the values of the Foreach cardinality are stored inside the dictionary of `return_values` and cannot be accessed trivially like : `XComArg(task)['foreach_key']` since they are resolved during runtime.
+        This puts us in a bind since the only xcom we can retrieve is the full dictionary and we cannot pass that as the iterable for the mapper tasks.
+        Hence, we inherit the `execute` method and push custom xcom keys (needed by downstream tasks such as metaflow taskids) and modify `return_values` captured from the container whenever a foreach related xcom is passed.
         When we encounter a foreach xcom we resolve the cardinality which is passed to an actual list and return that as `return_values`.
         This is later useful in the `Workflow.compile` where the operator's `expand` method is called and we are able to retrieve the xcom value.
         """
@@ -501,7 +503,7 @@ class AirflowTask(object):
 
     @classmethod
     def from_dict(cls, task_dict, flow_name=None, flow_contains_foreach=False):
-        op_args = {} if not "operator_args" in task_dict else task_dict["operator_args"]
+        op_args = {} if "operator_args" not in task_dict else task_dict["operator_args"]
         is_mapper_node = (
             False if "is_mapper_node" not in task_dict else task_dict["is_mapper_node"]
         )
@@ -515,8 +517,8 @@ class AirflowTask(object):
             flow_contains_foreach=flow_contains_foreach,
         ).set_operator_args(**op_args)
 
-    def _kubenetes_task(self):
-        MetaflowKubernetesOperator = get_metaflow_kuberentes_operator()
+    def _kubernetes_task(self):
+        MetaflowKubernetesOperator = get_metaflow_kubernetes_operator()
         k8s_args = _kubernetes_pod_operator_args(self._operator_args)
         return MetaflowKubernetesOperator(
             flow_name=self._flow_name,
@@ -525,7 +527,7 @@ class AirflowTask(object):
         )
 
     def _kubernetes_mapper_task(self):
-        MetaflowKubernetesOperator = get_metaflow_kuberentes_operator()
+        MetaflowKubernetesOperator = get_metaflow_kubernetes_operator()
         k8s_args = _kubernetes_pod_operator_args(self._operator_args)
         return MetaflowKubernetesOperator.partial(
             flow_name=self._flow_name,
@@ -536,7 +538,7 @@ class AirflowTask(object):
     def to_task(self):
         if self._operator_type == "kubernetes":
             if not self.is_mapper_node:
-                return self._kubenetes_task()
+                return self._kubernetes_task()
             else:
                 return self._kubernetes_mapper_task()
 
@@ -608,18 +610,18 @@ class Workflow(object):
     def compile(self):
         from airflow import DAG
 
-        # We do this because airflow 2.0.0 cannot import this so we have to do it this wway.
+        # Airflow 2.0.0 cannot import this, so we have to do it this way.
         # `XComArg` is needed for dynamic task mapping and if the airflow installation is of the right
-        # verion (+2.3.0) then the class will be importible.
+        # version (+2.3.0) then the class will be importable.
         XComArg = get_xcom_arg_class()
 
         _validate_minimum_airflow_version()
 
         if self._metadata["contains_foreach"]:
-            _validate_dyanmic_mapping_compatibility()
+            _validate_dynamic_mapping_compatibility()
             # We need to verify if KubernetesPodOperator is of version > 4.2.0 to support foreachs / dynamic task mapping.
-            # If the dag uses dynamic Task mapping then we throw an error since the `resources` argument in the `KuberentesPodOperator`
-            # doesn't work for dynamic task mapping for `KuberentesPodOperator` version < 4.2.0.
+            # If the dag uses dynamic Task mapping then we throw an error since the `resources` argument in the `KubernetesPodOperator`
+            # doesn't work for dynamic task mapping for `KubernetesPodOperator` version < 4.2.0.
             # For more context check this issue :  https://github.com/apache/airflow/issues/24669
             _check_foreach_compatible_kubernetes_provider()
 

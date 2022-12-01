@@ -61,9 +61,9 @@ class JSONTypeClass(click.ParamType):
 class DeployTimeField(object):
     """
     This a wrapper object for a user-defined function that is called
-    at the deploy time to populate fields in a Parameter. The wrapper
+    at deploy time to populate fields in a Parameter. The wrapper
     is needed to make Click show the actual value returned by the
-    function instead of a function pointer in its help text. Also this
+    function instead of a function pointer in its help text. Also, this
     object curries the context argument for the function, and pretty
     prints any exceptions that occur during evaluation.
     """
@@ -119,7 +119,7 @@ class DeployTimeField(object):
             return self._check_type(val, deploy_time)
 
     def _check_type(self, val, deploy_time):
-        # it is easy to introduce a deploy-time function that that accidentally
+        # it is easy to introduce a deploy-time function that accidentally
         # returns a value whose type is not compatible with what is defined
         # in Parameter. Let's catch those mistakes early here, instead of
         # showing a cryptic stack trace later.
@@ -232,7 +232,7 @@ class Parameter(object):
     print(self.param == 5)
     ```
     Note that the user-visible parameter name, `myparam` above, can be
-    different than the artifact name, `param` above.
+    different from the artifact name, `param` above.
 
     The parameter value is converted to a Python type based on the `type`
     argument or to match the type of `default`, if it is set.

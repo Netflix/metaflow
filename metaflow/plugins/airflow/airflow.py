@@ -11,17 +11,17 @@ import metaflow.util as util
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
-    BATCH_METADATA_SERVICE_HEADERS,
-    BATCH_METADATA_SERVICE_URL,
-    DATASTORE_CARD_S3ROOT,
+    SERVICE_HEADERS,
+    SERVICE_INTERNAL_URL,
+    CARD_S3ROOT,
     DATASTORE_SYSROOT_S3,
     DATATOOLS_S3ROOT,
     KUBERNETES_SERVICE_ACCOUNT,
     KUBERNETES_SECRETS,
-    AIRFLOW_KUBERNETES_STARTUP_TIMEOUT,
+    AIRFLOW_KUBERNETES_STARTUP_TIMEOUT_SECONDS,
     AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
     DATASTORE_SYSROOT_AZURE,
-    DATASTORE_CARD_AZUREROOT,
+    CARD_AZUREROOT,
     AIRFLOW_KUBERNETES_CONN_ID,
 )
 from metaflow.parameters import DelayedEvaluationParameter, deploy_time_eval
@@ -198,7 +198,7 @@ class Airflow(object):
 
             # Since we will always have a default value and `deploy_time_eval` resolved that to an actual value
             # we can just use the `default` to infer the object's type.
-            # This avoids parsing/indentifying types like `JSONType` or `FilePathClass`
+            # This avoids parsing/identifying types like `JSONType` or `FilePathClass`
             # which are returned by calling `param.kwargs.get("type")`
             param_type = type(airflow_param["default"])
 
@@ -220,11 +220,11 @@ class Airflow(object):
         steps,
     ):
         """
-        This function is meant to compress the input paths and it specifically doesn't use
-        `metaflow.util.compress_list` under the hood. The reason is because the `AIRFLOW_MACROS.RUN_ID` is a complicated macro string
-        that doesn't behave nicely with `metaflow.util.decompress_list` since the `decompress_util`
-        function expects a string which doesn't contain any delimiter characters and the run-id string does.
-        Hence we have a custom compression string created via `_compress_input_path` function instead of `compress_list`.
+        This function is meant to compress the input paths, and it specifically doesn't use
+        `metaflow.util.compress_list` under the hood. The reason is that the `AIRFLOW_MACROS.RUN_ID` is a complicated
+        macro string that doesn't behave nicely with `metaflow.util.decompress_list`, since the `decompress_util`
+        function expects a string which doesn't contain any delimiter characters and the run-id string does. Hence, we
+        have a custom compression string created via `_compress_input_path` function instead of `compress_list`.
         """
         return "%s:" % (AIRFLOW_MACROS.RUN_ID) + ",".join(
             self._make_input_path(step, only_task_id=True) for step in steps
@@ -244,7 +244,8 @@ class Airflow(object):
     def _make_input_path(self, step_name, only_task_id=False):
         """
         This is set using the `airflow_internal` decorator to help pass state.
-        This will pull the `TASK_ID_XCOM_KEY` xcom which holds task-ids. The key is set via the `MetaflowKubernetesOperator`.
+        This will pull the `TASK_ID_XCOM_KEY` xcom which holds task-ids.
+        The key is set via the `MetaflowKubernetesOperator`.
         """
         task_id_string = "/%s/{{ task_instance.xcom_pull(task_ids='%s',key='%s') }}" % (
             step_name,
@@ -261,8 +262,10 @@ class Airflow(object):
         """
         This function will transform the node's specification into Airflow compatible operator arguments.
         Since this function is long, below is the summary of the two major duties it performs:
-            1. Based on the type of the graph node (start/linear/foreach/join etc.) it will decide how to set the input paths
-            2. Based on node's decorator specification convert the information into a job spec for the KubernetesPodOperator.
+            1. Based on the type of the graph node (start/linear/foreach/join etc.)
+                it will decide how to set the input paths
+            2. Based on node's decorator specification convert the information into
+                a job spec for the KubernetesPodOperator.
         """
         # Add env vars from the optional @environment decorator.
         env_deco = [deco for deco in node.decorators if deco.name == "environment"]
@@ -304,7 +307,8 @@ class Airflow(object):
                 # One key thing about xcoms is that they are immutable and only accepted if the task
                 # doesn't fail.
                 # From airflow docs :
-                # "Note: If the first task run is not succeeded then on every retry task XComs will be cleared to make the task run idempotent."
+                # "Note: If the first task run is not succeeded then on every retry task
+                # XComs will be cleared to make the task run idempotent."
                 input_paths = self._make_input_path(node.in_funcs[0])
             else:
                 # this is a split scenario where there can be more than one input paths.
@@ -341,7 +345,8 @@ class Airflow(object):
             "app.kubernetes.io/name": "metaflow-task",
             "app.kubernetes.io/part-of": "metaflow",
             "app.kubernetes.io/created-by": user,
-            # Question to (savin) : Should we have username set over here for created by since it is the airflow installation that is creating the jobs.
+            # Question to (savin) : Should we have username set over here for created by since it is the
+            # airflow installation that is creating the jobs.
             # Technically the "user" is the stakeholder but should these labels be present.
         }
         additional_mf_variables = {
@@ -349,8 +354,8 @@ class Airflow(object):
             "METAFLOW_CODE_URL": self.code_package_url,
             "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
             "METAFLOW_USER": user,
-            "METAFLOW_SERVICE_URL": BATCH_METADATA_SERVICE_URL,
-            "METAFLOW_SERVICE_HEADERS": json.dumps(BATCH_METADATA_SERVICE_HEADERS),
+            "METAFLOW_SERVICE_URL": SERVICE_INTERNAL_URL,
+            "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
             "METAFLOW_DATASTORE_SYSROOT_S3": DATASTORE_SYSROOT_S3,
             "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
             "METAFLOW_DEFAULT_DATASTORE": "s3",
@@ -359,7 +364,7 @@ class Airflow(object):
                 1
             ),  # This is used by kubernetes decorator.
             "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
-            "METAFLOW_CARD_S3ROOT": DATASTORE_CARD_S3ROOT,
+            "METAFLOW_CARD_S3ROOT": CARD_S3ROOT,
             "METAFLOW_RUN_ID": AIRFLOW_MACROS.RUN_ID,
             "METAFLOW_AIRFLOW_TASK_ID": AIRFLOW_MACROS.create_task_id(
                 self.contains_foreach
@@ -373,7 +378,7 @@ class Airflow(object):
             "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
         ] = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
         env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = DATASTORE_SYSROOT_AZURE
-        env["METAFLOW_DATASTORE_CARD_AZUREROOT"] = DATASTORE_CARD_AZUREROOT
+        env["METAFLOW_CARD_AZUREROOT"] = CARD_AZUREROOT
         env.update(additional_mf_variables)
 
         service_account = (
@@ -446,7 +451,7 @@ class Airflow(object):
             env_vars=[dict(name=k, value=v) for k, v in env.items() if v is not None],
             labels=labels,
             task_id=node.name,
-            startup_timeout_seconds=AIRFLOW_KUBERNETES_STARTUP_TIMEOUT,
+            startup_timeout_seconds=AIRFLOW_KUBERNETES_STARTUP_TIMEOUT_SECONDS,
             get_logs=True,
             do_xcom_push=True,
             log_events_on_failure=True,
@@ -539,7 +544,7 @@ class Airflow(object):
                 params.extend("--tag %s" % tag for tag in self.tags)
 
             # If the start step gets retried, we must be careful not to
-            # regenerate multiple parameters tasks. Hence we check first if
+            # regenerate multiple parameters tasks. Hence, we check first if
             # _parameters exists already.
             exists = entrypoint + [
                 # Dump the parameters task
@@ -674,7 +679,8 @@ class Airflow(object):
     def _create_defaults(self):
         defu_ = {
             "owner": get_username(),
-            # If set on a task, doesn’t run the task in the current DAG run if the previous run of the task has failed.
+            # If set on a task and the previous run of the task has failed,
+            # it will not run the task in the current DAG run.
             "depends_on_past": False,
             # TODO: Enable emails
             "execution_timeout": timedelta(days=5),

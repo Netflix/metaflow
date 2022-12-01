@@ -89,7 +89,7 @@ class _ClientCache(object):
 # Block size on underlying down TLS transport - Azure SDK defaults to 4096.
 # This larger block size dramatically improves aggregate download throughput.
 # 256KB (within order of 2x) seemed optimal for specific benchmark setup.
-# In future, exposing this as a tunable to users is a possibility if necessary.
+# In the future, exposing this as a tunable to users is a possibility if necessary.
 AZURE_CLIENT_CONNECTION_DATA_BLOCK_SIZE = 262144
 
 # When to use more than a single thread / connection for a single GET or PUT.

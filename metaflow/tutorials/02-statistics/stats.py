@@ -22,7 +22,7 @@ class MovieStatsFlow(FlowSpec):
     1) Ingests a CSV into a Pandas Dataframe.
     2) Fan-out over genre using Metaflow foreach.
     3) Compute quartiles for each genre.
-    4) Save a dictionary of genre specific statistics.
+    4) Save a dictionary of genre-specific statistics.
 
     """
 
@@ -89,7 +89,7 @@ class MovieStatsFlow(FlowSpec):
         Join our parallel branches and merge results into a dictionary.
 
         """
-        # Merge results from the genre specific computations.
+        # Merge results from the genre-specific computations.
         self.genre_stats = {
             inp.genre.lower(): {"quartiles": inp.quartiles, "dataframe": inp.dataframe}
             for inp in inputs

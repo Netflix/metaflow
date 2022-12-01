@@ -22,7 +22,7 @@ class NonUniqueFileNameToFilePathMappingException(MetaflowException):
     def __init__(self, filename, file_paths, lineno=None):
         msg = (
             "Filename %s included in the code package includes multiple different paths for the same name : %s.\n"
-            "The `filename` in the `add_to_package` decorator hook requires a unqiue `file_path` to `file_name` mapping"
+            "The `filename` in the `add_to_package` decorator hook requires a unique `file_path` to `file_name` mapping"
             % (filename, ", ".join(file_paths))
         )
         super().__init__(msg=msg, lineno=lineno)

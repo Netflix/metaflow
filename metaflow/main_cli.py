@@ -418,7 +418,8 @@ def sandbox(profile, overwrite):
     )
     # Decode the bytes to env_dict.
     try:
-        import base64, zlib
+        import base64
+        import zlib
         from metaflow.util import to_bytes
 
         env_dict = json.loads(

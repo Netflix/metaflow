@@ -98,7 +98,7 @@ class CardDecorator(StepDecorator):
         evt_name = "step-init"
         # `'%s-%s'%(evt_name,step_name)` ensures that we capture this once per @card per @step.
         # Since there can be many steps checking if event is registered for `evt_name` will only make it check it once for all steps.
-        # Hence we have `_is_event_registered('%s-%s'%(evt_name,step_name))`
+        # Hence, we have `_is_event_registered('%s-%s'%(evt_name,step_name))`
         evt = "%s-%s" % (evt_name, step_name)
         if not self._is_event_registered(evt):
             # We set the total count of decorators so that we can use it for
@@ -168,9 +168,9 @@ class CardDecorator(StepDecorator):
         )
         self._card_uuid = card_metadata["uuid"]
 
-        # This means that the we are calling `task_pre_step` on the last card decorator.
+        # This means that we are calling `task_pre_step` on the last card decorator.
         # We can now `finalize` method in the CardComponentCollector object.
-        # This will setup the `current.card` object for usage inside `@step` code.
+        # This will set up the `current.card` object for usage inside `@step` code.
         if self.step_counter == self.total_decos_on_step[step_name]:
             current.card._finalize()
 
@@ -209,7 +209,7 @@ class CardDecorator(StepDecorator):
             "event-logger": "nullSidecarLogger",
             "monitor": "nullSidecarMonitor",
             # We don't provide --with as all execution is taking place in
-            # the context of the main processs
+            # the context of the main process
         }
         return list(self._options(top_level_options))
 

@@ -10,7 +10,7 @@ on:
   
 jobs:
   pre-commit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v2
     - uses: actions/setup-python@v2
@@ -22,8 +22,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        ver: ['3.5', '3.6', '3.7', '3.8', '3.9','3.10',]
+        os: [ubuntu-20.04, macos-latest]
+        ver: ['3.5', '3.6', '3.7', '3.8', '3.9', '3.10', '3.11',]
 
     steps:
     - uses: actions/checkout@v2
@@ -47,7 +47,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-20.04, macos-latest]
         ver: ['4.0', '4.1', '4.2']
    
     steps:
@@ -58,7 +58,7 @@ jobs:
         r-version: ${{ matrix.ver }}
     
     - name: Install R ${{ matrix.ver }} system dependencies
-      if: matrix.os == 'ubuntu-latest'
+      if: matrix.os == 'ubuntu-20.04'
       run: sudo apt-get update; sudo apt-get install -y libcurl4-openssl-dev qpdf libgit2-dev libharfbuzz-dev libfribidi-dev
 
     - name: Install R ${{ matrix.ver }} Rlang dependencies

@@ -16,7 +16,7 @@ class LargeArtifactTest(MetaflowTest):
         import sys
 
         if sys.version_info[0] > 2:
-            self.large = b"x" * int(4.1 * 1024 ** 3)
+            self.large = b"x" * int(4.1 * 1024**3)
             self.noop = False
         else:
             self.noop = True
@@ -26,7 +26,7 @@ class LargeArtifactTest(MetaflowTest):
         import sys
 
         if sys.version_info[0] > 2:
-            assert_equals(self.large, b"x" * int(4.1 * 1024 ** 3))
+            assert_equals(self.large, b"x" * int(4.1 * 1024**3))
 
     @steps(1, ["all"])
     def step_all(self):
@@ -37,4 +37,4 @@ class LargeArtifactTest(MetaflowTest):
 
         noop = next(iter(checker.artifact_dict("end", "noop").values()))["noop"]
         if not noop and sys.version_info[0] > 2:
-            checker.assert_artifact("end", "large", b"x" * int(4.1 * 1024 ** 3))
+            checker.assert_artifact("end", "large", b"x" * int(4.1 * 1024**3))

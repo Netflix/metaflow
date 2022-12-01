@@ -246,6 +246,7 @@ def check_split_join_balance(graph):
                     )
             else:
                 raise LintWarn(msg2.format(node), node.func_lineno)
+
             # check that incoming steps come from the same lineage
             # (no cross joins)
             def parents(n):
