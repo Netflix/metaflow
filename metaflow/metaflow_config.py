@@ -138,9 +138,7 @@ CARD_AZUREROOT = from_conf(
 )
 CARD_GSROOT = from_conf(
     "CARD_GSROOT",
-    os.path.join(DATASTORE_SYSROOT_GS, CARD_SUFFIX)
-    if DATASTORE_SYSROOT_GS
-    else None,
+    os.path.join(DATASTORE_SYSROOT_GS, CARD_SUFFIX) if DATASTORE_SYSROOT_GS else None,
 )
 CARD_NO_WARNING = from_conf("CARD_NO_WARNING", False)
 
@@ -162,7 +160,7 @@ AZURE_STORAGE_WORKLOAD_TYPE = from_conf(
 GS_STORAGE_WORKLOAD_TYPE = from_conf(
     "METAFLOW_GS_STORAGE_WORKLOAD_TYPE",
     "general",
-    validate_fn=_get_validate_choice_fn(["general", "high_throughput"]),
+    validate_fn=get_validate_choice_fn(["general", "high_throughput"]),
 )
 
 
