@@ -78,7 +78,7 @@ REQ_NAME = re.compile(r"^(([a-zA-Z0-9][a-zA-Z0-9._-]*[a-zA-Z0-9])|[a-zA-Z0-9]).*
 EXT_EXCLUDE_SUFFIXES = [".pyc"]
 
 # To get verbose messages, set METAFLOW_DEBUG_EXT to 1
-METAFLOW_DEBUG_EXT_MECHANISM = os.environ.get("METAFLOW_DEBUG_EXT", False)
+DEBUG_EXT = os.environ.get("METAFLOW_DEBUG_EXT", False)
 
 
 MFExtPackage = namedtuple("MFExtPackage", "package_name tl_package config_module")
@@ -277,7 +277,7 @@ _extension_points = [
 
 
 def _ext_debug(*args, **kwargs):
-    if METAFLOW_DEBUG_EXT_MECHANISM:
+    if DEBUG_EXT:
         init_str = "%s:" % EXT_PKG
         kwargs["file"] = sys.stderr
         print(init_str, *args, **kwargs)

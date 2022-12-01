@@ -7,8 +7,8 @@ import os
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
-    DATATOOLS_DEFAULT_CLIENT_PARAMS,
-    DATATOOLS_DEFAULT_SESSION_VARS,
+    DATATOOLS_CLIENT_PARAMS,
+    DATATOOLS_SESSION_VARS,
     S3_RETRY_COUNT,
     RETRY_WARNING_THRESHOLD,
 )
@@ -24,12 +24,8 @@ def get_s3_client(s3_role_arn=None, s3_session_vars=None, s3_client_params=None)
         "s3",
         with_error=True,
         role_arn=s3_role_arn,
-        session_vars=s3_session_vars
-        if s3_session_vars
-        else DATATOOLS_DEFAULT_SESSION_VARS,
-        client_params=s3_client_params
-        if s3_client_params
-        else DATATOOLS_DEFAULT_CLIENT_PARAMS,
+        session_vars=s3_session_vars if s3_session_vars else DATATOOLS_SESSION_VARS,
+        client_params=s3_client_params if s3_client_params else DATATOOLS_CLIENT_PARAMS,
     )
 
 

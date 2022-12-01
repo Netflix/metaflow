@@ -4,7 +4,7 @@ import json
 
 from threading import Thread
 from metaflow.sidecar import MessageTypes, Message
-from metaflow.metaflow_config import METADATA_SERVICE_HEADERS
+from metaflow.metaflow_config import SERVICE_HEADERS
 from metaflow.exception import MetaflowException
 
 HB_URL_KEY = "hb_url"
@@ -19,7 +19,7 @@ class HeartBeatException(MetaflowException):
 
 class MetadataHeartBeat(object):
     def __init__(self):
-        self.headers = METADATA_SERVICE_HEADERS
+        self.headers = SERVICE_HEADERS
         self.req_thread = Thread(target=self._ping)
         self.req_thread.daemon = True
         self.default_frequency_secs = 10

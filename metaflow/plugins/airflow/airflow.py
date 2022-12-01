@@ -11,17 +11,17 @@ import metaflow.util as util
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
-    BATCH_METADATA_SERVICE_HEADERS,
-    BATCH_METADATA_SERVICE_URL,
-    DATASTORE_CARD_S3ROOT,
+    SERVICE_HEADERS,
+    SERVICE_INTERNAL_URL,
+    CARD_S3ROOT,
     DATASTORE_SYSROOT_S3,
     DATATOOLS_S3ROOT,
     KUBERNETES_SERVICE_ACCOUNT,
     KUBERNETES_SECRETS,
-    AIRFLOW_KUBERNETES_STARTUP_TIMEOUT,
+    AIRFLOW_KUBERNETES_STARTUP_TIMEOUT_SECONDS,
     AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
     DATASTORE_SYSROOT_AZURE,
-    DATASTORE_CARD_AZUREROOT,
+    CARD_AZUREROOT,
     AIRFLOW_KUBERNETES_CONN_ID,
 )
 from metaflow.parameters import DelayedEvaluationParameter, deploy_time_eval
@@ -354,8 +354,8 @@ class Airflow(object):
             "METAFLOW_CODE_URL": self.code_package_url,
             "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
             "METAFLOW_USER": user,
-            "METAFLOW_SERVICE_URL": BATCH_METADATA_SERVICE_URL,
-            "METAFLOW_SERVICE_HEADERS": json.dumps(BATCH_METADATA_SERVICE_HEADERS),
+            "METAFLOW_SERVICE_URL": SERVICE_INTERNAL_URL,
+            "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
             "METAFLOW_DATASTORE_SYSROOT_S3": DATASTORE_SYSROOT_S3,
             "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
             "METAFLOW_DEFAULT_DATASTORE": "s3",
@@ -364,7 +364,7 @@ class Airflow(object):
                 1
             ),  # This is used by kubernetes decorator.
             "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
-            "METAFLOW_CARD_S3ROOT": DATASTORE_CARD_S3ROOT,
+            "METAFLOW_CARD_S3ROOT": CARD_S3ROOT,
             "METAFLOW_RUN_ID": AIRFLOW_MACROS.RUN_ID,
             "METAFLOW_AIRFLOW_TASK_ID": AIRFLOW_MACROS.create_task_id(
                 self.contains_foreach
@@ -378,7 +378,7 @@ class Airflow(object):
             "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
         ] = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
         env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = DATASTORE_SYSROOT_AZURE
-        env["METAFLOW_DATASTORE_CARD_AZUREROOT"] = DATASTORE_CARD_AZUREROOT
+        env["METAFLOW_CARD_AZUREROOT"] = CARD_AZUREROOT
         env.update(additional_mf_variables)
 
         service_account = (
@@ -451,7 +451,7 @@ class Airflow(object):
             env_vars=[dict(name=k, value=v) for k, v in env.items() if v is not None],
             labels=labels,
             task_id=node.name,
-            startup_timeout_seconds=AIRFLOW_KUBERNETES_STARTUP_TIMEOUT,
+            startup_timeout_seconds=AIRFLOW_KUBERNETES_STARTUP_TIMEOUT_SECONDS,
             get_logs=True,
             do_xcom_push=True,
             log_events_on_failure=True,
