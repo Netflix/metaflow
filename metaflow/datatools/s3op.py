@@ -94,10 +94,10 @@ ERROR_WORKER_EXCEPTION = 8
 ERROR_VERIFY_FAILED = 9
 ERROR_LOCAL_FILE_NOT_FOUND = 10
 ERROR_INVALID_RANGE = 11
-ERROR_TRANSIENT_RETRY = 12
+ERROR_TRANSIENT = 12
 
 
-def format_triplet(idx, prefix, url="", local=""):
+def format_result_line(idx, prefix, url="", local=""):
     # We prefix each output with the index corresponding to the line number on the
     # initial request (ie: prior to any transient errors). This allows us to
     # properly maintain the order in which things were requested even in the presence
@@ -115,13 +115,7 @@ def format_triplet(idx, prefix, url="", local=""):
 def normalize_client_error(err):
     error_code = err.response["Error"]["Code"]
     try:
-        err_code = int(error_code)
-        # We "normalize" retriable server errors to 503. These are also considered
-        # transient by boto3 (see:
-        # https://boto3.amazonaws.com/v1/documentation/api/latest/guide/retries.html)
-        if err_code in (500, 502, 504):
-            err_code = 503
-        return err_code
+        return int(error_code)
     except ValueError:
         if error_code in ("AccessDenied", "AllAccessDisabled"):
             return 403
@@ -129,6 +123,9 @@ def normalize_client_error(err):
             return 404
         if error_code == "InvalidRange":
             return 416
+        # We "normalize" retriable server errors to 503. These are also considered
+        # transient by boto3 (see:
+        # https://boto3.amazonaws.com/v1/documentation/api/latest/guide/retries.html)
         if error_code in (
             "SlowDown",
             "RequestTimeout",
@@ -187,8 +184,8 @@ def worker(result_file_name, queue, mode, s3config):
                 to_return = {"error": ERROR_URL_ACCESS_DENIED, "raise_error": err}
             elif error_code == 416:
                 to_return = {"error": ERROR_INVALID_RANGE, "raise_error": err}
-            elif error_code == 503:
-                to_return = {"error": ERROR_TRANSIENT_RETRY, "raise_error": err}
+            elif error_code in (500, 502, 503, 504):
+                to_return = {"error": ERROR_TRANSIENT, "raise_error": err}
             else:
                 to_return = {"error": error_code, "raise_error": err}
         return to_return
@@ -263,7 +260,7 @@ def worker(result_file_name, queue, mode, s3config):
                             )
                             continue
                         elif error_code == 503:
-                            result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT_RETRY))
+                            result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
                             continue
                         else:
                             raise
@@ -324,9 +321,7 @@ def worker(result_file_name, queue, mode, s3config):
                                 )
                                 continue
                             elif error_code == 503:
-                                result_file.write(
-                                    "%d %d\n" % (idx, -ERROR_TRANSIENT_RETRY)
-                                )
+                                result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
                                 continue
                             else:
                                 raise
@@ -349,7 +344,7 @@ def start_workers(mode, urls, num_workers, inject_failure, s3config):
     # appropriately with the result of the injected failure.
     for idx, elt in enumerate(urls):
         if random.randint(0, 99) < inject_failure:
-            sz_results.append(-ERROR_TRANSIENT_RETRY)
+            sz_results.append(-ERROR_TRANSIENT)
         else:
             sz_results.append(None)
             queue.put((elt, idx))
@@ -567,7 +562,7 @@ def exit(exit_code, url):
         msg = "Verification failed for URL %s, local file %s" % (url.url, url.local)
     elif exit_code == ERROR_LOCAL_FILE_NOT_FOUND:
         msg = "Local file not found: %s" % url
-    elif exit_code == ERROR_TRANSIENT_RETRY:
+    elif exit_code == ERROR_TRANSIENT:
         msg = "Transient error for url: %s" % url
     else:
         msg = "Unknown error"
@@ -772,9 +767,9 @@ def lst(
 
     for idx, (url, size) in enumerate(urls):
         if size is None:
-            print(format_triplet(idx, url.prefix, url.url))
+            print(format_result_line(idx, url.prefix, url.url))
         else:
-            print(format_triplet(idx, url.prefix, url.url, str(size)))
+            print(format_result_line(idx, url.prefix, url.url, str(size)))
 
 
 @cli.command(help="Upload files to S3")
@@ -886,15 +881,15 @@ def put(
     for url, sz in zip(urls, sz_results):
         # sz is None if the file wasn't uploaded (no overwrite), 0 if uploaded OK
         # or the error code if not (error code here will only be
-        # ERROR_TRANSIENT_RETRY or ERROR_URL_ACCESS_DENIED
+        # ERROR_TRANSIENT or ERROR_URL_ACCESS_DENIED
         if sz is None:
             if listing:
                 # We keep a position for it in our out list in case of retries
                 out_lines.append("%d %s\n" % (url.idx, TRANSIENT_RETRY_LINE_CONTENT))
             continue
         elif listing and sz == 0:
-            out_lines.append(format_triplet(url.idx, url.url) + "\n")
-        elif sz == -ERROR_TRANSIENT_RETRY:
+            out_lines.append(format_result_line(url.idx, url.url) + "\n")
+        elif sz == -ERROR_TRANSIENT:
             retry_lines.append(
                 json.dumps(
                     {
@@ -925,7 +920,7 @@ def put(
         sys.stderr.write("%s\n" % TRANSIENT_RETRY_START_LINE)
         sys.stderr.writelines(retry_lines)
         sys.stderr.flush()
-        sys.exit(ERROR_TRANSIENT_RETRY)
+        sys.exit(ERROR_TRANSIENT)
 
 
 def _populate_prefixes(prefixes, inputs):
@@ -1086,10 +1081,10 @@ def get(
             sz = sz_results[idx_in_sz]
             idx_in_sz += 1
         if listing and sz is None:
-            out_lines.append(format_triplet(url.idx, url.url) + "\n")
+            out_lines.append(format_result_line(url.idx, url.url) + "\n")
         elif listing and sz >= 0:
             out_lines.append(
-                format_triplet(url.idx, url.prefix, url.url, url.local) + "\n"
+                format_result_line(url.idx, url.prefix, url.url, url.local) + "\n"
             )
             if verify:
                 verify_info.append((url, sz))
@@ -1101,8 +1096,8 @@ def get(
                 missing_url = url
             if not allow_missing:
                 break
-            out_lines.append(format_triplet(url.idx, url.url) + "\n")
-        elif sz == -ERROR_TRANSIENT_RETRY:
+            out_lines.append(format_result_line(url.idx, url.url) + "\n")
+        elif sz == -ERROR_TRANSIENT:
             retry_lines.append(
                 " ".join(
                     [
@@ -1138,7 +1133,7 @@ def get(
         sys.stderr.write("%s\n" % TRANSIENT_RETRY_START_LINE)
         sys.stderr.writelines(retry_lines)
         sys.stderr.flush()
-        sys.exit(ERROR_TRANSIENT_RETRY)
+        sys.exit(ERROR_TRANSIENT)
 
 
 @cli.command(help="Get info about files from S3")
@@ -1189,9 +1184,9 @@ def info(
     out_lines = []
     for idx, sz in enumerate(sz_results):
         url = urllist[idx]
-        if listing and sz != -ERROR_TRANSIENT_RETRY:
+        if listing and sz != -ERROR_TRANSIENT:
             out_lines.append(
-                format_triplet(url.idx, url.prefix, url.url, url.local) + "\n"
+                format_result_line(url.idx, url.prefix, url.url, url.local) + "\n"
             )
         else:
             retry_lines.append(
@@ -1209,7 +1204,7 @@ def info(
         sys.stderr.write("%s\n" % TRANSIENT_RETRY_START_LINE)
         sys.stderr.writelines(retry_lines)
         sys.stderr.flush()
-        sys.exit(ERROR_TRANSIENT_RETRY)
+        sys.exit(ERROR_TRANSIENT)
 
 
 if __name__ == "__main__":

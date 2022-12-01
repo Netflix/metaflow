@@ -1342,6 +1342,30 @@ class S3(object):
     def _s3op_with_retries(self, mode, **options):
         from . import s3op
 
+        # High level note on what this function does:
+        #  - perform s3op (which calls s3op.py in a subprocess to parallelize the
+        #    operation). Typically this operation has several inputs (for example,
+        #    multiple files to get or put)
+        #  - the result of this operation can be either:
+        #    - a known permanent failure (access denied for example) in which case we
+        #      return this failure.
+        #    - a known transient failure (SlowDown for example) in which case we will
+        #      retry *only* the inputs that have this transient failure.
+        #    - an unknown failure (something went wrong but we cannot say if it was
+        #      a known permanent failure or something else). In this case, we retry
+        #      the operation completely.
+        #
+        # There are therefore two retry counts:
+        #  - the transient failure retry count: how many times do we try on known
+        #    transient errors
+        #  - the top-level retry count: how many times do we try on unknown failures
+        #
+        # Note that, if the operation runs out of transient failure retries, it will
+        # count as an "unknown" failure (ie: it will be retried according to the
+        # outer top-level retry count). In other words, you can potentially have
+        # transient_retry_count * retry_count tries).
+        # Finally, if on transient failures, we make NO progress (ie: no input is
+        # successfully processed), that counts as an "unknown" failure.
         cmdline = [sys.executable, os.path.abspath(s3op.__file__), mode]
         recursive_get = False
         for key, value in options.items():
@@ -1368,7 +1392,7 @@ class S3(object):
         if self._s3_client_params is not None:
             cmdline.extend(("--s3clientparams", json.dumps(self._s3_client_params)))
 
-        def _get_inject_failures():
+        def _inject_failure_rate():
             # list mode does not do retries on transient failures (there is no
             # SlowDown handling) so we never inject a failure rate
             if mode == "list":
@@ -1377,9 +1401,9 @@ class S3(object):
             return min(90, self._s3_inject_failures)
 
         retry_count = 0  # Number of retries (excluding transient failures)
-        transient_retry_count = 0  # Number of transient retries (per TL retry)
-        inject_failures = _get_inject_failures()
-        out_lines = []  # Lines that will be returned in the end
+        transient_retry_count = 0  # Number of transient retries (per top-level retry)
+        inject_failures = _inject_failure_rate()
+        out_lines = []  # List to contain the lines returned by _s3op_with_retries
         pending_retries = (
             []
         )  # Inputs that need to be retried due to a transient failure
@@ -1391,7 +1415,7 @@ class S3(object):
             nonlocal transient_retry_count, inject_failures, out_lines, pending_retries
             nonlocal loop_count, last_ok_count, total_ok_count
             transient_retry_count = 0
-            inject_failures = _get_inject_failures()
+            inject_failures = _inject_failure_rate()
             if mode != "put":
                 # For put, even after retries, we keep around whatever we already
                 # uploaded. This is because uploading with overwrite=False is not
@@ -1473,6 +1497,11 @@ class S3(object):
                         if loop_count % 2 == 0:
                             inject_failures = int(inject_failures / 3)
                         else:
+                            # We cap at 90 (and not 100) for injection of failures to
+                            # reduce the likelihood of having flaky test. If the
+                            # failure injection rate is too high, this can cause actual
+                            # retries more often and then lead to too many actual
+                            # retries
                             inject_failures = min(90, int(inject_failures * 1.5))
                     try:
                         debug.s3client_exec(cmdline + addl_cmdline)
@@ -1487,7 +1516,7 @@ class S3(object):
                         _update_out_lines(out_lines, ok_lines, resize=loop_count == 0)
                         return (len(ok_lines), 0, inject_failures, None)
                     except subprocess.CalledProcessError as ex:
-                        if ex.returncode == s3op.ERROR_TRANSIENT_RETRY:
+                        if ex.returncode == s3op.ERROR_TRANSIENT:
                             # In this special case, we failed transiently on *some* of
                             # the files but not necessarily all. This is typically
                             # caused by limits on the number of operations that can
