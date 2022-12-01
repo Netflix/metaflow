@@ -158,11 +158,10 @@ AZURE_STORAGE_WORKLOAD_TYPE = from_conf(
 # GS storage can use process-based parallelism instead of threads.
 # Processes perform better for high throughput workloads (e.g. many huge artifacts)
 GS_STORAGE_WORKLOAD_TYPE = from_conf(
-    "METAFLOW_GS_STORAGE_WORKLOAD_TYPE",
+    "GS_STORAGE_WORKLOAD_TYPE",
     "general",
     validate_fn=get_validate_choice_fn(["general", "high_throughput"]),
 )
-
 
 ###
 # Metadata configuration
