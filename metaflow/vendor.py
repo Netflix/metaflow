@@ -123,10 +123,14 @@ def vendor(vendor_dir):
 
         # Touch a __init__.py file
         if create_init_file:
-            with open("%s/__init__.py" % str(vendor_subdir), "w+", encoding="utf-8") as f:
+            with open(
+                "%s/__init__.py" % str(vendor_subdir), "w+", encoding="utf-8"
+            ) as f:
                 f.write("# Empty file")
 
-        vendored_libs, paths = find_vendored_libs(vendor_subdir, WHITELIST, exclude_subdirs)
+        vendored_libs, paths = find_vendored_libs(
+            vendor_subdir, WHITELIST, exclude_subdirs
+        )
 
         replacements = []
         for lib in vendored_libs:
@@ -151,5 +155,7 @@ if __name__ == "__main__":
     vendor_tl_dir = here / "_vendor"
     has_vendor_file = len(glob.glob(f"{vendor_tl_dir.name}/vendor*.txt")) > 0
     assert has_vendor_file, "_vendor/vendor*.txt file not found"
-    assert (vendor_tl_dir / "__init__.py").exists(), "_vendor/__init__.py file not found"
+    assert (
+        vendor_tl_dir / "__init__.py"
+    ).exists(), "_vendor/__init__.py file not found"
     vendor(vendor_tl_dir)

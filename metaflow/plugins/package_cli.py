@@ -12,7 +12,9 @@ def cli():
 @click.pass_obj
 def package(obj):
     # Prepare the package before any of the sub-commands are invoked.
-    obj.package = MetaflowPackage(obj.flow, obj.environment, obj.echo, obj.package_suffixes)
+    obj.package = MetaflowPackage(
+        obj.flow, obj.environment, obj.echo, obj.package_suffixes
+    )
 
 
 @package.command(help="Output information about the current code package.")
@@ -30,7 +32,9 @@ def info(obj):
         highlight_bold=False,
     )
     num = sum(1 for _ in obj.package.path_tuples())
-    obj.echo_always("Number of files: *%d*" % num, highlight="green", highlight_bold=False)
+    obj.echo_always(
+        "Number of files: *%d*" % num, highlight="green", highlight_bold=False
+    )
 
 
 @package.command(help="List files included in the code package.")

@@ -215,15 +215,23 @@ class BatchJob(object):
                         "Invalid swappiness value ({}); " "(should be 0 or greater)".format(max_swap)
                     )
                 else:
-                    job_definition["containerProperties"]["linuxParameters"]["maxSwap"] = int(max_swap)
+                    job_definition["containerProperties"]["linuxParameters"][
+                        "maxSwap"
+                    ] = int(max_swap)
 
         if inferentia:
             if not (isinstance(inferentia, (int, unicode, basestring))):
-                raise BatchJobException("invalid inferentia value: ({}) (should be 0 or greater)".format(inferentia))
+                raise BatchJobException(
+                    "invalid inferentia value: ({}) (should be 0 or greater)".format(
+                        inferentia
+                    )
+                )
             else:
                 job_definition["containerProperties"]["linuxParameters"]["devices"] = []
                 for i in range(int(inferentia)):
-                    job_definition["containerProperties"]["linuxParameters"]["devices"].append(
+                    job_definition["containerProperties"]["linuxParameters"][
+                        "devices"
+                    ].append(
                         {
                             "containerPath": "/dev/neuron{}".format(i),
                             "hostPath": "/dev/neuron{}".format(i),

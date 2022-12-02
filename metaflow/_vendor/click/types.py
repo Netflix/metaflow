@@ -174,7 +174,8 @@ class Choice(ParamType):
         if ctx is not None and ctx.token_normalize_func is not None:
             normed_value = ctx.token_normalize_func(value)
             normed_choices = {
-                ctx.token_normalize_func(normed_choice): original for normed_choice, original in normed_choices.items()
+                ctx.token_normalize_func(normed_choice): original
+                for normed_choice, original in normed_choices.items()
             }
 
         if not self.case_sensitive:
@@ -184,13 +185,18 @@ class Choice(ParamType):
                 lower = str.casefold
 
             normed_value = lower(normed_value)
-            normed_choices = {lower(normed_choice): original for normed_choice, original in normed_choices.items()}
+            normed_choices = {
+                lower(normed_choice): original
+                for normed_choice, original in normed_choices.items()
+            }
 
         if normed_value in normed_choices:
             return normed_choices[normed_value]
 
         self.fail(
-            "invalid choice: {}. (choose from {})".format(value, ", ".join(self.choices)),
+            "invalid choice: {}. (choose from {})".format(
+                value, ", ".join(self.choices)
+            ),
             param,
             ctx,
         )
@@ -241,7 +247,11 @@ class DateTime(ParamType):
             if dtime:
                 return dtime
 
-        self.fail("invalid datetime format: {}. (choose from {})".format(value, ", ".join(self.formats)))
+        self.fail(
+            "invalid datetime format: {}. (choose from {})".format(
+                value, ", ".join(self.formats)
+            )
+        )
 
     def __repr__(self):
         return "DateTime"
@@ -283,22 +293,33 @@ class IntRange(IntParamType):
                 return self.min
             if self.max is not None and rv > self.max:
                 return self.max
-        if self.min is not None and rv < self.min or self.max is not None and rv > self.max:
+        if (
+            self.min is not None
+            and rv < self.min
+            or self.max is not None
+            and rv > self.max
+        ):
             if self.min is None:
                 self.fail(
-                    "{} is bigger than the maximum valid value {}.".format(rv, self.max),
+                    "{} is bigger than the maximum valid value {}.".format(
+                        rv, self.max
+                    ),
                     param,
                     ctx,
                 )
             elif self.max is None:
                 self.fail(
-                    "{} is smaller than the minimum valid value {}.".format(rv, self.min),
+                    "{} is smaller than the minimum valid value {}.".format(
+                        rv, self.min
+                    ),
                     param,
                     ctx,
                 )
             else:
                 self.fail(
-                    "{} is not in the valid range of {} to {}.".format(rv, self.min, self.max),
+                    "{} is not in the valid range of {} to {}.".format(
+                        rv, self.min, self.max
+                    ),
                     param,
                     ctx,
                 )
@@ -315,7 +336,9 @@ class FloatParamType(ParamType):
         try:
             return float(value)
         except ValueError:
-            self.fail("{} is not a valid floating point value".format(value), param, ctx)
+            self.fail(
+                "{} is not a valid floating point value".format(value), param, ctx
+            )
 
     def __repr__(self):
         return "FLOAT"
@@ -344,22 +367,33 @@ class FloatRange(FloatParamType):
                 return self.min
             if self.max is not None and rv > self.max:
                 return self.max
-        if self.min is not None and rv < self.min or self.max is not None and rv > self.max:
+        if (
+            self.min is not None
+            and rv < self.min
+            or self.max is not None
+            and rv > self.max
+        ):
             if self.min is None:
                 self.fail(
-                    "{} is bigger than the maximum valid value {}.".format(rv, self.max),
+                    "{} is bigger than the maximum valid value {}.".format(
+                        rv, self.max
+                    ),
                     param,
                     ctx,
                 )
             elif self.max is None:
                 self.fail(
-                    "{} is smaller than the minimum valid value {}.".format(rv, self.min),
+                    "{} is smaller than the minimum valid value {}.".format(
+                        rv, self.min
+                    ),
                     param,
                     ctx,
                 )
             else:
                 self.fail(
-                    "{} is not in the valid range of {} to {}.".format(rv, self.min, self.max),
+                    "{} is not in the valid range of {} to {}.".format(
+                        rv, self.min, self.max
+                    ),
                     param,
                     ctx,
                 )
@@ -433,7 +467,9 @@ class File(ParamType):
     name = "filename"
     envvar_list_splitter = os.path.pathsep
 
-    def __init__(self, mode="r", encoding=None, errors="strict", lazy=None, atomic=False):
+    def __init__(
+        self, mode="r", encoding=None, errors="strict", lazy=None, atomic=False
+    ):
         self.mode = mode
         self.encoding = encoding
         self.errors = errors
@@ -457,12 +493,16 @@ class File(ParamType):
             lazy = self.resolve_lazy_flag(value)
 
             if lazy:
-                f = LazyFile(value, self.mode, self.encoding, self.errors, atomic=self.atomic)
+                f = LazyFile(
+                    value, self.mode, self.encoding, self.errors, atomic=self.atomic
+                )
                 if ctx is not None:
                     ctx.call_on_close(f.close_intelligently)
                 return f
 
-            f, should_close = open_stream(value, self.mode, self.encoding, self.errors, atomic=self.atomic)
+            f, should_close = open_stream(
+                value, self.mode, self.encoding, self.errors, atomic=self.atomic
+            )
             # If a context is provided, we automatically close the file
             # at the end of the context execution (or flush out).  If a
             # context does not exist, it's the caller's responsibility to
@@ -476,7 +516,9 @@ class File(ParamType):
             return f
         except (IOError, OSError) as e:  # noqa: B014
             self.fail(
-                "Could not open file: {}: {}".format(filename_to_ui(value), get_streerror(e)),
+                "Could not open file: {}: {}".format(
+                    filename_to_ui(value), get_streerror(e)
+                ),
                 param,
                 ctx,
             )
@@ -568,7 +610,9 @@ class Path(ParamType):
                 if not self.exists:
                     return self.coerce_path_result(rv)
                 self.fail(
-                    "{} '{}' does not exist.".format(self.path_type, filename_to_ui(value)),
+                    "{} '{}' does not exist.".format(
+                        self.path_type, filename_to_ui(value)
+                    ),
                     param,
                     ctx,
                 )
@@ -581,19 +625,25 @@ class Path(ParamType):
                 )
             if not self.dir_okay and stat.S_ISDIR(st.st_mode):
                 self.fail(
-                    "{} '{}' is a directory.".format(self.path_type, filename_to_ui(value)),
+                    "{} '{}' is a directory.".format(
+                        self.path_type, filename_to_ui(value)
+                    ),
                     param,
                     ctx,
                 )
             if self.writable and not os.access(value, os.W_OK):
                 self.fail(
-                    "{} '{}' is not writable.".format(self.path_type, filename_to_ui(value)),
+                    "{} '{}' is not writable.".format(
+                        self.path_type, filename_to_ui(value)
+                    ),
                     param,
                     ctx,
                 )
             if self.readable and not os.access(value, os.R_OK):
                 self.fail(
-                    "{} '{}' is not readable.".format(self.path_type, filename_to_ui(value)),
+                    "{} '{}' is not readable.".format(
+                        self.path_type, filename_to_ui(value)
+                    ),
                     param,
                     ctx,
                 )
@@ -628,7 +678,10 @@ class Tuple(CompositeParamType):
 
     def convert(self, value, param, ctx):
         if len(value) != len(self.types):
-            raise TypeError("It would appear that nargs is set to conflict with the" " composite type arity.")
+            raise TypeError(
+                "It would appear that nargs is set to conflict with the"
+                " composite type arity."
+            )
         return tuple(ty(x, param, ctx) for ty, x in zip(self.types, value))
 
 
@@ -667,7 +720,9 @@ def convert_type(ty, default=None):
     if __debug__:
         try:
             if issubclass(ty, ParamType):
-                raise AssertionError("Attempted to use an uninstantiated parameter type ({}).".format(ty))
+                raise AssertionError(
+                    "Attempted to use an uninstantiated parameter type ({}).".format(ty)
+                )
         except TypeError:
             pass
     return FuncParamType(ty)

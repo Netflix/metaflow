@@ -54,7 +54,9 @@ def hidden_prompt_func(prompt):
     return getpass.getpass(prompt)
 
 
-def _build_prompt(text, suffix, show_default=False, default=None, show_choices=True, type=None):
+def _build_prompt(
+    text, suffix, show_default=False, default=None, show_choices=True, type=None
+):
     prompt = text
     if type is not None and show_choices and isinstance(type, Choice):
         prompt += " ({})".format(", ".join(map(str, type.choices)))
@@ -136,7 +138,9 @@ def prompt(
     if value_proc is None:
         value_proc = convert_type(type, default)
 
-    prompt = _build_prompt(text, prompt_suffix, show_default, default, show_choices, type)
+    prompt = _build_prompt(
+        text, prompt_suffix, show_default, default, show_choices, type
+    )
 
     while 1:
         while 1:
@@ -165,7 +169,9 @@ def prompt(
         echo("Error: the two entered values do not match", err=err)
 
 
-def confirm(text, default=False, abort=False, prompt_suffix=": ", show_default=True, err=False):
+def confirm(
+    text, default=False, abort=False, prompt_suffix=": ", show_default=True, err=False
+):
     """Prompts for confirmation (yes/no question).
 
     If the user aborts the input by sending a interrupt signal this
@@ -183,7 +189,9 @@ def confirm(text, default=False, abort=False, prompt_suffix=": ", show_default=T
     :param err: if set to true the file defaults to ``stderr`` instead of
                 ``stdout``, the same as with echo.
     """
-    prompt = _build_prompt(text, prompt_suffix, show_default, "Y/n" if default else "y/N")
+    prompt = _build_prompt(
+        text, prompt_suffix, show_default, "Y/n" if default else "y/N"
+    )
     while 1:
         try:
             # Write the prompt separately so that we get nice
@@ -540,7 +548,9 @@ def secho(message=None, file=None, nl=True, err=False, color=None, **styles):
     return echo(message, file=file, nl=nl, err=err, color=color)
 
 
-def edit(text=None, editor=None, env=None, require_save=True, extension=".txt", filename=None):
+def edit(
+    text=None, editor=None, env=None, require_save=True, extension=".txt", filename=None
+):
     r"""Edits the given text in the defined editor.  If an editor is given
     (should be the full path to the executable but the regular operating
     system search path is used for finding the executable) it overrides
@@ -570,7 +580,9 @@ def edit(text=None, editor=None, env=None, require_save=True, extension=".txt", 
     """
     from ._termui_impl import Editor
 
-    editor = Editor(editor=editor, env=env, require_save=require_save, extension=extension)
+    editor = Editor(
+        editor=editor, env=env, require_save=require_save, extension=extension
+    )
     if filename is None:
         return editor.edit(text)
     editor.edit_file(filename)

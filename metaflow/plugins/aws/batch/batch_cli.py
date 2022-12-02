@@ -65,7 +65,9 @@ def _execute_cmd(func, flow_name, run_id, user, my_runs, echo):
 @click.pass_context
 def list(ctx, run_id, user, my_runs):
     batch = Batch(ctx.obj.metadata, ctx.obj.environment)
-    _execute_cmd(batch.list_jobs, ctx.obj.flow.name, run_id, user, my_runs, ctx.obj.echo)
+    _execute_cmd(
+        batch.list_jobs, ctx.obj.flow.name, run_id, user, my_runs, ctx.obj.echo
+    )
 
 
 @batch.command(help="Terminate unfinished AWS Batch tasks of this flow.")
@@ -88,7 +90,9 @@ def list(ctx, run_id, user, my_runs):
 @click.pass_context
 def kill(ctx, run_id, user, my_runs):
     batch = Batch(ctx.obj.metadata, ctx.obj.environment)
-    _execute_cmd(batch.kill_jobs, ctx.obj.flow.name, run_id, user, my_runs, ctx.obj.echo)
+    _execute_cmd(
+        batch.kill_jobs, ctx.obj.flow.name, run_id, user, my_runs, ctx.obj.echo
+    )
 
 
 @batch.command(
@@ -120,10 +124,14 @@ def kill(ctx, run_id, user, my_runs):
 @click.option("--split-index", help="Passed to the top-level 'step'.")
 @click.option("--clone-path", help="Passed to the top-level 'step'.")
 @click.option("--clone-run-id", help="Passed to the top-level 'step'.")
-@click.option("--tag", multiple=True, default=None, help="Passed to the top-level 'step'.")
+@click.option(
+    "--tag", multiple=True, default=None, help="Passed to the top-level 'step'."
+)
 @click.option("--namespace", default=None, help="Passed to the top-level 'step'.")
 @click.option("--retry-count", default=0, help="Passed to the top-level 'step'.")
-@click.option("--max-user-code-retries", default=0, help="Passed to the top-level 'step'.")
+@click.option(
+    "--max-user-code-retries", default=0, help="Passed to the top-level 'step'."
+)
 @click.option(
     "--run-time-limit",
     default=5 * 24 * 60 * 60,
@@ -208,7 +216,9 @@ def step(
     retry_deco = [deco for deco in node.decorators if deco.name == "retry"]
     minutes_between_retries = None
     if retry_deco:
-        minutes_between_retries = int(retry_deco[0].attributes.get("minutes_between_retries", 1))
+        minutes_between_retries = int(
+            retry_deco[0].attributes.get("minutes_between_retries", 1)
+        )
 
     # Set batch attributes
     task_spec = {
@@ -220,7 +230,9 @@ def step(
     }
     attrs = {"metaflow.%s" % k: v for k, v in task_spec.items()}
     attrs["metaflow.user"] = util.get_username()
-    attrs["metaflow.version"] = ctx.obj.environment.get_environment_info()["metaflow_version"]
+    attrs["metaflow.version"] = ctx.obj.environment.get_environment_info()[
+        "metaflow_version"
+    ]
 
     env_deco = [deco for deco in node.decorators if deco.name == "environment"]
     if env_deco:
@@ -233,7 +245,10 @@ def step(
         env.update(split_vars)
 
     if retry_count:
-        ctx.obj.echo_always("Sleeping %d minutes before the next AWS Batch retry" % minutes_between_retries)
+        ctx.obj.echo_always(
+            "Sleeping %d minutes before the next AWS Batch retry"
+            % minutes_between_retries
+        )
         time.sleep(minutes_between_retries * 60)
 
     # this information is needed for log tailing
@@ -251,7 +266,9 @@ def step(
         if ctx.obj.metadata.TYPE == "local":
             sync_local_metadata_from_datastore(
                 DATASTORE_LOCAL_DIR,
-                ctx.obj.flow_datastore.get_task_datastore(kwargs["run_id"], step_name, kwargs["task_id"]),
+                ctx.obj.flow_datastore.get_task_datastore(
+                    kwargs["run_id"], step_name, kwargs["task_id"]
+                ),
             )
 
     batch = Batch(ctx.obj.metadata, ctx.obj.environment)

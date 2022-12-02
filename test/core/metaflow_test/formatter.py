@@ -73,7 +73,8 @@ class FlowFormatter(object):
             if step.quals & node_quals:
                 return step
         raise Exception(
-            "Test %s doesn't have a match for step %s in graph %s" % (self.test, name, self.graphspec["name"])
+            "Test %s doesn't have a match for step %s in graph %s"
+            % (self.test, name, self.graphspec["name"])
         )
 
     def _flow_lines(self):

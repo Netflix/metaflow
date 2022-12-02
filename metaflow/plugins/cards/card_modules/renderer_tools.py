@@ -5,7 +5,9 @@ import json
 from .basic import SerializationErrorComponent
 
 
-def _render_component_safely(component, render_func, return_error_component, *args, **kwargs):
+def _render_component_safely(
+    component, render_func, return_error_component, *args, **kwargs
+):
     rendered_obj = None
     try:
         rendered_obj = render_func(component, *args, **kwargs)
@@ -13,7 +15,9 @@ def _render_component_safely(component, render_func, return_error_component, *ar
         if not return_error_component:
             return None
         error_str = traceback.format_exc()
-        rendered_obj = SerializationErrorComponent(component.__class__.__name__, error_str).render()
+        rendered_obj = SerializationErrorComponent(
+            component.__class__.__name__, error_str
+        ).render()
     else:
         if not (type(rendered_obj) == str or type(rendered_obj) == dict):
             rendered_obj = SerializationErrorComponent(

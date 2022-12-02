@@ -29,7 +29,9 @@ class MergeArtifactsIncludeTest(MetaflowTest):
         self.manual_merge_required = current.task_id
         # Test to see if we raise an exception if include specifies non-merged things
         assert_exception(
-            lambda: self.merge_artifacts(inputs, include=["manual_merge_required", "foobar"]),
+            lambda: self.merge_artifacts(
+                inputs, include=["manual_merge_required", "foobar"]
+            ),
             MissingInMergeArtifactsException,
         )
 

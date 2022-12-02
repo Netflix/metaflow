@@ -16,7 +16,9 @@ class PlayListFlow(FlowSpec):
 
     """
 
-    genre = Parameter("genre", help="Filter movies for a particular genre.", default="Sci-Fi")
+    genre = Parameter(
+        "genre", help="Filter movies for a particular genre.", default="Sci-Fi"
+    )
 
     recommendations = Parameter(
         "recommendations",
@@ -56,7 +58,11 @@ class PlayListFlow(FlowSpec):
         # Concatenate all the genre specific data frames and choose a random
         # movie.
         df = pandas.concat(
-            [data["dataframe"] for genre, data in self.genre_stats.items() if genre != self.genre.lower()]
+            [
+                data["dataframe"]
+                for genre, data in self.genre_stats.items()
+                if genre != self.genre.lower()
+            ]
         )
         df = df.sample(n=1)
         self.bonus = (df["movie_title"].values[0], df["genres"].values[0])

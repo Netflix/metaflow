@@ -74,7 +74,9 @@ try:
     for m in _modules_to_import:
         override_module = m.module.__dict__.get("module_overrides", None)
         if override_module is not None:
-            _override_modules.append(".".join([EXT_PKG, m.tl_package, "toplevel", override_module]))
+            _override_modules.append(
+                ".".join([EXT_PKG, m.tl_package, "toplevel", override_module])
+            )
         tl_module = m.module.__dict__.get("toplevel", None)
         if tl_module is not None:
             _tl_modules.append(".".join([EXT_PKG, m.tl_package, "toplevel", tl_module]))
@@ -144,7 +146,9 @@ for m in _tl_modules:
     if extension_module:
         tl_package = m.split(".")[1]
         load_globals(extension_module, globals(), extra_indent=True)
-        lazy_load_aliases(alias_submodules(extension_module, tl_package, None, extra_indent=True))
+        lazy_load_aliases(
+            alias_submodules(extension_module, tl_package, None, extra_indent=True)
+        )
         version_info = getattr(extension_module, "__mf_extensions__", "<unk>")
         if extension_module.__version__:
             version_info = "%s(%s)" % (version_info, extension_module.__version__)

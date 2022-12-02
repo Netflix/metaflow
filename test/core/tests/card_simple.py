@@ -59,4 +59,6 @@ class CardDecoratorBasicTest(MetaflowTest):
                 meta_check_dict = checker.artifact_dict(step.name, "task")
                 for task_id in meta_check_dict:
                     taskpathspec = meta_check_dict[task_id]["task"]
-                    checker.assert_card(step.name, task_id, "taskspec_card", "%s" % taskpathspec)
+                    checker.assert_card(
+                        step.name, task_id, "taskspec_card", "%s" % taskpathspec
+                    )

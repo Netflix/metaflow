@@ -190,7 +190,12 @@ class ProgressBar(object):
         else:
             bar = list(self.empty_char * (self.width or 1))
             if self.time_per_iteration != 0:
-                bar[int((math.cos(self.pos * self.time_per_iteration) / 2.0 + 0.5) * self.width)] = self.fill_char
+                bar[
+                    int(
+                        (math.cos(self.pos * self.time_per_iteration) / 2.0 + 0.5)
+                        * self.width
+                    )
+                ] = self.fill_char
             bar = "".join(bar)
         return bar
 
@@ -529,7 +534,9 @@ def open_url(url, wait=False, locate=False):
             url = _unquote_file(url)
             args = 'explorer /select,"{}"'.format(_unquote_file(url.replace('"', "")))
         else:
-            args = 'start {} "" "{}"'.format("/WAIT" if wait else "", url.replace('"', ""))
+            args = 'start {} "" "{}"'.format(
+                "/WAIT" if wait else "", url.replace('"', "")
+            )
         return os.system(args)
     elif CYGWIN:
         if locate:

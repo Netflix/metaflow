@@ -70,7 +70,9 @@ def make_input_stream(input, charset):
 class Result(object):
     """Holds the captured result of an invoked CLI script."""
 
-    def __init__(self, runner, stdout_bytes, stderr_bytes, exit_code, exception, exc_info=None):
+    def __init__(
+        self, runner, stdout_bytes, stderr_bytes, exit_code, exception, exc_info=None
+    ):
         #: The runner that created the result
         self.runner = runner
         #: The standard output as bytes.
@@ -92,17 +94,23 @@ class Result(object):
     @property
     def stdout(self):
         """The standard output as unicode string."""
-        return self.stdout_bytes.decode(self.runner.charset, "replace").replace("\r\n", "\n")
+        return self.stdout_bytes.decode(self.runner.charset, "replace").replace(
+            "\r\n", "\n"
+        )
 
     @property
     def stderr(self):
         """The standard error as unicode string."""
         if self.stderr_bytes is None:
             raise ValueError("stderr not separately captured")
-        return self.stderr_bytes.decode(self.runner.charset, "replace").replace("\r\n", "\n")
+        return self.stderr_bytes.decode(self.runner.charset, "replace").replace(
+            "\r\n", "\n"
+        )
 
     def __repr__(self):
-        return "<{} {}>".format(type(self).__name__, repr(self.exception) if self.exception else "okay")
+        return "<{} {}>".format(
+            type(self).__name__, repr(self.exception) if self.exception else "okay"
+        )
 
 
 class CliRunner(object):
@@ -264,7 +272,16 @@ class CliRunner(object):
             utils.should_strip_ansi = old_should_strip_ansi
             formatting.FORCED_WIDTH = old_forced_width
 
-    def invoke(self, cli, args=None, input=None, env=None, catch_exceptions=True, color=False, **extra):
+    def invoke(
+        self,
+        cli,
+        args=None,
+        input=None,
+        env=None,
+        catch_exceptions=True,
+        color=False,
+        **extra
+    ):
         """Invokes a command in an isolated environment.  The arguments are
         forwarded directly to the command line script, the `extra` keyword
         arguments are passed to the :meth:`~clickpkg.Command.main` function of

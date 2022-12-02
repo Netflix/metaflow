@@ -13,21 +13,30 @@ class ParallelDecorator(StepDecorator):
     def __init__(self, attributes=None, statically_defined=False):
         super(ParallelDecorator, self).__init__(attributes, statically_defined)
 
-    def runtime_step_cli(self, cli_args, retry_count, max_user_code_retries, ubf_context):
+    def runtime_step_cli(
+        self, cli_args, retry_count, max_user_code_retries, ubf_context
+    ):
 
         if ubf_context == UBF_CONTROL:
             num_parallel = cli_args.task.ubf_iter.num_parallel
             cli_args.command_options["num-parallel"] = str(num_parallel)
 
-    def step_init(self, flow, graph, step_name, decorators, environment, flow_datastore, logger):
+    def step_init(
+        self, flow, graph, step_name, decorators, environment, flow_datastore, logger
+    ):
         self.environment = environment
 
-    def task_decorate(self, step_func, flow, graph, retry_count, max_user_code_retries, ubf_context):
+    def task_decorate(
+        self, step_func, flow, graph, retry_count, max_user_code_retries, ubf_context
+    ):
         def _step_func_with_setup():
             self.setup_distributed_env(flow)
             step_func()
 
-        if ubf_context == UBF_CONTROL and os.environ.get("METAFLOW_RUNTIME_ENVIRONMENT", "local") == "local":
+        if (
+            ubf_context == UBF_CONTROL
+            and os.environ.get("METAFLOW_RUNTIME_ENVIRONMENT", "local") == "local"
+        ):
             from functools import partial
 
             env_to_use = getattr(self.environment, "base_env", self.environment)
@@ -59,7 +68,10 @@ def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_c
     assert flow._unbounded_foreach
     foreach_iter = flow._parallel_ubf_iter
     if foreach_iter.__class__.__name__ != "ParallelUBF":
-        raise MetaflowException("Expected ParallelUBFIter iterator object, got:" + foreach_iter.__class__.__name__)
+        raise MetaflowException(
+            "Expected ParallelUBFIter iterator object, got:"
+            + foreach_iter.__class__.__name__
+        )
 
     num_parallel = foreach_iter.num_parallel
     os.environ["MF_PARALLEL_NUM_NODES"] = str(num_parallel)
@@ -101,7 +113,8 @@ def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_c
         subprocesses.append(p)
 
     flow._control_mapper_tasks = [
-        "%s/%s/%s" % (run_id, step_name, mapper_task_id) for mapper_task_id in mapper_task_ids
+        "%s/%s/%s" % (run_id, step_name, mapper_task_id)
+        for mapper_task_id in mapper_task_ids
     ]
     flow._control_task_is_mapper_zero = True
 

@@ -6,7 +6,9 @@ class ParallelTest(FlowSpec):
     Test flow to test @parallel.
     """
 
-    num_parallel = Parameter("num_parallel", help="Number of nodes in cluster", default=3)
+    num_parallel = Parameter(
+        "num_parallel", help="Number of nodes in cluster", default=3
+    )
 
     @step
     def start(self):

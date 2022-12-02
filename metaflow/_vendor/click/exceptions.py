@@ -64,7 +64,9 @@ class UsageError(ClickException):
         color = None
         hint = ""
         if self.cmd is not None and self.cmd.get_help_option(self.ctx) is not None:
-            hint = "Try '{} {}' for help.\n".format(self.ctx.command_path, self.ctx.help_option_names[0])
+            hint = "Try '{} {}' for help.\n".format(
+                self.ctx.command_path, self.ctx.help_option_names[0]
+            )
         if self.ctx is not None:
             color = self.ctx.color
             echo("{}\n{}".format(self.ctx.get_usage(), hint), file=file, color=color)
@@ -118,7 +120,9 @@ class MissingParameter(BadParameter):
                        ``'option'`` or ``'argument'``.
     """
 
-    def __init__(self, message=None, ctx=None, param=None, param_hint=None, param_type=None):
+    def __init__(
+        self, message=None, ctx=None, param=None, param_hint=None, param_type=None
+    ):
         BadParameter.__init__(self, message, ctx, param, param_hint)
         self.param_type = param_type
 

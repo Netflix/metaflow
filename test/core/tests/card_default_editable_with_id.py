@@ -51,11 +51,15 @@ class DefaultEditableCardWithIdTest(MetaflowTest):
                     cards_info = checker.list_cards(step.name, task_id)
                     number = cli_check_dict[task_pathspec]["random_number"]
                     assert_equals(
-                        cards_info is not None and "cards" in cards_info and len(cards_info["cards"]) == 2,
+                        cards_info is not None
+                        and "cards" in cards_info
+                        and len(cards_info["cards"]) == 2,
                         True,
                     )
                     # Find the card without the id
-                    default_editable_cards = [c for c in cards_info["cards"] if c["id"] is None]
+                    default_editable_cards = [
+                        c for c in cards_info["cards"] if c["id"] is None
+                    ]
                     assert_equals(len(default_editable_cards) == 1, True)
                     card = default_editable_cards[0]
                     checker.assert_card(
@@ -80,10 +84,14 @@ class DefaultEditableCardWithIdTest(MetaflowTest):
                     random_number = meta_check_dict[task_id]["random_number"]
                     cards_info = checker.list_cards(step.name, task_id)
                     assert_equals(
-                        cards_info is not None and "cards" in cards_info and len(cards_info["cards"]) == 2,
+                        cards_info is not None
+                        and "cards" in cards_info
+                        and len(cards_info["cards"]) == 2,
                         True,
                     )
-                    default_editable_cards = [c for c in cards_info["cards"] if c["id"] is None]
+                    default_editable_cards = [
+                        c for c in cards_info["cards"] if c["id"] is None
+                    ]
                     assert_equals(len(default_editable_cards) == 1, True)
                     card = default_editable_cards[0]
                     checker.assert_card(

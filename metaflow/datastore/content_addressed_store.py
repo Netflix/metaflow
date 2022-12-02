@@ -148,7 +148,9 @@ class ContentAddressedStore(object):
                         else:
                             version = meta.get("cas_version", -1)
                             if version == -1:
-                                raise DataException("Could not extract encoding version for '%s'" % path)
+                                raise DataException(
+                                    "Could not extract encoding version for '%s'" % path
+                                )
                             unpack_code = getattr(self, "_unpack_v%d" % version, None)
                             if unpack_code is None:
                                 raise DataException(
@@ -160,7 +162,9 @@ class ContentAddressedStore(object):
                         try:
                             blob = unpack_code(f)
                         except Exception as e:
-                            raise DataException("Could not unpack artifact '%s': %s" % (path, e))
+                            raise DataException(
+                                "Could not unpack artifact '%s': %s" % (path, e)
+                            )
 
                 if self._blob_cache:
                     self._blob_cache.store_key(key, blob)

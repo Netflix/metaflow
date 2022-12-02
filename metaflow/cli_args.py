@@ -35,7 +35,9 @@ class CLIArgs(object):
     def step_kwargs(self):
         return self._step_kwargs
 
-    def step_command(self, executable, script, step_name, top_kwargs=None, step_kwargs=None):
+    def step_command(
+        self, executable, script, step_name, top_kwargs=None, step_kwargs=None
+    ):
         cmd = [executable, "-u", script]
         if top_kwargs is None:
             top_kwargs = self._top_kwargs
