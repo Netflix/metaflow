@@ -28,10 +28,19 @@ class Boto3ClientProvider(object):
             import boto3
             import botocore
             from botocore.exceptions import ClientError
+            from botocore.config import Config
         except (NameError, ImportError):
             raise MetaflowException(
                 "Could not import module 'boto3'. Install boto3 first."
             )
+
+        if module == "s3" and (
+            "config" not in client_params or client_params["config"].retries is None
+        ):
+            # Use the adaptive retry strategy by default -- do not set anything if
+            # the user has already set something
+            config = client_params.get("config", Config())
+            config.retries = {"max_attempts": 10, "mode": "adaptive"}
 
         if AWS_SANDBOX_ENABLED:
             # role is ignored in the sandbox

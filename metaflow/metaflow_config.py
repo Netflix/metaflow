@@ -74,6 +74,15 @@ S3_VERIFY_CERTIFICATE = from_conf("S3_VERIFY_CERTIFICATE")
 # so setting it to 0 means each operation will be tried once.
 S3_RETRY_COUNT = from_conf("S3_RETRY_COUNT", 7)
 
+# Number of retries on *transient* failures (such as SlowDown errors). Note
+# that if after S3_TRANSIENT_RETRY_COUNT times, all operations haven't been done,
+# it will try up to S3_RETRY_COUNT again so the total number of tries can be up to
+# (S3_RETRY_COUNT + 1) * (S3_TRANSIENT_RETRY_COUNT + 1)
+# You typically want this number fairly high as transient retires are "cheap" (only
+# operations that have not succeeded retry as opposed to all operations for the
+# top-level retries)
+S3_TRANSIENT_RETRY_COUNT = from_conf("S3_TRANSIENT_RETRY_COUNT", 20)
+
 # Threshold to start printing warnings for an AWS retry
 RETRY_WARNING_THRESHOLD = 3
 
