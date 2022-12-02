@@ -15,7 +15,10 @@ class CardClassFoundException(MetaflowException):
 
     def __init__(self, card_name):
         exc = traceback.format_exc()
-        msg = "MetaflowCard named %s not found. Check the `type` " "attribute in @card" % (card_name)
+        msg = (
+            "MetaflowCard named %s not found. Check the `type` "
+            "attribute in @card" % (card_name)
+        )
         super(CardClassFoundException, self).__init__(msg)
 
 
@@ -94,10 +97,14 @@ class UnrenderableCardException(MetaflowException):
     headline = "Unable to render @card"
 
     def __init__(self, card_type, args):
-        msg = "Card of type %s is unable to be rendered with arguments %s.\nStack trace : " " %s" % (
-            card_type,
-            args,
-            traceback.format_exc(),
+        msg = (
+            "Card of type %s is unable to be rendered with arguments %s.\nStack trace : "
+            " %s"
+            % (
+                card_type,
+                args,
+                traceback.format_exc(),
+            )
         )
         super(UnrenderableCardException, self).__init__(msg)
 
@@ -107,12 +114,17 @@ class UnresolvableDatastoreException(MetaflowException):
     headline = "Cannot resolve datastore type from `Task.metadata`"
 
     def __init__(self, task):
-        msg = "Cannot resolve the metadata `ds-type` from task with pathspec : %s " % task.pathspec
+        msg = (
+            "Cannot resolve the metadata `ds-type` from task with pathspec : %s "
+            % task.pathspec
+        )
         super(UnresolvableDatastoreException, self).__init__(msg)
 
 
 class IncorrectArguementException(MetaflowException):
-    headline = "`get_cards` function requires a `Task` object or pathspec as an argument"
+    headline = (
+        "`get_cards` function requires a `Task` object or pathspec as an argument"
+    )
 
     def __init__(self, obj_type):
         msg = (
@@ -126,5 +138,8 @@ class IncorrectPathspecException(MetaflowException):
     headline = "Pathspec is required of form `flowname/runid/stepname/taskid`"
 
     def __init__(self, pthspec):
-        msg = "Pathspec %s is invalid. Pathspec is required of form `flowname/runid/stepname/taskid`" % pthspec
+        msg = (
+            "Pathspec %s is invalid. Pathspec is required of form `flowname/runid/stepname/taskid`"
+            % pthspec
+        )
         super().__init__(msg=msg, lineno=None)

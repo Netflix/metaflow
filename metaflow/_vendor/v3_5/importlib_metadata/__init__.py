@@ -65,7 +65,9 @@ class PackageNotFoundError(ModuleNotFoundError):
         return name
 
 
-class EntryPoint(PyPy_repr, collections.namedtuple("EntryPointBase", "name value group")):
+class EntryPoint(
+    PyPy_repr, collections.namedtuple("EntryPointBase", "name value group")
+):
     """An entry point as defined by Python packaging conventions.
 
     See `the packaging docs on entry points
@@ -73,7 +75,11 @@ class EntryPoint(PyPy_repr, collections.namedtuple("EntryPointBase", "name value
     for more information.
     """
 
-    pattern = re.compile(r"(?P<module>[\w.]+)\s*" r"(:\s*(?P<attr>[\w.]+)\s*)?" r"((?P<extras>\[.*\])\s*)?$")
+    pattern = re.compile(
+        r"(?P<module>[\w.]+)\s*"
+        r"(:\s*(?P<attr>[\w.]+)\s*)?"
+        r"((?P<extras>\[.*\])\s*)?$"
+    )
     """
     A regular expression describing the syntax for an entry point,
     which might look like:
@@ -117,7 +123,11 @@ class EntryPoint(PyPy_repr, collections.namedtuple("EntryPointBase", "name value
 
     @classmethod
     def _from_config(cls, config):
-        return [cls(name, value, group) for group in config.sections() for name, value in config.items(group)]
+        return [
+            cls(name, value, group)
+            for group in config.sections()
+            for name, value in config.items(group)
+        ]
 
     @classmethod
     def _from_text(cls, text):
@@ -218,7 +228,9 @@ class Distribution:
         if context and kwargs:
             raise ValueError("cannot accept context and kwargs")
         context = context or DistributionFinder.Context(**kwargs)
-        return itertools.chain.from_iterable(resolver(context) for resolver in cls._discover_resolvers())
+        return itertools.chain.from_iterable(
+            resolver(context) for resolver in cls._discover_resolvers()
+        )
 
     @staticmethod
     def at(path):
@@ -232,7 +244,9 @@ class Distribution:
     @staticmethod
     def _discover_resolvers():
         """Search the meta_path for resolvers."""
-        declared = (getattr(finder, "find_distributions", None) for finder in sys.meta_path)
+        declared = (
+            getattr(finder, "find_distributions", None) for finder in sys.meta_path
+        )
         return filter(None, declared)
 
     @classmethod
@@ -328,7 +342,9 @@ class Distribution:
         section_pairs = cls._read_sections(source.splitlines())
         sections = {
             section: list(map(operator.itemgetter("line"), results))
-            for section, results in itertools.groupby(section_pairs, operator.itemgetter("section"))
+            for section, results in itertools.groupby(
+                section_pairs, operator.itemgetter("section")
+            )
         }
         return cls._convert_egg_info_reqs_to_simple_reqs(sections)
 
@@ -445,7 +461,11 @@ class FastPath:
         return unique_ordered(child.split(posixpath.sep, 1)[0] for child in names)
 
     def search(self, name):
-        return (self.joinpath(child) for child in self.children() if name.matches(child, self.base))
+        return (
+            self.joinpath(child)
+            for child in self.children()
+            if name.matches(child, self.base)
+        )
 
 
 class Prepared:
@@ -496,7 +516,11 @@ class Prepared:
         normalized = self.legacy_normalize(self.name or "")
         prefix = normalized + "-" if normalized else ""
         versionless_egg_name = normalized + ".egg" if self.name else ""
-        return base == versionless_egg_name or base.startswith(prefix) and base.endswith(".egg")
+        return (
+            base == versionless_egg_name
+            or base.startswith(prefix)
+            and base.endswith(".egg")
+        )
 
 
 @install
@@ -522,7 +546,9 @@ class MetadataPathFinder(NullFinder, DistributionFinder):
     @classmethod
     def _search_paths(cls, name, paths):
         """Find metadata directories in paths heuristically."""
-        return itertools.chain.from_iterable(path.search(Prepared(name)) for path in map(FastPath, paths))
+        return itertools.chain.from_iterable(
+            path.search(Prepared(name)) for path in map(FastPath, paths)
+        )
 
 
 class PathDistribution(Distribution):
@@ -535,7 +561,13 @@ class PathDistribution(Distribution):
         self._path = path
 
     def read_text(self, filename):
-        with suppress(FileNotFoundError, IsADirectoryError, KeyError, NotADirectoryError, PermissionError):
+        with suppress(
+            FileNotFoundError,
+            IsADirectoryError,
+            KeyError,
+            NotADirectoryError,
+            PermissionError,
+        ):
             return self._path.joinpath(filename).read_text(encoding="utf-8")
 
     read_text.__doc__ = Distribution.read_text.__doc__

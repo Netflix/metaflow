@@ -33,7 +33,9 @@ if name == "nt":
         possible_locations = []
         # look in program files for msysgit
         if "PROGRAMFILES(X86)" in environ:
-            possible_locations.append("%s/Git/cmd/git.exe" % environ["PROGRAMFILES(X86)"])
+            possible_locations.append(
+                "%s/Git/cmd/git.exe" % environ["PROGRAMFILES(X86)"]
+            )
         if "PROGRAMFILES" in environ:
             possible_locations.append("%s/Git/cmd/git.exe" % environ["PROGRAMFILES"])
         # look for the github version of git
@@ -43,7 +45,9 @@ if name == "nt":
                 for subdir in listdir(github_dir):
                     if not subdir.startswith("PortableGit"):
                         continue
-                    possible_locations.append("%s/%s/bin/git.exe" % (github_dir, subdir))
+                    possible_locations.append(
+                        "%s/%s/bin/git.exe" % (github_dir, subdir)
+                    )
         for possible_location in possible_locations:
             if path.isfile(possible_location):
                 return possible_location
@@ -61,13 +65,21 @@ def call_git_describe(abbrev=7):
         # not some other repo
         with open(devnull, "w") as fnull:
             arguments = [GIT_COMMAND, "rev-parse", "--show-toplevel"]
-            reponame = check_output(arguments, cwd=CURRENT_DIRECTORY, stderr=fnull).decode("ascii").strip()
+            reponame = (
+                check_output(arguments, cwd=CURRENT_DIRECTORY, stderr=fnull)
+                .decode("ascii")
+                .strip()
+            )
             if path.basename(reponame) != "metaflow":
                 return None
 
         with open(devnull, "w") as fnull:
             arguments = [GIT_COMMAND, "describe", "--tags", "--abbrev=%d" % abbrev]
-            return check_output(arguments, cwd=CURRENT_DIRECTORY, stderr=fnull).decode("ascii").strip()
+            return (
+                check_output(arguments, cwd=CURRENT_DIRECTORY, stderr=fnull)
+                .decode("ascii")
+                .strip()
+            )
 
     except (OSError, CalledProcessError):
         return None

@@ -177,7 +177,9 @@ class Argument(object):
             if holes == len(value):
                 value = None
             elif holes != 0:
-                raise BadArgumentUsage("argument {} takes {} values".format(self.dest, self.nargs))
+                raise BadArgumentUsage(
+                    "argument {} takes {} values".format(self.dest, self.nargs)
+                )
         state.opts[self.dest] = value
         state.order.append(self.obj)
 
@@ -272,7 +274,9 @@ class OptionParser(object):
         return state.opts, state.largs, state.order
 
     def _process_args_for_args(self, state):
-        pargs, args = _unpack_args(state.largs + state.rargs, [x.nargs for x in self._args])
+        pargs, args = _unpack_args(
+            state.largs + state.rargs, [x.nargs for x in self._args]
+        )
 
         for idx, arg in enumerate(self._args):
             arg.process(pargs[idx], state)

@@ -101,7 +101,9 @@ class MetaflowPackage(object):
         """
         # We want the following contents in the tarball
         # Metaflow package itself
-        for path_tuple in self._walk(self.metaflow_root, exclude_hidden=False, suffixes=METAFLOW_SUFFIXES_LIST):
+        for path_tuple in self._walk(
+            self.metaflow_root, exclude_hidden=False, suffixes=METAFLOW_SUFFIXES_LIST
+        ):
             yield path_tuple
 
         # Metaflow extensions; for now, we package *all* extensions but this may change
@@ -131,7 +133,9 @@ class MetaflowPackage(object):
             yield path_tuple
         if R.use_r():
             # the R working directory
-            for path_tuple in self._walk("%s/" % R.working_dir(), suffixes=self.suffixes):
+            for path_tuple in self._walk(
+                "%s/" % R.working_dir(), suffixes=self.suffixes
+            ):
                 yield path_tuple
             # the R package
             for path_tuple in R.package_paths():
@@ -159,7 +163,9 @@ class MetaflowPackage(object):
             return tarinfo
 
         buf = BytesIO()
-        with tarfile.open(fileobj=buf, mode="w:gz", compresslevel=3, dereference=True) as tar:
+        with tarfile.open(
+            fileobj=buf, mode="w:gz", compresslevel=3, dereference=True
+        ) as tar:
             self._add_info(tar)
             for path, arcname in self.path_tuples():
                 tar.add(path, arcname=arcname, recursive=False, filter=no_mtime)

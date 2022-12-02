@@ -35,7 +35,8 @@ class LinuxProcPoll(ProcPoll):
             yield ProcPollEvent(
                 fd=fd,
                 can_read=bool(event & select.POLLIN),
-                is_terminated=bool(event & select.POLLHUP) or bool(event & select.POLLERR),
+                is_terminated=bool(event & select.POLLHUP)
+                or bool(event & select.POLLERR),
             )
 
 
@@ -67,7 +68,9 @@ def make_poll():
     elif os == "Darwin":
         return DarwinProcPoll()
     else:
-        raise Exception("Polling is not supported on " "your operating system (%s)" % os)
+        raise Exception(
+            "Polling is not supported on " "your operating system (%s)" % os
+        )
 
 
 if __name__ == "__main__":

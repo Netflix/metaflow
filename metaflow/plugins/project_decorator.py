@@ -35,7 +35,8 @@ class ProjectDecorator(FlowDecorator):
             is_flag=True,
             default=False,
             show_default=True,
-            help="Use the @project's production branch. To " "use a custom branch, use --branch.",
+            help="Use the @project's production branch. To "
+            "use a custom branch, use --branch.",
         ),
         "branch": dict(
             default=None,
@@ -46,7 +47,9 @@ class ProjectDecorator(FlowDecorator):
         ),
     }
 
-    def flow_init(self, flow, graph, environment, flow_datastore, metadata, logger, echo, options):
+    def flow_init(
+        self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
+    ):
         self._option_values = options
         project_name = self.attributes.get("name")
         project_flow_name, branch_name = format_name(
@@ -71,7 +74,9 @@ class ProjectDecorator(FlowDecorator):
                 "project_flow_name": project_flow_name,
             }
         )
-        metadata.add_sticky_tags(sys_tags=["project:%s" % project_name, "project_branch:%s" % branch_name])
+        metadata.add_sticky_tags(
+            sys_tags=["project:%s" % project_name, "project_branch:%s" % branch_name]
+        )
 
     def get_top_level_options(self):
         return list(self._option_values.items())
@@ -81,21 +86,32 @@ def format_name(flow_name, project_name, deploy_prod, given_branch, user_name):
 
     if not project_name:
         # an empty string is not a valid project name
-        raise MetaflowException("@project needs a name. " "Try @project(name='some_name')")
+        raise MetaflowException(
+            "@project needs a name. " "Try @project(name='some_name')"
+        )
     elif re.search(VALID_NAME_RE, project_name):
         raise MetaflowException(
-            "The @project name must contain only " "lowercase alphanumeric characters " "and underscores."
+            "The @project name must contain only "
+            "lowercase alphanumeric characters "
+            "and underscores."
         )
     elif len(project_name) > VALID_NAME_LEN:
-        raise MetaflowException("The @project name must be shorter than " "%d characters." % VALID_NAME_LEN)
+        raise MetaflowException(
+            "The @project name must be shorter than " "%d characters." % VALID_NAME_LEN
+        )
 
     if given_branch:
         if re.search(VALID_NAME_RE, given_branch):
             raise MetaflowException(
-                "The branch name must contain only " "lowercase alphanumeric characters " "and underscores."
+                "The branch name must contain only "
+                "lowercase alphanumeric characters "
+                "and underscores."
             )
         elif len(given_branch) > VALID_NAME_LEN:
-            raise MetaflowException("Branch name is too long. " "The maximum is %d characters." % VALID_NAME_LEN)
+            raise MetaflowException(
+                "Branch name is too long. "
+                "The maximum is %d characters." % VALID_NAME_LEN
+            )
         if deploy_prod:
             branch = "prod.%s" % given_branch
         else:

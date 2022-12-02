@@ -107,14 +107,17 @@ def _check_generic(cls, parameters, elen=_marker):
             if (num_tv_tuples > 0) and (alen >= elen - num_tv_tuples):
                 return
         raise TypeError(
-            f"Too {'many' if alen > elen else 'few'} parameters for {cls};" f" actual {alen}, expected {elen}"
+            f"Too {'many' if alen > elen else 'few'} parameters for {cls};"
+            f" actual {alen}, expected {elen}"
         )
 
 
 if sys.version_info >= (3, 10):
 
     def _should_collect_from_parameters(t):
-        return isinstance(t, (typing._GenericAlias, _types.GenericAlias, _types.UnionType))
+        return isinstance(
+            t, (typing._GenericAlias, _types.GenericAlias, _types.UnionType)
+        )
 
 elif sys.version_info >= (3, 9):
 
@@ -195,7 +198,9 @@ elif sys.version_info[:2] >= (3, 7):
             return "typing_extensions." + self._name
 
         def __getitem__(self, parameters):
-            item = typing._type_check(parameters, f"{self._name} accepts only single type")
+            item = typing._type_check(
+                parameters, f"{self._name} accepts only single type"
+            )
             return typing._GenericAlias(self, (item,))
 
     Final = _FinalForm(
@@ -241,7 +246,12 @@ else:
         def __getitem__(self, item):
             cls = type(self)
             if self.__type__ is None:
-                return cls(typing._type_check(item, f"{cls.__name__[1:]} accepts only single type."), _root=True)
+                return cls(
+                    typing._type_check(
+                        item, f"{cls.__name__[1:]} accepts only single type."
+                    ),
+                    _root=True,
+                )
             raise TypeError(f"{cls.__name__[1:]} cannot be further subscripted")
 
         def _eval_type(self, globalns, localns):
@@ -411,7 +421,10 @@ class _ExtensionsGenericMeta(GenericMeta):
         """
         if self.__origin__ is not None:
             if sys._getframe(1).f_globals["__name__"] not in ["abc", "functools"]:
-                raise TypeError("Parameterized generics cannot be used with class " "or instance checks")
+                raise TypeError(
+                    "Parameterized generics cannot be used with class "
+                    "or instance checks"
+                )
             return False
         if not self.__extra__:
             return super().__subclasscheck__(subclass)
@@ -440,7 +453,10 @@ if hasattr(typing, "Deque"):
 else:
 
     class Deque(
-        collections.deque, typing.MutableSequence[T], metaclass=_ExtensionsGenericMeta, extra=collections.deque
+        collections.deque,
+        typing.MutableSequence[T],
+        metaclass=_ExtensionsGenericMeta,
+        extra=collections.deque,
     ):
         __slots__ = ()
 
@@ -508,7 +524,10 @@ if hasattr(typing, "Counter"):
 else:
 
     class Counter(
-        collections.Counter, typing.Dict[T, int], metaclass=_ExtensionsGenericMeta, extra=collections.Counter
+        collections.Counter,
+        typing.Dict[T, int],
+        metaclass=_ExtensionsGenericMeta,
+        extra=collections.Counter,
     ):
 
         __slots__ = ()
@@ -640,14 +659,18 @@ elif PEP_560:
         def __instancecheck__(cls, instance):
             # We need this method for situations where attributes are
             # assigned in __init__.
-            if (not getattr(cls, "_is_protocol", False) or _is_callable_members_only(cls)) and issubclass(
-                instance.__class__, cls
-            ):
+            if (
+                not getattr(cls, "_is_protocol", False)
+                or _is_callable_members_only(cls)
+            ) and issubclass(instance.__class__, cls):
                 return True
             if cls._is_protocol:
                 if all(
                     hasattr(instance, attr)
-                    and (not callable(getattr(cls, attr, None)) or getattr(instance, attr) is not None)
+                    and (
+                        not callable(getattr(cls, attr, None))
+                        or getattr(instance, attr) is not None
+                    )
                     for attr in _get_protocol_attrs(cls)
                 ):
                     return True
@@ -690,7 +713,10 @@ elif PEP_560:
 
         def __new__(cls, *args, **kwds):
             if cls is Protocol:
-                raise TypeError("Type Protocol cannot be instantiated; " "it can only be used as a base class")
+                raise TypeError(
+                    "Type Protocol cannot be instantiated; "
+                    "it can only be used as a base class"
+                )
             return super().__new__(cls)
 
         @typing._tp_cache
@@ -698,7 +724,9 @@ elif PEP_560:
             if not isinstance(params, tuple):
                 params = (params,)
             if not params and cls is not typing.Tuple:
-                raise TypeError(f"Parameter list to {cls.__qualname__}[...] cannot be empty")
+                raise TypeError(
+                    f"Parameter list to {cls.__qualname__}[...] cannot be empty"
+                )
             msg = "Parameters to generic types must be types."
             params = tuple(typing._type_check(p, msg) for p in params)  # noqa
             if cls is Protocol:
@@ -708,7 +736,8 @@ elif PEP_560:
                     while isinstance(params[i], typing.TypeVar):
                         i += 1
                     raise TypeError(
-                        "Parameters to Protocol[...] must all be type variables." f" Parameter {i + 1} is {params[i]}"
+                        "Parameters to Protocol[...] must all be type variables."
+                        f" Parameter {i + 1} is {params[i]}"
                     )
                 if len(set(params)) != len(params):
                     raise TypeError("Parameters to Protocol[...] must all be unique")
@@ -734,11 +763,17 @@ elif PEP_560:
                 # and reject multiple Generic[...] and/or Protocol[...].
                 gvars = None
                 for base in cls.__orig_bases__:
-                    if isinstance(base, typing._GenericAlias) and base.__origin__ in (typing.Generic, Protocol):
+                    if isinstance(base, typing._GenericAlias) and base.__origin__ in (
+                        typing.Generic,
+                        Protocol,
+                    ):
                         # for error messages
                         the_base = base.__origin__.__name__
                         if gvars is not None:
-                            raise TypeError("Cannot inherit from Generic[...]" " and/or Protocol[...] multiple types.")
+                            raise TypeError(
+                                "Cannot inherit from Generic[...]"
+                                " and/or Protocol[...] multiple types."
+                            )
                         gvars = base.__parameters__
                 if gvars is None:
                     gvars = tvars
@@ -748,7 +783,10 @@ elif PEP_560:
                     if not tvarset <= gvarset:
                         s_vars = ", ".join(str(t) for t in tvars if t not in gvarset)
                         s_args = ", ".join(str(g) for g in gvars)
-                        raise TypeError(f"Some type variables ({s_vars}) are" f" not listed in {the_base}[{s_args}]")
+                        raise TypeError(
+                            f"Some type variables ({s_vars}) are"
+                            f" not listed in {the_base}[{s_args}]"
+                        )
                     tvars = gvars
             cls.__parameters__ = tuple(tvars)
 
@@ -763,11 +801,17 @@ elif PEP_560:
                 if not getattr(cls, "_is_runtime_protocol", False):
                     if sys._getframe(2).f_globals["__name__"] in ["abc", "functools"]:
                         return NotImplemented
-                    raise TypeError("Instance and class checks can only be used with" " @runtime protocols")
+                    raise TypeError(
+                        "Instance and class checks can only be used with"
+                        " @runtime protocols"
+                    )
                 if not _is_callable_members_only(cls):
                     if sys._getframe(2).f_globals["__name__"] in ["abc", "functools"]:
                         return NotImplemented
-                    raise TypeError("Protocols with non-method members" " don't support issubclass()")
+                    raise TypeError(
+                        "Protocols with non-method members"
+                        " don't support issubclass()"
+                    )
                 if not isinstance(other, type):
                     # Same error as for issubclass(1, int)
                     raise TypeError("issubclass() arg 1 must be a class")
@@ -805,7 +849,10 @@ elif PEP_560:
                     or isinstance(base, _ProtocolMeta)
                     and base._is_protocol
                 ):
-                    raise TypeError("Protocols can only inherit from other" f" protocols, got {repr(base)}")
+                    raise TypeError(
+                        "Protocols can only inherit from other"
+                        f" protocols, got {repr(base)}"
+                    )
             cls.__init__ = _no_init
 
 
@@ -824,7 +871,17 @@ else:
         from Generic.
         """
 
-        def __new__(cls, name, bases, namespace, tvars=None, args=None, origin=None, extra=None, orig_bases=None):
+        def __new__(
+            cls,
+            name,
+            bases,
+            namespace,
+            tvars=None,
+            args=None,
+            origin=None,
+            extra=None,
+            orig_bases=None,
+        ):
             # This is just a version copied from GenericMeta.__new__ that
             # includes "Protocol" special treatment. (Comments removed for brevity.)
             assert extra is None  # Protocols should not have extra
@@ -837,9 +894,15 @@ else:
                 for base in bases:
                     if base is typing.Generic:
                         raise TypeError("Cannot inherit from plain Generic")
-                    if isinstance(base, GenericMeta) and base.__origin__ in (typing.Generic, Protocol):
+                    if isinstance(base, GenericMeta) and base.__origin__ in (
+                        typing.Generic,
+                        Protocol,
+                    ):
                         if gvars is not None:
-                            raise TypeError("Cannot inherit from Generic[...] or" " Protocol[...] multiple times.")
+                            raise TypeError(
+                                "Cannot inherit from Generic[...] or"
+                                " Protocol[...] multiple times."
+                            )
                         gvars = base.__parameters__
                 if gvars is None:
                     gvars = tvars
@@ -849,22 +912,42 @@ else:
                     if not tvarset <= gvarset:
                         s_vars = ", ".join(str(t) for t in tvars if t not in gvarset)
                         s_args = ", ".join(str(g) for g in gvars)
-                        cls_name = "Generic" if any(b.__origin__ is typing.Generic for b in bases) else "Protocol"
-                        raise TypeError(f"Some type variables ({s_vars}) are" f" not listed in {cls_name}[{s_args}]")
+                        cls_name = (
+                            "Generic"
+                            if any(b.__origin__ is typing.Generic for b in bases)
+                            else "Protocol"
+                        )
+                        raise TypeError(
+                            f"Some type variables ({s_vars}) are"
+                            f" not listed in {cls_name}[{s_args}]"
+                        )
                     tvars = gvars
 
             initial_bases = bases
             if extra is not None and type(extra) is abc.ABCMeta and extra not in bases:
                 bases = (extra,) + bases
             bases = tuple(_gorg(b) if isinstance(b, GenericMeta) else b for b in bases)
-            if any(isinstance(b, GenericMeta) and b is not typing.Generic for b in bases):
+            if any(
+                isinstance(b, GenericMeta) and b is not typing.Generic for b in bases
+            ):
                 bases = tuple(b for b in bases if b is not typing.Generic)
             namespace.update({"__origin__": origin, "__extra__": extra})
-            self = super(GenericMeta, cls).__new__(cls, name, bases, namespace, _root=True)
-            super(GenericMeta, self).__setattr__("_gorg", self if not origin else _gorg(origin))
+            self = super(GenericMeta, cls).__new__(
+                cls, name, bases, namespace, _root=True
+            )
+            super(GenericMeta, self).__setattr__(
+                "_gorg", self if not origin else _gorg(origin)
+            )
             self.__parameters__ = tvars
             self.__args__ = (
-                tuple(... if a is typing._TypingEllipsis else () if a is typing._TypingEmpty else a for a in args)
+                tuple(
+                    ...
+                    if a is typing._TypingEllipsis
+                    else ()
+                    if a is typing._TypingEmpty
+                    else a
+                    for a in args
+                )
                 if args
                 else None
             )
@@ -875,14 +958,21 @@ else:
                 self._abc_registry = origin._abc_registry
                 self._abc_cache = origin._abc_cache
             if hasattr(self, "_subs_tree"):
-                self.__tree_hash__ = hash(self._subs_tree()) if origin else super(GenericMeta, self).__hash__()
+                self.__tree_hash__ = (
+                    hash(self._subs_tree())
+                    if origin
+                    else super(GenericMeta, self).__hash__()
+                )
             return self
 
         def __init__(cls, *args, **kwargs):
             super().__init__(*args, **kwargs)
             if not cls.__dict__.get("_is_protocol", None):
                 cls._is_protocol = any(
-                    b is Protocol or isinstance(b, _ProtocolMeta) and b.__origin__ is Protocol for b in cls.__bases__
+                    b is Protocol
+                    or isinstance(b, _ProtocolMeta)
+                    and b.__origin__ is Protocol
+                    for b in cls.__bases__
                 )
             if cls._is_protocol:
                 for base in cls.__mro__[1:]:
@@ -895,7 +985,10 @@ else:
                         or isinstance(base, GenericMeta)
                         and base.__origin__ is typing.Generic
                     ):
-                        raise TypeError(f"Protocols can only inherit from other" f" protocols, got {repr(base)}")
+                        raise TypeError(
+                            f"Protocols can only inherit from other"
+                            f" protocols, got {repr(base)}"
+                        )
 
                 cls.__init__ = _no_init
 
@@ -929,14 +1022,18 @@ else:
         def __instancecheck__(self, instance):
             # We need this method for situations where attributes are
             # assigned in __init__.
-            if (not getattr(self, "_is_protocol", False) or _is_callable_members_only(self)) and issubclass(
-                instance.__class__, self
-            ):
+            if (
+                not getattr(self, "_is_protocol", False)
+                or _is_callable_members_only(self)
+            ) and issubclass(instance.__class__, self):
                 return True
             if self._is_protocol:
                 if all(
                     hasattr(instance, attr)
-                    and (not callable(getattr(self, attr, None)) or getattr(instance, attr) is not None)
+                    and (
+                        not callable(getattr(self, attr, None))
+                        or getattr(instance, attr) is not None
+                    )
                     for attr in _get_protocol_attrs(self)
                 ):
                     return True
@@ -945,16 +1042,36 @@ else:
         def __subclasscheck__(self, cls):
             if self.__origin__ is not None:
                 if sys._getframe(1).f_globals["__name__"] not in ["abc", "functools"]:
-                    raise TypeError("Parameterized generics cannot be used with class " "or instance checks")
+                    raise TypeError(
+                        "Parameterized generics cannot be used with class "
+                        "or instance checks"
+                    )
                 return False
-            if self.__dict__.get("_is_protocol", None) and not self.__dict__.get("_is_runtime_protocol", None):
-                if sys._getframe(1).f_globals["__name__"] in ["abc", "functools", "typing"]:
+            if self.__dict__.get("_is_protocol", None) and not self.__dict__.get(
+                "_is_runtime_protocol", None
+            ):
+                if sys._getframe(1).f_globals["__name__"] in [
+                    "abc",
+                    "functools",
+                    "typing",
+                ]:
                     return False
-                raise TypeError("Instance and class checks can only be used with" " @runtime protocols")
-            if self.__dict__.get("_is_runtime_protocol", None) and not _is_callable_members_only(self):
-                if sys._getframe(1).f_globals["__name__"] in ["abc", "functools", "typing"]:
+                raise TypeError(
+                    "Instance and class checks can only be used with"
+                    " @runtime protocols"
+                )
+            if self.__dict__.get(
+                "_is_runtime_protocol", None
+            ) and not _is_callable_members_only(self):
+                if sys._getframe(1).f_globals["__name__"] in [
+                    "abc",
+                    "functools",
+                    "typing",
+                ]:
                     return super(GenericMeta, self).__subclasscheck__(cls)
-                raise TypeError("Protocols with non-method members" " don't support issubclass()")
+                raise TypeError(
+                    "Protocols with non-method members" " don't support issubclass()"
+                )
             return super(GenericMeta, self).__subclasscheck__(cls)
 
         @typing._tp_cache
@@ -964,14 +1081,20 @@ else:
             if not isinstance(params, tuple):
                 params = (params,)
             if not params and _gorg(self) is not typing.Tuple:
-                raise TypeError(f"Parameter list to {self.__qualname__}[...] cannot be empty")
+                raise TypeError(
+                    f"Parameter list to {self.__qualname__}[...] cannot be empty"
+                )
             msg = "Parameters to generic types must be types."
             params = tuple(_type_check(p, msg) for p in params)
             if self in (typing.Generic, Protocol):
                 if not all(isinstance(p, typing.TypeVar) for p in params):
-                    raise TypeError(f"Parameters to {repr(self)}[...] must all be type variables")
+                    raise TypeError(
+                        f"Parameters to {repr(self)}[...] must all be type variables"
+                    )
                 if len(set(params)) != len(params):
-                    raise TypeError(f"Parameters to {repr(self)}[...] must all be unique")
+                    raise TypeError(
+                        f"Parameters to {repr(self)}[...] must all be unique"
+                    )
                 tvars = params
                 args = params
             elif self in (typing.Tuple, typing.Callable):
@@ -1031,7 +1154,10 @@ else:
 
         def __new__(cls, *args, **kwds):
             if _gorg(cls) is Protocol:
-                raise TypeError("Type Protocol cannot be instantiated; " "it can be used only as a base class")
+                raise TypeError(
+                    "Type Protocol cannot be instantiated; "
+                    "it can be used only as a base class"
+                )
             return typing._generic_new(cls.__next_in_mro__, cls, *args, **kwds)
 
 
@@ -1050,7 +1176,10 @@ else:
         one-offs in collections.abc such as Hashable.
         """
         if not isinstance(cls, _ProtocolMeta) or not cls._is_protocol:
-            raise TypeError("@runtime_checkable can be only applied to protocol classes," f" got {cls!r}")
+            raise TypeError(
+                "@runtime_checkable can be only applied to protocol classes,"
+                f" got {cls!r}"
+            )
         cls._is_runtime_protocol = True
         return cls
 
@@ -1088,7 +1217,11 @@ else:
 
     def _check_fails(cls, other):
         try:
-            if sys._getframe(1).f_globals["__name__"] not in ["abc", "functools", "typing"]:
+            if sys._getframe(1).f_globals["__name__"] not in [
+                "abc",
+                "functools",
+                "typing",
+            ]:
                 # Typed dicts are only for static structural subtyping.
                 raise TypeError("TypedDict does not support instance and class checks")
         except (AttributeError, ValueError):
@@ -1108,33 +1241,51 @@ else:
             raise TypeError("TypedDict.__new__(): not enough arguments")
         _, args = args[0], args[1:]  # allow the "cls" keyword be passed
         if args:
-            typename, args = args[0], args[1:]  # allow the "_typename" keyword be passed
+            typename, args = (
+                args[0],
+                args[1:],
+            )  # allow the "_typename" keyword be passed
         elif "_typename" in kwargs:
             typename = kwargs.pop("_typename")
             import warnings
 
-            warnings.warn("Passing '_typename' as keyword argument is deprecated", DeprecationWarning, stacklevel=2)
+            warnings.warn(
+                "Passing '_typename' as keyword argument is deprecated",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         else:
-            raise TypeError("TypedDict.__new__() missing 1 required positional " "argument: '_typename'")
+            raise TypeError(
+                "TypedDict.__new__() missing 1 required positional "
+                "argument: '_typename'"
+            )
         if args:
             try:
                 (fields,) = args  # allow the "_fields" keyword be passed
             except ValueError:
                 raise TypeError(
-                    "TypedDict.__new__() takes from 2 to 3 " f"positional arguments but {len(args) + 2} " "were given"
+                    "TypedDict.__new__() takes from 2 to 3 "
+                    f"positional arguments but {len(args) + 2} "
+                    "were given"
                 )
         elif "_fields" in kwargs and len(kwargs) == 1:
             fields = kwargs.pop("_fields")
             import warnings
 
-            warnings.warn("Passing '_fields' as keyword argument is deprecated", DeprecationWarning, stacklevel=2)
+            warnings.warn(
+                "Passing '_fields' as keyword argument is deprecated",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         else:
             fields = None
 
         if fields is None:
             fields = kwargs
         elif kwargs:
-            raise TypeError("TypedDict takes either a dict or keyword arguments," " but not both")
+            raise TypeError(
+                "TypedDict takes either a dict or keyword arguments," " but not both"
+            )
 
         ns = {"__annotations__": dict(fields)}
         try:
@@ -1145,7 +1296,9 @@ else:
 
         return _TypedDictMeta(typename, (), ns, total=total)
 
-    _typeddict_new.__text_signature__ = "($cls, _typename, _fields=None," " /, *, total=True, **kwargs)"
+    _typeddict_new.__text_signature__ = (
+        "($cls, _typename, _fields=None," " /, *, total=True, **kwargs)"
+    )
 
     class _TypedDictMeta(type):
         def __init__(cls, name, bases, ns, total=True):
@@ -1164,7 +1317,9 @@ else:
             annotations = {}
             own_annotations = ns.get("__annotations__", {})
             msg = "TypedDict('Name', {f0: t0, f1: t1, ...}); each t must be a type"
-            own_annotations = {n: typing._type_check(tp, msg) for n, tp in own_annotations.items()}
+            own_annotations = {
+                n: typing._type_check(tp, msg) for n, tp in own_annotations.items()
+            }
             required_keys = set()
             optional_keys = set()
 
@@ -1321,7 +1476,9 @@ elif PEP_560:
           locals, respectively.
         """
         if hasattr(typing, "Annotated"):
-            hint = typing.get_type_hints(obj, globalns=globalns, localns=localns, include_extras=True)
+            hint = typing.get_type_hints(
+                obj, globalns=globalns, localns=localns, include_extras=True
+            )
         else:
             hint = typing.get_type_hints(obj, globalns=globalns, localns=localns)
         if include_extras:
@@ -1420,7 +1577,9 @@ elif PEP_560:
         def __class_getitem__(cls, params):
             if not isinstance(params, tuple) or len(params) < 2:
                 raise TypeError(
-                    "Annotated[...] should be used " "with at least two arguments (a type and an " "annotation)."
+                    "Annotated[...] should be used "
+                    "with at least two arguments (a type and an "
+                    "annotation)."
                 )
             allowed_special_forms = (ClassVar, Final)
             if get_origin(params[0]) in allowed_special_forms:
@@ -1481,7 +1640,10 @@ else:
         def _get_cons(self):
             """Return the class used to create instance of this type."""
             if self.__origin__ is None:
-                raise TypeError("Cannot get the underlying type of a " "non-specialized Annotated type.")
+                raise TypeError(
+                    "Cannot get the underlying type of a "
+                    "non-specialized Annotated type."
+                )
             tree = self._subs_tree()
             while isinstance(tree, tuple) and tree[0] is Annotated:
                 tree = tree[1]
@@ -1503,7 +1665,10 @@ else:
                     "annotation)."
                 )
             else:
-                if isinstance(params[0], typing._TypingBase) and type(params[0]).__name__ == "_ClassVar":
+                if (
+                    isinstance(params[0], typing._TypingBase)
+                    and type(params[0]).__name__ == "_ClassVar"
+                ):
                     tp = params[0]
                 else:
                     msg = "Annotated[t, ...]: t must be a type."
@@ -1617,7 +1782,16 @@ elif PEP_560:
         """
         if isinstance(tp, _AnnotatedAlias):
             return Annotated
-        if isinstance(tp, (typing._GenericAlias, GenericAlias, _BaseGenericAlias, ParamSpecArgs, ParamSpecKwargs)):
+        if isinstance(
+            tp,
+            (
+                typing._GenericAlias,
+                GenericAlias,
+                _BaseGenericAlias,
+                ParamSpecArgs,
+                ParamSpecKwargs,
+            ),
+        ):
             return tp.__origin__
         if tp is typing.Generic:
             return typing.Generic
@@ -1928,7 +2102,10 @@ if not hasattr(typing, "Concatenate"):
 
         def __repr__(self):
             _type_repr = typing._type_repr
-            return f"{_type_repr(self.__origin__)}" f'[{", ".join(_type_repr(arg) for arg in self.__args__)}]'
+            return (
+                f"{_type_repr(self.__origin__)}"
+                f'[{", ".join(_type_repr(arg) for arg in self.__args__)}]'
+            )
 
         def __hash__(self):
             return hash((self.__origin__, self.__args__))
@@ -1939,7 +2116,11 @@ if not hasattr(typing, "Concatenate"):
 
         @property
         def __parameters__(self):
-            return tuple(tp for tp in self.__args__ if isinstance(tp, (typing.TypeVar, ParamSpec)))
+            return tuple(
+                tp
+                for tp in self.__args__
+                if isinstance(tp, (typing.TypeVar, ParamSpec))
+            )
 
         if not PEP_560:
             # Only required in 3.6.
@@ -1956,7 +2137,9 @@ def _concatenate_getitem(self, parameters):
     if not isinstance(parameters, tuple):
         parameters = (parameters,)
     if not isinstance(parameters[-1], ParamSpec):
-        raise TypeError("The last parameter to Concatenate should be a " "ParamSpec variable.")
+        raise TypeError(
+            "The last parameter to Concatenate should be a " "ParamSpec variable."
+        )
     msg = "Concatenate[arg, ...]: each arg must be a type."
     parameters = tuple(typing._type_check(p, msg) for p in parameters)
     return _ConcatenateGenericAlias(self, parameters)
@@ -2016,7 +2199,9 @@ else:
         def __repr__(self):
             return "typing_extensions.Concatenate"
 
-    class _ConcatenateAliasBase(typing._FinalTypingBase, metaclass=_ConcatenateAliasMeta, _root=True):
+    class _ConcatenateAliasBase(
+        typing._FinalTypingBase, metaclass=_ConcatenateAliasMeta, _root=True
+    ):
         """Used in conjunction with ``ParamSpec`` and ``Callable`` to represent a
         higher order function which adds, removes or transforms parameters of a
         callable.
@@ -2110,7 +2295,9 @@ elif sys.version_info[:2] >= (3, 7):
             return "typing_extensions." + self._name
 
         def __getitem__(self, parameters):
-            item = typing._type_check(parameters, f"{self._name} accepts only a single type")
+            item = typing._type_check(
+                parameters, f"{self._name} accepts only a single type"
+            )
             return typing._GenericAlias(self, (item,))
 
     TypeGuard = _TypeGuardForm(
@@ -2213,7 +2400,12 @@ else:
         def __getitem__(self, item):
             cls = type(self)
             if self.__type__ is None:
-                return cls(typing._type_check(item, f"{cls.__name__[1:]} accepts only a single type."), _root=True)
+                return cls(
+                    typing._type_check(
+                        item, f"{cls.__name__[1:]} accepts only a single type."
+                    ),
+                    _root=True,
+                )
             raise TypeError(f"{cls.__name__[1:]} cannot be further subscripted")
 
         def _eval_type(self, globalns, localns):
@@ -2506,7 +2698,9 @@ elif sys.version_info[:2] >= (3, 7):
             return "typing_extensions." + self._name
 
         def __getitem__(self, parameters):
-            item = typing._type_check(parameters, "{} accepts only single type".format(self._name))
+            item = typing._type_check(
+                parameters, "{} accepts only single type".format(self._name)
+            )
             return typing._GenericAlias(self, (item,))
 
     Required = _RequiredForm(
@@ -2554,7 +2748,10 @@ else:
             cls = type(self)
             if self.__type__ is None:
                 return cls(
-                    typing._type_check(item, "{} accepts only single type.".format(cls.__name__[1:])), _root=True
+                    typing._type_check(
+                        item, "{} accepts only single type.".format(cls.__name__[1:])
+                    ),
+                    _root=True,
                 )
             raise TypeError("{} cannot be further subscripted".format(cls.__name__[1:]))
 
@@ -2652,7 +2849,9 @@ elif sys.version_info[:2] >= (3, 7):
             return "typing_extensions." + self._name
 
         def __getitem__(self, parameters):
-            item = typing._type_check(parameters, f"{self._name} accepts only single type")
+            item = typing._type_check(
+                parameters, f"{self._name} accepts only single type"
+            )
             return _UnpackAlias(self, (item,))
 
     Unpack = _UnpackForm(
@@ -2695,7 +2894,10 @@ else:
         def __getitem__(self, item):
             cls = type(self)
             if self.__type__ is None:
-                return cls(typing._type_check(item, "Unpack accepts only single type."), _root=True)
+                return cls(
+                    typing._type_check(item, "Unpack accepts only single type."),
+                    _root=True,
+                )
             raise TypeError("Unpack cannot be further subscripted")
 
         def _eval_type(self, globalns, localns):

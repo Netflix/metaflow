@@ -105,8 +105,14 @@ class Card:
     def _repr_html_(self):
         main_html = []
         container_id = uuid.uuid4()
-        main_html.append("<script type='text/javascript'>var mfContainerId = '%s';</script>" % container_id)
-        main_html.append("<div class='embed' data-container='%s'>%s</div>" % (container_id, self.get()))
+        main_html.append(
+            "<script type='text/javascript'>var mfContainerId = '%s';</script>"
+            % container_id
+        )
+        main_html.append(
+            "<div class='embed' data-container='%s'>%s</div>"
+            % (container_id, self.get())
+        )
         return "\n".join(main_html)
 
 
@@ -178,8 +184,14 @@ class CardContainer:
             card = self._get_card(idx)
             main_html.append(self._make_heading(card.type))
             container_id = uuid.uuid4()
-            main_html.append("<script type='text/javascript'>var mfContainerId = '%s';</script>" % container_id)
-            main_html.append("<div class='embed' data-container='%s'>%s</div>" % (container_id, card.get()))
+            main_html.append(
+                "<script type='text/javascript'>var mfContainerId = '%s';</script>"
+                % container_id
+            )
+            main_html.append(
+                "<div class='embed' data-container='%s'>%s</div>"
+                % (container_id, card.get())
+            )
         return "\n".join(main_html)
 
 

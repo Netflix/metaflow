@@ -65,7 +65,8 @@ class MetadataHeartBeat(object):
             else:
                 raise HeartBeatException(
                     "HeartBeat request (%s) failed"
-                    " (code %s): %s" % (self.hb_url, response.status_code, response.text)
+                    " (code %s): %s"
+                    % (self.hb_url, response.status_code, response.text)
                 )
         return None
 

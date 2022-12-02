@@ -34,7 +34,8 @@ class Conda(object):
         # Check if the dependency solver exists.
         if self._bin is None:
             raise InvalidEnvironmentException(
-                "No %s installation found. Install %s first." % (dependency_solver, dependency_solver)
+                "No %s installation found. Install %s first."
+                % (dependency_solver, dependency_solver)
             )
         # Check for a minimum version for conda when conda or mamba is used
         # for dependency resolution.
@@ -42,9 +43,7 @@ class Conda(object):
             if LooseVersion(self._info()["conda_version"]) < LooseVersion("4.6.0"):
                 msg = "Conda version 4.6.0 or newer is required."
                 if dependency_solver == "mamba":
-                    msg += (
-                        " Visit https://mamba.readthedocs.io/en/latest/installation.html for installation instructions."
-                    )
+                    msg += " Visit https://mamba.readthedocs.io/en/latest/installation.html for installation instructions."
                 else:
                     msg += " Visit https://docs.conda.io/en/latest/miniconda.html for installation instructions."
                 raise InvalidEnvironmentException(msg)
@@ -69,7 +68,9 @@ class Conda(object):
         try:
             with CondaLock(self._env_lock_file(env_id)):
                 self._remove(env_id)
-                self._create(env_id, deps, explicit, architecture, disable_safety_checks)
+                self._create(
+                    env_id, deps, explicit, architecture, disable_safety_checks
+                )
                 return self._deps(env_id)
         except CondaException as e:
             raise CondaStepException(e, step_name)
@@ -123,7 +124,9 @@ class Conda(object):
         if explicit:
             cmd.append("--no-deps")
         cmd.extend(deps)
-        self._call_conda(cmd, architecture=architecture, disable_safety_checks=disable_safety_checks)
+        self._call_conda(
+            cmd, architecture=architecture, disable_safety_checks=disable_safety_checks
+        )
 
     def _remove(self, env_id):
         self._call_conda(["env", "remove", "--name", env_id, "--yes", "--quiet"])
@@ -151,7 +154,9 @@ class Conda(object):
         exact_deps = []
         urls = []
         for package in self.package_info(env_id):
-            exact_deps.append("%s=%s=%s" % (package["name"], package["version"], package["build"]))
+            exact_deps.append(
+                "%s=%s=%s" % (package["name"], package["version"], package["build"])
+            )
             urls.append(package["url"])
         order = self._install_order(env_id)
         return (exact_deps, urls, order)
@@ -223,7 +228,9 @@ class CondaLock(object):
                 if self.timeout is None:
                     raise CondaException("Could not acquire lock {}".format(self.lock))
                 if (time.time() - start) >= self.timeout:
-                    raise CondaException("Timeout occurred while acquiring lock {}".format(self.lock))
+                    raise CondaException(
+                        "Timeout occurred while acquiring lock {}".format(self.lock)
+                    )
                 time.sleep(self.delay)
 
     def _release(self):

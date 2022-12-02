@@ -18,7 +18,9 @@ class TestPathSpecCard(MetaflowCard):
 
         return "%s %s" % (
             task.pathspec,
-            "".join(random.choice(string.ascii_uppercase + string.digits) for _ in range(6)),
+            "".join(
+                random.choice(string.ascii_uppercase + string.digits) for _ in range(6)
+            ),
         )
 
 

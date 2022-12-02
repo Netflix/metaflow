@@ -34,4 +34,6 @@ def __try_op__(op_name, op, retries, *args):
         except socket.timeout:
             pass
     else:
-        raise socket.timeout("Timeout after {} retries on operation " "'{}'".format(retries, op_name))
+        raise socket.timeout(
+            "Timeout after {} retries on operation " "'{}'".format(retries, op_name)
+        )

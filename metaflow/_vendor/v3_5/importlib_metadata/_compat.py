@@ -90,9 +90,9 @@ def disable_stdlib_finder():
     """
 
     def matches(finder):
-        return getattr(finder, "__module__", None) == "_frozen_importlib_external" and hasattr(
-            finder, "find_distributions"
-        )
+        return getattr(
+            finder, "__module__", None
+        ) == "_frozen_importlib_external" and hasattr(finder, "find_distributions")
 
     for finder in filter(matches, sys.meta_path):  # pragma: nocover
         del finder.find_distributions
@@ -124,7 +124,9 @@ def py2_message_from_string(text):  # nocoverpy3
     return email.message_from_file(io_buffer)
 
 
-email_message_from_string = py2_message_from_string if sys.version_info < (3,) else email.message_from_string
+email_message_from_string = (
+    py2_message_from_string if sys.version_info < (3,) else email.message_from_string
+)
 
 
 class PyPy_repr:

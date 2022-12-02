@@ -141,7 +141,9 @@ def assert_results(
                         assert v1 == v, "Metadata %s mismatch" % k
                         found.add(k)
                     extra_keys = set(s3objmetadata.keys()) - found
-                    assert not extra_keys, "Additional metadata present %s" % str(extra_keys)
+                    assert not extra_keys, "Additional metadata present %s" % str(
+                        extra_keys
+                    )
 
 
 def shuffle(objs):
@@ -169,7 +171,9 @@ def tempdir():
     shutil.rmtree(tmpdir)
 
 
-@pytest.mark.parametrize(argnames=["s3root", "pathspecs", "expected"], **s3_data.pytest_benchmark_case())
+@pytest.mark.parametrize(
+    argnames=["s3root", "pathspecs", "expected"], **s3_data.pytest_benchmark_case()
+)
 @pytest.mark.benchmark(max_time=30)
 def test_info_one_benchmark(benchmark, s3root, pathspecs, expected):
     def _do():
@@ -183,7 +187,9 @@ def test_info_one_benchmark(benchmark, s3root, pathspecs, expected):
     assert_results(res, expected, info_only=True)
 
 
-@pytest.mark.parametrize(argnames=["s3root", "pathspecs", "expected"], **s3_data.pytest_benchmark_many_case())
+@pytest.mark.parametrize(
+    argnames=["s3root", "pathspecs", "expected"], **s3_data.pytest_benchmark_many_case()
+)
 @pytest.mark.benchmark(max_time=30)
 def test_info_many_benchmark(benchmark, s3root, pathspecs, expected):
     urls = []
@@ -203,7 +209,9 @@ def test_info_many_benchmark(benchmark, s3root, pathspecs, expected):
     assert_results(res, check_expected, info_only=True)
 
 
-@pytest.mark.parametrize(argnames=["s3root", "pathspecs", "expected"], **s3_data.pytest_benchmark_case())
+@pytest.mark.parametrize(
+    argnames=["s3root", "pathspecs", "expected"], **s3_data.pytest_benchmark_case()
+)
 @pytest.mark.benchmark(max_time=60)
 def test_get_one_benchmark(benchmark, s3root, pathspecs, expected):
     def _do():
@@ -220,7 +228,9 @@ def test_get_one_benchmark(benchmark, s3root, pathspecs, expected):
     # assert_results(res, expected, info_should_be_empty=True)
 
 
-@pytest.mark.parametrize(argnames=["s3root", "pathspecs", "expected"], **s3_data.pytest_benchmark_many_case())
+@pytest.mark.parametrize(
+    argnames=["s3root", "pathspecs", "expected"], **s3_data.pytest_benchmark_many_case()
+)
 @pytest.mark.benchmark(max_time=60)
 def test_get_many_benchmark(benchmark, s3root, pathspecs, expected):
     urls = []
@@ -241,7 +251,9 @@ def test_get_many_benchmark(benchmark, s3root, pathspecs, expected):
     # assert_results(res, check_expected, info_should_be_empty=True)
 
 
-@pytest.mark.parametrize(argnames=["s3root", "blobs", "expected"], **s3_data.pytest_benchmark_put_case())
+@pytest.mark.parametrize(
+    argnames=["s3root", "blobs", "expected"], **s3_data.pytest_benchmark_put_case()
+)
 @pytest.mark.benchmark(max_time=60)
 def test_put_one_benchmark(benchmark, tempdir, s3root, blobs, expected):
     # We generate the files here to avoid having them saved in the benchmark
@@ -270,7 +282,9 @@ def test_put_one_benchmark(benchmark, tempdir, s3root, blobs, expected):
     res = benchmark(_do)
 
 
-@pytest.mark.parametrize(argnames=["s3root", "blobs", "expected"], **s3_data.pytest_benchmark_put_many_case())
+@pytest.mark.parametrize(
+    argnames=["s3root", "blobs", "expected"], **s3_data.pytest_benchmark_put_many_case()
+)
 @pytest.mark.benchmark(max_time=60)
 def test_put_many_benchmark(benchmark, tempdir, s3root, blobs, expected):
     def _generate_files(blobs):
@@ -302,7 +316,9 @@ def test_put_many_benchmark(benchmark, tempdir, s3root, blobs, expected):
     res = benchmark(_do)
 
 
-@pytest.mark.parametrize(argnames=["s3root", "pathspecs", "expected"], **s3_data.pytest_fakerun_cases())
+@pytest.mark.parametrize(
+    argnames=["s3root", "pathspecs", "expected"], **s3_data.pytest_fakerun_cases()
+)
 def test_init_options(s3root, pathspecs, expected):
     [pathspec] = pathspecs
     flow_name, run_id = pathspec.split("/")
@@ -382,7 +398,9 @@ def test_init_options(s3root, pathspecs, expected):
             assert_results(s3.get_many(names), expected)
 
 
-@pytest.mark.parametrize(argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_basic_case())
+@pytest.mark.parametrize(
+    argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_basic_case()
+)
 def test_info_one(s3root, prefixes, expected):
     with S3() as s3:
         for url, item in expected.items():
@@ -398,7 +416,9 @@ def test_info_one(s3root, prefixes, expected):
                 assert_results([s3obj], {url: expected[url]}, info_only=True)
 
 
-@pytest.mark.parametrize(argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_basic_case())
+@pytest.mark.parametrize(
+    argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_basic_case()
+)
 def test_info_many(s3root, prefixes, expected):
     with S3() as s3:
         # 1) test the non-missing case
@@ -429,7 +449,9 @@ def test_info_many(s3root, prefixes, expected):
         assert_results(s3objs, expected, info_only=True)
 
 
-@pytest.mark.parametrize(argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_fakerun_cases())
+@pytest.mark.parametrize(
+    argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_fakerun_cases()
+)
 def test_get_exceptions(s3root, prefixes, expected):
     # get_many() goes via s3op, get() is a method - test both the code paths
     with S3() as s3:
@@ -444,7 +466,9 @@ def test_get_exceptions(s3root, prefixes, expected):
             s3.get("this_file_does_not_exist")
 
 
-@pytest.mark.parametrize(argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_basic_case())
+@pytest.mark.parametrize(
+    argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_basic_case()
+)
 def test_get_one(s3root, prefixes, expected):
     with S3() as s3:
         for url, item in expected.items():
@@ -467,7 +491,9 @@ def test_get_one(s3root, prefixes, expected):
                     assert_results([s3obj], {url: item}, ranges_fetched=[range_info])
 
 
-@pytest.mark.parametrize(argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_basic_case())
+@pytest.mark.parametrize(
+    argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_basic_case()
+)
 def test_get_one_wo_meta(s3root, prefixes, expected):
     with S3() as s3:
         for url, item in expected.items():
@@ -500,9 +526,13 @@ def test_get_one_wo_meta(s3root, prefixes, expected):
                     )
 
 
-@pytest.mark.parametrize(argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_large_case())
+@pytest.mark.parametrize(
+    argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_large_case()
+)
 def test_get_all(s3root, prefixes, expected):
-    expected_exists = {url: v for url, v in expected.items() if v[None].size is not None}
+    expected_exists = {
+        url: v for url, v in expected.items() if v[None].size is not None
+    }
     for prefix in prefixes:
         with S3(s3root=os.path.join(s3root, prefix)) as s3:
             s3objs = s3.get_all()
@@ -511,9 +541,13 @@ def test_get_all(s3root, prefixes, expected):
             assert_results(s3objs, expected_exists, info_should_be_empty=True)
 
 
-@pytest.mark.parametrize(argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_basic_case())
+@pytest.mark.parametrize(
+    argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_basic_case()
+)
 def test_get_all_with_meta(s3root, prefixes, expected):
-    expected_exists = {url: v for url, v in expected.items() if v[None].size is not None}
+    expected_exists = {
+        url: v for url, v in expected.items() if v[None].size is not None
+    }
     for prefix in prefixes:
         with S3(s3root=os.path.join(s3root, prefix)) as s3:
             s3objs = s3.get_all(return_info=True)
@@ -522,7 +556,9 @@ def test_get_all_with_meta(s3root, prefixes, expected):
             assert_results(s3objs, expected_exists)
 
 
-@pytest.mark.parametrize(argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_basic_case())
+@pytest.mark.parametrize(
+    argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_basic_case()
+)
 def test_get_many(s3root, prefixes, expected):
     def iter_objs(urls, objs):
         for url in urls:
@@ -581,7 +617,9 @@ def test_get_many(s3root, prefixes, expected):
         assert_results(s3objs, expected, ranges_fetched=ranges_in_order)
 
 
-@pytest.mark.parametrize(argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_many_prefixes_case())
+@pytest.mark.parametrize(
+    argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_many_prefixes_case()
+)
 def test_list_paths(s3root, prefixes, expected):
     def urls_by_prefix(prefix):
         root = os.path.join(s3root, prefix)
@@ -607,11 +645,15 @@ def test_list_paths(s3root, prefixes, expected):
     # 2) test querying by many prefixes
     with S3(s3root=s3root) as s3:
         s3objs = s3.list_paths(prefixes)
-        assert frozenset(e.prefix.rstrip("/").split("/")[-1] for e in s3objs) == non_empty
+        assert (
+            frozenset(e.prefix.rstrip("/").split("/")[-1] for e in s3objs) == non_empty
+        )
 
         for prefix, exp in matches.items():
             exists = frozenset(e.url for e in s3objs if e.prefix == prefix and e.exists)
-            not_exists = frozenset(e.url for e in s3objs if e.prefix == prefix and not e.exists)
+            not_exists = frozenset(
+                e.url for e in s3objs if e.prefix == prefix and not e.exists
+            )
             # every object should be expected
             assert all(e in exp for e in exists)
             # not existing ones are prefixes, they shouldn't match
@@ -638,19 +680,27 @@ def test_list_paths(s3root, prefixes, expected):
                     # are we at the leaf?
                     if idx == len(expected_keys) - 1:
                         # a leaf object should always exist
-                        [match] = [e for e in s3objs if e.key == expected_key and e.exists]
+                        [match] = [
+                            e for e in s3objs if e.key == expected_key and e.exists
+                        ]
                     else:
                         # a non-leaf may match objects that are also prefixes
-                        [match] = [e for e in s3objs if e.key == expected_key and not e.exists]
+                        [match] = [
+                            e for e in s3objs if e.key == expected_key and not e.exists
+                        ]
                     # prefix + key == url
-                    assert os.path.join(match.prefix, match.key) == match.url.rstrip("/")
+                    assert os.path.join(match.prefix, match.key) == match.url.rstrip(
+                        "/"
+                    )
                     got_url = match.url
 
             # the leaf should be the object itself
             assert match.url == url
 
 
-@pytest.mark.parametrize(argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_many_prefixes_case())
+@pytest.mark.parametrize(
+    argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_many_prefixes_case()
+)
 def test_list_recursive(s3root, prefixes, expected):
     not_missing = [url for url, v in expected.items() if v[None].size is not None]
     with S3(s3root=s3root) as s3:
@@ -662,9 +712,13 @@ def test_list_recursive(s3root, prefixes, expected):
         assert all(e.exists for e in s3objs)
 
 
-@pytest.mark.parametrize(argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_many_prefixes_case())
+@pytest.mark.parametrize(
+    argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_many_prefixes_case()
+)
 def test_get_recursive(s3root, prefixes, expected):
-    expected_exists = {url: v for url, v in expected.items() if v[None].size is not None}
+    expected_exists = {
+        url: v for url, v in expected.items() if v[None].size is not None
+    }
     local_files = []
     with S3(s3root=s3root) as s3:
         s3objs = s3.get_recursive(prefixes)
@@ -672,7 +726,9 @@ def test_get_recursive(s3root, prefixes, expected):
         # we need to deduce which prefixes actually produce results
         nonempty_prefixes = list(
             filter(
-                lambda p: any(url.startswith(os.path.join(s3root, p)) for url in expected_exists),
+                lambda p: any(
+                    url.startswith(os.path.join(s3root, p)) for url in expected_exists
+                ),
                 prefixes,
             )
         )
@@ -716,7 +772,9 @@ def test_put_exceptions():
             s3.put_many([("foo", "bar")])
 
 
-@pytest.mark.parametrize(argnames=["s3root", "objs", "expected"], **s3_data.pytest_put_strings_case())
+@pytest.mark.parametrize(
+    argnames=["s3root", "objs", "expected"], **s3_data.pytest_put_strings_case()
+)
 def test_put_many(s3root, objs, expected):
     with S3(s3root=s3root) as s3:
         s3urls = s3.put_many(objs)
@@ -741,7 +799,9 @@ def test_put_many(s3root, objs, expected):
         assert_results(s3objs, expected)
 
 
-@pytest.mark.parametrize(argnames=["s3root", "objs", "expected"], **s3_data.pytest_put_strings_case())
+@pytest.mark.parametrize(
+    argnames=["s3root", "objs", "expected"], **s3_data.pytest_put_strings_case()
+)
 def test_put_one(s3root, objs, expected):
     with S3(s3root=s3root) as s3:
         for key, obj in objs:
@@ -760,7 +820,9 @@ def test_put_one(s3root, objs, expected):
             assert s3obj.blob == to_bytes(obj)
 
 
-@pytest.mark.parametrize(argnames=["s3root", "blobs", "expected"], **s3_data.pytest_put_blobs_case())
+@pytest.mark.parametrize(
+    argnames=["s3root", "blobs", "expected"], **s3_data.pytest_put_blobs_case()
+)
 def test_put_files(tempdir, s3root, blobs, expected):
     def _files(blobs):
         for blob in blobs:
@@ -771,7 +833,9 @@ def test_put_files(tempdir, s3root, blobs, expected):
             path = os.path.join(tempdir, key)
             with open(path, "wb") as f:
                 f.write(data)
-            yield S3PutObject(key=key, value=path, content_type=content_type, metadata=metadata)
+            yield S3PutObject(
+                key=key, value=path, content_type=content_type, metadata=metadata
+            )
 
     with S3(s3root=s3root) as s3:
         s3urls = s3.put_files(_files(blobs))
@@ -791,7 +855,9 @@ def test_put_files(tempdir, s3root, blobs, expected):
     shuffled_blobs = blobs[:]
     shuffle(shuffled_blobs)
     with S3(s3root=s3root) as s3:
-        overwrite_disabled_s3urls = s3.put_files(_files(shuffled_blobs), overwrite=False)
+        overwrite_disabled_s3urls = s3.put_files(
+            _files(shuffled_blobs), overwrite=False
+        )
         assert len(overwrite_disabled_s3urls) == 0
 
     with S3() as s3:

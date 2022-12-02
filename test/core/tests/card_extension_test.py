@@ -36,7 +36,9 @@ class CardExtensionsImportTest(MetaflowTest):
                     cards_info = checker.list_cards(step.name, task_id)
                     # Just check if the cards are created.
                     assert_equals(
-                        cards_info is not None and "cards" in cards_info and len(cards_info["cards"]) == 4,
+                        cards_info is not None
+                        and "cards" in cards_info
+                        and len(cards_info["cards"]) == 4,
                         True,
                     )
         else:
@@ -49,6 +51,8 @@ class CardExtensionsImportTest(MetaflowTest):
                     full_pathspec = meta_check_dict[task_id]["task"]
                     cards_info = checker.list_cards(step.name, task_id)
                     assert_equals(
-                        cards_info is not None and "cards" in cards_info and len(cards_info["cards"]) == 4,
+                        cards_info is not None
+                        and "cards" in cards_info
+                        and len(cards_info["cards"]) == 4,
                         True,
                     )

@@ -32,7 +32,9 @@ class PlayListFlow(FlowSpec):
 
     """
 
-    genre = Parameter("genre", help="Filter movies for a particular genre.", default="Sci-Fi")
+    genre = Parameter(
+        "genre", help="Filter movies for a particular genre.", default="Sci-Fi"
+    )
 
     hint = Parameter(
         "hint",

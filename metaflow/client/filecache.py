@@ -66,22 +66,33 @@ class FileCache(object):
     def cache_dir(self):
         return self._cache_dir
 
-    def get_logs_stream(self, ds_type, ds_root, stream, attempt, flow_name, run_id, step_name, task_id):
+    def get_logs_stream(
+        self, ds_type, ds_root, stream, attempt, flow_name, run_id, step_name, task_id
+    ):
         from metaflow.mflog import LOG_SOURCES
 
         ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
 
-        task_ds = ds.get_task_datastore(run_id, step_name, task_id, data_metadata={"objects": {}, "info": {}})
+        task_ds = ds.get_task_datastore(
+            run_id, step_name, task_id, data_metadata={"objects": {}, "info": {}}
+        )
         return task_ds.load_logs(LOG_SOURCES, stream, attempt_override=attempt)
 
-    def get_log_legacy(self, ds_type, location, logtype, attempt, flow_name, run_id, step_name, task_id):
+    def get_log_legacy(
+        self, ds_type, location, logtype, attempt, flow_name, run_id, step_name, task_id
+    ):
 
         ds_cls = self._get_datastore_storage_impl(ds_type)
         ds_root = ds_cls.path_join(*ds_cls.path_split(location)[:-5])
         cache_id = self._flow_ds_id(ds_type, ds_root, flow_name)
 
         token = (
-            "%s.cached" % sha1(os.path.join(run_id, step_name, task_id, "%s_log" % logtype).encode("utf-8")).hexdigest()
+            "%s.cached"
+            % sha1(
+                os.path.join(run_id, step_name, task_id, "%s_log" % logtype).encode(
+                    "utf-8"
+                )
+            ).hexdigest()
         )
         path = os.path.join(self._cache_dir, cache_id, token[:2], token)
 
@@ -91,14 +102,18 @@ class FileCache(object):
 
         ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
 
-        task_ds = ds.get_task_datastore(run_id, step_name, task_id, data_metadata={"objects": {}, "info": {}})
+        task_ds = ds.get_task_datastore(
+            run_id, step_name, task_id, data_metadata={"objects": {}, "info": {}}
+        )
 
         log = task_ds.load_log_legacy(logtype, attempt_override=attempt)
         # Store this in the file cache as well
         self.create_file(path, log)
         return log
 
-    def get_legacy_log_size(self, ds_type, location, logtype, attempt, flow_name, run_id, step_name, task_id):
+    def get_legacy_log_size(
+        self, ds_type, location, logtype, attempt, flow_name, run_id, step_name, task_id
+    ):
         ds_cls = self._get_datastore_storage_impl(ds_type)
         ds_root = ds_cls.path_join(*ds_cls.path_split(location)[:-5])
         ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
@@ -113,7 +128,9 @@ class FileCache(object):
 
         return task_ds.get_legacy_log_size(logtype)
 
-    def get_log_size(self, ds_type, ds_root, logtype, attempt, flow_name, run_id, step_name, task_id):
+    def get_log_size(
+        self, ds_type, ds_root, logtype, attempt, flow_name, run_id, step_name, task_id
+    ):
         from metaflow.mflog import LOG_SOURCES
 
         ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
@@ -135,16 +152,24 @@ class FileCache(object):
 
         return next(ds.load_data([key], force_raw=True))
 
-    def get_artifact_size_by_location(self, ds_type, location, attempt, flow_name, run_id, step_name, task_id, name):
+    def get_artifact_size_by_location(
+        self, ds_type, location, attempt, flow_name, run_id, step_name, task_id, name
+    ):
         """Gets the size of the artifact content (in bytes) for the name at the location"""
         ds_cls = self._get_datastore_storage_impl(ds_type)
         ds_root = ds_cls.get_datastore_root_from_location(location, flow_name)
 
-        return self.get_artifact_size(ds_type, ds_root, attempt, flow_name, run_id, step_name, task_id, name)
+        return self.get_artifact_size(
+            ds_type, ds_root, attempt, flow_name, run_id, step_name, task_id, name
+        )
 
-    def get_artifact_size(self, ds_type, ds_root, attempt, flow_name, run_id, step_name, task_id, name):
+    def get_artifact_size(
+        self, ds_type, ds_root, attempt, flow_name, run_id, step_name, task_id, name
+    ):
         """Gets the size of the artifact content (in bytes) for the name"""
-        task_ds = self._get_task_datastore(ds_type, ds_root, flow_name, run_id, step_name, task_id, attempt)
+        task_ds = self._get_task_datastore(
+            ds_type, ds_root, flow_name, run_id, step_name, task_id, attempt
+        )
 
         _, size = next(task_ds.get_artifact_sizes([name]))
         return size
@@ -162,7 +187,9 @@ class FileCache(object):
     ):
         ds_cls = self._get_datastore_storage_impl(ds_type)
         ds_root = ds_cls.get_datastore_root_from_location(location, flow_name)
-        return self.get_artifact(ds_type, ds_root, data_metadata, flow_name, run_id, step_name, task_id, name)
+        return self.get_artifact(
+            ds_type, ds_root, data_metadata, flow_name, run_id, step_name, task_id, name
+        )
 
     def get_artifact(
         self,
@@ -189,11 +216,15 @@ class FileCache(object):
         )
         return obj
 
-    def get_all_artifacts(self, ds_type, ds_root, data_metadata, flow_name, run_id, step_name, task_id):
+    def get_all_artifacts(
+        self, ds_type, ds_root, data_metadata, flow_name, run_id, step_name, task_id
+    ):
         ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
 
         # We get the task datastore for this task
-        task_ds = ds.get_task_datastore(run_id, step_name, task_id, data_metadata=data_metadata)
+        task_ds = ds.get_task_datastore(
+            run_id, step_name, task_id, data_metadata=data_metadata
+        )
         # This will reuse the blob cache if needed. We do not have an
         # artifact cache so the unpickling happens every time here.
         return task_ds.load_artifacts([n for n, _ in task_ds.items()])
@@ -212,7 +243,9 @@ class FileCache(object):
         ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
 
         # We get the task datastore for this task
-        task_ds = ds.get_task_datastore(run_id, step_name, task_id, data_metadata=data_metadata)
+        task_ds = ds.get_task_datastore(
+            run_id, step_name, task_id, data_metadata=data_metadata
+        )
         # note that load_artifacts uses flow_datastore.castore which goes
         # through one of the self._blob_cache
         return task_ds.load_artifacts(names)
@@ -267,7 +300,9 @@ class FileCache(object):
                         sha, ext = os.path.splitext(obj)
                         if ext in ["cached", "blob"]:
                             path = os.path.join(root, obj)
-                            objects.insert(0, (os.path.getctime(path), os.path.getsize(path), path))
+                            objects.insert(
+                                0, (os.path.getctime(path), os.path.getsize(path), path)
+                            )
 
         self._total = sum(size for _, size, _ in objects)
         self._objects = sorted(objects, reverse=False)
@@ -278,7 +313,9 @@ class FileCache(object):
 
     @staticmethod
     def _task_ds_id(ds_type, ds_root, flow_name, run_id, step_name, task_id, attempt):
-        return ".".join([ds_type, ds_root, flow_name, run_id, step_name, task_id, str(attempt)])
+        return ".".join(
+            [ds_type, ds_root, flow_name, run_id, step_name, task_id, str(attempt)]
+        )
 
     def _garbage_collect(self):
         now = time.time()
@@ -327,7 +364,9 @@ class FileCache(object):
                 storage_impl=storage_impl,
                 ds_root=ds_root,
             )
-            blob_cache = self._blob_caches.setdefault(cache_id, FileBlobCache(self, cache_id))
+            blob_cache = self._blob_caches.setdefault(
+                cache_id, FileBlobCache(self, cache_id)
+            )
             cached_flow_datastore.ca_store.set_blob_cache(blob_cache)
             self._store_caches[cache_id] = cached_flow_datastore
             if len(self._store_caches) > CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT:
@@ -335,11 +374,15 @@ class FileCache(object):
                 del self._blob_caches[cache_id_to_remove]
             return cached_flow_datastore
 
-    def _get_task_datastore(self, ds_type, ds_root, flow_name, run_id, step_name, task_id, attempt):
+    def _get_task_datastore(
+        self, ds_type, ds_root, flow_name, run_id, step_name, task_id, attempt
+    ):
         flow_ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
         cached_metadata = None
         if attempt is not None:
-            cache_id = self._task_ds_id(ds_type, ds_root, flow_name, run_id, step_name, task_id, attempt)
+            cache_id = self._task_ds_id(
+                ds_type, ds_root, flow_name, run_id, step_name, task_id, attempt
+            )
             cached_metadata = self._task_metadata_caches.get(cache_id)
             if cached_metadata:
                 od_move_to_end(self._task_metadata_caches, cache_id)
@@ -351,8 +394,12 @@ class FileCache(object):
                     data_metadata=cached_metadata,
                 )
         # If we are here, we either have attempt=None or nothing in the cache
-        task_ds = flow_ds.get_task_datastore(run_id, step_name, task_id, attempt=attempt)
-        cache_id = self._task_ds_id(ds_type, ds_root, flow_name, run_id, step_name, task_id, task_ds.attempt)
+        task_ds = flow_ds.get_task_datastore(
+            run_id, step_name, task_id, attempt=attempt
+        )
+        cache_id = self._task_ds_id(
+            ds_type, ds_root, flow_name, run_id, step_name, task_id, task_ds.attempt
+        )
         self._task_metadata_caches[cache_id] = task_ds.ds_metadata
         if len(self._task_metadata_caches) > CLIENT_CACHE_MAX_TASKDATASTORE_COUNT:
             self._task_metadata_caches.popitem(last=False)
@@ -366,7 +413,9 @@ class FileBlobCache(BlobCache):
 
     def _path(self, key):
         key_dir = key[:2]
-        return os.path.join(self._filecache.cache_dir, self._cache_id, key_dir, "%s.blob" % key)
+        return os.path.join(
+            self._filecache.cache_dir, self._cache_id, key_dir, "%s.blob" % key
+        )
 
     def load_key(self, key):
         return self._filecache.read_file(self._path(key))

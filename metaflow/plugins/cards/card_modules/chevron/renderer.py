@@ -242,7 +242,9 @@ def render(
         # If we're a variable tag
         elif tag == "variable":
             # Add the html escaped key to the output
-            thing = _get_key(key, scopes, warn=warn, keep=keep, def_ldel=def_ldel, def_rdel=def_rdel)
+            thing = _get_key(
+                key, scopes, warn=warn, keep=keep, def_ldel=def_ldel, def_rdel=def_rdel
+            )
             if thing is True and key == ".":
                 # if we've coerced into a boolean by accident
                 # (inverted tags do this)
@@ -255,7 +257,9 @@ def render(
         # If we're a no html escape tag
         elif tag == "no escape":
             # Just lookup the key and add it
-            thing = _get_key(key, scopes, warn=warn, keep=keep, def_ldel=def_ldel, def_rdel=def_rdel)
+            thing = _get_key(
+                key, scopes, warn=warn, keep=keep, def_ldel=def_ldel, def_rdel=def_rdel
+            )
             if not isinstance(thing, unicode_type):
                 thing = unicode(str(thing), "utf-8")
             output += thing
@@ -263,7 +267,9 @@ def render(
         # If we're a section tag
         elif tag == "section":
             # Get the sections scope
-            scope = _get_key(key, scopes, warn=warn, keep=keep, def_ldel=def_ldel, def_rdel=def_rdel)
+            scope = _get_key(
+                key, scopes, warn=warn, keep=keep, def_ldel=def_ldel, def_rdel=def_rdel
+            )
 
             # If the scope is a callable (as described in
             # https://mustache.github.io/mustache.5.html)
@@ -325,7 +331,9 @@ def render(
 
             # If the scope is a sequence, an iterator or generator but not
             # derived from a string
-            elif isinstance(scope, (Sequence, Iterator)) and not isinstance(scope, string_type):
+            elif isinstance(scope, (Sequence, Iterator)) and not isinstance(
+                scope, string_type
+            ):
                 # Then we need to do some looping
 
                 # Gather up all the tags inside the section
@@ -371,7 +379,9 @@ def render(
         # If we're an inverted section
         elif tag == "inverted section":
             # Add the flipped scope to the scopes
-            scope = _get_key(key, scopes, warn=warn, keep=keep, def_ldel=def_ldel, def_rdel=def_rdel)
+            scope = _get_key(
+                key, scopes, warn=warn, keep=keep, def_ldel=def_ldel, def_rdel=def_rdel
+            )
             scopes.insert(0, not scope)
 
         # If we're a partial

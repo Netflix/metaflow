@@ -51,9 +51,13 @@ class InternalTestUnboundedForeachDecorator(StepDecorator):
     results_dict = {}
 
     def __init__(self, attributes=None, statically_defined=False):
-        super(InternalTestUnboundedForeachDecorator, self).__init__(attributes, statically_defined)
+        super(InternalTestUnboundedForeachDecorator, self).__init__(
+            attributes, statically_defined
+        )
 
-    def step_init(self, flow, graph, step_name, decorators, environment, flow_datastore, logger):
+    def step_init(
+        self, flow, graph, step_name, decorators, environment, flow_datastore, logger
+    ):
         self.environment = environment
 
     def control_task_step_func(self, flow, graph, retry_count):
@@ -76,7 +80,8 @@ class InternalTestUnboundedForeachDecorator(StepDecorator):
         foreach_iter = flow.input
         if not isinstance(foreach_iter, InternalTestUnboundedForeachInput):
             raise MetaflowException(
-                "Expected type to be " "InternalTestUnboundedForeachInput. Found %s" % (type(foreach_iter))
+                "Expected type to be "
+                "InternalTestUnboundedForeachInput. Found %s" % (type(foreach_iter))
             )
         foreach_num_splits = sum(1 for _ in foreach_iter)
 
@@ -103,11 +108,17 @@ class InternalTestUnboundedForeachDecorator(StepDecorator):
             kwargs["ubf_context"] = UBF_TASK
             kwargs["retry_count"] = 0
 
-            cmd = cli_args.step_command(executable, script, step_name, step_kwargs=kwargs)
+            cmd = cli_args.step_command(
+                executable, script, step_name, step_kwargs=kwargs
+            )
             step_cli = " ".join(cmd)
             # Print cmdline for execution. Doesn't work without the temporary
             # unicode object while using `print`.
-            print("[${cwd}] Starting split#{split} with cmd:{cmd}".format(cwd=os.getcwd(), split=i, cmd=step_cli))
+            print(
+                "[${cwd}] Starting split#{split} with cmd:{cmd}".format(
+                    cwd=os.getcwd(), split=i, cmd=step_cli
+                )
+            )
             output_bytes = subprocess.check_output(cmd)
             output = to_unicode(output_bytes)
             for line in output.splitlines():
@@ -116,7 +127,9 @@ class InternalTestUnboundedForeachDecorator(StepDecorator):
         # artifact `_control_mapper_tasks`.
         flow._control_mapper_tasks = mapper_tasks
 
-    def task_decorate(self, step_func, flow, graph, retry_count, max_user_code_retries, ubf_context):
+    def task_decorate(
+        self, step_func, flow, graph, retry_count, max_user_code_retries, ubf_context
+    ):
         if ubf_context == UBF_CONTROL:
             from functools import partial
 

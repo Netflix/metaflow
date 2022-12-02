@@ -61,8 +61,12 @@ class TagCatchTest(MetaflowTest):
 
     def check_results(self, flow, checker):
 
-        checker.assert_log("start", "stdout", "stdout testing logs 3\n", exact_match=False)
-        checker.assert_log("start", "stderr", "stderr testing logs 3\n", exact_match=False)
+        checker.assert_log(
+            "start", "stdout", "stdout testing logs 3\n", exact_match=False
+        )
+        checker.assert_log(
+            "start", "stderr", "stderr testing logs 3\n", exact_match=False
+        )
 
         for step in flow:
 
@@ -71,7 +75,9 @@ class TagCatchTest(MetaflowTest):
                 try:
                     for task in checker.artifact_dict("start", "invisible").values():
                         if task:
-                            raise Exception("'invisible' should not be visible " "in 'start'")
+                            raise Exception(
+                                "'invisible' should not be visible " "in 'start'"
+                            )
                 except KeyError:
                     pass
             elif step.name == "end":
@@ -129,4 +135,6 @@ class TagCatchTest(MetaflowTest):
             # task.exception is None since the exception was handled
             assert_equals(None, end.exception)
             assert_equals("catch me!", end.data.end_ex.exception)
-            assert_equals("metaflow.exception.ExternalCommandFailed", end.data.end_ex.type)
+            assert_equals(
+                "metaflow.exception.ExternalCommandFailed", end.data.end_ex.type
+            )

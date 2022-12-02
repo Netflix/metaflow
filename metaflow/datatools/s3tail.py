@@ -50,7 +50,9 @@ class S3Tail(object):
     @aws_retry
     def _make_range_request(self):
         try:
-            return self.s3.get_object(Bucket=self._bucket, Key=self._key, Range="bytes=%d-" % self._pos)
+            return self.s3.get_object(
+                Bucket=self._bucket, Key=self._key, Range="bytes=%d-" % self._pos
+            )
         except self.ClientError as err:
             code = err.response["Error"]["Code"]
             # NOTE we deliberately regard NoSuchKey as an ignorable error.
@@ -79,4 +81,6 @@ class S3Tail(object):
         elif code[0] == "5":
             return None
         else:
-            raise Exception("Retrieving %s/%s failed: %s" % (self._bucket, self._key, code))
+            raise Exception(
+                "Retrieving %s/%s failed: %s" % (self._bucket, self._key, code)
+            )

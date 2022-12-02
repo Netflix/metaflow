@@ -59,13 +59,17 @@ class FlowDataStore(object):
         self.logger = event_logger
         self.monitor = monitor
 
-        self.ca_store = ContentAddressedStore(self._storage_impl.path_join(self.flow_name, "data"), self._storage_impl)
+        self.ca_store = ContentAddressedStore(
+            self._storage_impl.path_join(self.flow_name, "data"), self._storage_impl
+        )
 
     @property
     def datastore_root(self):
         return self._storage_impl.datastore_root
 
-    def get_latest_task_datastores(self, run_id=None, steps=None, pathspecs=None, allow_not_done=False):
+    def get_latest_task_datastores(
+        self, run_id=None, steps=None, pathspecs=None, allow_not_done=False
+    ):
         """
         Return a list of TaskDataStore for a subset of the tasks.
 
@@ -100,16 +104,27 @@ class FlowDataStore(object):
         # eventually consistent `list_content` operation, and directly construct
         # the task_urls list.
         if pathspecs:
-            task_urls = [self._storage_impl.path_join(self.flow_name, pathspec) for pathspec in pathspecs]
+            task_urls = [
+                self._storage_impl.path_join(self.flow_name, pathspec)
+                for pathspec in pathspecs
+            ]
         else:
             run_prefix = self._storage_impl.path_join(self.flow_name, run_id)
             if steps:
-                step_urls = [self._storage_impl.path_join(run_prefix, step) for step in steps]
+                step_urls = [
+                    self._storage_impl.path_join(run_prefix, step) for step in steps
+                ]
             else:
                 step_urls = [
-                    step.path for step in self._storage_impl.list_content([run_prefix]) if step.is_file is False
+                    step.path
+                    for step in self._storage_impl.list_content([run_prefix])
+                    if step.is_file is False
                 ]
-            task_urls = [task.path for task in self._storage_impl.list_content(step_urls) if task.is_file is False]
+            task_urls = [
+                task.path
+                for task in self._storage_impl.list_content(step_urls)
+                if task.is_file is False
+            ]
         urls = []
         for task_url in task_urls:
             for attempt in range(metaflow_config.MAX_ATTEMPTS):
@@ -149,13 +164,17 @@ class FlowDataStore(object):
         # Note that if an attempt started but didn't finish, we do *NOT* return
         # the previous attempt
         latest_started_attempts = set(
-            (run, step, task, attempt) for (run, step, task), attempt in latest_started_attempts.items()
+            (run, step, task, attempt)
+            for (run, step, task), attempt in latest_started_attempts.items()
         )
         if allow_not_done:
             latest_to_fetch = latest_started_attempts
         else:
             latest_to_fetch = latest_started_attempts & done_attempts
-        latest_to_fetch = [(v[0], v[1], v[2], v[3], data_objs[v], "r", allow_not_done) for v in latest_to_fetch]
+        latest_to_fetch = [
+            (v[0], v[1], v[2], v[3], data_objs[v], "r", allow_not_done)
+            for v in latest_to_fetch
+        ]
         return list(itertools.starmap(self.get_task_datastore, latest_to_fetch))
 
     def get_task_datastore(

@@ -6,7 +6,9 @@ class PytorchParallelTest(FlowSpec):
     Test flow to test @pytorch_parallel.
     """
 
-    num_parallel = Parameter("num_parallel", help="Number of nodes in cluster", default=3)
+    num_parallel = Parameter(
+        "num_parallel", help="Number of nodes in cluster", default=3
+    )
 
     @step
     def start(self):
@@ -42,7 +44,9 @@ class PytorchParallelTest(FlowSpec):
         # Assert the values are as expected
         for i in range(3):
             for j in range(3):
-                assert int(my_tensor[i, j]) == sum(range(1, current.parallel.num_nodes + 1))
+                assert int(my_tensor[i, j]) == sum(
+                    range(1, current.parallel.num_nodes + 1)
+                )
         dist.destroy_process_group()
 
         self.node_index = current.parallel.node_index

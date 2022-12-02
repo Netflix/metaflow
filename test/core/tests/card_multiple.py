@@ -59,7 +59,9 @@ class MultipleCardDecoratorTest(MetaflowTest):
                     task_id = task_pathspec.split("/")[-1]
                     cards_info = checker.list_cards(step.name, task_id)
                     assert_equals(
-                        cards_info is not None and "cards" in cards_info and len(cards_info["cards"]) == 2,
+                        cards_info is not None
+                        and "cards" in cards_info
+                        and len(cards_info["cards"]) == 2,
                         True,
                     )
                     for card in cards_info["cards"]:
@@ -79,7 +81,9 @@ class MultipleCardDecoratorTest(MetaflowTest):
                     full_pathspec = meta_check_dict[task_id]["task"]
                     cards_info = checker.list_cards(step.name, task_id)
                     assert_equals(
-                        cards_info is not None and "cards" in cards_info and len(cards_info["cards"]) == 2,
+                        cards_info is not None
+                        and "cards" in cards_info
+                        and len(cards_info["cards"]) == 2,
                         True,
                     )
                     for card in cards_info["cards"]:

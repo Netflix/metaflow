@@ -44,5 +44,9 @@ class BasicLogTest(MetaflowTest):
 
         for step in flow:
             if step.name not in ["start", "end"]:
-                checker.assert_log(step.name, "stdout", stdout_combined_msg, exact_match=False)
-                checker.assert_log(step.name, "stderr", stderr_combined_msg, exact_match=False)
+                checker.assert_log(
+                    step.name, "stdout", stdout_combined_msg, exact_match=False
+                )
+                checker.assert_log(
+                    step.name, "stderr", stderr_combined_msg, exact_match=False
+                )

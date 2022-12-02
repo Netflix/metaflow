@@ -58,10 +58,14 @@ class ParameterFieldFailed(MetaflowException):
 
     def __init__(self, name, field):
         exc = traceback.format_exc()
-        msg = "When evaluating the field *%s* for the Parameter *%s*, " "the following exception occurred:\n\n%s" % (
-            field,
-            name,
-            exc,
+        msg = (
+            "When evaluating the field *%s* for the Parameter *%s*, "
+            "the following exception occurred:\n\n%s"
+            % (
+                field,
+                name,
+                exc,
+            )
         )
         super(ParameterFieldFailed, self).__init__(msg)
 
@@ -104,7 +108,10 @@ class MetaflowUnknownUser(MetaflowException):
     headline = "Unknown user"
 
     def __init__(self):
-        msg = "Metaflow could not determine your user name based on " "environment variables ($USERNAME etc.)"
+        msg = (
+            "Metaflow could not determine your user name based on "
+            "environment variables ($USERNAME etc.)"
+        )
         super(MetaflowUnknownUser, self).__init__(msg)
 
 
@@ -114,7 +121,9 @@ class InvalidDecoratorAttribute(MetaflowException):
     def __init__(self, deconame, attr, defaults):
         msg = (
             "Decorator '{deco}' does not support the attribute '{attr}'. "
-            "These attributes are supported: {defaults}.".format(deco=deconame, attr=attr, defaults=", ".join(defaults))
+            "These attributes are supported: {defaults}.".format(
+                deco=deconame, attr=attr, defaults=", ".join(defaults)
+            )
         )
         super(InvalidDecoratorAttribute, self).__init__(msg)
 

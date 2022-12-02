@@ -67,7 +67,12 @@ class S3Storage(DataStoreStorage):
             external_client=self.s3_client,
         ) as s3:
             results = s3.list_paths(paths)
-            return [self.list_content_result(path=o.url[strip_prefix_len:], is_file=o.exists) for o in results]
+            return [
+                self.list_content_result(
+                    path=o.url[strip_prefix_len:], is_file=o.exists
+                )
+                for o in results
+            ]
 
     def save_bytes(self, path_and_bytes_iter, overwrite=False, len_hint=0):
         def _convert():

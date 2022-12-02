@@ -49,7 +49,8 @@ def _get_external_card_packages():
                     card_packages.append(cm)
                 except Exception as e:
                     _ext_debug(
-                        "External Card Module Import Exception \n\n %s \n\n %s" % (str(e), traceback.format_exc())
+                        "External Card Module Import Exception \n\n %s \n\n %s"
+                        % (str(e), traceback.format_exc())
                     )
 
         _CARD_MODULES.extend(card_packages)

@@ -77,9 +77,15 @@ def _check_multicommand(base_command, cmd_name, cmd, register=False):
     if not base_command.chain or not isinstance(cmd, MultiCommand):
         return
     if register:
-        hint = "It is not possible to add multi commands as children to" " another multi command that is in chain mode."
+        hint = (
+            "It is not possible to add multi commands as children to"
+            " another multi command that is in chain mode."
+        )
     else:
-        hint = "Found a multi command as subcommand to a multi command" " that is in chain mode. This is not supported."
+        hint = (
+            "Found a multi command as subcommand to a multi command"
+            " that is in chain mode. This is not supported."
+        )
     raise RuntimeError(
         "{}. Command '{}' is set to chain and '{}' was added as"
         " subcommand but it in itself is a multi command. ('{}' is a {}"
@@ -278,7 +284,11 @@ class Context(object):
         self._meta = getattr(parent, "meta", {})
 
         #: A dictionary (-like object) with defaults for parameters.
-        if default_map is None and parent is not None and parent.default_map is not None:
+        if (
+            default_map is None
+            and parent is not None
+            and parent.default_map is not None
+        ):
             default_map = parent.default_map.get(info_name)
         self.default_map = default_map
 
@@ -358,8 +368,14 @@ class Context(object):
         # the command on this level has a name, we can expand the envvar
         # prefix automatically.
         if auto_envvar_prefix is None:
-            if parent is not None and parent.auto_envvar_prefix is not None and self.info_name is not None:
-                auto_envvar_prefix = "{}_{}".format(parent.auto_envvar_prefix, self.info_name.upper())
+            if (
+                parent is not None
+                and parent.auto_envvar_prefix is not None
+                and self.info_name is not None
+            ):
+                auto_envvar_prefix = "{}_{}".format(
+                    parent.auto_envvar_prefix, self.info_name.upper()
+                )
         else:
             auto_envvar_prefix = auto_envvar_prefix.upper()
         if auto_envvar_prefix is not None:
@@ -456,7 +472,9 @@ class Context(object):
 
     def make_formatter(self):
         """Creates the formatter for the help and usage output."""
-        return HelpFormatter(width=self.terminal_width, max_width=self.max_content_width)
+        return HelpFormatter(
+            width=self.terminal_width, max_width=self.max_content_width
+        )
 
     def call_on_close(self, f):
         """This decorator remembers a function as callback that should be
@@ -578,7 +596,9 @@ class Context(object):
             callback = other_cmd.callback
             ctx = Context(other_cmd, info_name=other_cmd.name, parent=self)
             if callback is None:
-                raise TypeError("The given command does not have a callback that can be invoked.")
+                raise TypeError(
+                    "The given command does not have a callback that can be invoked."
+                )
 
             for param in other_cmd.params:
                 if param.name not in kwargs and param.expose_value:
@@ -693,7 +713,14 @@ class BaseCommand(object):
         """
         raise NotImplementedError("Base commands are not invokable by default")
 
-    def main(self, args=None, prog_name=None, complete_var=None, standalone_mode=True, **extra):
+    def main(
+        self,
+        args=None,
+        prog_name=None,
+        complete_var=None,
+        standalone_mode=True,
+        **extra
+    ):
         """This is the way to invoke a script with all the bells and
         whistles as a command line application.  This will always terminate
         the application after a call.  If this is not wanted, ``SystemExit``
@@ -740,7 +767,9 @@ class BaseCommand(object):
             args = list(args)
 
         if prog_name is None:
-            prog_name = make_str(os.path.basename(sys.argv[0] if sys.argv else __file__))
+            prog_name = make_str(
+                os.path.basename(sys.argv[0] if sys.argv else __file__)
+            )
 
         # Hook for the Bash completion.  This only activates if the Bash
         # completion is actually enabled, otherwise this is quite a fast
@@ -950,7 +979,12 @@ class Command(BaseCommand):
         """Gets short help for the command or makes it by shortening the
         long help string.
         """
-        return self.short_help or self.help and make_default_short_help(self.help, limit) or ""
+        return (
+            self.short_help
+            or self.help
+            and make_default_short_help(self.help, limit)
+            or ""
+        )
 
     def format_help(self, ctx, formatter):
         """Writes the help into the formatter if it exists.
@@ -1088,7 +1122,10 @@ class MultiCommand(Command):
         if self.chain:
             for param in self.params:
                 if isinstance(param, Argument) and not param.required:
-                    raise RuntimeError("Multi commands in chain mode cannot have" " optional arguments.")
+                    raise RuntimeError(
+                        "Multi commands in chain mode cannot have"
+                        " optional arguments."
+                    )
 
     def collect_usage_pieces(self, ctx):
         rv = Command.collect_usage_pieces(self, ctx)
@@ -1442,7 +1479,9 @@ class Parameter(object):
         envvar=None,
         autocompletion=None,
     ):
-        self.name, self.opts, self.secondary_opts = self._parse_decls(param_decls or (), expose_value)
+        self.name, self.opts, self.secondary_opts = self._parse_decls(
+            param_decls or (), expose_value
+        )
 
         self.type = convert_type(type, default)
 
@@ -1730,9 +1769,13 @@ class Option(Parameter):
                 raise TypeError("Hidden input does not work with boolean flag prompts.")
             if self.count:
                 if self.multiple:
-                    raise TypeError("Options cannot be multiple and count at the same time.")
+                    raise TypeError(
+                        "Options cannot be multiple and count at the same time."
+                    )
                 elif self.is_flag:
-                    raise TypeError("Options cannot be count and flags at the same time.")
+                    raise TypeError(
+                        "Options cannot be count and flags at the same time."
+                    )
 
     def _parse_decls(self, decls, expose_value):
         opts = []
@@ -1798,9 +1841,13 @@ class Option(Parameter):
             action_const = "{}_const".format(action)
             if self.is_bool_flag and self.secondary_opts:
                 parser.add_option(self.opts, action=action_const, const=True, **kwargs)
-                parser.add_option(self.secondary_opts, action=action_const, const=False, **kwargs)
+                parser.add_option(
+                    self.secondary_opts, action=action_const, const=False, **kwargs
+                )
             else:
-                parser.add_option(self.opts, action=action_const, const=self.flag_value, **kwargs)
+                parser.add_option(
+                    self.opts, action=action_const, const=self.flag_value, **kwargs
+                )
         else:
             kwargs["action"] = action
             parser.add_option(self.opts, **kwargs)
@@ -1832,7 +1879,9 @@ class Option(Parameter):
             if envvar is not None:
                 extra.append(
                     "env var: {}".format(
-                        ", ".join(str(d) for d in envvar) if isinstance(envvar, (list, tuple)) else envvar
+                        ", ".join(str(d) for d in envvar)
+                        if isinstance(envvar, (list, tuple))
+                        else envvar
                     )
                 )
         if self.default is not None and (self.show_default or ctx.show_default):
@@ -1849,7 +1898,9 @@ class Option(Parameter):
         if self.required:
             extra.append("required")
         if extra:
-            help = "{}[{}]".format("{}  ".format(help) if help else "", "; ".join(extra))
+            help = "{}[{}]".format(
+                "{}  ".format(help) if help else "", "; ".join(extra)
+            )
 
         return ("; " if any_prefix_is_slash else " / ").join(rv), help
 
@@ -1932,7 +1983,9 @@ class Argument(Parameter):
                 required = attrs.get("nargs", 1) > 0
         Parameter.__init__(self, param_decls, required=required, **attrs)
         if self.default is not None and self.nargs < 0:
-            raise TypeError("nargs=-1 in combination with a default value is not supported.")
+            raise TypeError(
+                "nargs=-1 in combination with a default value is not supported."
+            )
 
     @property
     def human_readable_name(self):
@@ -1961,7 +2014,10 @@ class Argument(Parameter):
             name = arg = decls[0]
             name = name.replace("-", "_").lower()
         else:
-            raise TypeError("Arguments take exactly one parameter declaration, got" " {}".format(len(decls)))
+            raise TypeError(
+                "Arguments take exactly one parameter declaration, got"
+                " {}".format(len(decls))
+            )
         return name, [arg], []
 
     def get_usage_pieces(self, ctx):

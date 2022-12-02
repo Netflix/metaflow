@@ -95,7 +95,9 @@ class DAGNode(object):
             self.tail_next_lineno = tail.lineno
             self.out_funcs = [e.attr for e in tail.value.args]
 
-            keywords = dict((k.arg, getattr(k.value, "s", None)) for k in tail.value.keywords)
+            keywords = dict(
+                (k.arg, getattr(k.value, "s", None)) for k in tail.value.keywords
+            )
             if len(keywords) == 1:
                 if "foreach" in keywords:
                     # TYPE: foreach
@@ -175,7 +177,9 @@ class FlowGraph(object):
     def _create_nodes(self, flow):
         module = __import__(flow.__module__)
         tree = ast.parse(inspect.getsource(module)).body
-        root = [n for n in tree if isinstance(n, ast.ClassDef) and n.name == self.name][0]
+        root = [n for n in tree if isinstance(n, ast.ClassDef) and n.name == self.name][
+            0
+        ]
         nodes = {}
         StepVisitor(nodes, flow).visit(root)
         return nodes
@@ -185,7 +189,9 @@ class FlowGraph(object):
         # has is_inside_foreach=True *unless* all of those foreaches
         # are joined by the node
         for node in self.nodes.values():
-            foreaches = [p for p in node.split_parents if self.nodes[p].type == "foreach"]
+            foreaches = [
+                p for p in node.split_parents if self.nodes[p].type == "foreach"
+            ]
             if [f for f in foreaches if self.nodes[f].matching_join != node.name]:
                 node.is_inside_foreach = True
 
@@ -229,7 +235,9 @@ class FlowGraph(object):
         return iter(self.nodes.values())
 
     def __str__(self):
-        return "\n".join(str(n) for _, n in sorted((n.func_lineno, n) for n in self.nodes.values()))
+        return "\n".join(
+            str(n) for _, n in sorted((n.func_lineno, n) for n in self.nodes.values())
+        )
 
     def output_dot(self):
         def edge_specs():
@@ -248,7 +256,9 @@ class FlowGraph(object):
             "digraph {0.name} {{\n"
             "{nodes}\n"
             "{edges}\n"
-            "}}".format(self, nodes="\n".join(node_specs()), edges="\n".join(edge_specs()))
+            "}}".format(
+                self, nodes="\n".join(node_specs()), edges="\n".join(edge_specs())
+            )
         )
 
     def output_steps(self):
@@ -304,7 +314,12 @@ class FlowGraph(object):
 
                 if cur_node.type not in ("start", "linear", "join"):
                     # We need to look at the different branches for this
-                    resulting_list.append([populate_block(s, cur_node.matching_join) for s in cur_node.out_funcs])
+                    resulting_list.append(
+                        [
+                            populate_block(s, cur_node.matching_join)
+                            for s in cur_node.out_funcs
+                        ]
+                    )
                     cur_name = cur_node.matching_join
                 else:
                     cur_name = cur_node.out_funcs[0]

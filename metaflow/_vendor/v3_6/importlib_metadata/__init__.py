@@ -159,7 +159,11 @@ class EntryPoint(DeprecatedTuple):
     for more information.
     """
 
-    pattern = re.compile(r"(?P<module>[\w.]+)\s*" r"(:\s*(?P<attr>[\w.]+))?\s*" r"(?P<extras>\[.*\])?\s*$")
+    pattern = re.compile(
+        r"(?P<module>[\w.]+)\s*"
+        r"(:\s*(?P<attr>[\w.]+))?\s*"
+        r"(?P<extras>\[.*\])?\s*$"
+    )
     """
     A regular expression describing the syntax for an entry point,
     which might look like:
@@ -214,7 +218,10 @@ class EntryPoint(DeprecatedTuple):
         """
         Supply iter so one may construct dicts of EntryPoints by name.
         """
-        msg = "Construction of dict of EntryPoints is deprecated in " "favor of EntryPoints."
+        msg = (
+            "Construction of dict of EntryPoints is deprecated in "
+            "favor of EntryPoints."
+        )
         warnings.warn(msg, DeprecationWarning)
         return iter((self.name, self))
 
@@ -235,7 +242,10 @@ class EntryPoint(DeprecatedTuple):
         raise AttributeError("EntryPoint objects are immutable.")
 
     def __repr__(self):
-        return f"EntryPoint(name={self.name!r}, value={self.value!r}, " f"group={self.group!r})"
+        return (
+            f"EntryPoint(name={self.name!r}, value={self.value!r}, "
+            f"group={self.group!r})"
+        )
 
     def __hash__(self):
         return hash(self._key())
@@ -328,7 +338,8 @@ class EntryPoints(DeprecatedList):
         """
         if isinstance(name, int):
             warnings.warn(
-                "Accessing entry points by index is deprecated. " "Cast to tuple if needed.",
+                "Accessing entry points by index is deprecated. "
+                "Cast to tuple if needed.",
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -544,7 +555,9 @@ class Distribution:
         if context and kwargs:
             raise ValueError("cannot accept context and kwargs")
         context = context or DistributionFinder.Context(**kwargs)
-        return itertools.chain.from_iterable(resolver(context) for resolver in cls._discover_resolvers())
+        return itertools.chain.from_iterable(
+            resolver(context) for resolver in cls._discover_resolvers()
+        )
 
     @staticmethod
     def at(path):
@@ -558,7 +571,9 @@ class Distribution:
     @staticmethod
     def _discover_resolvers():
         """Search the meta_path for resolvers."""
-        declared = (getattr(finder, "find_distributions", None) for finder in sys.meta_path)
+        declared = (
+            getattr(finder, "find_distributions", None) for finder in sys.meta_path
+        )
         return filter(None, declared)
 
     @classmethod
@@ -820,8 +835,16 @@ class Lookup:
         self.eggs.freeze()
 
     def search(self, prepared):
-        infos = self.infos[prepared.normalized] if prepared else itertools.chain.from_iterable(self.infos.values())
-        eggs = self.eggs[prepared.legacy_normalized] if prepared else itertools.chain.from_iterable(self.eggs.values())
+        infos = (
+            self.infos[prepared.normalized]
+            if prepared
+            else itertools.chain.from_iterable(self.infos.values())
+        )
+        eggs = (
+            self.eggs[prepared.legacy_normalized]
+            if prepared
+            else itertools.chain.from_iterable(self.eggs.values())
+        )
         return itertools.chain(infos, eggs)
 
 
@@ -883,7 +906,9 @@ class MetadataPathFinder(NullFinder, DistributionFinder):
     def _search_paths(cls, name, paths):
         """Find metadata directories in paths heuristically."""
         prepared = Prepared(name)
-        return itertools.chain.from_iterable(path.search(prepared) for path in map(FastPath, paths))
+        return itertools.chain.from_iterable(
+            path.search(prepared) for path in map(FastPath, paths)
+        )
 
     def invalidate_caches(cls):
         FastPath.__new__.cache_clear()
@@ -984,7 +1009,9 @@ def entry_points(**params) -> Union[EntryPoints, SelectableGroups]:
     """
     norm_name = operator.attrgetter("_normalized_name")
     unique = functools.partial(unique_everseen, key=norm_name)
-    eps = itertools.chain.from_iterable(dist.entry_points for dist in unique(distributions()))
+    eps = itertools.chain.from_iterable(
+        dist.entry_points for dist in unique(distributions())
+    )
     return SelectableGroups.load(eps).select(**params)
 
 

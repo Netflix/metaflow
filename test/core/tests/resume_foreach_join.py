@@ -24,7 +24,9 @@ class ResumeForeachJoinTest(MetaflowTest):
 
     @steps(0, ["foreach-inner"], required=True)
     def inner(self):
-        self.stack = [list(map(str, getattr(self, frame.var))) for frame in self._foreach_stack]
+        self.stack = [
+            list(map(str, getattr(self, frame.var))) for frame in self._foreach_stack
+        ]
         self.var = ["".join(str(x[2]) for x in self.foreach_stack())]
 
     @steps(0, ["join"], required=True)

@@ -9,7 +9,7 @@ from metaflow.util import to_bytes, to_fileobj, to_unicode
 
 VERSION = b"0"
 
-RE = br"(\[!)?" br"\[MFLOG\|" br"(0)\|" br"(.+?)Z\|" br"(.+?)\|" br"(.+?)\]" br"(.*)"
+RE = rb"(\[!)?" rb"\[MFLOG\|" rb"(0)\|" rb"(.+?)Z\|" rb"(.+?)\|" rb"(.+?)\]" rb"(.*)"
 
 # the RE groups defined above must match the MFLogline fields below
 # except utc_timestamp, which is filled in by the parser based on utc_tstamp_str
@@ -67,7 +67,9 @@ def decorate(source, line, version=VERSION, now=None, lineid=None):
         lineid = to_bytes(str(uuid.uuid4()))
     line = to_bytes(line)
     source = to_bytes(source)
-    return b"".join((b"[MFLOG|", version, b"|", tstamp, b"Z|", source, b"|", lineid, b"]", line))
+    return b"".join(
+        (b"[MFLOG|", version, b"|", tstamp, b"Z|", source, b"|", lineid, b"]", line)
+    )
 
 
 def is_structured(line):
@@ -132,7 +134,9 @@ def merge_logs(logs):
             else:
                 missing.append(line)
         for line in missing:
-            res = MFLogline(False, None, MISSING_TIMESTAMP_STR, None, None, line, MISSING_TIMESTAMP)
+            res = MFLogline(
+                False, None, MISSING_TIMESTAMP_STR, None, None, line, MISSING_TIMESTAMP
+            )
             yield res.utc_tstamp_str, res
 
     # note that sorted() below should be a very cheap, often a O(n) operation

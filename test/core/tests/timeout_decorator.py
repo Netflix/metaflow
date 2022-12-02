@@ -28,7 +28,9 @@ class TimeoutDecoratorTest(MetaflowTest):
             for step in run:
                 for task in step:
                     if "check" in task.data:
-                        extype = "metaflow.plugins.timeout_decorator." "TimeoutException"
+                        extype = (
+                            "metaflow.plugins.timeout_decorator." "TimeoutException"
+                        )
                         assert_equals(extype, str(task.data.ex.type))
                         timeout_raised = True
             assert_equals(True, timeout_raised)

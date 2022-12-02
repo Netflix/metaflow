@@ -19,7 +19,9 @@ class Channel(object):
 
     def send(self, obj):
         try:
-            to_send = json.dumps(obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+            to_send = json.dumps(obj, ensure_ascii=False, separators=(",", ":")).encode(
+                "utf-8"
+            )
             sz = len(to_send)
             self._stream.write(self._fmt.pack(sz))
             self._stream.write(to_send)

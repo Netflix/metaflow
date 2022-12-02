@@ -71,7 +71,9 @@ def cli_main():
         default={},
     )
 
-    parser.add_argument("-y", "--yaml-loader", dest="yaml_loader", help=argparse.SUPPRESS)
+    parser.add_argument(
+        "-y", "--yaml-loader", dest="yaml_loader", help=argparse.SUPPRESS
+    )
 
     parser.add_argument(
         "-p",
