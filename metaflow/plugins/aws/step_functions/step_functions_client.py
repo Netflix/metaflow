@@ -29,9 +29,7 @@ class StepFunctionsClient(object):
                 name=name,
                 definition=definition,
                 roleArn=role_arn,
-                loggingConfiguration=self._default_logging_configuration(
-                    log_execution_history
-                ),
+                loggingConfiguration=self._default_logging_configuration(log_execution_history),
             )
             state_machine_arn = response["stateMachineArn"]
         except self._client.exceptions.StateMachineAlreadyExists as e:
@@ -41,9 +39,7 @@ class StepFunctionsClient(object):
                 stateMachineArn=state_machine_arn,
                 definition=definition,
                 roleArn=role_arn,
-                loggingConfiguration=self._default_logging_configuration(
-                    log_execution_history
-                ),
+                loggingConfiguration=self._default_logging_configuration(log_execution_history),
             )
         return state_machine_arn
 
@@ -59,9 +55,7 @@ class StepFunctionsClient(object):
             return None
 
     def trigger(self, state_machine_arn, input):
-        return self._client.start_execution(
-            stateMachineArn=state_machine_arn, input=input
-        )
+        return self._client.start_execution(stateMachineArn=state_machine_arn, input=input)
 
     def list_executions(self, state_machine_arn, states):
         if len(states) > 0:
@@ -75,9 +69,7 @@ class StepFunctionsClient(object):
             )
         return (
             execution
-            for page in self._client.get_paginator("list_executions").paginate(
-                stateMachineArn=state_machine_arn
-            )
+            for page in self._client.get_paginator("list_executions").paginate(stateMachineArn=state_machine_arn)
             for execution in page["executions"]
         )
 
@@ -90,13 +82,7 @@ class StepFunctionsClient(object):
             return {
                 "level": "ALL",
                 "includeExecutionData": True,
-                "destinations": [
-                    {
-                        "cloudWatchLogsLogGroup": {
-                            "logGroupArn": SFN_EXECUTION_LOG_GROUP_ARN
-                        }
-                    }
-                ],
+                "destinations": [{"cloudWatchLogsLogGroup": {"logGroupArn": SFN_EXECUTION_LOG_GROUP_ARN}}],
             }
         else:
             return {"level": "OFF"}

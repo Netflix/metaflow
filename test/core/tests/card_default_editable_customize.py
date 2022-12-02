@@ -40,15 +40,11 @@ class DefaultEditableCardWithCustomizeTest(MetaflowTest):
                     task_id = task_pathspec.split("/")[-1]
                     cards_info = checker.list_cards(step.name, task_id, card_type)
                     assert_equals(
-                        cards_info is not None
-                        and "cards" in cards_info
-                        and len(cards_info["cards"]) == 2,
+                        cards_info is not None and "cards" in cards_info and len(cards_info["cards"]) == 2,
                         True,
                     )
                     # Find the card without the id
-                    default_editable_cards = [
-                        c for c in cards_info["cards"] if c["id"] is None
-                    ]
+                    default_editable_cards = [c for c in cards_info["cards"] if c["id"] is None]
                     # There should only be one card of type "test_editable_card" with no id.
                     # That is the default editable card because it has `customize=True`
                     assert_equals(len(default_editable_cards) == 1, True)
@@ -71,14 +67,10 @@ class DefaultEditableCardWithCustomizeTest(MetaflowTest):
                 for task_id in meta_check_dict:
                     cards_info = checker.list_cards(step.name, task_id, card_type)
                     assert_equals(
-                        cards_info is not None
-                        and "cards" in cards_info
-                        and len(cards_info["cards"]) == 2,
+                        cards_info is not None and "cards" in cards_info and len(cards_info["cards"]) == 2,
                         True,
                     )
-                    default_editable_cards = [
-                        c for c in cards_info["cards"] if c["id"] is None
-                    ]
+                    default_editable_cards = [c for c in cards_info["cards"] if c["id"] is None]
                     # There should only be one card of type "test_editable_card" with no id.
                     # That is the default editable card since it has `customize=True`
                     assert_equals(len(default_editable_cards) == 1, True)

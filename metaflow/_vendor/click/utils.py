@@ -87,9 +87,7 @@ class LazyFile(object):
     files for writing.
     """
 
-    def __init__(
-        self, filename, mode="r", encoding=None, errors="strict", atomic=False
-    ):
+    def __init__(self, filename, mode="r", encoding=None, errors="strict", atomic=False):
         self.name = filename
         self.mode = mode
         self.encoding = encoding
@@ -123,9 +121,7 @@ class LazyFile(object):
         if self._f is not None:
             return self._f
         try:
-            rv, self.should_close = open_stream(
-                self.name, self.mode, self.encoding, self.errors, atomic=self.atomic
-            )
+            rv, self.should_close = open_stream(self.name, self.mode, self.encoding, self.errors, atomic=self.atomic)
         except (IOError, OSError) as e:  # noqa: E402
             from .exceptions import FileError
 
@@ -306,9 +302,7 @@ def get_text_stream(name, encoding=None, errors="strict"):
     return opener(encoding, errors)
 
 
-def open_file(
-    filename, mode="r", encoding=None, errors="strict", lazy=False, atomic=False
-):
+def open_file(filename, mode="r", encoding=None, errors="strict", lazy=False, atomic=False):
     """This is similar to how the :class:`File` works but for manual
     usage.  Files are opened non lazy by default.  This can open regular
     files as well as stdin/stdout if ``'-'`` is passed.
@@ -421,9 +415,7 @@ def get_app_dir(app_name, roaming=True, force_posix=False):
     if force_posix:
         return os.path.join(os.path.expanduser("~/.{}".format(_posixify(app_name))))
     if sys.platform == "darwin":
-        return os.path.join(
-            os.path.expanduser("~/Library/Application Support"), app_name
-        )
+        return os.path.join(os.path.expanduser("~/Library/Application Support"), app_name)
     return os.path.join(
         os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")),
         _posixify(app_name),

@@ -192,14 +192,10 @@ def _make_method(method_type, connection, class_name, name, doc):
         return fwd_request(_self, OP_CALLATTR, name, *args, **kwargs)
 
     def static_method(connection, class_name, name, *args, **kwargs):
-        return connection.stub_request(
-            None, OP_CALLONCLASS, class_name, name, True, *args, **kwargs
-        )
+        return connection.stub_request(None, OP_CALLONCLASS, class_name, name, True, *args, **kwargs)
 
     def class_method(connection, class_name, name, cls, *args, **kwargs):
-        return connection.stub_request(
-            None, OP_CALLONCLASS, class_name, name, False, *args, **kwargs
-        )
+        return connection.stub_request(None, OP_CALLONCLASS, class_name, name, False, *args, **kwargs)
 
     if method_type == NORMAL_METHOD:
         m = method
@@ -284,9 +280,7 @@ def create_class(
                 )
             elif method_type == STATIC_METHOD:
                 class_dict[name] = (
-                    lambda override, orig_method: lambda *args, **kwargs: override(
-                        orig_method, *args, **kwargs
-                    )
+                    lambda override, orig_method: lambda *args, **kwargs: override(orig_method, *args, **kwargs)
                 )(
                     overriden_methods[name],
                     _make_method(method_type, connection, class_name, name, doc),
@@ -301,9 +295,7 @@ def create_class(
                     _make_method(method_type, connection, class_name, name, doc),
                 )
         elif name not in LOCAL_ATTRS:
-            class_dict[name] = _make_method(
-                method_type, connection, class_name, name, doc
-            )
+            class_dict[name] = _make_method(method_type, connection, class_name, name, doc)
     # Check for any getattr/setattr overrides
     special_attributes = set(getattr_overrides.keys())
     special_attributes.update(set(setattr_overrides.keys()))
@@ -312,9 +304,7 @@ def create_class(
         getter = getattr_overrides.get(attr)
         setter = setattr_overrides.get(attr)
         if getter is not None:
-            getter = lambda x, name=attr, inner=getter: inner(
-                x, name, lambda y=x, name=name: y.__getattr__(name)
-            )
+            getter = lambda x, name=attr, inner=getter: inner(x, name, lambda y=x, name=name: y.__getattr__(name))
         if setter is not None:
             setter = lambda x, value, name=attr, inner=setter: inner(
                 x,

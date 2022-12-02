@@ -157,13 +157,9 @@ class TaskToDict:
             # Only accept types suppored on the web
             # https://developer.mozilla.org/en-US/docs/Web/Media/Formats/Image_types
             if resp is not None and resp in ["gif", "png", "jpeg", "webp"]:
-                return TypeResolvedObject(
-                    self._parse_image(data_object, resp), True, False
-                )
+                return TypeResolvedObject(self._parse_image(data_object, resp), True, False)
         elif obj_type_name == "pandas.core.frame.DataFrame":
-            return TypeResolvedObject(
-                self._parse_pandas_dataframe(data_object), False, True
-            )
+            return TypeResolvedObject(self._parse_pandas_dataframe(data_object), False, True)
         return None
 
     def _parse_image(self, dataobject, img_type):
@@ -240,9 +236,7 @@ class TaskToDict:
         if "..." in data:
             return data
         else:
-            pretty_print_op = self._pretty_print.pformat(
-                data_object, indent=2, width=50, compact=True
-            )
+            pretty_print_op = self._pretty_print.pformat(data_object, indent=2, width=50, compact=True)
             if pretty_print_op is None:
                 return data
             return pretty_print_op

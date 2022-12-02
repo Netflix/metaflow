@@ -22,9 +22,7 @@ def iter_rows(rows, col_count):
         yield row + ("",) * (col_count - len(row))
 
 
-def wrap_text(
-    text, width=78, initial_indent="", subsequent_indent="", preserve_paragraphs=False
-):
+def wrap_text(text, width=78, initial_indent="", subsequent_indent="", preserve_paragraphs=False):
     """A helper function that intelligently wraps text.  By default, it
     assumes that it operates on a single paragraph of text but if the
     `preserve_paragraphs` parameter is provided it will intelligently
@@ -153,11 +151,7 @@ class HelpFormatter(object):
             self.write(usage_prefix)
             self.write("\n")
             indent = " " * (max(self.current_indent, term_len(prefix)) + 4)
-            self.write(
-                wrap_text(
-                    args, text_width, initial_indent=indent, subsequent_indent=indent
-                )
-            )
+            self.write(wrap_text(args, text_width, initial_indent=indent, subsequent_indent=indent))
 
         self.write("\n")
 
@@ -222,11 +216,7 @@ class HelpFormatter(object):
                 self.write("{}\n".format(lines[0]))
 
                 for line in lines[1:]:
-                    self.write(
-                        "{:>{w}}{}\n".format(
-                            "", line, w=first_col + self.current_indent
-                        )
-                    )
+                    self.write("{:>{w}}{}\n".format("", line, w=first_col + self.current_indent))
 
                 if len(lines) > 1:
                     # separate long help from next option

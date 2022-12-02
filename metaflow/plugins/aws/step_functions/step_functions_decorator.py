@@ -29,17 +29,12 @@ class StepFunctionsInternalDecorator(StepDecorator):
         meta["aws-step-functions-execution"] = os.environ["METAFLOW_RUN_ID"]
         meta["aws-step-functions-state-machine"] = os.environ["SFN_STATE_MACHINE"]
         entries = [
-            MetaDatum(
-                field=k, value=v, type=k, tags=["attempt_id:{0}".format(retry_count)]
-            )
-            for k, v in meta.items()
+            MetaDatum(field=k, value=v, type=k, tags=["attempt_id:{0}".format(retry_count)]) for k, v in meta.items()
         ]
         # Register book-keeping metadata for debugging.
         metadata.register_metadata(run_id, step_name, task_id, entries)
 
-    def task_finished(
-        self, step_name, flow, graph, is_task_ok, retry_count, max_user_code_retries
-    ):
+    def task_finished(self, step_name, flow, graph, is_task_ok, retry_count, max_user_code_retries):
         if not is_task_ok:
             # The task finished with an exception - execution won't
             # continue so no need to do anything here.
@@ -56,9 +51,7 @@ class StepFunctionsInternalDecorator(StepDecorator):
             # DynamoDB here. AWS Step Functions can execute for up to a year
             # and execution history is available for 90 days after the
             # execution.
-            self._save_foreach_cardinality(
-                os.environ["AWS_BATCH_JOB_ID"], flow._foreach_num_splits, self._ttl()
-            )
+            self._save_foreach_cardinality(os.environ["AWS_BATCH_JOB_ID"], flow._foreach_num_splits, self._ttl())
         # The parent task ids need to be available in a foreach join so that
         # we can construct the input path. Unfortunately, while AWS Step
         # Function provides access to an array of parent task ids, we can't
@@ -66,8 +59,7 @@ class StepFunctionsInternalDecorator(StepDecorator):
         # instead write the task ids from the parent task to DynamoDb and read
         # it back in the foreach join
         elif graph[step_name].is_inside_foreach and any(
-            graph[n].type == "join"
-            and graph[graph[n].split_parents[-1]].type == "foreach"
+            graph[n].type == "join" and graph[graph[n].split_parents[-1]].type == "foreach"
             for n in graph[step_name].out_funcs
         ):
             self._save_parent_task_id_for_foreach_join(
@@ -75,19 +67,11 @@ class StepFunctionsInternalDecorator(StepDecorator):
                 os.environ["AWS_BATCH_JOB_ID"],
             )
 
-    def _save_foreach_cardinality(
-        self, foreach_split_task_id, for_each_cardinality, ttl
-    ):
-        DynamoDbClient().save_foreach_cardinality(
-            foreach_split_task_id, for_each_cardinality, ttl
-        )
+    def _save_foreach_cardinality(self, foreach_split_task_id, for_each_cardinality, ttl):
+        DynamoDbClient().save_foreach_cardinality(foreach_split_task_id, for_each_cardinality, ttl)
 
-    def _save_parent_task_id_for_foreach_join(
-        self, foreach_split_task_id, foreach_join_parent_task_id
-    ):
-        DynamoDbClient().save_parent_task_id_for_foreach_join(
-            foreach_split_task_id, foreach_join_parent_task_id
-        )
+    def _save_parent_task_id_for_foreach_join(self, foreach_split_task_id, foreach_join_parent_task_id):
+        DynamoDbClient().save_parent_task_id_for_foreach_join(foreach_split_task_id, foreach_join_parent_task_id)
 
     def _ttl(self):
         # Default is 1 year.

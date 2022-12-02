@@ -73,9 +73,7 @@ class TimeoutDecorator(StepDecorator):
             signal.signal(signal.SIGALRM, self._sigalrm_handler)
             signal.alarm(self.secs)
 
-    def task_post_step(
-        self, step_name, flow, graph, retry_count, max_user_code_retries
-    ):
+    def task_post_step(self, step_name, flow, graph, retry_count, max_user_code_retries):
         signal.alarm(0)
 
     def _sigalrm_handler(self, signum, frame):
@@ -85,17 +83,11 @@ class TimeoutDecorator(StepDecorator):
                     for part in line.splitlines():
                         yield ">  %s" % part
 
-        msg = (
-            "Step {step_name} timed out after {hours} hours, "
-            "{minutes} minutes, {seconds} seconds".format(
-                step_name=self.step_name, **self.attributes
-            )
+        msg = "Step {step_name} timed out after {hours} hours, " "{minutes} minutes, {seconds} seconds".format(
+            step_name=self.step_name, **self.attributes
         )
         self.logger(msg)
-        raise TimeoutException(
-            "%s\nStack when the timeout was raised:\n%s"
-            % (msg, "\n".join(pretty_print_stack()))
-        )
+        raise TimeoutException("%s\nStack when the timeout was raised:\n%s" % (msg, "\n".join(pretty_print_stack())))
 
 
 def get_run_time_limit_for_task(step_decos):

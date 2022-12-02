@@ -31,9 +31,7 @@ class CardResumeTest(MetaflowTest):
             for step in run.steps():
                 if step.id == "start":
                     task = step.task
-                    checker.assert_card(
-                        step.id, task.id, "taskspec_card", "%s" % task.origin_pathspec
-                    )
+                    checker.assert_card(step.id, task.id, "taskspec_card", "%s" % task.origin_pathspec)
         else:
             for step in flow:
                 if step.name != "start":

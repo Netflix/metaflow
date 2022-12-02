@@ -30,9 +30,7 @@ class MergeArtifactsTest(MetaflowTest):
         )
 
         # Test to make sure non-merged values are reported
-        assert_exception(
-            lambda: self.merge_artifacts(inputs), UnhandledInMergeArtifactsException
-        )
+        assert_exception(lambda: self.merge_artifacts(inputs), UnhandledInMergeArtifactsException)
 
         # Test to make sure nothing is set if failed merge_artifacts
         assert not hasattr(self, "non_modified_passdown")
@@ -40,9 +38,7 @@ class MergeArtifactsTest(MetaflowTest):
 
         # Test to make sure that only one of exclude/include is used
         assert_exception(
-            lambda: self.merge_artifacts(
-                inputs, exclude=["ignore_me"], include=["non_modified_passdown"]
-            ),
+            lambda: self.merge_artifacts(inputs, exclude=["ignore_me"], include=["non_modified_passdown"]),
             MetaflowException,
         )
 

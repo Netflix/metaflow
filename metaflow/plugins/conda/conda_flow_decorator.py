@@ -24,10 +24,6 @@ class CondaFlowDecorator(FlowDecorator):
     name = "conda_base"
     defaults = {"libraries": {}, "python": None, "disabled": None}
 
-    def flow_init(
-        self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
-    ):
+    def flow_init(self, flow, graph, environment, flow_datastore, metadata, logger, echo, options):
         if environment.TYPE != "conda":
-            raise InvalidEnvironmentException(
-                "The *@conda* decorator requires " "--environment=conda"
-            )
+            raise InvalidEnvironmentException("The *@conda* decorator requires " "--environment=conda")

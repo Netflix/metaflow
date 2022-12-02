@@ -68,10 +68,7 @@ def check_basic_steps(graph):
 @linter.check
 def check_that_end_is_end(graph):
     msg0 = "The *end* step should not have a step.next() transition. " "Just remove it."
-    msg1 = (
-        "The *end* step should not be a join step (it gets an extra "
-        "argument). Add a join step before it."
-    )
+    msg1 = "The *end* step should not be a join step (it gets an extra " "argument). Add a join step before it."
 
     node = graph["end"]
 
@@ -85,8 +82,7 @@ def check_that_end_is_end(graph):
 @linter.check
 def check_step_names(graph):
     msg = (
-        "Step *{0.name}* has an invalid name. Only lowercase ascii "
-        "characters, underscores, and digits are allowed."
+        "Step *{0.name}* has an invalid name. Only lowercase ascii " "characters, underscores, and digits are allowed."
     )
     for node in graph:
         if re.search("[^a-z0-9_]", node.name) or node.name[0] == "_":
@@ -144,10 +140,7 @@ def check_valid_transitions(graph):
 @linter.ensure_static_graph
 @linter.check
 def check_unknown_transitions(graph):
-    msg = (
-        "Step *{0.name}* specifies a self.next() transition to "
-        "an unknown step, *{step}*."
-    )
+    msg = "Step *{0.name}* specifies a self.next() transition to " "an unknown step, *{step}*."
     for node in graph:
         unknown = [n for n in node.out_funcs if n not in graph]
         if unknown:
@@ -158,10 +151,7 @@ def check_unknown_transitions(graph):
 @linter.ensure_static_graph
 @linter.check
 def check_for_acyclicity(graph):
-    msg = (
-        "There is a loop in your flow: *{0}*. Break the loop "
-        "by fixing self.next() transitions."
-    )
+    msg = "There is a loop in your flow: *{0}*. Break the loop " "by fixing self.next() transitions."
 
     def check_path(node, seen):
         for n in node.out_funcs:
@@ -202,8 +192,7 @@ def check_for_orphans(graph):
 @linter.check
 def check_split_join_balance(graph):
     msg0 = (
-        "Step *end* reached before a split started at step(s) *{roots}* "
-        "were joined. Add a join step before *end*."
+        "Step *end* reached before a split started at step(s) *{roots}* " "were joined. Add a join step before *end*."
     )
     msg1 = (
         "Step *{0.name}* seems like a join step (it takes an extra input "
@@ -216,10 +205,7 @@ def check_split_join_balance(graph):
         "argument) but it is not preceded by a split. Ensure that there is "
         "a matching split for every join."
     )
-    msg3 = (
-        "Step *{0.name}* joins steps from unrelated splits. Ensure that "
-        "there is a matching join for every split."
-    )
+    msg3 = "Step *{0.name}* joins steps from unrelated splits. Ensure that " "there is a matching join for every split."
 
     def traverse(node, split_stack):
         if node.type in ("start", "linear"):
@@ -239,9 +225,7 @@ def check_split_join_balance(graph):
                     paths = ", ".join(node.in_funcs)
                     roots = ", ".join(split_roots)
                     raise LintWarn(
-                        msg1.format(
-                            node, paths=paths, num_roots=len(split_roots), roots=roots
-                        ),
+                        msg1.format(node, paths=paths, num_roots=len(split_roots), roots=roots),
                         node.func_lineno,
                     )
             else:
@@ -286,9 +270,7 @@ def check_parallel_step_after_next(graph):
         "but does not have a @parallel decorator."
     )
     for node in graph:
-        if node.parallel_foreach and not all(
-            graph[out_node].parallel_step for out_node in node.out_funcs
-        ):
+        if node.parallel_foreach and not all(graph[out_node].parallel_step for out_node in node.out_funcs):
             raise LintWarn(msg.format(node))
 
 

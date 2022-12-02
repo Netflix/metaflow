@@ -50,8 +50,7 @@ class CliCheck(MetaflowCheck):
                             data = artifact
                         if not isinstance(data, dict):
                             raise AssertArtifactFailed(
-                                "Task '%s' expected %s to be a dictionary (got %s)"
-                                % (task, name, type(data))
+                                "Task '%s' expected %s to be a dictionary (got %s)" % (task, name, type(data))
                             )
                         if data.get(field, None) != v:
                             raise AssertArtifactFailed(
@@ -73,8 +72,7 @@ class CliCheck(MetaflowCheck):
                     )
             else:
                 raise AssertArtifactFailed(
-                    "Task '%s' expected %s=%s but "
-                    "the key was not found" % (task, name, truncate(value))
+                    "Task '%s' expected %s=%s but " "the key was not found" % (task, name, truncate(value))
                 )
         return True
 
@@ -104,8 +102,7 @@ class CliCheck(MetaflowCheck):
         if (exact_match and log != value) or (not exact_match and value not in log):
 
             raise AssertLogFailed(
-                "Task '%s/%s' expected %s log '%s' but got '%s'"
-                % (self.run_id, step, logtype, repr(value), repr(log))
+                "Task '%s/%s' expected %s log '%s' but got '%s'" % (self.run_id, step, logtype, repr(value), repr(log))
             )
         return True
 
@@ -123,17 +120,13 @@ class CliCheck(MetaflowCheck):
 
         no_card_found_message = CardNotPresentException.headline
         try:
-            card_data = self.get_card(
-                step, task, card_type, card_hash=card_hash, card_id=card_id
-            )
+            card_data = self.get_card(step, task, card_type, card_hash=card_hash, card_id=card_id)
         except subprocess.CalledProcessError as e:
             if no_card_found_message in e.stderr.decode("utf-8").strip():
                 card_data = None
             else:
                 raise e
-        if (exact_match and card_data != value) or (
-            not exact_match and value not in card_data
-        ):
+        if (exact_match and card_data != value) or (not exact_match and value not in card_data):
             raise AssertCardFailed(
                 "Task '%s/%s' expected %s card with content '%s' but got '%s'"
                 % (self.run_id, step, card_type, repr(value), repr(card_data))

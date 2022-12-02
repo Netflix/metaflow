@@ -30,20 +30,12 @@ def save_logs():
             pass
 
         ds_root = storage_impl.get_datastore_root_from_config(print_clean)
-    flow_datastore = FlowDataStore(
-        flow_name, None, storage_impl=storage_impl, ds_root=ds_root
-    )
-    task_datastore = flow_datastore.get_task_datastore(
-        run_id, step_name, task_id, int(attempt), mode="w"
-    )
+    flow_datastore = FlowDataStore(flow_name, None, storage_impl=storage_impl, ds_root=ds_root)
+    task_datastore = flow_datastore.get_task_datastore(run_id, step_name, task_id, int(attempt), mode="w")
 
     try:
         streams = ("stdout", "stderr")
-        sizes = [
-            (stream, path, os.path.getsize(path))
-            for stream, path in zip(streams, paths)
-            if os.path.exists(path)
-        ]
+        sizes = [(stream, path, os.path.getsize(path)) for stream, path in zip(streams, paths) if os.path.exists(path)]
 
         if max(size for _, _, size in sizes) < SMALL_FILE_LIMIT:
             op = _read_file

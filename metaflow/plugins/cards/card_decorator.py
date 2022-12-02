@@ -84,9 +84,7 @@ class CardDecorator(StepDecorator):
     def _increment_step_counter(cls):
         cls.step_counter += 1
 
-    def step_init(
-        self, flow, graph, step_name, decorators, environment, flow_datastore, logger
-    ):
+    def step_init(self, flow, graph, step_name, decorators, environment, flow_datastore, logger):
 
         self._flow_datastore = flow_datastore
         self._environment = environment
@@ -104,9 +102,7 @@ class CardDecorator(StepDecorator):
             # We set the total count of decorators so that we can use it for
             # when calling the finalize function of CardComponentCollector
             # We set the total @card per step via calling `_set_card_counts_per_step`.
-            other_card_decorators = [
-                deco for deco in decorators if isinstance(deco, self.__class__)
-            ]
+            other_card_decorators = [deco for deco in decorators if isinstance(deco, self.__class__)]
             self._set_card_counts_per_step(step_name, len(other_card_decorators))
             self._register_event(evt)
 
@@ -134,10 +130,7 @@ class CardDecorator(StepDecorator):
         # This can help ensure the behaviour of the `current.card` object is according to specification.
         self._increment_step_counter()
         self._user_set_card_id = self.attributes["id"]
-        if (
-            self.attributes["id"] is not None
-            and re.match(CARD_ID_PATTERN, self.attributes["id"]) is None
-        ):
+        if self.attributes["id"] is not None and re.match(CARD_ID_PATTERN, self.attributes["id"]) is None:
             # There should be a warning issued to the user that `id` doesn't match regex pattern
             # Since it is doesn't match pattern, we need to ensure that `id` is not accepted by `current`
             # and warn users that they cannot use id for their arguments.
@@ -177,9 +170,7 @@ class CardDecorator(StepDecorator):
         self._task_datastore = task_datastore
         self._metadata = metadata
 
-    def task_finished(
-        self, step_name, flow, graph, is_task_ok, retry_count, max_user_code_retries
-    ):
+    def task_finished(self, step_name, flow, graph, is_task_ok, retry_count, max_user_code_retries):
         if not is_task_ok:
             return
         component_strings = current.card._serialize_components(self._card_uuid)
@@ -249,9 +240,7 @@ class CardDecorator(StepDecorator):
         if temp_file is not None:
             cmd += ["--component-file", temp_file.name]
 
-        response, fail = self._run_command(
-            cmd, os.environ, timeout=self.attributes["timeout"]
-        )
+        response, fail = self._run_command(cmd, os.environ, timeout=self.attributes["timeout"])
         if fail:
             resp = "" if response is None else response.decode("utf-8")
             self._logger(
@@ -266,9 +255,7 @@ class CardDecorator(StepDecorator):
         if timeout is not None:
             timeout_args = dict(timeout=int(timeout) + 10)
         try:
-            rep = subprocess.check_output(
-                cmd, env=env, stderr=subprocess.STDOUT, **timeout_args
-            )
+            rep = subprocess.check_output(cmd, env=env, stderr=subprocess.STDOUT, **timeout_args)
         except subprocess.CalledProcessError as e:
             rep = e.output
             fail = True

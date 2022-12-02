@@ -45,18 +45,14 @@ class AssertCardFailed(Exception):
 
 class ExpectationFailed(Exception):
     def __init__(self, expected, got):
-        super(ExpectationFailed, self).__init__(
-            "Expected result: %s, got %s" % (truncate(expected), truncate(got))
-        )
+        super(ExpectationFailed, self).__init__("Expected result: %s, got %s" % (truncate(expected), truncate(got)))
 
 
 class ResumeFromHere(MetaflowException):
     headline = "Resume requested"
 
     def __init__(self):
-        super(ResumeFromHere, self).__init__(
-            "This is not an error. " "Testing resume..."
-        )
+        super(ResumeFromHere, self).__init__("This is not an error. " "Testing resume...")
 
 
 class TestRetry(MetaflowException):

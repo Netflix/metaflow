@@ -34,9 +34,7 @@ class PlayListFlow(FlowSpec):
         default=script_path("movies.csv"),
     )
 
-    genre = Parameter(
-        "genre", help="Filter movies for a particular genre.", default="Sci-Fi"
-    )
+    genre = Parameter("genre", help="Filter movies for a particular genre.", default="Sci-Fi")
 
     recommendations = Parameter(
         "recommendations",
@@ -84,9 +82,7 @@ class PlayListFlow(FlowSpec):
         # Find all the movies that are not in the provided genre.
         movies = [
             (movie, genres)
-            for movie, genres in zip(
-                self.dataframe["movie_title"], self.dataframe["genres"]
-            )
+            for movie, genres in zip(self.dataframe["movie_title"], self.dataframe["genres"])
             if self.genre.lower() not in genres.lower()
         ]
 
@@ -106,9 +102,7 @@ class PlayListFlow(FlowSpec):
         # Find all the movies titles in the specified genre.
         self.movies = [
             movie
-            for movie, genres in zip(
-                self.dataframe["movie_title"], self.dataframe["genres"]
-            )
+            for movie, genres in zip(self.dataframe["movie_title"], self.dataframe["genres"])
             if self.genre.lower() in genres.lower()
         ]
 

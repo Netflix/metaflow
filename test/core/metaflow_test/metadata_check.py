@@ -19,9 +19,7 @@ class MetadataCheck(MetaflowCheck):
 
         self.flow = flow
         self.run = Flow(flow.name)[self.run_id]
-        assert_equals(
-            sorted(step.name for step in flow), sorted(step.id for step in self.run)
-        )
+        assert_equals(sorted(step.name for step in flow), sorted(step.id for step in self.run))
         self._test_namespace()
 
     def _test_namespace(self):
@@ -36,9 +34,7 @@ class MetadataCheck(MetaflowCheck):
         namespace("user:nobody")
         assert_equals(get_namespace(), "user:nobody")
         # test 4) fetching results in the incorrect namespace should fail
-        assert_exception(
-            lambda: Flow(self.flow.name)[self.run_id], MetaflowNamespaceMismatch
-        )
+        assert_exception(lambda: Flow(self.flow.name)[self.run_id], MetaflowNamespaceMismatch)
         # test 5) global namespace should work
         namespace(None)
         assert_equals(get_namespace(), None)
@@ -60,8 +56,7 @@ class MetadataCheck(MetaflowCheck):
                             data = artifact
                         if not isinstance(data, dict):
                             raise AssertArtifactFailed(
-                                "Task '%s' expected %s to be a dictionary (got %s)"
-                                % (task, name, type(data))
+                                "Task '%s' expected %s to be a dictionary (got %s)" % (task, name, type(data))
                             )
                         if data.get(field, None) != v:
                             raise AssertArtifactFailed(
@@ -83,8 +78,7 @@ class MetadataCheck(MetaflowCheck):
                     )
             else:
                 raise AssertArtifactFailed(
-                    "Task '%s' expected %s=%s but "
-                    "the key was not found" % (task, name, truncate(value))
+                    "Task '%s' expected %s=%s but " "the key was not found" % (task, name, truncate(value))
                 )
         return True
 
@@ -92,9 +86,7 @@ class MetadataCheck(MetaflowCheck):
         return {task.id: {name: task[name].data} for task in self.run[step]}
 
     def artifact_dict_if_exists(self, step, name):
-        return {
-            task.id: {name: task[name].data} for task in self.run[step] if name in task
-        }
+        return {task.id: {name: task[name].data} for task in self.run[step] if name in task}
 
     def assert_log(self, step, logtype, value, exact_match=True):
         log_value = self.get_log(step, logtype)
@@ -158,9 +150,7 @@ class MetadataCheck(MetaflowCheck):
                 else:
                     card_filter = [c for c in card_iter if card_hash in c.hash]
                     card_data = None if len(card_filter) == 0 else card_filter[0].get()
-        if (exact_match and card_data != value) or (
-            not exact_match and value not in card_data
-        ):
+        if (exact_match and card_data != value) or (not exact_match and value not in card_data):
             raise AssertCardFailed(
                 "Task '%s/%s' expected %s card with content '%s' but got '%s'"
                 % (self.run_id, step, card_type, repr(value), repr(card_data))

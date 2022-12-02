@@ -68,14 +68,10 @@ class BasicTagTest(MetaflowTest):
                 # filtering by a non-existent tag should return nothing
                 assert_equals([], list(step.tasks("not_a_tag")))
                 # filtering by the tag should not exclude any tasks
-                assert_equals(
-                    [task.id for task in step], [task.id for task in step.tasks(tag)]
-                )
+                assert_equals([task.id for task in step], [task.id for task in step.tasks(tag)])
                 for task in step.tasks(tag):
                     # the task object should have the tags
                     assert_equals([True] * len(tags), [t in task.tags for t in tags])
                     for data in task:
                         # the data artifact should have the tags
-                        assert_equals(
-                            [True] * len(tags), [t in data.tags for t in tags]
-                        )
+                        assert_equals([True] * len(tags), [t in data.tags for t in tags])

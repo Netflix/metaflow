@@ -10,9 +10,7 @@ def cmd(cmdline, input, output):
             f.write(to_bytes(data))
 
     if subprocess.call(cmdline, shell=True):
-        raise ExternalCommandFailed(
-            "Command '%s' returned a non-zero " "exit code." % cmdline
-        )
+        raise ExternalCommandFailed("Command '%s' returned a non-zero " "exit code." % cmdline)
 
     out = []
     for path in output:

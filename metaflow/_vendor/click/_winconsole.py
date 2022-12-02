@@ -54,12 +54,8 @@ WriteConsoleW = kernel32.WriteConsoleW
 GetConsoleMode = kernel32.GetConsoleMode
 GetLastError = kernel32.GetLastError
 GetCommandLineW = WINFUNCTYPE(LPWSTR)(("GetCommandLineW", windll.kernel32))
-CommandLineToArgvW = WINFUNCTYPE(POINTER(LPWSTR), LPCWSTR, POINTER(c_int))(
-    ("CommandLineToArgvW", windll.shell32)
-)
-LocalFree = WINFUNCTYPE(ctypes.c_void_p, ctypes.c_void_p)(
-    ("LocalFree", windll.kernel32)
-)
+CommandLineToArgvW = WINFUNCTYPE(POINTER(LPWSTR), LPCWSTR, POINTER(c_int))(("CommandLineToArgvW", windll.shell32))
+LocalFree = WINFUNCTYPE(ctypes.c_void_p, ctypes.c_void_p)(("LocalFree", windll.kernel32))
 
 
 STDIN_HANDLE = GetStdHandle(-10)
@@ -136,9 +132,7 @@ class _WindowsConsoleReader(_WindowsConsoleRawIOBase):
         if not bytes_to_be_read:
             return 0
         elif bytes_to_be_read % 2:
-            raise ValueError(
-                "cannot read odd number of bytes from UTF-16-LE encoded console"
-            )
+            raise ValueError("cannot read odd number of bytes from UTF-16-LE encoded console")
 
         buffer = get_buffer(b, writable=True)
         code_units_to_be_read = bytes_to_be_read // 2
@@ -223,9 +217,7 @@ class ConsoleStream(object):
         return self.buffer.isatty()
 
     def __repr__(self):
-        return "<ConsoleStream name={!r} encoding={!r}>".format(
-            self.name, self.encoding
-        )
+        return "<ConsoleStream name={!r} encoding={!r}>".format(self.name, self.encoding)
 
 
 class WindowsChunkedWriter(object):
@@ -258,11 +250,7 @@ _wrapped_std_streams = set()
 
 def _wrap_std_stream(name):
     # Python 2 & Windows 7 and below
-    if (
-        PY2
-        and sys.getwindowsversion()[:2] <= (6, 1)
-        and name not in _wrapped_std_streams
-    ):
+    if PY2 and sys.getwindowsversion()[:2] <= (6, 1) and name not in _wrapped_std_streams:
         setattr(sys, name, WindowsChunkedWriter(getattr(sys, name)))
         _wrapped_std_streams.add(name)
 
@@ -349,12 +337,7 @@ def _is_console(f):
 
 
 def _get_windows_console_stream(f, encoding, errors):
-    if (
-        get_buffer is not None
-        and encoding in ("utf-16-le", None)
-        and errors in ("strict", None)
-        and _is_console(f)
-    ):
+    if get_buffer is not None and encoding in ("utf-16-le", None) and errors in ("strict", None) and _is_console(f):
         func = _stream_factories.get(f.fileno())
         if func is not None:
             if not PY2:

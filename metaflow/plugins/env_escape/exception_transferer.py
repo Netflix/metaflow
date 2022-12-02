@@ -48,9 +48,7 @@ FIELD_EXC_REPR = "r"
 def dump_exception(data_transferer, exception_type, exception_val, tb, user_data=None):
     if exception_type is StopIteration:  # Very common exception so we encode quickly
         return data_transferer.dump({FIELD_EXC_SI: True})
-    local_formatted_exception = "".join(
-        traceback.format_exception(exception_type, exception_val, tb)
-    )
+    local_formatted_exception = "".join(traceback.format_exception(exception_type, exception_val, tb))
     exception_args = []
     exception_attrs = []
     str_repr = None

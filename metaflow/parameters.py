@@ -83,9 +83,7 @@ class DeployTimeField(object):
         self.parameter_name = parameter_name
         self.parameter_type = parameter_type
         self.return_str = return_str
-        self.print_representation = (
-            self.user_print_representation
-        ) = print_representation
+        self.print_representation = self.user_print_representation = print_representation
         if self.print_representation is None:
             self.print_representation = str(self.fun)
 
@@ -130,8 +128,7 @@ class DeployTimeField(object):
 
         msg = (
             "The value returned by the deploy-time function for "
-            "the parameter *%s* field *%s* has a wrong type. "
-            % (self.parameter_name, self.field)
+            "the parameter *%s* field *%s* has a wrong type. " % (self.parameter_name, self.field)
         )
 
         if self.parameter_type in TYPES:
@@ -275,9 +272,7 @@ class Parameter(object):
 
         if self.name in reserved_params:
             raise MetaflowException(
-                "Parameter name '%s' is a reserved "
-                "word. Please use a different "
-                "name for your parameter." % (name)
+                "Parameter name '%s' is a reserved " "word. Please use a different " "name for your parameter." % (name)
             )
 
         # make sure the user is not trying to pass a function in one of the
@@ -285,8 +280,7 @@ class Parameter(object):
         for field in ("show_default", "separator", "required"):
             if callable(kwargs.get(field)):
                 raise MetaflowException(
-                    "Parameter *%s*: Field '%s' cannot "
-                    "have a function as its value" % (name, field)
+                    "Parameter *%s*: Field '%s' cannot " "have a function as its value" % (name, field)
                 )
 
         self.kwargs["show_default"] = self.kwargs.get("show_default", True)
@@ -302,10 +296,7 @@ class Parameter(object):
         # specify type=str
         self.separator = self.kwargs.pop("separator", None)
         if self.separator and not self.is_string_type:
-            raise MetaflowException(
-                "Parameter *%s*: Separator is only allowed "
-                "for string parameters." % name
-            )
+            raise MetaflowException("Parameter *%s*: Separator is only allowed " "for string parameters." % name)
         parameters.append(self)
 
     def option_kwargs(self, deploy_mode):
@@ -335,9 +326,7 @@ class Parameter(object):
 
     @property
     def is_string_type(self):
-        return self.kwargs.get("type", str) == str and isinstance(
-            self.kwargs.get("default", ""), strtype
-        )
+        return self.kwargs.get("type", str) == str and isinstance(self.kwargs.get("default", ""), strtype)
 
     # this is needed to appease Pylint for JSONType'd parameters,
     # which may do self.param['foobar']

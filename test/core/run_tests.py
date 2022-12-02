@@ -31,11 +31,7 @@ def iter_tests():
             mod = importlib.import_module(testfile[:-3], "metaflow_test")
             for name in dir(mod):
                 obj = getattr(mod, name)
-                if (
-                    name != "MetaflowTest"
-                    and isinstance(obj, type)
-                    and issubclass(obj, MetaflowTest)
-                ):
+                if name != "MetaflowTest" and isinstance(obj, type) and issubclass(obj, MetaflowTest):
                     yield obj()
 
 
@@ -80,9 +76,7 @@ def run_test(formatter, context, debug, checks, env_base):
         with open("check_flow.py", "w") as f:
             f.write(formatter.check_code)
 
-        shutil.copytree(
-            os.path.join(cwd, "metaflow_test"), os.path.join(tempdir, "metaflow_test")
-        )
+        shutil.copytree(os.path.join(cwd, "metaflow_test"), os.path.join(tempdir, "metaflow_test"))
 
         path = os.path.join(tempdir, "test_flow.py")
 
@@ -92,12 +86,7 @@ def run_test(formatter, context, debug, checks, env_base):
         # nonce can be used to insert entropy in env vars.
         # This is useful e.g. for separating S3 paths of
         # runs, which may have clashing run_ids
-        env.update(
-            dict(
-                (k, v.format(nonce=str(uuid.uuid4())))
-                for k, v in context["env"].items()
-            )
-        )
+        env.update(dict((k, v.format(nonce=str(uuid.uuid4()))) for k, v in context["env"].items()))
 
         pythonpath = os.environ.get("PYTHONPATH", ".")
         env.update(
@@ -183,9 +172,7 @@ def run_all(ok_tests, ok_contexts, ok_graphs, debug, num_parallel, inherit_env):
 
     if debug or num_parallel is None:
         for test in tests:
-            failed.extend(
-                run_test_cases((test, ok_contexts, ok_graphs, debug, base_env))
-            )
+            failed.extend(run_test_cases((test, ok_contexts, ok_graphs, debug, base_env)))
     else:
         args = [(test, ok_contexts, ok_graphs, debug, base_env) for test in tests]
         for fail in Pool(num_parallel).imap_unordered(run_test_cases, args):
@@ -272,9 +259,7 @@ def run_test_cases(args):
     default=False,
     help="Debug mode: Stop at the first failure, " "don't delete test directory",
 )
-@click.option(
-    "--inherit-env", is_flag=True, default=False, help="Inherit env variables"
-)
+@click.option("--inherit-env", is_flag=True, default=False, help="Inherit env variables")
 @click.option(
     "--num-parallel",
     show_default=True,

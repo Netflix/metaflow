@@ -123,9 +123,7 @@ FAKE_RUN_DATA = [
 
 PUT_PREFIX = "put_tests"
 
-ExpectedResult = namedtuple(
-    "ExpectedResult", "size checksum content_type metadata range"
-)
+ExpectedResult = namedtuple("ExpectedResult", "size checksum content_type metadata range")
 
 ExpectedRange = namedtuple(
     "ExpectedRange", "total_size result_offset result_size req_offset req_size"
@@ -157,13 +155,9 @@ class RandomFile(object):
                 if self._data is None:
                     self._make_data()
                 if length < 0:
-                    self.cached_digests[lookup_key] = sha1(
-                        self._data[length:]
-                    ).hexdigest()
+                    self.cached_digests[lookup_key] = sha1(self._data[length:]).hexdigest()
                 else:
-                    self.cached_digests[lookup_key] = sha1(
-                        self._data[start : start + length]
-                    ).hexdigest()
+                    self.cached_digests[lookup_key] = sha1(self._data[start : start + length]).hexdigest()
             return self.cached_digests[lookup_key]
 
     def size_from_range(self, start, length):
@@ -210,10 +204,7 @@ def _format_test_cases(dataset, meta=None, ranges=None):
             # We generate one per meta info
             for metaname, (content_type, usermeta) in meta.items():
                 objs.update(
-                    {
-                        "%s_%s" % (obj.url, metaname): (obj, content_type, usermeta)
-                        for (obj, _, _) in objs.values()
-                    }
+                    {"%s_%s" % (obj.url, metaname): (obj, content_type, usermeta) for (obj, _, _) in objs.values()}
                 )
         files = {
             k: {
@@ -260,9 +251,7 @@ def pytest_fakerun_cases():
 
 
 def pytest_basic_case():
-    cases, ids = _format_test_cases(
-        BASIC_DATA, ranges=BASIC_RANGE_INFO, meta=BASIC_METADATA
-    )
+    cases, ids = _format_test_cases(BASIC_DATA, ranges=BASIC_RANGE_INFO, meta=BASIC_METADATA)
     return {"argvalues": cases, "ids": ids}
 
 
@@ -516,26 +505,19 @@ def ensure_test_data():
                     # (since it is the same) but we modify the path to post-pend
                     # the name
                     print("Test data case %s: upload to %s started" % (prefix, f.url))
-                    s3client.upload_fileobj(
-                        f.fileobj(), url.netloc, url.path.lstrip("/")
-                    )
+                    s3client.upload_fileobj(f.fileobj(), url.netloc, url.path.lstrip("/"))
                     print("Test data case %s: uploaded to %s" % (prefix, f.url))
                     if meta is not None:
                         for metaname, metainfo in meta.items():
                             new_url = "%s_%s" % (f.url, metaname)
                             url = urlparse(new_url)
-                            print(
-                                "Test data case %s: upload to %s started"
-                                % (prefix, new_url)
-                            )
+                            print("Test data case %s: upload to %s started" % (prefix, new_url))
                             extra = {}
                             content_type, user_meta = metainfo
                             if content_type:
                                 extra["ContentType"] = content_type
                             if user_meta:
-                                new_meta = {
-                                    "metaflow-user-attributes": json.dumps(user_meta)
-                                }
+                                new_meta = {"metaflow-user-attributes": json.dumps(user_meta)}
                                 extra["Metadata"] = new_meta
                             s3client.upload_fileobj(
                                 f.fileobj(),
@@ -543,18 +525,14 @@ def ensure_test_data():
                                 url.path.lstrip("/"),
                                 ExtraArgs=extra,
                             )
-                            print(
-                                "Test data case %s: uploaded to %s" % (prefix, new_url)
-                            )
+                            print("Test data case %s: uploaded to %s" % (prefix, new_url))
 
         for prefix, filespecs in BIG_DATA + FAKE_RUN_DATA:
             _do_upload(prefix, filespecs)
         for prefix, filespecs in BASIC_DATA:
             _do_upload(prefix, filespecs, meta=BASIC_METADATA)
 
-        s3client.upload_fileobj(
-            to_fileobj("ok"), Bucket=mark.netloc, Key=mark.path.lstrip("/")
-        )
+        s3client.upload_fileobj(to_fileobj("ok"), Bucket=mark.netloc, Key=mark.path.lstrip("/"))
         print("Test data uploaded ok")
 
 
