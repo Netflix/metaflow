@@ -15,6 +15,7 @@ from metaflow.metaflow_config import (
     DATASTORE_LOCAL_DIR,
     CARD_SUFFIX,
     CARD_AZUREROOT,
+    CARD_GSROOT,
     SKIP_CARD_DUALWRITE,
 )
 import metaflow.metaflow_config as metaflow_config
@@ -50,6 +51,8 @@ class CardDatastore(object):
             return CARD_S3ROOT
         elif storage_type == "azure":
             return CARD_AZUREROOT
+        elif storage_type == "gs":
+            return CARD_GSROOT
         elif storage_type == "local":
             # Borrowing some of the logic from LocalStorage.get_storage_root
             result = CARD_LOCALROOT

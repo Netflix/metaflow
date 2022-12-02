@@ -41,6 +41,8 @@ DATASTORE_SYSROOT_LOCAL = from_conf("DATASTORE_SYSROOT_LOCAL")
 DATASTORE_SYSROOT_S3 = from_conf("DATASTORE_SYSROOT_S3")
 # Azure Blob Storage container and blob prefix
 DATASTORE_SYSROOT_AZURE = from_conf("DATASTORE_SYSROOT_AZURE")
+DATASTORE_SYSROOT_GS = from_conf("DATASTORE_SYSROOT_GS")
+# GS bucket and prefix to store artifacts for 'gs' datastore
 
 
 ###
@@ -101,6 +103,15 @@ DATATOOLS_AZUREROOT = from_conf(
     if DATASTORE_SYSROOT_AZURE
     else None,
 )
+# GS datatools root location
+# Note: we do not expose an actual datatools library for GS (like we do for S3)
+# Similar to DATATOOLS_LOCALROOT, this is used ONLY by the IncludeFile's internal implementation.
+DATATOOLS_GSROOT = from_conf(
+    "DATATOOLS_GSROOT",
+    os.path.join(DATASTORE_SYSROOT_GS, DATATOOLS_SUFFIX)
+    if DATASTORE_SYSROOT_GS
+    else None,
+)
 # Local datatools root location
 DATATOOLS_LOCALROOT = from_conf(
     "DATATOOLS_LOCALROOT",
@@ -125,6 +136,10 @@ CARD_AZUREROOT = from_conf(
     if DATASTORE_SYSROOT_AZURE
     else None,
 )
+CARD_GSROOT = from_conf(
+    "CARD_GSROOT",
+    os.path.join(DATASTORE_SYSROOT_GS, CARD_SUFFIX) if DATASTORE_SYSROOT_GS else None,
+)
 CARD_NO_WARNING = from_conf("CARD_NO_WARNING", False)
 
 SKIP_CARD_DUALWRITE = from_conf("SKIP_CARD_DUALWRITE", False)
@@ -140,6 +155,13 @@ AZURE_STORAGE_WORKLOAD_TYPE = from_conf(
     validate_fn=get_validate_choice_fn(["general", "high_throughput"]),
 )
 
+# GS storage can use process-based parallelism instead of threads.
+# Processes perform better for high throughput workloads (e.g. many huge artifacts)
+GS_STORAGE_WORKLOAD_TYPE = from_conf(
+    "GS_STORAGE_WORKLOAD_TYPE",
+    "general",
+    validate_fn=get_validate_choice_fn(["general", "high_throughput"]),
+)
 
 ###
 # Metadata configuration
@@ -241,6 +263,8 @@ AIRFLOW_KUBERNETES_CONN_ID = from_conf("AIRFLOW_KUBERNETES_CONN_ID")
 CONDA_PACKAGE_S3ROOT = from_conf("CONDA_PACKAGE_S3ROOT")
 # Conda package root location on Azure
 CONDA_PACKAGE_AZUREROOT = from_conf("CONDA_PACKAGE_AZUREROOT")
+# Conda package root location on GS
+CONDA_PACKAGE_GSROOT = from_conf("CONDA_PACKAGE_GSROOT")
 
 # Use an alternate dependency resolver for conda packages instead of conda
 # Mamba promises faster package dependency resolution times, which
@@ -321,6 +345,9 @@ def get_pinned_conda_libs(python_version, datastore_type):
     elif datastore_type == "azure":
         pins["azure-identity"] = ">=1.10.0"
         pins["azure-storage-blob"] = ">=12.12.0"
+    elif datastore_type == "gs":
+        pins["google-cloud-storage"] = ">=2.5.0"
+        pins["google-auth"] = ">=2.11.0"
     elif datastore_type == "local":
         pass
     else:

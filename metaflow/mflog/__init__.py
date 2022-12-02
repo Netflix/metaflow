@@ -155,6 +155,10 @@ def get_log_tailer(log_url, datastore_type):
         from metaflow.plugins.azure.azure_tail import AzureTail
 
         return AzureTail(log_url)
+    elif datastore_type == "gs":
+        from metaflow.plugins.gcp.gs_tail import GSTail
+
+        return GSTail(log_url)
     else:
         raise MetaflowInternalError(
             "Log tailing implementation missing for datastore type %s"
