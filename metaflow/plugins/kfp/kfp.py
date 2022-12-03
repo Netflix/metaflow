@@ -713,8 +713,6 @@ class KubeflowPipelines(object):
                 )
             container_op.add_pod_annotation(annotation_name, annotation_value)
 
-        # TODO(talebz): A Metaflow plugin framework to customize tags, labels, etc.
-        container_op.add_pod_label("aip.zillowgroup.net/kfp-pod-default", "true")
         # tags.ledger.zgtools.net/* pod labels required for the ZGCP Costs Ledger
         container_op.add_pod_label("tags.ledger.zgtools.net/ai-flow-name", self.name)
         container_op.add_pod_label("tags.ledger.zgtools.net/ai-step-name", node.name)
@@ -759,8 +757,11 @@ class KubeflowPipelines(object):
         flow_variables: FlowVariables = self._create_flow_variables()
 
         def pipeline_transform(op: ContainerOp):
-            # Disable caching because Metaflow doesn't have memoization
             if isinstance(op, ContainerOp):
+                # TODO(talebz): A Metaflow plugin framework to customize tags, labels, etc.
+                op.add_pod_label("aip.zillowgroup.net/kfp-pod-default", "true")
+
+                # Disable caching because Metaflow doesn't have memoization
                 op.execution_options.caching_strategy.max_cache_staleness = "P0D"
                 env_vars = {
                     "MF_POD_NAME": "metadata.name",

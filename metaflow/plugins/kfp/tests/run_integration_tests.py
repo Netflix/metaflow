@@ -325,6 +325,24 @@ def get_compiled_yaml(compile_to_yaml_cmd, yaml_file_path) -> Dict[str, str]:
     return flow_yaml
 
 
+def test_kfp_pod_default() -> None:
+    with tempfile.TemporaryDirectory() as yaml_tmp_dir:
+        yaml_file_path: str = join(yaml_tmp_dir, "s3_sensor_flow.yaml")
+
+        compile_to_yaml_cmd: str = (
+            f" {_python()} flows/s3_sensor_flow.py --no-pylint --datastore s3 kfp run"
+            f" --no-s3-code-package --yaml-only --notify --pipeline-path {yaml_file_path}"
+        )
+        flow_yaml = get_compiled_yaml(compile_to_yaml_cmd, yaml_file_path)
+
+    for step in flow_yaml["spec"]["templates"]:
+        if step.get("container"):
+            assert (
+                step["metadata"]["labels"]["aip.zillowgroup.net/kfp-pod-default"]
+                == "true"
+            )
+
+
 def test_kubernetes_service_account_compile_only() -> None:
     service_account = "test-service-account"
     with tempfile.TemporaryDirectory() as yaml_tmp_dir:
