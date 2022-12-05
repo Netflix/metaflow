@@ -1,12 +1,10 @@
 import json
 import math
-import os
 import random
-import sys
 import time
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import KUBERNETES_NODE_SELECTOR, KUBERNETES_SECRETS
+from metaflow.metaflow_config import KUBERNETES_SECRETS
 
 CLIENT_REFRESH_INTERVAL_SECONDS = 300
 
@@ -77,6 +75,14 @@ class KubernetesJob(object):
                 tolerations.append(client.V1Toleration(**toleration))
             except TypeError:
                 raise KubernetesJobException("Toleration definition contains invalid keys: %s" % toleration.keys())
+
+        try:
+            node_selector = {
+                str(k.split("=", 1)[0]): str(k.split("=", 1)[1])
+                for k in self._kwargs.get("node_selector")
+            }
+        except IndexError:
+            raise KubernetesJobException(f"Unable to parse node_selector {self._kwargs.get('node_selector')}")
 
         self._job = client.V1Job(
             api_version="batch/v1",
@@ -170,17 +176,7 @@ class KubernetesJob(object):
                                 ),
                             )
                         ],
-                        node_selector={
-                            str(k.split("=", 1)[0]): str(k.split("=", 1)[1])
-                            for k in (
-                                self._kwargs.get("node_selector")
-                                or (
-                                    KUBERNETES_NODE_SELECTOR.split(",")
-                                    if KUBERNETES_NODE_SELECTOR
-                                    else []
-                                )
-                            )
-                        },
+                        node_selector=node_selector,
                         # TODO (savin): Support image_pull_secrets
                         # image_pull_secrets=?,
                         # TODO (savin): Support preemption policies
