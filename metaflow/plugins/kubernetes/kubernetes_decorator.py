@@ -2,9 +2,6 @@ import os
 import platform
 import sys
 
-import requests
-
-from metaflow import util
 from metaflow.decorators import StepDecorator
 from metaflow.exception import MetaflowException
 from metaflow.metadata import MetaDatum
@@ -16,6 +13,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_GPU_VENDOR,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
+    KUBERNETES_TOLERATIONS,
     KUBERNETES_SERVICE_ACCOUNT,
     KUBERNETES_SECRETS,
 )
@@ -23,7 +21,8 @@ from metaflow.plugins import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.sidecar import Sidecar
 
-from ..aws.aws_utils import get_docker_registry
+from metaflow.plugins.aws.aws_utils import get_docker_registry
+
 from .kubernetes import KubernetesException
 
 try:
@@ -79,6 +78,7 @@ class KubernetesDecorator(StepDecorator):
         "namespace": None,
         "gpu": None,  # value of 0 implies that the scheduled node should not have GPUs
         "gpu_vendor": None,
+        "tolerations": None,  # e.g., [{"key": "arch", "operator": "Equal", "value": "amd"}]
     }
     package_url = None
     package_sha = None
@@ -93,9 +93,10 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["service_account"] = KUBERNETES_SERVICE_ACCOUNT
         if not self.attributes["gpu_vendor"]:
             self.attributes["gpu_vendor"] = KUBERNETES_GPU_VENDOR
-
-        # TODO: Handle node_selector in a better manner. Currently it is special
-        #       cased in kubernetes_client.py
+        if not self.attributes["node_selector"] and KUBERNETES_NODE_SELECTOR:
+            self.attributes["node_selector"] = KUBERNETES_NODE_SELECTOR
+        if not self.attributes["tolerations"] and KUBERNETES_TOLERATIONS:
+            self.attributes["tolerations"] = KUBERNETES_TOLERATIONS
 
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:
