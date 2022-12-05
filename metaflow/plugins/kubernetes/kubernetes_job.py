@@ -74,7 +74,10 @@ class KubernetesJob(object):
             try:
                 tolerations.append(client.V1Toleration(**toleration))
             except TypeError:
-                raise KubernetesJobException("Toleration definition contains invalid keys: %s" % toleration.keys())
+                raise KubernetesJobException(
+                    "Toleration definition contains invalid keys: %s"
+                    % toleration.keys()
+                )
 
         try:
             node_selector = {

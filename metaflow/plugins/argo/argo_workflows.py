@@ -853,7 +853,9 @@ class ArgoWorkflows(object):
                         for k in resources.get("node_selector").split(",")
                     }
                 except IndexError:
-                    raise ArgoWorkflowsException(f"Unable to parse node_selector {node_selector}")
+                    raise ArgoWorkflowsException(
+                        f"Unable to parse node_selector {node_selector}"
+                    )
             elif KUBERNETES_NODE_SELECTOR:
                 node_selector = KUBERNETES_NODE_SELECTOR.split(",")
 
@@ -881,7 +883,8 @@ class ArgoWorkflows(object):
                 .retry_strategy(
                     times=total_retries,
                     minutes_between_retries=minutes_between_retries,
-                ).metadata(
+                )
+                .metadata(
                     ObjectMeta().annotation("metaflow/step_name", node.name)
                     # Unfortunately, we can't set the task_id since it is generated
                     # inside the pod. However, it can be inferred from the annotation
