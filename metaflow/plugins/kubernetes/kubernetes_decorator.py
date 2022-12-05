@@ -21,7 +21,7 @@ from metaflow.plugins import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.sidecar import Sidecar
 
-from metaflow.plugins.aws.aws_utils import get_docker_registry
+from ..aws.aws_utils import get_docker_registry
 
 from .kubernetes import KubernetesException
 
