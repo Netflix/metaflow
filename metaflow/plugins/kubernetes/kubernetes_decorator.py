@@ -64,6 +64,10 @@ class KubernetesDecorator(StepDecorator):
         Kubernetes secrets to use when launching pod in Kubernetes. These
         secrets are in addition to the ones defined in `METAFLOW_KUBERNETES_SECRETS`
         in Metaflow configuration.
+    tolerations : List[str]
+        Kubernetes tolerations to use when launching pod in Kubernetes. If
+        not specified, the value of `METAFLOW_KUBERNETES_TOLERATIONS` is used
+        from Metaflow configuration.
     """
 
     name = "kubernetes"
