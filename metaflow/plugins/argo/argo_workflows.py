@@ -137,7 +137,7 @@ class ArgoWorkflows(object):
         self._ignore_events = ignore_events
         self._triggering_flows = []
         self._triggering_events = []
-        self._reset_at = None
+        self._reset = None
         self._sensor_template = None
         # The values with curly braces '{{}}' are made available by Argo
         # Workflows. Unfortunately, there are a few bugs in Argo which prevent
@@ -273,10 +273,10 @@ class ArgoWorkflows(object):
                     message = template % (message, event_ref, events, "is received")
                 else:
                     message = template % (message, event_ref, events, "are received")
-            if self._reset_at is not None:
+            if self._reset is not None:
                 message = "%s before %s." % (
                     message,
-                    time.strftime("%H:%M UTC", self._reset_at),
+                    time.strftime("%H:%M UTC", self._reset),
                 )
             event_reason = message
 
@@ -1143,11 +1143,11 @@ class ArgoWorkflows(object):
                 trigger_set = decorator.attributes["trigger_set"]
                 (project_name, branch_name) = project_and_branch()
                 trigger_set.add_namespacing(project_name, branch_name)
-                self._reset_at = decorator.attributes.get("parsed_reset_at")
+                self._reset = trigger_set.reset
                 t = SensorTemplate(
                     self.name,
                     self.parameters,
-                    decorator.attributes.get("parsed_reset_at"),
+                    self._reset
                 )
                 for trigger in trigger_set.triggers:
                     t.add_trigger(trigger)
@@ -1798,7 +1798,9 @@ class WorkflowLifecycleHookContainerTemplate(object):
 
 
 class SensorTemplate:
-    def __init__(self, target_flow, parameters, reset_at):
+    def __init__(self, target_flow, parameters, reset):
+        if reset is not None and type(reset) is not time.struct_time:
+            raise MetaflowException("Argo Workflows requires reset times to be in HH:MM format")
         self.name = format_sensor_name(target_flow)
         self.target_flow = target_flow
         self.parameters = parameters
@@ -1807,7 +1809,7 @@ class SensorTemplate:
         self.transformed_fields = {}
         self.parameter_assignments = None
         self.assigned_dep_names = []
-        self.reset_at = reset_at
+        self.reset = reset
         self.count = 0
         self.payload = {
             "apiVersion": "argoproj.io/v1alpha1",
@@ -1977,10 +1979,10 @@ class SensorTemplate:
             conditions = " && ".join(self.assigned_dep_names)
             template = triggered_template["template"]
             template["conditions"] = conditions
-            if self.reset_at is not None:
+            if self.reset is not None:
                 cron = "%d %d * * *" % (
-                    self.reset_at.tm_min,
-                    self.reset_at.tm_hour,
+                    self.reset.tm_min,
+                    self.reset.tm_hour,
                 )
                 reset = [{"byTime": {"cron": cron}}]
                 template["conditionsReset"] = reset

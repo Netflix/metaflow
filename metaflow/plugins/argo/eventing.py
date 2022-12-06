@@ -1,5 +1,6 @@
 import asyncio
 from datetime import datetime
+from time import strptime
 import json
 import os
 import re
@@ -15,6 +16,19 @@ from metaflow.plugins.argo.util import (
     project_and_branch,
 )
 import requests
+
+BAD_RESET_AFTER_MSG = """reset must be a 24 hour wall time or 12 hour time with optional locale appropriate AM/PM.
+
+Examples
+--------
+@trigger_on_finish(flows=["FirstFlow", "SecondFlow"], reset="23:59")
+
+@trigger_on_finish(flows=["FirstFlow", "SecondFlow"], reset="4")
+"""
+
+
+class BadResetException(MetaflowException):
+    headline = "Bad reset time detected"
 
 
 class BadEventNameException(MetaflowException):
@@ -97,12 +111,47 @@ async def _send_nats_event(event_url, body):
 
 
 class TriggerSet:
-    def __init__(self, project, branch):
+    def __init__(self, project, branch, reset):
         project_decorator = None
         self._project = project
         self._branch = branch
+        self._parse_reset(reset)
         self.triggers = []
 
+    def _parse_reset(self, reset):
+        parsed_time = None
+        if reset == "":
+            self._reset = None
+        else:
+            formats = [
+                "%H:%M", # 24 hour time (13:05)
+                "%I:%M%p", # 12 hour time (1:05pm)
+                "%I:%M p" # 12 hour time (1:05 pm)
+            ]
+            if reset.find(":") > -1:
+                parsed = False
+                for f in formats:
+                    try:
+                        self._reset = strptime(reset, f)
+                        parsed = True
+                        break
+                    except ValueError:
+                        continue
+                if not parsed:
+                    raise BadResetException(msg=BAD_RESET_AFTER_MSG)
+            else:
+                try:
+                    self._reset = int(reset)
+                except ValueError:
+                    try:
+                        self._reset = float(reset)
+                    except ValueError:
+                        raise BadResetException(msg=BAD_RESET_AFTER_MSG)
+
+    @property
+    def reset(self):
+        return self._reset
+        
     def append(self, trigger_info):
         trigger_info.add_namespacing(self._project, self._branch)
         self.triggers.append(trigger_info)

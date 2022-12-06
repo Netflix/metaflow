@@ -1,10 +1,10 @@
 import json
 import re
-from time import strptime
+
 
 from metaflow import current
 from metaflow.decorators import FlowDecorator
-from metaflow.exception import MetaflowException, MetaflowExceptionWrapper
+from metaflow.exception import MetaflowException
 from .eventing import TriggerSet, TriggerInfo
 
 ERR_MSG = """Make sure configuration entries METAFLOW_EVENT_SOURCE_NAME, METAFLOW_EVENT_SOURCE_URL, and 
@@ -41,26 +41,12 @@ Examples
 @trigger_on(event="first", mappings={"alpha": "alpha_value", "delta": "delta_value"})
 """
 
-BAD_RESET_AFTER_MSG = """reset_at must use either 24-hour time or 12-hour time with locale appropriate AM/PM.
-
-Examples
---------
-@trigger_on_finish(flows=["FirstFlow", "SecondFlow"], reset_at="23:59")
-
-@trigger_on_finish(flows=["FirstFlow", "SecondFlow"], reset_at="11:59PM")
-"""
-
-
 class BadEventNameException(MetaflowException):
     headline = "Bad or missing event name detected"
 
 
 class BadEventMappingsException(MetaflowException):
     headline = "Bad event field mappings detected"
-
-
-class BadResetAfterException(MetaflowException):
-    headline = "Bad reset after time detected"
 
 
 BAD_AGGREGATE_MAPPING_ERROR = BadEventMappingsException(msg=BAD_AGGREGATE_MAPPING_MSG)
@@ -96,25 +82,7 @@ def validate_mappings(mappings, aggregate):
     return mappings
 
 
-class TriggerDecorator(FlowDecorator):
-    def _parse_time(self):
-        parsed_time = None
-        reset_at = self.attributes.get("reset_at", "")
-        if reset_at == "":
-            self.attributes["parsed_reset_at"] = None
-        else:
-            try:
-                parsed_time = strptime(reset_at, "%H:%M")
-                self.attributes["parsed_reset_at"] = parsed_time
-            except ValueError:
-                try:
-                    parsed_time = strptime(reset_at, "%I:%M%p")
-                    self.attributes["parsed_reset_at"] = parsed_time
-                except ValueError:
-                    raise BadResetAfterException(msg=BAD_RESET_AFTER_MSG)
-
-
-class TriggerOnDecorator(TriggerDecorator):
+class TriggerOnDecorator(FlowDecorator):
 
     name = "trigger_on"
     defaults = {
@@ -124,7 +92,7 @@ class TriggerOnDecorator(TriggerDecorator):
         "events": [],
         "data": None,
         "mappings": {},
-        "reset_at": "",
+        "reset": "",
     }
     options = {
         "flow": dict(
@@ -152,10 +120,10 @@ class TriggerOnDecorator(TriggerDecorator):
             show_default=True,
             help="Mapping of flow parameters to event fields.",
         ),
-        "reset_at": dict(
+        "reset": dict(
             is_flag=False,
             show_default=True,
-            help="Reset wait state after specified number of hours.",
+            help="Reset event trigger state after an elapsed interval or at a specific time (depending on the orchestrator)",
         ),
     }
 
@@ -173,19 +141,17 @@ class TriggerOnDecorator(TriggerDecorator):
             project_name = current.get("project_name")
             branch_name = current.get("branch_name")
         else:
-            project = flow._flow_decorators.get("project")
-            if project:
+            if flow._flow_decorators.get("project"):
                 raise MetaflowException(
                     "Move @project below @{}. ".format(self.name) +
                     "Project namespacing must be applied before triggers are built."
                 )
-        self.attributes["trigger_set"] = TriggerSet(project_name, branch_name)
+        self.attributes["trigger_set"] = TriggerSet(project_name, branch_name, self.attributes.get("reset", ""))
         mappings = self.attributes.get("mappings")
         is_aggregate = (len(flows) > 1) or (
             events is not None and len(flows) + len(events) > 1
         )
         validated = validate_mappings(mappings, is_aggregate)
-        self._parse_time()
         for flow in flows:
             info = TriggerInfo(TriggerInfo.LIFECYCLE_EVENT)
             info.name = flow
@@ -246,7 +212,7 @@ class TriggerOnDecorator(TriggerDecorator):
 class TriggerOnFinishDecorator(TriggerOnDecorator):
 
     name = "trigger_on_finish"
-    defaults = {"flow": None, "flows": [], "reset_at": ""}
+    defaults = {"flow": None, "flows": [], "reset": ""}
     options = {
         "flow": dict(
             is_flag=False,
@@ -258,9 +224,9 @@ class TriggerOnFinishDecorator(TriggerOnDecorator):
             show_default=False,
             help="Trigger the current flow when all named flows complete.",
         ),
-        "reset_at": dict(
+        "reset": dict(
             is_flag=False,
             show_default=True,
-            help="Reset wait state after specified number of hours.",
+            help="Reset event trigger state after an elapsed interval or at a specific time (depending on the orchestrator)",
         ),
     }
