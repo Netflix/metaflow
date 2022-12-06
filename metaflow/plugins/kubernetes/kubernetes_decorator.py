@@ -82,7 +82,7 @@ class KubernetesDecorator(StepDecorator):
         "namespace": None,
         "gpu": None,  # value of 0 implies that the scheduled node should not have GPUs
         "gpu_vendor": None,
-        "tolerations": None,  # e.g., [{"key": "arch", "operator": "Equal", "value": "amd"}],
+        "tolerations": None,  # e.g., [{"key": "arch", "operator": "Equal", "value": "amd"},
                               #        {"key": "foo", "operator": "Equal", "value": "bar"}]
     }
     package_url = None
