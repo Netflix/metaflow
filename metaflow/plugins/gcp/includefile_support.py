@@ -29,9 +29,9 @@ class GS(object):
         # we parse out the bucket name only, and use that to root our storage implementation
         bucket_name, subpath = parse_gs_full_path(key)
         # Import DATASTORES dynamically... otherwise, circular import
-        from metaflow.datastore import DATASTORES
+        from metaflow.plugins import DATASTORES
 
-        storage_impl = DATASTORES["gs"]
+        storage_impl = [d for d in DATASTORES if d.TYPE == "gs"][0]
         return storage_impl("gs://" + bucket_name), subpath
 
     def __enter__(self):

@@ -1,9 +1,8 @@
 import os
 
-from ..current import current
-from ..exception import MetaflowException
-from ..metaflow_config import DATATOOLS_LOCALROOT, DATATOOLS_SUFFIX
-from ..util import to_unicode
+from metaflow.exception import MetaflowException
+from metaflow.metaflow_config import DATATOOLS_LOCALROOT, DATATOOLS_SUFFIX
+from metaflow.util import to_unicode
 
 
 class MetaflowLocalURLException(MetaflowException):
@@ -96,7 +95,7 @@ class Local(object):
     def get_root_from_config(cls, echo, create_on_absent=True):
         result = DATATOOLS_LOCALROOT
         if result is None:
-            from ..datastore.local_storage import LocalStorage
+            from metaflow.plugins.datastores.local_storage import LocalStorage
 
             result = LocalStorage.get_datastore_root_from_config(echo, create_on_absent)
             result = os.path.join(result, DATATOOLS_SUFFIX)

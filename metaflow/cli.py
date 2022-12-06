@@ -24,11 +24,12 @@ from .util import (
 from .task import MetaflowTask
 from .exception import CommandException, MetaflowException
 from .graph import FlowGraph
-from .datastore import DATASTORES, FlowDataStore, TaskDataStoreSet, TaskDataStore
+from .datastore import FlowDataStore, TaskDataStoreSet, TaskDataStore
 
 from .runtime import NativeRuntime
 from .package import MetaflowPackage
 from .plugins import (
+    DATASTORES,
     ENVIRONMENTS,
     LOGGING_SIDECARS,
     METADATA_PROVIDERS,
@@ -923,7 +924,7 @@ def version(obj):
     "--datastore",
     default=DEFAULT_DATASTORE,
     show_default=True,
-    type=click.Choice(DATASTORES),
+    type=click.Choice([d.TYPE for d in DATASTORES]),
     help="Data backend type",
 )
 @click.option("--datastore-root", help="Root path for datastore")
@@ -1021,7 +1022,7 @@ def start(
         ctx.obj.environment, ctx.obj.flow, ctx.obj.event_logger, ctx.obj.monitor
     )
 
-    ctx.obj.datastore_impl = DATASTORES[datastore]
+    ctx.obj.datastore_impl = [d for d in DATASTORES if d.TYPE == datastore][0]
 
     if datastore_root is None:
         datastore_root = ctx.obj.datastore_impl.get_datastore_root_from_config(

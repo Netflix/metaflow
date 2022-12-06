@@ -4,7 +4,7 @@ import os
 # if you want a fresh set of data
 S3ROOT = os.environ.get("METAFLOW_S3_TEST_ROOT")
 
-from metaflow.datatools.s3util import get_s3_client
+from metaflow.plugins.datatools.s3.s3util import get_s3_client
 
 s3client, _ = get_s3_client()
 

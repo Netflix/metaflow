@@ -22,7 +22,7 @@ from .s3 import MetaflowS3Exception, S3
 try:
     from metaflow.extension_support import get_modules, multiload_all
 
-    multiload_all(get_modules("datatools"), "datatools", globals())
+    multiload_all(get_modules("plugins.datatools"), "plugins.datatools", globals())
 finally:
     # Erase all temporary names to avoid leaking things
     for _n in ["get_modules", "multiload_all"]:

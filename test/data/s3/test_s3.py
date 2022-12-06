@@ -6,12 +6,12 @@ from tempfile import mkdtemp
 from itertools import groupby, starmap
 import random
 from uuid import uuid4
-from metaflow.datatools import s3
+from metaflow.plugins.datatools import s3
 
 import pytest
 
 from metaflow import current, namespace, Run
-from metaflow.datatools.s3 import (
+from metaflow.plugins.datatools.s3 import (
     S3,
     MetaflowS3AccessDenied,
     MetaflowS3NotFound,
