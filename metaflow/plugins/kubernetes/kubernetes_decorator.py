@@ -1,3 +1,4 @@
+import json
 import os
 import platform
 import sys
@@ -255,7 +256,10 @@ class KubernetesDecorator(StepDecorator):
                 if k == "namespace":
                     cli_args.command_options["k8s_namespace"] = v
                 else:
-                    cli_args.command_options[k] = v
+                    if isinstance(v, (dict, list)):
+                        cli_args.command_options[k] = json.dumps(v)
+                    else:
+                        cli_args.command_options[k] = v
             cli_args.command_options["run-time-limit"] = self.run_time_limit
             cli_args.entrypoint[0] = sys.executable
 
