@@ -100,7 +100,7 @@ class KubernetesDecorator(StepDecorator):
         if not self.attributes["gpu_vendor"]:
             self.attributes["gpu_vendor"] = KUBERNETES_GPU_VENDOR
         if not self.attributes["node_selector"] and KUBERNETES_NODE_SELECTOR:
-            self.attributes["node_selector"] = KUBERNETES_NODE_SELECTOR
+            self.attributes["node_selector"] = KUBERNETES_NODE_SELECTOR.split(",")
         if not self.attributes["tolerations"] and KUBERNETES_TOLERATIONS:
             self.attributes["tolerations"] = KUBERNETES_TOLERATIONS
 
@@ -255,11 +255,10 @@ class KubernetesDecorator(StepDecorator):
             for k, v in self.attributes.items():
                 if k == "namespace":
                     cli_args.command_options["k8s_namespace"] = v
+                elif k == "tolerations":
+                    cli_args.command_options[k] = json.dumps(v)
                 else:
-                    if isinstance(v, (dict, list)):
-                        cli_args.command_options[k] = json.dumps(v)
-                    else:
-                        cli_args.command_options[k] = v
+                    cli_args.command_options[k] = v
             cli_args.command_options["run-time-limit"] = self.run_time_limit
             cli_args.entrypoint[0] = sys.executable
 
