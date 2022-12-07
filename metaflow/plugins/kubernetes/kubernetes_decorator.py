@@ -100,9 +100,12 @@ class KubernetesDecorator(StepDecorator):
         if not self.attributes["gpu_vendor"]:
             self.attributes["gpu_vendor"] = KUBERNETES_GPU_VENDOR
         if not self.attributes["node_selector"] and KUBERNETES_NODE_SELECTOR:
-            self.attributes["node_selector"] = KUBERNETES_NODE_SELECTOR.split(",")
+            self.attributes["node_selector"] = KUBERNETES_NODE_SELECTOR
         if not self.attributes["tolerations"] and KUBERNETES_TOLERATIONS:
             self.attributes["tolerations"] = json.loads(KUBERNETES_TOLERATIONS)
+
+        if isinstance(self.attributes["node_selector"], str):
+            self.attributes["node_selector"] = self.parse_node_selector(self.attributes["node_selector"].split(","))
 
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:
@@ -255,6 +258,8 @@ class KubernetesDecorator(StepDecorator):
             for k, v in self.attributes.items():
                 if k == "namespace":
                     cli_args.command_options["k8s_namespace"] = v
+                elif k == "node_selector":
+                    cli_args.command_options[k] = ",".join(["=".join([key, str(val)]) for key, val in v.items()])
                 elif k == "tolerations":
                     cli_args.command_options[k] = json.dumps(v)
                 else:
@@ -349,3 +354,10 @@ class KubernetesDecorator(StepDecorator):
             cls.package_url, cls.package_sha = flow_datastore.save_data(
                 [package.blob], len_hint=1
             )[0]
+
+    @staticmethod
+    def parse_node_selector(node_selector: list):
+        return {
+            str(k.split("=", 1)[0]): str(k.split("=", 1)[1])
+            for k in node_selector or []
+        }

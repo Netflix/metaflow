@@ -845,24 +845,6 @@ class ArgoWorkflows(object):
             env_without_none_values = {k: v for k, v in env.items() if v is not None}
             del env
 
-            node_selector = []
-            if resources.get("node_selector"):
-                try:
-                    node_selector = {
-                        str(k.split("=", 1)[0]): str(k.split("=", 1)[1])
-                        for k in resources.get("node_selector").split(",")
-                    }
-                except IndexError:
-                    raise ArgoWorkflowsException(
-                        f"Unable to parse node_selector {node_selector}"
-                    )
-            elif KUBERNETES_NODE_SELECTOR:
-                node_selector = KUBERNETES_NODE_SELECTOR.split(",")
-
-            tolerations = None
-            if resources.get("tolerations"):
-                tolerations = json.loads(resources.get("tolerations"))
-
             # Create a ContainerTemplate for this node. Ideally, we would have
             # liked to inline this ContainerTemplate and avoid scanning the workflow
             # twice, but due to issues with variable substitution, we will have to
@@ -896,8 +878,8 @@ class ArgoWorkflows(object):
                 # Set emptyDir volume for state management
                 .empty_dir_volume("out")
                 # Set node selectors
-                .node_selectors(node_selector)
-                .tolerations(tolerations)
+                .node_selectors(resources.get("node_selector"))
+                .tolerations(resources.get("tolerations"))
                 # Set container
                 .container(
                     # TODO: Unify the logic with kubernetes.py
@@ -1249,7 +1231,8 @@ class Template(object):
     def node_selectors(self, node_selectors):
         if "nodeSelector" not in self.payload:
             self.payload["nodeSelector"] = {}
-        self.payload["nodeSelector"].update(node_selectors)
+        if node_selectors:
+            self.payload["nodeSelector"].update(node_selectors)
         return self
 
     def tolerations(self, tolerations):
