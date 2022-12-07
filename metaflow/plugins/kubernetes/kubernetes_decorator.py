@@ -102,7 +102,7 @@ class KubernetesDecorator(StepDecorator):
         if not self.attributes["node_selector"] and KUBERNETES_NODE_SELECTOR:
             self.attributes["node_selector"] = KUBERNETES_NODE_SELECTOR.split(",")
         if not self.attributes["tolerations"] and KUBERNETES_TOLERATIONS:
-            self.attributes["tolerations"] = KUBERNETES_TOLERATIONS
+            self.attributes["tolerations"] = json.loads(KUBERNETES_TOLERATIONS)
 
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:
