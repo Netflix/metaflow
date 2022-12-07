@@ -69,15 +69,6 @@ class KubernetesJob(object):
         # Note: This implementation ensures that there is only one unique Pod
         # (unique UID) per Metaflow task attempt.
         client = self._client.get()
-        tolerations = []
-        for toleration in self._kwargs.get("tolerations") or []:
-            try:
-                tolerations.append(client.V1Toleration(**toleration))
-            except TypeError:
-                raise KubernetesJobException(
-                    "Toleration definition contains invalid keys: %s"
-                    % toleration.keys()
-                )
 
         self._job = client.V1Job(
             api_version="batch/v1",
@@ -186,7 +177,8 @@ class KubernetesJob(object):
                         service_account_name=self._kwargs["service_account"],
                         # Terminate the container immediately on SIGTERM
                         termination_grace_period_seconds=0,
-                        tolerations=tolerations,
+                        tolerations=[client.V1Toleration(**toleration)
+                                     for toleration in self._kwargs.get("tolerations") or []],
                         # volumes=?,
                         # TODO (savin): Set termination_message_policy
                     ),
