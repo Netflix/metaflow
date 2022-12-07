@@ -108,9 +108,15 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["node_selector"] = self.parse_node_selector(self.attributes["node_selector"].split(","))
 
         if self.attributes["tolerations"]:
-            from kubernetes.client import V1Toleration
+            attribute_map = [
+                "effect",
+                "key",
+                "operator",
+                "toleration_seconds",
+                "value",
+            ]
             for toleration in self.attributes["tolerations"]:
-                invalid_keys = [k for k in toleration.keys() if k not in V1Toleration.attribute_map.keys()]
+                invalid_keys = [k for k in toleration.keys() if k not in attribute_map]
                 if len(invalid_keys) > 0:
                     raise KubernetesException(f"Tolerations parameter contains invalid keys: {invalid_keys}")
 
