@@ -174,7 +174,7 @@ def step(
     stdout_location = ds.get_log_location(TASK_LOG_SOURCE, "stdout")
     stderr_location = ds.get_log_location(TASK_LOG_SOURCE, "stderr")
 
-    # Here node_selector is a tuple of strings, convert it to a dictionary
+    # `node_selector` is a tuple of strings, convert it to a dictionary
     node_selector = KubernetesDecorator.parse_node_selector(node_selector)
 
     def _sync_metadata():
