@@ -84,7 +84,7 @@ class KubernetesDecorator(StepDecorator):
         "gpu": None,  # value of 0 implies that the scheduled node should not have GPUs
         "gpu_vendor": None,
         "tolerations": None,  # e.g., [{"key": "arch", "operator": "Equal", "value": "amd"},
-                              #        {"key": "foo", "operator": "Equal", "value": "bar"}]
+        #                              {"key": "foo", "operator": "Equal", "value": "bar"}]
     }
     package_url = None
     package_sha = None
@@ -105,7 +105,9 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["tolerations"] = json.loads(KUBERNETES_TOLERATIONS)
 
         if isinstance(self.attributes["node_selector"], str):
-            self.attributes["node_selector"] = self.parse_node_selector(self.attributes["node_selector"].split(","))
+            self.attributes["node_selector"] = self.parse_node_selector(
+                self.attributes["node_selector"].split(",")
+            )
 
         if self.attributes["tolerations"]:
             attribute_map = [
@@ -118,7 +120,9 @@ class KubernetesDecorator(StepDecorator):
             for toleration in self.attributes["tolerations"]:
                 invalid_keys = [k for k in toleration.keys() if k not in attribute_map]
                 if len(invalid_keys) > 0:
-                    raise KubernetesException(f"Tolerations parameter contains invalid keys: {invalid_keys}")
+                    raise KubernetesException(
+                        f"Tolerations parameter contains invalid keys: {invalid_keys}"
+                    )
 
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:
@@ -272,7 +276,9 @@ class KubernetesDecorator(StepDecorator):
                 if k == "namespace":
                     cli_args.command_options["k8s_namespace"] = v
                 elif k == "node_selector":
-                    cli_args.command_options[k] = ",".join(["=".join([key, str(val)]) for key, val in v.items()])
+                    cli_args.command_options[k] = ",".join(
+                        ["=".join([key, str(val)]) for key, val in v.items()]
+                    )
                 elif k == "tolerations":
                     cli_args.command_options[k] = json.dumps(v)
                 else:

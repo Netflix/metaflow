@@ -177,8 +177,10 @@ class KubernetesJob(object):
                         service_account_name=self._kwargs["service_account"],
                         # Terminate the container immediately on SIGTERM
                         termination_grace_period_seconds=0,
-                        tolerations=[client.V1Toleration(**toleration)
-                                     for toleration in self._kwargs.get("tolerations") or []],
+                        tolerations=[
+                            client.V1Toleration(**toleration)
+                            for toleration in self._kwargs.get("tolerations") or []
+                        ],
                         # volumes=?,
                         # TODO (savin): Set termination_message_policy
                     ),
