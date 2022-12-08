@@ -121,7 +121,7 @@ class KubernetesDecorator(StepDecorator):
                 invalid_keys = [k for k in toleration.keys() if k not in attribute_map]
                 if len(invalid_keys) > 0:
                     raise KubernetesException(
-                        f"Tolerations parameter contains invalid keys: {invalid_keys}"
+                        "Tolerations parameter contains invalid keys: %s" % invalid_keys
                     )
 
         # If no docker image is explicitly specified, impute a default image.
