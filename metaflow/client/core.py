@@ -759,7 +759,8 @@ class MetaflowCode(object):
 
     You can extract code in the directory `snapshot` like so:
     ```
-    Run(...).code.tarball.extractall(path='snapshot')
+    from metaflow.util import tar_safe_extract
+    tar_safe_extract(tar=Run(...).code.tarball, path='snapshot')
     ```
 
     Attributes
