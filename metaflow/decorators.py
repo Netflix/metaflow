@@ -1,4 +1,5 @@
 from functools import partial
+import json
 import re
 import os
 import sys
@@ -11,6 +12,13 @@ from .exception import (
 )
 
 from metaflow._vendor import click
+
+
+try:
+    unicode
+except NameError:
+    unicode = str
+    basestring = str
 
 
 class BadStepDecoratorException(MetaflowException):
@@ -114,21 +122,42 @@ class Decorator(object):
 
     @classmethod
     def _parse_decorator_spec(cls, deco_spec):
-        top = deco_spec.split(":", 1)
-        if len(top) == 1:
+        if len(deco_spec) == 0:
             return cls()
-        else:
-            name, attrspec = top
-            attrs = dict(
-                map(lambda x: x.strip(), a.split("="))
-                for a in re.split(""",(?=[\s\w]+=)""", attrspec.strip("\"'"))
-            )
-            return cls(attributes=attrs)
+
+        attrs = {}
+        # TODO: Do we really want to allow spaces in the names of attributes?!?
+        for a in re.split(""",(?=[\s\w]+=)""", deco_spec):
+            name, val = a.split("=", 1)
+            try:
+                val_parsed = json.loads(val.strip().replace('\\"', '"'))
+            except json.JSONDecodeError:
+                # In this case, we try to convert to either an int or a float or
+                # leave as is. Prefer ints if possible.
+                try:
+                    val_parsed = int(val.strip())
+                except ValueError:
+                    try:
+                        val_parsed = float(val.strip())
+                    except ValueError:
+                        val_parsed = val.strip()
+
+            attrs[name.strip()] = val_parsed
+        return cls(attributes=attrs)
 
     def make_decorator_spec(self):
         attrs = {k: v for k, v in self.attributes.items() if v is not None}
         if attrs:
-            attrstr = ",".join("%s=%s" % x for x in attrs.items())
+            attr_list = []
+            # We dump simple types directly as string to get around the nightmare quote
+            # escaping but for more complex types (typically dictionaries or lists),
+            # we dump using JSON.
+            for k, v in attrs.items():
+                if isinstance(v, (int, float, unicode, basestring)):
+                    attr_list.append("%s=%s" % (k, str(v)))
+                else:
+                    attr_list.append("%s=%s" % (k, json.dumps(v).replace('"', '\\"')))
+            attrstr = ",".join(attr_list)
             return "%s:%s" % (self.name, attrstr)
         else:
             return self.name
@@ -148,7 +177,7 @@ class FlowDecorator(Decorator):
     options = {}
 
     def __init__(self, *args, **kwargs):
-        # Note that this assumes we are executing one flow per process so we have a global list of
+        # Note that this assumes we are executing one flow per process, so we have a global list of
         # _flow_decorators. A similar setup is used in parameters.
         self._flow_decorators.append(self)
         super(FlowDecorator, self).__init__(*args, **kwargs)
@@ -167,7 +196,7 @@ class FlowDecorator(Decorator):
         options that should be passed to subprocesses (tasks). The option
         names should be a subset of the keys in self.options.
 
-        If the decorator has a non-empty set of options in self.options, you
+        If the decorator has a non-empty set of options in `self.options`, you
         probably want to return the assigned values in this method.
         """
         return []
@@ -450,8 +479,10 @@ def _attach_decorators_to_step(step, decospecs):
     from .plugins import STEP_DECORATORS
 
     decos = {decotype.name: decotype for decotype in STEP_DECORATORS}
+
     for decospec in decospecs:
-        deconame = decospec.strip("'").split(":")[0]
+        splits = decospec.split(":", 1)
+        deconame = splits[0]
         if deconame not in decos:
             raise UnknownStepDecoratorException(deconame)
         # Attach the decorator to step if it doesn't have the decorator
@@ -461,8 +492,11 @@ def _attach_decorators_to_step(step, decospecs):
             deconame not in [deco.name for deco in step.decorators]
             or decos[deconame].allow_multiple
         ):
-            # if the decorator is present in a step and is of type allow_mutliple then add the decorator to the step
-            deco = decos[deconame]._parse_decorator_spec(decospec)
+            # if the decorator is present in a step and is of type allow_multiple
+            # then add the decorator to the step
+            deco = decos[deconame]._parse_decorator_spec(
+                splits[1] if len(splits) > 1 else ""
+            )
             step.decorators.append(deco)
 
 

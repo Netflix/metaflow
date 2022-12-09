@@ -19,7 +19,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_SERVICE_ACCOUNT,
     KUBERNETES_SECRETS,
 )
-from metaflow.plugins import ResourcesDecorator
+from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.sidecar import Sidecar
 
@@ -118,9 +118,9 @@ class KubernetesDecorator(StepDecorator):
     # Refer https://github.com/Netflix/metaflow/blob/master/docs/lifecycle.png
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         # Executing Kubernetes jobs requires a non-local datastore.
-        if flow_datastore.TYPE not in ("s3", "azure"):
+        if flow_datastore.TYPE not in ("s3", "azure", "gs"):
             raise KubernetesException(
-                "The *@kubernetes* decorator requires --datastore=s3 or --datastore=azure at the moment."
+                "The *@kubernetes* decorator requires --datastore=s3 or --datastore=azure or --datastore=gs at the moment."
             )
 
         # Set internal state.
@@ -152,7 +152,10 @@ class KubernetesDecorator(StepDecorator):
         for deco in decos:
             if isinstance(deco, ResourcesDecorator):
                 for k, v in deco.attributes.items():
-                    # TODO: Special case GPUs when they are introduced in @resources.
+                    # If GPU count is specified, explicitly set it in self.attributes.
+                    if k == "gpu" and v != None:
+                        self.attributes["gpu"] = v
+
                     if k in self.attributes:
                         if self.defaults[k] is None:
                             # skip if expected value isn't an int/float

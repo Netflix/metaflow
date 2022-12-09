@@ -7,7 +7,7 @@ from metaflow._vendor import click
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.package import MetaflowPackage
 from hashlib import sha1
-from metaflow.plugins import KubernetesDecorator
+from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
 from metaflow.util import get_username, to_bytes, to_unicode
 
 from .airflow import Airflow
@@ -230,8 +230,12 @@ def create(
             "Airflow DAG file name cannot be the same as flow file name"
         )
 
-    obj.echo("Compiling *%s* to Airflow DAG..." % obj.dag_name, bold=True)
+    # Validate if the workflow is correctly parsed.
+    _validate_workflow(
+        obj.flow, obj.graph, obj.flow_datastore, obj.metadata, workflow_timeout
+    )
 
+    obj.echo("Compiling *%s* to Airflow DAG..." % obj.dag_name, bold=True)
     token = resolve_token(
         obj.dag_name,
         obj.token_prefix,
@@ -277,11 +281,6 @@ def make_flow(
     worker_pool,
     file,
 ):
-    # Validate if the workflow is correctly parsed.
-    _validate_workflow(
-        obj.flow, obj.graph, obj.flow_datastore, obj.metadata, workflow_timeout
-    )
-
     # Attach @kubernetes.
     decorators._attach_decorators(obj.flow, [KubernetesDecorator.name])
 
@@ -323,11 +322,12 @@ def make_flow(
 
 
 def _validate_foreach_constraints(graph):
-    # Todo :Invoke this function when we integrate foreach's
+    # Todo :Invoke this function when we integrate `foreach`s
     def traverse_graph(node, state):
         if node.type == "foreach" and node.is_inside_foreach:
             raise NotSupportedException(
-                "Step *%s* is a foreach step called within a foreach step. This type of graph is currently not supported with Airflow."
+                "Step *%s* is a foreach step called within a foreach step. "
+                "This type of graph is currently not supported with Airflow."
                 % node.name
             )
 
@@ -340,7 +340,7 @@ def _validate_foreach_constraints(graph):
 
             if len(state["foreach_stack"]) > 2:
                 raise NotSupportedException(
-                    "The foreach step *%s* created by step *%s* needs to have an immidiate join step. "
+                    "The foreach step *%s* created by step *%s* needs to have an immediate join step. "
                     "Step *%s* is invalid since it is a linear step with a foreach. "
                     "This type of graph is currently not supported with Airflow."
                     % (
@@ -360,8 +360,31 @@ def _validate_foreach_constraints(graph):
 
 
 def _validate_workflow(flow, graph, flow_datastore, metadata, workflow_timeout):
+    seen = set()
+    for var, param in flow._get_parameters():
+        # Throw an exception if the parameter is specified twice.
+        norm = param.name.lower()
+        if norm in seen:
+            raise MetaflowException(
+                "Parameter *%s* is specified twice. "
+                "Note that parameter names are "
+                "case-insensitive." % param.name
+            )
+        seen.add(norm)
+        if "default" not in param.kwargs:
+            raise MetaflowException(
+                "Parameter *%s* does not have a "
+                "default value. "
+                "A default value is required for parameters when deploying flows on Airflow."
+            )
     # check for other compute related decorators.
     for node in graph:
+        if node.parallel_foreach:
+            raise AirflowException(
+                "Deploying flows with @parallel decorator(s) "
+                "to Airflow is not supported currently."
+            )
+
         if node.type == "foreach":
             raise NotSupportedException(
                 "Step *%s* is a foreach step and Foreach steps are not currently supported with Airflow."

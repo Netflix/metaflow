@@ -48,10 +48,10 @@ def download_conda_packages(flow_name, env_id, datastore_type):
         # the URLs before downloading them appropriately. Of course, a change can be
         # made to allow the datastore to consume full URLs as well instead of this
         # change, but given that change's far-reaching consequences, we introduce this
-        # workfaround.
+        # workaround.
         # https://github.com/Netflix/metaflow/commit/fbd6c9d8a819fad647958c9fa869153ab37bc0ca#diff-1ecbb40de8aba5b41e149987de4aa797a47f4498e5e4e3f63a53d4283dcdf941R198
         if env["cache_urls"][0].startswith("s3://"):
-            from metaflow.datatools import S3
+            from metaflow.plugins.datatools import S3
 
             with S3() as s3:
                 for pkg in s3.get_many(env["cache_urls"]):
@@ -60,16 +60,16 @@ def download_conda_packages(flow_name, env_id, datastore_type):
                     )
         else:
             # Import DATASTORES dynamically... otherwise, circular import
-            from metaflow.datastore import DATASTORES
+            from metaflow.plugins import DATASTORES
 
-            if datastore_type not in DATASTORES:
+            storage_impl = [d for d in DATASTORES if d.TYPE == datastore_type]
+            if len(storage_impl) == 0:
                 raise MetaflowException(
-                    msg="Downloading conda code packages from datastore backend %s is unimplemented!"
+                    msg="Downloading conda packages from %s datastore is not yet implemented!"
                     % datastore_type
                 )
-
             conda_package_root = get_conda_package_root(datastore_type)
-            storage = DATASTORES[datastore_type](conda_package_root)
+            storage = storage_impl[0](conda_package_root)
             with storage.load_bytes(env["cache_urls"]) as load_result:
                 for key, tmpfile, _ in load_result:
                     shutil.move(

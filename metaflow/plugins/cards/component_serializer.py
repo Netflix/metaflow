@@ -146,7 +146,7 @@ class CardComponentCollector:
             if ct is not None:
                 c["exists"] = True
 
-        # If a card has customize=True and is not editable then it will not be considered default editable.
+        # If a card has `customize=True` and is not editable then it will not be considered default editable.
         editable_cards_meta = [c for c in all_card_meta if c["editable"]]
 
         if len(editable_cards_meta) == 0:
@@ -165,7 +165,7 @@ class CardComponentCollector:
             self._default_editable_card = editable_cards_meta[0]["uuid"]
             return
 
-        # Segregate cards which have id as none and those which dont.
+        # Segregate cards which have id as none and those which don't.
         not_none_id_cards = [c for c in editable_cards_meta if c["card_id"] is not None]
         none_id_cards = [c for c in editable_cards_meta if c["card_id"] is None]
 
@@ -174,7 +174,7 @@ class CardComponentCollector:
             self._default_editable_card = none_id_cards[0]["uuid"]
 
         # If the size of the set of ids is not equal to total number of cards with ids then warn the user that we cannot disambiguate
-        # so `current.card['my_card_id']` wont work.
+        # so `current.card['my_card_id']` won't work.
         id_set = set(card_ids)
         if len(card_ids) != len(id_set):
             non_unique_ids = [
@@ -184,7 +184,7 @@ class CardComponentCollector:
                 > 1
             ]
             nui = ", ".join(non_unique_ids)
-            # throw a warning that decorators have non unique Ids
+            # throw a warning that decorators have non-unique Ids
             self._warning(
                 (
                     "Multiple `@card` decorator have been annotated with duplicate ids : %s. "

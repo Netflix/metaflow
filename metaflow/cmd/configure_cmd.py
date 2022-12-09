@@ -1,233 +1,18 @@
-import builtins
-import traceback
-from metaflow._vendor import click
 import json
 import os
 import sys
-import shutil
 
 from os.path import expanduser
 
-from metaflow.datastore.local_storage import LocalStorage
-from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
+from metaflow.util import to_unicode
+from metaflow._vendor import click
 from metaflow.util import to_unicode
 
 
-def makedirs(path):
-    # This is for python2 compatibility.
-    # Python3 has os.makedirs(exist_ok=True).
-    try:
-        os.makedirs(path)
-    except OSError as x:
-        if x.errno == 17:
-            return
-        else:
-            raise
+from .util import echo_always, makedirs
 
 
-def echo_dev_null(*args, **kwargs):
-    pass
-
-
-def echo_always(line, **kwargs):
-    click.secho(line, **kwargs)
-
-
-@click.group()
-@click.pass_context
-def main(ctx):
-    pass
-
-
-@main.command(help="Show all available commands.")
-@click.pass_context
-def help(ctx):
-    print(ctx.parent.get_help())
-
-
-@main.command(help="Show flows accessible from the current working tree.")
-def status():
-    from metaflow.client import get_metadata
-
-    res = get_metadata()
-    if res:
-        res = res.split("@")
-    else:
-        raise click.ClickException("Unknown status: cannot find a Metadata provider")
-    if res[0] == "service":
-        echo("Using Metadata provider at: ", nl=False)
-        echo('"%s"\n' % res[1], fg="cyan")
-        echo("To list available flows, type:\n")
-        echo("1. python")
-        echo("2. from metaflow import Metaflow")
-        echo("3. list(Metaflow())")
-        return
-
-    from metaflow.client import namespace, metadata, Metaflow
-
-    # Get the local data store path
-    path = LocalStorage.get_datastore_root_from_config(echo, create_on_absent=False)
-    # Throw an exception
-    if path is None:
-        raise click.ClickException(
-            "Could not find "
-            + click.style('"%s"' % DATASTORE_LOCAL_DIR, fg="red")
-            + " in the current working tree."
-        )
-
-    stripped_path = os.path.dirname(path)
-    namespace(None)
-    metadata("local@%s" % stripped_path)
-    echo("Working tree found at: ", nl=False)
-    echo('"%s"\n' % stripped_path, fg="cyan")
-    echo("Available flows:", fg="cyan", bold=True)
-    for flow in Metaflow():
-        echo("* %s" % flow, fg="cyan")
-
-
-@main.group(help="Browse and access the metaflow tutorial episodes.")
-def tutorials():
-    pass
-
-
-def get_tutorials_dir():
-    metaflow_dir = os.path.dirname(__file__)
-    package_dir = os.path.dirname(metaflow_dir)
-    tutorials_dir = os.path.join(package_dir, "metaflow", "tutorials")
-
-    return tutorials_dir
-
-
-def get_tutorial_metadata(tutorial_path):
-    metadata = {}
-    with open(os.path.join(tutorial_path, "README.md")) as readme:
-        content = readme.read()
-
-    paragraphs = [paragraph.strip() for paragraph in content.split("#") if paragraph]
-    metadata["description"] = paragraphs[0].split("**")[1]
-    header = paragraphs[0].split("\n")
-    header = header[0].split(":")
-    metadata["episode"] = header[0].strip()[len("Episode ") :]
-    metadata["title"] = header[1].strip()
-
-    for paragraph in paragraphs[1:]:
-        if paragraph.startswith("Before playing"):
-            lines = "\n".join(paragraph.split("\n")[1:])
-            metadata["prereq"] = lines.replace("```", "")
-
-        if paragraph.startswith("Showcasing"):
-            lines = "\n".join(paragraph.split("\n")[1:])
-            metadata["showcase"] = lines.replace("```", "")
-
-        if paragraph.startswith("To play"):
-            lines = "\n".join(paragraph.split("\n")[1:])
-            metadata["play"] = lines.replace("```", "")
-
-    return metadata
-
-
-def get_all_episodes():
-    episodes = []
-    for name in sorted(os.listdir(get_tutorials_dir())):
-        # Skip hidden files (like .gitignore)
-        if not name.startswith("."):
-            episodes.append(name)
-    return episodes
-
-
-@tutorials.command(help="List the available episodes.")
-def list():
-    echo("Episodes:", fg="cyan", bold=True)
-    for name in get_all_episodes():
-        path = os.path.join(get_tutorials_dir(), name)
-        metadata = get_tutorial_metadata(path)
-        echo("* {0: <20} ".format(metadata["episode"]), fg="cyan", nl=False)
-        echo("- {0}".format(metadata["title"]))
-
-    echo("\nTo pull the episodes, type: ")
-    echo("metaflow tutorials pull", fg="cyan")
-
-
-def validate_episode(episode):
-    src_dir = os.path.join(get_tutorials_dir(), episode)
-    if not os.path.isdir(src_dir):
-        raise click.BadArgumentUsage(
-            "Episode "
-            + click.style('"{0}"'.format(episode), fg="red")
-            + " does not exist."
-            " To see a list of available episodes, "
-            "type:\n" + click.style("metaflow tutorials list", fg="cyan")
-        )
-
-
-def autocomplete_episodes(ctx, args, incomplete):
-    return [k for k in get_all_episodes() if incomplete in k]
-
-
-@tutorials.command(help="Pull episodes " "into your current working directory.")
-@click.option(
-    "--episode",
-    default="",
-    help="Optional episode name " "to pull only a single episode.",
-)
-def pull(episode):
-    tutorials_dir = get_tutorials_dir()
-    if not episode:
-        episodes = get_all_episodes()
-    else:
-        episodes = [episode]
-        # Validate that the list is valid.
-        for episode in episodes:
-            validate_episode(episode)
-    # Create destination `metaflow-tutorials` dir.
-    dst_parent = os.path.join(os.getcwd(), "metaflow-tutorials")
-    makedirs(dst_parent)
-
-    # Pull specified episodes.
-    for episode in episodes:
-        dst_dir = os.path.join(dst_parent, episode)
-        # Check if episode has already been pulled before.
-        if os.path.exists(dst_dir):
-            if click.confirm(
-                "Episode "
-                + click.style('"{0}"'.format(episode), fg="red")
-                + " has already been pulled before. Do you wish "
-                "to delete the existing version?"
-            ):
-                shutil.rmtree(dst_dir)
-            else:
-                continue
-        echo("Pulling episode ", nl=False)
-        echo('"{0}"'.format(episode), fg="cyan", nl=False)
-        # TODO: Is the following redundant?
-        echo(" into your current working directory.")
-        # Copy from (local) metaflow package dir to current.
-        src_dir = os.path.join(tutorials_dir, episode)
-        shutil.copytree(src_dir, dst_dir)
-
-    echo("\nTo know more about an episode, type:\n", nl=False)
-    echo("metaflow tutorials info [EPISODE]", fg="cyan")
-
-
-@tutorials.command(help="Find out more about an episode.")
-@click.argument("episode", autocompletion=autocomplete_episodes)
-def info(episode):
-    validate_episode(episode)
-    src_dir = os.path.join(get_tutorials_dir(), episode)
-    metadata = get_tutorial_metadata(src_dir)
-    echo("Synopsis:", fg="cyan", bold=True)
-    echo("%s" % metadata["description"])
-
-    echo("\nShowcasing:", fg="cyan", bold=True, nl=True)
-    echo("%s" % metadata["showcase"])
-
-    if "prereq" in metadata:
-        echo("\nBefore playing:", fg="cyan", bold=True, nl=True)
-        echo("%s" % metadata["prereq"])
-
-    echo("\nTo play:", fg="cyan", bold=True)
-    echo("%s" % metadata["play"])
-
+echo = echo_always
 
 # NOTE: This code needs to be in sync with metaflow/metaflow_config.py.
 METAFLOW_CONFIGURATION_DIR = expanduser(
@@ -235,7 +20,12 @@ METAFLOW_CONFIGURATION_DIR = expanduser(
 )
 
 
-@main.group(help="Configure Metaflow to access the cloud.")
+@click.group()
+def cli():
+    pass
+
+
+@cli.group(help="Configure Metaflow to access the cloud.")
 def configure():
     makedirs(METAFLOW_CONFIGURATION_DIR)
 
@@ -418,7 +208,8 @@ def sandbox(profile, overwrite):
     )
     # Decode the bytes to env_dict.
     try:
-        import base64, zlib
+        import base64
+        import zlib
         from metaflow.util import to_bytes
 
         env_dict = json.loads(
@@ -495,6 +286,21 @@ def configure_azure_datastore(existing_env):
     return env
 
 
+def configure_gs_datastore(existing_env):
+    env = {}
+    # Set Google Cloud Storage as default datastore.
+    env["METAFLOW_DEFAULT_DATASTORE"] = "gs"
+    # Set Google Cloud Storage folder for datastore.
+    env["METAFLOW_DATASTORE_SYSROOT_GS"] = click.prompt(
+        cyan("[METAFLOW_DATASTORE_SYSROOT_GS]")
+        + " Google Cloud Storage folder for Metaflow artifact storage "
+        + "(Format: gs://<bucket>/<prefix>)",
+        default=existing_env.get("METAFLOW_DATASTORE_SYSROOT_GS"),
+        show_default=True,
+    )
+    return env
+
+
 def configure_metadata_service(existing_env):
     empty_profile = False
     if not existing_env:
@@ -560,6 +366,44 @@ def configure_azure_datastore_and_metadata(existing_env):
         + " and persist flow execution metadata.\nConfiguring the "
         "service is a requirement if you intend to schedule your "
         "flows with Kubernetes on Azure (AKS or self-managed).\nWould you like to "
+        "configure the Metadata Service?",
+        default=empty_profile
+        or existing_env.get("METAFLOW_DEFAULT_METADATA", "") == "service",
+        abort=False,
+    ):
+        env.update(configure_metadata_service(existing_env))
+    return env
+
+
+def configure_gs_datastore_and_metadata(existing_env):
+    empty_profile = False
+    if not existing_env:
+        empty_profile = True
+    env = {}
+
+    # Configure Google Cloud Storage as the datastore.
+    use_gs_as_datastore = click.confirm(
+        "\nMetaflow can use "
+        + yellow("Google Cloud Storage as the storage backend")
+        + " for all code and data artifacts on "
+        + "Google Cloud Storage.\nGoogle Cloud Storage is a strict requirement if you "
+        + "intend to execute your flows on a Kubernetes cluster on GCP (GKE or self-managed)"
+        + ".\nWould you like to configure Google Cloud Storage "
+        + "as the default storage backend?",
+        default=empty_profile
+        or existing_env.get("METAFLOW_DEFAULT_DATASTORE", "") == "gs",
+        abort=False,
+    )
+    if use_gs_as_datastore:
+        env.update(configure_gs_datastore(existing_env))
+
+    # Configure Metadata service for tracking.
+    if click.confirm(
+        "\nMetaflow can use a "
+        + yellow("remote Metadata Service to track")
+        + " and persist flow execution metadata.\nConfiguring the "
+        "service is a requirement if you intend to schedule your "
+        "flows with Kubernetes on GCP (GKE or self-managed).\nWould you like to "
         "configure the Metadata Service?",
         default=empty_profile
         or existing_env.get("METAFLOW_DEFAULT_METADATA", "") == "service",
@@ -844,7 +688,32 @@ def verify_azure_credentials(ctx):
         ctx.abort()
 
 
-@configure.command(help="Configure metaflow to access Azure Blob Storage.")
+def verify_gcp_credentials(ctx):
+    # Verify that the user has configured AWS credentials on their computer.
+    if not click.confirm(
+        "\nMetaflow relies on "
+        + yellow("GCP access credentials")
+        + " present on your computer to access resources on GCP."
+        "\nBefore proceeding further, please confirm that you "
+        "have already configured these access credentials on "
+        "this computer.",
+        default=True,
+    ):
+        echo(
+            "There are many ways to setup your GCP access credentials. You "
+            "can get started by getting familiar with the following: ",
+            nl=False,
+            fg="yellow",
+        )
+        echo("")
+        echo(
+            "- https://cloud.google.com/docs/authentication/provide-credentials-adc",
+            fg="cyan",
+        )
+        ctx.abort()
+
+
+@configure.command(help="Configure metaflow to access Microsoft Azure.")
 @click.option(
     "--profile",
     "-p",
@@ -881,6 +750,48 @@ def azure(ctx, profile):
             + yellow("executing your steps on Kubernetes.")
             + "\nYou may use Azure Kubernetes Service (AKS)"
             " or a self-managed Kubernetes cluster on Azure VMs."
+            + " If/when your Kubernetes cluster is ready for use,"
+            " please run 'metaflow configure kubernetes'.",
+        )
+
+
+@configure.command(help="Configure metaflow to access Google Cloud Platform.")
+@click.option(
+    "--profile",
+    "-p",
+    default="",
+    help="Configure a named profile. Activate the profile by setting "
+    "`METAFLOW_PROFILE` environment variable.",
+)
+@click.pass_context
+def gcp(ctx, profile):
+
+    # Greet the user!
+    echo(
+        "Welcome to Metaflow! Follow the prompts to configure your installation.\n",
+        bold=True,
+    )
+
+    # Check for existing configuration.
+    if not confirm_overwrite_config(profile):
+        ctx.abort()
+
+    verify_gcp_credentials(ctx)
+
+    existing_env = get_env(profile)
+
+    env = {}
+    env.update(configure_gs_datastore_and_metadata(existing_env))
+
+    persist_env({k: v for k, v in env.items() if v}, profile)
+
+    # Prompt user to also configure Kubernetes for compute if using Google Cloud Storage
+    if env.get("METAFLOW_DEFAULT_DATASTORE") == "gs":
+        click.echo(
+            "\nFinal note! Metaflow can scale your flows by "
+            + yellow("executing your steps on Kubernetes.")
+            + "\nYou may use Google Kubernetes Engine (GKE)"
+            " or a self-managed Kubernetes cluster on Google Compute Engine VMs."
             + " If/when your Kubernetes cluster is ready for use,"
             " please run 'metaflow configure kubernetes'.",
         )
@@ -972,7 +883,7 @@ def kubernetes(ctx, profile):
             "\nCannot run Kubernetes with local datastore. Please run"
             " 'metaflow configure aws' or 'metaflow configure azure'."
         )
-        click.abort()
+        click.Abort()
 
     # Configure remote metadata.
     if existing_env.get("METAFLOW_DEFAULT_METADATA") == "service":
@@ -993,80 +904,3 @@ def kubernetes(ctx, profile):
     env.update(configure_kubernetes(existing_env))
 
     persist_env({k: v for k, v in env.items() if v}, profile)
-
-
-try:
-    from metaflow.extension_support import get_modules, load_module, _ext_debug
-
-    _modules_to_import = get_modules("cmd")
-    _clis = []
-    # Reverse to maintain "latest" overrides (in Click, the first one will get it)
-    for m in reversed(_modules_to_import):
-        _get_clis = m.module.__dict__.get("get_cmd_clis")
-        if _get_clis:
-            _clis.extend(_get_clis())
-
-except Exception as e:
-    _ext_debug("\tWARNING: ignoring all plugins due to error during import: %s" % e)
-    print(
-        "WARNING: Command extensions did not load -- ignoring all of them which may not "
-        "be what you want: %s" % e
-    )
-    _clis = []
-    traceback.print_exc()
-
-
-@click.command(
-    cls=click.CommandCollection,
-    sources=_clis + [main],
-    invoke_without_command=True,
-)
-@click.pass_context
-def start(ctx):
-    global echo
-    echo = echo_always
-
-    import metaflow
-
-    echo("Metaflow ", fg="magenta", bold=True, nl=False)
-
-    if ctx.invoked_subcommand is None:
-        echo("(%s): " % metaflow.__version__, fg="magenta", bold=False, nl=False)
-    else:
-        echo("(%s)\n" % metaflow.__version__, fg="magenta", bold=False)
-
-    if ctx.invoked_subcommand is None:
-        echo("More data science, less engineering\n", fg="magenta")
-
-        # metaflow URL
-        echo("http://docs.metaflow.org", fg="cyan", nl=False)
-        echo(" - Read the documentation")
-
-        # metaflow chat
-        echo("http://chat.metaflow.org", fg="cyan", nl=False)
-        echo(" - Chat with us")
-
-        # metaflow help email
-        echo("help@metaflow.org", fg="cyan", nl=False)
-        echo("        - Get help by email\n")
-
-        print(ctx.get_help())
-
-
-start()
-
-for _n in [
-    "get_modules",
-    "load_module",
-    "_modules_to_import",
-    "m",
-    "_get_clis",
-    "_clis",
-    "ext_debug",
-    "e",
-]:
-    try:
-        del globals()[_n]
-    except KeyError:
-        pass
-del globals()["_n"]

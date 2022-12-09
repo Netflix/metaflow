@@ -31,11 +31,11 @@ class BasicTagTest(MetaflowTest):
         # test crazy unicode and spaces in tags
         # these tags must be set with --tag option in contexts.json
         tags = (
-            u"project:basic_tag",
-            u"project_branch:user.tester",
-            u"user:%s" % os.environ.get("METAFLOW_USER"),
-            u"刺身 means sashimi",
-            u"multiple tags should be ok",
+            "project:basic_tag",
+            "project_branch:user.tester",
+            "user:%s" % os.environ.get("METAFLOW_USER"),
+            "刺身 means sashimi",
+            "multiple tags should be ok",
         )
         for tag in tags:
             # test different namespaces: one is a system-tag,

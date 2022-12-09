@@ -27,7 +27,6 @@ class MetadataCheck(MetaflowCheck):
     def _test_namespace(self):
         from metaflow.client import Flow, get_namespace, namespace, default_namespace
         from metaflow.exception import MetaflowNamespaceMismatch
-        import os
 
         # test 1) METAFLOW_USER should be the default
         assert_equals("user:%s" % os.environ.get("METAFLOW_USER"), get_namespace())
@@ -151,7 +150,7 @@ class MetadataCheck(MetaflowCheck):
             card_iter = None
         card_data = None
         # Since there are many cards possible for a taskspec, we check for hash to assert a single card.
-        # If the id argument is present then there will be a single cards anyways.
+        # If the id argument is present then there will be a single cards anyway.
         if card_iter is not None:
             if len(card_iter) > 0:
                 if card_hash is None:

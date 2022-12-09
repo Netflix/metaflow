@@ -1457,7 +1457,7 @@
         {
           "type": "section",
           "title": "Bar Chart",
-          "subtitle": "This bar chart has some maade up data.",
+          "subtitle": "This bar chart has some made up data.",
           "contents": [
             {
               "type": "barChart",

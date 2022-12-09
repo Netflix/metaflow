@@ -156,7 +156,7 @@ def create_cacheable_default_azure_credentials(*args, **kwargs):
             # hashable as of 7/15/2022.
             #
             # What if Azure adds unhashable things to kwargs?
-            # - We will have CI to catch this (it will always install latest Azure SDKs)
+            # - We will have CI to catch this (it will always install the latest Azure SDKs)
             # - In Metaflow usage today we never specify any kwargs anyway. (see last line
             #   of the outer function.
             self._hash_code = hash((args, tuple(sorted(kwargs.items()))))

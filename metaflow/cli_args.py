@@ -57,7 +57,7 @@ class CLIArgs(object):
         for k, v in mapping.items():
 
             # None or False arguments are ignored
-            # v needs to be explicitly False, not falsy, eg. 0 is an acceptable value
+            # v needs to be explicitly False, not falsy, e.g. 0 is an acceptable value
             if v is None or v is False:
                 continue
 

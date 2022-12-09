@@ -61,7 +61,7 @@ class KubernetesJob(object):
         # A discerning eye would notice and question the choice of using the
         # V1Job construct over the V1Pod construct given that we don't rely much
         # on any of the V1Job semantics. The major reasons at the moment are -
-        #     1. It makes the Kubernetes UIs (Octant, Lens) a bit more easy on
+        #     1. It makes the Kubernetes UIs (Octant, Lens) a bit easier on
         #        the eyes, although even that can be questioned.
         #     2. AWS Step Functions, at the moment (Apr' 22) only supports
         #        executing Jobs and not Pods as part of it's publicly declared
@@ -291,7 +291,7 @@ class RunningJob(object):
     # https://github.com/kubernetes/kubernetes/issues/7856). `conditions` otoh
     # provide a deeper understanding about the state of the pod; however
     # conditions are not state machines and can be oscillating - from the
-    # offical API conventions guide:
+    # official API conventions guide:
     #     In general, condition values may change back and forth, but some
     #     condition transitions may be monotonic, depending on the resource and
     #     condition type. However, conditions are observations and not,
@@ -299,7 +299,7 @@ class RunningJob(object):
     #     machines for objects, nor behaviors associated with state
     #     transitions. The system is level-based rather than edge-triggered,
     #     and should assume an Open World.
-    # As a follow up, we can synthesize our notion of "phase" state
+    # As a follow-up, we can synthesize our notion of "phase" state
     # machine from `conditions`, since Kubernetes won't do it for us (for
     # many good reasons).
     #
@@ -450,10 +450,10 @@ class RunningJob(object):
 
     @property
     def is_done(self):
-        # Check if the job is done. As a side-effect, also refreshes self._job and
+        # Check if the job is done. As a side effect, also refreshes self._job and
         # self._pod with the latest state
         def done():
-            # Either the job succeeds or fails naturally or we may have
+            # Either the job succeeds or fails naturally or else we may have
             # forced the pod termination causing the job to still be in an
             # active state but for all intents and purposes dead to us.
             return (

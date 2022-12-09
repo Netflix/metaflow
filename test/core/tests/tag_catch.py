@@ -8,7 +8,8 @@ class TagCatchTest(MetaflowTest):
     @tag("retry(times=3)")
     @steps(0, ["start"])
     def step_start(self):
-        import os, sys
+        import os
+        import sys
 
         self.test_attempt = current.retry_count
         sys.stdout.write("stdout testing logs %d\n" % self.test_attempt)
@@ -54,7 +55,8 @@ class TagCatchTest(MetaflowTest):
     @tag("retry(times=2)")
     @steps(1, ["all"])
     def step_all(self):
-        import signal, os
+        import signal
+        import os
 
         # die an ugly death
         os.kill(os.getpid(), signal.SIGKILL)

@@ -24,7 +24,7 @@ class LocalMetadataProvider(MetadataProvider):
 
     @classmethod
     def compute_info(cls, val):
-        from metaflow.datastore.local_storage import LocalStorage
+        from metaflow.plugins.datastores.local_storage import LocalStorage
 
         v = os.path.realpath(os.path.join(val, DATASTORE_LOCAL_DIR))
         if os.path.isdir(v):
@@ -36,7 +36,7 @@ class LocalMetadataProvider(MetadataProvider):
 
     @classmethod
     def default_info(cls):
-        from metaflow.datastore.local_storage import LocalStorage
+        from metaflow.plugins.datastores.local_storage import LocalStorage
 
         def print_clean(line, **kwargs):
             print(line)
@@ -213,7 +213,7 @@ class LocalMetadataProvider(MetadataProvider):
         if obj_type not in ("root", "flow", "run", "step", "task", "artifact"):
             raise MetaflowInternalError(msg="Unexpected object type %s" % obj_type)
 
-        from metaflow.datastore.local_storage import LocalStorage
+        from metaflow.plugins.datastores.local_storage import LocalStorage
 
         if obj_type == "artifact":
             # Artifacts are actually part of the tasks in the filesystem
@@ -448,12 +448,12 @@ class LocalMetadataProvider(MetadataProvider):
         selfname = os.path.join(subpath, "_self.json")
         self._makedirs(subpath)
         if os.path.isfile(selfname):
-            # There is a race here but we are not aiming to make this as solid as
-            # the metadata service. This is used primarily for concurrent resumes
+            # There is a race here, but we are not aiming to make this as solid as
+            # the metadata service. This is used primarily for concurrent resumes,
             # so it is highly unlikely that this combination (multiple resumes of
             # the same flow on the same machine) happens.
             return False
-        # In this case, the metadata information does not exist so we create it
+        # In this case the metadata information does not exist, so we create it
         self._save_meta(
             subpath,
             {
@@ -488,7 +488,7 @@ class LocalMetadataProvider(MetadataProvider):
         flow_name=None, run_id=None, step_name=None, task_id=None, create_on_absent=True
     ):
 
-        from metaflow.datastore.local_storage import LocalStorage
+        from metaflow.plugins.datastores.local_storage import LocalStorage
 
         if LocalStorage.datastore_root is None:
 
@@ -518,7 +518,7 @@ class LocalMetadataProvider(MetadataProvider):
     def _create_and_get_metadir(
         flow_name=None, run_id=None, step_name=None, task_id=None
     ):
-        from metaflow.datastore.local_storage import LocalStorage
+        from metaflow.plugins.datastores.local_storage import LocalStorage
 
         root_path = LocalMetadataProvider._make_path(
             flow_name, run_id, step_name, task_id
@@ -529,7 +529,7 @@ class LocalMetadataProvider(MetadataProvider):
 
     @staticmethod
     def _get_metadir(flow_name=None, run_id=None, step_name=None, task_id=None):
-        from metaflow.datastore.local_storage import LocalStorage
+        from metaflow.plugins.datastores.local_storage import LocalStorage
 
         root_path = LocalMetadataProvider._make_path(
             flow_name, run_id, step_name, task_id, create_on_absent=False

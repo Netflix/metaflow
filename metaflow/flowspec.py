@@ -8,7 +8,7 @@ from types import FunctionType, MethodType
 from typing import Any, Callable, List, Optional, Sequence, Tuple, TypeVar
 
 from . import cmd_with_io
-from .parameters import Parameter
+from .parameters import DelayedEvaluationParameter, Parameter
 from .exception import (
     MetaflowException,
     MissingInMergeArtifactsException,
@@ -149,9 +149,8 @@ class FlowSpec(object):
         for var, param in self._get_parameters():
             seen.add(var)
             val = kwargs[param.name.replace("-", "_").lower()]
-            # Support for delayed evaluation of parameters. This is used for
-            # includefile in particular
-            if callable(val):
+            # Support for delayed evaluation of parameters.
+            if isinstance(val, DelayedEvaluationParameter):
                 val = val()
             val = val.split(param.separator) if val and param.separator else val
             setattr(self, var, val)
@@ -455,7 +454,7 @@ class FlowSpec(object):
             if v not in to_merge and not hasattr(self, v):
                 missing.append(v)
         if unresolved:
-            # We have unresolved conflicts so we do not set anything and error out
+            # We have unresolved conflicts, so we do not set anything and error out
             msg = (
                 "Step *{step}* cannot merge the following artifacts due to them "
                 "having conflicting values:\n[{artifacts}].\nTo remedy this issue, "
@@ -520,7 +519,7 @@ class FlowSpec(object):
           self.next(self.foreach_step, foreach='foreach_iterator')
           ```
           In this situation, `foreach_step` is a method in the current class decorated with the
-          `@step` docorator and `foreach_iterator` is a variable name in the current class that
+          `@step` decorator and `foreach_iterator` is a variable name in the current class that
           evaluates to an iterator. A task will be launched for each value in the iterator and
           each task will execute the code specified by the step `foreach_step`.
 

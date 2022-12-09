@@ -60,17 +60,20 @@ BIND_RETRY = 1
 
 
 class Server(object):
-    def __init__(self, max_pickle_version):
+    def __init__(self, config_dir, max_pickle_version):
 
         self._max_pickle_version = data_transferer.defaultProtocol = max_pickle_version
         try:
-            mappings = importlib.import_module("server_mappings")
+            mappings = importlib.import_module(".server_mappings", package=config_dir)
         except Exception as e:
             raise RuntimeError(
                 "Cannot import server_mappings from '%s': %s" % (sys.path[0], str(e))
             )
         try:
-            override_module = importlib.import_module("overrides")
+            # Import module as a relative package to make sure that it is consistent
+            # with how the client does it -- this enables us to do the same type of
+            # relative imports in overrides
+            override_module = importlib.import_module(".overrides", package=config_dir)
             override_values = override_module.__dict__.values()
         except ImportError:
             # We ignore so the file can be non-existent if not needed
@@ -117,18 +120,19 @@ class Server(object):
         for override in override_values:
             if isinstance(override, (RemoteAttrOverride, RemoteOverride)):
                 for obj_name, obj_funcs in override.obj_mapping.items():
+                    obj_type = self._known_classes.get(
+                        obj_name, self._proxied_types.get(obj_name)
+                    )
+                    if obj_type is None:
+                        raise ValueError(
+                            "%s does not refer to a proxied or exported type" % obj_name
+                        )
                     if isinstance(override, RemoteOverride):
-                        override_dict = self._overrides.setdefault(
-                            self._known_classes[obj_name], {}
-                        )
+                        override_dict = self._overrides.setdefault(obj_type, {})
                     elif override.is_setattr:
-                        override_dict = self._setattr_overrides.setdefault(
-                            self._known_classes[obj_name], {}
-                        )
+                        override_dict = self._setattr_overrides.setdefault(obj_type, {})
                     else:
-                        override_dict = self._getattr_overrides.setdefault(
-                            self._known_classes[obj_name], {}
-                        )
+                        override_dict = self._getattr_overrides.setdefault(obj_type, {})
                     if isinstance(obj_funcs, str):
                         obj_funcs = (obj_funcs,)
                     for name in obj_funcs:
@@ -475,6 +479,7 @@ class Server(object):
 
 if __name__ == "__main__":
     max_pickle_version = int(sys.argv[1])
-    socket_path = sys.argv[2]
-    s = Server(max_pickle_version)
+    config_dir = sys.argv[2]
+    socket_path = sys.argv[3]
+    s = Server(config_dir, max_pickle_version)
     s.serve(path=socket_path)

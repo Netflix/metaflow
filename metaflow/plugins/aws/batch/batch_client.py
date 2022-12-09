@@ -523,7 +523,7 @@ class RunningJob(object):
         # batch.submit_job API call is not strongly consistent(¯\_(ツ)_/¯).
         # We add a check here to guard against that. The `update()` call
         # will ensure that we poll `batch.describe_jobs` until we get a
-        # satisfactory response at least once through out the lifecycle of
+        # satisfactory response at least once throughout the lifecycle of
         # the job.
         if len(data["jobs"]) == 1:
             self._apply(data["jobs"][0])

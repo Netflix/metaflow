@@ -8,9 +8,9 @@ from metaflow import current
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
-    BATCH_METADATA_SERVICE_HEADERS,
-    BATCH_METADATA_SERVICE_URL,
-    DATASTORE_CARD_S3ROOT,
+    SERVICE_HEADERS,
+    SERVICE_INTERNAL_URL,
+    CARD_S3ROOT,
     DATASTORE_SYSROOT_S3,
     DATATOOLS_S3ROOT,
     DEFAULT_METADATA,
@@ -21,7 +21,9 @@ from metaflow.metaflow_config import (
     S3_ENDPOINT_URL,
     AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
     DATASTORE_SYSROOT_AZURE,
-    DATASTORE_CARD_AZUREROOT,
+    DATASTORE_SYSROOT_GS,
+    CARD_AZUREROOT,
+    CARD_GSROOT,
 )
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
@@ -79,7 +81,7 @@ class ArgoWorkflows(object):
         # scheduling new steps as soon as it detects that one of the DAG nodes
         # has failed. After waiting for all the scheduled DAG nodes to run till
         # completion, Argo with fail the DAG. This implies that after a node
-        # has failed, it may be a while before the entire DAG is marked as
+        # has failed, it may be awhile before the entire DAG is marked as
         # failed. There is nothing Metaflow can do here for failing even
         # faster (as of Argo 3.2).
         #
@@ -129,6 +131,13 @@ class ArgoWorkflows(object):
             )
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
+
+    @staticmethod
+    def _sanitize(name):
+        # Metaflow allows underscores in node names, which are disallowed in Argo
+        # Workflow template names - so we swap them with hyphens which are not
+        # allowed by Metaflow - guaranteeing uniqueness.
+        return name.replace("_", "-")
 
     @classmethod
     def trigger(cls, name, parameters={}):
@@ -262,7 +271,7 @@ class ArgoWorkflows(object):
         # Steps in FlowSpec are represented as DAGTasks.
         # A DAGTask can reference to -
         #     a ContainerTemplate (for linear steps..) or
-        #     another DAGTemplate (for nested foreaches).
+        #     another DAGTemplate (for nested `foreach`s).
         #
         # While we could have very well inlined container templates inside a DAGTask,
         # unfortunately Argo variable substitution ({{pod.name}}) doesn't work as
@@ -369,12 +378,6 @@ class ArgoWorkflows(object):
 
     # Visit every node and yield the uber DAGTemplate(s).
     def _dag_templates(self):
-        def _sanitize(name):
-            # Metaflow allows underscores in node names, which are disallowed in Argo
-            # Workflow template names - so we swap them with hyphens which are not
-            # allowed by Metaflow - guaranteeing uniqueness.
-            return name.replace("_", "-")
-
         def _visit(node, exit_node=None, templates=[], dag_tasks=[]):
             # Every for-each node results in a separate subDAG and an equivalent
             # DAGTemplate rooted at the child of the for-each node. Each DAGTemplate
@@ -388,7 +391,9 @@ class ArgoWorkflows(object):
 
             if node.name == "start":
                 # Start node has no dependencies.
-                dag_task = DAGTask(_sanitize(node.name)).template(node.name)
+                dag_task = DAGTask(self._sanitize(node.name)).template(
+                    self._sanitize(node.name)
+                )
             elif (
                 node.is_inside_foreach
                 and self.graph[node.in_funcs[0]].type == "foreach"
@@ -400,8 +405,8 @@ class ArgoWorkflows(object):
                     Parameter("split-index").value("{{inputs.parameters.split-index}}"),
                 ]
                 dag_task = (
-                    DAGTask(_sanitize(node.name))
-                    .template(node.name)
+                    DAGTask(self._sanitize(node.name))
+                    .template(self._sanitize(node.name))
                     .arguments(Arguments().parameters(parameters))
                 )
             else:
@@ -411,16 +416,18 @@ class ArgoWorkflows(object):
                         compress_list(
                             [
                                 "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}"
-                                % (n, _sanitize(n))
+                                % (n, self._sanitize(n))
                                 for n in node.in_funcs
                             ]
                         )
                     )
                 ]
                 dag_task = (
-                    DAGTask(_sanitize(node.name))
-                    .dependencies([_sanitize(in_func) for in_func in node.in_funcs])
-                    .template(node.name)
+                    DAGTask(self._sanitize(node.name))
+                    .dependencies(
+                        [self._sanitize(in_func) for in_func in node.in_funcs]
+                    )
+                    .template(self._sanitize(node.name))
                     .arguments(Arguments().parameters(parameters))
                 )
             dag_tasks.append(dag_task)
@@ -441,7 +448,7 @@ class ArgoWorkflows(object):
                 )
             # For foreach nodes generate a new sub DAGTemplate
             elif node.type == "foreach":
-                foreach_template_name = _sanitize(
+                foreach_template_name = self._sanitize(
                     "%s-foreach-%s"
                     % (
                         node.name,
@@ -450,14 +457,14 @@ class ArgoWorkflows(object):
                 )
                 foreach_task = (
                     DAGTask(foreach_template_name)
-                    .dependencies([_sanitize(node.name)])
+                    .dependencies([self._sanitize(node.name)])
                     .template(foreach_template_name)
                     .arguments(
                         Arguments().parameters(
                             [
                                 Parameter("input-paths").value(
                                     "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}"
-                                    % (node.name, _sanitize(node.name))
+                                    % (node.name, self._sanitize(node.name))
                                 ),
                                 Parameter("split-index").value("{{item}}"),
                             ]
@@ -465,7 +472,7 @@ class ArgoWorkflows(object):
                     )
                     .with_param(
                         "{{tasks.%s.outputs.parameters.num-splits}}"
-                        % _sanitize(node.name)
+                        % self._sanitize(node.name)
                     )
                 )
                 dag_tasks.append(foreach_task)
@@ -485,7 +492,7 @@ class ArgoWorkflows(object):
                                 Parameter("task-id").valueFrom(
                                     {
                                         "parameter": "{{tasks.%s.outputs.parameters.task-id}}"
-                                        % _sanitize(
+                                        % self._sanitize(
                                             self.graph[node.matching_join].in_funcs[0]
                                         )
                                     }
@@ -496,8 +503,8 @@ class ArgoWorkflows(object):
                     .dag(DAGTemplate().fail_fast().tasks(dag_tasks_1))
                 )
                 join_foreach_task = (
-                    DAGTask(_sanitize(self.graph[node.matching_join].name))
-                    .template(self.graph[node.matching_join].name)
+                    DAGTask(self._sanitize(self.graph[node.matching_join].name))
+                    .template(self._sanitize(self.graph[node.matching_join].name))
                     .dependencies([foreach_template_name])
                     .arguments(
                         Arguments().parameters(
@@ -571,7 +578,7 @@ class ArgoWorkflows(object):
                 task_str += "-{{inputs.parameters.input-paths}}"
             if any(self.graph[n].type == "foreach" for n in node.in_funcs):
                 task_str += "-{{inputs.parameters.split-index}}"
-            # Generated task_ids need to be non numeric - see register_task_id in
+            # Generated task_ids need to be non-numeric - see register_task_id in
             # service.py. We do so by prefixing `t-`
             task_id_expr = (
                 "export METAFLOW_TASK_ID="
@@ -665,8 +672,8 @@ class ArgoWorkflows(object):
                 if self.tags:
                     init.extend("--tag %s" % tag for tag in self.tags)
                 # if the start step gets retried, we must be careful
-                # not to regenerate multiple parameters tasks. Hence
-                # we check first if _parameters exists already
+                # not to regenerate multiple parameters tasks. Hence,
+                # we check first if _parameters exists already.
                 exists = entrypoint + [
                     "dump",
                     "--max-value-size=0",
@@ -739,7 +746,7 @@ class ArgoWorkflows(object):
             # variables -
             #   (1) User-specified environment variables through @environment
             #   (2) Metaflow runtime specific environment variables
-            #   (3) @kubernetes, @argo_workflows_internal book-keeping environment
+            #   (3) @kubernetes, @argo_workflows_internal bookkeeping environment
             #       variables
             env = dict(
                 [deco for deco in node.decorators if deco.name == "environment"][
@@ -754,16 +761,14 @@ class ArgoWorkflows(object):
                         "METAFLOW_CODE_URL": self.code_package_url,
                         "METAFLOW_CODE_SHA": self.code_package_sha,
                         "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
-                        "METAFLOW_SERVICE_URL": BATCH_METADATA_SERVICE_URL,
-                        "METAFLOW_SERVICE_HEADERS": json.dumps(
-                            BATCH_METADATA_SERVICE_HEADERS
-                        ),
+                        "METAFLOW_SERVICE_URL": SERVICE_INTERNAL_URL,
+                        "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
                         "METAFLOW_USER": "argo-workflows",
                         "METAFLOW_DATASTORE_SYSROOT_S3": DATASTORE_SYSROOT_S3,
                         "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
                         "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
                         "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
-                        "METAFLOW_CARD_S3ROOT": DATASTORE_CARD_S3ROOT,
+                        "METAFLOW_CARD_S3ROOT": CARD_S3ROOT,
                         "METAFLOW_KUBERNETES_WORKLOAD": 1,
                         "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
                         "METAFLOW_OWNER": self.username,
@@ -794,7 +799,11 @@ class ArgoWorkflows(object):
                 "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
             ] = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
             env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = DATASTORE_SYSROOT_AZURE
-            env["METAFLOW_DATASTORE_CARD_AZUREROOT"] = DATASTORE_CARD_AZUREROOT
+            env["METAFLOW_CARD_AZUREROOT"] = CARD_AZUREROOT
+
+            # GCP stuff
+            env["METAFLOW_DATASTORE_SYSROOT_GS"] = DATASTORE_SYSROOT_GS
+            env["METAFLOW_CARD_GSROOT"] = CARD_GSROOT
 
             metaflow_version = self.environment.get_environment_info()
             metaflow_version["flow_name"] = self.graph.name
@@ -835,7 +844,7 @@ class ArgoWorkflows(object):
             # twice, but due to issues with variable substitution, we will have to
             # live with this routine.
             yield (
-                Template(node.name)
+                Template(self._sanitize(node.name))
                 # Set @timeout values
                 .active_deadline_seconds(run_time_limit)
                 # Set service account
@@ -852,7 +861,7 @@ class ArgoWorkflows(object):
                     minutes_between_retries=minutes_between_retries,
                 ).metadata(
                     ObjectMeta().annotation("metaflow/step_name", node.name)
-                    # Unfortuntely, we can't set the task_id since it is generated
+                    # Unfortunately, we can't set the task_id since it is generated
                     # inside the pod. However, it can be inferred from the annotation
                     # set by argo-workflows - `workflows.argoproj.io/outputs` - refer
                     # the field 'task-id' in 'parameters'
@@ -887,7 +896,7 @@ class ArgoWorkflows(object):
                     # defined.
                     to_camelcase(
                         kubernetes_sdk.V1Container(
-                            name=node.name,
+                            name=self._sanitize(node.name),
                             command=cmds,
                             env=[
                                 kubernetes_sdk.V1EnvVar(name=k, value=str(v))
@@ -1180,7 +1189,7 @@ class Template(object):
         return self
 
     def container(self, container):
-        # Lucklily this can simply be V1Container and we are spared from writing more
+        # Luckily this can simply be V1Container and we are spared from writing more
         # boilerplate - https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1Container.md.
         self.payload["container"] = container
         return self

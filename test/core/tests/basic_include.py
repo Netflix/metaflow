@@ -26,9 +26,9 @@ with open('override.txt', mode='w') as f:
     @steps(0, ["all"])
     def step_all(self):
         assert_equals("Regular Text File", self.myfile_txt)
-        assert_equals(u"UTF Text File \u5e74", self.myfile_utf8)
+        assert_equals("UTF Text File \u5e74", self.myfile_utf8)
         assert_equals(
-            u"UTF Text File \u5e74".encode(encoding="utf8"), self.myfile_binary
+            "UTF Text File \u5e74".encode(encoding="utf8"), self.myfile_binary
         )
         assert_equals("Override Text File", self.myfile_overriden)
 
@@ -43,27 +43,11 @@ with open('override.txt', mode='w') as f:
 
     def check_results(self, flow, checker):
         for step in flow:
-            checker.assert_artifact(
-                step.name,
-                "myfile_txt",
-                None,
-                fields={"type": "uploader-v1", "is_text": True, "encoding": None},
-            )
-            checker.assert_artifact(
-                step.name,
-                "myfile_utf8",
-                None,
-                fields={"type": "uploader-v1", "is_text": True, "encoding": "utf8"},
-            )
+            checker.assert_artifact(step.name, "myfile_txt", "Regular Text File")
+            checker.assert_artifact(step.name, "myfile_utf8", "UTF Text File \u5e74")
             checker.assert_artifact(
                 step.name,
                 "myfile_binary",
-                None,
-                fields={"type": "uploader-v1", "is_text": False, "encoding": None},
+                "UTF Text File \u5e74".encode(encoding="utf8"),
             )
-            checker.assert_artifact(
-                step.name,
-                "myfile_overriden",
-                None,
-                fields={"type": "uploader-v1", "is_text": True, "encoding": None},
-            )
+        checker.assert_artifact(step.name, "myfile_overriden", "Override Text File")

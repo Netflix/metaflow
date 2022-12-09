@@ -8,7 +8,7 @@ from metaflow import util
 from metaflow import R, current
 
 from metaflow.decorators import StepDecorator
-from metaflow.plugins import ResourcesDecorator
+from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.metadata import MetaDatum
 from metaflow.metadata.util import sync_local_metadata_to_datastore
@@ -102,7 +102,7 @@ class BatchDecorator(StepDecorator):
             # If metaflow-config doesn't specify a docker image, assign a
             # default docker image.
             else:
-                # Metaflow-R has it's own default docker image (rocker family)
+                # Metaflow-R has its own default docker image (rocker family)
                 if R.use_r():
                     self.attributes["image"] = R.container_image()
                 # Default to vanilla Python image corresponding to major.minor
@@ -203,9 +203,9 @@ class BatchDecorator(StepDecorator):
             meta["aws-batch-jq-name"] = os.environ["AWS_BATCH_JQ_NAME"]
             meta["aws-batch-execution-env"] = os.environ["AWS_EXECUTION_ENV"]
 
-            # Capture AWS Logs metadata. This is best effort only since
+            # Capture AWS Logs metadata. This is best-effort only since
             # only V4 of the metadata uri for the ECS container hosts this
-            # information and it is quite likely that not all consumers of
+            # information, and it is quite likely that not all consumers of
             # Metaflow would be running the container agent compatible with
             # version V4.
             # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-metadata-endpoint.html
@@ -283,9 +283,9 @@ class BatchDecorator(StepDecorator):
 
     def _wait_for_mapper_tasks(self, flow, step_name):
         """
-        When lauching multinode task with UBF, need to wait for the secondary
+        When launching multinode task with UBF, need to wait for the secondary
         tasks to finish cleanly and produce their output before exiting the
-        main task. Otherwise main task finishing will cause secondary nodes
+        main task. Otherwise, the main task finishing will cause secondary nodes
         to terminate immediately, and possibly prematurely.
         """
         from metaflow import Step  # avoid circular dependency

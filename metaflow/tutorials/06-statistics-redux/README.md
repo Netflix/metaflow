@@ -6,7 +6,7 @@ running on remote compute. In this example we re-run the 'stats.py' workflow
 adding the '--with batch' command line argument. This instructs Metaflow to run
 all your steps on AWS batch without changing any code. You can control the
 behavior with additional arguments, like '--max-workers'. For this example,
-'max-workers' is used to limit the number of parallel genre specific statistics
+'max-workers' is used to limit the number of parallel genre-specific statistics
 computations.
 You can then access the data artifacts (even the local CSV file) from anywhere
 because the data is being stored in AWS S3.
@@ -31,9 +31,9 @@ this tutorial in any environment**
    b. ```conda config --add channels conda-forge```
 5. This tutorial requires access to compute and storage resources on AWS, which
    can be configured by
-   a. Following the instructions at
+   1. Following the instructions at
       https://docs.metaflow.org/metaflow-on-aws/deploy-to-aws or
-   b. Requesting a sandbox at
+   2. Requesting a sandbox at
       https://docs.metaflow.org/metaflow-on-aws/metaflow-sandbox
 
 

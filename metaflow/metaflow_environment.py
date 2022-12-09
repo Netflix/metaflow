@@ -104,6 +104,14 @@ class MetaflowEnvironment(object):
                 blob=blob,
                 container=container_name,
             )
+        elif datastore_type == "gs":
+            from .plugins.gcp.gs_utils import parse_gs_full_path
+
+            bucket_name, gs_object = parse_gs_full_path(code_package_url)
+            return (
+                "download-gcp-object --bucket=%s --object=%s --output-file=job.tar"
+                % (bucket_name, gs_object)
+            )
         else:
             raise NotImplementedError(
                 "We don't know how to generate a download code package cmd for datastore %s"
@@ -117,6 +125,11 @@ class MetaflowEnvironment(object):
         elif datastore_type == "azure":
             cmds.append(
                 "%s -m pip install azure-identity azure-storage-blob simple-azure-blob-downloader -qqq"
+                % self._python()
+            )
+        elif datastore_type == "gs":
+            cmds.append(
+                "%s -m pip install google-cloud-storage google-auth simple-gcp-object-downloader -qqq"
                 % self._python()
             )
         else:

@@ -70,7 +70,7 @@ class PlayListFlow(FlowSpec):
             for column in columns:
                 self.dataframe[column].append(fields[idx[column]])
 
-        # Compute genre specific movies and a bonus movie in parallel.
+        # Compute genre-specific movies and a bonus movie in parallel.
         self.next(self.bonus_movie, self.genre_movies)
 
     @step

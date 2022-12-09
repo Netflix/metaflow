@@ -59,7 +59,7 @@ class SidecarSubProcess(object):
 
         # Retry counts when needing to send a MUST_SEND message
         self._send_mustsend_remaining_tries = 0
-        # Keep track of the mustsend across restarts
+        # Keep track of the `mustsend` across restarts
         self._cached_mustsend = None
         # Tracks if a previous message had an error
         self._prev_message_error = False
@@ -148,9 +148,9 @@ class SidecarSubProcess(object):
         try:
             if msg.msg_type == MessageTypes.BEST_EFFORT:
                 # If we have a mustsend to send, we need to send it first prior to
-                # sending an best effort message
+                # sending a best-effort message
                 if self._send_mustsend_remaining_tries == -1:
-                    # We could not send the mustsend so we don't try to send this out;
+                    # We could not send the "mustsend" so we don't try to send this out;
                     # restart sidecar so use the PipeUnavailableError caught below
                     raise PipeUnavailableError()
                 elif self._send_mustsend_remaining_tries > 0:
@@ -174,7 +174,7 @@ class SidecarSubProcess(object):
                 self.start()
                 if self._cached_mustsend is not None:
                     self._send_mustsend_remaining_tries = MUST_SEND_RETRY_TIMES
-                    # We don't send the must send here, letting it send "lazily" on the
+                    # We don't send the "must send" here, letting it send "lazily" on the
                     # next message. The reason for this is to simplify the interactions
                     # with the retry logic.
             else:

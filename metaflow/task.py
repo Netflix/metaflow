@@ -6,7 +6,6 @@ import os
 import time
 
 from types import MethodType, FunctionType
-from metaflow.datastore import flow_datastore
 
 from metaflow.datastore.exceptions import DataException
 
@@ -102,7 +101,7 @@ class MetaflowTask(object):
 
         param_only_vars = list(all_vars)
         # make class-level values read-only to be more consistent across steps in a flow
-        # they are also only persisted once and so we similarly pass them down if
+        # they are also only persisted once, so we similarly pass them down if
         # required
         for var in dir(cls):
             if var[0] == "_" or var in cls._NON_PARAMETERS or var in all_vars:
@@ -206,7 +205,7 @@ class MetaflowTask(object):
                 )
 
             # assert that none of the inputs are splits - we don't
-            # allow empty foreaches (joins immediately following splits)
+            # allow empty `foreach`s (joins immediately following splits)
             if any(not i.is_none("_foreach_var") for i in inputs):
                 raise MetaflowInternalError(
                     "Step *%s* tries to join a foreach "

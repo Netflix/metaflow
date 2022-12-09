@@ -8,10 +8,11 @@ from hashlib import sha1
 
 from metaflow import JSONType, current, decorators, parameters
 from metaflow._vendor import click
-from metaflow.metaflow_config import METADATA_SERVICE_VERSION_CHECK
+from metaflow.metaflow_config import SERVICE_VERSION_CHECK
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.package import MetaflowPackage
-from metaflow.plugins import EnvironmentDecorator, KubernetesDecorator
+from metaflow.plugins.environment_decorator import EnvironmentDecorator
+from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
 
 # TODO: Move production_token to utils
 from metaflow.plugins.aws.step_functions.production_token import (
@@ -145,7 +146,7 @@ def create(
 
     obj.echo("Deploying *%s* to Argo Workflows..." % obj.workflow_name, bold=True)
 
-    if METADATA_SERVICE_VERSION_CHECK:
+    if SERVICE_VERSION_CHECK:
         # TODO: Consider dispelling with this check since it's been 2 years since the
         #       needed metadata service changes have been available in open-source. It's
         #       likely that Metaflow users may not have access to metadata service from
@@ -328,9 +329,9 @@ def make_flow(
 ):
     # TODO: Make this check less specific to Amazon S3 as we introduce
     #       support for more cloud object stores.
-    if obj.flow_datastore.TYPE not in ("azure", "s3"):
+    if obj.flow_datastore.TYPE not in ("azure", "gs", "s3"):
         raise MetaflowException(
-            "Argo Workflows requires --datastore=s3 or --datastore=azure"
+            "Argo Workflows requires --datastore=s3 or --datastore=azure or --datastore=gs"
         )
 
     # Attach @kubernetes and @environment decorator to the flow to
@@ -486,13 +487,11 @@ def trigger(obj, run_id_file=None, **kwargs):
     def _convert_value(param):
         # Swap `-` with `_` in parameter name to match click's behavior
         val = kwargs.get(param.name.replace("-", "_").lower())
-        return (
-            json.dumps(val)
-            if param.kwargs.get("type") == JSONType
-            else val()
-            if callable(val)
-            else val
-        )
+        if param.kwargs.get("type") == JSONType:
+            val = json.dumps(val)
+        elif isinstance(val, parameters.DelayedEvaluationParameter):
+            val = val(return_str=True)
+        return val
 
     params = {
         param.name: _convert_value(param)

@@ -89,7 +89,7 @@ class FlowDataStore(object):
             must also be specified, by default None
         pathspecs : List[str], optional
             Full task specs (run_id/step_name/task_id). Can be used instead of
-            specifiying run_id and steps, by default None
+            specifying run_id and steps, by default None
         allow_not_done : bool, optional
             If True, returns the latest attempt of a task even if that attempt
             wasn't marked as done, by default False
@@ -204,7 +204,7 @@ class FlowDataStore(object):
 
         Parameters
         ----------
-        data : Iterator[bytes]
+        data_iter : Iterator[bytes]
             Iterator over blobs to save; each item in the list will be saved individually.
         len_hint : int
             Estimate of the number of items that will be produced by the iterator,

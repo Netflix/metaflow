@@ -3,8 +3,9 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
 
 class DefaultEditableCardWithIdTest(MetaflowTest):
     """
-    `current.card.append` should add to default editable card and not the one with `id` when a card with `id` and non id are present
-        - Access of `current.card` with non existant id should not fail.
+    `current.card.append` should add to default editable card and not the one with `id`
+    when a card with `id` and non id are present
+        - Access of `current.card` with nonexistent id should not fail.
     """
 
     PRIORITY = 3
@@ -38,7 +39,7 @@ class DefaultEditableCardWithIdTest(MetaflowTest):
             # This means CliCheck is in context.
             for step in flow:
                 if step.name == "end":
-                    # Ensure we reach the `end` even even when a wrong `id` is used with `current.card`
+                    # Ensure we reach the `end` even when a wrong `id` is used with `current.card`
                     checker.assert_artifact(step.name, "here", True)
                     continue
                 elif step.name != "start":
@@ -74,7 +75,7 @@ class DefaultEditableCardWithIdTest(MetaflowTest):
             # This means MetadataCheck is in context.
             for step in flow:
                 if step.name == "end":
-                    # Ensure we reach the `end` even even when a wrong `id` is used with `current.card`
+                    # Ensure we reach the `end` even when a wrong `id` is used with `current.card`
                     checker.assert_artifact(step.name, "here", True)
                     continue
                 elif step.name != "start":

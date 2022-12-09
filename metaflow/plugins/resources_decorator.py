@@ -6,7 +6,7 @@ class ResourcesDecorator(StepDecorator):
     Specifies the resources needed when executing this step.
 
     Use `@resources` to specify the resource requirements
-    independently from the specific compute layer (`@batch`, `@kubernetes`).
+    independently of the specific compute layer (`@batch`, `@kubernetes`).
 
     You can choose the compute layer on the command line by executing e.g.
     ```

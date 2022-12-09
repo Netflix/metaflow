@@ -95,25 +95,12 @@ class CardDecorator(StepDecorator):
         self._logger = logger
         self.card_options = None
 
-        # Populate the defaults which may be missing.
-        missing_keys = set(self.defaults.keys()) - set(self.attributes.keys())
-        for k in missing_keys:
-            self.attributes[k] = self.defaults[k]
-
-        # when instantiation happens from the CLI we sometimes get stringified JSON and sometimes a dict for the
-        # `options` attributes. Hence we need to check for both and serialized.
-        if type(self.attributes["options"]) is str:
-            try:
-                self.card_options = json.loads(self.attributes["options"])
-            except json.decoder.JSONDecodeError:
-                self.card_options = self.defaults["options"]
-        else:
-            self.card_options = self.attributes["options"]
+        self.card_options = self.attributes["options"]
 
         evt_name = "step-init"
         # `'%s-%s'%(evt_name,step_name)` ensures that we capture this once per @card per @step.
         # Since there can be many steps checking if event is registered for `evt_name` will only make it check it once for all steps.
-        # Hence we have `_is_event_registered('%s-%s'%(evt_name,step_name))`
+        # Hence, we have `_is_event_registered('%s-%s'%(evt_name,step_name))`
         evt = "%s-%s" % (evt_name, step_name)
         if not self._is_event_registered(evt):
             # We set the total count of decorators so that we can use it for
@@ -183,9 +170,9 @@ class CardDecorator(StepDecorator):
         )
         self._card_uuid = card_metadata["uuid"]
 
-        # This means that the we are calling `task_pre_step` on the last card decorator.
+        # This means that we are calling `task_pre_step` on the last card decorator.
         # We can now `finalize` method in the CardComponentCollector object.
-        # This will setup the `current.card` object for usage inside `@step` code.
+        # This will set up the `current.card` object for usage inside `@step` code.
         if self.step_counter == self.total_decos_on_step[step_name]:
             current.card._finalize()
 
@@ -220,8 +207,11 @@ class CardDecorator(StepDecorator):
             "environment": self._environment.TYPE,
             "datastore": self._flow_datastore.TYPE,
             "datastore-root": self._flow_datastore.datastore_root,
+            "no-pylint": True,
+            "event-logger": "nullSidecarLogger",
+            "monitor": "nullSidecarMonitor",
             # We don't provide --with as all execution is taking place in
-            # the context of the main processs
+            # the context of the main process
         }
         return list(self._options(top_level_options))
 
@@ -255,8 +245,7 @@ class CardDecorator(StepDecorator):
         if self._user_set_card_id is not None:
             cmd += ["--id", str(self._user_set_card_id)]
 
-        # Doing this because decospecs parse information as str, since some non-runtime decorators pass it as bool we parse bool to str
-        if str(self.attributes["save_errors"]) == "True":
+        if self.attributes["save_errors"]:
             cmd += ["--render-error-card"]
 
         if temp_file is not None:

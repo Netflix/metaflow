@@ -8,7 +8,7 @@ class MetaflowCard(object):
     After a task with `@card(type=T, options=S)` finishes executing, Metaflow instantiates
     a subclass `C` of `MetaflowCard` that has its `type` attribute set to `T`, i.e. `C.type=T`.
     The constructor is given the options dictionary `S` that contains arbitrary
-    JSON-encodeable data that is passed to the instance, parametrizing the card. The subclass
+    JSON-encodable data that is passed to the instance, parametrizing the card. The subclass
     may override the constructor to capture and process the options.
 
     The subclass needs to implement a `render(task)` method that produces the card
@@ -23,7 +23,7 @@ class MetaflowCard(object):
     Parameters
     ----------
     options : Dict
-        JSON-encodeable dictionary containing user-defineable options for the class.
+        JSON-encodable dictionary containing user-definable options for the class.
     """
 
     type = None

@@ -24,11 +24,12 @@ from .util import (
 from .task import MetaflowTask
 from .exception import CommandException, MetaflowException
 from .graph import FlowGraph
-from .datastore import DATASTORES, FlowDataStore, TaskDataStoreSet, TaskDataStore
+from .datastore import FlowDataStore, TaskDataStoreSet, TaskDataStore
 
 from .runtime import NativeRuntime
 from .package import MetaflowPackage
 from .plugins import (
+    DATASTORES,
     ENVIRONMENTS,
     LOGGING_SIDECARS,
     METADATA_PROVIDERS,
@@ -109,7 +110,7 @@ def echo_always(line, **kwargs):
         click.secho(ERASE_TO_EOL, **kwargs)
 
 
-def logger(body="", system_msg=False, head="", bad=False, timestamp=True):
+def logger(body="", system_msg=False, head="", bad=False, timestamp=True, nl=True):
     if timestamp:
         if timestamp is True:
             dt = datetime.now()
@@ -119,7 +120,7 @@ def logger(body="", system_msg=False, head="", bad=False, timestamp=True):
         click.secho(tstamp + " ", fg=LOGGER_TIMESTAMP, nl=False)
     if head:
         click.secho(head, fg=LOGGER_COLOR, nl=False)
-    click.secho(body, bold=system_msg, fg=LOGGER_BAD_COLOR if bad else None)
+    click.secho(body, bold=system_msg, fg=LOGGER_BAD_COLOR if bad else None, nl=nl)
 
 
 @click.group()
@@ -429,6 +430,12 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
     help="A comma-separated list of pathspecs specifying inputs for this step.",
 )
 @click.option(
+    "--input-paths-filename",
+    type=click.Path(exists=True, readable=True, dir_okay=False, resolve_path=True),
+    help="A filename containing the argument typically passed to `input-paths`",
+    hidden=True,
+)
+@click.option(
     "--split-index",
     type=int,
     default=None,
@@ -506,6 +513,7 @@ def step(
     run_id=None,
     task_id=None,
     input_paths=None,
+    input_paths_filename=None,
     split_index=None,
     opt_namespace=None,
     retry_count=None,
@@ -544,6 +552,10 @@ def step(
     cli_args._set_step_kwargs(step_kwargs)
 
     ctx.obj.metadata.add_sticky_tags(tags=opt_tag)
+    if not input_paths and input_paths_filename:
+        with open(input_paths_filename, mode="r", encoding="utf-8") as f:
+            input_paths = f.read().strip(" \n\"'")
+
     paths = decompress_list(input_paths) if input_paths else []
 
     task = MetaflowTask(
@@ -854,8 +866,8 @@ def before_run(obj, tags, decospecs):
     # This is a very common use case of --with.
     #
     # A downside is that we need to have the following decorators handling
-    # in two places in this module and we need to make sure that
-    # _init_step_decorators doesn't get called twice.
+    # in two places in this module and make sure _init_step_decorators
+    # doesn't get called twice.
     if decospecs:
         decorators._attach_decorators(obj.flow, decospecs)
         obj.graph = FlowGraph(obj.flow.__class__)
@@ -912,7 +924,7 @@ def version(obj):
     "--datastore",
     default=DEFAULT_DATASTORE,
     show_default=True,
-    type=click.Choice(DATASTORES),
+    type=click.Choice([d.TYPE for d in DATASTORES]),
     help="Data backend type",
 )
 @click.option("--datastore-root", help="Root path for datastore")
@@ -1010,7 +1022,7 @@ def start(
         ctx.obj.environment, ctx.obj.flow, ctx.obj.event_logger, ctx.obj.monitor
     )
 
-    ctx.obj.datastore_impl = DATASTORES[datastore]
+    ctx.obj.datastore_impl = [d for d in DATASTORES if d.TYPE == datastore][0]
 
     if datastore_root is None:
         datastore_root = ctx.obj.datastore_impl.get_datastore_root_from_config(
@@ -1034,7 +1046,7 @@ def start(
     )
 
     # It is important to initialize flow decorators early as some of the
-    # things they provide may be used by some of the objects initialize after.
+    # things they provide may be used by some of the objects initialized after.
     decorators._init_flow_decorators(
         ctx.obj.flow,
         ctx.obj.graph,

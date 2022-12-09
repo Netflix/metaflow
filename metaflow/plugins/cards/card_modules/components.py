@@ -9,7 +9,7 @@ from .basic import (
     MarkdownComponent,
 )
 from .card import MetaflowCardComponent
-from .convert_to_native_type import TaskToDict
+from .convert_to_native_type import TaskToDict, _full_classname
 from .renderer_tools import render_safely
 
 
@@ -80,7 +80,7 @@ class Table(UserComponent):
     import numpy as np
     current.card.append(
         Table.from_dataframe(
-            pandas.DataFrame(
+            pd.DataFrame(
                 np.random.randint(0, 100, size=(15, 4)),
                 columns=list("ABCD")
             )
@@ -166,8 +166,8 @@ class Image(UserComponent):
     """
     An image.
 
-    `Image`s can be created direcly from PNG/JPG/GIF `bytes`, `PIL.Image`s,
-    or Matplotib figures. Note that the image data is embedded in the card,
+    `Images can be created directly from PNG/JPG/GIF `bytes`, `PIL.Image`s,
+    or Matplotlib figures. Note that the image data is embedded in the card,
     so no external files are required to show the image.
 
     Example: Create an `Image` from bytes:
@@ -227,7 +227,7 @@ class Image(UserComponent):
             except TypeError:
                 self._error_comp = ErrorComponent(
                     self.render_fail_headline(
-                        "first argument should be of type `bytes` or vaild image base64 string"
+                        "first argument should be of type `bytes` or valid image base64 string"
                     ),
                     "Type of %s is invalid" % (str(type(src))),
                 )
@@ -248,7 +248,7 @@ class Image(UserComponent):
             else:
                 self._error_comp = ErrorComponent(
                     self.render_fail_headline(
-                        "first argument should be of type `bytes` or vaild image base64 string"
+                        "first argument should be of type `bytes` or valid image base64 string"
                     ),
                     "String %s is invalid base64 string" % src,
                 )
@@ -318,7 +318,7 @@ class Image(UserComponent):
 
         Parameters
         ----------
-        plot : matplotlib.axes.Axes
+        plot :  matplotlib.figure.Figure or matplotlib.axes.Axes or matplotlib.axes._subplots.AxesSubplot
             a PIL axes (plot) object.
         label : str, optional
             Optional label for the image.
@@ -326,7 +326,6 @@ class Image(UserComponent):
         import io
 
         try:
-            plt = getattr(plot, "get_figure", None)
             try:
                 import matplotlib.pyplot as pyplt
             except ImportError:
@@ -334,15 +333,26 @@ class Image(UserComponent):
                     cls.render_fail_headline("Matplotlib cannot be imported"),
                     "%s" % traceback.format_exc(),
                 )
-            if plt is None:
-                return ErrorComponent(
-                    cls.render_fail_headline(
-                        "Invalid Type. Object %s is not from `matplotlib`" % type(plot)
-                    ),
-                    "",
-                )
+            # First check if it is a valid Matplotlib figure.
+            figure = None
+            if _full_classname(plot) == "matplotlib.figure.Figure":
+                figure = plot
+
+            # If it is not valid figure then check if it is matplotlib.axes.Axes or a matplotlib.axes._subplots.AxesSubplot
+            # These contain the `get_figure` function to get the main figure object.
+            if figure is None:
+                if getattr(plot, "get_figure", None) is None:
+                    return ErrorComponent(
+                        cls.render_fail_headline(
+                            "Invalid Type. Object %s is not from `matplotlib`"
+                            % type(plot)
+                        ),
+                        "",
+                    )
+                else:
+                    figure = plot.get_figure()
+
             task_to_dict = TaskToDict()
-            figure = plot.get_figure()
             img_bytes_arr = io.BytesIO()
             figure.savefig(img_bytes_arr, format="PNG")
             parsed_image = task_to_dict.parse_image(img_bytes_arr.getvalue())

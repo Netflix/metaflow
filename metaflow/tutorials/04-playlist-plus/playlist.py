@@ -23,7 +23,7 @@ class PlayListFlow(FlowSpec):
 
     The flow performs the following steps:
 
-    1) Load the genre specific statistics from the MovieStatsFlow.
+    1) Load the genre-specific statistics from the MovieStatsFlow.
     2) In parallel branches:
        - A) Build a playlist from the top films in the requested genre.
        - B) Choose a bonus movie that has the closest string edit distance to
@@ -71,7 +71,7 @@ class PlayListFlow(FlowSpec):
         print("Using analysis from '%s'" % str(run))
 
         # Get the dataframe from the start step before we sliced into into
-        # genre specific dataframes.
+        # genre-specific dataframes.
         self.dataframe = run["start"].task.data.dataframe
 
         # Also grab the summary statistics.

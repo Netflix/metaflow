@@ -1,4 +1,5 @@
 from __future__ import print_function
+import inspect
 import sys
 
 from functools import partial
@@ -22,7 +23,7 @@ class Debug(object):
         import metaflow.metaflow_config as config
 
         for typ in config.DEBUG_OPTIONS:
-            if getattr(config, "METAFLOW_DEBUG_%s" % typ.upper()):
+            if getattr(config, "DEBUG_%s" % typ.upper()):
                 op = partial(self.log, typ)
             else:
                 op = self.noop
@@ -37,7 +38,9 @@ class Debug(object):
             s = args
         else:
             s = " ".join(args)
-        print("debug[%s]: %s" % (typ, s), file=sys.stderr)
+        lineno = inspect.currentframe().f_back.f_lineno
+        filename = inspect.stack()[1][1]
+        print("debug[%s %s:%s]: %s" % (typ, filename, lineno, s), file=sys.stderr)
 
     def noop(self, args):
         pass

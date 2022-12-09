@@ -1,5 +1,6 @@
 from metaflow.decorators import FlowDecorator
 
+
 # TODO (savin): Lift this decorator up since it's also used by Argo now
 class ScheduleDecorator(FlowDecorator):
     """

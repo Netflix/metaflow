@@ -7,9 +7,9 @@ import time
 from metaflow import current, util
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
-    BATCH_METADATA_SERVICE_HEADERS,
-    BATCH_METADATA_SERVICE_URL,
-    DATASTORE_CARD_S3ROOT,
+    SERVICE_HEADERS,
+    SERVICE_INTERNAL_URL,
+    CARD_S3ROOT,
     DATASTORE_SYSROOT_S3,
     DATATOOLS_S3ROOT,
     DEFAULT_AWS_CLIENT_PROVIDER,
@@ -18,7 +18,9 @@ from metaflow.metaflow_config import (
     S3_ENDPOINT_URL,
     AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
     DATASTORE_SYSROOT_AZURE,
-    DATASTORE_CARD_AZUREROOT,
+    CARD_AZUREROOT,
+    CARD_GSROOT,
+    DATASTORE_SYSROOT_GS,
 )
 from metaflow.mflog import (
     BASH_SAVE_LOGS,
@@ -180,10 +182,10 @@ class Kubernetes(object):
             .environment_variable("METAFLOW_CODE_URL", code_package_url)
             .environment_variable("METAFLOW_CODE_DS", code_package_ds)
             .environment_variable("METAFLOW_USER", user)
-            .environment_variable("METAFLOW_SERVICE_URL", BATCH_METADATA_SERVICE_URL)
+            .environment_variable("METAFLOW_SERVICE_URL", SERVICE_INTERNAL_URL)
             .environment_variable(
                 "METAFLOW_SERVICE_HEADERS",
-                json.dumps(BATCH_METADATA_SERVICE_HEADERS),
+                json.dumps(SERVICE_HEADERS),
             )
             .environment_variable("METAFLOW_DATASTORE_SYSROOT_S3", DATASTORE_SYSROOT_S3)
             .environment_variable("METAFLOW_DATATOOLS_S3ROOT", DATATOOLS_S3ROOT)
@@ -191,7 +193,7 @@ class Kubernetes(object):
             .environment_variable("METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA)
             .environment_variable("METAFLOW_KUBERNETES_WORKLOAD", 1)
             .environment_variable("METAFLOW_RUNTIME_ENVIRONMENT", "kubernetes")
-            .environment_variable("METAFLOW_CARD_S3ROOT", DATASTORE_CARD_S3ROOT)
+            .environment_variable("METAFLOW_CARD_S3ROOT", CARD_S3ROOT)
             .environment_variable(
                 "METAFLOW_DEFAULT_AWS_CLIENT_PROVIDER", DEFAULT_AWS_CLIENT_PROVIDER
             )
@@ -203,7 +205,9 @@ class Kubernetes(object):
             .environment_variable(
                 "METAFLOW_DATASTORE_SYSROOT_AZURE", DATASTORE_SYSROOT_AZURE
             )
-            .environment_variable("METAFLOW_CARD_AZUREROOT", DATASTORE_CARD_AZUREROOT)
+            .environment_variable("METAFLOW_CARD_AZUREROOT", CARD_AZUREROOT)
+            .environment_variable("METAFLOW_DATASTORE_SYSROOT_GS", DATASTORE_SYSROOT_GS)
+            .environment_variable("METAFLOW_CARD_GSROOT", CARD_GSROOT)
             # support Metaflow sandboxes
             .environment_variable(
                 "METAFLOW_INIT_SCRIPT", KUBERNETES_SANDBOX_INIT_SCRIPT
@@ -323,6 +327,8 @@ class Kubernetes(object):
                         "Increase the available memory by specifying "
                         "@resource(memory=...) for the step. "
                     )
+                if int(exit_code) == 134:
+                    raise KubernetesException("%s (exit code %s)" % (msg, exit_code))
                 else:
                     msg = "%s (exit code %s)" % (msg, exit_code)
             raise KubernetesException(

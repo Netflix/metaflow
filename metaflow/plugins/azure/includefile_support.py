@@ -29,9 +29,9 @@ class Azure(object):
         # we parse out the container name only, and use that to root our storage implementation
         container_name, _ = parse_azure_full_path(key)
         # Import DATASTORES dynamically... otherwise, circular import
-        from metaflow.datastore import DATASTORES
+        from metaflow.plugins import DATASTORES
 
-        storage_impl = DATASTORES["azure"]
+        storage_impl = [d for d in DATASTORES if d.TYPE == "azure"][0]
         return storage_impl(container_name)
 
     def __enter__(self):
@@ -42,7 +42,11 @@ class Azure(object):
             shutil.rmtree(self._tmpdir)
 
     def get(self, key=None, return_missing=False):
-        """Key MUST be a fully qualified path.  <container_name>/b/l/o/b/n/a/m/e"""
+        """Key MUST be a fully qualified path with uri scheme.  azure://<container_name>/b/l/o/b/n/a/m/e"""
+        # Azure.get() is meant for use within includefile.py ONLY.
+        # All existing call sites set return_missing=True.
+        #
+        # Support for return_missing=False may be added if/when the situation changes.
         if not return_missing:
             raise MetaflowException("Azure object supports only return_missing=True")
         # We fabricate a uri scheme to fit into existing includefile code (just like local://)
@@ -57,13 +61,17 @@ class Azure(object):
         with storage.load_bytes([short_key]) as load_result:
             for _, tmpfile, _ in load_result:
                 if tmpfile is None:
-                    azure_object = AzureObject(uri_style_key, None, False)
+                    azure_object = AzureObject(uri_style_key, None, False, None)
                 else:
                     if not self._tmpdir:
                         self._tmpdir = mkdtemp(prefix="metaflow.includefile.azure.")
                     output_file_path = os.path.join(self._tmpdir, str(uuid.uuid4()))
                     shutil.move(tmpfile, output_file_path)
-                    azure_object = AzureObject(uri_style_key, output_file_path, True)
+                    # Beats making another Azure API call!
+                    sz = os.stat(output_file_path).st_size
+                    azure_object = AzureObject(
+                        uri_style_key, output_file_path, True, sz
+                    )
                 break
         return azure_object
 
@@ -74,12 +82,29 @@ class Azure(object):
         # We fabricate a uri scheme to fit into existing includefile code (just like local://)
         return "azure://%s" % key
 
+    def info(self, key=None, return_missing=False):
+        # We fabricate a uri scheme to fit into existing includefile code (just like local://)
+        if not key.startswith("azure://"):
+            raise MetaflowInternalError(
+                msg="Expected Azure object key to start with 'azure://'"
+            )
+        # aliasing this purely for clarity
+        uri_style_key = key
+        short_key = key[8:]
+        storage = self._get_storage_backend(short_key)
+        blob_size = storage.size_file(short_key)
+        blob_exists = blob_size is not None
+        if not blob_exists and not return_missing:
+            raise MetaflowException("Azure blob '%s' not found" % uri_style_key)
+        return AzureObject(uri_style_key, None, blob_exists, blob_size)
+
 
 class AzureObject(object):
-    def __init__(self, url, path, exists):
+    def __init__(self, url, path, exists, size):
         self._path = path
         self._url = url
         self._exists = exists
+        self._size = size
 
     @property
     def path(self):
@@ -92,3 +117,7 @@ class AzureObject(object):
     @property
     def exists(self):
         return self._exists
+
+    @property
+    def size(self):
+        return self._size

@@ -255,7 +255,9 @@ class NativeRuntime(object):
                     self._logger(msg, system_msg=True)
                     if len(self._unprocessed_steps) > 0:
                         if len(self._unprocessed_steps) == 1:
-                            msg = "%s step has not started" % self._unprocessed_steps[0]
+                            msg = "%s step has not started" % (
+                                next(iter(self._unprocessed_steps)),
+                            )
                         else:
                             msg = "%d steps have not started: " % len(
                                 self._unprocessed_steps
@@ -770,7 +772,7 @@ class Task(object):
                 except ValueError:
                     pass
 
-                # If _get_task_id returns True it means the task already existed so
+                # If _get_task_id returns True it means the task already existed, so
                 # we wait for it.
                 self._wait_for_clone = self._get_task_id(clone_task_id)
             else:
@@ -918,7 +920,7 @@ class Task(object):
                     attempt_id,
                     sys_tags=tags,
                 )
-                # A Task's tags are now those of its ancestral Run so we are not able
+                # A Task's tags are now those of its ancestral Run, so we are not able
                 # to rely on a task's tags to indicate the presence of a control task
                 # so, on top of adding the tags above, we also add a task metadata
                 # entry indicating that this is a "control task".
@@ -1122,7 +1124,7 @@ class CLIArgs(object):
             for k, v in mapping.items():
 
                 # None or False arguments are ignored
-                # v needs to be explicitly False, not falsy, eg. 0 is an acceptable value
+                # v needs to be explicitly False, not falsy, e.g. 0 is an acceptable value
                 if v is None or v is False:
                     continue
 
@@ -1183,7 +1185,7 @@ class Worker(object):
         # A killed task is always considered cleaned
         self.cleaned = False  # A cleaned task is one that is shutting down and has been
         # noticed by the runtime and queried for its state (whether or
-        # not is is properly shut down)
+        # not it is properly shut down)
 
     def _launch(self):
         args = CLIArgs(self.task)
@@ -1234,7 +1236,7 @@ class Worker(object):
                 if res.should_persist:
                     # in special circumstances we may receive structured
                     # loglines that haven't been properly persisted upstream.
-                    # This is the case e.g. if a task crashes in an external
+                    # This is the case if, for example, a task crashes in an external
                     # system and we retrieve the remaining logs after the crash.
                     # Those lines are marked with a special tag, should_persist,
                     # which we process here

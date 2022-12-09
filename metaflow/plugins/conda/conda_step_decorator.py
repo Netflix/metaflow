@@ -24,7 +24,6 @@ from metaflow.metaflow_config import (
     get_pinned_conda_libs,
 )
 from metaflow.util import get_metaflow_root
-from metaflow.datastore import DATASTORES, LocalStorage
 
 from ..env_escape import generate_trampolines
 from . import read_conda_manifest, write_to_conda_manifest, get_conda_package_root
@@ -42,7 +41,7 @@ class CondaStepDecorator(StepDecorator):
     Specifies the Conda environment for the step.
 
     Information in this decorator will augment any
-    attributes set in the `@conda_base` flow-level decorator. Hence
+    attributes set in the `@conda_base` flow-level decorator. Hence,
     you can use `@conda_base` to set common libraries required by all
     steps and use `@conda` to specify step-specific additions.
 
@@ -97,13 +96,7 @@ class CondaStepDecorator(StepDecorator):
         base_deps = self.base_attributes["libraries"]
         deps.update(base_deps)
         step_deps = self.attributes["libraries"]
-        if isinstance(step_deps, (unicode, basestring)):
-            step_deps = step_deps.strip("\"{}'")
-            if step_deps:
-                step_deps = dict(
-                    map(lambda x: x.strip().strip("\"'"), a.split(":"))
-                    for a in step_deps.split(",")
-                )
+
         deps.update(step_deps)
         return deps
 
@@ -155,7 +148,7 @@ class CondaStepDecorator(StepDecorator):
                 payload = cached_deps[env_id]
 
             if (
-                self.flow_datastore.TYPE in ("s3", "azure")
+                self.flow_datastore.TYPE in ("s3", "azure", "gs")
                 and "cache_urls" not in payload
             ):
                 payload["cache_urls"] = self._cache_env()
@@ -166,6 +159,9 @@ class CondaStepDecorator(StepDecorator):
         return env_id
 
     def _cache_env(self):
+        # Move here to avoid circular imports
+        from metaflow.plugins import DATASTORES
+
         def _download(entry):
             url, local_path = entry
             with requests.get(url, stream=True) as r:
@@ -203,7 +199,7 @@ class CondaStepDecorator(StepDecorator):
 
         # We need our own storage backend so that we can customize datastore_root on it
         # in a clearly safe way, without the existing backend owned by FlowDatastore
-        storage_impl = DATASTORES[self.flow_datastore.TYPE]
+        storage_impl = [d for d in DATASTORES if d.TYPE == self.flow_datastore.TYPE][0]
         storage = storage_impl(get_conda_package_root(self.flow_datastore.TYPE))
         storage.save_bytes(
             list_of_path_and_filehandle, len_hint=len(list_of_path_and_filehandle)
@@ -274,7 +270,7 @@ class CondaStepDecorator(StepDecorator):
         else:
             # If there is no "INFO" file, we will actually create one in this new
             # place because we won't be able to properly resolve the EXT_PKG extensions
-            # the same way as outside conda (looking at distributions, etc). In a
+            # the same way as outside conda (looking at distributions, etc.). In a
             # Conda environment, as shown below (where we set self.addl_paths), all
             # EXT_PKG extensions are PYTHONPATH extensions. Instead of re-resolving,
             # we use the resolved information that is written out to the INFO file.
@@ -303,7 +299,7 @@ class CondaStepDecorator(StepDecorator):
                 )
             else:
                 # This is a namespace package, we therefore create a bunch of directories
-                # so we can symlink in those separately and we will add those paths
+                # so that we can symlink in those separately, and we will add those paths
                 # to the PYTHONPATH for the interpreter. Note that we don't symlink
                 # to the parent of the package because that could end up including
                 # more stuff we don't want
@@ -318,6 +314,9 @@ class CondaStepDecorator(StepDecorator):
         generate_trampolines(self.metaflow_home)
 
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
+        # Move here to avoid circular import
+        from metaflow.plugins.datastores.local_storage import LocalStorage
+
         if environment.TYPE != "conda":
             raise InvalidEnvironmentException(
                 "The *@conda* decorator requires " "--environment=conda"

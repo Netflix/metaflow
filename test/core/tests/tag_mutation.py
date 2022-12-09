@@ -97,7 +97,7 @@ class TagMutationTest(MetaflowTest):
             assert run.end_task.tags == run.tags
 
             # Validate deprecated functionality (maintained for backwards compatibility
-            # until usage migrated off
+            # until usage migrated off)
             # When that happens, these test cases may be removed.
             checker.add_tag(["whoop", "eee"])
             assert "whoop" in checker.get_user_tags()

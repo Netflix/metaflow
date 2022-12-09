@@ -15,10 +15,10 @@ use the client to access information about any flow from anywhere.**
 1. ```python -m pip install notebook```
 2. This tutorial requires access to compute and storage resources on AWS, which
    can be configured by 
-   a. Following the instructions at 
-      https://docs.metaflow.org/metaflow-on-aws/deploy-to-aws or
-   b. Requesting a sandbox at 
-      https://docs.metaflow.org/metaflow-on-aws/metaflow-sandbox
+   1. Following the instructions at 
+         https://docs.metaflow.org/metaflow-on-aws/deploy-to-aws or
+   2. Requesting a sandbox at 
+         https://docs.metaflow.org/metaflow-on-aws/metaflow-sandbox
 
 #### To play this episode:
 1. ```cd metaflow-tutorials```
