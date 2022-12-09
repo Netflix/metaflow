@@ -110,19 +110,16 @@ class KubernetesDecorator(StepDecorator):
             )
 
         if self.attributes["tolerations"]:
-            attribute_map = [
-                "effect",
-                "key",
-                "operator",
-                "toleration_seconds",
-                "value",
-            ]
-            for toleration in self.attributes["tolerations"]:
-                invalid_keys = [k for k in toleration.keys() if k not in attribute_map]
-                if len(invalid_keys) > 0:
-                    raise KubernetesException(
-                        "Tolerations parameter contains invalid keys: %s" % invalid_keys
-                    )
+            try:
+                from kubernetes.client import V1Toleration
+                for toleration in self.attributes["tolerations"]:
+                    invalid_keys = [k for k in toleration.keys() if k not in V1Toleration.attribute_map.keys()]
+                    if len(invalid_keys) > 0:
+                        raise KubernetesException(
+                            "Tolerations parameter contains invalid keys: %s" % invalid_keys
+                        )
+            except (NameError, ImportError):
+                pass
 
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:
