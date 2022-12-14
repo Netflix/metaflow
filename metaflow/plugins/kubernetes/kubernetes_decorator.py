@@ -113,15 +113,21 @@ class KubernetesDecorator(StepDecorator):
             try:
                 from kubernetes.client import V1Toleration
                 for toleration in self.attributes["tolerations"]:
-                    invalid_keys = [
-                        k
-                        for k in toleration.keys()
-                        if k not in V1Toleration.attribute_map.keys()
-                    ]
-                    if len(invalid_keys) > 0:
+                    try:
+                        invalid_keys = [
+                            k
+                            for k in toleration.keys()
+                            if k not in V1Toleration.attribute_map.keys()
+                        ]
+                        if len(invalid_keys) > 0:
+                            raise KubernetesException(
+                                "Tolerations parameter contains invalid keys: %s"
+                                % invalid_keys
+                            )
+                    except AttributeError:
                         raise KubernetesException(
-                            "Tolerations parameter contains invalid keys: %s"
-                            % invalid_keys
+                            "Unable to parse tolerations: %s"
+                            % self.attributes["tolerations"]
                         )
             except (NameError, ImportError):
                 pass
@@ -277,7 +283,7 @@ class KubernetesDecorator(StepDecorator):
             for k, v in self.attributes.items():
                 if k == "namespace":
                     cli_args.command_options["k8s_namespace"] = v
-                elif k == "node_selector":
+                elif k == "node_selector" and v:
                     cli_args.command_options[k] = ",".join(
                         ["=".join([key, str(val)]) for key, val in v.items()]
                     )
@@ -378,7 +384,13 @@ class KubernetesDecorator(StepDecorator):
 
     @staticmethod
     def parse_node_selector(node_selector: list):
-        return {
-            str(k.split("=", 1)[0]): str(k.split("=", 1)[1])
-            for k in node_selector or []
-        }
+        try:
+            return {
+                str(k.split("=", 1)[0]): str(k.split("=", 1)[1])
+                for k in node_selector or []
+            }
+        except (AttributeError, IndexError):
+            raise KubernetesException(
+                "Unable to parse node_selector: %s"
+                % node_selector
+            )
