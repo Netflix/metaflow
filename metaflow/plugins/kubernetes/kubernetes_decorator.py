@@ -112,6 +112,7 @@ class KubernetesDecorator(StepDecorator):
         if self.attributes["tolerations"]:
             try:
                 from kubernetes.client import V1Toleration
+
                 for toleration in self.attributes["tolerations"]:
                     try:
                         invalid_keys = [
@@ -391,6 +392,5 @@ class KubernetesDecorator(StepDecorator):
             }
         except (AttributeError, IndexError):
             raise KubernetesException(
-                "Unable to parse node_selector: %s"
-                % node_selector
+                "Unable to parse node_selector: %s" % node_selector
             )
