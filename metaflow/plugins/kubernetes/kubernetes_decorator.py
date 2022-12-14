@@ -113,10 +113,15 @@ class KubernetesDecorator(StepDecorator):
             try:
                 from kubernetes.client import V1Toleration
                 for toleration in self.attributes["tolerations"]:
-                    invalid_keys = [k for k in toleration.keys() if k not in V1Toleration.attribute_map.keys()]
+                    invalid_keys = [
+                        k
+                        for k in toleration.keys()
+                        if k not in V1Toleration.attribute_map.keys()
+                    ]
                     if len(invalid_keys) > 0:
                         raise KubernetesException(
-                            "Tolerations parameter contains invalid keys: %s" % invalid_keys
+                            "Tolerations parameter contains invalid keys: %s"
+                            % invalid_keys
                         )
             except (NameError, ImportError):
                 pass
