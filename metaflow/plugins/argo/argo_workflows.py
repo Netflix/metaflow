@@ -45,7 +45,7 @@ from .util import (
     format_sensor_name,
     list_to_prose,
     project_and_branch,
-    SourceCodeBuffer
+    SourceCodeBuffer,
 )
 
 
@@ -226,19 +226,24 @@ class ArgoWorkflows(object):
         cron_reason = None
         event_reason = None
         if self._cron:
-            cron_reason = ("This workflow triggers automatically via the CronWorkflow *%s*."
-                % self.name)
+            cron_reason = (
+                "This workflow triggers automatically via the CronWorkflow *%s*."
+                % self.name
+            )
 
         if len(self._triggering_flows) > 0 or len(self._triggering_events) > 0:
 
             def format_flow_name(flow_name):
                 from metaflow.plugins.project_decorator import apply_project_namespacing
+
                 (project, branch) = project_and_branch()
                 if project is not None:
                     flow_name = apply_project_namespacing(flow_name, project, branch)
                 return flow_name.lower()
 
-            (flow_ref, flows) = list_to_prose(self._triggering_flows, "flow", formatter=format_flow_name)
+            (flow_ref, flows) = list_to_prose(
+                self._triggering_flows, "flow", formatter=format_flow_name
+            )
             (event_ref, events) = list_to_prose(
                 self._triggering_events, "event", use_quotes=True
             )
@@ -281,7 +286,9 @@ class ArgoWorkflows(object):
             event_reason = message
 
         if cron_reason is None and event_reason is None:
-            cron_reason = "No triggers defined. You need to launch this workflow manually."
+            cron_reason = (
+                "No triggers defined. You need to launch this workflow manually."
+            )
         return (cron_reason, event_reason)
 
     @classmethod
@@ -1080,7 +1087,7 @@ class ArgoWorkflows(object):
                         "METAFLOW_EVENT_SOURCE_NAME": EVENT_SOURCE_NAME,
                         "METAFLOW_FLOW_NAME": self.flow.name,
                         "METAFLOW_RUN_ID": self._run_id,
-                        "METAFLOW_EVENT_SOURCE_URL": EVENT_SOURCE_URL
+                        "METAFLOW_EVENT_SOURCE_URL": EVENT_SOURCE_URL,
                     }
                     yield self._make_lifecycle_hook_container_template(
                         resources["image"], template_env, "succeeded"
@@ -1092,7 +1099,9 @@ class ArgoWorkflows(object):
                         template_env["METAFLOW_SERVICE_HEADERS"] = json.dumps(
                             SERVICE_HEADERS
                         )
-                        yield self._make_metadata_hook_container_template(resources["image"], template_env)
+                        yield self._make_metadata_hook_container_template(
+                            resources["image"], template_env
+                        )
 
     def _make_lifecycle_hook_container_template(self, image, env, status):
         (project, _) = project_and_branch()
@@ -1144,11 +1153,7 @@ class ArgoWorkflows(object):
                 (project_name, branch_name) = project_and_branch()
                 trigger_set.add_namespacing(project_name, branch_name)
                 self._reset = trigger_set.reset
-                t = SensorTemplate(
-                    self.name,
-                    self.parameters,
-                    self._reset
-                )
+                t = SensorTemplate(self.name, self.parameters, self._reset)
                 for trigger in trigger_set.triggers:
                     t.add_trigger(trigger)
                     if trigger.type == TriggerInfo.LIFECYCLE_EVENT:
@@ -1629,32 +1634,33 @@ class WorkflowMetadataHookContainerTemplate:
                 expanded_params += ","
         psb = SourceCodeBuffer()
         psb.add_imports(["json", "os", "re", "time", "requests"])
-        psb.add_line('triggers=[' + expanded_params + ']')
+        psb.add_line("triggers=[" + expanded_params + "]")
         psb.add_line('headers=json.loads(os.getenv("METAFLOW_SERVICE_HEADERS"))')
         psb.add_line('base_url=os.getenv("METAFLOW_SERVICE_URL")')
         psb.add_line('flow_name=os.getenv("METAFLOW_FLOW_NAME")')
         psb.add_line('run_id=os.getenv("METAFLOW_RUN_ID")')
-        psb.add_line('md_url="%sflows/%s/runs/%s/steps/start/tasks" % (base_url,flow_name,run_id)')
-        psb.add_line('tasks=[]')
-        psb.add_line('while tasks == []:')
-        psb.add_line('time.sleep(1)', indent=1)
-        psb.add_line('resp=requests.get(url=md_url,headers=headers)', indent=1)
-        psb.add_line('resp.raise_for_status()', indent=1)
-        psb.add_line('tasks=resp.json()', indent=1)
-        psb.add_line('task=tasks[0]')
+        psb.add_line(
+            'md_url="%sflows/%s/runs/%s/steps/start/tasks" % (base_url,flow_name,run_id)'
+        )
+        psb.add_line("tasks=[]")
+        psb.add_line("while tasks == []:")
+        psb.add_line("time.sleep(1)", indent=1)
+        psb.add_line("resp=requests.get(url=md_url,headers=headers)", indent=1)
+        psb.add_line("resp.raise_for_status()", indent=1)
+        psb.add_line("tasks=resp.json()", indent=1)
+        psb.add_line("task=tasks[0]")
         psb.add_line('task_url="%s/%s/metadata"%(md_url,task["task_id"])')
         psb.add_line('print("Posting trigger metadata to %s" % task_url, flush=True)')
         psb.add_line('md=dict();md["field_name"]="trigger_events"')
         psb.add_line('md["type"]="trigger_events";md["value"]=json.dumps(triggers)')
-        psb.add_line('resp=requests.post(url=task_url,headers=headers,json=[md])')
-        psb.add_line('print("Triggering event(s) metadata update status: %d" % resp.status_code)')
-        psb.add_line('resp.raise_for_status()')
+        psb.add_line("resp=requests.post(url=task_url,headers=headers,json=[md])")
+        psb.add_line(
+            'print("Triggering event(s) metadata update status: %d" % resp.status_code)'
+        )
+        psb.add_line("resp.raise_for_status()")
 
         return " && ".join(
-            [
-                'pip install -qqq requests',
-                'python - << EOPY\n%s\nEOPY' % psb.getvalue()
-            ]
+            ["pip install -qqq requests", "python - << EOPY\n%s\nEOPY" % psb.getvalue()]
         )
 
     def set_env_vars(self, vars):
@@ -1704,12 +1710,30 @@ class WorkflowLifecycleHookContainerTemplate(object):
         using_nats = EVENT_SOURCE_URL.startswith("nats://")
         if using_nats:
             commands = ["pip install -qqq nats-py"]
-            psb.add_imports(["asyncio", "datetime", "json", "pathlib", "os", "re", "sys", "time", "urllib.parse", "nats"])
-            psb.add_line('async def send_it(payload):')
-            psb.add_line('conn = await nats.connect(server, token=auth_token)', indent=1)
-            psb.add_line('await conn.publish(topic, payload)', indent=1)
-            psb.add_line('await conn.drain()', indent=1)
-            psb.add_line('print("Lifecycle event successfully sent to %s/%s" % (server, topic), flush=True)', indent=1)            
+            psb.add_imports(
+                [
+                    "asyncio",
+                    "json",
+                    "pathlib",
+                    "os",
+                    "re",
+                    "sys",
+                    "time",
+                    "urllib.parse",
+                    "nats",
+                ]
+            )
+            psb.add_line("from datetime import datetime")
+            psb.add_line("async def send_it(payload):")
+            psb.add_line(
+                "conn = await nats.connect(server, token=auth_token)", indent=1
+            )
+            psb.add_line("await conn.publish(topic, payload)", indent=1)
+            psb.add_line("await conn.drain()", indent=1)
+            psb.add_line(
+                'print("Lifecycle event successfully sent to %s/%s" % (server, topic), flush=True)',
+                indent=1,
+            )
         else:
             commands = ["pip install -qqq requests"]
             psb.add_imports(["json", "os", "time", "requests"])
@@ -1718,22 +1742,30 @@ class WorkflowLifecycleHookContainerTemplate(object):
         psb.add_line('run_id=os.getenv("METAFLOW_RUN_ID")')
         psb.add_line('flow_name=os.getenv("METAFLOW_FLOW_NAME")')
         psb.add_line('event_name="%s"' % event_name)
-        psb.add_line('timestamp=int(datetime.datetime.timestamp(datetime.datetime.utcnow()) * 1000)',)
+        psb.add_line(
+            "timestamp=int(datetime.timestamp(datetime.utcnow()) * 1000)",
+        )
         psb.add_line('pathspec="%s/%s" % (flow_name, run_id)')
-        psb.add_line('payload=json.dumps({"payload":{"event_name":event_name,"event_type":"metaflow_system","data":{},"pathspec":pathspec,"timestamp":timestamp}})')
+        psb.add_line(
+            'payload=json.dumps({"payload":{"event_name":event_name,"event_type":"metaflow_system","data":{},"pathspec":pathspec,"timestamp":timestamp}})'
+        )
         if using_nats:
-            psb.add_line('parsed=urllib.parse.urlparse(event_url)')
-            psb.add_line('server=parsed.netloc')
-            psb.add_line('topic=parsed.path[1:]')
-            psb.add_line('auth_token=re.sub("^token: ", "", os.getenv("NATS_TOKEN"))')            
+            psb.add_line("parsed=urllib.parse.urlparse(event_url)")
+            psb.add_line("server=parsed.netloc")
+            psb.add_line("topic=parsed.path[1:]")
+            psb.add_line('auth_token=re.sub("^token: ", "", os.getenv("NATS_TOKEN"))')
             psb.add_line('raw_payload=bytes(payload, "UTF-8")')
-            psb.add_line('asyncio.run(send_it(raw_payload))')
+            psb.add_line("asyncio.run(send_it(raw_payload))")
         else:
             psb.add_line('headers={"content-type": "json"}')
-            psb.add_line('resp=requests.post(url=event_url,headers=headers,json=payload)')
-            psb.add_line('print("Lifecycle event sent status: %d" % resp.status_code, flush=True)')
-            psb.add_line('resp.raise_for_status()')
-        final_source = 'python - << EOPY\n%s\nEOPY' % psb.getvalue()
+            psb.add_line(
+                "resp=requests.post(url=event_url,headers=headers,json=payload)"
+            )
+            psb.add_line(
+                'print("Lifecycle event sent status: %d" % resp.status_code, flush=True)'
+            )
+            psb.add_line("resp.raise_for_status()")
+        final_source = "python - << EOPY\n%s\nEOPY" % psb.getvalue()
         commands.append(final_source)
         return " && ".join(commands)
 
@@ -1800,7 +1832,9 @@ class WorkflowLifecycleHookContainerTemplate(object):
 class SensorTemplate:
     def __init__(self, target_flow, parameters, reset):
         if reset is not None and type(reset) is not time.struct_time:
-            raise MetaflowException("Argo Workflows requires reset times to be in HH:MM format")
+            raise MetaflowException(
+                "Argo Workflows requires reset times to be in HH:MM format"
+            )
         self.name = format_sensor_name(target_flow)
         self.target_flow = target_flow
         self.parameters = parameters
@@ -1861,9 +1895,7 @@ class SensorTemplate:
             return {
                 "exprs": [
                     {
-                        "expr": (
-                            'event_name == "%s"' % (info.name)
-                        ),
+                        "expr": ('event_name == "%s"' % (info.name)),
                         "fields": [
                             {"name": "event_name", "path": "body.payload.event_name"},
                         ],
@@ -1966,9 +1998,7 @@ class SensorTemplate:
                             "metadata": {"generateName": self.target_flow + "-"},
                             "spec": {
                                 "arguments": {"parameters": self.parameters},
-                                "workflowTemplateRef": {
-                                    "name": self.target_flow
-                                },
+                                "workflowTemplateRef": {"name": self.target_flow},
                             },
                         }
                     },

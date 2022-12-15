@@ -128,7 +128,7 @@ class TriggerOnDecorator(FlowDecorator):
     }
 
     def flow_init(
-        self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
+        self, flow, graph, environment, flow_datastore, metadata, logger, echo, options, **kwarg
     ):
         self.attributes["trigger_set"] = None
         self.attributes["error"] = None

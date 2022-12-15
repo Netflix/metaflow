@@ -17,7 +17,7 @@ from metaflow.plugins.argo.util import (
 )
 import requests
 
-BAD_RESET_AFTER_MSG = """reset must be a 24 hour wall time or 12 hour time with optional locale appropriate AM/PM.
+BAD_RESET_AFTER_MSG = """reset must be either a float, int, or HH:MM time.
 
 Examples
 --------
@@ -120,7 +120,7 @@ class TriggerSet:
 
     def _parse_reset(self, reset):
         parsed_time = None
-        if reset == "":
+        if reset == "" or reset is None:
             self._reset = None
         else:
             formats = [
