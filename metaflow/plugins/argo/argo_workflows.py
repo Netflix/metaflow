@@ -1916,15 +1916,15 @@ class SensorTemplate:
 
     def _build_event_field_transforms(self, info):
         current_mappings = info.mappings[info.name]
-        buf = io.StringIO()
+        buf = SourceCodeBuffer()
         for parameter_name in current_mappings.keys():
             event_field = current_mappings[parameter_name]
             self.transformed_fields[parameter_name] = info.name
-            buf.write(
+            buf.add_line(
                 "event.body.payload.data.%s = event.body.payload.data.%s\n"
                 % (parameter_name, event_field)
             )
-        buf.write("return event")
+        buf.add_line("return event")
         return {"script": buf.getvalue()}
 
     def _build_parameter_assignments(self):
