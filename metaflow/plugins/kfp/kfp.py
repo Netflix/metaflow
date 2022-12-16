@@ -686,12 +686,13 @@ class KubeflowPipelines(object):
         )
         return (resource, volume)
 
-    def _set_container_labels(
-        self, container_op: ContainerOp, node: DAGNode, metaflow_run_id: str
-    ):
+    def _set_container_labels(self, container_op: ContainerOp, metaflow_run_id: str):
+        # TODO(talebz): A Metaflow plugin framework to customize tags, labels, etc.
+        container_op.add_pod_label("aip.zillowgroup.net/kfp-pod-default", "true")
+
         prefix = "metaflow.org"
         container_op.add_pod_annotation(f"{prefix}/flow_name", self.name)
-        container_op.add_pod_annotation(f"{prefix}/step", node.name)
+        container_op.add_pod_annotation(f"{prefix}/step", container_op.name)
         container_op.add_pod_annotation(f"{prefix}/run_id", metaflow_run_id)
         if self.experiment:
             container_op.add_pod_annotation(f"{prefix}/experiment", self.experiment)
@@ -715,7 +716,9 @@ class KubeflowPipelines(object):
 
         # tags.ledger.zgtools.net/* pod labels required for the ZGCP Costs Ledger
         container_op.add_pod_label("tags.ledger.zgtools.net/ai-flow-name", self.name)
-        container_op.add_pod_label("tags.ledger.zgtools.net/ai-step-name", node.name)
+        container_op.add_pod_label(
+            "tags.ledger.zgtools.net/ai-step-name", container_op.name
+        )
         if self.experiment:
             container_op.add_pod_label(
                 "tags.ledger.zgtools.net/ai-experiment-name", self.experiment
@@ -755,11 +758,11 @@ class KubeflowPipelines(object):
             str, KfpComponent
         ] = self._create_kfp_components_from_graph()
         flow_variables: FlowVariables = self._create_flow_variables()
+        metaflow_run_id = f"kfp-{dsl.RUN_ID_PLACEHOLDER}"
 
         def pipeline_transform(op: ContainerOp):
             if isinstance(op, ContainerOp):
-                # TODO(talebz): A Metaflow plugin framework to customize tags, labels, etc.
-                op.add_pod_label("aip.zillowgroup.net/kfp-pod-default", "true")
+                self._set_container_labels(op, metaflow_run_id)
 
                 # Disable caching because Metaflow doesn't have memoization
                 op.execution_options.caching_strategy.max_cache_staleness = "P0D"
@@ -854,7 +857,6 @@ class KubeflowPipelines(object):
                     METAFLOW_DATASTORE_SYSROOT_S3=DATASTORE_SYSROOT_S3,
                     METAFLOW_USER=METAFLOW_USER,
                 )
-                metaflow_run_id = f"kfp-{dsl.RUN_ID_PLACEHOLDER}"
 
                 metaflow_step_op: ContainerOp = self._create_metaflow_step_op(
                     node,
@@ -920,8 +922,6 @@ class KubeflowPipelines(object):
                 )
                 if resource_op:
                     visited_resource_ops[node.name] = resource_op
-
-                self._set_container_labels(metaflow_step_op, node, metaflow_run_id)
 
                 if node.type == "foreach":
                     # Please see nested_parallelfor.ipynb for how this works
