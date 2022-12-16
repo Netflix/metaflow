@@ -41,6 +41,7 @@ Examples
 @trigger_on(event="first", mappings={"alpha": "alpha_value", "delta": "delta_value"})
 """
 
+
 class BadEventNameException(MetaflowException):
     headline = "Bad or missing event name detected"
 
@@ -128,7 +129,16 @@ class TriggerOnDecorator(FlowDecorator):
     }
 
     def flow_init(
-        self, flow, graph, environment, flow_datastore, metadata, logger, echo, options, **kwarg
+        self,
+        flow,
+        graph,
+        environment,
+        flow_datastore,
+        metadata,
+        logger,
+        echo,
+        options,
+        **kwarg
     ):
         self.attributes["trigger_set"] = None
         self.attributes["error"] = None
@@ -143,10 +153,12 @@ class TriggerOnDecorator(FlowDecorator):
         else:
             if flow._flow_decorators.get("project"):
                 raise MetaflowException(
-                    "Move @project below @{}. ".format(self.name) +
-                    "Project namespacing must be applied before triggers are built."
+                    "Move @project below @{}. ".format(self.name)
+                    + "Project namespacing must be applied before triggers are built."
                 )
-        self.attributes["trigger_set"] = TriggerSet(project_name, branch_name, self.attributes.get("reset", ""))
+        self.attributes["trigger_set"] = TriggerSet(
+            project_name, branch_name, self.attributes.get("reset", "")
+        )
         mappings = self.attributes.get("mappings")
         is_aggregate = (len(flows) > 1) or (
             events is not None and len(flows) + len(events) > 1
@@ -156,13 +168,19 @@ class TriggerOnDecorator(FlowDecorator):
             info = TriggerInfo(TriggerInfo.LIFECYCLE_EVENT)
             info.name = flow
             info.status = "succeeded"
-            info.mappings = validated
+            if not is_aggregate:
+                info.mappings = {flow: validated}
+            else:
+                info.mappings = mappings
             self.attributes["trigger_set"].append(info)
         if events is not None:
             for event in events:
                 info = TriggerInfo(TriggerInfo.USER_EVENT)
                 info.name = event
-                info.mappings = validated
+                if not is_aggregate:
+                    info.mappings = {event: validated}
+                else:
+                    info.mappings = validated
                 self.attributes["trigger_set"].append(info)
 
     def _read_inputs(self):

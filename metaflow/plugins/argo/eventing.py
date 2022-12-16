@@ -182,27 +182,19 @@ class TriggerInfo:
         self.mappings = {}
 
     @property
-    def name(self):
-        return self._name
-
-    @name.setter
-    def name(self, new_name):
-        self._name = new_name
-
-    @property
     def formatted_name(self):
         if self.type == TriggerInfo.LIFECYCLE_EVENT:
             if self._project is not None:
                 formatted = apply_project_namespacing(
-                    self._name, self._project, self._branch
+                    self.name, self._project, self._branch
                 )
                 chunks = formatted.split(".")
                 chunks[0] = self._project
                 formatted = ".".join(chunks)
             else:
-                formatted = self._name.lower()
+                formatted = self.name.lower()
         else:
-            formatted = self._name.lower()
+            formatted = self.name.lower()
         return re.sub("\.|\-", "_", formatted)
 
     def add_namespacing(self, project, branch):
@@ -210,14 +202,4 @@ class TriggerInfo:
         self._branch = branch
 
     def has_mappings(self):
-        return self.mappings is not None and self._name in self.mappings
-
-    def __str__(self):
-        data = {
-            "type": self.type,
-            "name": self._formatted_name,
-            "original_name": self._name,
-            "status": self.status,
-            "mappings": len(self.mappings),
-        }
-        return json.dumps(data, indent=4)
+        return self.mappings is not None and self.name in self.mappings
