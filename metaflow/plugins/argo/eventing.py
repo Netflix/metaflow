@@ -36,8 +36,10 @@ class BadEventNameException(MetaflowException):
 
 
 def make_event_body(event_name, event_type, event_data=dict()):
+    event_name_field = re.sub("\.|\-", "_", event_name)
     return {
         "payload": {
+            event_name_field: True,
             "event_name": event_name,
             "event_type": event_type,
             "data": event_data,
@@ -52,14 +54,11 @@ def send_event(event_name, event_data={}, use_project=False):
     if use_project:
         (project, branch) = project_and_branch()
         if project is not None:
-            event_name = (
-            "%s.%s.%s"
-            % (
+            event_name = "%s.%s.%s" % (
                 project,
                 branch,
                 event_name,
             )
-        )
     if re.fullmatch("[a-z0-9\-_\.]+", event_name) is None:
         raise BadEventNameException(
             ("Attempted to send '%s'. " % event_name)
@@ -124,9 +123,9 @@ class TriggerSet:
             self._reset = None
         else:
             formats = [
-                "%H:%M", # 24 hour time (13:05)
-                "%I:%M%p", # 12 hour time (1:05pm)
-                "%I:%M p" # 12 hour time (1:05 pm)
+                "%H:%M",  # 24 hour time (13:05)
+                "%I:%M%p",  # 12 hour time (1:05pm)
+                "%I:%M p",  # 12 hour time (1:05 pm)
             ]
             if reset.find(":") > -1:
                 parsed = False
@@ -151,7 +150,7 @@ class TriggerSet:
     @property
     def reset(self):
         return self._reset
-        
+
     def append(self, trigger_info):
         trigger_info.add_namespacing(self._project, self._branch)
         self.triggers.append(trigger_info)
@@ -194,7 +193,9 @@ class TriggerInfo:
     def formatted_name(self):
         if self.type == TriggerInfo.LIFECYCLE_EVENT:
             if self._project is not None:
-                formatted = apply_project_namespacing(self._name, self._project, self._branch)
+                formatted = apply_project_namespacing(
+                    self._name, self._project, self._branch
+                )
                 chunks = formatted.split(".")
                 chunks[0] = self._project
                 formatted = ".".join(chunks)
@@ -202,7 +203,7 @@ class TriggerInfo:
                 formatted = self._name.lower()
         else:
             formatted = self._name.lower()
-        return formatted
+        return re.sub("\.|\-", "_", formatted)
 
     def add_namespacing(self, project, branch):
         self._project = project

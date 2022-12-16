@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import re
 import shlex
 import sys
 import time
@@ -1112,7 +1113,7 @@ class ArgoWorkflows(object):
             if len(chunks) > 1:
                 chunks[0] = project
                 flow_name = ".".join(chunks)
-        event_name = "{}.finished".format(flow_name)
+        event_name = re.sub("\.|\-", "_", "{}_finished".format(flow_name))
         t = WorkflowLifecycleHookContainerTemplate(image, event_name, status)
         t.set_env_vars(env)
         return t
@@ -1747,7 +1748,7 @@ class WorkflowLifecycleHookContainerTemplate(object):
         )
         psb.add_line('pathspec="%s/%s" % (flow_name, run_id)')
         psb.add_line(
-            'payload={"payload":{"event_name":event_name,"event_type":"metaflow_system","data":{},"pathspec":pathspec,"timestamp":timestamp}}'
+            'payload={"payload":{event_name:True,"event_type":"metaflow_system","data":{},"pathspec":pathspec,"timestamp":timestamp}}'
         )
         if using_nats:
             psb.add_line("payload=json.dumps(payload)")
@@ -1877,17 +1878,23 @@ class SensorTemplate:
         self.dependency_names[info.name] = name
 
     def _build_filters(self, info):
+        import re
+
         if info.type == TriggerInfo.LIFECYCLE_EVENT:
             return {
                 "exprs": [
                     {
                         "expr": (
-                            'event_name == "%s.finished" && event_type == "metaflow_system"'
+                            '%s_finished == true && event_type == "metaflow_system"'
                             % (info.formatted_name)
                         ),
                         "fields": [
                             {"name": "event_type", "path": "body.payload.event_type"},
-                            {"name": "event_name", "path": "body.payload.event_name"},
+                            {
+                                "name": "%s_finished" % info.formatted_name,
+                                "path": "body.payload.%s_finished"
+                                % info.formatted_name,
+                            },
                         ],
                     },
                 ],
@@ -1896,9 +1903,12 @@ class SensorTemplate:
             return {
                 "exprs": [
                     {
-                        "expr": ('event_name == "%s"' % (info.name)),
+                        "expr": ("%s == true" % info.formatted_name),
                         "fields": [
-                            {"name": "event_name", "path": "body.payload.event_name"},
+                            {
+                                "name": info.formatted_name,
+                                "path": "body.payload.%s" % info.formatted_name,
+                            },
                         ],
                     },
                 ]
