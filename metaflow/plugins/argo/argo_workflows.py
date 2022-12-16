@@ -1747,9 +1747,10 @@ class WorkflowLifecycleHookContainerTemplate(object):
         )
         psb.add_line('pathspec="%s/%s" % (flow_name, run_id)')
         psb.add_line(
-            'payload=json.dumps({"payload":{"event_name":event_name,"event_type":"metaflow_system","data":{},"pathspec":pathspec,"timestamp":timestamp}})'
+            'payload={"payload":{"event_name":event_name,"event_type":"metaflow_system","data":{},"pathspec":pathspec,"timestamp":timestamp}}'
         )
         if using_nats:
+            psb.add_line("payload=json.dumps(payload)")
             psb.add_line("parsed=urllib.parse.urlparse(event_url)")
             psb.add_line("server=parsed.netloc")
             psb.add_line("topic=parsed.path[1:]")
@@ -1757,7 +1758,7 @@ class WorkflowLifecycleHookContainerTemplate(object):
             psb.add_line('raw_payload=bytes(payload, "UTF-8")')
             psb.add_line("asyncio.run(send_it(raw_payload))")
         else:
-            psb.add_line('headers={"content-type": "json"}')
+            psb.add_line('headers={"Content-Type": "application/json"}')
             psb.add_line(
                 "resp=requests.post(url=event_url,headers=headers,json=payload)"
             )
