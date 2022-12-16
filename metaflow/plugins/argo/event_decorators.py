@@ -168,7 +168,7 @@ class TriggerOnDecorator(FlowDecorator):
             info = TriggerInfo(TriggerInfo.LIFECYCLE_EVENT)
             info.name = flow
             info.status = "succeeded"
-            if not is_aggregate:
+            if not is_aggregate and validated is not None:
                 info.mappings = {flow: validated}
             else:
                 info.mappings = mappings
@@ -177,7 +177,7 @@ class TriggerOnDecorator(FlowDecorator):
             for event in events:
                 info = TriggerInfo(TriggerInfo.USER_EVENT)
                 info.name = event
-                if not is_aggregate:
+                if not is_aggregate and validated is not None:
                     info.mappings = {event: validated}
                 else:
                     info.mappings = validated
