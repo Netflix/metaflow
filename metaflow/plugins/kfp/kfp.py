@@ -594,7 +594,7 @@ class KubeflowPipelines(object):
         if kfp_component.interruptible_decorator:
             affinity_match_expressions.append(
                 V1NodeSelectorRequirement(
-                    key="karpenter.sh/capacity-type",
+                    key="node.k8s.zgtools.net/capacity-type",
                     operator="In",
                     values=["spot"],
                 )
@@ -606,7 +606,7 @@ class KubeflowPipelines(object):
                 # the `effect` parameter must be specified at the top!
                 # otherwise, there is undefined behavior
                 effect="NoSchedule",
-                key="karpenter.sh/capacity-type",
+                key="node.k8s.zgtools.net/capacity-type",
                 operator="Equal",
                 value="spot",
             )
