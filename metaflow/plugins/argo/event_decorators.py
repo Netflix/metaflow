@@ -7,17 +7,6 @@ from metaflow.decorators import FlowDecorator
 from metaflow.exception import MetaflowException
 from .eventing import TriggerSet, TriggerInfo
 
-ERR_MSG = """Make sure configuration entries METAFLOW_EVENT_SOURCE_NAME, METAFLOW_EVENT_SOURCE_URL, and 
-METAFLOW_EVENT_SERVICE_ACCOUNT are correct.
-
-Authentication (Optional)
-=========================
-If authentication is required and credentials are stored in a Kubernetes secret, check
-METAFLOW_EVENT_AUTH_SECRET and METAFLOW_EVENT_AUTH_KEY.
-
-If an authentication token is used, verify METAFLOW_EVENT_AUTH_TOKEN has the correct value.
-"""
-
 BAD_INPUTS_MSG = """The {0} attribute must be a list of {1} names.
 
 Examples
