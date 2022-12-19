@@ -50,6 +50,18 @@ def make_event_body(event_name, event_type, event_data=dict()):
 
 
 def send_event(event_name, event_data={}, use_project=False):
+    """
+    Send an event with optional data.
+
+    Arguments
+    ---------
+    event_name : str
+    event_data : dict, optional
+        Additional data to be included with the event
+    use_project : bool, optional
+        When true and the enclosing flow uses the @project decorator the event name
+        will be changed to incorporate @project's attributes
+    """
     flow_name = current_flow_name()
     if use_project:
         (project, branch) = project_and_branch()
