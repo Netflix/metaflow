@@ -184,8 +184,9 @@ class TriggerOnDecorator(FlowDecorator):
         if events is not None and type(events) != list:
             raise bad_inputs_error("events", "event", self.name)
 
-        if len(flows) == 0 and len(events) == 0:
-            self._report_empty_inputs()
+        if flows is None or len(flows) == 0:
+            if events is None or len(events) == 0:
+                self._report_empty_inputs()
 
         return (flows, events)
 
@@ -203,7 +204,6 @@ class TriggerOnFinishDecorator(TriggerOnDecorator):
         "flows": dict(
             is_flag=False,
             show_default=False,
-            required=True,
             help="Trigger the current flow when all named flows complete.",
         ),
         "reset": dict(
