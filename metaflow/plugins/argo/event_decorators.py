@@ -18,6 +18,13 @@ METAFLOW_EVENT_AUTH_SECRET and METAFLOW_EVENT_AUTH_KEY.
 If an authentication token is used, verify METAFLOW_EVENT_AUTH_TOKEN has the correct value.
 """
 
+BAD_INPUTS_MSG = """The {0} attribute must be a list of {1} names.
+
+Examples
+--------
+@{2}({0}=["MyOtherFlow"])
+"""
+
 BAD_AGGREGATE_MAPPING_MSG = """Event field mappings for multiple events or flows must be a dict of
 string keys corresponding to an event or flow name and values of another
 dict of string keys and values mapping flow parameters to event fields.
@@ -50,9 +57,19 @@ class BadEventMappingsException(MetaflowException):
     headline = "Bad event field mappings detected"
 
 
+class BadTriggerInputsException(MetaflowException):
+    headline = "Bad workflow trigger inputs detected"
+
+
 BAD_AGGREGATE_MAPPING_ERROR = BadEventMappingsException(msg=BAD_AGGREGATE_MAPPING_MSG)
 
 BAD_MAPPING_ERROR = BadEventMappingsException(msg=BAD_MAPPING_MSG)
+
+
+def bad_inputs_error(field_name, field_type, deco_name):
+    return BadTriggerInputsException(
+        msg=BAD_INPUTS_MSG.format(field_name, field_type, deco_name, field_name)
+    )
 
 
 def validate_mappings(mappings, aggregate):
@@ -87,29 +104,16 @@ class TriggerOnDecorator(FlowDecorator):
 
     name = "trigger_on"
     defaults = {
-        "flow": None,
         "flows": [],
-        "event": None,
         "events": [],
-        "data": None,
         "mappings": {},
         "reset": "",
     }
     options = {
-        "flow": dict(
-            is_flag=False,
-            show_default=True,
-            help="Trigger the current flow when the named flow completes.",
-        ),
         "flows": dict(
             is_flag=False,
             show_default=False,
             help="Trigger the current flow when all named flows complete.",
-        ),
-        "event": dict(
-            is_flag=False,
-            show_default=True,
-            help="Trigger the current flow when the named user event is received.",
         ),
         "events": dict(
             is_flag=False,
@@ -143,7 +147,7 @@ class TriggerOnDecorator(FlowDecorator):
         self.attributes["trigger_set"] = None
         self.attributes["error"] = None
         self._option_values = options
-        (flows, events) = self._read_inputs()
+        (flows, events) = self._validate_inputs()
         project_name = None
         branch_name = None
         # @project has already been evaluated
@@ -183,63 +187,34 @@ class TriggerOnDecorator(FlowDecorator):
                     info.mappings = validated
                 self.attributes["trigger_set"].append(info)
 
-    def _read_inputs(self):
-        self._fix_plurals()
-        flow_name = self.attributes.get("flow")
-        if flow_name == "":
-            flow_name = None
-        flow_names = self.attributes.get("flows")
-        event_name = self.attributes.get("event")
-        if event_name == "":
-            event_name = None
-        event_names = self.attributes.get("events")
-        if (
-            flow_name is None
-            and len(flow_names) == 0
-            and event_name is None
-            and len(event_names) == 0
-        ):
-            raise MetaflowException(
-                msg=("@%s needs at least one flow or event name." % self.name)
-            )
+    def _validate_inputs(self):
+        flows = self.attributes.get("flows")
+        events = self.attributes.get("events")
+        if flows is not None and type(flows) != list:
+            raise bad_inputs_error("flows", "flow", self.name)
+        if events is not None and type(events) != list:
+            raise bad_inputs_error("events", "event", self.name)
 
-        if flow_name is not None:
-            flow_names.append(flow_name)
-        if event_name is not None:
-            event_names.append(event_name)
-        return (flow_names, event_names)
+        if len(flows) == 0 and len(events) == 0:
+            self._report_empty_inputs()
 
-    def _fix_plurals(self):
-        flow_name = self.attributes.get("flow")
-        if flow_name == "":
-            flow_name = None
-        flow_names = self.attributes.get("flows")
-        if type(flow_names) == str and flow_name is None:
-            self.attributes["flow"] = flow_names
-            self.attributes["flows"] = []
+        return (flows, events)
 
-        event_name = self.attributes.get("event")
-        if event_name == "":
-            event_name = None
-        event_names = self.attributes.get("events")
-        if type(event_names) == str and event_name is None:
-            self.attributes["event"] = event_names
-            self.attributes["events"] = []
+    def _report_empty_inputs(self):
+        raise MetaflowException(
+            msg=("@%s needs at least one flow or event name." % self.name)
+        )
 
 
 class TriggerOnFinishDecorator(TriggerOnDecorator):
 
     name = "trigger_on_finish"
-    defaults = {"flow": None, "flows": [], "reset": ""}
+    defaults = {"flows": [], "reset": ""}
     options = {
-        "flow": dict(
-            is_flag=False,
-            show_default=True,
-            help="Trigger the current flow when the named flow completes.",
-        ),
         "flows": dict(
             is_flag=False,
             show_default=False,
+            required=True,
             help="Trigger the current flow when all named flows complete.",
         ),
         "reset": dict(
@@ -248,3 +223,6 @@ class TriggerOnFinishDecorator(TriggerOnDecorator):
             help="Reset event trigger state after an elapsed interval or at a specific time (depending on the orchestrator)",
         ),
     }
+
+    def _report_empty_inputs(self):
+        raise MetaflowException(msg=("@%s needs at least one flow name." % self.name))
