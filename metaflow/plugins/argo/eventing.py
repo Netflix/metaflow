@@ -171,7 +171,8 @@ class TriggerSet:
         self._project = project
         self._branch = branch
         for t in self.triggers:
-            t.add_namespacing(self._project, self._branch)
+            if t.type == TriggerInfo.LIFECYCLE_EVENT:
+                t.add_namespacing(self._project, self._branch)
 
     def is_empty(self):
         return len(self.triggers) == 0
