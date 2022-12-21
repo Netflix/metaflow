@@ -280,9 +280,9 @@ class ArgoWorkflows(object):
                 else:
                     message = template % (message, event_ref, events, "are received")
             if self._reset is not None:
-                message = "%s before %s." % (
-                    message,
-                    time.strftime("%H:%M UTC", self._reset),
+                message = (
+                    "%s. Trigger state is reset based on this cron expression '%s'."
+                    % (message, self._reset)
                 )
             event_reason = message
 
@@ -1840,10 +1840,6 @@ class WorkflowLifecycleHookContainerTemplate(object):
 
 class SensorTemplate:
     def __init__(self, target_flow, parameters, reset):
-        if reset is not None and type(reset) is not time.struct_time:
-            raise MetaflowException(
-                "Argo Workflows requires reset times to be in HH:MM format"
-            )
         self.name = format_sensor_name(target_flow)
         self.target_flow = target_flow
         self.parameters = parameters
@@ -2028,12 +2024,7 @@ class SensorTemplate:
             template = triggered_template["template"]
             template["conditions"] = conditions
             if self.reset is not None:
-                cron = "%d %d * * *" % (
-                    self.reset.tm_min,
-                    self.reset.tm_hour,
-                )
-                reset = [{"byTime": {"cron": cron}}]
-                template["conditionsReset"] = reset
+                template["conditionsReset"] = [{"byTime": {"cron": self.reset}}]
             triggered_template["template"] = template
         triggered_template["template"]["k8s"][
             "parameters"

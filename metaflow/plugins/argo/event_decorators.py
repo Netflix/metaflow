@@ -168,7 +168,7 @@ class TriggerOnDecorator(FlowDecorator):
                     + "Project namespacing must be applied before triggers are built."
                 )
         self.attributes["trigger_set"] = TriggerSet(
-            project_name, branch_name, self.attributes.get("reset", "")
+            project_name, branch_name, self.attributes["opts"]
         )
         mappings = self.attributes.get("mappings")
         is_aggregate = (len(flows) > 1) or (

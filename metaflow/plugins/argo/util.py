@@ -1,11 +1,6 @@
-from datetime import datetime
 import io
 
-from metaflow.metaflow_config import (
-    EVENT_SOURCE_URL,
-    EVENT_SOURCE_NAME,
-    EVENT_SERVICE_ACCOUNT,
-)
+from metaflow.metaflow_config import EVENT_SOURCE_URL
 from metaflow.current import current
 from metaflow.exception import MetaflowException
 
@@ -47,6 +42,7 @@ def format_sensor_name(flow_name):
     # contains '.' which is NATS' topic delimiter.
     return flow_name.replace(".", "-").lower()
 
+
 def list_to_prose(items, singular, formatter=None, use_quotes=False, plural=None):
     if formatter is not None:
         items = [formatter(item) for item in items]
@@ -81,12 +77,12 @@ def list_to_prose(items, singular, formatter=None, use_quotes=False, plural=None
         result = ""
     return (item_type, result)
 
-class SourceCodeBuffer:
 
+class SourceCodeBuffer:
     def __init__(self):
         self.imports = []
         self.debug_counter = 1
-        self.buf = io.StringIO(newline='\n')
+        self.buf = io.StringIO(newline="\n")
 
     def add_imports(self, import_names):
         self.imports += import_names

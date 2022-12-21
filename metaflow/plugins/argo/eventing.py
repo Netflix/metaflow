@@ -1,12 +1,12 @@
 import asyncio
 from datetime import datetime
-from time import strptime
+from time import strptime, time
 import json
 import os
+import random
 import re
 import sys
 from urllib import parse
-
 
 
 from metaflow.metaflow_config import EVENT_SOURCE_URL
@@ -19,13 +19,13 @@ from metaflow.plugins.argo.util import (
 )
 import requests
 
-BAD_RESET_AFTER_MSG = """reset must be either a float, int, or HH:MM time.
+BAD_RESET_AFTER_MSG = """reset must be either a HH:MM wall clock time or one of the strings
+"@hourly" or "@daily".
 
 Examples
 --------
-@trigger_on_finish(flows=["FirstFlow", "SecondFlow"], reset="23:59")
-
-@trigger_on_finish(flows=["FirstFlow", "SecondFlow"], reset="4")
+@trigger_on_finish(flows=["FirstFlow", "SecondFlow"], opts=dict(reset="23:59")
+@trigger_on_finish(flows=["FirstFlow", "SecondFlow"], opts=dict(reset="@daily"))
 """
 
 
@@ -124,42 +124,43 @@ async def _send_nats_event(event_url, body):
 
 
 class TriggerSet:
-    def __init__(self, project, branch, reset):
-        project_decorator = None
+    def __init__(self, project, branch, opts):
+        self._parse_reset(opts)
         self._project = project
         self._branch = branch
-        self._parse_reset(reset)
         self.triggers = []
 
-    def _parse_reset(self, reset):
-        parsed_time = None
-        if reset == "" or reset is None:
+    def _parse_reset(self, opts):
+        if "reset" not in opts:
             self._reset = None
-        else:
-            formats = [
-                "%H:%M",  # 24 hour time (13:05)
-                "%I:%M%p",  # 12 hour time (1:05pm)
-                "%I:%M p",  # 12 hour time (1:05 pm)
-            ]
-            if reset.find(":") > -1:
-                parsed = False
-                for f in formats:
-                    try:
-                        self._reset = strptime(reset, f)
-                        parsed = True
-                        break
-                    except ValueError:
-                        continue
-                if not parsed:
-                    raise BadResetException(msg=BAD_RESET_AFTER_MSG)
-            else:
+            return
+        reset = opts["reset"]
+        parsed_time = None
+        formats = [
+            "%H:%M",  # 24 hour time (13:05)
+            "%I:%M%p",  # 12 hour time (1:05pm)
+            "%I:%M p",  # 12 hour time (1:05 pm)
+        ]
+        if reset.find(":") > -1:
+            parsed = False
+            for f in formats:
                 try:
-                    self._reset = int(reset)
+                    t = strptime(reset, f)
+                    self._reset = "%s %s * * *".format(t.tm_min, t.tm_hour)
+                    parsed = True
+                    break
                 except ValueError:
-                    try:
-                        self._reset = float(reset)
-                    except ValueError:
-                        raise BadResetException(msg=BAD_RESET_AFTER_MSG)
+                    continue
+            if not parsed:
+                raise BadResetException(msg=BAD_RESET_AFTER_MSG)
+        else:
+            random.seed(int(time() * 100))
+            if reset == "@hourly":
+                self._reset = "%s * * * *" % random.randint(0, 5)
+            elif reset == "@daily":
+                self._reset = "%s 0 * * *" % random.randint(0, 5)
+            else:
+                raise BadResetException(msg=BAD_RESET_AFTER_MSG)
 
     @property
     def reset(self):
