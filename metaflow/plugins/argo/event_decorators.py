@@ -7,6 +7,14 @@ from metaflow.decorators import FlowDecorator
 from metaflow.exception import MetaflowException
 from .eventing import TriggerSet, TriggerInfo
 
+MISSING_INPUTS_MSG = """The @{0} decorator requires at least {1}.
+
+Examples
+--------
+@{0}(flow="MyFirstFlow")
+@{0}(flows=["MyFirstFlow", "MySecondFlow"])
+"""
+
 BAD_INPUTS_MSG = """The {0} attribute must be a list of {1} names.
 
 Examples
@@ -22,7 +30,6 @@ Examples
 --------
 @trigger_on(flows=["FirstFlow", "SecondFlow"], mappings={"FirstFlow": {"alpha": "alpha_value"}, 
                                                          "SecondFlow": {"delta": "delta_value"}})
-
 @trigger_on(events=["first", "second"], mappings={"first": {"alpha": "alpha_value"}, 
                                                   "second": {"delta": "delta_value"}})                                                         
 """
@@ -33,7 +40,6 @@ string keys and values mapping flow parameters to event fields.
 Examples
 --------
 @trigger_on(flow="FirstFlow", mappings={"alpha": "alpha_value", "delta": "delta_value"})
-
 @trigger_on(event="first", mappings={"alpha": "alpha_value", "delta": "delta_value"})
 """
 
@@ -93,16 +99,28 @@ class TriggerOnDecorator(FlowDecorator):
 
     name = "trigger_on"
     defaults = {
+        "flow": None,
         "flows": [],
+        "event": None,
         "events": [],
         "mappings": {},
-        "reset": "",
+        "opts": dict(),
     }
     options = {
+        "flow": dict(
+            is_flag=False,
+            show_default=False,
+            help="Trigger the current flow when the named flow completes a run.",
+        ),
         "flows": dict(
             is_flag=False,
             show_default=False,
             help="Trigger the current flow when all named flows complete.",
+        ),
+        "event": dict(
+            is_flag=False,
+            show_default=False,
+            help="Trigger the current flow when an event is received.",
         ),
         "events": dict(
             is_flag=False,
@@ -114,10 +132,10 @@ class TriggerOnDecorator(FlowDecorator):
             show_default=True,
             help="Mapping of flow parameters to event fields.",
         ),
-        "reset": dict(
+        "opts": dict(
             is_flag=False,
             show_default=True,
-            help="Reset event trigger state after an elapsed interval or at a specific time (depending on the orchestrator)",
+            help="Dict of options for a specific eventing backend",
         ),
     }
 
@@ -183,35 +201,42 @@ class TriggerOnDecorator(FlowDecorator):
             raise bad_inputs_error("flows", "flow", self.name)
         if events is not None and type(events) != list:
             raise bad_inputs_error("events", "event", self.name)
-
-        if flows is None or len(flows) == 0:
-            if events is None or len(events) == 0:
-                self._report_empty_inputs()
-
+        if self.attributes["flow"] is not None:
+            flows.append(self.attributes["flow"])
+        if self.attributes["event"] is not None:
+            events.append(self.attributes["event"])
+        if len(flows) == 0 and len(events) == 0:
+            self._report_empty_inputs()
         return (flows, events)
 
     def _report_empty_inputs(self):
         raise MetaflowException(
-            msg=("@%s needs at least one flow or event name." % self.name)
+            msg=(MISSING_INPUTS_MSG.format(self.name, "one flow or event name"))
         )
 
 
 class TriggerOnFinishDecorator(TriggerOnDecorator):
 
     name = "trigger_on_finish"
-    defaults = {"flows": [], "reset": ""}
+    defaults = {"flow": None, "flows": [], "event": None, "opts": dict()}
     options = {
+        "flow": dict(
+            is_flag=False,
+            show_default=False,
+            help="Trigger the current flow when the named flow completes a run.",
+        ),
         "flows": dict(
             is_flag=False,
             show_default=False,
             help="Trigger the current flow when all named flows complete.",
         ),
-        "reset": dict(
+        "opts": dict(
             is_flag=False,
             show_default=True,
-            help="Reset event trigger state after an elapsed interval or at a specific time (depending on the orchestrator)",
         ),
     }
 
     def _report_empty_inputs(self):
-        raise MetaflowException(msg=("@%s needs at least one flow name." % self.name))
+        raise MetaflowException(
+            msg=(MISSING_INPUTS_MSG.format(self.name, "one flow name"))
+        )
