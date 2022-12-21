@@ -939,6 +939,12 @@ class ArgoWorkflows(object):
             metaflow_version["production_token"] = self.production_token
             env["METAFLOW_VERSION"] = json.dumps(metaflow_version)
 
+            # Make any triggering events available as environment variables
+            if not self._ignore_events:
+                for parameter in self.parameters:
+                    if parameter["name"].startswith("mf-event-"):
+                        var_name = parameter["name"].upper().replace("-", "_")
+                        env[var_name] = "{{workflow.parameters.%s}}" % parameter["name"]
             # Set the template inputs and outputs for passing state. Very simply,
             # the container template takes in input-paths as input and outputs
             # the task-id (which feeds in as input-paths to the subsequent task).
@@ -1750,6 +1756,7 @@ class WorkflowLifecycleHookContainerTemplate(object):
         psb.add_line(
             'payload={"payload":{event_name:True,"event_type":"metaflow_system","data":{},"pathspec":pathspec,"timestamp":timestamp}}'
         )
+        psb.add_line('payload["payload"]["event_name"]=event_name')
         if using_nats:
             psb.add_line("payload=json.dumps(payload)")
             psb.add_line("parsed=urllib.parse.urlparse(event_url)")

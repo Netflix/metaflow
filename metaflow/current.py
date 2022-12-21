@@ -16,6 +16,8 @@ class Current(object):
         self._username = None
         self._metadata_str = None
         self._is_running = False
+        self._trigger_maker = None
+        self._trigger = None
 
         def _raise(ex):
             raise ex
@@ -37,6 +39,7 @@ class Current(object):
         metadata_str=None,
         is_running=True,
         tags=None,
+        trigger_maker=None,
     ):
         if flow is not None:
             self._flow_name = flow.name
@@ -52,6 +55,7 @@ class Current(object):
         self._metadata_str = metadata_str
         self._is_running = is_running
         self._tags = tags
+        self._trigger_maker = trigger_maker
 
     def _update_env(self, env):
         for k, v in env.items():
@@ -219,6 +223,12 @@ class Current(object):
             num_nodes=int(os.environ.get("MF_PARALLEL_NUM_NODES", "1")),
             node_index=int(os.environ.get("MF_PARALLEL_NODE_INDEX", "0")),
         )
+
+    @property
+    def trigger(self):
+        if self._trigger is None:
+            self._trigger = self._trigger_maker()
+        return self._trigger
 
     @property
     def tags(self):
