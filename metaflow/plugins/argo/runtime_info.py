@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import os
 
@@ -120,34 +120,28 @@ class ArgoEventInfo(MetaflowEvent):
             raise MetaflowException(
                 "Event type for event %s not found" % self._base_name
             )
-
-        self._name = value["event_name"]
+        if "event_name" not in value:
+            raise MetaflowException(
+                "Event name for event %s not found" % self._base_name
+            )
+        if "pathspec" not in value:
+            raise MetaflowException(
+                "Event pathspec for event %s not found" % self._base_name
+            )
+        self._pathspec = value["pathspec"]
         if value["event_type"] == "metaflow_system":
             self._type = MetaflowEventTypes.RUN
+            self._name = self._pathspec.split("/", maxsplit=1)[0]
         else:
             self._type = MetaflowEventTypes.EVENT
-
-        if self._type == MetaflowEventTypes.RUN:
-            try:
-                self._pathspec = value["pathspec"]
-                self._name = self._pathspec.split("/", maxsplit=1)[0]
-            except KeyError:
-                raise MetaflowException(
-                    "Path spec for run event %s not found" & self._base_name
-                )
-        else:
-            if "event_name" not in value:
-                raise MetaflowException(
-                    "Event name for event %s not found" % self._base_name
-                )
-            else:
-                self._name = value["event_name"]
+            self._name = value["event_name"]
 
         # Create datetime from timestamp
         try:
             ts = int(value["timestamp"])
             ts = int(ts / 1000)
             self._timestamp = datetime.fromtimestamp(ts)
+            self._timestamp.replace(tzinfo=timezone.utc)
         except ValueError:
             raise MetaflowException(
                 "Event timestamp for event %s is not an integer" % self._base_name
