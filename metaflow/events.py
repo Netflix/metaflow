@@ -66,37 +66,6 @@ class MetaflowTrigger:
         raise NotImplementedError()
 
 
-class NoTrigger(MetaflowTrigger):
-    @property
-    def event(self):
-        return None
-
-    @property
-    def events(self):
-        return []
-
-    @property
-    def data(self):
-        return None
-
-    @property
-    def run(self):
-        return None
-
-    @property
-    def runs(self):
-        return []
-
-    def names(self):
-        return []
-
-    def __getitem__(self, name):
-        return None
-
-    def __len__(self):
-        return 0
-
-
 class MetaflowEventTypes(Enum):
     EVENT = auto()
     RUN = auto()

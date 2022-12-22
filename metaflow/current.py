@@ -226,6 +226,8 @@ class Current(object):
 
     @property
     def trigger(self):
+        if self._trigger_maker is None:
+            return None
         if self._trigger is None:
             self._trigger = self._trigger_maker()
         return self._trigger

@@ -7,7 +7,6 @@ import time
 
 from types import MethodType, FunctionType
 
-from metaflow.events import NoTrigger
 from metaflow.plugins.argo.runtime_info import ArgoSensorTriggerInfo
 
 from metaflow.datastore.exceptions import DataException
@@ -442,7 +441,7 @@ class MetaflowTask(object):
         if node.type == "join":
             join_type = self.flow._graph[node.split_parents[-1]].type
 
-        trigger_maker = NoTrigger
+        trigger_maker = None
         # determine type of trigger, if any
         if os.getenv("ARGO_WORKFLOW_NAME") is not None:
             trigger_maker = ArgoSensorTriggerInfo
