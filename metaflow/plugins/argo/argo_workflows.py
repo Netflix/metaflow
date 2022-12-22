@@ -140,7 +140,9 @@ class ArgoWorkflows(object):
         return name.replace("_", "-")
 
     @classmethod
-    def trigger(cls, name, parameters={}):
+    def trigger(cls, name, parameters=None):
+        if parameters is None:
+            parameters = {}
         try:
             workflow_template = ArgoClient(
                 namespace=KUBERNETES_NAMESPACE
@@ -378,7 +380,7 @@ class ArgoWorkflows(object):
 
     # Visit every node and yield the uber DAGTemplate(s).
     def _dag_templates(self):
-        def _visit(node, exit_node=None, templates=[], dag_tasks=[]):
+        def _visit(node, exit_node=None, templates=None, dag_tasks=None):
             # Every for-each node results in a separate subDAG and an equivalent
             # DAGTemplate rooted at the child of the for-each node. Each DAGTemplate
             # has a unique name - the top-level DAGTemplate is named as the name of
@@ -386,6 +388,10 @@ class ArgoWorkflows(object):
             # of the for-each node.
 
             # Emit if we have reached the end of the sub workflow
+            if dag_tasks is None:
+                dag_tasks = []
+            if templates is None:
+                templates = []
             if exit_node is not None and exit_node is node.name:
                 return templates, dag_tasks
 
@@ -859,7 +865,8 @@ class ArgoWorkflows(object):
                 .retry_strategy(
                     times=total_retries,
                     minutes_between_retries=minutes_between_retries,
-                ).metadata(
+                )
+                .metadata(
                     ObjectMeta().annotation("metaflow/step_name", node.name)
                     # Unfortunately, we can't set the task_id since it is generated
                     # inside the pod. However, it can be inferred from the annotation
@@ -871,19 +878,8 @@ class ArgoWorkflows(object):
                 # Set emptyDir volume for state management
                 .empty_dir_volume("out")
                 # Set node selectors
-                .node_selectors(
-                    {
-                        str(k.split("=", 1)[0]): str(k.split("=", 1)[1])
-                        for k in (
-                            resources.get("node_selector")
-                            or (
-                                KUBERNETES_NODE_SELECTOR.split(",")
-                                if KUBERNETES_NODE_SELECTOR
-                                else []
-                            )
-                        )
-                    }
-                )
+                .node_selectors(resources.get("node_selector"))
+                .tolerations(resources.get("tolerations"))
                 # Set container
                 .container(
                     # TODO: Unify the logic with kubernetes.py
@@ -1234,8 +1230,13 @@ class Template(object):
 
     def node_selectors(self, node_selectors):
         if "nodeSelector" not in self.payload:
-            self.payload["labels"] = {}
-        self.payload["nodeSelector"].update(node_selectors)
+            self.payload["nodeSelector"] = {}
+        if node_selectors:
+            self.payload["nodeSelector"].update(node_selectors)
+        return self
+
+    def tolerations(self, tolerations):
+        self.payload["tolerations"] = tolerations
         return self
 
     def to_json(self):
