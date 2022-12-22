@@ -443,7 +443,7 @@ class MetaflowTask(object):
 
         trigger_maker = None
         # determine type of trigger, if any
-        if os.getenv("ARGO_WORKFLOW_NAME") is not None:
+        if "ARGO_WORKFLOW_NAME" in os.environ or "METAFLOW_LOCAL_EXEC" in os.environ:
             trigger_maker = ArgoSensorTriggerInfo
 
         # 1. initialize output datastore

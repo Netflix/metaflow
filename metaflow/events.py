@@ -1,4 +1,7 @@
+from datetime import datetime
 from enum import Enum, auto
+import json
+from json.decoder import JSONDecodeError
 
 
 class MetaflowTrigger:
@@ -102,3 +105,79 @@ class MetaflowEvent:
         Return event type: `RUN` or `EVENT`
         """
         raise NotImplementedError()
+
+
+class LocalEventTransformer:
+    """
+    Parses local event defintions and transforms
+    them into events compatible with `current.trigger`.
+    """
+
+    def __init__(self, events):
+        self._events = events
+        self._parsed = []
+
+    def parse(self):
+        for event in self._events:
+            try:
+                parsed = json.loads(event)
+                self._parsed.append(parsed)
+            except JSONDecodeError as e:
+                dumped = json.dumps(event)
+                # String
+                if dumped == '"%s"' % event:
+                    self._parsed.append(event)
+                # Malformed JSON
+                else:
+                    raise e
+        return self
+
+    def transform(self):
+        xformed = []
+        for parsed in self._parsed:
+            if type(parsed) == dict:
+                xformed.append(self._xform_json_event(parsed))
+            elif parsed.find("/") > -1:
+                xformed.append(self._xform_run_event(parsed))
+            else:
+                xformed.append(self._xform_event_name(parsed))
+        return xformed
+
+    def _xform_json_event(self, parsed):
+        xformed = dict()
+        if "event_name" in parsed:
+            xformed["event_name"] = parsed.pop("event_name")
+        elif "name" in parsed:
+            xformed["event_name"] = parsed.pop("name")
+        else:
+            raise ValueError(msg="Missing event_name field in JSON event")
+        xformed["timestamp"] = self._ts()
+        xformed["event_type"] = "metaflow_user"
+        if "fields" in parsed:
+            xformed["data"] = parsed["fields"]
+        if "pathspec" in parsed:
+            xformed["pathspec"] = parsed["pathspec"]
+        else:
+            xformed["pathspec"] = ""
+        return xformed
+
+    def _xform_run_event(self, pathspec):
+        flow_name = pathspec.split("/", maxsplit=1)[0].lower()
+        return dict(
+            event_name="%s_finished" % flow_name,
+            event_type="metaflow_system",
+            pathspec=pathspec,
+            timestamp=self._ts(),
+        )
+
+    def _xform_event_name(self, name):
+        return dict(
+            event_name=name,
+            event_type="metaflow_user",
+            pathspec="",
+            timestamp=self._ts(),
+            data={},
+        )
+
+    def _ts(self):
+        return int(datetime.timestamp(datetime.utcnow()))
