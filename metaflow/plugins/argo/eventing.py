@@ -26,10 +26,10 @@ BAD_RESET_AFTER_MSG = """reset must be one of:
 
 Examples
 --------
-@trigger_on_finish(flows=["FirstFlow", "SecondFlow"], opts=dict(reset="23:59")
-@trigger_on_finish(flows=["FirstFlow", "SecondFlow"], opts=dict(reset="11:59 pm"))
-@trigger_on_finish(flows=["FirstFlow", "SecondFlow"], opts=dict(reset="@daily"))
-@trigger_on_finish(flows=["FirstFlow", "SecondFlow"], opts=dict(reset="* 4 * * *"))
+@trigger_on_finish(flows=["FirstFlow", "SecondFlow"], options=dict(reset="23:59")
+@trigger_on_finish(flows=["FirstFlow", "SecondFlow"], options=dict(reset="11:59 pm"))
+@trigger_on_finish(flows=["FirstFlow", "SecondFlow"], options=dict(reset="@daily"))
+@trigger_on_finish(flows=["FirstFlow", "SecondFlow"], options=dict(reset="* 4 * * *"))
 """
 
 

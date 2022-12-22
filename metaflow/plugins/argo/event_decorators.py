@@ -104,7 +104,7 @@ class TriggerOnDecorator(FlowDecorator):
         "event": None,
         "events": [],
         "mappings": {},
-        "opts": dict(),
+        "options": dict(),
     }
     options = {
         "flow": dict(
@@ -132,7 +132,7 @@ class TriggerOnDecorator(FlowDecorator):
             show_default=True,
             help="Mapping of flow parameters to event fields.",
         ),
-        "opts": dict(
+        "options": dict(
             is_flag=False,
             show_default=True,
             help="Dict of options for a specific eventing backend",
@@ -168,7 +168,7 @@ class TriggerOnDecorator(FlowDecorator):
                     + "Project namespacing must be applied before triggers are built."
                 )
         self.attributes["trigger_set"] = TriggerSet(
-            project_name, branch_name, self.attributes["opts"]
+            project_name, branch_name, self.attributes["options"]
         )
         mappings = self.attributes.get("mappings")
         is_aggregate = (len(flows) > 1) or (
@@ -218,7 +218,7 @@ class TriggerOnDecorator(FlowDecorator):
 class TriggerOnFinishDecorator(TriggerOnDecorator):
 
     name = "trigger_on_finish"
-    defaults = {"flow": None, "flows": [], "event": None, "opts": dict()}
+    defaults = {"flow": None, "flows": [], "event": None, "options": dict()}
     options = {
         "flow": dict(
             is_flag=False,
@@ -230,7 +230,7 @@ class TriggerOnFinishDecorator(TriggerOnDecorator):
             show_default=False,
             help="Trigger the current flow when all named flows complete.",
         ),
-        "opts": dict(
+        "options": dict(
             is_flag=False,
             show_default=True,
         ),
