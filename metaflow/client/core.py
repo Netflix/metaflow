@@ -757,11 +757,7 @@ class MetaflowCode(object):
     Currently, `MetaflowCode` objects are stored only for `Run`s that have at least one `Step`
     executing outside the user's local environment.
 
-    You can extract code in the directory `snapshot` like so:
-    ```
-    from metaflow.util import tar_safe_extract
-    tar_safe_extract(tar=Run(...).code.tarball, path='snapshot')
-    ```
+    The `TarFile` for the `Run` is given by `Run(...).code.tarball`
 
     Attributes
     ----------
