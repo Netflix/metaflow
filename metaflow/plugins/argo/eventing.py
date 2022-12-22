@@ -19,13 +19,17 @@ from metaflow.plugins.argo.util import (
 )
 import requests
 
-BAD_RESET_AFTER_MSG = """reset must be either a HH:MM wall clock time or one of the strings
-"@hourly" or "@daily".
+BAD_RESET_AFTER_MSG = """reset must be one of:
+* HH:MM wall clock time
+* one of the strings: '@hourly', '@daily', '@weekly', '@monthly'
+* cron expression with 5 fields
 
 Examples
 --------
 @trigger_on_finish(flows=["FirstFlow", "SecondFlow"], opts=dict(reset="23:59")
+@trigger_on_finish(flows=["FirstFlow", "SecondFlow"], opts=dict(reset="11:59 pm"))
 @trigger_on_finish(flows=["FirstFlow", "SecondFlow"], opts=dict(reset="@daily"))
+@trigger_on_finish(flows=["FirstFlow", "SecondFlow"], opts=dict(reset="* 4 * * *"))
 """
 
 
@@ -154,13 +158,21 @@ class TriggerSet:
             if not parsed:
                 raise BadResetException(msg=BAD_RESET_AFTER_MSG)
         else:
-            random.seed(int(time() * 100))
+            # See https://en.wikipedia.org/wiki/Cron#Nonstandard_predefined_scheduling_definitions
             if reset == "@hourly":
-                self._reset = "%s * * * *" % random.randint(0, 5)
+                self._reset = "0 * * * *"
             elif reset == "@daily":
-                self._reset = "%s 0 * * *" % random.randint(0, 5)
+                self._reset = "0 0 * * *"
+            elif reset == "@weekly":
+                self._reset = "0 0 * * 0"
+            elif reset == "@monthly":
+                self._reset = "0 0 1 * *"
             else:
-                raise BadResetException(msg=BAD_RESET_AFTER_MSG)
+                chunks = reset.split(" ")
+                if len(chunks) != 5:
+                    raise BadResetException(msg=BAD_RESET_AFTER_MSG)
+                else:
+                    self._reset = reset
 
     @property
     def reset(self):
