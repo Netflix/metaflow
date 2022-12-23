@@ -6,7 +6,7 @@ import json
 import os
 
 from hashlib import sha1
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from metaflow._vendor import click
 
