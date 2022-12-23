@@ -246,9 +246,9 @@ class Parameter(object):
         indicate that the value must be a valid JSON object. A function
         implies that the parameter corresponds to a *deploy-time parameter*.
         The type of the default value is used as the parameter `type`.
-    type : Type, default: str
+    type : Type, default: None
         If `default` is not specified, define the parameter type. Specify
-        one of `str`, `float`, `int`, `bool`, or `JSONType`.
+        one of `str`, `float`, `int`, `bool`, or `JSONType`. If None, defaults to str.
     help : str, optional
         Help text to show in `run --help`.
     required : bool, default: False
@@ -271,7 +271,9 @@ class Parameter(object):
                 Callable[[], Union[str, float, int, bool, Dict[str, Any]]],
             ]
         ] = None,
-        type: Union[Type[str], Type[float], Type[int], Type[bool], JSONTypeClass] = str,
+        type: Optional[
+            Union[Type[str], Type[float], Type[int], Type[bool], JSONTypeClass]
+        ] = None,
         help: Optional[str] = None,
         required: bool = False,
         show_default: bool = True,
@@ -279,15 +281,16 @@ class Parameter(object):
     ):
         self.name = name
         self.kwargs = kwargs
-        self.kwargs.update(
-            {
-                "default": default,
-                "type": type,
-                "help": help,
-                "required": required,
-                "show_default": show_default,
-            }
-        )
+        for k, v in {
+            "default": default,
+            "type": type,
+            "help": help,
+            "required": required,
+            "show_default": show_default,
+        }.items():
+            if v is not None:
+                self.kwargs[k] = v
+
         # TODO: check that the type is one of the supported types
         param_type = self.kwargs["type"] = self._get_type(kwargs)
         reserved_params = [
