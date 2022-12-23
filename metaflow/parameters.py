@@ -246,15 +246,15 @@ class Parameter(object):
         indicate that the value must be a valid JSON object. A function
         implies that the parameter corresponds to a *deploy-time parameter*.
         The type of the default value is used as the parameter `type`.
-    type : type
+    type : Type, default: str
         If `default` is not specified, define the parameter type. Specify
-        one of `str`, `float`, `int`, `bool`, or `JSONType` (default: str).
-    help : str
+        one of `str`, `float`, `int`, `bool`, or `JSONType`.
+    help : str, optional
         Help text to show in `run --help`.
-    required : bool
+    required : bool, default: False
         Require that the user specified a value for the parameter.
         `required=True` implies that the `default` is not used.
-    show_default : bool
+    show_default : bool, default: True
         If True, show the default value in the help text (default: True).
     """
 

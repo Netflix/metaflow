@@ -6,7 +6,7 @@ import json
 import os
 
 from hashlib import sha1
-from typing import Dict
+from typing import Dict, Optional
 
 from metaflow._vendor import click
 
@@ -65,7 +65,7 @@ class IncludedFile(object):
     # the actual content)
 
     # @tracefunc
-    def __init__(self, descriptor):
+    def __init__(self, descriptor: Dict[str, Any]):
         self._descriptor = descriptor
         self._cached_size = None
 
@@ -246,18 +246,18 @@ class IncludeFile(Parameter):
     default : str or a function
         Default path to a local file. A function
         implies that the parameter corresponds to a *deploy-time parameter*.
-    is_text : bool
-        Convert the file contents to a string using the provided `encoding` (default: True).
+    is_text : bool, default: True
+        Convert the file contents to a string using the provided `encoding`.
         If False, the artifact is stored in `bytes`.
-    encoding : str
-        Use this encoding to decode the file contexts if `is_text=True` (default: `utf-8`).
-    required : bool
+    encoding : str, optional, default: "utf-8"
+        Use this encoding to decode the file contexts if `is_text=True`.
+    required : bool, default: False
         Require that the user specified a value for the parameter.
         `required=True` implies that the `default` is not used.
-    help : str
+    help : str, optional
         Help text to show in `run --help`.
-    show_default : bool
-        If True, show the default value in the help text (default: True).
+    show_default : bool, default: True
+        If True, show the default value in the help text.
     """
 
     def __init__(
@@ -265,8 +265,8 @@ class IncludeFile(Parameter):
         name: str,
         required: bool = False,
         is_text: bool = True,
-        encoding: str = None,
-        help: str = None,
+        encoding: str = "utf-8",
+        help: Optional[str] = None,
         **kwargs: Dict[str, str]
     ):
         # If a default is specified, it needs to be uploaded when the flow is deployed

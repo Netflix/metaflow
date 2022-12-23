@@ -5,7 +5,7 @@ import traceback
 
 from itertools import islice
 from types import FunctionType, MethodType
-from typing import Any, Callable, List, Optional, Sequence, Tuple, TypeVar
+from typing import Any, Callable, List, Optional, Sequence, Tuple
 
 from . import cmd_with_io
 from .parameters import DelayedEvaluationParameter, Parameter
@@ -44,9 +44,6 @@ class ParallelUBF(UnboundedForeachInput):
 
     def __getitem__(self, item):
         return item or 0  # item is None for the control task, but it is also split 0
-
-
-TFlowSpec = TypeVar("TFlowSpec", bound="FlowSpec")
 
 
 class FlowSpec(object):
@@ -108,7 +105,7 @@ class FlowSpec(object):
             cli.main(self)
 
     @property
-    def script_name(self):
+    def script_name(self) -> str:
         """
         [Legacy function - do not use. Use `current` instead]
 
@@ -218,7 +215,7 @@ class FlowSpec(object):
         """
         return iter(self._steps)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str):
         if self._datastore and name in self._datastore:
             # load the attribute from the datastore...
             x = self._datastore[name]
@@ -248,7 +245,7 @@ class FlowSpec(object):
 
         Returns
         -------
-        int
+        int, optional
             Index of the task in a foreach step.
         """
         if self._foreach_stack:
@@ -268,7 +265,7 @@ class FlowSpec(object):
 
         Returns
         -------
-        object
+        object, optional
             Input passed to the foreach task.
         """
         return self._find_input()
@@ -359,7 +356,7 @@ class FlowSpec(object):
 
     def merge_artifacts(
         self,
-        inputs: Sequence[TFlowSpec],
+        inputs: Sequence["FlowSpec"],
         exclude: Optional[List[str]] = None,
         include: Optional[List[str]] = None,
     ) -> None:
@@ -395,7 +392,7 @@ class FlowSpec(object):
 
         Parameters
         ----------
-        inputs : List[Steps]
+        inputs : List[FlowSpec]
             Incoming steps to the join point.
         exclude : List[str], optional
             If specified, do not consider merging artifacts with a name in `exclude`.

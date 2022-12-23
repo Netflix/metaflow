@@ -1,4 +1,4 @@
-from typing import Any, List, Optional, Union
+from typing import Any, List, Optional, Union, TYPE_CHECKING
 from .basic import (
     LogComponent,
     ErrorComponent,
@@ -11,6 +11,12 @@ from .basic import (
 from .card import MetaflowCardComponent
 from .convert_to_native_type import TaskToDict, _full_classname
 from .renderer_tools import render_safely
+
+if TYPE_CHECKING:
+    from pandas import DataFrame
+    from PIL import Image
+    from matplotlib.figure import Figure
+    from matplotlib.axes import Axes
 
 
 class UserComponent(MetaflowCardComponent):
@@ -112,7 +118,9 @@ class Table(UserComponent):
             self._data = data
 
     @classmethod
-    def from_dataframe(cls, dataframe=None, truncate: bool = True):
+    def from_dataframe(
+        cls, dataframe: Optional["DataFrame"] = None, truncate: bool = True
+    ):
         """
         Create a `Table` based on a Pandas dataframe.
 
@@ -264,7 +272,7 @@ class Image(UserComponent):
         return parsed_image
 
     @classmethod
-    def from_pil_image(cls, pilimage, label: Optional[str] = None):
+    def from_pil_image(cls, pilimage: "Image", label: Optional[str] = None):
         """
         Create an `Image` from a PIL image.
 
@@ -312,7 +320,7 @@ class Image(UserComponent):
             )
 
     @classmethod
-    def from_matplotlib(cls, plot, label: Optional[str] = None):
+    def from_matplotlib(cls, plot: Union[Figure, Axes], label: Optional[str] = None):
         """
         Create an `Image` from a Matplotlib plot.
 

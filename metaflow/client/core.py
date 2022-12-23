@@ -14,7 +14,6 @@ from typing import (
     List,
     Optional,
     Tuple,
-    TypeVar,
 )
 
 from metaflow.metaflow_environment import MetaflowEnvironment
@@ -167,7 +166,7 @@ def namespace(ns: Optional[str]) -> Optional[str]:
 
     Returns
     -------
-    str
+    str, optional
         Namespace set (result of get_namespace()).
     """
     global current_namespace
@@ -175,7 +174,7 @@ def namespace(ns: Optional[str]) -> Optional[str]:
     return get_namespace()
 
 
-def get_namespace() -> str:
+def get_namespace() -> Optional[str]:
     """
     Return the current namespace that is currently being used to filter objects.
 
@@ -183,7 +182,7 @@ def get_namespace() -> str:
 
     Returns
     -------
-    str
+    str, optional
         The current namespace used to filter objects.
     """
     # see a comment about namespace initialization
@@ -208,9 +207,6 @@ def default_namespace() -> str:
     return get_namespace()
 
 
-TMetaflowObject = TypeVar("TMetaflowObject", bound="MetaflowObject")
-
-
 class MetaflowObject(object):
     """
     Base class for all Metaflow objects.
@@ -233,21 +229,21 @@ class MetaflowObject(object):
 
     Attributes
     ----------
-    tags : Set
+    tags : FrozenSet[str]
         Tags associated with the run this object belongs to (user and system tags).
-    user_tags: Set
+    user_tags: FrozenSet[str]
         User tags associated with the run this object belongs to.
-    system_tags: Set
+    system_tags: FrozenSet[str]
         System tags associated with the run this object belongs to.
     created_at : datetime
         Date and time this object was first created.
     parent : MetaflowObject
         Parent of this object. The parent of a `Run` is a `Flow` for example
-    pathspec : string
+    pathspec : str
         Pathspec of this object (for example: 'FlowName/RunID' for a `Run`)
-    path_components : List[string]
+    path_components : List[str]
         Components of the pathspec
-    origin_pathspec : str
+    origin_pathspec : str, optional
         Pathspec of the original object this object was cloned from (in the case of a resume).
         None if not applicable.
     """
@@ -258,11 +254,11 @@ class MetaflowObject(object):
 
     def __init__(
         self,
-        pathspec=None,
-        attempt=None,
-        _object=None,
-        _parent=None,
-        _namespace_check=True,
+        pathspec: Optional[str] = None,
+        attempt: Optional[int] = None,
+        _object: Optional["MetaflowObject"] = None,
+        _parent: Optional["MetaflowObject"] = None,
+        _namespace_check: bool = True,
     ):
         self._metaflow = Metaflow()
         self._parent = _parent
@@ -329,7 +325,7 @@ class MetaflowObject(object):
             raise MetaflowNotFound("%s does not exist" % self)
         return result
 
-    def __iter__(self):
+    def __iter__(self) -> Iterable["MetaflowObject"]:
         """
         Iterate over all child objects of this object if any.
 
@@ -425,7 +421,7 @@ class MetaflowObject(object):
             _CLASSES[self._CHILD_CLASS]._NAME, "self", None, self._attempt, *result
         )
 
-    def __getitem__(self, id: str) -> TMetaflowObject:
+    def __getitem__(self, id: str) -> "MetaflowObject":
         """
         Returns the child object named 'id'.
 
@@ -528,7 +524,7 @@ class MetaflowObject(object):
         The pathspec of the object from which the current object was cloned.
 
         Returns:
-            str
+            str, optional
                 pathspec of the origin object from which current object was cloned.
         """
         origin_pathspec = None
@@ -560,13 +556,13 @@ class MetaflowObject(object):
         return origin_pathspec
 
     @property
-    def parent(self) -> Optional[TMetaflowObject]:
+    def parent(self) -> Optional["MetaflowObject"]:
         """
         Returns the parent object of this object or None if none exists.
 
         Returns
         -------
-        MetaflowObject
+        MetaflowObject, optional
             The parent of this object
         """
         if self._NAME == "flow":
@@ -653,10 +649,10 @@ class MetaflowData(object):
     ```
     """
 
-    def __init__(self, artifacts):
+    def __init__(self, artifacts: Iterable["DataArtifact"]):
         self._artifacts = dict((art.id, art) for art in artifacts)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str):
         return self._artifacts[name].data
 
     def __contains__(self, var):
@@ -688,17 +684,17 @@ class MetaflowCode(object):
 
     Attributes
     ----------
-    path : string
+    path : str
         Location (in the datastore provider) of the code package.
-    info : Dict
+    info : Dict[str, str]
         Dictionary of information related to this code-package.
-    flowspec : string
+    flowspec : str
         Source code of the file containing the `FlowSpec` in this code package.
     tarball : TarFile
         Python standard library `tarfile.TarFile` archive containing all the code.
     """
 
-    def __init__(self, flow_name, code_package):
+    def __init__(self, flow_name: str, code_package: str):
         global filecache
 
         self._flow_name = flow_name
@@ -738,7 +734,7 @@ class MetaflowCode(object):
 
         Returns
         -------
-        Dict
+        Dict[str, str]
             Dictionary of metadata. Keys and values are strings
         """
         return self._info
@@ -920,7 +916,7 @@ class Task(MetaflowObject):
     ----------
     metadata : List[Metadata]
         List of all metadata events associated with the task.
-    metadata_dict : Dict
+    metadata_dict : Dict[str, str]
         A condensed version of `metadata`: A dictionary where keys
         are names of metadata events and values the latest corresponding event.
     data : MetaflowData
@@ -929,23 +925,23 @@ class Task(MetaflowObject):
         artifacts individually. See `MetaflowData` for more information.
     artifacts : MetaflowArtifacts
         Container of `DataArtifact` objects produced by this task.
-    successful : boolean
+    successful : bool
         True if the task completed successfully.
-    finished : boolean
+    finished : bool
         True if the task completed.
     exception : object
         Exception raised by this task if there was one.
     finished_at : datetime
         Time this task finished.
-    runtime_name : string
+    runtime_name : str
         Runtime this task was executed on.
-    stdout : string
+    stdout : str
         Standard output for the task execution.
-    stderr : string
+    stderr : str
         Standard error output for the task execution.
     code : MetaflowCode
         Code package for this task (if present). See `MetaflowCode`.
-    environment_info : Dict
+    environment_info : Dict[str, str]
         Information about the execution environment.
     """
 
@@ -1044,7 +1040,7 @@ class Task(MetaflowObject):
 
         Returns
         -------
-        Dict
+        Dict[str, str]
             Dictionary mapping metadata name with value
         """
         # use the newest version of each key, hence sorting
@@ -1063,7 +1059,7 @@ class Task(MetaflowObject):
 
         Returns
         -------
-        int
+        int, optional
             Index in the innermost loop for this task
         """
         try:
@@ -1458,7 +1454,7 @@ class Step(MetaflowObject):
     finished_at : datetime
         Time when the latest `Task` of this step finished. Note that in the case of foreaches,
         this time may change during execution of the step.
-    environment_info : Dict
+    environment_info : Dict[str, Any]
         Information about the execution environment.
     """
 
@@ -1590,7 +1586,7 @@ class Step(MetaflowObject):
 
         Returns
         -------
-        Dict
+        Dict[str, Any], optional
             Dictionary describing the environment
         """
         # All tasks have the same environment info so just use the first one
@@ -1657,7 +1653,7 @@ class Run(MetaflowObject):
 
         Returns
         -------
-        MetaflowCode
+        MetaflowCode, optional
             Code package for this run
         """
         if "start" in self:
@@ -1677,7 +1673,7 @@ class Run(MetaflowObject):
 
         Returns
         -------
-        MetaflowData
+        MetaflowData, optional
             Container of all artifacts produced by this task
         """
         end = self.end_task
@@ -1730,7 +1726,7 @@ class Run(MetaflowObject):
 
         Returns
         -------
-        datetime
+        datetime, optional
             Datetime of when the run finished
         """
         end = self.end_task
@@ -1746,7 +1742,7 @@ class Run(MetaflowObject):
 
         Returns
         -------
-        Task
+        Task, optional
             The 'end' task
         """
         try:
@@ -1903,7 +1899,7 @@ class Flow(MetaflowObject):
 
         Returns
         -------
-        Run
+        Run, optional
             Latest run of this flow
         """
         for run in self:
@@ -1916,7 +1912,7 @@ class Flow(MetaflowObject):
 
         Returns
         -------
-        Run
+        Run, optional
             Latest successful run of this flow
         """
         for run in self:

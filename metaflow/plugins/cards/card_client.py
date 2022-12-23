@@ -1,5 +1,4 @@
-from typing import Optional, Union
-from metaflow.client.core import Task
+from typing import Optional, Union, TYPE_CHECKING
 from metaflow.datastore import FlowDataStore
 from metaflow.metaflow_config import CARD_SUFFIX
 from .card_resolver import resolve_paths_from_task, resumed_info
@@ -12,6 +11,9 @@ from .exception import (
 import os
 import tempfile
 import uuid
+
+if TYPE_CHECKING:
+    from metaflow.client.core import Task
 
 _TYPE = type
 _ID_FUNC = id
@@ -203,7 +205,7 @@ class CardContainer:
 
 
 def get_cards(
-    task: Union[str, Task],
+    task: Union[str, "Task"],
     id: Optional[str] = None,
     type: Optional[str] = None,
     follow_resumed: bool = True,

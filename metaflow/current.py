@@ -1,6 +1,6 @@
 from collections import namedtuple
 import os
-from typing import Optional
+from typing import Any, Optional
 
 Parallel = namedtuple("Parallel", ["main_ip", "num_nodes", "node_index"])
 
@@ -58,10 +58,10 @@ class Current(object):
         for k, v in env.items():
             setattr(self.__class__, k, property(fget=lambda _, v=v: v))
 
-    def __contains__(self, key):
+    def __contains__(self, key: str):
         return getattr(self, key, None) is not None
 
-    def get(self, key, default=None):
+    def get(self, key: str, default=None) -> Optional[Any]:
         return getattr(self, key, default)
 
     @property
@@ -158,7 +158,7 @@ class Current(object):
 
         Returns
         -------
-        str
+        str, optional
             Run ID of the original run.
         """
         return self._origin_run_id
@@ -208,7 +208,7 @@ class Current(object):
 
         Returns
         -------
-        str
+        str, optional
             User name.
         """
         return self._username

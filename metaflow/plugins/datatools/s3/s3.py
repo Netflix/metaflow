@@ -9,7 +9,7 @@ import subprocess
 from io import RawIOBase, BufferedIOBase
 from itertools import chain, starmap
 from tempfile import mkdtemp, NamedTemporaryFile
-from typing import Dict, Iterable, List, Optional, Tuple, TypeVar, Union
+from typing import Dict, Iterable, List, Optional, Tuple, Union, TYPE_CHECKING
 
 from metaflow import FlowSpec
 from metaflow.current import current
@@ -44,6 +44,9 @@ from .s3util import (
     TRANSIENT_RETRY_START_LINE,
     TRANSIENT_RETRY_LINE_CONTENT,
 )
+
+if TYPE_CHECKING:
+    from metaflow.client import Run
 
 try:
     import boto3
@@ -417,11 +420,6 @@ class S3Client(object):
         )
 
 
-TRun = TypeVar("TRun", bound="Run")
-
-TS3 = TypeVar("TS3", bound="S3")
-
-
 class S3(object):
     """
     The Metaflow S3 client.
@@ -486,7 +484,7 @@ class S3(object):
         tmproot: str = ".",
         bucket: Optional[str] = None,
         prefix: Optional[str] = None,
-        run: Optional[Union[FlowSpec, TRun]] = None,
+        run: Optional[Union[FlowSpec, "Run"]] = None,
         s3root: Optional[str] = None,
         **kwargs
     ):
@@ -542,7 +540,7 @@ class S3(object):
         )
         self._tmpdir = mkdtemp(dir=tmproot, prefix="metaflow.s3.")
 
-    def __enter__(self) -> TS3:
+    def __enter__(self) -> "S3":
         return self
 
     def __exit__(self, *args):
