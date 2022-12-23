@@ -320,7 +320,9 @@ class Image(UserComponent):
             )
 
     @classmethod
-    def from_matplotlib(cls, plot: Union[Figure, Axes], label: Optional[str] = None):
+    def from_matplotlib(
+        cls, plot: Union["Figure", "Axes"], label: Optional[str] = None
+    ):
         """
         Create an `Image` from a Matplotlib plot.
 

@@ -1,5 +1,5 @@
 import json
-from typing import Any, Callable, Dict, NamedTuple
+from typing import Any, Callable, Dict, NamedTuple, Optional, Type, Union
 
 from metaflow._vendor import click
 
@@ -258,9 +258,34 @@ class Parameter(object):
         If True, show the default value in the help text (default: True).
     """
 
-    def __init__(self, name: str, **kwargs: Dict[str, Any]):
+    def __init__(
+        self,
+        name: str,
+        default: Union[
+            str,
+            float,
+            int,
+            bool,
+            Dict[str, Any],
+            Callable[[], Union[str, float, int, bool, Dict[str, Any]]],
+        ],
+        type: Union[Type[str], Type[float], Type[int], Type[bool], JSONTypeClass],
+        help: Optional[str],
+        required: bool = False,
+        show_default: bool = True,
+        **kwargs: Dict[str, Any]
+    ):
         self.name = name
         self.kwargs = kwargs
+        self.kwargs.update(
+            {
+                "default": default,
+                "type": type,
+                "help": help,
+                "required": required,
+                "show_default": show_default,
+            }
+        )
         # TODO: check that the type is one of the supported types
         param_type = self.kwargs["type"] = self._get_type(kwargs)
         reserved_params = [
