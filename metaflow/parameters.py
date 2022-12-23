@@ -261,16 +261,18 @@ class Parameter(object):
     def __init__(
         self,
         name: str,
-        default: Union[
-            str,
-            float,
-            int,
-            bool,
-            Dict[str, Any],
-            Callable[[], Union[str, float, int, bool, Dict[str, Any]]],
-        ],
-        type: Union[Type[str], Type[float], Type[int], Type[bool], JSONTypeClass],
-        help: Optional[str],
+        default: Optional[
+            Union[
+                str,
+                float,
+                int,
+                bool,
+                Dict[str, Any],
+                Callable[[], Union[str, float, int, bool, Dict[str, Any]]],
+            ]
+        ] = None,
+        type: Union[Type[str], Type[float], Type[int], Type[bool], JSONTypeClass] = str,
+        help: Optional[str] = None,
         required: bool = False,
         show_default: bool = True,
         **kwargs: Dict[str, Any]
