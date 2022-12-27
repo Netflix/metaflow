@@ -821,7 +821,7 @@ class S3(object):
 
     def get(
         self,
-        key: Union[str, S3GetObject],
+        key: Optional[Union[str, S3GetObject]] = None,
         return_missing: bool = False,
         return_info: bool = True,
     ) -> S3Object:
@@ -830,9 +830,10 @@ class S3(object):
 
         Parameters
         ----------
-        key : str or `S3GetObject`
+        key : str or `S3GetObject`, optional
             Object to download. It can be an S3 url, a path suffix, or
-            an `S3GetObject` that defines a range of data to download.
+            an `S3GetObject` that defines a range of data to download. If None, or
+            not provided, gets the S3 root.
         return_missing : bool, default: False
             If set to True, do not raise an exception for a missing key but
             return it as an `S3Object` with `.exists == False`.
