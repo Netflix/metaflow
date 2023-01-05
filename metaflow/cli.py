@@ -994,6 +994,9 @@ def start(
         version = metaflow_r_version()
 
     if len(trigger) > 0:
+        deconames = ctx.obj.flow._flow_decorators.keys()
+        if "trigger_on_finish" not in deconames and "trigger_on" not in deconames:
+            raise MetaflowException("--trigger only valid with flows using the @trigger_on or @trigger_on_finish decorators")
         trigger = LocalEventTransformer(trigger).parse().transform()
     else:
         trigger = None
