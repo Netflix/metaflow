@@ -35,7 +35,7 @@ class ArgoSensorTriggerInfo(MetaflowTrigger):
         # If we have events and runs then combine them together as events
         if len(self._events) > 0:
             if len(self._runs) > 0:
-                self._events = self._events.update(self._runs)
+                self._events.update(self._runs)
                 self._runs.clear()
             self._all_names = list(self._events.keys())
         else:
