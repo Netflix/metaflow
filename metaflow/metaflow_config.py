@@ -314,23 +314,17 @@ if AWS_SANDBOX_ENABLED:
 KUBERNETES_SANDBOX_INIT_SCRIPT = from_conf("KUBERNETES_SANDBOX_INIT_SCRIPT")
 
 # Argo Events
-EVENT_SOURCE_NAME = from_conf(
-    "METAFLOW_EVENT_SOURCE_NAME"
-)  # Required name of Argo Event source
-EVENT_SOURCE_URL = from_conf(
-    "METAFLOW_EVENT_SOURCE_URL"
-)  # Required: HTTP(S) or NATS URL
+EVENT_SOURCE_NAME = from_conf("EVENT_SOURCE_NAME")  # Required name of Argo Event source
+EVENT_SOURCE_URL = from_conf("EVENT_SOURCE_URL")  # Required: HTTP(S) or NATS URL
 EVENT_SERVICE_ACCOUNT = from_conf(
-    "METAFLOW_EVENT_SERVICE_ACCOUNT"
+    "EVENT_SERVICE_ACCOUNT"
 )  # Required K8s service account
-EVENT_SOURCE_AUTH_SECRET = from_conf(
-    "METAFLOW_EVENT_AUTH_SECRET"
-)  # Optional name of K8s secret
+EVENT_SOURCE_AUTH_SECRET = from_conf("EVENT_AUTH_SECRET")  # Optional name of K8s secret
 EVENT_SOURCE_AUTH_KEY = from_conf(
-    "METAFLOW_EVENT_AUTH_KEY"
+    "EVENT_AUTH_KEY"
 )  # Optional path to auth value within K8s secret
 EVENT_SOURCE_AUTH_TOKEN = from_conf(
-    "METAFLOW_EVENT_SOURCE_AUTH_TOKEN"
+    "EVENT_SOURCE_AUTH_TOKEN"
 )  # Optional string literal of auth token
 # Note: If auth is enabled on the underlying event source then either both AUTH_SECRET
 # and AUTH_KEY must be populated or AUTH_TOKEN.

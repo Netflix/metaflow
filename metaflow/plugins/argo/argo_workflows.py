@@ -27,7 +27,7 @@ from metaflow.metaflow_config import (
     DATASTORE_SYSROOT_GS,
     CARD_AZUREROOT,
     CARD_GSROOT,
-    DATASTORE_CARD_AZUREROOT,
+    CARD_AZUREROOT,
     EVENT_SOURCE_URL,
     EVENT_SOURCE_NAME,
     EVENT_SOURCE_AUTH_SECRET,
@@ -932,7 +932,7 @@ class ArgoWorkflows(object):
             # GCP stuff
             env["METAFLOW_DATASTORE_SYSROOT_GS"] = DATASTORE_SYSROOT_GS
             env["METAFLOW_CARD_GSROOT"] = CARD_GSROOT
-            env["METAFLOW_DATASTORE_CARD_AZUREROOT"] = DATASTORE_CARD_AZUREROOT
+            env["METAFLOW_CARD_AZUREROOT"] = CARD_AZUREROOT
 
             metaflow_version = self.environment.get_environment_info()
             metaflow_version["flow_name"] = self.graph.name
