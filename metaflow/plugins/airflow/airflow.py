@@ -140,6 +140,7 @@ class Airflow(object):
         schedule = self.flow._flow_decorators.get("schedule")
         if not schedule:
             return None
+        schedule = schedule[0]
         if schedule.attributes["cron"]:
             return schedule.attributes["cron"]
         elif schedule.attributes["weekly"]:
