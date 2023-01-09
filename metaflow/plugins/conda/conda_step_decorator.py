@@ -181,7 +181,9 @@ class CondaStepDecorator(StepDecorator):
             # we were originally restricted to just .tar.bz2 packages
             # due to https://github.com/conda/conda/issues/9674
             # which doesn't seem to be the case anymore
-            if not tarball_path.endswith(".conda") and not tarball_path.endswith(".tar.bz2"):
+            if not tarball_path.endswith(".conda") and not tarball_path.endswith(
+                ".tar.bz2"
+            ):
                 tarball_path_suffix = ".tar.bz2"
                 if package_info["url"].endswith(".conda"):
                     tarball_path_suffix = ".conda"
