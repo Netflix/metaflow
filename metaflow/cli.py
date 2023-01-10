@@ -22,6 +22,7 @@ from .util import (
     get_latest_run_id,
 )
 from .task import MetaflowTask
+from .events import LocalEventTransformer
 from .exception import CommandException, MetaflowException
 from .graph import FlowGraph
 from .datastore import FlowDataStore, TaskDataStoreSet, TaskDataStore
@@ -820,9 +821,9 @@ def run(
     decospecs=None,
     run_id_file=None,
     user_namespace=None,
+    trigger=None,
     **kwargs
 ):
-
     if user_namespace is not None:
         namespace(user_namespace or None)
     before_run(obj, tags, decospecs + obj.environment.decospecs())
@@ -841,6 +842,7 @@ def run(
         max_workers=max_workers,
         max_num_splits=max_num_splits,
         max_log_size=max_log_size * 1024 * 1024,
+        trigger_events=obj.trigger_events,
     )
     write_latest_run_id(obj, runtime.run_id)
     write_run_id(run_id_file, runtime.run_id)
@@ -961,6 +963,9 @@ def version(obj):
     type=click.Choice(MONITOR_SIDECARS),
     help="Monitoring backend type",
 )
+@click.option(
+    "--trigger", multiple=True, default=[], help="Specify a triggering event."
+)
 @click.pass_context
 def start(
     ctx,
@@ -974,6 +979,7 @@ def start(
     pylint=None,
     event_logger=None,
     monitor=None,
+    trigger=None,
     **deco_options
 ):
     global echo
@@ -986,6 +992,14 @@ def start(
     version = ctx.obj.version
     if use_r():
         version = metaflow_r_version()
+
+    if len(trigger) > 0:
+        deconames = ctx.obj.flow._flow_decorators.keys()
+        if "trigger_on_finish" not in deconames and "trigger_on" not in deconames:
+            raise MetaflowException("--trigger only valid with flows using the @trigger_on or @trigger_on_finish decorators")
+        trigger = LocalEventTransformer(trigger).parse().transform()
+    else:
+        trigger = None
 
     echo("Metaflow %s" % version, fg="magenta", bold=True, nl=False)
     echo(" executing *%s*" % ctx.obj.flow.name, fg="magenta", nl=False)
@@ -1000,6 +1014,7 @@ def start(
     ctx.obj.check = _check
     ctx.obj.pylint = pylint
     ctx.obj.top_cli = cli
+    ctx.obj.trigger_events = trigger
     ctx.obj.package_suffixes = package_suffixes.split(",")
     ctx.obj.reconstruct_cli = _reconstruct_cli
 

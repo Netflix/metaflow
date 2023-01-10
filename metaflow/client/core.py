@@ -339,11 +339,18 @@ class MetaflowObject(object):
         _object=None,
         _parent=None,
         _namespace_check=True,
+        _propagate_namespace_check=True,
     ):
+        import traceback
+
+        if _namespace_check == True:
+            traceback.print_stack()
         self._metaflow = Metaflow()
         self._parent = _parent
         self._path_components = None
         self._attempt = attempt
+        self._namespace_check = _namespace_check
+        self._propgagate_namespace_check = _propagate_namespace_check
 
         if self._attempt is not None:
             if self._NAME not in ["task", "artifact"]:
@@ -522,8 +529,14 @@ class MetaflowObject(object):
         """
         obj = self._get_child(id)
         if obj:
+            namespace_check = True
+            if self._propgagate_namespace_check:
+                namespace_check = self._namespace_check
             return _CLASSES[self._CHILD_CLASS](
-                attempt=self._attempt, _object=obj, _parent=self
+                attempt=self._attempt,
+                _object=obj,
+                _parent=self,
+                _namespace_check=namespace_check,
             )
         else:
             raise KeyError(id)

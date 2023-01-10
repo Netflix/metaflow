@@ -6,6 +6,27 @@ from metaflow.util import get_username
 import os
 import re
 
+class NamespaceValidationException(Exception):
+
+    def __init__(self, attr_name):
+        super().__init__()
+        self.attribute_name = attr_name
+
+class EmptyNamespaceAttributeException(NamespaceValidationException):
+    
+    def __init__(self, attr_name):
+        super().__init__(attr_name)
+
+class NamespaceAttributeTooLongException(NamespaceValidationException):
+
+    def __init__(self, attr_name):
+        super().__init__(attr_name)
+
+class InvalidNamespaceAttributeValueException(NamespaceValidationException):
+
+    def __init__(self, attr_name):
+        super().__init__(attr_name)
+
 # be careful when changing these limits. Other systems that see
 # these names may rely on these limits
 VALID_NAME_RE = "[^a-z0-9_]"
@@ -83,35 +104,7 @@ class ProjectDecorator(FlowDecorator):
 
 
 def format_name(flow_name, project_name, deploy_prod, given_branch, user_name):
-
-    if not project_name:
-        # an empty string is not a valid project name
-        raise MetaflowException(
-            "@project needs a name. " "Try @project(name='some_name')"
-        )
-    elif re.search(VALID_NAME_RE, project_name):
-        raise MetaflowException(
-            "The @project name must contain only "
-            "lowercase alphanumeric characters "
-            "and underscores."
-        )
-    elif len(project_name) > VALID_NAME_LEN:
-        raise MetaflowException(
-            "The @project name must be shorter than " "%d characters." % VALID_NAME_LEN
-        )
-
     if given_branch:
-        if re.search(VALID_NAME_RE, given_branch):
-            raise MetaflowException(
-                "The branch name must contain only "
-                "lowercase alphanumeric characters "
-                "and underscores."
-            )
-        elif len(given_branch) > VALID_NAME_LEN:
-            raise MetaflowException(
-                "Branch name is too long. "
-                "The maximum is %d characters." % VALID_NAME_LEN
-            )
         if deploy_prod:
             branch = "prod.%s" % given_branch
         else:
@@ -123,5 +116,58 @@ def format_name(flow_name, project_name, deploy_prod, given_branch, user_name):
         # environment variable `METAFLOW_OWNER`, since AWS Step Functions
         # has no notion of user name.
         branch = "user.%s" % os.environ.get("METAFLOW_OWNER", user_name)
+    try:
+        return apply_project_namespacing(flow_name, project_name, branch), branch
+    except EmptyNamespaceAttributeException as e:
+        if e.attribute_name == "project_name":
+            # an empty string is not a valid project name
+            raise MetaflowException(
+                "@project needs a name. " "Try @project(name='some_name')"
+            )
+    except NamespaceAttributeTooLongException as e:
+        if e.attribute_name == "project_name":
+            raise MetaflowException(
+                "The @project name must be shorter than " "%d characters." % VALID_NAME_LEN
+            )
+        elif e.attribute_name == "branch_name":
+            raise MetaflowException(
+                "Branch name is too long. "
+                "The maximum is %d characters." % VALID_NAME_LEN
+            )
+    except InvalidNamespaceAttributeValueException as e:
+        if e.attribute_name == "project_name":
+            raise MetaflowException(
+                "The @project name must contain only "
+                "lowercase alphanumeric characters "
+                "and underscores."
+            )
+        elif e.attribute_name == "branch_name":
+            raise MetaflowException(
+                "The branch name must contain only "
+                "lowercase alphanumeric characters "
+                "and underscores."
+            )
 
-    return ".".join((project_name, branch, flow_name)), branch
+def apply_project_namespacing(flow_name, project_name, branch):
+    if not project_name:
+        raise EmptyNamespaceAttributeException("project_name")
+    elif re.search(VALID_NAME_RE, project_name):
+        raise InvalidNamespaceAttributeValueException("project_name")
+    elif len(project_name) > VALID_NAME_LEN:
+        raise NamespaceAttributeTooLongException("project_name")
+    if branch:
+        prefix = ""
+        # Strip off prefixes added by decorator before validating the branch name
+        for p in ["prod.", "test.", "user."]:
+            chunks = branch.split(p)
+            if len(chunks) == 2:
+                prefix = p
+                branch = chunks[1]
+                break
+        if re.search(VALID_NAME_RE, branch):
+            raise InvalidNamespaceAttributeValueException("branch_name")
+        elif len(branch) > VALID_NAME_LEN:
+            raise NamespaceAttributeTooLongException("branch_name")
+        else:
+            branch = "".join((prefix, branch))
+    return ".".join((project_name, branch, flow_name)).lower()

@@ -4,7 +4,7 @@ import sys
 
 from metaflow.exception import MetaflowException
 from metaflow.plugins.kubernetes.kubernetes_client import KubernetesClient
-
+from .util import format_sensor_name
 
 class ArgoClientException(MetaflowException):
     headline = "Argo Client error"
@@ -177,6 +177,107 @@ class ArgoClient(object):
                 name=name,
             )
         except client.rest.ApiException as e:
+            raise ArgoClientException(
+                json.loads(e.body)["message"] if e.body is not None else e.reason
+            )
+
+    def register_sensor_template(self, wf_template_name, template=None):
+        wf_template_name = format_sensor_name(wf_template_name)
+        if template is None:
+            return self.disable_sensor(wf_template_name)
+        sensor_template = template.to_json()
+        client = self._kubernetes_client.get()
+        try:
+            sensor_template["metadata"][
+                "resourceVersion"
+            ] = client.CustomObjectsApi().get_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="sensors",
+                name=wf_template_name,
+            )[
+                "metadata"
+            ][
+                "resourceVersion"
+            ]
+        except client.rest.ApiException as e:
+            if e.status == 404:
+                try:
+                    return client.CustomObjectsApi().create_namespaced_custom_object(
+                        group=self._group,
+                        version=self._version,
+                        namespace=self._namespace,
+                        plural="sensors",
+                        body=sensor_template
+                    )
+                except client.rest.ApiException as e:
+                    raise ArgoClientException(
+                        json.loads(e.body)["message"]
+                        if e.body is not None
+                        else e.reason
+                    )
+            else:
+                raise ArgoClientException(
+                    json.loads(e.body)["message"] if e.body is not None else e.reason
+                )
+        try:
+            return client.CustomObjectsApi().replace_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="sensors",
+                name=wf_template_name,
+                body=sensor_template,
+            )
+        except client.rest.ApiException as e:
+            raise ArgoClientException(
+                json.loads(e.body)["message"] if e.body is not None else e.reason
+            )
+
+    def disable_sensor(self, name):
+        client = self._kubernetes_client.get()
+        try:
+            sensor = client.CustomObjectsApi().get_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="sensors",
+                name=name,
+            )
+            del sensor["status"]
+            # Change expression to something which should never match, effectively
+            # disabling the trigger
+            first_dep = sensor["spec"]["dependencies"][0]
+            first_dep["filters"] = {
+                "exprs": [
+                    {
+                        "expr": 'event_name == "__disabled__"',
+                        "fields": [
+                            {
+                                "name": "event_name",
+                                "path": "body.payload.event_name",
+                            }
+                        ],
+                    }
+                ]
+            }
+
+            sensor["spec"]["dependencies"] = [first_dep]
+            sensor["spec"]["filters"] = []
+            client.CustomObjectsApi().replace_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="sensors",
+                name=name,
+                body=sensor,
+            )
+
+        except client.rest.ApiException as e:
+            if e.status == 404:
+                return False
+
             raise ArgoClientException(
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )

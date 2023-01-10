@@ -74,8 +74,8 @@ class NativeRuntime(object):
         max_workers=MAX_WORKERS,
         max_num_splits=MAX_NUM_SPLITS,
         max_log_size=MAX_LOG_SIZE,
+        trigger_events=None,
     ):
-
         if run_id is None:
             self._run_id = metadata.new_run_id()
         else:
@@ -96,6 +96,7 @@ class NativeRuntime(object):
         self._unprocessed_steps = set([n.name for n in self._graph])
         self._max_num_splits = max_num_splits
         self._max_log_size = max_log_size
+        self._trigger_events = trigger_events
         self._params_task = None
         self._entrypoint = entrypoint
         self.event_logger = event_logger
@@ -646,7 +647,7 @@ class NativeRuntime(object):
             )
             return
 
-        worker = Worker(task, self._max_log_size)
+        worker = Worker(task, self._max_log_size, self._trigger_events)
         for fd in worker.fds():
             self._workers[fd] = worker
             self._poll.add(fd)
@@ -1154,9 +1155,10 @@ class CLIArgs(object):
 
 
 class Worker(object):
-    def __init__(self, task, max_logs_size):
+    def __init__(self, task, max_logs_size, events):
 
         self.task = task
+        self._events = events
         self._proc = self._launch()
 
         if task.retries > task.user_code_retries:
@@ -1190,7 +1192,7 @@ class Worker(object):
     def _launch(self):
         args = CLIArgs(self.task)
         env = dict(os.environ)
-
+        env["METAFLOW_LOCAL_EXEC"] = "1"
         if self.task.clone_run_id:
             args.command_options["clone-run-id"] = self.task.clone_run_id
 
@@ -1211,6 +1213,7 @@ class Worker(object):
                     self.task.ubf_context,
                 )
         env.update(args.get_env())
+        env.update(self._prepare_events())
         env["PYTHONUNBUFFERED"] = "x"
         # NOTE bufsize=1 below enables line buffering which is required
         # by read_logline() below that relies on readline() not blocking
@@ -1225,6 +1228,15 @@ class Worker(object):
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE,
         )
+
+    def _prepare_events(self):
+        import json
+
+        env = dict()
+        i = 0
+        for event in self._events:
+            env["MF_EVENT_%d" % i] = json.dumps(event)
+        return env
 
     def emit_log(self, msg, buf, system_msg=False):
         if mflog.is_structured(msg):

@@ -13,6 +13,10 @@ from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.package import MetaflowPackage
 from metaflow.plugins.environment_decorator import EnvironmentDecorator
 from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
+from metaflow.metaflow_config import KUBERNETES_NAMESPACE
+from metaflow.exception import MetaflowException, MetaflowInternalError
+from metaflow.package import MetaflowPackage
+from metaflow.plugins import EnvironmentDecorator, KubernetesDecorator
 
 # TODO: Move production_token to utils
 from metaflow.plugins.aws.step_functions.production_token import (
@@ -24,6 +28,7 @@ from metaflow.util import get_username, to_bytes, to_unicode
 from metaflow.tagging_util import validate_tags
 
 from .argo_workflows import ArgoWorkflows
+from .argo_client import ArgoClient
 
 VALID_NAME = re.compile("^[a-z0-9]([a-z0-9\.\-]*[a-z0-9])?$")
 
@@ -129,6 +134,7 @@ def argo_workflows(obj, name=None):
     "are processed first if Argo Workflows controller is configured to process limited "
     "number of workflows in parallel",
 )
+@click.option("--ignore-events", is_flag=True, help="Skip event setup")
 @click.pass_obj
 def create(
     obj,
@@ -141,10 +147,13 @@ def create(
     max_workers=None,
     workflow_timeout=None,
     workflow_priority=None,
+    ignore_events=False,
 ):
     validate_tags(tags)
 
     obj.echo("Deploying *%s* to Argo Workflows..." % obj.workflow_name, bold=True)
+    if ignore_events:
+        obj.echo("Workflow trigger setup and event dispatch will be skipped.")
 
     if SERVICE_VERSION_CHECK:
         # TODO: Consider dispelling with this check since it's been 2 years since the
@@ -172,6 +181,7 @@ def create(
         max_workers,
         workflow_timeout,
         workflow_priority,
+        ignore_events,
     )
 
     if only_json:
@@ -194,7 +204,14 @@ def create(
             )
         flow.schedule()
         obj.echo("What will trigger execution of the workflow:", bold=True)
-        obj.echo(flow.trigger_explanation(), indent=True)
+        (cron_reason, event_reason) = flow.trigger_reasons()
+        if cron_reason is None:
+            obj.echo(event_reason, indent=True)
+        else:
+            obj.echo(cron_reason, indent=True)
+            if event_reason is not None:
+                obj.echo("OR", indent=True)
+                obj.echo(event_reason, indent=True)
 
         # response = ArgoWorkflows.trigger(obj.workflow_name)
         # run_id = "argo-" + response["metadata"]["name"]
@@ -325,7 +342,15 @@ def resolve_workflow_name(obj, name):
 
 
 def make_flow(
-    obj, token, name, tags, namespace, max_workers, workflow_timeout, workflow_priority
+    obj,
+    token,
+    name,
+    tags,
+    namespace,
+    max_workers,
+    workflow_timeout,
+    workflow_priority,
+    ignore_events,
 ):
     # TODO: Make this check less specific to Amazon S3 as we introduce
     #       support for more cloud object stores.
@@ -371,6 +396,7 @@ def make_flow(
         username=get_username(),
         workflow_timeout=workflow_timeout,
         workflow_priority=workflow_priority,
+        ignore_events=ignore_events,
     )
 
 

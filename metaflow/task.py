@@ -7,6 +7,8 @@ import time
 
 from types import MethodType, FunctionType
 
+from metaflow.plugins.argo.runtime_info import ArgoSensorTriggerInfo
+
 from metaflow.datastore.exceptions import DataException
 
 from .metaflow_config import MAX_ATTEMPTS
@@ -439,6 +441,11 @@ class MetaflowTask(object):
         if node.type == "join":
             join_type = self.flow._graph[node.split_parents[-1]].type
 
+        trigger_maker = None
+        # determine type of trigger, if any
+        if "ARGO_WORKFLOW_NAME" in os.environ or "METAFLOW_LOCAL_EXEC" in os.environ:
+            trigger_maker = ArgoSensorTriggerInfo
+
         # 1. initialize output datastore
         output = self.flow_datastore.get_task_datastore(
             run_id, step_name, task_id, attempt=retry_count, mode="w"
@@ -467,6 +474,7 @@ class MetaflowTask(object):
             % (self.metadata.__class__.TYPE, self.metadata.__class__.INFO),
             is_running=True,
             tags=self.metadata.sticky_tags,
+            trigger_maker=trigger_maker,
         )
 
         # 5. run task
