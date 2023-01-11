@@ -16,6 +16,7 @@ class Current(object):
         self._username = None
         self._metadata_str = None
         self._is_running = False
+        self._parameter_names = None
 
         def _raise(ex):
             raise ex
@@ -219,6 +220,18 @@ class Current(object):
             num_nodes=int(os.environ.get("MF_PARALLEL_NUM_NODES", "1")),
             node_index=int(os.environ.get("MF_PARALLEL_NODE_INDEX", "0")),
         )
+
+    @property
+    def parameter_names(self):
+        """
+        The names of the Parameters defined in the current flow.
+
+        Returns
+        -------
+        List[str]
+            Parameter names.
+        """
+        return self._parameter_names
 
     @property
     def tags(self):
