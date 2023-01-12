@@ -23,6 +23,9 @@ def get_tutorials_dir():
     package_dir = os.path.dirname(metaflow_dir)
     tutorials_dir = os.path.join(package_dir, "metaflow", "tutorials")
 
+    if not os.path.exists(tutorials_dir):
+        tutorials_dir = os.path.join(package_dir, "tutorials")
+
     return tutorials_dir
 
 

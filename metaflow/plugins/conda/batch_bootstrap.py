@@ -62,10 +62,10 @@ def download_conda_packages(flow_name, env_id, datastore_type):
             # Import DATASTORES dynamically... otherwise, circular import
             from metaflow.plugins import DATASTORES
 
-            storage_impl = [d for d in DATASTORES if d == datastore_type]
+            storage_impl = [d for d in DATASTORES if d.TYPE == datastore_type]
             if len(storage_impl) == 0:
                 raise MetaflowException(
-                    msg="Downloading conda code packages from datastore backend %s is unimplemented!"
+                    msg="Downloading conda packages from %s datastore is not yet implemented!"
                     % datastore_type
                 )
             conda_package_root = get_conda_package_root(datastore_type)

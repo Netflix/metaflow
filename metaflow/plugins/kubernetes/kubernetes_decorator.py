@@ -1,10 +1,8 @@
+import json
 import os
 import platform
 import sys
 
-import requests
-
-from metaflow import util
 from metaflow.decorators import StepDecorator
 from metaflow.exception import MetaflowException
 from metaflow.metadata import MetaDatum
@@ -16,6 +14,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_GPU_VENDOR,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
+    KUBERNETES_TOLERATIONS,
     KUBERNETES_SERVICE_ACCOUNT,
     KUBERNETES_SECRETS,
 )
@@ -24,6 +23,7 @@ from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.sidecar import Sidecar
 
 from ..aws.aws_utils import get_docker_registry
+
 from .kubernetes import KubernetesException
 
 try:
@@ -65,6 +65,10 @@ class KubernetesDecorator(StepDecorator):
         Kubernetes secrets to use when launching pod in Kubernetes. These
         secrets are in addition to the ones defined in `METAFLOW_KUBERNETES_SECRETS`
         in Metaflow configuration.
+    tolerations : List[str]
+        Kubernetes tolerations to use when launching pod in Kubernetes. If
+        not specified, the value of `METAFLOW_KUBERNETES_TOLERATIONS` is used
+        from Metaflow configuration.
     """
 
     name = "kubernetes"
@@ -79,6 +83,8 @@ class KubernetesDecorator(StepDecorator):
         "namespace": None,
         "gpu": None,  # value of 0 implies that the scheduled node should not have GPUs
         "gpu_vendor": None,
+        "tolerations": None,  # e.g., [{"key": "arch", "operator": "Equal", "value": "amd"},
+        #                              {"key": "foo", "operator": "Equal", "value": "bar"}]
     }
     package_url = None
     package_sha = None
@@ -93,9 +99,39 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["service_account"] = KUBERNETES_SERVICE_ACCOUNT
         if not self.attributes["gpu_vendor"]:
             self.attributes["gpu_vendor"] = KUBERNETES_GPU_VENDOR
+        if not self.attributes["node_selector"] and KUBERNETES_NODE_SELECTOR:
+            self.attributes["node_selector"] = KUBERNETES_NODE_SELECTOR
+        if not self.attributes["tolerations"] and KUBERNETES_TOLERATIONS:
+            self.attributes["tolerations"] = json.loads(KUBERNETES_TOLERATIONS)
 
-        # TODO: Handle node_selector in a better manner. Currently it is special
-        #       cased in kubernetes_client.py
+        if isinstance(self.attributes["node_selector"], str):
+            self.attributes["node_selector"] = self.parse_node_selector(
+                self.attributes["node_selector"].split(",")
+            )
+
+        if self.attributes["tolerations"]:
+            try:
+                from kubernetes.client import V1Toleration
+
+                for toleration in self.attributes["tolerations"]:
+                    try:
+                        invalid_keys = [
+                            k
+                            for k in toleration.keys()
+                            if k not in V1Toleration.attribute_map.keys()
+                        ]
+                        if len(invalid_keys) > 0:
+                            raise KubernetesException(
+                                "Tolerations parameter contains invalid keys: %s"
+                                % invalid_keys
+                            )
+                    except AttributeError:
+                        raise KubernetesException(
+                            "Unable to parse tolerations: %s"
+                            % self.attributes["tolerations"]
+                        )
+            except (NameError, ImportError):
+                pass
 
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:
@@ -248,6 +284,12 @@ class KubernetesDecorator(StepDecorator):
             for k, v in self.attributes.items():
                 if k == "namespace":
                     cli_args.command_options["k8s_namespace"] = v
+                elif k == "node_selector" and v:
+                    cli_args.command_options[k] = ",".join(
+                        ["=".join([key, str(val)]) for key, val in v.items()]
+                    )
+                elif k == "tolerations":
+                    cli_args.command_options[k] = json.dumps(v)
                 else:
                     cli_args.command_options[k] = v
             cli_args.command_options["run-time-limit"] = self.run_time_limit
@@ -340,3 +382,15 @@ class KubernetesDecorator(StepDecorator):
             cls.package_url, cls.package_sha = flow_datastore.save_data(
                 [package.blob], len_hint=1
             )[0]
+
+    @staticmethod
+    def parse_node_selector(node_selector: list):
+        try:
+            return {
+                str(k.split("=", 1)[0]): str(k.split("=", 1)[1])
+                for k in node_selector or []
+            }
+        except (AttributeError, IndexError):
+            raise KubernetesException(
+                "Unable to parse node_selector: %s" % node_selector
+            )
