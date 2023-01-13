@@ -13,6 +13,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_CONTAINER_IMAGE,
     KUBERNETES_CONTAINER_REGISTRY,
     KUBERNETES_GPU_VENDOR,
+    KUBERNETES_LABELS,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_TOLERATIONS,
@@ -76,6 +77,7 @@ class KubernetesDecorator(StepDecorator):
         "service_account": None,
         "secrets": None,  # e.g., mysecret
         "node_selector": None,  # e.g., kubernetes.io/os=linux
+        "labels": None,  # e.g., {"my_label": "my_value"}
         "namespace": None,
         "gpu": None,  # value of 0 implies that the scheduled node should not have GPUs
         "gpu_vendor": None,
@@ -99,6 +101,8 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["node_selector"] = KUBERNETES_NODE_SELECTOR
         if not self.attributes["tolerations"] and KUBERNETES_TOLERATIONS:
             self.attributes["tolerations"] = json.loads(KUBERNETES_TOLERATIONS)
+        if not self.attributes["labels"] and KUBERNETES_LABELS:
+            self.attributes["labels"] = KUBERNETES_LABELS
 
         if isinstance(self.attributes["node_selector"], str):
             self.attributes["node_selector"] = self.parse_node_selector(
