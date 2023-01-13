@@ -22,8 +22,8 @@
   width: 100%;
 }
 
-.embed .mf_card {
-  min-height: 200px;
+.embed .mf-card {
+  min-height: var(--embed-card-min-height);
 }
 
 .mf-card :is(.mono, code.mono, pre.mono) {

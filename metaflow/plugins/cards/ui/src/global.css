@@ -25,6 +25,7 @@
 
   --component-spacer: 3rem;
   --aside-width: 20rem;
+  --embed-card-min-height: 12rem;
 
   --mono-font: ui-monospace, Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono",
     "Roboto Mono", "Oxygen Mono", "Ubuntu Monospace", "Source Code Pro",
@@ -45,5 +46,5 @@ html, body {
 }
 
 .embed .card_app {
-  min-height: 200px;
+  min-height: var(--embed-card-min-height);
 }
