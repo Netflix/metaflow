@@ -91,6 +91,12 @@ def kubernetes():
     type=JSONTypeClass(),
     multiple=False,
 )
+@click.option(
+    "--labels",
+    default=None,
+    type=JSONTypeClass(),
+    multiple=False,
+)
 @click.pass_context
 def step(
     ctx,
@@ -110,6 +116,7 @@ def step(
     gpu_vendor=None,
     run_time_limit=None,
     tolerations=None,
+    labels=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", job_id=None):
@@ -218,6 +225,7 @@ def step(
                 run_time_limit=run_time_limit,
                 env=env,
                 tolerations=tolerations,
+                labels=labels,
             )
     except Exception as e:
         traceback.print_exc(chain=False)
