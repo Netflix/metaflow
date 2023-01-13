@@ -66,6 +66,8 @@ class KubernetesDecorator(StepDecorator):
         in Metaflow configuration.
     tolerations : List[str], default: METAFLOW_KUBERNETES_TOLERATIONS
         Kubernetes tolerations to use when launching pod in Kubernetes.
+    labels : Dict[str, str], default: METAFLOW_KUBERNETES_LABELS
+        Kubernetes labels to use when launching pod in Kubernetes.
     """
 
     name = "kubernetes"
@@ -101,7 +103,7 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["node_selector"] = KUBERNETES_NODE_SELECTOR
         if not self.attributes["tolerations"] and KUBERNETES_TOLERATIONS:
             self.attributes["tolerations"] = json.loads(KUBERNETES_TOLERATIONS)
-        if not self.attributes["labels"] and KUBERNETES_LABELS:
+        if not self.attributes["labels"] and KUBERNETES_LABELS is not None:
             self.attributes["labels"] = KUBERNETES_LABELS
 
         if isinstance(self.attributes["node_selector"], str):
