@@ -178,7 +178,6 @@ class Conda(object):
             env = {
                 "CONDA_JSON": "True",
                 "CONDA_SUBDIR": (architecture if architecture else ""),
-                "CONDA_USE_ONLY_TAR_BZ2": "True",
                 "MAMBA_NO_BANNER": "1",
                 "MAMBA_JSON": "True",
             }

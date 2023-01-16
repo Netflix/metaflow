@@ -178,12 +178,16 @@ class CondaStepDecorator(StepDecorator):
                 package_info["fn"],
             )
             tarball_path = package_info["package_tarball_full_path"]
-            if tarball_path.endswith(".conda"):
-                # Conda doesn't set the metadata correctly for certain fields
-                # when the underlying OS is spoofed.
-                tarball_path = tarball_path[:-6]
-            if not tarball_path.endswith(".tar.bz2"):
-                tarball_path = "%s.tar.bz2" % tarball_path
+            # we were originally restricted to just .tar.bz2 packages
+            # due to https://github.com/conda/conda/issues/9674
+            # which doesn't seem to be the case anymore
+            if not tarball_path.endswith(".conda") and not tarball_path.endswith(
+                ".tar.bz2"
+            ):
+                tarball_path_suffix = ".tar.bz2"
+                if package_info["url"].endswith(".conda"):
+                    tarball_path_suffix = ".conda"
+                tarball_path = "%s%s" % (tarball_path, tarball_path_suffix)
             if not os.path.isfile(tarball_path):
                 # The tarball maybe missing when user invokes `conda clean`!
                 to_download.append((package_info["url"], tarball_path))
