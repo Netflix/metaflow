@@ -3,7 +3,7 @@ import sys
 import time
 import traceback
 
-from metaflow import util, JSONTypeClass
+from metaflow import JSONTypeClass, util
 from metaflow._vendor import click
 from metaflow.exception import METAFLOW_EXIT_DISALLOW_RETRY, CommandException
 from metaflow.metadata.util import sync_local_metadata_from_datastore
@@ -93,9 +93,9 @@ def kubernetes():
 )
 @click.option(
     "--labels",
+    multiple=True,
     default=None,
-    type=JSONTypeClass(),
-    multiple=False,
+    help="Labels for Kubernetes pod.",
 )
 @click.pass_context
 def step(
@@ -182,7 +182,13 @@ def step(
     stderr_location = ds.get_log_location(TASK_LOG_SOURCE, "stderr")
 
     # `node_selector` is a tuple of strings, convert it to a dictionary
-    node_selector = KubernetesDecorator.parse_node_selector(node_selector)
+    node_selector = KubernetesDecorator.parse_kube_list(node_selector)
+
+    # `labels` is a tuple of strings or a tuple with a single comma separated string
+    # convert it to a dict
+    labels = KubernetesDecorator.parse_kube_list(
+        [l for l_tmp in labels for l in l_tmp.split(",")], False
+    )
 
     def _sync_metadata():
         if ctx.obj.metadata.TYPE == "local":

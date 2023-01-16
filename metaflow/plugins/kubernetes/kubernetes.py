@@ -9,6 +9,8 @@ from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
     SERVICE_HEADERS,
     SERVICE_INTERNAL_URL,
+    CARD_AZUREROOT,
+    CARD_GSROOT,
     CARD_S3ROOT,
     DATASTORE_SYSROOT_S3,
     DATATOOLS_S3ROOT,
@@ -28,8 +30,8 @@ from metaflow.mflog import (
     BASH_SAVE_LOGS,
     bash_capture_logs,
     export_mflog_env_vars,
-    tail_logs,
     get_log_tailer,
+    tail_logs,
 )
 
 from .kubernetes_client import KubernetesClient
