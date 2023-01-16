@@ -7,33 +7,10 @@ from metaflow._vendor import click
 from metaflow.extension_support import get_modules, _ext_debug
 from metaflow.plugins.datastores.local_storage import LocalStorage
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
+from metaflow.metaflow_config_funcs import from_conf
 
+from . import add_cmd_support
 from .util import echo_always
-
-
-def add_cmd_support(g, base_init=False):
-    g["__cmds"] = {}
-
-    if base_init:
-        g["__ext_add_cmds"] = []
-
-    def _add(name, path, cli, pkg=g["__package__"], add_to=g["__cmds"]):
-        if path[0] == ".":
-            pkg_components = pkg.split(".")
-            i = 1
-            while i < len(path) and path[i] == ".":
-                i += 1
-            # We deal with multiple periods at the start
-            if i > len(pkg_components):
-                raise ValueError("Path '%s' exits out of metaflow module" % path)
-            path = (
-                ".".join(pkg_components[: -i + 1] if i > 1 else pkg_components)
-                + path[i - 1 :]
-            )
-        _ext_debug("    Adding cmd: %s from %s.%s" % (name, path, cli))
-        add_to[name] = (path, cli)
-
-    g["cmd_add"] = _add
 
 
 add_cmd_support(globals(), base_init=True)
@@ -99,10 +76,8 @@ def _get_ext_cmds(module):
 
 
 def _lazy_cmd_resolve():
-    from metaflow.metaflow_config import ENABLED_CMDS
-
-    list_of_cmds = list(globals()["__ext_add_cmds"])
-    list_of_cmds.extend(ENABLED_CMDS)
+    list_of_cmds = list(__ext_add_cmds)
+    list_of_cmds.extend(ENABLED_CMD)
     _ext_debug("Got raw list of commands as: %s" % str(list_of_cmds))
 
     set_of_commands = set()
@@ -113,7 +88,7 @@ def _lazy_cmd_resolve():
             set_of_commands.add(p[1:])
         else:
             set_of_commands.add(p)
-    _ext_debug("Resolved list of commands is: %s" % str(list_of_cmds))
+    _ext_debug("Resolved list of commands is: %s" % str(set_of_commands))
 
     to_return = [main]
     for name in set_of_commands:
@@ -141,12 +116,26 @@ def _lazy_cmd_resolve():
     return to_return
 
 
+ENABLED_CMD = from_conf("ENABLED_CMD")
+_TOGGLE_CMD = []
+
 try:
     _modules_to_import = get_modules("cmd")
     for m in _modules_to_import:
-        globals()["__cmds"].update(_get_ext_cmds(m.module))
-        globals()["__ext_add_cmds"].extend(list(_get_ext_cmds(m.module).keys()))
+        for n, o in m.module.__dict__.items():
+            if n == "TOGGLE_CMD":
+                _TOGGLE_CMD.extend(o)
+            elif n == "ENABLED_CMD":
+                ENABLED_CMD = o
 
+    # Resolve ENABLED_CMD just like the ENABLED_<category> in plugins.
+    # See plugins/__init__.py for more detail.
+    if ENABLED_CMD is None:
+        ENABLED_CMD = list(__cmds) + _TOGGLE_CMD
+
+    for m in _modules_to_import:
+        __cmds.update(_get_ext_cmds(m.module))
+        __ext_add_cmds.extend(list(_get_ext_cmds(m.module).keys()))
 except Exception as e:
     _ext_debug("\tWARNING: ignoring all plugins due to error during import: %s" % e)
     print(
@@ -210,6 +199,8 @@ for _n in [
     "_clis",
     "_ext_debug",
     "e",
+    "n",
+    "o",
 ]:
     try:
         del globals()[_n]

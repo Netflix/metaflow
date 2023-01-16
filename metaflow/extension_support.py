@@ -997,9 +997,9 @@ class _LazyFinder(MetaPathFinder):
     def find_spec(self, fullname, path, target=None):
         # If we are trying to load a shadowed module (ending in ._orig), we don't
         # say we handle it
-        _ext_debug(
-            "Looking for %s in %s with target %s" % (fullname, str(path), target)
-        )
+        # _ext_debug(
+        #    "Looking for %s in %s with target %s" % (fullname, str(path), target)
+        # )
         if any([fullname.startswith(e) for e in self._temp_excluded_prefix]):
             return None
 

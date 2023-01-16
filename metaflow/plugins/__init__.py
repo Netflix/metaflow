@@ -1,8 +1,25 @@
 import importlib
 import traceback
 
-from metaflow.extension_support import get_modules, multiload_all, _ext_debug
+from metaflow.extension_support import (
+    alias_submodules,
+    get_modules,
+    lazy_load_aliases,
+    _ext_debug,
+)
+from metaflow.metaflow_config_funcs import from_conf
 
+# Some plugins do not have a field in them indicating their name.
+# This is the case for sidecars.
+# All other plugins contain a field that indicates their name.
+# _plugin_categories contains all the types of plugins and, for ones that have
+# a field indicating their name,
+# an additional function indicating how to extract the name of the plugin is provided.
+
+# key is the type of plugin
+# value is either:
+#  - a function to extract the name of the plugin from the plugin itself
+#  - None if this is a plugin with no field for its name
 _plugin_categories = {
     "step_decorator": lambda x: x.name,
     "flow_decorator": lambda x: x.name,
@@ -20,11 +37,23 @@ _plugin_categories = {
 
 
 def add_plugin_support(g, base_init=False):
+    # g is typically global() or the namespace in which to create the objects/functions
+    # base_init should only be true in metaflow's plugins directory (not in any
+    # of the extensions and is used to initialize the list of plugins *added* by
+    # extensions).
+    # For each category in plugin_categories, creates:
+    #  - a list of plugins called __<category>s; this is where all the plugins will
+    #    be added
+    #  - a function called <category>_add that can be used to add a plugin.
     for category in _plugin_categories:
 
+        # Contains plugins from this module:
+        #  - key: str: name of the plugin
+        #  - value: Tuple[str, str]: (path to plugin module, module class)
         g["__%ss" % category] = {}
 
         if base_init:
+            # This will contain the list of plugins that are *added* by extensions
             g["__ext_add_%ss" % category] = []
 
         def _add(
@@ -56,6 +85,7 @@ def add_plugin_support(g, base_init=False):
 
 
 def del_plugin_support(g):
+    # Function to clean up all the added functions by add_plugin_support.
     for category in _plugin_categories:
         # Need to keep CLI around since it is used in a function
         if category == "cli":
@@ -66,6 +96,8 @@ def del_plugin_support(g):
 
 
 add_plugin_support(globals(), base_init=True)
+
+_ext_debug("Discovering base plugins")
 
 # Add new CLI commands here
 cli_add("package", ".package_cli", "cli")
@@ -181,7 +213,7 @@ def _lazy_plugin_resolve(category):
     # By default, everything added in an extension is *enabled* (which is probably what
     # users want since they add the extension). We add these first
     list_of_plugins = list(globals()["__ext_add_%ss" % category])
-    list_of_plugins.extend(getattr(config, "ENABLED_%sS" % category.upper()))
+    list_of_plugins.extend(globals()["ENABLED_%s" % category.upper()])
     _ext_debug(
         "For %s, got raw list of plugins as: %s" % (category, str(list_of_plugins))
     )
@@ -229,10 +261,45 @@ def _lazy_plugin_resolve(category):
     return to_return
 
 
+# Set ENABLED_ and _TOGGLE_ variables
+for plugin_category in _plugin_categories:
+    upper_category = plugin_category.upper()
+    globals()["ENABLED_%s" % upper_category] = from_conf("ENABLED_%s" % upper_category)
+    globals()["_TOGGLE_%s" % upper_category] = []
+
+
 try:
     _modules_to_import = get_modules("plugins")
+    # This is like multiload_all but we load globals independently since we just care
+    # about the TOGGLE and ENABLED values
+    for m in _modules_to_import:
+        lazy_load_aliases(
+            alias_submodules(m.module, m.tl_package, "plugins", extra_indent=True)
+        )
+        for n, o in m.module.__dict__.items():
+            if n.startswith("TOGGLE_") and n[7:].lower() in _plugin_categories:
+                _ext_debug("Loading %s as %s" % (n, o))
+                globals()["_TOGGLE_%s" % n[7:]].extend(o)
+            elif n.startswith("ENABLED_") and n[8:].lower() in _plugin_categories:
+                globals()[n] = o
 
-    multiload_all(_modules_to_import, "plugins", globals())
+    # Resolve all the ENABLED_* variables. The rules are the following:
+    #  - if ENABLED_* is non None, it means it was either set directly by the user
+    #    in a configuration file, on the command line or by an extension. In that case
+    #    we honor those wishes and completely ignore the extensions' toggles.
+    #  - if ENABLED_* is None, we populate it with everything included here and use
+    #    the TOGGLE_ list to produce the final list.
+    # The rationale behind this is to support both a configuration option where the
+    # plugins enabled are explicitly listed (typical in a lot of software) but also to
+    # support a "configuration-less" version where the installation of the extensions
+    # determines what is activated.
+    for plugin_category in _plugin_categories:
+        upper_category = plugin_category.upper()
+        if globals()["ENABLED_%s" % upper_category] is None:
+            globals()["ENABLED_%s" % upper_category] = (
+                list(globals()["__%ss" % plugin_category])
+                + globals()["_TOGGLE_%s" % upper_category]
+            )
 
     # Build an ordered list
     for c in _plugin_categories:
@@ -321,8 +388,11 @@ for _n in [
     "get_modules",
     "multiload_all",
     "_modules_to_import",
+    "plugin_category",
     "c",
     "m",
+    "n",
+    "o",
     "e",
 ]:
     try:
