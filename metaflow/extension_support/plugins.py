@@ -104,6 +104,14 @@ def resolve_plugins(category):
             raise ValueError(
                 "Cannot locate %s plugin '%s' at '%s'" % (category, name, path)
             )
+        except TypeError:
+            if path.startswith("."):
+                raise ValueError(
+                    "Path '%s' for %s plugin '%s' is relative -- did you forget "
+                    "`process_plugins_description(globals())` at the end of the file"
+                    % (path, category, name)
+                )
+            raise
         cls = getattr(plugin_module, cls_name, None)
         if cls is None:
             raise ValueError(

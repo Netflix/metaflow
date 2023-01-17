@@ -45,6 +45,14 @@ def resolve_cmds():
             cmd_module = importlib.import_module(path)
         except ImportError:
             raise ValueError("Cannot locate command '%s' at '%s'" % (name, path))
+        except TypeError:
+            if path.startswith("."):
+                raise ValueError(
+                    "Path '%s' for command '%s' is relative -- did you forget "
+                    "`process_cmds_description(globals())` at the end of the file"
+                    % (path, name)
+                )
+            raise
         cls = getattr(cmd_module, cls_name, None)
         if cls is None:
             raise ValueError(
