@@ -1,9 +1,12 @@
-from metaflow.plugins import add_plugin_support
+from metaflow.extension_support.plugins import process_plugins_description
 
-add_plugin_support(globals())
+STEP_DECORATORS_DESC = [
+    ("test_step_decorator", ".test_step_decorator.TestStepDecorator"),
+]
 
-step_decorator_add("test_step_decorator", ".test_step_decorator", "TestStepDecorator")
-flow_decorator_add("test_flow_decorator", ".flow_options", "FlowDecoratorWithOptions")
+FLOW_DECORATORS_DESC = [
+    ("test_flow_decorator", ".flow_options.FlowDecoratorWithOptions"),
+]
 
 
 __mf_promote_submodules__ = ["nondecoplugin", "frameworks"]
