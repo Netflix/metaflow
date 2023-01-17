@@ -3,7 +3,7 @@ import traceback
 
 from metaflow.metaflow_config_funcs import from_conf
 
-from . import _ext_debug, alias_submodules, get_modules, lazy_load_aliases
+from . import _ext_debug, get_modules
 
 _all_cmds = []
 _all_cmds_dict = {}
@@ -11,6 +11,9 @@ _all_cmds_dict = {}
 # Set ENABLED_ and _TOGGLE_ variables for commands
 ENABLED_CMD = from_conf("ENABLED_CMD")
 _TOGGLE_CMD = []
+
+# This file is identical in functionality to the plugins.py file. Please refer to that
+# one for more information on what the functions do.
 
 
 def resolve_cmds():

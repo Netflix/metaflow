@@ -33,10 +33,17 @@ _plugin_categories = {
 
 
 def _list_for_category(category):
+    # Convenience function to name the variable containing List[Tuple[str, str]] where
+    # each tuple contains:
+    #  - the name of the plugin
+    #  - the classpath of the plugin
     return "_all_%ss" % category
 
 
 def _dict_for_category(category):
+    # Convenience function to name the variable containing the same thing as
+    # _list_for_category except that it is now in dict form where the key is the name
+    # of the plugin
     return "_all_%ss_dict" % category
 
 
@@ -52,6 +59,12 @@ def merge_lists(base, overrides, attr):
 
 
 def resolve_plugins(category):
+    # Called to return a list of classes that are the available plugins for 'category'
+
+    # The ENABLED_<category> variable is set in _process_plugins_description_main
+    # based on all the plugins that are found; it can contain either names of
+    # plugins or -/+<name_of_plugin> indicating a "toggle" to activate/de-activate
+    # a plugin.
     list_of_plugins = globals()["ENABLED_%s" % category.upper()]
     _ext_debug("    Resolving %s plugins" % category)
     _ext_debug("        Raw list of plugins is: %s" % str(list_of_plugins))
@@ -74,6 +87,9 @@ def resolve_plugins(category):
     else:
         to_return = []
     _ext_debug("        Resolved list of plugins is: %s" % str(set_of_plugins))
+    # Various error checks to make sure the plugin exists -- basically converts a string
+    # representing a class path to the actual class. We try to give useful messages
+    # in case of errors.
     for name in set_of_plugins:
         class_path = available_plugins.get(name, None)
         if class_path is None:
@@ -111,6 +127,9 @@ def resolve_plugins(category):
 
 
 def process_plugins_description(module_globals, is_extension=True):
+    # This function needs to be called at the end of all __init__.py (or equivalent)
+    # plugin files. It should have is_extension=False only for the one from the main
+    # metaflow code.
     if is_extension:
         _process_plugins_description_ext(module_globals)
     else:
@@ -118,6 +137,9 @@ def process_plugins_description(module_globals, is_extension=True):
 
 
 def _get_ext_plugins(module_globals, category):
+    # Convenience function to get the list of Tuple[str, str] describing the plugins
+    # available from the extension. This defaults to [] so not all plugins need to be
+    # listed.
     return module_globals.get("%sS_DESC" % category.upper(), [])
 
 
@@ -146,7 +168,7 @@ def _resolve_path(pkg_path, class_path):
 
 
 def _process_plugins_description_ext(module_globals):
-    # We want to modify all the relevants lists so that the relative paths
+    # We want to modify all the relevant lists so that the relative paths
     # are made fully qualified paths for the modules
     for plugin_category in _plugin_categories:
         _set_ext_plugins(
@@ -165,7 +187,9 @@ def _process_plugins_description_ext(module_globals):
 
 
 def _process_plugins_description_main(module_globals):
-    # Set ENABLED_ and _TOGGLE_ variables
+    # Set ENABLED_ and _TOGGLE_ variables. The ENABLED_* variables are read from
+    # configuration and the _TOGGLE_* variables are initialized to empty lists to be
+    # appended to from the extensions.
     for plugin_category in _plugin_categories:
         upper_category = plugin_category.upper()
         globals()["ENABLED_%s" % upper_category] = from_conf(
@@ -199,10 +223,13 @@ def _process_plugins_description_main(module_globals):
             )
             for n, o in m.module.__dict__.items():
                 if n.startswith("TOGGLE_") and n[7:].lower() in _plugin_categories:
+                    # Extensions append to the TOGGLE list
                     globals()["_TOGGLE_%s" % n[7:]].extend(o)
                 elif n.startswith("ENABLED_") and n[8:].lower() in _plugin_categories:
+                    # Extensions override the ENABLED_ setting.
                     globals()[n] = o
             for plugin_category in _plugin_categories:
+                # Collect all the plugins present
                 globals()[_list_for_category(plugin_category)].extend(
                     _get_ext_plugins(m.module.__dict__, plugin_category)
                 )
