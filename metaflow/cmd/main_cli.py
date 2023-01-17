@@ -1,19 +1,12 @@
-import importlib
 import os
-import traceback
 
 from metaflow._vendor import click
 
-from metaflow.extension_support import get_modules, _ext_debug
+from metaflow.extension_support.cmd import process_cmds_description, resolve_cmds
 from metaflow.plugins.datastores.local_storage import LocalStorage
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
-from metaflow.metaflow_config_funcs import from_conf
 
-from . import add_cmd_support
 from .util import echo_always
-
-
-add_cmd_support(globals(), base_init=True)
 
 
 @click.group()
@@ -67,88 +60,14 @@ def status():
         echo("* %s" % flow, fg="cyan")
 
 
-cmd_add("configure", ".configure_cmd", "cli")
-cmd_add("tutorials", ".tutorials_cmd", "cli")
+CMDS_DESC = [("configure", ".configure_cmd.cli"), ("tutorials", ".tutorials_cmd.cli")]
 
-
-def _get_ext_cmds(module):
-    return getattr(module, "__cmds", {})
-
-
-def _lazy_cmd_resolve():
-    list_of_cmds = list(__ext_add_cmds)
-    list_of_cmds.extend(ENABLED_CMD)
-    _ext_debug("Got raw list of commands as: %s" % str(list_of_cmds))
-
-    set_of_commands = set()
-    for p in list_of_cmds:
-        if p.startswith("-"):
-            set_of_commands.discard(p[1:])
-        elif p.startswith("+"):
-            set_of_commands.add(p[1:])
-        else:
-            set_of_commands.add(p)
-    _ext_debug("Resolved list of commands is: %s" % str(set_of_commands))
-
-    to_return = [main]
-    for name in set_of_commands:
-        path, cli = __cmds.get(name, (None, None))
-        if path is None:
-            raise ValueError(
-                "Configuration requested command '%s' but no such command is available"
-                % name
-            )
-        plugin_module = importlib.import_module(path)
-        cls = getattr(plugin_module, cli, None)
-        if cli is None:
-            raise ValueError("'%s' not found in module '%s'" % (cli, path))
-        all_cmds = list(cls.commands)
-        if len(all_cmds) > 1:
-            raise ValueError(
-                "%s.%s defines more than one command -- use a group" % (path, cli)
-            )
-        if all_cmds[0] != name:
-            raise ValueError(
-                "%s.%s: expected name to be '%s' but got '%s' instead"
-                % (path, cli, name, all_cmds[0])
-            )
-        to_return.append(cls)
-    return to_return
-
-
-ENABLED_CMD = from_conf("ENABLED_CMD")
-_TOGGLE_CMD = []
-
-try:
-    _modules_to_import = get_modules("cmd")
-    for m in _modules_to_import:
-        for n, o in m.module.__dict__.items():
-            if n == "TOGGLE_CMD":
-                _TOGGLE_CMD.extend(o)
-            elif n == "ENABLED_CMD":
-                ENABLED_CMD = o
-
-    # Resolve ENABLED_CMD just like the ENABLED_<category> in plugins.
-    # See plugins/__init__.py for more detail.
-    if ENABLED_CMD is None:
-        ENABLED_CMD = list(__cmds) + _TOGGLE_CMD
-
-    for m in _modules_to_import:
-        __cmds.update(_get_ext_cmds(m.module))
-        __ext_add_cmds.extend(list(_get_ext_cmds(m.module).keys()))
-except Exception as e:
-    _ext_debug("\tWARNING: ignoring all plugins due to error during import: %s" % e)
-    print(
-        "WARNING: Command extensions did not load -- ignoring all of them which may not "
-        "be what you want: %s" % e
-    )
-    _clis = []
-    traceback.print_exc()
+process_cmds_description(globals(), is_extension=False)
 
 
 @click.command(
     cls=click.CommandCollection,
-    sources=_lazy_cmd_resolve(),
+    sources=[main] + resolve_cmds(),
     invoke_without_command=True,
 )
 @click.pass_context
@@ -185,25 +104,3 @@ def start(ctx):
 
 if __name__ == "__main__":
     start()
-
-for _n in [
-    "__cmds",
-    "__ext_add_cmds",
-    "add_cmd_support",
-    "cmd_add",
-    "get_modules",
-    "load_module",
-    "_modules_to_import",
-    "m",
-    "_get_ext_cmds",
-    "_clis",
-    "_ext_debug",
-    "e",
-    "n",
-    "o",
-]:
-    try:
-        del globals()[_n]
-    except KeyError:
-        pass
-del globals()["_n"]
