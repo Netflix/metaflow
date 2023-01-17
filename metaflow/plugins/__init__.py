@@ -1,5 +1,5 @@
 from metaflow.extension_support.plugins import (
-    process_plugins_description,
+    process_plugins,
     merge_lists,
     resolve_plugins,
 )
@@ -98,7 +98,7 @@ MONITOR_SIDECARS_DESC = [
 # Add AWS client providers here
 AWS_CLIENT_PROVIDERS_DESC = [("boto3", ".aws.aws_client.Boto3ClientProvider")]
 
-process_plugins_description(globals(), is_extension=False)
+process_plugins(globals())
 
 
 def get_plugin_cli():

@@ -2,7 +2,7 @@ import os
 
 from metaflow._vendor import click
 
-from metaflow.extension_support.cmd import process_cmds_description, resolve_cmds
+from metaflow.extension_support.cmd import process_cmds, resolve_cmds
 from metaflow.plugins.datastores.local_storage import LocalStorage
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 
@@ -62,7 +62,7 @@ def status():
 
 CMDS_DESC = [("configure", ".configure_cmd.cli"), ("tutorials", ".tutorials_cmd.cli")]
 
-process_cmds_description(globals(), is_extension=False)
+process_cmds(globals())
 
 
 @click.command(
