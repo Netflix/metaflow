@@ -186,8 +186,10 @@ def step(
 
     # `labels` is a tuple of strings or a tuple with a single comma separated string
     # convert it to a dict
-    labels = KubernetesDecorator.parse_kube_list(
-        [l for l_tmp in labels for l in l_tmp.split(",")], False
+    labels = KubernetesDecorator.clean_kube_labels(
+        KubernetesDecorator.parse_kube_list(
+            [l for l_tmp in labels for l in l_tmp.split(",")], False
+        )
     )
 
     def _sync_metadata():

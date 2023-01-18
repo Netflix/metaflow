@@ -1,9 +1,10 @@
+import hashlib
 import json
 import os
 import platform
-import requests
+import re
 import sys
-from typing import List, Union
+from typing import Dict, List, Optional, Union
 
 from metaflow.decorators import StepDecorator
 from metaflow.exception import MetaflowException
@@ -110,6 +111,7 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["labels"] = self.parse_kube_list(
                 self.attributes["labels"].split(","), False
             )
+        self.attributes["labels"] = self.clean_kube_labels(self.attributes["labels"])
 
         if isinstance(self.attributes["node_selector"], str):
             self.attributes["node_selector"] = self.parse_kube_list(
@@ -425,3 +427,25 @@ class KubernetesDecorator(StepDecorator):
             return ret
         except (AttributeError, IndexError):
             raise KubernetesException("Unable to parse kubernetes list: %s" % items)
+
+    @staticmethod
+    def clean_kube_labels(
+        labels: Optional[Dict[str, Optional[str]]],
+        max_len: int = 63,
+        regex_sub: str = r"^[^a-z0-9A-Z]*|[^a-zA-Z0-9_\-\.]|[^a-z0-9A-Z]*$",
+    ):
+        """Inspired by apache airflow label cleaner."""
+
+        def clean_label(s: Optional[str]):
+            if not s:
+                # allow empty label
+                return s
+            s_clean = re.sub(regex_sub, "", s)
+            if len(s_clean) > max_len or s != s_clean:
+                clean_hash = (
+                    hashlib.blake2b(s_clean.encode(), digest_size=9).hexdigest()
+                )
+                s_clean = f"{s_clean[: max_len - len(clean_hash) - 1]}-{clean_hash}"
+            return s_clean
+
+        return {k: clean_label(v) for k, v in labels.items()} if labels else labels
