@@ -894,11 +894,14 @@ class ArgoWorkflows(object):
                     # the field 'task-id' in 'parameters'
                     # .annotation("metaflow/task_id", ...)
                     .annotation("metaflow/attempt", retry_count)
+                    # Set labels
+                    .labels(resources.get("labels"))
                 )
                 # Set emptyDir volume for state management
                 .empty_dir_volume("out")
                 # Set node selectors
                 .node_selectors(resources.get("node_selector"))
+                # Set tolerations
                 .tolerations(resources.get("tolerations"))
                 # Set container
                 .container(
