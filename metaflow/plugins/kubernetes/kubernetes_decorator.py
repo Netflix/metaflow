@@ -442,10 +442,8 @@ class KubernetesDecorator(StepDecorator):
                 return s
             s_clean = re.sub(regex_sub, "", s)
             if len(s_clean) > max_len or s != s_clean:
-                clean_hash = (
-                    hashlib.blake2b(s_clean.encode(), digest_size=9).hexdigest()
-                )
-                s_clean = f"{s_clean[: max_len - len(clean_hash) - 1]}-{clean_hash}"
+                s_hash = hashlib.blake2b(s.encode(), digest_size=5).hexdigest()
+                s_clean = f"{s_clean[: max_len - len(s_hash) - 1]}-{s_hash}"
             return s_clean
 
         return {k: clean_label(v) for k, v in labels.items()} if labels else labels
