@@ -7,6 +7,8 @@ on:
     branches:
     - master
   workflow_call:
+
+permissions: read-all
   
 jobs:
   pre-commit:

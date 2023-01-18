@@ -10,6 +10,8 @@ on:
       - synchronize
       - labeled
 
+permissions: read-all
+
 jobs:
   test_data:
     if: (github.event.action == 'labeled' && (github.event.label.name == 'approved' || github.event.label.name == 'ok-to-test')) || (github.event.action != 'labeled' && (contains(github.event.pull_request.labels.*.name, 'ok-to-test') || contains(github.event.pull_request.labels.*.name, 'approved')))
