@@ -294,12 +294,10 @@ class KubernetesDecorator(StepDecorator):
                 if k == "namespace":
                     cli_args.command_options["k8s_namespace"] = v
                 elif k in {"node_selector", "labels"} and v:
-                    cli_args.command_options[k] = ",".join(
-                        [
-                            "=".join([key, str(val)]) if val else key
-                            for key, val in v.items()
-                        ]
-                    )
+                    cli_args.command_options[k] = [
+                        "=".join([key, str(val)]) if val else key
+                        for key, val in v.items()
+                    ]
                 elif k == "tolerations":
                     cli_args.command_options[k] = json.dumps(v)
                 else:
