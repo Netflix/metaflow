@@ -16,7 +16,7 @@ setup(
     py_modules=[
         "metaflow",
     ],
-    package_data={"metaflow": ["tutorials/*/*", "py.typed"]},
+    package_data={"metaflow": ["tutorials/*/*"]},
     entry_points="""
         [console_scripts]
         metaflow=metaflow.cmd.main_cli:start
