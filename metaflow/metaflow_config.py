@@ -290,6 +290,27 @@ for typ in DEBUG_OPTIONS:
     vars()["DEBUG_%s" % typ.upper()] = from_conf("DEBUG_%s" % typ.upper())
 
 ###
+# Plugin configuration
+###
+
+# Plugin configuration variables exist in plugins/__init__.py.
+# Specifically, there is an ENABLED_<category> configuration value to determine
+# the set of plugins to enable. The categories are: step_decorator, flow_decorator,
+# environment, metadata_provider, datastore, sidecar, logging_sidecar, monitor_sidecar,
+# aws_client_provider, and cli. If not set (the default), all plugins are enabled.
+# You can restrict which plugins are enabled by listing them explicitly, for example
+# ENABLED_STEP_DECORATOR = ["batch", "resources"] will enable only those two step
+# decorators and none other.
+
+###
+# Command configuration
+###
+
+# Command (ie: metaflow <cmd>) configuration variable ENABLED_CMD
+# exists in cmd/main_cli.py. It behaves just like any of the other ENABLED_<category>
+# configuration variables.
+
+###
 # AWS Sandbox configuration
 ###
 # Boolean flag for metaflow AWS sandbox access
@@ -402,7 +423,7 @@ finally:
         "m",
         "n",
         "o",
-        "type",
+        "typ",
         "ext_modules",
         "get_modules",
         "_new_get_pinned_conda_libs",

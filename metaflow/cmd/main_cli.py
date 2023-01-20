@@ -1,8 +1,8 @@
 import os
-import traceback
 
 from metaflow._vendor import click
 
+from metaflow.extension_support.cmd import process_cmds, resolve_cmds
 from metaflow.plugins.datastores.local_storage import LocalStorage
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 
@@ -10,7 +10,7 @@ from .util import echo_always
 
 
 @click.group()
-def main(ctx):
+def main():
     pass
 
 
@@ -60,33 +60,14 @@ def status():
         echo("* %s" % flow, fg="cyan")
 
 
-try:
-    from metaflow.extension_support import get_modules, load_module, _ext_debug
+CMDS_DESC = [("configure", ".configure_cmd.cli"), ("tutorials", ".tutorials_cmd.cli")]
 
-    _modules_to_import = get_modules("cmd")
-    _clis = []
-    # Reverse to maintain "latest" overrides (in Click, the first one will get it)
-    for m in reversed(_modules_to_import):
-        _get_clis = m.module.__dict__.get("get_cmd_clis")
-        if _get_clis:
-            _clis.extend(_get_clis())
-
-except Exception as e:
-    _ext_debug("\tWARNING: ignoring all plugins due to error during import: %s" % e)
-    print(
-        "WARNING: Command extensions did not load -- ignoring all of them which may not "
-        "be what you want: %s" % e
-    )
-    _clis = []
-    traceback.print_exc()
-
-from .configure_cmd import cli as configure_cli
-from .tutorials_cmd import cli as tutorials_cli
+process_cmds(globals())
 
 
 @click.command(
     cls=click.CommandCollection,
-    sources=_clis + [main, configure_cli, tutorials_cli],
+    sources=[main] + resolve_cmds(),
     invoke_without_command=True,
 )
 @click.pass_context
@@ -121,20 +102,5 @@ def start(ctx):
         print(ctx.get_help())
 
 
-start()
-
-for _n in [
-    "get_modules",
-    "load_module",
-    "_modules_to_import",
-    "m",
-    "_get_clis",
-    "_clis",
-    "ext_debug",
-    "e",
-]:
-    try:
-        del globals()[_n]
-    except KeyError:
-        pass
-del globals()["_n"]
+if __name__ == "__main__":
+    start()
