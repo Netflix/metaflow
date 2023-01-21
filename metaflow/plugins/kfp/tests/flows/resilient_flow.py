@@ -3,8 +3,25 @@ import signal
 import subprocess
 import time
 
-from metaflow import FlowSpec, Parameter, Step, catch, current, retry, step, timeout
+from metaflow import (
+    FlowSpec,
+    Step,
+    catch,
+    current,
+    retry,
+    step,
+    timeout,
+    get_checkpoint_paths,
+    CheckpointPaths,
+    S3,
+)
 from metaflow.exception import MetaflowExceptionWrapper
+
+
+def validate_checkpoint_root(root: str):
+    key = f"{current.run_id}/checkpoints/{current.step_name}/{current.task_id}"
+    assert root.endswith(key)
+    assert current.flow_name in root
 
 
 class ResilientFlow(FlowSpec):
@@ -16,7 +33,15 @@ class ResilientFlow(FlowSpec):
         self.start_retry_count = current.retry_count
         print(self.retry_log.format(retry_count=current.retry_count))
         self.download_kubectl()
-        if current.retry_count < 1:
+
+        checkpoint_paths: CheckpointPaths = get_checkpoint_paths()
+        checkpoint_name = f"checkpoint.pt"
+        checkpoint_obj = "'checkpoint content'"
+        if current.retry_count == 0:
+            S3(s3root=checkpoint_paths.root).put(checkpoint_name, checkpoint_obj)
+            validate_checkpoint_root(checkpoint_paths.root)
+            assert checkpoint_paths.resume_path is None
+
             # delete and terminate myself!!
             command = (
                 f"./kubectl delete pod {os.environ.get('POD_NAME')} "
@@ -32,7 +57,12 @@ class ResilientFlow(FlowSpec):
             # this gives the test extra resilience.
             time.sleep(60 * 5)
         else:
-            print("let's succeed")
+            validate_checkpoint_root(checkpoint_paths.root)
+            assert checkpoint_paths.resume_path.endswith(checkpoint_name)
+
+            obj = S3(s3root=checkpoint_paths.resume_path).get().text
+            assert obj == checkpoint_obj
+            print(f"validated {checkpoint_paths.resume_path=} content == {obj}")
 
         self.next(self.user_failure)
 

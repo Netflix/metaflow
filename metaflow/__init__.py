@@ -118,6 +118,10 @@ _import_plugin_decorators(globals())
 if sys.version_info[0] >= 3 and sys.version_info[1] >= 4:
     from . import cards
 
+
+# Checkpointing
+from .plugins.frameworks.checkpoints import get_checkpoint_paths, CheckpointPaths
+
 # Client
 from .client import (
     namespace,
