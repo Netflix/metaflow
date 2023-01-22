@@ -48,7 +48,7 @@ class PlayListFlow(FlowSpec):
         default=5,
     )
 
-    @conda(libraries={"pandas": "1.3.3"})
+    @conda(libraries={"pandas": "1.5.3"})
     @step
     def start(self):
         """
@@ -80,7 +80,7 @@ class PlayListFlow(FlowSpec):
         # Compute our two recommendation types in parallel.
         self.next(self.bonus_movie, self.genre_movies)
 
-    @conda(libraries={"editdistance": "0.5.3", "pandas": "1.3.3"})
+    @conda(libraries={"editdistance": "0.5.3", "pandas": "1.5.3"})
     @step
     def bonus_movie(self):
         """
@@ -110,7 +110,7 @@ class PlayListFlow(FlowSpec):
 
         self.next(self.join)
 
-    @conda(libraries={"pandas": "1.3.3"})
+    @conda(libraries={"pandas": "1.5.3"})
     @step
     def genre_movies(self):
         """
