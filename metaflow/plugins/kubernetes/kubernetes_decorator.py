@@ -108,13 +108,13 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["labels"] = KUBERNETES_LABELS
 
         if isinstance(self.attributes["labels"], str):
-            self.attributes["labels"] = self.parse_kube_list(
+            self.attributes["labels"] = self.parse_kube_keyvalue_list(
                 self.attributes["labels"].split(","), False
             )
         self.attributes["labels"] = self.clean_kube_labels(self.attributes["labels"])
 
         if isinstance(self.attributes["node_selector"], str):
-            self.attributes["node_selector"] = self.parse_kube_list(
+            self.attributes["node_selector"] = self.parse_kube_keyvalue_list(
                 self.attributes["node_selector"].split(",")
             )
 
@@ -414,7 +414,7 @@ class KubernetesDecorator(StepDecorator):
             )[0]
 
     @staticmethod
-    def parse_kube_list(items: Union[str, List[str]], requires_both: bool = True):
+    def parse_kube_keyvalue_list(items: List[str], requires_both: bool = True):
         try:
             ret = {}
             for item_str in items:
@@ -442,6 +442,10 @@ class KubernetesDecorator(StepDecorator):
             if len(s_clean) > max_len or s != s_clean:
                 s_hash = hashlib.blake2b(s.encode(), digest_size=5).hexdigest()
                 s_clean = f"{s_clean[: max_len - len(s_hash) - 1]}-{s_hash}"
+            # Could recursively call this function but a random hash label is most likely a mistake
+            assert not s_clean.startswith(
+                "-"
+            ), f"Label, {s}, contains no valid characters"
             return s_clean
 
         return {k: clean_label(v) for k, v in labels.items()} if labels else labels

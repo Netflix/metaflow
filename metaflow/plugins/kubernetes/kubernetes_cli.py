@@ -182,12 +182,12 @@ def step(
     stderr_location = ds.get_log_location(TASK_LOG_SOURCE, "stderr")
 
     # `node_selector` is a tuple of strings, convert it to a dictionary
-    node_selector = KubernetesDecorator.parse_kube_list(node_selector)
+    node_selector = KubernetesDecorator.parse_kube_keyvalue_list(node_selector)
 
     # `labels` is a tuple of strings or a tuple with a single comma separated string
     # convert it to a dict
     labels = KubernetesDecorator.clean_kube_labels(
-        KubernetesDecorator.parse_kube_list(labels, False)
+        KubernetesDecorator.parse_kube_keyvalue_list(labels, False)
     )
 
     def _sync_metadata():
