@@ -35,6 +35,7 @@ from metaflow.parameters import JSONTypeClass
 
 from . import airflow_utils
 from .exception import AirflowException
+from .sensors import SUPPORTED_SENSORS
 from .airflow_utils import (
     TASK_ID_XCOM_KEY,
     AirflowTask,
@@ -88,6 +89,7 @@ class Airflow(object):
         self.username = username
         self.max_workers = max_workers
         self.description = description
+        self._depends_on_upstream_sensors = False
         self._file_path = file_path
         _, self.graph_structure = self.graph.output_steps()
         self.worker_pool = worker_pool
@@ -585,6 +587,17 @@ class Airflow(object):
         cmds.append(" ".join(entrypoint + top_level + step))
         return cmds
 
+    def _collect_flow_sensors(self):
+        decos_lists = [
+            self.flow._flow_decorators.get(s.name)
+            for s in SUPPORTED_SENSORS
+            if self.flow._flow_decorators.get(s.name) is not None
+        ]
+        af_tasks = [deco.create_task() for decos in decos_lists for deco in decos]
+        if len(af_tasks) > 0:
+            self._depends_on_upstream_sensors = True
+        return af_tasks
+
     def _contains_foreach(self):
         for node in self.graph:
             if node.type == "foreach":
@@ -639,6 +652,7 @@ class Airflow(object):
         if self.workflow_timeout is not None and self.schedule is not None:
             airflow_dag_args["dagrun_timeout"] = dict(seconds=self.workflow_timeout)
 
+        appending_sensors = self._collect_flow_sensors()
         workflow = Workflow(
             dag_id=self.name,
             default_args=self._create_defaults(),
@@ -659,6 +673,10 @@ class Airflow(object):
         workflow = _visit(self.graph["start"], workflow)
 
         workflow.set_parameters(self.parameters)
+        if len(appending_sensors) > 0:
+            for s in appending_sensors:
+                workflow.add_state(s)
+            workflow.graph_structure.insert(0, [[s.name] for s in appending_sensors])
         return self._to_airflow_dag_file(workflow.to_dict())
 
     def _to_airflow_dag_file(self, json_dag):
