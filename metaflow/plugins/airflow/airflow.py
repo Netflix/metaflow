@@ -23,6 +23,8 @@ from metaflow.metaflow_config import (
     DATASTORE_SYSROOT_AZURE,
     CARD_AZUREROOT,
     AIRFLOW_KUBERNETES_CONN_ID,
+    DATASTORE_SYSROOT_GS,
+    CARD_GSROOT,
 )
 from metaflow.parameters import DelayedEvaluationParameter, deploy_time_eval
 from metaflow.plugins.kubernetes.kubernetes import Kubernetes
@@ -361,7 +363,7 @@ class Airflow(object):
             "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
             "METAFLOW_DATASTORE_SYSROOT_S3": DATASTORE_SYSROOT_S3,
             "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
-            "METAFLOW_DEFAULT_DATASTORE": "s3",
+            "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
             "METAFLOW_DEFAULT_METADATA": "service",
             "METAFLOW_KUBERNETES_WORKLOAD": str(
                 1
@@ -376,6 +378,9 @@ class Airflow(object):
             "METAFLOW_AIRFLOW_JOB_ID": AIRFLOW_MACROS.AIRFLOW_JOB_ID,
             "METAFLOW_PRODUCTION_TOKEN": self.production_token,
             "METAFLOW_ATTEMPT_NUMBER": AIRFLOW_MACROS.ATTEMPT,
+            # GCP stuff
+            "METAFLOW_DATASTORE_SYSROOT_GS": DATASTORE_SYSROOT_GS,
+            "METAFLOW_CARD_GSROOT": CARD_GSROOT,
         }
         env[
             "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"

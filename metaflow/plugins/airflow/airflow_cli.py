@@ -389,10 +389,15 @@ def _validate_workflow(flow, graph, flow_datastore, metadata, workflow_timeout):
                 "Step *%s* is marked for execution on AWS Batch with Airflow which isn't currently supported."
                 % node.name
             )
-
-    if flow_datastore.TYPE not in ("azure", "s3"):
+    SUPPORTED_DATASTORES = ("azure", "s3", "gs")
+    if flow_datastore.TYPE not in SUPPORTED_DATASTORES:
         raise AirflowException(
-            'Datastore of type "s3" or "azure" required with `airflow create`'
+            "Datastore type `%s` is not supported with `airflow create`. "
+            "Please choose from datastore of type %s when calling `airflow create`"
+            % (
+                str(flow_datastore.TYPE),
+                "or ".join(["`%s`" % x for x in SUPPORTED_DATASTORES]),
+            )
         )
 
 
