@@ -23,6 +23,8 @@ from metaflow.metaflow_config import (
     DATASTORE_SYSROOT_AZURE,
     CARD_AZUREROOT,
     AIRFLOW_KUBERNETES_CONN_ID,
+    AIRFLOW_KUBERNETES_KUBECONFIG_CONTEXT,
+    AIRFLOW_KUBERNETES_KUBECONFIG_FILE,
     DATASTORE_SYSROOT_GS,
     CARD_GSROOT,
 )
@@ -470,7 +472,22 @@ class Airflow(object):
         )
         if AIRFLOW_KUBERNETES_CONN_ID is not None:
             k8s_operator_args["kubernetes_conn_id"] = AIRFLOW_KUBERNETES_CONN_ID
-        else:
+            k8s_operator_args["in_cluster"] = False
+        if AIRFLOW_KUBERNETES_KUBECONFIG_CONTEXT is not None:
+            k8s_operator_args["cluster_context"] = AIRFLOW_KUBERNETES_KUBECONFIG_CONTEXT
+            k8s_operator_args["in_cluster"] = False
+        if AIRFLOW_KUBERNETES_KUBECONFIG_FILE is not None:
+            k8s_operator_args["config_file"] = AIRFLOW_KUBERNETES_KUBECONFIG_FILE
+            k8s_operator_args["in_cluster"] = False
+
+        if all(
+            x is None
+            for x in [
+                AIRFLOW_KUBERNETES_KUBECONFIG_FILE,
+                AIRFLOW_KUBERNETES_KUBECONFIG_CONTEXT,
+                AIRFLOW_KUBERNETES_CONN_ID,
+            ]
+        ):
             k8s_operator_args["in_cluster"] = True
 
         if k8s_deco.attributes["secrets"]:
