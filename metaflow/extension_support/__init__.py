@@ -318,7 +318,7 @@ def _get_extension_packages():
             # error if there is a transitive import error)
             if not (isinstance(e, ModuleNotFoundError) and e.name == EXT_PKG):
                 raise
-            return {}, {}
+        return {}, {}
 
     # There are two "types" of packages:
     #   - those installed on the system (distributions)
@@ -804,11 +804,8 @@ def _attempt_load_module(module_name):
                     % (EXT_PKG, module_name)
                 )
                 raise
-            else:
-                _ext_debug(
-                    "        Unknown error when loading '%s': %s" % (module_name, e)
-                )
-                return None
+        _ext_debug("        Unknown error when loading '%s': %s" % (module_name, e))
+        return None
     else:
         return extension_module
 
