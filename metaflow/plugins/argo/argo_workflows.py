@@ -120,7 +120,6 @@ class ArgoWorkflows(object):
         self.parameters = self._process_parameters()
         self._workflow_template = self._compile()
         self._cron = self._cron()
-        self._timezone = self._timezone()
 
     def __str__(self):
         return str(self._workflow_template)
@@ -177,17 +176,14 @@ class ArgoWorkflows(object):
         schedule = self.flow._flow_decorators.get("schedule")
         if schedule:
             # Remove the field "Year" if it exists
-            return " ".join(schedule.schedule.split()[:5])
+            return " ".join(schedule.schedule.split()[:5]), schedule.timezone
         return None
-
-    def _timezone(self):
-        schedule = self.flow._flow_decorators.get("schedule")
-        return schedule.timezone if schedule else None
 
     def schedule(self):
         try:
+            cron, timezone = self._cron
             ArgoClient(namespace=KUBERNETES_NAMESPACE).schedule_workflow_template(
-                self.name, self._cron, self._timezone
+                self.name, cron, timezone
             )
         except Exception as e:
             raise ArgoWorkflowsSchedulingException(str(e))
