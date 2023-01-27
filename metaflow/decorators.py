@@ -505,10 +505,28 @@ def _init_flow_decorators(
     flow, graph, environment, flow_datastore, metadata, logger, echo, deco_options
 ):
     # Since all flow decorators are stored as `{key:[deco]}` we iterate through each of them.
-    for deco in flow._flow_decorators.values():
-        for rd in deco:
-            opts = {option: deco_options[option] for option in rd.options}
-            rd.flow_init(
+    for decorators in flow._flow_decorators.values():
+        # First resolve the `options` for the flow decorator.
+        # Options are passed from cli.
+        # For example `@project` can take a `--name` / `--branch` from the cli as options.
+        deco_flow_init_options = {}
+        deco = decorators[0]
+        # If a flow decorator allow multiple of same type then we don't allow multiple options for it.
+        if deco.allow_multiple:
+            if len(deco.options) > 0:
+                raise MetaflowException(
+                    "Flow decorator `@%s` has multiple options, which is not allowed. "
+                    "Please ensure the FlowDecorator `%s` has no options since flow decorators with "
+                    "`allow_mutiple=True` are not allowed to have options"
+                    % (deco.name, deco.__class__.__name__)
+                )
+            else:
+                # Each "non-multiple" flow decorator is only allowed to have one set of options
+                deco_flow_init_options = {
+                    option: deco_options[option] for option in deco.options
+                }
+        for deco in decorators:
+            deco.flow_init(
                 flow,
                 graph,
                 environment,
@@ -516,7 +534,7 @@ def _init_flow_decorators(
                 metadata,
                 logger,
                 echo,
-                opts,
+                deco_flow_init_options,
             )
 
 
