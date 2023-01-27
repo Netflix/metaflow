@@ -45,4 +45,5 @@ class ScheduleDecorator(FlowDecorator):
         else:
             self.schedule = None
 
+        # Argo Workflows supports the IANA timezone standard, e.g. America/Los_Angeles
         self.timezone = self.attributes["timezone"]
