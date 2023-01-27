@@ -517,11 +517,11 @@ def _init_flow_decorators(
                     "`allow_mutiple=True` are not allowed to have options"
                     % (deco.name, deco.__class__.__name__)
                 )
-            else:
-                # Each "non-multiple" flow decorator is only allowed to have one set of options
-                deco_flow_init_options = {
-                    option: deco_options[option] for option in deco.options
-                }
+        else:
+            # Each "non-multiple" flow decorator is only allowed to have one set of options
+            deco_flow_init_options = {
+                option: deco_options[option] for option in deco.options
+            }
         for deco in decorators:
             deco.flow_init(
                 flow,
