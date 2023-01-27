@@ -24,6 +24,8 @@ from metaflow.metaflow_config import (
     DATASTORE_SYSROOT_GS,
     CARD_AZUREROOT,
     CARD_GSROOT,
+    DEFAULT_SECRETS_BACKEND_TYPE,
+    AWS_SECRETS_MANAGER_DEFAULT_REGION,
 )
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
@@ -801,6 +803,12 @@ class ArgoWorkflows(object):
 
             # support Metaflow sandboxes
             env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
+
+            # secrets stuff
+            env["METAFLOW_DEFAULT_SECRETS_BACKEND_TYPE"] = DEFAULT_SECRETS_BACKEND_TYPE
+            env[
+                "METAFLOW_AWS_SECRETS_MANAGER_DEFAULT_REGION"
+            ] = AWS_SECRETS_MANAGER_DEFAULT_REGION
 
             # Azure stuff
             env[
