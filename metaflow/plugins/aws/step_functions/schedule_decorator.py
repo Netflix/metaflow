@@ -21,7 +21,7 @@ class ScheduleDecorator(FlowDecorator):
     """
 
     name = "schedule"
-    defaults = {"cron": None, "weekly": False, "daily": True, "hourly": False}
+    defaults = {"cron": None, "weekly": False, "daily": True, "hourly": False, "timezone": None}
 
     def flow_init(
         self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
@@ -38,3 +38,5 @@ class ScheduleDecorator(FlowDecorator):
             self.schedule = "0 0 * * ? *"
         else:
             self.schedule = None
+
+        self.timezone = self.attributes["timezone"]
