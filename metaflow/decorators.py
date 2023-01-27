@@ -406,10 +406,7 @@ def _base_flow_decorator(decofunc, *args, **kwargs):
                 raise DuplicateFlowDecoratorException(decofunc.name)
             else:
                 deco_instance = decofunc(attributes=kwargs, statically_defined=True)
-                if decofunc.name not in cls._flow_decorators:
-                    cls._flow_decorators[decofunc.name] = [deco_instance]
-                else:
-                    cls._flow_decorators[decofunc.name].append(deco_instance)
+                cls._flow_decorators.setdefault(decofunc.name, []).append(deco_instance)
         else:
             raise BadFlowDecoratorException(decofunc.name)
         return cls
