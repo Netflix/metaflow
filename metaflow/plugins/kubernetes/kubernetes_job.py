@@ -128,7 +128,11 @@ class KubernetesJob(object):
                                         "METAFLOW_KUBERNETES_POD_NAME": "metadata.name",
                                         "METAFLOW_KUBERNETES_POD_ID": "metadata.uid",
                                         "METAFLOW_KUBERNETES_SERVICE_ACCOUNT_NAME": "spec.serviceAccountName",
+<<<<<<< HEAD
                                         "METAFLOW_KUBERNETES_NODE_IP": "status.hostIP",
+=======
+                                        "METAFLOW_KUBERNETES_NODE_IP": "status.hostIP"
+>>>>>>> bba4436 (Expose Kubernetes Node IP in task metadata)
                                     }.items()
                                 ],
                                 env_from=[
