@@ -424,7 +424,17 @@ def _get_sensor(name):
             )
         return S3KeySensor
     elif name == SensorNames.SQL_SENSOR:
-        from airflow.sensors.sql import SqlSensor
+        try:
+            from airflow.sensors.sql import SqlSensor
+        except ImportError as e:
+            try:
+                from airflow.providers.common.sql.sensors.sql import SqlSensor
+            except ImportError as e:
+                raise AirflowSensorNotFound(
+                    "This DAG requires a `SqlSensor`. "
+                    "Install the Airflow SQL provider using : "
+                    "`pip install apache-airflow-providers-common-sql`"
+                )
 
         return SqlSensor
 
