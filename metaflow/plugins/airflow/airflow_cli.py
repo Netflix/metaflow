@@ -400,6 +400,15 @@ def _validate_workflow(flow, graph, flow_datastore, metadata, workflow_timeout):
             )
         )
 
+    schedule = flow._flow_decorators.get("schedule")
+    if not schedule:
+        return
+
+    if schedule.timezone is not None:
+        raise AirflowException(
+            "`airflow create` does not support scheduling with `timezone`."
+        )
+
 
 def resolve_dag_name(name):
     project = current.get("project_name")
