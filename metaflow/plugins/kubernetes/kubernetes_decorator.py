@@ -328,6 +328,7 @@ class KubernetesDecorator(StepDecorator):
             meta["kubernetes-pod-service-account-name"] = os.environ[
                 "METAFLOW_KUBERNETES_SERVICE_ACCOUNT_NAME"
             ]
+            meta["kubernetes-node-ip"] = os.environ["METAFLOW_KUBERNETES_NODE_IP"]
             # Unfortunately, there doesn't seem to be any straight forward way right
             # now to attach the Batch/v1 name - While we can rely on a hacky approach
             # given we know that the pod name is simply a unique suffix with a hyphen

@@ -914,6 +914,7 @@ class ArgoWorkflows(object):
                                     "METAFLOW_KUBERNETES_POD_NAME": "metadata.name",
                                     "METAFLOW_KUBERNETES_POD_ID": "metadata.uid",
                                     "METAFLOW_KUBERNETES_SERVICE_ACCOUNT_NAME": "spec.serviceAccountName",
+                                    "METAFLOW_KUBERNETES_NODE_IP": "status.hostIP",
                                 }.items()
                             ],
                             image=resources["image"],
