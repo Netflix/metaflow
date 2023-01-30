@@ -825,10 +825,10 @@ def put(
             # by the transient failure retry mechanism and users should not use it
             # directly. This will not work, for example, if only some lines have
             # an idx specified (in some cases)
+            transformer = lambda x: x
+            if sys.version_info < (3, 6):
+                transformer = lambda x: x.decode("utf-8")
             for line in open(filelist, mode="rb"):
-                transformer = lambda x: x
-                if sys.version_info < (3, 6):
-                    transformer = lambda x: x.decode("utf-8")
                 r = json.loads(transformer(line))
                 input_line_idx = r.get("idx")
                 if input_line_idx is not None:
