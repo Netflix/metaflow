@@ -328,6 +328,7 @@ def _kubernetes_pod_operator_args(operator_args):
             "METAFLOW_KUBERNETES_POD_NAME": "metadata.name",
             "METAFLOW_KUBERNETES_POD_ID": "metadata.uid",
             "METAFLOW_KUBERNETES_SERVICE_ACCOUNT_NAME": "spec.serviceAccountName",
+            "METAFLOW_KUBERNETES_NODE_IP": "status.hostIP"
         }.items()
     ]
     args["pod_runtime_info_envs"] = additional_env_vars
