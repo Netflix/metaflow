@@ -403,7 +403,7 @@ def _validate_workflow(flow, graph, flow_datastore, metadata, workflow_timeout):
     schedule = flow._flow_decorators.get("schedule")
     if not schedule:
         return
-    
+
     schedule = schedule[0]
     if schedule.timezone is not None:
         raise AirflowException(

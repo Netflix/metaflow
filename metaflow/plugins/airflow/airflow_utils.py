@@ -423,6 +423,7 @@ def _get_sensor(name):
             )
         return S3KeySensor
 
+
 def get_metaflow_kubernetes_operator():
     try:
         from airflow.contrib.operators.kubernetes_pod_operator import (
