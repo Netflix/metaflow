@@ -108,6 +108,8 @@ class Decorator(object):
 
     name = "NONAME"
     defaults = {}
+    # `allow_multiple` allows setting many decorators of the same type to a step/flow.
+    allow_multiple = False
 
     def __init__(self, attributes=None, statically_defined=False):
         self.attributes = self.defaults.copy()
@@ -255,9 +257,6 @@ class StepDecorator(Decorator):
                   pass them around with every lifecycle call.
     """
 
-    # `allow_multiple` allows setting many decorators of the same type to a step.
-    allow_multiple = False
-
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
     ):
@@ -402,13 +401,12 @@ def _base_flow_decorator(decofunc, *args, **kwargs):
         cls = args[0]
         if isinstance(cls, type) and issubclass(cls, FlowSpec):
             # flow decorators add attributes in the class dictionary,
-            # _flow_decorators.
-            if decofunc.name in cls._flow_decorators:
+            # _flow_decorators. _flow_decorators is of type `{key:[decos]}`
+            if decofunc.name in cls._flow_decorators and not decofunc.allow_multiple:
                 raise DuplicateFlowDecoratorException(decofunc.name)
             else:
-                cls._flow_decorators[decofunc.name] = decofunc(
-                    attributes=kwargs, statically_defined=True
-                )
+                deco_instance = decofunc(attributes=kwargs, statically_defined=True)
+                cls._flow_decorators.setdefault(decofunc.name, []).append(deco_instance)
         else:
             raise BadFlowDecoratorException(decofunc.name)
         return cls
@@ -503,11 +501,38 @@ def _attach_decorators_to_step(step, decospecs):
 def _init_flow_decorators(
     flow, graph, environment, flow_datastore, metadata, logger, echo, deco_options
 ):
-    for deco in flow._flow_decorators.values():
-        opts = {option: deco_options[option] for option in deco.options}
-        deco.flow_init(
-            flow, graph, environment, flow_datastore, metadata, logger, echo, opts
-        )
+    # Since all flow decorators are stored as `{key:[deco]}` we iterate through each of them.
+    for decorators in flow._flow_decorators.values():
+        # First resolve the `options` for the flow decorator.
+        # Options are passed from cli.
+        # For example `@project` can take a `--name` / `--branch` from the cli as options.
+        deco_flow_init_options = {}
+        deco = decorators[0]
+        # If a flow decorator allow multiple of same type then we don't allow multiple options for it.
+        if deco.allow_multiple:
+            if len(deco.options) > 0:
+                raise MetaflowException(
+                    "Flow decorator `@%s` has multiple options, which is not allowed. "
+                    "Please ensure the FlowDecorator `%s` has no options since flow decorators with "
+                    "`allow_mutiple=True` are not allowed to have options"
+                    % (deco.name, deco.__class__.__name__)
+                )
+        else:
+            # Each "non-multiple" flow decorator is only allowed to have one set of options
+            deco_flow_init_options = {
+                option: deco_options[option] for option in deco.options
+            }
+        for deco in decorators:
+            deco.flow_init(
+                flow,
+                graph,
+                environment,
+                flow_datastore,
+                metadata,
+                logger,
+                echo,
+                deco_flow_init_options,
+            )
 
 
 def _init_step_decorators(flow, graph, environment, flow_datastore, logger):

@@ -44,6 +44,10 @@ class IncompatibleKubernetesProviderVersionException(Exception):
     ) % (sys.executable, KUBERNETES_PROVIDER_FOREACH_VERSION)
 
 
+class AirflowSensorNotFound(Exception):
+    headline = "Sensor package not found"
+
+
 def create_absolute_version_number(version):
     abs_version = None
     # For all digits
@@ -187,6 +191,15 @@ class AIRFLOW_MACROS:
             cls.STEPNAME,
             cls.create_task_id(is_foreach),
         )
+
+
+class SensorNames:
+    EXTERNAL_TASK_SENSOR = "ExternalTaskSensor"
+    S3_SENSOR = "S3KeySensor"
+
+    @classmethod
+    def get_supported_sensors(cls):
+        return list(cls.__dict__.values())
 
 
 def run_id_creator(val):
@@ -375,6 +388,42 @@ def _kubernetes_pod_operator_args(operator_args):
     return args
 
 
+def _parse_sensor_args(name, kwargs):
+    if name == SensorNames.EXTERNAL_TASK_SENSOR:
+        if "execution_delta" in kwargs:
+            if type(kwargs["execution_delta"]) == dict:
+                kwargs["execution_delta"] = timedelta(**kwargs["execution_delta"])
+            else:
+                del kwargs["execution_delta"]
+    return kwargs
+
+
+def _get_sensor(name):
+    # from airflow import XComArg
+    # XComArg()
+    if name == SensorNames.EXTERNAL_TASK_SENSOR:
+        # ExternalTaskSensors uses an execution_date of a dag to
+        # determine the appropriate DAG.
+        # This is set to the exact date the current dag gets executed on.
+        # For example if "DagA" (Upstream DAG) got scheduled at
+        # 12 Jan 4:00 PM PDT then "DagB"(current DAG)'s task sensor will try to
+        # look for a "DagA" that got executed at 12 Jan 4:00 PM PDT **exactly**.
+        # They also support a `execution_timeout` argument to
+        from airflow.sensors.external_task_sensor import ExternalTaskSensor
+
+        return ExternalTaskSensor
+    elif name == SensorNames.S3_SENSOR:
+        try:
+            from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
+        except ImportError:
+            raise AirflowSensorNotFound(
+                "This DAG requires a `S3KeySensor`. "
+                "Install the Airflow AWS provider using : "
+                "`pip install apache-airflow-providers-amazon`"
+            )
+        return S3KeySensor
+
+
 def get_metaflow_kubernetes_operator():
     try:
         from airflow.contrib.operators.kubernetes_pod_operator import (
@@ -493,6 +542,13 @@ class AirflowTask(object):
         self._operator_args = kwargs
         return self
 
+    def _make_sensor(self):
+        TaskSensor = _get_sensor(self._operator_type)
+        return TaskSensor(
+            task_id=self.name,
+            **_parse_sensor_args(self._operator_type, self._operator_args)
+        )
+
     def to_dict(self):
         return {
             "name": self.name,
@@ -541,6 +597,8 @@ class AirflowTask(object):
                 return self._kubernetes_task()
             else:
                 return self._kubernetes_mapper_task()
+        elif self._operator_type in SensorNames.get_supported_sensors():
+            return self._make_sensor()
 
 
 class Workflow(object):

@@ -176,6 +176,7 @@ class ArgoWorkflows(object):
         schedule = self.flow._flow_decorators.get("schedule")
         if schedule:
             # Remove the field "Year" if it exists
+            schedule = schedule[0]
             return " ".join(schedule.schedule.split()[:5]), schedule.timezone
         return None
 
