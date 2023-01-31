@@ -328,8 +328,8 @@ class StepFunctions(object):
 
     def _cron(self):
         schedule = self.flow._flow_decorators.get("schedule")
-        schedule = schedule[0]
         if schedule:
+            schedule = schedule[0]
             if schedule.timezone is not None:
                 raise StepFunctionsException(
                     "Step Functions does not support scheduling with a timezone."
