@@ -176,13 +176,14 @@ class ArgoWorkflows(object):
         schedule = self.flow._flow_decorators.get("schedule")
         if schedule:
             # Remove the field "Year" if it exists
-            return " ".join(schedule.schedule.split()[:5])
+            return " ".join(schedule.schedule.split()[:5]), schedule.timezone
         return None
 
     def schedule(self):
         try:
+            cron, timezone = self._cron
             ArgoClient(namespace=KUBERNETES_NAMESPACE).schedule_workflow_template(
-                self.name, self._cron
+                self.name, cron, timezone
             )
         except Exception as e:
             raise ArgoWorkflowsSchedulingException(str(e))
