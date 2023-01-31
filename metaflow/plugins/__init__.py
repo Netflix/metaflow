@@ -101,7 +101,6 @@ AWS_CLIENT_PROVIDERS_DESC = [("boto3", ".aws.aws_client.Boto3ClientProvider")]
 # Add Airflow sensor related flow decorators
 SENSOR_FLOW_DECORATORS = [
     ("airflow_external_task_sensor", ".airflow.sensors.ExternalTaskSensorDecorator"),
-    ("airflow_sql_sensor", ".airflow.sensors.SQLSensorDecorator"),
     ("airflow_s3_key_sensor", ".airflow.sensors.S3KeySensorDecorator"),
 ]
 

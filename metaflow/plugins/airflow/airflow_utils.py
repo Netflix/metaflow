@@ -196,7 +196,6 @@ class AIRFLOW_MACROS:
 class SensorNames:
     EXTERNAL_TASK_SENSOR = "ExternalTaskSensor"
     S3_SENSOR = "S3KeySensor"
-    SQL_SENSOR = "SQLSensor"
 
     @classmethod
     def get_supported_sensors(cls):
@@ -423,21 +422,6 @@ def _get_sensor(name):
                 "`pip install apache-airflow-providers-amazon`"
             )
         return S3KeySensor
-    elif name == SensorNames.SQL_SENSOR:
-        try:
-            from airflow.sensors.sql import SqlSensor
-        except ImportError as e:
-            try:
-                from airflow.providers.common.sql.sensors.sql import SqlSensor
-            except ImportError as e:
-                raise AirflowSensorNotFound(
-                    "This DAG requires a `SqlSensor`. "
-                    "Install the Airflow SQL provider using : "
-                    "`pip install apache-airflow-providers-common-sql`"
-                )
-
-        return SqlSensor
-
 
 def get_metaflow_kubernetes_operator():
     try:
