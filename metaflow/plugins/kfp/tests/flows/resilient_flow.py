@@ -18,10 +18,10 @@ from metaflow import (
 from metaflow.exception import MetaflowExceptionWrapper
 
 
-def validate_checkpoint_root(root: str):
+def validate_checkpoint_dir(checkpoint_dir: str):
     key = f"{current.run_id}/checkpoints/{current.step_name}/{current.task_id}"
-    assert root.endswith(key)
-    assert current.flow_name in root
+    assert checkpoint_dir.endswith(key)
+    assert current.flow_name in checkpoint_dir
 
 
 class ResilientFlow(FlowSpec):
@@ -38,9 +38,11 @@ class ResilientFlow(FlowSpec):
         checkpoint_name = f"checkpoint.pt"
         checkpoint_obj = "'checkpoint content'"
         if current.retry_count == 0:
-            S3(s3root=checkpoint_paths.root).put(checkpoint_name, checkpoint_obj)
-            validate_checkpoint_root(checkpoint_paths.root)
-            assert checkpoint_paths.resume_path is None
+            S3(s3root=checkpoint_paths.checkpoint_dir).put(
+                checkpoint_name, checkpoint_obj
+            )
+            validate_checkpoint_dir(checkpoint_paths.checkpoint_dir)
+            assert checkpoint_paths.previous_checkpoint_path is None
 
             # delete and terminate myself!!
             command = (
@@ -57,12 +59,14 @@ class ResilientFlow(FlowSpec):
             # this gives the test extra resilience.
             time.sleep(60 * 5)
         else:
-            validate_checkpoint_root(checkpoint_paths.root)
-            assert checkpoint_paths.resume_path.endswith(checkpoint_name)
+            validate_checkpoint_dir(checkpoint_paths.checkpoint_dir)
+            assert checkpoint_paths.previous_checkpoint_path.endswith(checkpoint_name)
 
-            obj = S3(s3root=checkpoint_paths.resume_path).get().text
+            obj = S3(s3root=checkpoint_paths.previous_checkpoint_path).get().text
             assert obj == checkpoint_obj
-            print(f"validated {checkpoint_paths.resume_path=} content == {obj}")
+            print(
+                f"validated {checkpoint_paths.previous_checkpoint_path=} content == {obj}"
+            )
 
         self.next(self.user_failure)
 

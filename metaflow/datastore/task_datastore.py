@@ -209,7 +209,7 @@ class TaskDataStore(object):
 
     @require_mode(None)
     def get_log_location(self, logprefix, stream):
-        log_name = self._get_log_location(logprefix, stream)
+        log_name = self._get_log_location(logprefix, stream) if stream else logprefix
         path = self._storage_impl.path_join(
             self._path, self._metadata_name_for_attempt(log_name)
         )

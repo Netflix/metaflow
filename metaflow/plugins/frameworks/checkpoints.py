@@ -16,8 +16,8 @@ _logger.setLevel(logging.INFO)
 T = TypeVar("T")
 
 
-def _get_s3_latest_checkpoint_s3_info(s3_checkpoint_root: str) -> Optional[S3Object]:
-    s3 = S3(s3root=s3_checkpoint_root)
+def _get_s3_latest_checkpoint_s3_info(s3_checkpoint_dir: str) -> Optional[S3Object]:
+    s3 = S3(s3root=s3_checkpoint_dir)
     checkpoints = s3.list_paths([""])
     if not checkpoints:
         return None
@@ -26,18 +26,21 @@ def _get_s3_latest_checkpoint_s3_info(s3_checkpoint_root: str) -> Optional[S3Obj
     return max(with_infos, key=lambda info: info.last_modified)
 
 
-def _get_latest_checkpoint_name(root: str) -> str:
-    if urlparse(root).scheme == "s3":
-        latest = _get_s3_latest_checkpoint_s3_info(root)
+def _get_latest_checkpoint_name(checkpoint_dir: str) -> Optional[str]:
+    if urlparse(checkpoint_dir).scheme == "s3":
+        latest = _get_s3_latest_checkpoint_s3_info(checkpoint_dir)
         return latest.key if latest else None
     else:
-        files = os.listdir(root)
-        paths = [os.path.join(root, basename) for basename in files]
-        paths = [path for path in paths if os.path.isfile(path)]
-        return max(paths, key=os.path.getctime)
+        if os.path.exists(checkpoint_dir):
+            files = os.listdir(checkpoint_dir)
+            paths = [os.path.join(checkpoint_dir, basename) for basename in files]
+            paths = [path for path in paths if os.path.isfile(path)]
+            return max(paths, key=os.path.getctime)
+        else:
+            return None
 
 
-def _get_checkpoint_root(
+def _get_checkpoint_dir(
     run: Optional[Union[FlowSpec, Run]] = None,
     step_name: Optional[str] = None,
     task_id: Optional[str] = None,
@@ -51,7 +54,7 @@ def _get_checkpoint_root(
 
 def _get_run_root(run: Optional[Union[FlowSpec, Run]] = None) -> str:
     """Function separated out to unit test mock"""
-    root_env = os.environ.get("CHECKPOINT_ROOT")
+    root_env = os.environ.get("CHECKPOINT_DIR")
     if root_env:
         return root_env
     else:
@@ -60,15 +63,15 @@ def _get_run_root(run: Optional[Union[FlowSpec, Run]] = None) -> str:
 
 
 def _get_resume_checkpoint_path(
-    root: str,
+    checkpoint_dir: str,
     resume_checkpoint_path: Optional[str] = None,
 ) -> Optional[str]:
     if current.retry_count == 0:
         return resume_checkpoint_path
     elif current.retry_count > 0:
-        key = _get_latest_checkpoint_name(root)
+        key = _get_latest_checkpoint_name(checkpoint_dir)
         if key:
-            ret = os.path.join(root, key)
+            ret = os.path.join(checkpoint_dir, key)
             _logger.debug(f"_get_resume_checkpoint_path returning {ret}")
             return ret
         else:
@@ -79,7 +82,8 @@ def _get_resume_checkpoint_path(
 
 
 CheckpointPaths = NamedTuple(
-    "CheckpointPaths", [("root", str), ("resume_path", Optional[str])]
+    "CheckpointPaths",
+    [("checkpoint_dir", str), ("previous_checkpoint_path", Optional[str])],
 )
 
 
@@ -87,55 +91,57 @@ def get_checkpoint_paths(
     resume_checkpoint_path: Optional[str] = None,
 ) -> CheckpointPaths:
     """
-    This function gets the checkpoint root and resume path for a Flow Run step.
+    This function gets the checkpoint_dir and resume path for a Flow Run step.
 
     Checkpointing allows a long running process to resume upon network,
     infrastructure, or SPOT interruptions or failures.  This is especially
     useful for expensive training or compute.
 
-    The environment variable CHECKPOINT_ROOT can override the root path,
+    The environment variable CHECKPOINT_DIR can override the checkpoint_dir path,
     which is useful for local or CICD runs not on S3.
 
     Args:
         resume_checkpoint_path (Optional[str], optional):
-            If provided, this would be the initial CheckpointPaths.resume_path
+            If provided, this would be the initial CheckpointPaths.previous_checkpoint_path
             returned upon the first attempt, yet not on retries.
             Defaults to None, upon which it returns None on the first attempt.
 
     Returns:
         CheckpointPaths tuple of the following:
-        - root: Checkpoint S3 root path for this run and step.
-        - resume_path: S3 path to the latest checkpoint under the root, to resume from.
+        - checkpoint_dir: Checkpoint S3 root path for this run and step.
+        - previous_checkpoint_path: S3 path to the latest checkpoint under the checkpoint_dir, to resume from.
             This can be None on the first attempt when resume_checkpoint_path is None.
 
     Examples:
-        1. The resume_path is None on the first attempt::
+        1. The previous_checkpoint_path is None on the first attempt::
 
             @interruptible
             @retry
             @step
             def train(self):
-                checkpoint_root, resume_path = get_checkpoint_paths()
+                checkpoint_dir, previous_checkpoint_path = get_checkpoint_paths()
                 ...
 
-        2. `resume_path` is the latest file in the path on a second attempt:
+        2. `previous_checkpoint_path` is the latest file in the path on a second attempt:
         (s3://.../checkpoints/step_name/task_id/, s3://.../checkpoints/step_name/task_id/checkpoint1.pt)
 
         3. Example of resuming a checkpoint from a previous training run.
-            `resume_path` is `self.resume_checkpoint_path` on the first attempt
+            `previous_checkpoint_path` is `self.resume_checkpoint_path` on the first attempt
             and is latest checkpoint path on subsequent attempts::
 
             @interruptible
             @retry
             @step
             def train(self):
-                checkpoint_root, resume_path = get_checkpoint_paths(self.resume_checkpoint_path)
+                checkpoint_dir, previous_checkpoint_path = get_checkpoint_paths(self.resume_checkpoint_path)
                 ...
 
         (s3://.../checkpoints/step_name/task_id/, s3://.../previous_run_checkpoint_path.pt)
     """
-    root: str = _get_checkpoint_root()
+    checkpoint_dir: str = _get_checkpoint_dir()
     return CheckpointPaths(
-        root=root,
-        resume_path=_get_resume_checkpoint_path(root, resume_checkpoint_path),
+        checkpoint_dir=checkpoint_dir,
+        previous_checkpoint_path=_get_resume_checkpoint_path(
+            checkpoint_dir, resume_checkpoint_path
+        ),
     )
