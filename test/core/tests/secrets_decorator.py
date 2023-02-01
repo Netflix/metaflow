@@ -20,7 +20,7 @@ class SecretsDecoratorTest(MetaflowTest):
     Test that checks that the timeout decorator works as intended.
     """
 
-    @tag("secrets(vars=%s)" % repr(INLINE_SECRETS_VARS))
+    @tag("secrets(sources=%s)" % repr(INLINE_SECRETS_VARS))
     @steps(1, ["all"])
     def step_all(self):
         import os

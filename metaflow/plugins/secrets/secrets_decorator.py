@@ -163,12 +163,12 @@ class SecretsDecorator(StepDecorator):
 
     Parameters
     ----------
-    vars : List[Union[str,dict]]
+    sources : List[Union[str,dict]]
         List of secret specs, defining how the secrets are to be retrieved
     """
 
     name = "secrets"
-    defaults = {"vars": []}
+    defaults = {"sources": []}
 
     def task_pre_step(
         self,
@@ -191,7 +191,7 @@ class SecretsDecorator(StepDecorator):
         all_secrets_env_vars = []
         secret_specs = []
 
-        for secret_spec_str_or_dict in self.attributes["vars"]:
+        for secret_spec_str_or_dict in self.attributes["sources"]:
             if isinstance(secret_spec_str_or_dict, str):
                 secret_specs.append(
                     SecretSpec.secret_spec_from_str(secret_spec_str_or_dict)
@@ -202,7 +202,7 @@ class SecretsDecorator(StepDecorator):
                 )
             else:
                 raise MetaflowException(
-                    "@secrets vars items must be either a string or a dict"
+                    "@secrets sources items must be either a string or a dict"
                 )
 
         for secret_spec in secret_specs:
