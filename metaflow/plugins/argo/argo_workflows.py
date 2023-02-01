@@ -3,7 +3,6 @@ import os
 import shlex
 import sys
 from collections import defaultdict
-from typing import Union, Tuple, Optional
 
 from metaflow import current
 from metaflow.decorators import flow_decorators
@@ -173,7 +172,7 @@ class ArgoWorkflows(object):
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
 
-    def _get_cron(self) -> Union[None, Tuple[str, Optional[str]]]:
+    def _get_cron(self):
         schedule = self.flow._flow_decorators.get("schedule")
         if schedule:
             # Remove the field "Year" if it exists
