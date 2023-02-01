@@ -3,6 +3,7 @@ import re
 
 from metaflow.exception import MetaflowException
 from metaflow.decorators import StepDecorator
+from metaflow.unbounded_foreach import UBF_CONTROL
 
 DISALLOWED_SECRETS_ENV_VAR_PREFIXES = ["METAFLOW_"]
 
@@ -183,6 +184,9 @@ class SecretsDecorator(StepDecorator):
         ubf_context,
         inputs,
     ):
+        if ubf_context == UBF_CONTROL:
+            """control tasks (as used in "unbounded for each") don't need secrets"""
+            return
         # List of pairs (secret_spec, env_vars_from_this_spec)
         all_secrets_env_vars = []
         secret_specs = []
