@@ -861,7 +861,7 @@ def test_put_one(s3root, objs, expected):
 )
 def test_put_files(tempdir, inject_failure_rate, s3root, blobs, expected):
     def _write_file_py35(path, data):
-        with open(path, "wb") as f:
+        with open(path, "ab") as f:
             for d in data.split(b"\n"):
                 f.write(d)
 
