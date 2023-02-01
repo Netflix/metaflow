@@ -423,8 +423,14 @@ class KubernetesDecorator(StepDecorator):
         for part in re.split(f""",(?=[\s\w]+[{valid_options}]=)""", deco_spec):
             name, val = part.split("=", 1)
             if name in {"labels", "node_selector"}:
-                both = name == "node_selector"
-                val = json.dumps(cls.parse_kube_keyvalue_list(val.split(","), both))
+                try:
+                    json.loads(val)
+                except json.JSONDecodeError:
+                    both = name == "node_selector"
+                    val = json.dumps(
+                        cls.parse_kube_keyvalue_list(val.split(","), both),
+                        separators=(",", ":"),
+                    )
             deco_spec_parts.append("=".join([name, val]))
         deco_spec_parsed = ",".join(deco_spec_parts)
         return super()._parse_decorator_spec(deco_spec_parsed)
