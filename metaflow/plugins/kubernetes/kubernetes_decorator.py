@@ -424,7 +424,7 @@ class KubernetesDecorator(StepDecorator):
             name, val = part.split("=", 1)
             if name in {"labels", "node_selector"}:
                 try:
-                    json.loads(val)
+                    json.loads(val.strip().replace('\\"', '"'))
                 except json.JSONDecodeError:
                     both = name == "node_selector"
                     val = json.dumps(
