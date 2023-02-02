@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from PIL import Image
     from matplotlib.figure import Figure
     from matplotlib.axes import Axes
+    from matplotlib.axes._subplots import AxesSubplot
 
 
 class UserComponent(MetaflowCardComponent):
@@ -118,15 +119,13 @@ class Table(UserComponent):
             self._data = data
 
     @classmethod
-    def from_dataframe(
-        cls, dataframe: Optional["DataFrame"] = None, truncate: bool = True
-    ):
+    def from_dataframe(cls, dataframe: "DataFrame", truncate: bool = True):
         """
         Create a `Table` based on a Pandas dataframe.
 
         Parameters
         ----------
-        dataframe : pandas.DataFrame, optional
+        dataframe : pandas.DataFrame
             Pandas dataframe.
         truncate : bool, default: True
             Truncate large dataframe instead of showing all rows (default: True).
@@ -321,7 +320,7 @@ class Image(UserComponent):
 
     @classmethod
     def from_matplotlib(
-        cls, plot: Union["Figure", "Axes"], label: Optional[str] = None
+        cls, plot: Union["Figure", "Axes", "AxesSubplot"], label: Optional[str] = None
     ):
         """
         Create an `Image` from a Matplotlib plot.

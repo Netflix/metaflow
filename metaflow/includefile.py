@@ -249,7 +249,7 @@ class IncludeFile(Parameter):
     is_text : bool, default: True
         Convert the file contents to a string using the provided `encoding`.
         If False, the artifact is stored in `bytes`.
-    encoding : str, optional, default: "utf-8"
+    encoding : str, optional, default: 'utf-8'
         Use this encoding to decode the file contexts if `is_text=True`.
     required : bool, default: False
         Require that the user specified a value for the parameter.

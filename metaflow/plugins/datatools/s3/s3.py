@@ -707,7 +707,7 @@ class S3(object):
 
         return list(starmap(S3Object, _list(keys)))
 
-    def info(self, key: str, return_missing: bool = False) -> S3Object:
+    def info(self, key: Optional[str] = None, return_missing: bool = False) -> S3Object:
         """
         Get metadata about a single object in S3.
 
@@ -716,7 +716,7 @@ class S3(object):
 
         Parameters
         ----------
-        key : str
+        key : str, optional
             Object to query. It can be an S3 url or a path suffix.
         return_missing : bool, default: False
             If set to True, do not raise an exception for a missing key but

@@ -5,7 +5,7 @@ import traceback
 
 from itertools import islice
 from types import FunctionType, MethodType
-from typing import Any, Callable, List, Optional, Sequence, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 from . import cmd_with_io
 from .parameters import DelayedEvaluationParameter, Parameter
@@ -22,6 +22,9 @@ try:
     basestring
 except NameError:
     basestring = str
+
+
+from .datastore.inputs import Inputs
 
 
 class InvalidNextException(MetaflowException):
@@ -270,7 +273,7 @@ class FlowSpec(object):
         """
         return self._find_input()
 
-    def foreach_stack(self) -> List[Tuple[int, int, Any]]:
+    def foreach_stack(self) -> Optional[List[Tuple[int, int, Any]]]:
         """
         Returns the current stack of foreach indexes and values for the current step.
 
@@ -356,7 +359,7 @@ class FlowSpec(object):
 
     def merge_artifacts(
         self,
-        inputs: Sequence["FlowSpec"],
+        inputs: Inputs,
         exclude: Optional[List[str]] = None,
         include: Optional[List[str]] = None,
     ) -> None:
@@ -392,7 +395,7 @@ class FlowSpec(object):
 
         Parameters
         ----------
-        inputs : List[FlowSpec]
+        inputs : Inputs
             Incoming steps to the join point.
         exclude : List[str], optional
             If specified, do not consider merging artifacts with a name in `exclude`.

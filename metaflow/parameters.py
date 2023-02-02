@@ -246,16 +246,16 @@ class Parameter(object):
         indicate that the value must be a valid JSON object. A function
         implies that the parameter corresponds to a *deploy-time parameter*.
         The type of the default value is used as the parameter `type`.
-    type : Type, default: None
+    type : Type, default: str
         If `default` is not specified, define the parameter type. Specify
-        one of `str`, `float`, `int`, `bool`, or `JSONType`. If None, defaults to str.
+        one of `str`, `float`, `int`, `bool`, or `JSONType`.
     help : str, optional
         Help text to show in `run --help`.
     required : bool, default: False
         Require that the user specified a value for the parameter.
         `required=True` implies that the `default` is not used.
     show_default : bool, default: True
-        If True, show the default value in the help text (default: True).
+        If True, show the default value in the help text.
     """
 
     def __init__(
@@ -271,9 +271,7 @@ class Parameter(object):
                 Callable[[], Union[str, float, int, bool, Dict[str, Any]]],
             ]
         ] = None,
-        type: Optional[
-            Union[Type[str], Type[float], Type[int], Type[bool], JSONTypeClass]
-        ] = None,
+        type: Union[Type[str], Type[float], Type[int], Type[bool], JSONTypeClass] = str,
         help: Optional[str] = None,
         required: bool = False,
         show_default: bool = True,
@@ -318,8 +316,6 @@ class Parameter(object):
                     "Parameter *%s*: Field '%s' cannot "
                     "have a function as its value" % (name, field)
                 )
-
-        self.kwargs["show_default"] = self.kwargs.get("show_default", True)
 
         # default can be defined as a function
         default_field = self.kwargs.get("default")
