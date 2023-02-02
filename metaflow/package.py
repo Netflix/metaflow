@@ -131,7 +131,13 @@ class MetaflowPackage(object):
         # the package folders for environment
         for path_tuple in self.environment.add_to_package():
             yield path_tuple
-        if R.use_r():
+
+        if "packager" in self._flow._flow_decorators:
+            for path_tuple in self._flow._flow_decorators["packager"][0].path_tuples():
+                yield path_tuple
+            flow_file = os.path.abspath(sys.argv[0])
+            yield flow_file, os.path.basename(flow_file)
+        elif R.use_r():
             # the R working directory
             for path_tuple in self._walk(
                 "%s/" % R.working_dir(), suffixes=self.suffixes

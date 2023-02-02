@@ -1,8 +1,10 @@
 import sys
 import subprocess
 import json
+import tarfile
+import os
 from collections import namedtuple
-from tempfile import NamedTemporaryFile
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 
 from metaflow.includefile import IncludedFile
 from metaflow.util import is_stringish
@@ -230,3 +232,30 @@ class CliCheck(MetaflowCheck):
         for tag_to_add in tags_to_add:
             cmd.extend(["--add", tag_to_add])
         self.run_cli(cmd)
+
+    def _get_package_content(self):
+        with NamedTemporaryFile(dir=".") as tmp:
+            self.run_cli(["package", "save", tmp.name])
+
+            # create temporary directory and extract tarball to there
+            with TemporaryDirectory(dir=".") as tmpdir:
+                with tarfile.open(tmp.name, "r:gz") as tar:
+                    tar.extractall(path=tmpdir)
+
+                # load each file from the temporary directory into a dict
+                return {
+                    f: open(os.path.join(tmpdir, f), "rb").read()
+                    for f in os.listdir(tmpdir)
+                    if os.path.isfile(os.path.join(tmpdir, f))
+                }
+
+    def assert_package_file_exists(self, filename):
+        package_content = self._get_package_content()
+        assert filename in package_content, "File %s not found in package" % filename
+
+    def assert_package_file_content(self, filename, content):
+        package_content = self._get_package_content()
+        assert filename in package_content, "File %s not found in package" % filename
+        assert (
+            package_content[filename] == content
+        ), "File %s has unexpected content" % filename

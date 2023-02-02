@@ -55,6 +55,7 @@ FLOW_DECORATORS_DESC = [
     ("conda_base", ".conda.conda_flow_decorator.CondaFlowDecorator"),
     ("schedule", ".aws.step_functions.schedule_decorator.ScheduleDecorator"),
     ("project", ".project_decorator.ProjectDecorator"),
+    ("packager", ".packager_decorator.PackagerDecorator"),
 ]
 
 # Add environments here

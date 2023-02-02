@@ -171,6 +171,11 @@ class MetaflowCheck(object):
     def replace_tags(self, tags_to_remove, tags_to_add):
         raise NotImplementedError()
 
+    def assert_package_file_exists(self, filename):
+        raise NotImplementedError()
+
+    def assert_package_file_content(self, filename, content):
+        raise NotImplementedError()
 
 def new_checker(flow):
     from . import cli_check, metadata_check

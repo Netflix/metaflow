@@ -199,3 +199,10 @@ class MetadataCheck(MetaflowCheck):
 
     def replace_tags(self, tags_to_remove, tags_to_add):
         return self.run.replace_tags(tags_to_remove, tags_to_add)
+
+    # is the package file part of the Python API?
+    def assert_package_file_exists(self, filename):
+        return
+
+    def assert_package_file_content(self, filename, content):
+        return
