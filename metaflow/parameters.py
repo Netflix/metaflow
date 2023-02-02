@@ -246,9 +246,10 @@ class Parameter(object):
         indicate that the value must be a valid JSON object. A function
         implies that the parameter corresponds to a *deploy-time parameter*.
         The type of the default value is used as the parameter `type`.
-    type : Type, default: str
+    type : Type, default: None
         If `default` is not specified, define the parameter type. Specify
-        one of `str`, `float`, `int`, `bool`, or `JSONType`.
+        one of `str`, `float`, `int`, `bool`, or `JSONType`. If None, defaults
+        to the type of `default` or `str` if none specified.
     help : str, optional
         Help text to show in `run --help`.
     required : bool, default: False
@@ -271,7 +272,9 @@ class Parameter(object):
                 Callable[[], Union[str, float, int, bool, Dict[str, Any]]],
             ]
         ] = None,
-        type: Union[Type[str], Type[float], Type[int], Type[bool], JSONTypeClass] = str,
+        type: Optional[
+            Union[Type[str], Type[float], Type[int], Type[bool], JSONTypeClass]
+        ] = None,
         help: Optional[str] = None,
         required: bool = False,
         show_default: bool = True,
