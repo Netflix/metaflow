@@ -119,7 +119,7 @@ class ArgoWorkflows(object):
 
         self.parameters = self._process_parameters()
         self._workflow_template = self._compile()
-        self._cron = self._cron()
+        self._cron = self._get_cron()
 
     def __str__(self):
         return str(self._workflow_template)
@@ -172,17 +172,22 @@ class ArgoWorkflows(object):
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
 
-    def _cron(self):
+    def _get_cron(self):
         schedule = self.flow._flow_decorators.get("schedule")
         if schedule:
             # Remove the field "Year" if it exists
-            return " ".join(schedule.schedule.split()[:5])
+            schedule = schedule[0]
+            return " ".join(schedule.schedule.split()[:5]), schedule.timezone
         return None
 
     def schedule(self):
         try:
+            if self._cron is None:
+                cron, timezone = None, None
+            else:
+                cron, timezone = self._cron
             ArgoClient(namespace=KUBERNETES_NAMESPACE).schedule_workflow_template(
-                self.name, self._cron
+                self.name, cron, timezone
             )
         except Exception as e:
             raise ArgoWorkflowsSchedulingException(str(e))
@@ -220,7 +225,7 @@ class ArgoWorkflows(object):
 
     def _process_parameters(self):
         parameters = []
-        has_schedule = self._cron() is not None
+        has_schedule = self._get_cron() is not None
         seen = set()
         for var, param in self.flow._get_parameters():
             # Throw an exception if the parameter is specified twice.
@@ -914,6 +919,7 @@ class ArgoWorkflows(object):
                                     "METAFLOW_KUBERNETES_POD_NAME": "metadata.name",
                                     "METAFLOW_KUBERNETES_POD_ID": "metadata.uid",
                                     "METAFLOW_KUBERNETES_SERVICE_ACCOUNT_NAME": "spec.serviceAccountName",
+                                    "METAFLOW_KUBERNETES_NODE_IP": "status.hostIP",
                                 }.items()
                             ],
                             image=resources["image"],

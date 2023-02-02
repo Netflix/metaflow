@@ -322,7 +322,6 @@ def make_flow(
 
 
 def _validate_foreach_constraints(graph):
-    # Todo :Invoke this function when we integrate `foreach`s
     def traverse_graph(node, state):
         if node.type == "foreach" and node.is_inside_foreach:
             raise NotSupportedException(
@@ -338,7 +337,7 @@ def _validate_foreach_constraints(graph):
             if node.type == "linear" and node.is_inside_foreach:
                 state["foreach_stack"].append(node.name)
 
-            if len(state["foreach_stack"]) > 2:
+            if "foreach_stack" in state and len(state["foreach_stack"]) > 2:
                 raise NotSupportedException(
                     "The foreach step *%s* created by step *%s* needs to have an immediate join step. "
                     "Step *%s* is invalid since it is a linear step with a foreach. "
@@ -378,27 +377,37 @@ def _validate_workflow(flow, graph, flow_datastore, metadata, workflow_timeout):
                 "A default value is required for parameters when deploying flows on Airflow."
             )
     # check for other compute related decorators.
+    _validate_foreach_constraints(graph)
     for node in graph:
         if node.parallel_foreach:
             raise AirflowException(
                 "Deploying flows with @parallel decorator(s) "
                 "to Airflow is not supported currently."
             )
-
-        if node.type == "foreach":
-            raise NotSupportedException(
-                "Step *%s* is a foreach step and Foreach steps are not currently supported with Airflow."
-                % node.name
-            )
         if any([d.name == "batch" for d in node.decorators]):
             raise NotSupportedException(
                 "Step *%s* is marked for execution on AWS Batch with Airflow which isn't currently supported."
                 % node.name
             )
-
-    if flow_datastore.TYPE not in ("azure", "s3"):
+    SUPPORTED_DATASTORES = ("azure", "s3", "gs")
+    if flow_datastore.TYPE not in SUPPORTED_DATASTORES:
         raise AirflowException(
-            'Datastore of type "s3" or "azure" required with `airflow create`'
+            "Datastore type `%s` is not supported with `airflow create`. "
+            "Please choose from datastore of type %s when calling `airflow create`"
+            % (
+                str(flow_datastore.TYPE),
+                "or ".join(["`%s`" % x for x in SUPPORTED_DATASTORES]),
+            )
+        )
+
+    schedule = flow._flow_decorators.get("schedule")
+    if not schedule:
+        return
+
+    schedule = schedule[0]
+    if schedule.timezone is not None:
+        raise AirflowException(
+            "`airflow create` does not support scheduling with `timezone`."
         )
 
 

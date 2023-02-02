@@ -22,6 +22,10 @@
   width: 100%;
 }
 
+.embed .mf-card {
+  min-height: var(--embed-card-min-height);
+}
+
 .mf-card :is(.mono, code.mono, pre.mono) {
   font-family: var(--mono-font);
   font-weight: lighter;

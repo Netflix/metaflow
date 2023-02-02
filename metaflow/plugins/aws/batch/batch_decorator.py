@@ -66,6 +66,8 @@ class BatchDecorator(StepDecorator):
         A swappiness value of 0 causes swapping not to happen unless absolutely
         necessary. A swappiness value of 100 causes pages to be swapped very
         aggressively. Accepted values are whole numbers between 0 and 100.
+    inferentia : int
+        Number of Inferentia chips required for this step. Defaults to 0.
     """
 
     name = "batch"
@@ -80,6 +82,7 @@ class BatchDecorator(StepDecorator):
         "shared_memory": None,
         "max_swap": None,
         "swappiness": None,
+        "inferentia": None,
         "host_volumes": None,
     }
     resource_defaults = {

@@ -1,4 +1,4 @@
-name: pr-datastore-tests
+name: metaflow.s3-tests
 
 on:
   push:
@@ -10,29 +10,32 @@ on:
       - synchronize
       - labeled
 
+permissions: read-all
+
 jobs:
   test_data:
     if: (github.event.action == 'labeled' && (github.event.label.name == 'approved' || github.event.label.name == 'ok-to-test')) || (github.event.action != 'labeled' && (contains(github.event.pull_request.labels.*.name, 'ok-to-test') || contains(github.event.pull_request.labels.*.name, 'approved')))
-    name: S3 data tests on ${{ matrix.os }}
+    name: metaflow.s3 / Python ${{ matrix.ver }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [macos-latest]
+        ver: ['3.5', '3.6', '3.7', '3.8', '3.9', '3.10', '3.11',]
 
     steps:
     - uses: actions/checkout@v2
       with:
         ref: refs/pull/${{ github.event.pull_request.number }}/merge
         submodules: recursive
-    - name: Set up Python 3.7
+    - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: '3.7'
-    - name: Install Python 3.x dependencies
+        python-version: ${{ matrix.ver }}
+    - name: Install Python ${{ matrix.ver }} dependencies
       run: |
         python3 -m pip install --upgrade pip
         python3 -m pip install tox numpy pytest click boto3 requests pylint pytest-benchmark
-    - name: Execute Data tests
+    - name: Execute tests
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}

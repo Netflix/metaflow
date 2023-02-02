@@ -23,6 +23,10 @@ from metaflow.metaflow_config import (
     DATASTORE_SYSROOT_AZURE,
     CARD_AZUREROOT,
     AIRFLOW_KUBERNETES_CONN_ID,
+    AIRFLOW_KUBERNETES_KUBECONFIG_CONTEXT,
+    AIRFLOW_KUBERNETES_KUBECONFIG_FILE,
+    DATASTORE_SYSROOT_GS,
+    CARD_GSROOT,
 )
 from metaflow.parameters import DelayedEvaluationParameter, deploy_time_eval
 from metaflow.plugins.kubernetes.kubernetes import Kubernetes
@@ -35,6 +39,7 @@ from metaflow.parameters import JSONTypeClass
 
 from . import airflow_utils
 from .exception import AirflowException
+from .sensors import SUPPORTED_SENSORS
 from .airflow_utils import (
     TASK_ID_XCOM_KEY,
     AirflowTask,
@@ -88,6 +93,7 @@ class Airflow(object):
         self.username = username
         self.max_workers = max_workers
         self.description = description
+        self._depends_on_upstream_sensors = False
         self._file_path = file_path
         _, self.graph_structure = self.graph.output_steps()
         self.worker_pool = worker_pool
@@ -140,6 +146,7 @@ class Airflow(object):
         schedule = self.flow._flow_decorators.get("schedule")
         if not schedule:
             return None
+        schedule = schedule[0]
         if schedule.attributes["cron"]:
             return schedule.attributes["cron"]
         elif schedule.attributes["weekly"]:
@@ -358,7 +365,7 @@ class Airflow(object):
             "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
             "METAFLOW_DATASTORE_SYSROOT_S3": DATASTORE_SYSROOT_S3,
             "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
-            "METAFLOW_DEFAULT_DATASTORE": "s3",
+            "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
             "METAFLOW_DEFAULT_METADATA": "service",
             "METAFLOW_KUBERNETES_WORKLOAD": str(
                 1
@@ -373,6 +380,9 @@ class Airflow(object):
             "METAFLOW_AIRFLOW_JOB_ID": AIRFLOW_MACROS.AIRFLOW_JOB_ID,
             "METAFLOW_PRODUCTION_TOKEN": self.production_token,
             "METAFLOW_ATTEMPT_NUMBER": AIRFLOW_MACROS.ATTEMPT,
+            # GCP stuff
+            "METAFLOW_DATASTORE_SYSROOT_GS": DATASTORE_SYSROOT_GS,
+            "METAFLOW_CARD_GSROOT": CARD_GSROOT,
         }
         env[
             "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
@@ -460,10 +470,16 @@ class Airflow(object):
             reattach_on_restart=False,
             secrets=[],
         )
+        k8s_operator_args["in_cluster"] = True
         if AIRFLOW_KUBERNETES_CONN_ID is not None:
             k8s_operator_args["kubernetes_conn_id"] = AIRFLOW_KUBERNETES_CONN_ID
-        else:
-            k8s_operator_args["in_cluster"] = True
+            k8s_operator_args["in_cluster"] = False
+        if AIRFLOW_KUBERNETES_KUBECONFIG_CONTEXT is not None:
+            k8s_operator_args["cluster_context"] = AIRFLOW_KUBERNETES_KUBECONFIG_CONTEXT
+            k8s_operator_args["in_cluster"] = False
+        if AIRFLOW_KUBERNETES_KUBECONFIG_FILE is not None:
+            k8s_operator_args["config_file"] = AIRFLOW_KUBERNETES_KUBECONFIG_FILE
+            k8s_operator_args["in_cluster"] = False
 
         if k8s_deco.attributes["secrets"]:
             if isinstance(k8s_deco.attributes["secrets"], str):
@@ -584,6 +600,17 @@ class Airflow(object):
         cmds.append(" ".join(entrypoint + top_level + step))
         return cmds
 
+    def _collect_flow_sensors(self):
+        decos_lists = [
+            self.flow._flow_decorators.get(s.name)
+            for s in SUPPORTED_SENSORS
+            if self.flow._flow_decorators.get(s.name) is not None
+        ]
+        af_tasks = [deco.create_task() for decos in decos_lists for deco in decos]
+        if len(af_tasks) > 0:
+            self._depends_on_upstream_sensors = True
+        return af_tasks
+
     def _contains_foreach(self):
         for node in self.graph:
             if node.type == "foreach":
@@ -638,6 +665,7 @@ class Airflow(object):
         if self.workflow_timeout is not None and self.schedule is not None:
             airflow_dag_args["dagrun_timeout"] = dict(seconds=self.workflow_timeout)
 
+        appending_sensors = self._collect_flow_sensors()
         workflow = Workflow(
             dag_id=self.name,
             default_args=self._create_defaults(),
@@ -658,6 +686,10 @@ class Airflow(object):
         workflow = _visit(self.graph["start"], workflow)
 
         workflow.set_parameters(self.parameters)
+        if len(appending_sensors) > 0:
+            for s in appending_sensors:
+                workflow.add_state(s)
+            workflow.graph_structure.insert(0, [[s.name] for s in appending_sensors])
         return self._to_airflow_dag_file(workflow.to_dict())
 
     def _to_airflow_dag_file(self, json_dag):

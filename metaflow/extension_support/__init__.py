@@ -101,7 +101,9 @@ def get_modules(extension_point):
         )
     _ext_debug("Getting modules for extension point '%s'..." % extension_point)
     for pkg in _pkgs_per_extension_point.get(extension_point, []):
-        _ext_debug("    Found TL '%s' from '%s'" % (pkg.tl_package, pkg.package_name))
+        _ext_debug(
+            "    Found top-level '%s' from '%s'" % (pkg.tl_package, pkg.package_name)
+        )
         m = _get_extension_config(
             pkg.package_name, pkg.tl_package, extension_point, pkg.config_module
         )
@@ -191,7 +193,7 @@ def alias_submodules(module, tl_package, extension_point, extra_indent=False):
                 }
             )
         else:
-            # TL "metaflow" overrides
+            # Top-level "metaflow" overrides
             lazy_load_custom_modules.update(
                 {
                     "metaflow.%s" % k: "%s.%s.%s" % (EXT_PKG, tl_package, k)
@@ -316,7 +318,7 @@ def _get_extension_packages():
             # error if there is a transitive import error)
             if not (isinstance(e, ModuleNotFoundError) and e.name == EXT_PKG):
                 raise
-            return {}, {}
+        return {}, {}
 
     # There are two "types" of packages:
     #   - those installed on the system (distributions)
@@ -358,7 +360,7 @@ def _get_extension_packages():
     # Value: another dictionary with
     #   Key: distribution name/full path to package
     #   Value: another dictionary with
-    #    Key: TL package name (so in metaflow_extensions.X...., the X)
+    #    Key: Top-level package name (so in metaflow_extensions.X...., the X)
     #    Value: MFExtPackage
     extension_points_to_pkg = defaultdict(dict)
 
@@ -452,7 +454,8 @@ def _get_extension_packages():
                     # We go over _extension_points *in order* to make sure we get more
                     # specific paths first
 
-                    # To give useful errors in case multiple TL packages in one package
+                    # To give useful errors in case multiple top-level packages in
+                    # one package
                     dist_full_name = "%s[%s]" % (dist.metadata["Name"], parts[1])
                     for idx, ext_list in enumerate(list_ext_points):
                         if (
@@ -492,7 +495,7 @@ def _get_extension_packages():
                                     )
                                 if config_module is not None:
                                     _ext_debug(
-                                        "    TL '%s' found config file '%s'"
+                                        "    Top-level '%s' found config file '%s'"
                                         % (parts[1], config_module)
                                     )
                                     extension_points_to_pkg[_extension_points[idx]][
@@ -504,7 +507,7 @@ def _get_extension_packages():
                                     )
                             else:
                                 _ext_debug(
-                                    "    TL '%s' extends '%s' with config '%s'"
+                                    "    Top-level '%s' extends '%s' with config '%s'"
                                     % (parts[1], _extension_points[idx], config_module)
                                 )
                                 extension_points_to_pkg[_extension_points[idx]][
@@ -651,7 +654,7 @@ def _get_extension_packages():
                             )
 
                 elif cur_depth > base_depth + 1:
-                    # We want at least a TL name and something under
+                    # We want at least a top-level name and something under
                     tl_name = parts[base_depth]
                     tl_fullname = "%s[%s]" % (package_path, tl_name)
                     prefix_match = parts[base_depth + 1 :]
@@ -801,11 +804,8 @@ def _attempt_load_module(module_name):
                     % (EXT_PKG, module_name)
                 )
                 raise
-            else:
-                _ext_debug(
-                    "        Unknown error when loading '%s': %s" % (module_name, e)
-                )
-                return None
+        _ext_debug("        Unknown error when loading '%s': %s" % (module_name, e))
+        return None
     else:
         return extension_module
 
@@ -994,9 +994,9 @@ class _LazyFinder(MetaPathFinder):
     def find_spec(self, fullname, path, target=None):
         # If we are trying to load a shadowed module (ending in ._orig), we don't
         # say we handle it
-        _ext_debug(
-            "Looking for %s in %s with target %s" % (fullname, str(path), target)
-        )
+        # _ext_debug(
+        #    "Looking for %s in %s with target %s" % (fullname, str(path), target)
+        # )
         if any([fullname.startswith(e) for e in self._temp_excluded_prefix]):
             return None
 

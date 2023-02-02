@@ -27,7 +27,7 @@ def sync_local_metadata_from_datastore(metadata_local_dir, task_ds):
     _, tarball = next(task_ds.parent_datastore.load_data([key_to_load]))
     with util.TempDir() as td:
         with tarfile.open(fileobj=BytesIO(tarball), mode="r:gz") as tar:
-            tar.extractall(td)
+            util.tar_safe_extract(tar, td)
         copy_tree(
             os.path.join(td, metadata_local_dir),
             LocalStorage.get_datastore_root_from_config(echo_none),
