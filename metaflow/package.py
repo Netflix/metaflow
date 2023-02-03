@@ -139,8 +139,8 @@ class MetaflowPackage(object):
                 if suffixes is None:
                     yield source, target
                 else:
-                    for fname, tname in self._walk(source, suffixes=suffixes):
-                        yield fname, os.path.join(target, os.path.relpath(tname, source))
+                    for fname, _ in self._walk(source, suffixes=suffixes):
+                        yield fname, os.path.join(target, os.path.relpath(fname, source))
 
             flow_file = os.path.abspath(sys.argv[0])
             yield flow_file, os.path.basename(flow_file)
