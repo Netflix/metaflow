@@ -242,16 +242,21 @@ class CliCheck(MetaflowCheck):
                 with tarfile.open(tmp.name, "r:gz") as tar:
                     tar.extractall(path=tmpdir)
 
-                # load each file from the temporary directory into a dict
-                return {
-                    f: open(os.path.join(tmpdir, f), "rb").read()
-                    for f in os.listdir(tmpdir)
-                    if os.path.isfile(os.path.join(tmpdir, f))
-                }
+                files = []
+                for r, d, f in os.walk(tmpdir):
+                    for file in f:
+                        files.append(os.path.join(r, file))
 
-    def assert_package_file_exists(self, filename):
+                return { f.replace(f"{tmpdir}/", ""): open(f, "rb").read() for f in files }
+
+    def assert_package_file_existence(self, filename, exists=True):
         package_content = self._get_package_content()
-        assert filename in package_content, "File %s not found in package" % filename
+        if exists:
+            assert filename in package_content, "File %s not found in package" % filename
+        else:
+            assert (
+                filename not in package_content
+            ), "File %s unexpectedly found in package" % filename
 
     def assert_package_file_content(self, filename, content):
         package_content = self._get_package_content()
