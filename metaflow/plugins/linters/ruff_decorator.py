@@ -76,23 +76,6 @@ class Ruff(object):
         stdout, stderr = p.communicate()
 
         return stdout, stderr
-        # # Read both stdout and stderr simultaneously
-        # sel = selectors.DefaultSelector()
-        # sel.register(p.stdout, selectors.EVENT_READ)
-        # sel.register(p.stderr, selectors.EVENT_READ)
-        # ok = True
-        # while ok:
-        #     for key, val1 in sel.select():
-        #         line = key.fileobj.readline()
-        #         if not line:
-        #             ok = False
-        #             break
-
-        #         if key.fileobj is p.stdout:
-        #             yield "stdout", line
-        #         else:
-        #             if "ruff" in line:
-        #                 yield "stderr", line.rsplit("]")[-1][1:]
 
 
 if __name__ == "__main__":
