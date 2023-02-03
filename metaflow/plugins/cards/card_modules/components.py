@@ -1,4 +1,4 @@
-from typing import Any, List, Optional, Union, TYPE_CHECKING
+from typing import Any, List, Optional, Union
 from .basic import (
     LogComponent,
     ErrorComponent,
@@ -11,13 +11,6 @@ from .basic import (
 from .card import MetaflowCardComponent
 from .convert_to_native_type import TaskToDict, _full_classname
 from .renderer_tools import render_safely
-
-if TYPE_CHECKING:
-    from pandas import DataFrame
-    from PIL import Image
-    from matplotlib.figure import Figure
-    from matplotlib.axes import Axes
-    from matplotlib.axes._subplots import AxesSubplot
 
 
 class UserComponent(MetaflowCardComponent):
@@ -119,13 +112,13 @@ class Table(UserComponent):
             self._data = data
 
     @classmethod
-    def from_dataframe(cls, dataframe: "DataFrame", truncate: bool = True):
+    def from_dataframe(cls, dataframe=None, truncate: bool = True):
         """
         Create a `Table` based on a Pandas dataframe.
 
         Parameters
         ----------
-        dataframe : pandas.DataFrame
+        dataframe : Optional[pandas.DataFrame]
             Pandas dataframe.
         truncate : bool, default: True
             Truncate large dataframe instead of showing all rows (default: True).
@@ -271,7 +264,7 @@ class Image(UserComponent):
         return parsed_image
 
     @classmethod
-    def from_pil_image(cls, pilimage: "Image", label: Optional[str] = None):
+    def from_pil_image(cls, pilimage, label: Optional[str] = None):
         """
         Create an `Image` from a PIL image.
 
@@ -319,9 +312,7 @@ class Image(UserComponent):
             )
 
     @classmethod
-    def from_matplotlib(
-        cls, plot: Union["Figure", "Axes", "AxesSubplot"], label: Optional[str] = None
-    ):
+    def from_matplotlib(cls, plot, label: Optional[str] = None):
         """
         Create an `Image` from a Matplotlib plot.
 
