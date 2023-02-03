@@ -29,6 +29,7 @@ DEFAULT_METADATA = from_conf("DEFAULT_METADATA", "local")
 DEFAULT_MONITOR = from_conf("DEFAULT_MONITOR", "nullSidecarMonitor")
 DEFAULT_PACKAGE_SUFFIXES = from_conf("DEFAULT_PACKAGE_SUFFIXES", ".py,.R,.RDS")
 DEFAULT_AWS_CLIENT_PROVIDER = from_conf("DEFAULT_AWS_CLIENT_PROVIDER", "boto3")
+DEFAULT_SECRETS_BACKEND_TYPE = from_conf("DEFAULT_SECRETS_BACKEND_TYPE")
 
 
 ###
@@ -128,6 +129,9 @@ DATATOOLS_LOCALROOT = from_conf(
     if DATASTORE_SYSROOT_LOCAL
     else None,
 )
+
+# Secrets Backend - AWS Secrets Manager configuration
+AWS_SECRETS_MANAGER_DEFAULT_REGION = from_conf("AWS_SECRETS_MANAGER_DEFAULT_REGION")
 
 # The root directory to save artifact pulls in, when using S3 or Azure
 ARTIFACT_LOCALROOT = from_conf("ARTIFACT_LOCALROOT", os.getcwd())

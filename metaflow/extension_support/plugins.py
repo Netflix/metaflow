@@ -178,6 +178,7 @@ _plugin_categories = {
     "environment": lambda x: x.TYPE,
     "metadata_provider": lambda x: x.TYPE,
     "datastore": lambda x: x.TYPE,
+    "secrets_provider": lambda x: x.TYPE,
     "sidecar": None,
     "logging_sidecar": None,
     "monitor_sidecar": None,

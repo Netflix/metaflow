@@ -23,6 +23,7 @@ STEP_DECORATORS_DESC = [
     ("catch", ".catch_decorator.CatchDecorator"),
     ("timeout", ".timeout_decorator.TimeoutDecorator"),
     ("environment", ".environment_decorator.EnvironmentDecorator"),
+    ("secrets", ".secrets.secrets_decorator.SecretsDecorator"),
     ("parallel", ".parallel_decorator.ParallelDecorator"),
     ("retry", ".retry_decorator.RetryDecorator"),
     ("resources", ".resources_decorator.ResourcesDecorator"),
@@ -106,6 +107,14 @@ SENSOR_FLOW_DECORATORS = [
 
 FLOW_DECORATORS_DESC += SENSOR_FLOW_DECORATORS
 
+SECRETS_PROVIDERS_DESC = [
+    ("inline", ".secrets.inline_secrets_provider.InlineSecretsProvider"),
+    (
+        "aws-secrets-manager",
+        ".aws.secrets_manager.aws_secrets_manager_secrets_provider.AwsSecretsManagerSecretsProvider",
+    ),
+]
+
 process_plugins(globals())
 
 
@@ -126,6 +135,7 @@ SIDECARS.update(LOGGING_SIDECARS)
 SIDECARS.update(MONITOR_SIDECARS)
 
 AWS_CLIENT_PROVIDERS = resolve_plugins("aws_client_provider")
+SECRETS_PROVIDERS = resolve_plugins("secrets_provider")
 
 # Cards; due to the way cards were designed, it is harder to make them fit
 # in the resolve_plugins mechanism. This should be OK because it is unlikely that
