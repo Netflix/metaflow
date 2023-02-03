@@ -7,4 +7,5 @@ class SecretsProvider(abc.ABC):
 
     @abc.abstractmethod
     def get_secret_as_dict(self, secret_id, options={}) -> Dict[str, str]:
-        """Retrieve the secret from secrets backend, and return a env var"""
+        """Retrieve the secret from secrets backend, and return a dictionary of
+        environment variables."""

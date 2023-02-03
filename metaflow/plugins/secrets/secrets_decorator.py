@@ -13,7 +13,8 @@ def get_default_secrets_backend_type():
 
     if DEFAULT_SECRETS_BACKEND_TYPE is None:
         raise MetaflowException(
-            "No default secrets backend type configured, but needed by @secrets.  Set METAFLOW_DEFAULT_SECRETS_BACKEND_TYPE."
+            "No default secrets backend type configured, but needed by @secrets. "
+            "Set METAFLOW_DEFAULT_SECRETS_BACKEND_TYPE."
         )
     return DEFAULT_SECRETS_BACKEND_TYPE
 
@@ -105,7 +106,7 @@ def validate_env_vars_across_secrets(all_secrets_env_vars):
         for k in env_vars:
             if k in vars_injected_by:
                 raise MetaflowException(
-                    "Secret %s will inject '%s' as env var, and it is also added by %s"
+                    "Secret '%s' will inject '%s' as env var, and it is also added by '%s'"
                     % (secret_spec, k, vars_injected_by[k])
                 )
             vars_injected_by[k] = secret_spec
@@ -116,7 +117,7 @@ def validate_env_vars_vs_existing_env(all_secrets_env_vars):
         for k in env_vars:
             if k in os.environ:
                 raise MetaflowException(
-                    "Secret %s will inject %s as env var, but it already exists in env"
+                    "Secret '%s' will inject '%s' as env var, but it already exists in env"
                     % (secret_spec, k)
                 )
 
