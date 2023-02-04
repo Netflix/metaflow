@@ -177,6 +177,7 @@ class MetaflowCheck(object):
     def assert_package_file_content(self, filename, content):
         raise NotImplementedError()
 
+
 def new_checker(flow):
     from . import cli_check, metadata_check
 

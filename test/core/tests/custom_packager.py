@@ -1,13 +1,13 @@
 from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
 
 class CustomPackagerTest(MetaflowTest):
-  """
-  Test that a user provided packager works.
-  """
+    """
+    Test that a user provided packager works.
+    """
 
-  PRIORITY = 3
+    PRIORITY = 3
 
-  HEADER = """
+    HEADER = """
 import os, sys
 from pathlib import Path
 
@@ -28,12 +28,16 @@ def my_package_generator():
 @packager(content={ "input.txt": "target.txt", "subdir": "package/something" })
 """
 
-  @steps(1, ["all"])
-  def step_all(self):
-    pass
+    @steps(1, ["all"])
+    def step_all(self):
+        pass
 
-  def check_results(self, flow, checker):
-    checker.assert_package_file_existence("test_flow.py")
-    checker.assert_package_file_content("target.txt", b"Input Text")
-    checker.assert_package_file_content("package/something/library.py", b"CONST = 42")
-    checker.assert_package_file_existence("package/something/readme.txt", exists=False)
+    def check_results(self, flow, checker):
+        checker.assert_package_file_existence("test_flow.py")
+        checker.assert_package_file_content("target.txt", b"Input Text")
+        checker.assert_package_file_content(
+          "package/something/library.py", b"CONST = 42"
+        )
+        checker.assert_package_file_existence(
+          "package/something/readme.txt", exists=False
+        )

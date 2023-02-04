@@ -247,20 +247,26 @@ class CliCheck(MetaflowCheck):
                     for file in f:
                         files.append(os.path.join(r, file))
 
-                return { f.replace(f"{tmpdir}/", ""): open(f, "rb").read() for f in files }
+                return {
+                    f.replace(tmpdir + "/", ""): open(f, "rb").read() for f in files
+                }
 
     def assert_package_file_existence(self, filename, exists=True):
         package_content = self._get_package_content()
         if exists:
-            assert filename in package_content, "File %s not found in package" % filename
+            assert filename in package_content, (
+                "File %s not found in package" % filename
+            )
         else:
-            assert (
-                filename not in package_content
-            ), "File %s unexpectedly found in package" % filename
+            assert filename not in package_content, (
+                "File %s unexpectedly found in package" % filename
+            )
 
     def assert_package_file_content(self, filename, content):
         package_content = self._get_package_content()
-        assert filename in package_content, "File %s not found in package" % filename
-        assert (
-            package_content[filename] == content
-        ), "File %s has unexpected content" % filename
+        assert filename in package_content, (
+            "File %s not found in package" % filename
+        )
+        assert package_content[filename] == content, (
+            "File %s has unexpected content" % filename
+        )
