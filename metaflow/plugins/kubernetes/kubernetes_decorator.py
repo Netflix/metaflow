@@ -1,6 +1,7 @@
 import json
 import os
 import platform
+import requests
 import sys
 
 from metaflow.decorators import StepDecorator
@@ -329,6 +330,23 @@ class KubernetesDecorator(StepDecorator):
                 "METAFLOW_KUBERNETES_SERVICE_ACCOUNT_NAME"
             ]
             meta["kubernetes-node-ip"] = os.environ["METAFLOW_KUBERNETES_NODE_IP"]
+
+            # Capture AWS instance identity metadata. This is best-effort only since
+            # access to this end-point might be blocked on AWS and not available
+            # for non-AWS deployments.
+            # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-identity-documents.html
+            # TODO (savin): Introduce equivalent support for Microsoft Azure and
+            #               Google Cloud Platform
+            try:
+                instance_meta = requests.get(
+                    url="http://169.254.169.254/latest/dynamic/instance-identity/document"
+                ).json()
+                meta["ec2-instance-id"] = instance_meta.get("instanceId")
+                meta["ec2-instance-type"] = instance_meta.get("instanceType")
+                meta["ec2-region"] = instance_meta.get("region")
+                meta["ec2-availability-zone"] = instance_meta.get("availabilityZone")
+            except:
+                pass
             # Unfortunately, there doesn't seem to be any straight forward way right
             # now to attach the Batch/v1 name - While we can rely on a hacky approach
             # given we know that the pod name is simply a unique suffix with a hyphen
@@ -341,7 +359,9 @@ class KubernetesDecorator(StepDecorator):
             #     ].rpartition("-")[0]
 
             entries = [
-                MetaDatum(field=k, value=v, type=k, tags=[]) for k, v in meta.items()
+                MetaDatum(field=k, value=v, type=k, tags=[])
+                for k, v in meta.items()
+                if v is not None
             ]
             # Register book-keeping metadata for debugging.
             metadata.register_metadata(run_id, step_name, task_id, entries)
