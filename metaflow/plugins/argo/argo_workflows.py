@@ -26,6 +26,8 @@ from metaflow.metaflow_config import (
     CARD_GSROOT,
     DEFAULT_SECRETS_BACKEND_TYPE,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
+    ARGO_WORKFLOWS_KUBERNETES_SECRETS,
+    ARGO_WORKFLOWS_ENV_VARS_TO_SKIP,
 )
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
@@ -858,6 +860,15 @@ class ArgoWorkflows(object):
             env_without_none_values = {k: v for k, v in env.items() if v is not None}
             del env
 
+            # Now lets skip some env vars (e.g. in case we want to pull them from KUBERNETES_SECRETS)
+            env_vars_to_skip = set(ARGO_WORKFLOWS_ENV_VARS_TO_SKIP.split(","))
+            env_without_none_nor_skipped = {
+                k: v
+                for k, v in env_without_none_values.items()
+                if k not in env_vars_to_skip
+            }
+            del env_without_none_values
+
             # Create a ContainerTemplate for this node. Ideally, we would have
             # liked to inline this ContainerTemplate and avoid scanning the workflow
             # twice, but due to issues with variable substitution, we will have to
@@ -909,7 +920,7 @@ class ArgoWorkflows(object):
                             command=cmds,
                             env=[
                                 kubernetes_sdk.V1EnvVar(name=k, value=str(v))
-                                for k, v in env_without_none_values.items()
+                                for k, v in env_without_none_nor_skipped.items()
                             ]
                             # Add environment variables for book-keeping.
                             # https://argoproj.github.io/argo-workflows/fields/#fields_155
@@ -960,6 +971,7 @@ class ArgoWorkflows(object):
                                     else resources.get("secrets")
                                 )
                                 + KUBERNETES_SECRETS.split(",")
+                                + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
                                 if k
                             ],
                             # Assign a volume point to pass state to the next task.
