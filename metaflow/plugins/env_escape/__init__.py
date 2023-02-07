@@ -84,10 +84,12 @@ def generate_trampolines(out_dir):
         return
 
     paths = [os.path.join(os.path.dirname(os.path.abspath(__file__)), "configurations")]
-    for m in get_modules("plugins.env_escape"):
-        paths.extend(
-            [os.path.join(x, "configurations") for x in list(m.module.__path__)]
-        )
+    paths.extend(
+        [
+            os.path.join(os.path.dirname(m.module.__file__), "configurations")
+            for m in get_modules("plugins.env_escape")
+        ]
+    )
 
     for rootpath in paths:
         for path in os.listdir(rootpath):
