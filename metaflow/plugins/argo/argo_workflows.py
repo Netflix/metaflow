@@ -857,17 +857,14 @@ class ArgoWorkflows(object):
                 )
 
             # It makes no sense to set env vars to None (shows up as "None" string)
-            env_without_none_values = {k: v for k, v in env.items() if v is not None}
-            del env
-
-            # Now lets skip some env vars (e.g. in case we want to pull them from KUBERNETES_SECRETS)
+            # Also we skip some env vars (e.g. in case we want to pull them from KUBERNETES_SECRETS)
             env_vars_to_skip = set(ARGO_WORKFLOWS_ENV_VARS_TO_SKIP.split(","))
-            env_without_none_nor_skipped = {
+            final_env = {
                 k: v
-                for k, v in env_without_none_values.items()
-                if k not in env_vars_to_skip
+                for k, v in env.items()
+                if v is not None and k not in env_vars_to_skip
             }
-            del env_without_none_values
+            del env
 
             # Create a ContainerTemplate for this node. Ideally, we would have
             # liked to inline this ContainerTemplate and avoid scanning the workflow
@@ -920,7 +917,7 @@ class ArgoWorkflows(object):
                             command=cmds,
                             env=[
                                 kubernetes_sdk.V1EnvVar(name=k, value=str(v))
-                                for k, v in env_without_none_nor_skipped.items()
+                                for k, v in final_env.items()
                             ]
                             # Add environment variables for book-keeping.
                             # https://argoproj.github.io/argo-workflows/fields/#fields_155
