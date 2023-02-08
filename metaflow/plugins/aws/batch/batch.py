@@ -18,6 +18,8 @@ from metaflow.metaflow_config import (
     BATCH_EMIT_TAGS,
     CARD_S3ROOT,
     S3_ENDPOINT_URL,
+    DEFAULT_SECRETS_BACKEND_TYPE,
+    AWS_SECRETS_MANAGER_DEFAULT_REGION,
 )
 from metaflow.mflog import (
     export_mflog_env_vars,
@@ -236,6 +238,16 @@ class Batch(object):
             .environment_variable("METAFLOW_CARD_S3ROOT", CARD_S3ROOT)
             .environment_variable("METAFLOW_RUNTIME_ENVIRONMENT", "aws-batch")
         )
+        if DEFAULT_SECRETS_BACKEND_TYPE is not None:
+            job.environment_variable(
+                "METAFLOW_DEFAULT_SECRETS_BACKEND_TYPE", DEFAULT_SECRETS_BACKEND_TYPE
+            )
+        if AWS_SECRETS_MANAGER_DEFAULT_REGION is not None:
+            job.environment_variable(
+                "METAFLOW_AWS_SECRETS_MANAGER_DEFAULT_REGION",
+                AWS_SECRETS_MANAGER_DEFAULT_REGION,
+            )
+
         # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync between the local user
         # instance and the remote AWS Batch instance assumes metadata is stored in DATASTORE_LOCAL_DIR
         # on the remote AWS Batch instance; this happens when METAFLOW_DATASTORE_SYSROOT_LOCAL

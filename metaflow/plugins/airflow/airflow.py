@@ -27,6 +27,8 @@ from metaflow.metaflow_config import (
     AIRFLOW_KUBERNETES_KUBECONFIG_FILE,
     DATASTORE_SYSROOT_GS,
     CARD_GSROOT,
+    DEFAULT_SECRETS_BACKEND_TYPE,
+    AWS_SECRETS_MANAGER_DEFAULT_REGION,
 )
 from metaflow.parameters import DelayedEvaluationParameter, deploy_time_eval
 from metaflow.plugins.kubernetes.kubernetes import Kubernetes
@@ -389,6 +391,13 @@ class Airflow(object):
         ] = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
         env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = DATASTORE_SYSROOT_AZURE
         env["METAFLOW_CARD_AZUREROOT"] = CARD_AZUREROOT
+        if DEFAULT_SECRETS_BACKEND_TYPE:
+            env["METAFLOW_DEFAULT_SECRETS_BACKEND_TYPE"] = DEFAULT_SECRETS_BACKEND_TYPE
+        if AWS_SECRETS_MANAGER_DEFAULT_REGION:
+            env[
+                "METAFLOW_AWS_SECRETS_MANAGER_DEFAULT_REGION"
+            ] = AWS_SECRETS_MANAGER_DEFAULT_REGION
+
         env.update(additional_mf_variables)
 
         service_account = (
