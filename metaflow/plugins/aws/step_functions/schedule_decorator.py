@@ -18,7 +18,7 @@ class ScheduleDecorator(FlowDecorator):
     cron : str, optional
         Run the workflow at [a custom Cron schedule](https://docs.aws.amazon.com/eventbridge/latest/userguide/scheduled-events.html#cron-expressions)
         specified by this expression.
-    timezone : str
+    timezone : str, optional
         Timezone on which the schedule runs (default: None). Currently supported only for Argo workflows,
         which accepts timezones in [IANA format](https://nodatime.org/TimeZones).
     """
