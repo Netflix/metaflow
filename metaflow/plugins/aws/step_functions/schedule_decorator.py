@@ -9,16 +9,16 @@ class ScheduleDecorator(FlowDecorator):
 
     Parameters
     ----------
-    hourly : bool
-        Run the workflow hourly (default: False).
-    daily : bool
-        Run the workflow daily (default: True).
-    weekly : bool
-        Run the workflow weekly (default: False).
-    cron : str
+    hourly : bool, default: False
+        Run the workflow hourly.
+    daily : bool, default: True
+        Run the workflow daily.
+    weekly : bool, default: False
+        Run the workflow weekly.
+    cron : str, optional
         Run the workflow at [a custom Cron schedule](https://docs.aws.amazon.com/eventbridge/latest/userguide/scheduled-events.html#cron-expressions)
         specified by this expression.
-    timezone : str
+    timezone : str, optional
         Timezone on which the schedule runs (default: None). Currently supported only for Argo workflows,
         which accepts timezones in [IANA format](https://nodatime.org/TimeZones).
     """

@@ -9,6 +9,8 @@ import requests
 import shutil
 import tempfile
 
+from typing import Dict
+
 try:
     from urlparse import urlparse
 except:
@@ -45,14 +47,14 @@ class CondaStepDecorator(StepDecorator):
 
     Parameters
     ----------
-    libraries : Dict
+    libraries : Dict[str, str], default: {}
         Libraries to use for this step. The key is the name of the package
-        and the value is the version to use (default: `{}`).
-    python : string
-        Version of Python to use, e.g. '3.7.4'
-        (default: None, i.e. the current Python version).
-    disabled : bool
-        If set to True, disables Conda (default: False).
+        and the value is the version to use.
+    python : str, optional
+        Version of Python to use, e.g. '3.7.4'. A default value of None means to
+        use the current Python version.
+    disabled : bool, default: False
+        If set to True, disables Conda.
     """
 
     name = "conda"

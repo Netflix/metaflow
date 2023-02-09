@@ -1,5 +1,5 @@
 import json
-from collections import namedtuple
+from typing import Any, Callable, Dict, NamedTuple, Optional, Type, Union
 
 from metaflow._vendor import click
 
@@ -20,14 +20,14 @@ except NameError:
 # ParameterContext allows deploy-time functions modify their
 # behavior based on the context. We can add fields here without
 # breaking backwards compatibility but don't remove any fields!
-ParameterContext = namedtuple(
+ParameterContext = NamedTuple(
     "ParameterContext",
     [
-        "flow_name",
-        "user_name",
-        "parameter_name",
-        "logger",
-        "ds_type",
+        ("flow_name", str),
+        ("user_name", str),
+        ("parameter_name", str),
+        ("logger", Callable[..., None]),
+        ("ds_type", str),
     ],
 )
 
@@ -246,21 +246,52 @@ class Parameter(object):
         indicate that the value must be a valid JSON object. A function
         implies that the parameter corresponds to a *deploy-time parameter*.
         The type of the default value is used as the parameter `type`.
-    type : type
+    type : Type, default: None
         If `default` is not specified, define the parameter type. Specify
-        one of `str`, `float`, `int`, `bool`, or `JSONType` (default: str).
-    help : str
+        one of `str`, `float`, `int`, `bool`, or `JSONType`. If None, defaults
+        to the type of `default` or `str` if none specified.
+    help : str, optional
         Help text to show in `run --help`.
-    required : bool
+    required : bool, default: False
         Require that the user specified a value for the parameter.
         `required=True` implies that the `default` is not used.
-    show_default : bool
-        If True, show the default value in the help text (default: True).
+    show_default : bool, default: True
+        If True, show the default value in the help text.
     """
 
-    def __init__(self, name, **kwargs):
+    def __init__(
+        self,
+        name: str,
+        default: Optional[
+            Union[
+                str,
+                float,
+                int,
+                bool,
+                Dict[str, Any],
+                Callable[[], Union[str, float, int, bool, Dict[str, Any]]],
+            ]
+        ] = None,
+        type: Optional[
+            Union[Type[str], Type[float], Type[int], Type[bool], JSONTypeClass]
+        ] = None,
+        help: Optional[str] = None,
+        required: bool = False,
+        show_default: bool = True,
+        **kwargs: Dict[str, Any]
+    ):
         self.name = name
         self.kwargs = kwargs
+        for k, v in {
+            "default": default,
+            "type": type,
+            "help": help,
+            "required": required,
+            "show_default": show_default,
+        }.items():
+            if v is not None:
+                self.kwargs[k] = v
+
         # TODO: check that the type is one of the supported types
         param_type = self.kwargs["type"] = self._get_type(kwargs)
         reserved_params = [
@@ -288,8 +319,6 @@ class Parameter(object):
                     "Parameter *%s*: Field '%s' cannot "
                     "have a function as its value" % (name, field)
                 )
-
-        self.kwargs["show_default"] = self.kwargs.get("show_default", True)
 
         # default can be defined as a function
         default_field = self.kwargs.get("default")

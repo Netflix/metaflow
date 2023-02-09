@@ -5,6 +5,8 @@ from metaflow.exception import MetaflowException
 from metaflow.decorators import StepDecorator
 from metaflow.unbounded_foreach import UBF_CONTROL
 
+from typing import Any, Dict, List, Union
+
 DISALLOWED_SECRETS_ENV_VAR_PREFIXES = ["METAFLOW_"]
 
 
@@ -160,11 +162,12 @@ def get_secrets_backend_provider(secrets_backend_type):
 
 class SecretsDecorator(StepDecorator):
     """
-    Specifies secrets to be retrieved and injected as environment variables prior to the execution of a step.
+    Specifies secrets to be retrieved and injected as environment variables prior to
+    the execution of a step.
 
     Parameters
     ----------
-    sources : List[Union[str,dict]]
+    sources : List[Union[str, Dict[str, Any]]], default: []
         List of secret specs, defining how the secrets are to be retrieved
     """
 

@@ -1,3 +1,9 @@
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from metaflow.client import Task
+
+
 class MetaflowCard(object):
     """
     Metaflow cards derive from this base class.
@@ -43,7 +49,7 @@ class MetaflowCard(object):
         except ImportError:
             return None
 
-    def render(self, task):
+    def render(self, task: "Task") -> str:
         """
         Produce custom card contents in HTML.
 
@@ -51,7 +57,7 @@ class MetaflowCard(object):
 
         Parameters
         ----------
-        task : metaflow.Task
+        task : Task
             A `Task` object that allows you to access data from the finished task and tasks
             preceding it.
 

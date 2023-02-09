@@ -1,5 +1,6 @@
 from collections import namedtuple
 import os
+from typing import Any, Optional
 
 Parallel = namedtuple("Parallel", ["main_ip", "num_nodes", "node_index"])
 
@@ -57,14 +58,14 @@ class Current(object):
         for k, v in env.items():
             setattr(self.__class__, k, property(fget=lambda _, v=v: v))
 
-    def __contains__(self, key):
+    def __contains__(self, key: str):
         return getattr(self, key, None) is not None
 
-    def get(self, key, default=None):
+    def get(self, key: str, default=None) -> Optional[Any]:
         return getattr(self, key, default)
 
     @property
-    def is_running_flow(self):
+    def is_running_flow(self) -> bool:
         """
         Returns True if called inside a running Flow, False otherwise.
 
@@ -79,7 +80,7 @@ class Current(object):
         return self._is_running
 
     @property
-    def flow_name(self):
+    def flow_name(self) -> str:
         """
         The name of the currently executing flow.
 
@@ -91,7 +92,7 @@ class Current(object):
         return self._flow_name
 
     @property
-    def run_id(self):
+    def run_id(self) -> str:
         """
         The run ID of the currently executing run.
 
@@ -103,7 +104,7 @@ class Current(object):
         return self._run_id
 
     @property
-    def step_name(self):
+    def step_name(self) -> str:
         """
         The name of the currently executing step.
 
@@ -115,7 +116,7 @@ class Current(object):
         return self._step_name
 
     @property
-    def task_id(self):
+    def task_id(self) -> str:
         """
         The task ID of the currently executing task.
 
@@ -127,7 +128,7 @@ class Current(object):
         return self._task_id
 
     @property
-    def retry_count(self):
+    def retry_count(self) -> int:
         """
         The index of the task execution attempt.
 
@@ -144,7 +145,7 @@ class Current(object):
         return self._retry_count
 
     @property
-    def origin_run_id(self):
+    def origin_run_id(self) -> Optional[str]:
         """
         The run ID of the original run this run was resumed from.
 
@@ -157,13 +158,13 @@ class Current(object):
 
         Returns
         -------
-        str
+        str, optional
             Run ID of the original run.
         """
         return self._origin_run_id
 
     @property
-    def pathspec(self):
+    def pathspec(self) -> str:
         """
         Pathspec of the current run, i.e. a unique
         identifier of the current task. The returned
@@ -189,7 +190,7 @@ class Current(object):
         return "/".join(pathspec_components)
 
     @property
-    def namespace(self):
+    def namespace(self) -> str:
         """
         The current namespace.
 
@@ -201,13 +202,13 @@ class Current(object):
         return self._namespace
 
     @property
-    def username(self):
+    def username(self) -> Optional[str]:
         """
         The name of the user who started the run, if available.
 
         Returns
         -------
-        str
+        str, optional
             User name.
         """
         return self._username

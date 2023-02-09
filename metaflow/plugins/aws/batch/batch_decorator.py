@@ -33,45 +33,42 @@ class BatchDecorator(StepDecorator):
 
     Parameters
     ----------
-    cpu : int
-        Number of CPUs required for this step. Defaults to 1. If `@resources` is
+    cpu : int, default: 1
+        Number of CPUs required for this step. If `@resources` is
         also present, the maximum value from all decorators is used.
-    gpu : int
-        Number of GPUs required for this step. Defaults to 0. If `@resources` is
+    gpu : int, default: 0
+        Number of GPUs required for this step. If `@resources` is
         also present, the maximum value from all decorators is used.
-    memory : int
-        Memory size (in MB) required for this step. Defaults to 4096 (4GB). If
+    memory : int, default: 4096
+        Memory size (in MB) required for this step. If
         `@resources` is also present, the maximum value from all decorators is
         used.
-    image : string
-        Docker image to use when launching on AWS Batch. If not specified, a
-        default Docker image mapping to the current version of Python is used.
-    queue : string
-        AWS Batch Job Queue to submit the job to. Defaults to the one
-        specified by the configuration variable `METAFLOW_BATCH_JOB_QUEUE`.
-    iam_role : string
+    image : str, optional
+        Docker image to use when launching on AWS Batch. If not specified, and
+        METAFLOW_BATCH_CONTAINER_IMAGE is specified, that image is used. If
+        not, a default Docker image mapping to the current version of Python is used.
+    queue : str, default: METAFLOW_BATCH_JOB_QUEUE
+        AWS Batch Job Queue to submit the job to.
+    iam_role : str, default: METAFLOW_ECS_S3_ACCESS_IAM_ROLE
         AWS IAM role that AWS Batch container uses to access AWS cloud resources.
-        Defaults to the one specified by the configuration variable `METAFLOW_ECS_S3_ACCESS_IAM_ROLE`.
-    execution_role : string
+    execution_role : str, default: METAFLOW_ECS_FARGATE_EXECUTION_ROLE
         AWS IAM role that AWS Batch can use [to trigger AWS Fargate tasks]
         (https://docs.aws.amazon.com/batch/latest/userguide/execution-IAM-role.html).
-        Defaults to the one determined by the configuration variable
-        `METAFLOW_ECS_FARGATE_EXECUTION_ROLE`.
-    shared_memory : int
+    shared_memory : int, optional
         The value for the size (in MiB) of the /dev/shm volume for this step.
         This parameter maps to the `--shm-size` option in Docker.
-    max_swap : int
+    max_swap : int, optional
         The total amount of swap memory (in MiB) a container can use for this
         step. This parameter is translated to the `--memory-swap` option in
         Docker where the value is the sum of the container memory plus the
         `max_swap` value.
-    swappiness : int
+    swappiness : int, optional
         This allows you to tune memory swappiness behavior for this step.
         A swappiness value of 0 causes swapping not to happen unless absolutely
         necessary. A swappiness value of 100 causes pages to be swapped very
         aggressively. Accepted values are whole numbers between 0 and 100.
-    inferentia : int
-        Number of Inferentia chips required for this step. Defaults to 0.
+    inferentia : int, default: 0
+        Number of Inferentia chips required for this step.
     """
 
     name = "batch"

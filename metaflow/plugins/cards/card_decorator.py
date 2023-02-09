@@ -3,6 +3,9 @@ import os
 import tempfile
 import sys
 import json
+
+from typing import Dict, Any
+
 from metaflow.decorators import StepDecorator, flow_decorators
 from metaflow.current import current
 from metaflow.util import to_unicode
@@ -29,15 +32,14 @@ class CardDecorator(StepDecorator):
 
     Parameters
     ----------
-    type : str
-        Card type (default: 'default').
-    id : str
+    type : str, default: 'default'
+        Card type.
+    id : str, optional, default: None
         If multiple cards are present, use this id to identify this card.
-    options : Dict
+    options : Dict[str, Any], default: {}
         Options passed to the card. The contents depend on the card type.
-    timeout : int
-        Interrupt reporting if it takes more than this many seconds
-        (default: 45).
+    timeout : int, default: 45
+        Interrupt reporting if it takes more than this many seconds.
     """
 
     name = "card"

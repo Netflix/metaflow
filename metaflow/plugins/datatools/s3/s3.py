@@ -9,6 +9,7 @@ import subprocess
 from io import RawIOBase, BufferedIOBase
 from itertools import chain, starmap
 from tempfile import mkdtemp, NamedTemporaryFile
+from typing import Dict, Iterable, List, Optional, Tuple, Union, TYPE_CHECKING
 
 from metaflow import FlowSpec
 from metaflow.current import current
@@ -44,6 +45,9 @@ from .s3util import (
     TRANSIENT_RETRY_LINE_CONTENT,
 )
 
+if TYPE_CHECKING:
+    from metaflow.client import Run
+
 try:
     import boto3
     from boto3.s3.transfer import TransferConfig
@@ -64,17 +68,32 @@ def ensure_unicode(x):
     return None if x is None else to_unicode(x)
 
 
-S3GetObject = namedtuple_with_defaults("S3GetObject", "key offset length")
+PutValue = Union[RawIOBase, BufferedIOBase, str, bytes]
+
+S3GetObject = namedtuple_with_defaults(
+    "S3GetObject", [("key", str), ("offset", int), ("length", int)]
+)
+S3GetObject.__module__ = __name__
 
 S3PutObject = namedtuple_with_defaults(
     "S3PutObject",
-    "key value path content_type metadata",
+    [
+        ("key", str),
+        ("value", Optional[PutValue]),
+        ("path", Optional[str]),
+        ("content_type", Optional[str]),
+        ("metadata", Optional[Dict[str, str]]),
+    ],
     defaults=(None, None, None, None),
 )
+S3PutObject.__module__ = __name__
 
 RangeInfo = namedtuple_with_defaults(
-    "RangeInfo", "total_size request_offset request_length", defaults=(0, -1)
+    "RangeInfo",
+    [("total_size", int), ("request_offset", int), ("request_length", int)],
+    defaults=(0, -1),
 )
+RangeInfo.__module__ = __name__
 
 RANGE_MATCH = re.compile(r"bytes (?P<start>[0-9]+)-(?P<end>[0-9]+)/(?P<total>[0-9]+)")
 
@@ -114,14 +133,14 @@ class S3Object(object):
 
     def __init__(
         self,
-        prefix,
-        url,
-        path,
-        size=None,
-        content_type=None,
-        metadata=None,
-        range_info=None,
-        last_modified=None,
+        prefix: str,
+        url: str,
+        path: str,
+        size: Optional[int] = None,
+        content_type: Optional[str] = None,
+        metadata: Optional[Dict[str, str]] = None,
+        range_info: Optional[RangeInfo] = None,
+        last_modified: int = None,
     ):
 
         # all fields of S3Object should return a unicode object
@@ -158,7 +177,7 @@ class S3Object(object):
             self._prefix = prefix
 
     @property
-    def exists(self):
+    def exists(self) -> bool:
         """
         Does this key correspond to an object in S3?
 
@@ -170,7 +189,7 @@ class S3Object(object):
         return self._size is not None
 
     @property
-    def downloaded(self):
+    def downloaded(self) -> bool:
         """
         Has this object been downloaded?
 
@@ -185,7 +204,7 @@ class S3Object(object):
         return bool(self._path)
 
     @property
-    def url(self):
+    def url(self) -> str:
         """
         S3 location of the object
 
@@ -197,7 +216,7 @@ class S3Object(object):
         return self._url
 
     @property
-    def prefix(self):
+    def prefix(self) -> str:
         """
         Prefix requested that matches this object.
 
@@ -209,7 +228,7 @@ class S3Object(object):
         return self._prefix
 
     @property
-    def key(self):
+    def key(self) -> str:
         """
         Key corresponds to the key given to the get call that produced
         this object.
@@ -225,7 +244,7 @@ class S3Object(object):
         return self._key
 
     @property
-    def path(self):
+    def path(self) -> Optional[str]:
         """
         Path to a local temporary file corresponding to the object downloaded.
 
@@ -240,7 +259,7 @@ class S3Object(object):
         return self._path
 
     @property
-    def blob(self):
+    def blob(self) -> Optional[bytes]:
         """
         Contents of the object as a byte string or None if the
         object hasn't been downloaded.
@@ -255,7 +274,7 @@ class S3Object(object):
                 return f.read()
 
     @property
-    def text(self):
+    def text(self) -> Optional[str]:
         """
         Contents of the object as a string or None if the
         object hasn't been downloaded.
@@ -271,7 +290,7 @@ class S3Object(object):
             return self.blob.decode("utf-8", errors="replace")
 
     @property
-    def size(self):
+    def size(self) -> Optional[int]:
         """
         Size of the object in bytes.
 
@@ -285,7 +304,7 @@ class S3Object(object):
         return self._size
 
     @property
-    def has_info(self):
+    def has_info(self) -> bool:
         """
         Returns true if this `S3Object` contains the content-type MIME header or
         user-defined metadata.
@@ -305,7 +324,7 @@ class S3Object(object):
         )
 
     @property
-    def metadata(self):
+    def metadata(self) -> Optional[Dict[str, str]]:
         """
         Returns a dictionary of user-defined metadata, or None if no metadata
         is defined.
@@ -318,7 +337,7 @@ class S3Object(object):
         return self._metadata
 
     @property
-    def content_type(self):
+    def content_type(self) -> Optional[str]:
         """
         Returns the content-type of the S3 object or None if it is not defined.
 
@@ -330,7 +349,7 @@ class S3Object(object):
         return self._content_type
 
     @property
-    def range_info(self):
+    def range_info(self) -> Optional[RangeInfo]:
         """
         If the object corresponds to a partially downloaded object, returns
         information of what was downloaded.
@@ -350,7 +369,7 @@ class S3Object(object):
         return self._range_info
 
     @property
-    def last_modified(self):
+    def last_modified(self) -> Optional[int]:
         """
         Returns the last modified unix timestamp of the object.
 
@@ -444,15 +463,15 @@ class S3(object):
 
     Parameters
     ----------
-    tmproot : str
-        Where to store the temporary directory (default: '.').
-    bucket : str
+    tmproot : str, default: '.'
+        Where to store the temporary directory.
+    bucket : str, optional
         Override the bucket from `DATATOOLS_S3ROOT` when `run` is specified.
-    prefix : str
+    prefix : str, optional
         Override the path from `DATATOOLS_S3ROOT` when `run` is specified.
-    run : FlowSpec or Run
+    run : FlowSpec or Run, optional
         Derive path prefix from the current or a past run ID, e.g. S3(run=self).
-    s3root : str
+    s3root : str, optional
         If `run` is not specified, use this as the S3 prefix.
     """
 
@@ -461,7 +480,13 @@ class S3(object):
         return DATATOOLS_S3ROOT
 
     def __init__(
-        self, tmproot=".", bucket=None, prefix=None, run=None, s3root=None, **kwargs
+        self,
+        tmproot: str = ".",
+        bucket: Optional[str] = None,
+        prefix: Optional[str] = None,
+        run: Optional[Union[FlowSpec, "Run"]] = None,
+        s3root: Optional[str] = None,
+        **kwargs
     ):
         if not boto_found:
             raise MetaflowException("You need to install 'boto3' in order to use S3.")
@@ -515,7 +540,7 @@ class S3(object):
         )
         self._tmpdir = mkdtemp(dir=tmproot, prefix="metaflow.s3.")
 
-    def __enter__(self):
+    def __enter__(self) -> "S3":
         return self
 
     def __exit__(self, *args):
@@ -586,7 +611,7 @@ class S3(object):
                 range_str = "bytes=%d-%d" % (start, start + length - 1)
         return url, range_str
 
-    def list_paths(self, keys=None):
+    def list_paths(self, keys: Optional[Iterable[str]] = None) -> List[S3Object]:
         """
         List the next level of paths in S3.
 
@@ -613,7 +638,7 @@ class S3(object):
 
         Parameters
         ----------
-        keys : List(str)
+        keys : Iterable[str], optional
             List of paths.
 
         Returns
@@ -636,7 +661,7 @@ class S3(object):
 
         return list(starmap(S3Object, _list(keys)))
 
-    def list_recursive(self, keys=None):
+    def list_recursive(self, keys: Optional[Iterable[str]] = None) -> List[S3Object]:
         """
         List all objects recursively under the given prefixes.
 
@@ -662,7 +687,7 @@ class S3(object):
 
         Parameters
         ----------
-        keys : List(str)
+        keys : Iterable[str], optional
             List of paths.
 
         Returns
@@ -682,7 +707,7 @@ class S3(object):
 
         return list(starmap(S3Object, _list(keys)))
 
-    def info(self, key=None, return_missing=False):
+    def info(self, key: Optional[str] = None, return_missing: bool = False) -> S3Object:
         """
         Get metadata about a single object in S3.
 
@@ -691,11 +716,11 @@ class S3(object):
 
         Parameters
         ----------
-        key : str
+        key : str, optional
             Object to query. It can be an S3 url or a path suffix.
-        return_missing : bool
+        return_missing : bool, default: False
             If set to True, do not raise an exception for a missing key but
-            return it as an `S3Object` with `.exists == False` (default: False).
+            return it as an `S3Object` with `.exists == False`.
 
         Returns
         -------
@@ -736,7 +761,9 @@ class S3(object):
             )
         return S3Object(self._s3root, url, None)
 
-    def info_many(self, keys, return_missing=False):
+    def info_many(
+        self, keys: Iterable[str], return_missing: bool = False
+    ) -> List[S3Object]:
         """
         Get metadata about many objects in S3 in parallel.
 
@@ -745,11 +772,11 @@ class S3(object):
 
         Parameters
         ----------
-        keys : List[str]
+        keys : Iterable[str]
             Objects to query. Each key can be an S3 url or a path suffix.
-        return_missing : bool
+        return_missing : bool, default: False
             If set to True, do not raise an exception for a missing key but
-            return it as an `S3Object` with `.exists == False` (default: False).
+            return it as an `S3Object` with `.exists == False`.
 
         Returns
         -------
@@ -792,22 +819,27 @@ class S3(object):
 
         return list(starmap(S3Object, _head()))
 
-    def get(self, key=None, return_missing=False, return_info=True):
+    def get(
+        self,
+        key: Optional[Union[str, S3GetObject]] = None,
+        return_missing: bool = False,
+        return_info: bool = True,
+    ) -> S3Object:
         """
         Get a single object from S3.
 
         Parameters
         ----------
-        key : str or `S3GetObject`
+        key : str or `S3GetObject`, optional
             Object to download. It can be an S3 url, a path suffix, or
-            an `S3GetObject` that defines a range of data to download.
-        return_missing : bool
+            an `S3GetObject` that defines a range of data to download. If None, or
+            not provided, gets the S3 root.
+        return_missing : bool, default: False
             If set to True, do not raise an exception for a missing key but
-            return it as an `S3Object` with `.exists == False` (default: False).
-        return_info : bool
+            return it as an `S3Object` with `.exists == False`.
+        return_info : bool, default: True
             If set to True, fetch the content-type and user metadata associated
             with the object at no extra cost, included for symmetry with `get_many`
-            (default: True).
 
         Returns
         -------
@@ -880,22 +912,26 @@ class S3(object):
             )
         return S3Object(self._s3root, url, path)
 
-    def get_many(self, keys, return_missing=False, return_info=True):
+    def get_many(
+        self,
+        keys: Iterable[Union[str, S3GetObject]],
+        return_missing: bool = False,
+        return_info: bool = True,
+    ) -> List[S3Object]:
         """
         Get many objects from S3 in parallel.
 
         Parameters
         ----------
-        keys : List[str or `S3GetObject`]
+        keys : Iterable[str or `S3GetObject`]
             Objects to download. Each object can be an S3 url, a path suffix, or
             an `S3GetObject` that defines a range of data to download.
-        return_missing : bool
+        return_missing : bool, default: False
             If set to True, do not raise an exception for a missing key but
-            return it as an `S3Object` with `.exists == False` (default: False).
-        return_info : bool
+            return it as an `S3Object` with `.exists == False`.
+        return_info : bool, default: True
             If set to True, fetch the content-type and user metadata associated
-            with the object at no extra cost, included for symmetry with `get_many`
-            (default: True).
+            with the object at no extra cost, included for symmetry with `get_many`.
 
         Returns
         -------
@@ -949,18 +985,20 @@ class S3(object):
 
         return list(starmap(S3Object, _get()))
 
-    def get_recursive(self, keys, return_info=False):
+    def get_recursive(
+        self, keys: Iterable[str], return_info: bool = False
+    ) -> List[S3Object]:
         """
         Get many objects from S3 recursively in parallel.
 
         Parameters
         ----------
-        keys : List[str]
+        keys : Iterable[str]
             Prefixes to download recursively. Each prefix can be an S3 url or a path suffix
             which define the root prefix under which all objects are downloaded.
-        return_info : bool
+        return_info : bool, default: False
             If set to True, fetch the content-type and user metadata associated
-            with the object (default: False).
+            with the object.
 
         Returns
         -------
@@ -1001,7 +1039,7 @@ class S3(object):
 
         return list(starmap(S3Object, _get()))
 
-    def get_all(self, return_info=False):
+    def get_all(self, return_info: bool = False) -> List[S3Object]:
         """
         Get all objects under the prefix set in the `S3` constructor.
 
@@ -1010,13 +1048,13 @@ class S3(object):
 
         Parameters
         ----------
-        return_info : bool
+        return_info : bool, default: False
             If set to True, fetch the content-type and user metadata associated
-            with the object (default: False).
+            with the object.
 
         Returns
         -------
-        List[`S3Object`]
+        Iterable[`S3Object`]
             S3Objects stored under the main prefix.
         """
 
@@ -1027,7 +1065,14 @@ class S3(object):
         else:
             return self.get_recursive([None], return_info)
 
-    def put(self, key, obj, overwrite=True, content_type=None, metadata=None):
+    def put(
+        self,
+        key: Union[str, S3PutObject],
+        obj: PutValue,
+        overwrite: bool = True,
+        content_type: Optional[str] = None,
+        metadata: Optional[Dict[str, str]] = None,
+    ) -> str:
         """
         Upload a single object to S3.
 
@@ -1037,13 +1082,12 @@ class S3(object):
             Object path. It can be an S3 url or a path suffix.
         obj : bytes or str
             An object to store in S3. Strings are converted to UTF-8 encoding.
-        overwrite : bool
+        overwrite : bool, default: True
             Overwrite the object if it exists. If set to False, the operation
-            succeeds without uploading anything if the key already exists
-            (default: True).
-        content_type : str
+            succeeds without uploading anything if the key already exists.
+        content_type : str, optional
             Optional MIME type for the object.
-        metadata : Dict
+        metadata : Dict, optional
             A JSON-encodable dictionary of additional headers to be stored
             as metadata with the object.
 
@@ -1109,7 +1153,11 @@ class S3(object):
                 real_close()
             return url
 
-    def put_many(self, key_objs, overwrite=True):
+    def put_many(
+        self,
+        key_objs: List[Union[Tuple[str, PutValue], S3PutObject]],
+        overwrite: bool = True,
+    ) -> List[Tuple[str, str]]:
         """
         Upload many objects to S3.
 
@@ -1125,10 +1173,9 @@ class S3(object):
         ----------
         key_objs : List[(str, str) or `S3PutObject`]
             List of key-object pairs to upload.
-        overwrite : bool
+        overwrite : bool, default : True
             Overwrite the object if it exists. If set to False, the operation
-            succeeds without uploading anything if the key already exists
-            (default: True).
+            succeeds without uploading anything if the key already exists.
 
         Returns
         -------
@@ -1178,7 +1225,11 @@ class S3(object):
 
         return self._put_many_files(_store(), overwrite)
 
-    def put_files(self, key_paths, overwrite=True):
+    def put_files(
+        self,
+        key_paths: List[Union[Tuple[str, PutValue], S3PutObject]],
+        overwrite: bool = True,
+    ) -> List[Tuple[str, str]]:
         """
         Upload many local files to S3.
 
@@ -1194,10 +1245,9 @@ class S3(object):
         ----------
         key_paths : List[(str, str) or `S3PutObject`]
             List of files to upload.
-        overwrite : bool
+        overwrite : bool, default: True
             Overwrite the object if it exists. If set to False, the operation
-            succeeds without uploading anything if the key already exists
-            (default: True).
+            succeeds without uploading anything if the key already exists.
 
         Returns
         -------

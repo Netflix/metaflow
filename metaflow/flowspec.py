@@ -5,6 +5,7 @@ import traceback
 
 from itertools import islice
 from types import FunctionType, MethodType
+from typing import Any, Callable, List, Optional, Tuple
 
 from . import cmd_with_io
 from .parameters import DelayedEvaluationParameter, Parameter
@@ -21,6 +22,9 @@ try:
     basestring
 except NameError:
     basestring = str
+
+
+from .datastore.inputs import Inputs
 
 
 class InvalidNextException(MetaflowException):
@@ -83,7 +87,7 @@ class FlowSpec(object):
 
         Parameters
         ----------
-        use_cli : bool, optional, default: True
+        use_cli : bool, default: True
             Set to True if the flow is invoked from __main__ or the command line
         """
 
@@ -104,7 +108,7 @@ class FlowSpec(object):
             cli.main(self)
 
     @property
-    def script_name(self):
+    def script_name(self) -> str:
         """
         [Legacy function - do not use. Use `current` instead]
 
@@ -214,7 +218,7 @@ class FlowSpec(object):
         """
         return iter(self._steps)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str):
         if self._datastore and name in self._datastore:
             # load the attribute from the datastore...
             x = self._datastore[name]
@@ -231,7 +235,7 @@ class FlowSpec(object):
         return cmd_with_io.cmd(cmdline, input=input, output=output)
 
     @property
-    def index(self):
+    def index(self) -> Optional[int]:
         """
         The index of this foreach branch.
 
@@ -244,14 +248,14 @@ class FlowSpec(object):
 
         Returns
         -------
-        int
+        int, optional
             Index of the task in a foreach step.
         """
         if self._foreach_stack:
             return self._foreach_stack[-1].index
 
     @property
-    def input(self):
+    def input(self) -> Optional[Any]:
         """
         The value of the foreach artifact in this foreach branch.
 
@@ -264,12 +268,12 @@ class FlowSpec(object):
 
         Returns
         -------
-        object
+        object, optional
             Input passed to the foreach task.
         """
         return self._find_input()
 
-    def foreach_stack(self):
+    def foreach_stack(self) -> Optional[List[Tuple[int, int, Any]]]:
         """
         Returns the current stack of foreach indexes and values for the current step.
 
@@ -353,7 +357,12 @@ class FlowSpec(object):
                     )
             return self._cached_input[stack_index]
 
-    def merge_artifacts(self, inputs, exclude=[], include=[]):
+    def merge_artifacts(
+        self,
+        inputs: Inputs,
+        exclude: Optional[List[str]] = None,
+        include: Optional[List[str]] = None,
+    ) -> None:
         """
         Helper function for merging artifacts in a join step.
 
@@ -386,7 +395,7 @@ class FlowSpec(object):
 
         Parameters
         ----------
-        inputs : List[Steps]
+        inputs : Inputs
             Incoming steps to the join point.
         exclude : List[str], optional
             If specified, do not consider merging artifacts with a name in `exclude`.
@@ -405,6 +414,8 @@ class FlowSpec(object):
             This exception is thrown in case an artifact specified in `include` cannot
             be found.
         """
+        include = include or []
+        exclude = exclude or []
         node = self._graph[self._current_step]
         if node.type != "join":
             msg = (
@@ -488,7 +499,7 @@ class FlowSpec(object):
             )
             raise InvalidNextException(msg)
 
-    def next(self, *dsts, **kwargs):
+    def next(self, *dsts: Callable[..., None], **kwargs) -> None:
         """
         Indicates the next step to execute after this step has completed.
 
