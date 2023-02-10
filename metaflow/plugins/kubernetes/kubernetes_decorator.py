@@ -3,6 +3,7 @@ import json
 import os
 import platform
 import re
+import requests
 import sys
 from typing import Dict, List, Optional, Union
 
