@@ -4,7 +4,7 @@ import random
 import time
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import KUBERNETES_SECRETS
+from metaflow.metaflow_config import KUBERNETES_SECRETS, KUBERNETES_JOB_LIFETIME
 
 CLIENT_REFRESH_INTERVAL_SECONDS = 300
 
@@ -87,10 +87,7 @@ class KubernetesJob(object):
                 # when Argo Workflows is responsible for the execution.
                 backoff_limit=self._kwargs.get("retries", 0),
                 completions=1,  # A single non-indexed pod job
-                ttl_seconds_after_finished=7
-                * 60
-                * 60  # Remove job after a week. TODO: Make this configurable
-                * 24,
+                ttl_seconds_after_finished=KUBERNETES_JOB_LIFETIME,
                 template=client.V1PodTemplateSpec(
                     metadata=client.V1ObjectMeta(
                         annotations=self._kwargs.get("annotations", {}),
