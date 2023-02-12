@@ -84,6 +84,7 @@ class KubernetesDecorator(StepDecorator):
     }
     package_url = None
     package_sha = None
+    package_flow_dir = None
     run_time_limit = None
 
     def __init__(self, attributes=None, statically_defined=False):
@@ -275,6 +276,9 @@ class KubernetesDecorator(StepDecorator):
             cli_args.command_args.append(self.package_sha)
             cli_args.command_args.append(self.package_url)
 
+            if self.package_flow_dir:
+                cli_args.command_options["flow-dir"] = self.package_flow_dir
+
             # --namespace is used to specify Metaflow namespace (a different
             # concept from k8s namespace).
             for k, v in self.attributes.items():
@@ -398,6 +402,7 @@ class KubernetesDecorator(StepDecorator):
             cls.package_url, cls.package_sha = flow_datastore.save_data(
                 [package.blob], len_hint=1
             )[0]
+            cls.package_flow_dir = package.package_flow_dir
 
     @staticmethod
     def parse_node_selector(node_selector: list):

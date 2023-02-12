@@ -94,6 +94,13 @@ class MetaflowPackage(object):
                     p = os.path.join(path, fname)
                     yield p, p[prefixlen:]
 
+    @property
+    def package_flow_dir(self):
+        if "packager" in self._flow._flow_decorators:
+            flowdir = os.path.dirname(os.path.abspath(sys.argv[0])) + "/"
+            rootdir = os.path.abspath(os.path.join(flowdir, self._flow._flow_decorators["packager"][0].root)) + "/"
+            return os.path.relpath(flowdir, rootdir)
+
     def path_tuples(self):
         """
         Returns list of (path, arcname) to be added to the job package, where
@@ -101,16 +108,20 @@ class MetaflowPackage(object):
         """
         # We want the following contents in the tarball
         # Metaflow package itself
+        mf_path_prefixer = lambda t: t
+        if self.package_flow_dir:
+            mf_path_prefixer = lambda t: (t[0], os.path.join(self.package_flow_dir, t[1]))
+
         for path_tuple in self._walk(
             self.metaflow_root, exclude_hidden=False, suffixes=METAFLOW_SUFFIXES_LIST
         ):
-            yield path_tuple
+            yield mf_path_prefixer(path_tuple)
 
         # Metaflow extensions; for now, we package *all* extensions but this may change
         # at a later date; it is possible to call `package_mfext_package` instead of
         # `package_mfext_all`
         for path_tuple in package_mfext_all():
-            yield path_tuple
+            yield mf_path_prefixer(path_tuple)
 
         # Any custom packages exposed via decorators
         deco_module_paths = {}
@@ -143,6 +154,8 @@ class MetaflowPackage(object):
         else:
             # the user's working directory
             flowdir = os.path.dirname(os.path.abspath(sys.argv[0])) + "/"
+            if "packager" in self._flow._flow_decorators:
+                flowdir = os.path.abspath(os.path.join(flowdir, self._flow._flow_decorators["packager"][0].root)) + "/"
             for path_tuple in self._walk(flowdir, suffixes=self.suffixes):
                 yield path_tuple
 

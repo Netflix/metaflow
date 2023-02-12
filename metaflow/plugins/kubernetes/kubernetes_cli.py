@@ -66,6 +66,7 @@ def kubernetes():
 @click.option("--memory", help="Memory requirement for Kubernetes pod.")
 @click.option("--gpu", help="GPU requirement for Kubernetes pod.")
 @click.option("--gpu-vendor", help="GPU vendor requirement for Kubernetes pod.")
+@click.option("--flow-dir", help="Location of the flow file in the code package.")
 @click.option("--run-id", help="Passed to the top-level 'step'.")
 @click.option("--task-id", help="Passed to the top-level 'step'.")
 @click.option("--input-paths", help="Passed to the top-level 'step'.")
@@ -98,6 +99,7 @@ def step(
     code_package_sha,
     code_package_url,
     executable=None,
+    flow_dir=None,
     image=None,
     service_account=None,
     secrets=None,
@@ -196,6 +198,7 @@ def step(
         with ctx.obj.monitor.measure("metaflow.kubernetes.launch_job"):
             kubernetes.launch_job(
                 flow_name=ctx.obj.flow.name,
+                flow_dir=flow_dir,
                 run_id=kwargs["run_id"],
                 step_name=step_name,
                 task_id=kwargs["task_id"],
