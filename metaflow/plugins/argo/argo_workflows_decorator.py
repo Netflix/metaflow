@@ -34,6 +34,9 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
             for k, v in meta.items()
         ]
         # Register book-keeping metadata for debugging.
+
+        # TODO (savin): Also register Argo Events metadata if the flow was triggered
+        #               through Argo Events.
         metadata.register_metadata(run_id, step_name, task_id, entries)
 
     def task_finished(
