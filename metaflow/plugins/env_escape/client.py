@@ -5,6 +5,7 @@ import itertools
 import select
 from subprocess import Popen, PIPE
 import sys
+import threading
 import time
 
 from . import data_transferer
@@ -45,6 +46,7 @@ class Client(object):
         # Make sure to init these variables (used in __del__) early on in case we
         # have an exception
         self._poller = None
+        self._poller_lock = threading.Lock()
         self._server_process = None
         self._socket_path = None
 
@@ -129,10 +131,11 @@ class Client(object):
             fcntl.fcntl(f, fcntl.F_SETFL, fl | os.O_NONBLOCK)
 
         # Set up poller
-        self._poller = select.poll()
-        self._poller.register(self._server_process.stdout, select.POLLIN)
-        self._poller.register(self._server_process.stderr, select.POLLIN)
-        self._poller.register(self._channel, select.POLLIN | select.POLLHUP)
+        with self._poller_lock:
+            self._poller = select.poll()
+            self._poller.register(self._server_process.stdout, select.POLLIN)
+            self._poller.register(self._server_process.stderr, select.POLLIN)
+            self._poller.register(self._channel, select.POLLIN | select.POLLHUP)
 
         # Get all exports that we are proxying
         response = self._communicate(
@@ -201,8 +204,9 @@ class Client(object):
         # Clean up the server; we drain all messages if any
         if self._poller is not None:
             # If we have self._poller, we have self._server_process
-            self._poller.unregister(self._channel)
-            last_evts = self._poller.poll(5)
+            with self._poller_lock:
+                self._poller.unregister(self._channel)
+                last_evts = self._poller.poll(5)
             for fd, _ in last_evts:
                 # Readlines will never block here because `bufsize` is set to
                 # 1 (line buffering)
@@ -359,6 +363,10 @@ class Client(object):
         return name
 
     def _communicate(self, msg):
+        with self._poller_lock:
+            return self._locked_communicate(msg)
+
+    def _locked_communicate(self, msg):
         self._channel.send(msg)
         response_ready = False
         while not response_ready:
