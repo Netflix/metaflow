@@ -108,7 +108,10 @@ class MetaflowPackage(object):
 
         # Metaflow extensions; for now, we package *all* extensions but this may change
         # at a later date; it is possible to call `package_mfext_package` instead of
-        # `package_mfext_all`
+        # `package_mfext_all` but in that case, make sure to also add a
+        # metaflow_extensions/__init__.py file to properly "close" the metaflow_extensions
+        # package and prevent other extensions from being loaded that may be
+        # present in the rest of the system
         for path_tuple in package_mfext_all():
             yield path_tuple
 
