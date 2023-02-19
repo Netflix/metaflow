@@ -10,7 +10,7 @@ from .extension_support import EXT_PKG, package_mfext_all
 from .metaflow_config import DEFAULT_PACKAGE_SUFFIXES
 from .exception import MetaflowException
 from .util import to_unicode
-from . import R
+from . import R, INFO_FILE
 
 DEFAULT_SUFFIXES_LIST = DEFAULT_PACKAGE_SUFFIXES.split(",")
 METAFLOW_SUFFIXES_LIST = [".py", ".html", ".css", ".js"]
@@ -150,7 +150,7 @@ class MetaflowPackage(object):
                 yield path_tuple
 
     def _add_info(self, tar):
-        info = tarfile.TarInfo("INFO")
+        info = tarfile.TarInfo(os.path.basename(INFO_FILE))
         env = self.environment.get_environment_info()
         buf = BytesIO()
         buf.write(json.dumps(env).encode("utf-8"))
