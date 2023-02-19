@@ -101,7 +101,7 @@ def resolve_token(
                 )
         obj.echo("")
         obj.echo("A new production token generated.")
-        Airflow.save_deployment_token(get_username(), token, obj.flow_datastore)
+        Airflow.save_deployment_token(get_username(), name, token, obj.flow_datastore)
     else:
         token = prev_token
 

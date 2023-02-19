@@ -109,11 +109,10 @@ class Airflow(object):
     @classmethod
     def get_existing_deployment(cls, name, flow_datastore):
         _backend = flow_datastore._storage_impl
-        token_paths = _backend.list_content([cls.get_token_path(name)])
-        if len(token_paths) == 0:
+        token_exits, _ = _backend.info_file(cls.get_token_path(name))
+        if not token_exits:
             return None
-
-        with _backend.load_bytes([token_paths[0]]) as get_results:
+        with _backend.load_bytes([cls.get_token_path(name)]) as get_results:
             for _, path, _ in get_results:
                 if path is not None:
                     with open(path, "r") as f:
@@ -125,12 +124,12 @@ class Airflow(object):
         return os.path.join(cls.TOKEN_STORAGE_ROOT, name)
 
     @classmethod
-    def save_deployment_token(cls, owner, token, flow_datastore):
+    def save_deployment_token(cls, owner, name, token, flow_datastore):
         _backend = flow_datastore._storage_impl
         _backend.save_bytes(
             [
                 (
-                    cls.get_token_path(token),
+                    cls.get_token_path(name),
                     BytesIO(
                         bytes(
                             json.dumps({"production_token": token, "owner": owner}),
