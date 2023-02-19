@@ -109,8 +109,8 @@ class Airflow(object):
     @classmethod
     def get_existing_deployment(cls, name, flow_datastore):
         _backend = flow_datastore._storage_impl
-        token_exits, _ = _backend.info_file(cls.get_token_path(name))
-        if not token_exits:
+        token_exists = _backend.is_file([cls.get_token_path(name)])
+        if not token_exists[0]:
             return None
         with _backend.load_bytes([cls.get_token_path(name)]) as get_results:
             for _, path, _ in get_results:
