@@ -42,9 +42,11 @@ from .metaflow_config import (
     DEFAULT_METADATA,
     DEFAULT_MONITOR,
     DEFAULT_PACKAGE_SUFFIXES,
+    DEFAULT_PYTHON_LINTER,
 )
 from .metaflow_environment import MetaflowEnvironment
-from .pylint_wrapper import PyLint
+from .python_linters.pylint import PyLint
+from .python_linters import get_python_linter, PYTHON_LINTERS
 from .R import use_r, metaflow_r_version
 from .mflog import mflog, LOG_SOURCES
 from .unbounded_foreach import UBF_CONTROL, UBF_TASK
@@ -137,7 +139,9 @@ def cli(ctx):
 )
 @click.pass_obj
 def check(obj, warnings=False):
-    _check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint, warnings=warnings)
+    obj.check(
+        obj.graph, obj.flow, obj.environment, obj.python_linter, warnings=warnings
+    )
     fname = inspect.getfile(obj.flow.__class__)
     echo(
         "\n*'{cmd} show'* shows a description of this flow.\n"
@@ -871,7 +875,7 @@ def before_run(obj, tags, decospecs):
     if decospecs:
         decorators._attach_decorators(obj.flow, decospecs)
         obj.graph = FlowGraph(obj.flow.__class__)
-    obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
+    obj.check(obj.graph, obj.flow, obj.environment, obj.python_linter)
     # obj.environment.init_environment(obj.logger)
 
     decorators._init_step_decorators(
@@ -942,9 +946,10 @@ def version(obj):
     "multiple times to attach multiple decorators in steps.",
 )
 @click.option(
-    "--pylint/--no-pylint",
-    default=True,
+    "--python-linter",
+    default=DEFAULT_PYTHON_LINTER,
     show_default=True,
+    type=click.Choice(PYTHON_LINTERS),
     help="Run Pylint on the flow if pylint is installed.",
 )
 @click.option(
@@ -971,7 +976,7 @@ def start(
     datastore_root=None,
     decospecs=None,
     package_suffixes=None,
-    pylint=None,
+    python_linter=None,
     event_logger=None,
     monitor=None,
     **deco_options
@@ -998,7 +1003,7 @@ def start(
     ctx.obj.graph = FlowGraph(ctx.obj.flow.__class__)
     ctx.obj.logger = logger
     ctx.obj.check = _check
-    ctx.obj.pylint = pylint
+    ctx.obj.python_linter = python_linter
     ctx.obj.top_cli = cli
     ctx.obj.package_suffixes = package_suffixes.split(",")
     ctx.obj.reconstruct_cli = _reconstruct_cli
@@ -1098,41 +1103,46 @@ def _reconstruct_cli(params):
                     yield str(value)
 
 
-def _check(graph, flow, environment, pylint=True, warnings=False, **kwargs):
+def _check(graph, flow, environment, python_linter, warnings=False, **kwargs):
     echo("Validating your flow...", fg="magenta", bold=False)
     linter = lint.linter
     # TODO set linter settings
     linter.run_checks(graph, **kwargs)
     echo("The graph looks good!", fg="green", bold=True, indent=True)
-    if pylint:
-        echo("Running pylint...", fg="magenta", bold=False)
-        fname = inspect.getfile(flow.__class__)
-        pylint = PyLint(fname)
-        if pylint.has_pylint():
-            pylint_is_happy, pylint_exception_msg = pylint.run(
-                warnings=warnings,
-                pylint_config=environment.pylint_config(),
-                logger=echo_always,
-            )
 
-            if pylint_is_happy:
-                echo("Pylint is happy!", fg="green", bold=True, indent=True)
-            else:
-                echo(
-                    "Pylint couldn't analyze your code.\n\tPylint exception: %s"
-                    % pylint_exception_msg,
-                    fg="red",
-                    bold=True,
-                    indent=True,
-                )
-                echo("Skipping Pylint checks.", fg="red", bold=True, indent=True)
+    python_linter = get_python_linter().run()
+    fname = inspect.getfile(flow.__class__)
+    python_linter(fname).run()
+
+    # we should shift this into Pylint.run
+    echo("Running pylint...", fg="magenta", bold=False)
+    fname = inspect.getfile(flow.__class__)
+    pylint = PyLint(fname)
+    if pylint.has_pylint():
+        pylint_is_happy, pylint_exception_msg = pylint.run(
+            warnings=warnings,
+            pylint_config=environment.pylint_config(),
+            logger=echo_always,
+        )
+
+        if pylint_is_happy:
+            echo("Pylint is happy!", fg="green", bold=True, indent=True)
         else:
             echo(
-                "Pylint not found, so extra checks are disabled.",
-                fg="green",
+                "Pylint couldn't analyze your code.\n\tPylint exception: %s"
+                % pylint_exception_msg,
+                fg="red",
+                bold=True,
                 indent=True,
-                bold=False,
             )
+            echo("Skipping Pylint checks.", fg="red", bold=True, indent=True)
+    else:
+        echo(
+            "Pylint not found, so extra checks are disabled.",
+            fg="green",
+            indent=True,
+            bold=False,
+        )
 
 
 def print_metaflow_exception(ex):

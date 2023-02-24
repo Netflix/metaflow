@@ -40,5 +40,5 @@ setup(
         [console_scripts]
         metaflow=metaflow.cmd.main_cli:start
       """,
-    install_requires=["requests", "boto3", "pylint", "ruff"],
+    install_requires=["requests", "boto3", "pylint"],
 )
