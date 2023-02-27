@@ -159,6 +159,19 @@ class StepFunctions(object):
             raise StepFunctionsSchedulingException(repr(e))
 
     @classmethod
+    def delete(cls, name):
+        try:
+            response = StepFunctionsClient().delete(name)
+        except Exception as e:
+            raise StepFunctionsException(repr(e))
+        if response is None:
+            raise StepFunctionsException(
+                "The workflow *%s* doesn't exist "
+                "on AWS Step Functions. Please "
+                "deploy your flow first." % name
+            )
+
+    @classmethod
     def trigger(cls, name, parameters):
         try:
             state_machine = StepFunctionsClient().get(name)

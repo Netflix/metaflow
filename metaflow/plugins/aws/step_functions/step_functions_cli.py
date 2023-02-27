@@ -545,3 +545,10 @@ def list_runs(
                 "No executions for *%s* found on AWS Step Functions."
                 % (obj.state_machine_name)
             )
+
+@step_functions.command(
+    help="Delete a workflow"
+)
+@click.pass_obj
+def delete(obj):
+    StepFunctions.delete(obj.state_machine_name)
