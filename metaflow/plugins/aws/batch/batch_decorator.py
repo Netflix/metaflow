@@ -265,7 +265,6 @@ class BatchDecorator(StepDecorator):
     def task_finished(
         self, step_name, flow, graph, is_task_ok, retry_count, max_retries
     ):
-
         # task_finished may run locally if fallback is activated for @catch
         # decorator.
         if "AWS_BATCH_JOB_ID" in os.environ:

@@ -227,7 +227,6 @@ class StepFunctions(object):
         return None
 
     def _compile(self):
-
         # Visit every node of the flow and recursively build the state machine.
         def _visit(node, workflow, exit_node=None):
             if node.parallel_foreach:
