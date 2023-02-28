@@ -296,6 +296,7 @@ class BatchJob(object):
                         "containerPath": "/tmp",
                         "size": int(tmpfs),
                         "mountOptions": [
+                            # should map to rw, suid, dev, exec, auto, nouser, and async
                             "defaults"
                         ]
                     }

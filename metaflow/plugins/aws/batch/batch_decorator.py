@@ -67,6 +67,9 @@ class BatchDecorator(StepDecorator):
         A swappiness value of 0 causes swapping not to happen unless absolutely
         necessary. A swappiness value of 100 causes pages to be swapped very
         aggressively. Accepted values are whole numbers between 0 and 100.
+    tmpfs: int, optional
+        The value for the size (in MiB) of the tmpfs mount at /tmp for this step.
+        This parameter maps to the `--tmpfs` option in Docker.
     inferentia : int, default: 0
         Number of Inferentia chips required for this step.
     """
