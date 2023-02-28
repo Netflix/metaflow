@@ -66,6 +66,7 @@ def kubernetes():
 @click.option("--memory", help="Memory requirement for Kubernetes pod.")
 @click.option("--gpu", help="GPU requirement for Kubernetes pod.")
 @click.option("--gpu-vendor", help="GPU vendor requirement for Kubernetes pod.")
+@click.option("--ttl-after-finished", help="Seconds to keep pods after finished.")
 @click.option("--run-id", help="Passed to the top-level 'step'.")
 @click.option("--task-id", help="Passed to the top-level 'step'.")
 @click.option("--input-paths", help="Passed to the top-level 'step'.")
@@ -110,6 +111,7 @@ def step(
     gpu_vendor=None,
     run_time_limit=None,
     tolerations=None,
+    ttl_after_finished=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", job_id=None):
@@ -218,6 +220,7 @@ def step(
                 run_time_limit=run_time_limit,
                 env=env,
                 tolerations=tolerations,
+                ttl_after_finished=ttl_after_finished,
             )
     except Exception as e:
         traceback.print_exc(chain=False)

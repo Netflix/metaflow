@@ -149,6 +149,7 @@ class Kubernetes(object):
         disk=None,
         memory=None,
         run_time_limit=None,
+        ttl_after_finished=None,
         env=None,
         tolerations=None,
     ):
@@ -180,6 +181,7 @@ class Kubernetes(object):
                 gpu=gpu,
                 gpu_vendor=gpu_vendor,
                 timeout_in_seconds=run_time_limit,
+                ttl_after_finished=ttl_after_finished,
                 # Retries are handled by Metaflow runtime
                 retries=0,
                 step_name=step_name,

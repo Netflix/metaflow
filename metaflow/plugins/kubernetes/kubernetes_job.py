@@ -4,7 +4,7 @@ import random
 import time
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import KUBERNETES_SECRETS, KUBERNETES_JOB_LIFETIME
+from metaflow.metaflow_config import KUBERNETES_SECRETS
 
 CLIENT_REFRESH_INTERVAL_SECONDS = 300
 
@@ -87,7 +87,7 @@ class KubernetesJob(object):
                 # when Argo Workflows is responsible for the execution.
                 backoff_limit=self._kwargs.get("retries", 0),
                 completions=1,  # A single non-indexed pod job
-                ttl_seconds_after_finished=KUBERNETES_JOB_LIFETIME,
+                ttl_seconds_after_finished=int(self._kwargs["ttl_after_finished"]),
                 template=client.V1PodTemplateSpec(
                     metadata=client.V1ObjectMeta(
                         annotations=self._kwargs.get("annotations", {}),

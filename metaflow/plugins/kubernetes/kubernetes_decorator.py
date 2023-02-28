@@ -18,6 +18,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_TOLERATIONS,
     KUBERNETES_SERVICE_ACCOUNT,
     KUBERNETES_SECRETS,
+    KUBERNETES_JOB_TTL_SECONDS_AFTER_FINISHED,
 )
 from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
@@ -65,6 +66,9 @@ class KubernetesDecorator(StepDecorator):
         in Metaflow configuration.
     tolerations : List[str], default: METAFLOW_KUBERNETES_TOLERATIONS
         Kubernetes tolerations to use when launching pod in Kubernetes.
+    ttl_after_finished : int, optional
+        Kubernetes TTL (in seconds) after which the pod is deleted after the
+        step finishes.
     """
 
     name = "kubernetes"
@@ -77,6 +81,7 @@ class KubernetesDecorator(StepDecorator):
         "secrets": None,  # e.g., mysecret
         "node_selector": None,  # e.g., kubernetes.io/os=linux
         "namespace": None,
+        "ttl_after_finished": None,
         "gpu": None,  # value of 0 implies that the scheduled node should not have GPUs
         "gpu_vendor": None,
         "tolerations": None,  # e.g., [{"key": "arch", "operator": "Equal", "value": "amd"},
@@ -97,6 +102,8 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["gpu_vendor"] = KUBERNETES_GPU_VENDOR
         if not self.attributes["node_selector"] and KUBERNETES_NODE_SELECTOR:
             self.attributes["node_selector"] = KUBERNETES_NODE_SELECTOR
+        if not self.attributes["ttl_after_finished"]:
+            self.attributes["ttl_after_finished"] = KUBERNETES_JOB_TTL_SECONDS_AFTER_FINISHED
         if not self.attributes["tolerations"] and KUBERNETES_TOLERATIONS:
             self.attributes["tolerations"] = json.loads(KUBERNETES_TOLERATIONS)
 
@@ -280,6 +287,8 @@ class KubernetesDecorator(StepDecorator):
             for k, v in self.attributes.items():
                 if k == "namespace":
                     cli_args.command_options["k8s_namespace"] = v
+                elif k == "ttl_after_finished":
+                    cli_args.command_options["ttl_after_finished"] = v
                 elif k == "node_selector" and v:
                     cli_args.command_options[k] = ",".join(
                         ["=".join([key, str(val)]) for key, val in v.items()]
