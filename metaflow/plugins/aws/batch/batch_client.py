@@ -150,6 +150,7 @@ class BatchJob(object):
         swappiness,
         inferentia,
         host_volumes,
+        tmpfs,
         num_parallel,
     ):
         # identify platform from any compute environment associated with the
@@ -251,7 +252,7 @@ class BatchJob(object):
         if inferentia:
             if not (isinstance(inferentia, (int, unicode, basestring))):
                 raise BatchJobException(
-                    "invalid inferentia value: ({}) (should be 0 or greater)".format(
+                    "Invalid inferentia value: ({}) (should be 0 or greater)".format(
                         inferentia
                     )
                 )
@@ -281,6 +282,24 @@ class BatchJob(object):
                 job_definition["containerProperties"]["mountPoints"].append(
                     {"sourceVolume": name, "containerPath": host_path}
                 )
+
+        if tmpfs:
+            if not (isinstance(tmpfs, (int, unicode, basestring))):
+                raise BatchJobException(
+                    "Invalid tmpfs value: ({}) (should be 0 or greater)".format(
+                        inferentia
+                    )
+                )
+            else:
+                job_definition["containerProperties"]["linuxParameters"]["tmpfs"] = [
+                    {
+                        "containerPath": "/tmp",
+                        "size": int(tmpfs),
+                        "mountOptions": [
+                            "defaults"
+                        ]
+                    }
+                ]
 
         self.num_parallel = num_parallel or 0
         if self.num_parallel >= 1:
@@ -344,6 +363,7 @@ class BatchJob(object):
         swappiness,
         inferentia,
         host_volumes,
+        tmpfs,
         num_parallel,
     ):
         self.payload["jobDefinition"] = self._register_job_definition(
@@ -356,6 +376,7 @@ class BatchJob(object):
             swappiness,
             inferentia,
             host_volumes,
+            tmpfs,
             num_parallel,
         )
         return self

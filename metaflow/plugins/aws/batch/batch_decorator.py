@@ -85,6 +85,7 @@ class BatchDecorator(StepDecorator):
         "swappiness": None,
         "inferentia": None,
         "host_volumes": None,
+        "tmpfs": None,
     }
     resource_defaults = {
         "cpu": "1",

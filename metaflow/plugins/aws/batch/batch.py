@@ -179,6 +179,7 @@ class Batch(object):
         env={},
         attrs={},
         host_volumes=None,
+        tmpfs=None,
         num_parallel=0,
     ):
         job_name = self._job_name(
@@ -211,6 +212,7 @@ class Batch(object):
                 swappiness,
                 inferentia,
                 host_volumes=host_volumes,
+                tmpfs=tmpfs,
                 num_parallel=num_parallel,
             )
             .cpu(cpu)
@@ -300,6 +302,7 @@ class Batch(object):
         swappiness=None,
         inferentia=None,
         host_volumes=None,
+        tmpfs=None,
         num_parallel=0,
         env={},
         attrs={},
@@ -333,6 +336,7 @@ class Batch(object):
             env=env,
             attrs=attrs,
             host_volumes=host_volumes,
+            tmpfs=tmpfs,
             num_parallel=num_parallel,
         )
         self.num_parallel = num_parallel
