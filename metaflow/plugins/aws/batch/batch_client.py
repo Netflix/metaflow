@@ -293,7 +293,7 @@ class BatchJob(object):
             else:
                 job_definition["containerProperties"]["linuxParameters"]["tmpfs"] = [
                     {
-                        "containerPath": "/tmp",
+                        "containerPath": "/scratch",
                         "size": int(tmpfs),
                         "mountOptions": [
                             # should map to rw, suid, dev, exec, auto, nouser, and async
