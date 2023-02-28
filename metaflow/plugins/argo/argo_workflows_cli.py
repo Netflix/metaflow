@@ -129,6 +129,12 @@ def argo_workflows(obj, name=None):
     "are processed first if Argo Workflows controller is configured to process limited "
     "number of workflows in parallel",
 )
+@click.option(
+    "--auto-emit-argo-events/--no-auto-emit-argo-events",
+    default=False,
+    show_default=True,
+    help="Auto emits Argo Events when the run completes successfully",
+)
 @click.pass_obj
 def create(
     obj,
@@ -141,6 +147,7 @@ def create(
     max_workers=None,
     workflow_timeout=None,
     workflow_priority=None,
+    auto_emit_argo_events=None,
 ):
     validate_tags(tags)
 
