@@ -142,7 +142,7 @@ def kill(ctx, run_id, user, my_runs):
 @click.option("--swappiness", help="Swappiness requirement for AWS Batch.")
 @click.option("--inferentia", help="Inferentia requirement for AWS Batch.")
 @click.option("--use-tmpfs", help="tmpfs requirement for AWS Batch.")
-@click.option("--tmpfs_tempdir", help="tmpfs requirement for AWS Batch.")
+@click.option("--tmpfs-tempdir", help="tmpfs requirement for AWS Batch.")
 @click.option("--tmpfs-size", help="tmpfs requirement for AWS Batch.")
 @click.option("--tmpfs-path", help="tmpfs requirement for AWS Batch.")
 # TODO: Maybe remove it altogether since it's not used here
