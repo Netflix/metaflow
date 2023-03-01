@@ -181,7 +181,6 @@ def step(
     num_parallel=None,
     **kwargs
 ):
-    print(tmpfs_tempdir)
     def echo(msg, stream="stderr", batch_id=None):
         msg = util.to_unicode(msg)
         if batch_id:

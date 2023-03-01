@@ -208,6 +208,11 @@ class BatchDecorator(StepDecorator):
         self.metadata = metadata
         self.task_datastore = task_datastore
 
+        # current.tempdir reflects the value of METAFLOW_TEMPDIR (the current working
+        # directory by default), or the value of tmpfs_path if tmpfs_tempdir=False.
+        if not self.attributes["tmpfs_tempdir"]:
+            current._update_env("tempdir", self.attributes["tmpfs_path"])
+
         # task_pre_step may run locally if fallback is activated for @catch
         # decorator. In that scenario, we skip collecting AWS Batch execution
         # metadata. A rudimentary way to detect non-local execution is to
