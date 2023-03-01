@@ -139,9 +139,9 @@ class ArgoWorkflows(object):
                 self.name, self._workflow_template.to_json()
             )
             # Register sensor.
-            print(str(self._sensor))
+            print(self._sensor)
             ArgoClient(namespace=KUBERNETES_NAMESPACE).register_sensor(
-                self.name, self._sensor.to_json()
+                self.name, self._sensor.to_json() if self._sensor else {}
             )
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
@@ -272,7 +272,6 @@ class ArgoWorkflows(object):
                 description=param.kwargs.get("help"),
                 is_required=is_required,
             )
-        print(parameters)
         return parameters
 
     def _compile_workflow_template(self):
@@ -1083,7 +1082,7 @@ class ArgoWorkflows(object):
         has_trigger = self.flow._flow_decorators.get("trigger") is not None
         # Nothing to do here - let's short circuit and exit.
         if not has_trigger:
-            return None
+            return {}
 
         events = self.flow._flow_decorators.get("trigger")[0].events
 
@@ -1812,6 +1811,10 @@ class EventDependencyFilter(object):
 
     def exprs(self, exprs):
         self.payload["exprs"] = exprs
+        return self
+
+    def context(self, event_context):
+        self.payload["context"] = event_context
         return self
 
     def to_json(self):

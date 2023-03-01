@@ -181,10 +181,13 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
-    def register_sensor(self, name, sensor=None):
+    def register_sensor(self, name, sensor={}):
         # Unfortunately, Kubernetes client does not handle optimistic
         # concurrency control by itself unlike kubectl
         client = self._client.get()
+        if not sensor:
+            sensor["metadata"] = {}
+
         try:
             sensor["metadata"][
                 "resourceVersion"
@@ -200,7 +203,10 @@ class ArgoClient(object):
                 "resourceVersion"
             ]
         except client.rest.ApiException as e:
+            # Sensor does not exist and we want to add one
             if e.status == 404:
+                if sensor.get("kind") is None:
+                    return
                 try:
                     return client.CustomObjectsApi().create_namespaced_custom_object(
                         group=self._group,
@@ -219,7 +225,20 @@ class ArgoClient(object):
                 raise ArgoClientException(
                     json.loads(e.body)["message"] if e.body is not None else e.reason
                 )
-        # TODO (savin): Implement sensor de-registration
+        # Since sensors occupy real resources, delete existing sensor if needed
+        if sensor.get("kind") is None:
+            try:
+                return client.CustomObjectsApi().delete_namespaced_custom_object(
+                    group=self._group,
+                    version=self._version,
+                    namespace=self._namespace,
+                    plural="sensors",
+                    name=name,
+                )
+            except client.rest.ApiException as e:
+                raise ArgoClientException(
+                    json.loads(e.body)["message"] if e.body is not None else e.reason
+                )
         try:
             return client.CustomObjectsApi().replace_namespaced_custom_object(
                 group=self._group,
