@@ -55,11 +55,7 @@ def cli():
     default=None,
     type=str,
     help="Argo Workflow name. The flow name is used instead if "
-    "this option is not specified. If this option is specified, "
-    "then any downstream workflows that need to depend on this "
-    "workflow via Argo Events should explicitly depend on the "
-    "event that matches to specified name (@trigger(event=...)) "
-    "rather than the flow (@trigger(flow=...)).",
+    "this option is not specified.",
 )
 @click.pass_obj
 def argo_workflows(obj, name=None):

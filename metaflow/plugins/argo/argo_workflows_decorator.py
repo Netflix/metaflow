@@ -1,8 +1,10 @@
 import json
 import os
+import time
 
 from metaflow.decorators import StepDecorator
 from metaflow.metadata import MetaDatum
+from metaflow import current
 
 from .argo_events import ArgoEvent
 
@@ -84,6 +86,20 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
 
             event = ArgoEvent(name=name)
             event.add_to_payload("pathspec", "%s/%s" % (flow.name, self.run_id))
+            event.add_to_payload("flow_name", flow.name)
+            event.add_to_payload("run_id", self.run_id)
+            # Add @project decorator related fields. These are used to subset
+            # @trigger_on_finish related filters.
+            for key in (
+                "project_name",
+                "branch_name",
+                "is_user_branch",
+                "is_production",
+                "project_flow_name",
+            ):
+                if current.get(key):
+                    event.add_to_payload(key, current.get(key))
             event.add_to_payload("auto-generated-by-metaflow", True)
+            event.add_to_payload("timestamp", int(time.time()))
             # TODO: Add more fields
             event.publish()

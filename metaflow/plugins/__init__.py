@@ -57,6 +57,7 @@ FLOW_DECORATORS_DESC = [
     ("schedule", ".aws.step_functions.schedule_decorator.ScheduleDecorator"),
     ("project", ".project_decorator.ProjectDecorator"),
     ("trigger", ".argo.argo_events_decorator.ArgoEventsDecorator"),
+    ("trigger_on_finish", ".argo.argo_events_decorator.TriggerOnFinishDecorator"),
 ]
 
 # Add environments here
