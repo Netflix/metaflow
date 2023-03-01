@@ -75,19 +75,16 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
             file.write(self.task_id)
 
         # Emit Argo Events given that the flow has succeeded. Given that we only
-        # emit events when the flow succeeds, we can piggy back on this decorator
+        # emit events when the task succeeds, we can piggy back on this decorator
         # hook which is guaranteed to execute only after rest of the task has
         # finished execution.
-        if step_name == "end" and self.attributes["auto-emit-argo-events"]:
-            # Auto generated flow level events have the same name as the Argo Workflow
-            # Template that emitted them (which includes project/branch information).
-            name = self.argo_workflow_template
-            pathspec = "%s/%s" % (flow.name, self.run_id)
-
-            event = ArgoEvent(name=name)
-            event.add_to_payload("pathspec", "%s/%s" % (flow.name, self.run_id))
+        if self.attributes["auto-emit-argo-events"]:
+            event = ArgoEvent(name=flow.name)
+            event.add_to_payload("pathspec", current.pathspec)
             event.add_to_payload("flow_name", flow.name)
             event.add_to_payload("run_id", self.run_id)
+            event.add_to_payload("step_name", step_name)
+            event.add_to_payload("task_id", self.task_id)
             # Add @project decorator related fields. These are used to subset
             # @trigger_on_finish related filters.
             for key in (
@@ -101,5 +98,5 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
                     event.add_to_payload(key, current.get(key))
             event.add_to_payload("auto-generated-by-metaflow", True)
             event.add_to_payload("timestamp", int(time.time()))
-            # TODO: Add more fields
+            # Add more fields here...
             event.publish()

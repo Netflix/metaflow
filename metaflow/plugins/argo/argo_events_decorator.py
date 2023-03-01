@@ -22,7 +22,10 @@ class ArgoEventsDecorator(FlowDecorator):
     defaults = {
         "event": None,
         "events": [],
+        "options": {} # TODO: introduce support for options
     }
+
+    # TODO: Ensure that step-functions and airflow throw a nice unsupported error
 
     def flow_init(
         self, flow, graph, environment, flow_datastore, metadata, logger, echo, options

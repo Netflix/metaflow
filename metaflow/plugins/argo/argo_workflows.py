@@ -1078,6 +1078,12 @@ class ArgoWorkflows(object):
         # At the moment, there is parity between the labels and annotations for
         # workflow templates and sensors - that may or may not be the case in the
         # future.
+        #
+        # Unfortunately, there doesn't seem to be a way to create a sensor filter
+        # where one (or more) fields across multiple events have the same value. 
+        # Imagine a scenario where we want to trigger a flow iff both the dependent
+        # events agree on the same date field. Unfortunately, there isn't any way in
+        # Argo Events (as of mar'23) to ensure that.
 
         has_trigger = self.flow._flow_decorators.get("trigger") is not None
         # Nothing to do here - let's short circuit and exit.
@@ -1127,6 +1133,8 @@ class ArgoWorkflows(object):
                 .replicas(1)
                 # TODO: Support revision history limit to manage old deployments
                 # .revision_history_limit(...)
+                # TODO: Make this configurable before release
+                # .event_bus_name(...)
                 # Workflow trigger.
                 .trigger(
                     Trigger().template(
@@ -1197,6 +1205,7 @@ class ArgoWorkflows(object):
                 .dependencies(
                     EventDependency(event["name"])
                     .event_name("event")
+                    # TODO: Make this configurable
                     .event_source_name("metaflow-webhook")
                     .filters(
                         # Ensure that event name matches and all parameter fields are
