@@ -55,7 +55,11 @@ def cli():
     default=None,
     type=str,
     help="Argo Workflow name. The flow name is used instead if "
-    "this option is not specified",
+    "this option is not specified. If this option is specified, "
+    "then any downstream workflows that need to depend on this "
+    "workflow via Argo Events should explicitly depend on the "
+    "event that matches to specified name (@trigger(event=...)) "
+    "rather than the flow (@trigger(flow=...)).",
 )
 @click.pass_obj
 def argo_workflows(obj, name=None):
@@ -131,7 +135,7 @@ def argo_workflows(obj, name=None):
 )
 @click.option(
     "--auto-emit-argo-events/--no-auto-emit-argo-events",
-    default=False,
+    default=True,  # TODO: Default to a value from config
     show_default=True,
     help="Auto emits Argo Events when the run completes successfully",
 )
@@ -147,7 +151,7 @@ def create(
     max_workers=None,
     workflow_timeout=None,
     workflow_priority=None,
-    auto_emit_argo_events=None,
+    auto_emit_argo_events=False,
 ):
     validate_tags(tags)
 
@@ -179,6 +183,7 @@ def create(
         max_workers,
         workflow_timeout,
         workflow_priority,
+        auto_emit_argo_events,
     )
 
     if only_json:
@@ -203,14 +208,14 @@ def create(
         obj.echo("What will trigger execution of the workflow:", bold=True)
         obj.echo(flow.trigger_explanation(), indent=True)
 
-        # response = ArgoWorkflows.trigger(obj.workflow_name)
-        # run_id = "argo-" + response["metadata"]["name"]
+        response = ArgoWorkflows.trigger(obj.workflow_name)
+        run_id = "argo-" + response["metadata"]["name"]
 
-        # obj.echo(
-        #     "Workflow *{name}* triggered on Argo Workflows "
-        #     "(run-id *{run_id}*).".format(name=obj.workflow_name, run_id=run_id),
-        #     bold=True,
-        # )
+        obj.echo(
+            "Workflow *{name}* triggered on Argo Workflows "
+            "(run-id *{run_id}*).".format(name=obj.workflow_name, run_id=run_id),
+            bold=True,
+        )
 
 
 def check_python_version(obj):
@@ -332,7 +337,15 @@ def resolve_workflow_name(obj, name):
 
 
 def make_flow(
-    obj, token, name, tags, namespace, max_workers, workflow_timeout, workflow_priority
+    obj,
+    token,
+    name,
+    tags,
+    namespace,
+    max_workers,
+    workflow_timeout,
+    workflow_priority,
+    auto_emit_argo_events,
 ):
     # TODO: Make this check less specific to Amazon S3 as we introduce
     #       support for more cloud object stores.
@@ -378,6 +391,7 @@ def make_flow(
         username=get_username(),
         workflow_timeout=workflow_timeout,
         workflow_priority=workflow_priority,
+        auto_emit_argo_events=auto_emit_argo_events,
     )
 
 

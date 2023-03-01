@@ -14,7 +14,6 @@ from metaflow.util import is_stringish
 #       the interface stays consistent for a similar implementation for AWS Step
 #       Functions and Airflow.
 class ArgoEventsDecorator(FlowDecorator):
-
     name = "trigger"
     defaults = {
         # TODO (savin): Introduce support for flow-dependencies.

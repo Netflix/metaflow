@@ -78,6 +78,7 @@ class ArgoWorkflows(object):
         max_workers=None,
         workflow_timeout=None,
         workflow_priority=None,
+        auto_emit_argo_events=False,
     ):
         # Some high-level notes -
         #
@@ -120,6 +121,7 @@ class ArgoWorkflows(object):
         self.max_workers = max_workers
         self.workflow_timeout = workflow_timeout
         self.workflow_priority = workflow_priority
+        self.auto_emit_argo_events = auto_emit_argo_events
 
         self.parameters = self._process_parameters()
         self._schedule, self._timezone = self._get_schedule()
@@ -685,7 +687,8 @@ class ArgoWorkflows(object):
                 "--event-logger=%s" % self.event_logger.TYPE,
                 "--monitor=%s" % self.monitor.TYPE,
                 "--no-pylint",
-                "--with=argo_workflows_internal",
+                "--with=argo_workflows_internal:auto-emit-argo-events=%s"
+                % self.auto_emit_argo_events,
             ]
 
             if node.name == "start":

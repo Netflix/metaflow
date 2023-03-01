@@ -4,9 +4,13 @@ import os
 from metaflow.decorators import StepDecorator
 from metaflow.metadata import MetaDatum
 
+from .argo_events import ArgoEvent
+
 
 class ArgoWorkflowsInternalDecorator(StepDecorator):
     name = "argo_workflows_internal"
+
+    defaults = {"auto-emit-argo-events": True}
 
     def task_pre_step(
         self,
@@ -23,6 +27,9 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
         inputs,
     ):
         self.task_id = task_id
+        self.run_id = run_id
+        self.argo_workflow_template = os.environ["ARGO_WORKFLOW_TEMPLATE"]
+
         meta = {}
         meta["argo-workflow-template"] = os.environ["ARGO_WORKFLOW_TEMPLATE"]
         meta["argo-workflow-name"] = os.environ["ARGO_WORKFLOW_NAME"]
@@ -64,3 +71,19 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
         # by the next task here.
         with open("/mnt/out/task_id", "w") as file:
             file.write(self.task_id)
+
+        # Emit Argo Events given that the flow has succeeded. Given that we only
+        # emit events when the flow succeeds, we can piggy back on this decorator
+        # hook which is guaranteed to execute only after rest of the task has
+        # finished execution.
+        if step_name == "end" and self.attributes["auto-emit-argo-events"]:
+            # Auto generated flow level events have the same name as the Argo Workflow
+            # Template that emitted them (which includes project/branch information).
+            name = self.argo_workflow_template
+            pathspec = "%s/%s" % (flow.name, self.run_id)
+
+            event = ArgoEvent(name=name)
+            event.add_to_payload("pathspec", "%s/%s" % (flow.name, self.run_id))
+            event.add_to_payload("auto-generated-by-metaflow", True)
+            # TODO: Add more fields
+            event.publish()
