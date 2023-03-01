@@ -96,6 +96,8 @@ DATATOOLS_S3ROOT = from_conf(
     else None,
 )
 
+TEMPDIR = from_conf("TEMPDIR", ".")
+
 DATATOOLS_CLIENT_PARAMS = from_conf("DATATOOLS_CLIENT_PARAMS", {})
 if S3_ENDPOINT_URL:
     DATATOOLS_CLIENT_PARAMS["endpoint_url"] = S3_ENDPOINT_URL

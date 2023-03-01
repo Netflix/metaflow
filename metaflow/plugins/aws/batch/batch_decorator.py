@@ -67,9 +67,16 @@ class BatchDecorator(StepDecorator):
         A swappiness value of 0 causes swapping not to happen unless absolutely
         necessary. A swappiness value of 100 causes pages to be swapped very
         aggressively. Accepted values are whole numbers between 0 and 100.
-    tmpfs: int, optional
-        The value for the size (in MiB) of the tmpfs mount at /scratch for this step.
-        This parameter maps to the `--tmpfs` option in Docker.
+    use_tmpfs: bool, default: False
+        This enables an explicit tmpfs mount for this step.
+    tmpfs_tempdir: bool, default: True
+        sets METAFLOW_TEMPDIR to tmpfs_path if set for this step.
+    tmpfs_size: int, optional
+        The value for the size (in MiB) of the tmpfs mount for this step.
+        This parameter maps to the `--tmpfs` option in Docker. Defaults to 50% of the
+        memory allocated for this step.
+    tmpfs_path: string, optional
+        Path to tmpfs mount for this step. Defaults to /metaflow_temp.
     inferentia : int, default: 0
         Number of Inferentia chips required for this step.
     """
@@ -88,7 +95,10 @@ class BatchDecorator(StepDecorator):
         "swappiness": None,
         "inferentia": None,
         "host_volumes": None,
-        "tmpfs": None,
+        "use_tmpfs": False,
+        "tmpfs_tempdir": True,
+        "tmpfs_size": None,
+        "tmpfs_path": "/metaflow_temp",
     }
     resource_defaults = {
         "cpu": "1",

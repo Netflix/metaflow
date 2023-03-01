@@ -17,6 +17,7 @@ from metaflow.metaflow_config import (
     DATATOOLS_S3ROOT,
     S3_RETRY_COUNT,
     S3_TRANSIENT_RETRY_COUNT,
+    TEMPDIR,
 )
 from metaflow.util import (
     namedtuple_with_defaults,
@@ -142,7 +143,6 @@ class S3Object(object):
         range_info: Optional[RangeInfo] = None,
         last_modified: int = None,
     ):
-
         # all fields of S3Object should return a unicode object
         prefix, url, path = map(ensure_unicode, (prefix, url, path))
 
@@ -481,7 +481,7 @@ class S3(object):
 
     def __init__(
         self,
-        tmproot: str = ".",
+        tmproot: str = TEMPDIR,
         bucket: Optional[str] = None,
         prefix: Optional[str] = None,
         run: Optional[Union[FlowSpec, "Run"]] = None,
