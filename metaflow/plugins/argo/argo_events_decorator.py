@@ -28,7 +28,7 @@ class ArgoEventsDecorator(FlowDecorator):
     ):
         # TODO: Fix up all error messages so that they pretty print nicely.
         # TODO: Check if parameters indeed exist for the mapping.
-        self.events = []
+        self.triggers = []
         if sum(map(bool, (self.attributes["event"], self.attributes["events"]))) > 1:
             raise MetaflowException(
                 "Specify only one of *event* or *events* "
@@ -40,13 +40,13 @@ class ArgoEventsDecorator(FlowDecorator):
             #     2. event={'name': 'table.prod_db.members',
             #               'parameters': {'alpha': 'member_weight'}}
             if is_stringish(self.attributes["event"]):
-                self.events.append({"name": str(self.attributes["event"])})
+                self.triggers.append({"name": str(self.attributes["event"])})
             elif isinstance(self.attributes["event"], dict):
                 if "name" not in dict(self.attributes["event"]):
                     raise MetaflowException(
                         "The *event* attribute for *@trigger* is missing the *name* key."
                     )
-                self.events.append(dict(self.attributes["event"]))
+                self.triggers.append(dict(self.attributes["event"]))
             else:
                 raise MetaflowException(
                     "Incorrect format for *event* attribute in *@trigger* decorator. "
@@ -64,18 +64,18 @@ class ArgoEventsDecorator(FlowDecorator):
             #               'parameters': {'beta': 'grade'}}]
             if is_stringish(self.attributes["events"]):
                 for event in str(self.attributes["events"]).split(" AND "):
-                    self.events.append({"name": event})
+                    self.triggers.append({"name": event})
             elif isinstance(self.attributes["events"], list):
                 for event in self.attributes["events"]:
                     if is_stringish(event) and str(event).upper() != "AND":
-                        self.events.append({"name": str(event)})
+                        self.triggers.append({"name": str(event)})
                     elif isinstance(event, dict):
                         if "name" not in dict(event):
                             raise MetaflowException(
                                 "One or more events in *events* attribute for "
                                 "*@trigger* are missing the *name* key."
                             )
-                        self.events.append(dict(event))
+                        self.triggers.append(dict(event))
                     else:
                         raise MetaflowException(
                             "One or more events in *events* attribute in *@trigger* "
@@ -86,7 +86,7 @@ class ArgoEventsDecorator(FlowDecorator):
                             "'beta'}},  'AND', {'name': 'bar', 'parameters': "
                             "{'gamma': 'kappa'}}])"
                         )
-                # TODO: Check that parameters don't conflict
+                # TODO: Check that parameters don't conflict and are present in flow.
             else:
                 raise MetaflowException(
                     "Incorrect format for *events* attribute in *@trigger* decorator. "
@@ -96,7 +96,7 @@ class ArgoEventsDecorator(FlowDecorator):
                     "'beta'}},  'AND', {'name': 'bar', 'parameters': "
                     "{'gamma': 'kappa'}}])"
                 )
-        if not self.events:
+        if not self.triggers:
             raise MetaflowException("No event(s) specified in *@trigger* decorator.")
 
 
@@ -104,11 +104,52 @@ class TriggerOnFinishDecorator(FlowDecorator):
     name = "trigger_on_finish"
     defaults = {"flow": None, "branch": None, "project": None, "flows": []}
 
-    # def flow_init(
-    #     self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
-    # ):
-    #     self.events = []
-    #     if sum(map(bool, (self.attributes["flow"], self.attributes["flows"]))) > 1:
-    #         raise MetaflowException("Specify only one of *flow* or *flows* "
-    #             "attributes in *@trigger_on_finish* decorator.")
-    #     elif self.attributes["flow"]:
+    # TODO: figure out a way to depend on flow without any project/branch decorator
+
+    def flow_init(
+        self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
+    ):
+        self.triggers = []
+        if sum(map(bool, (self.attributes["flow"], self.attributes["flows"]))) > 1:
+            raise MetaflowException(
+                "Specify only one of *flow* or *flows* "
+                "attributes in *@trigger_on_finish* decorator."
+            )
+        elif self.attributes["flow"]:
+            list(
+                filter(
+                    lambda item: item is not None,
+                    [
+                        "metaflow",
+                        self.attributes.get("project", current.get("project_name")),
+                        self.attributes.get("branch", current.get("branch_name")),
+                        self.attributes["flow"],
+                    ],
+                )
+            )
+            self.triggers.append(
+                # Trigger on metaflow.project.branch.flow.end event
+                {
+                    "name": ".".join(
+                        list(
+                            filter(
+                                lambda item: item is not None,
+                                [
+                                    "metaflow",
+                                    self.attributes.get(
+                                        "project", current.get("project_name")
+                                    ),
+                                    self.attributes.get(
+                                        "branch", current.get("branch_name")
+                                    ),
+                                    self.attributes["flow"],
+                                    "end",
+                                ],
+                            )
+                        )
+                    ),
+                    "filters": {
+                        "auto-generated-by-metaflow": True,
+                    },
+                }
+            )

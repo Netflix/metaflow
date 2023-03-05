@@ -35,15 +35,20 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
         meta = {}
 
         # Expose event triggering metadata through current singleton
+        events = []
         if flow._flow_decorators.get("trigger"):
+            events.extend(flow._flow_decorators.get("trigger")[0].triggers)
+        if flow._flow_decorators.get("trigger_on_finish"):
+            events.extend(flow._flow_decorators.get("trigger_on_finish")[0].triggers)
+        if events:
             # TODO: Introduce MetaflowTrigger instead of trigger dict
             trigger = {}
-            for event in flow._flow_decorators.get("trigger")[0].events:
+            for event in events:
                 payload = os.environ.get("METAFLOW_ARGO_EVENT_%s" % event["name"])
                 if payload and payload != "null":  # Argo-Workflow's None
                     try:
                         payload = json.loads(payload)
-                    except (TypeError, ValueError):
+                    except (TypeError, ValueError) as e:
                         payload = {}
                     trigger[event["name"]] = MetaflowEvent(
                         **{
@@ -111,9 +116,11 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
         # finished execution.
 
         if self.attributes["auto-emit-argo-events"]:
-            # Event name is set to flow name. The expectation is that every downstream
-            # consumer will primarily filter on flow name or flow name & step name.
-            event = ArgoEvent(name=flow.name)
+            # Event name is set to metaflow.project.branch.flow.step
+            event = ArgoEvent(
+                name="metaflow.%s.%s"
+                % (current.get("project_flow_name", flow.name), step_name)
+            )
             event.add_to_payload("pathspec", current.pathspec)
             event.add_to_payload("flow_name", flow.name)
             event.add_to_payload("run_id", self.run_id)

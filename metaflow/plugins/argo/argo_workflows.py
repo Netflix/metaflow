@@ -1,8 +1,10 @@
+import base64
 import json
 import os
 import shlex
 import sys
 from collections import defaultdict
+from hashlib import sha1
 
 from metaflow import current
 from metaflow.decorators import flow_decorators
@@ -32,7 +34,13 @@ from metaflow.metaflow_config import (
 )
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
-from metaflow.util import compress_list, dict_to_cli_options, to_camelcase
+from metaflow.util import (
+    compress_list,
+    dict_to_cli_options,
+    to_bytes,
+    to_camelcase,
+    to_unicode,
+)
 
 from .argo_client import ArgoClient
 
@@ -124,6 +132,7 @@ class ArgoWorkflows(object):
         self.auto_emit_argo_events = auto_emit_argo_events
 
         self.parameters = self._process_parameters()
+        self.triggers = self._process_event_triggers()
         self._schedule, self._timezone = self._get_schedule()
 
         self._workflow_template = self._compile_workflow_template()
@@ -276,6 +285,23 @@ class ArgoWorkflows(object):
             )
         return parameters
 
+    def _process_event_triggers(self):
+        triggers = []
+        if self.flow._flow_decorators.get("trigger"):
+            triggers.extend(self.flow._flow_decorators.get("trigger")[0].triggers)
+        if self.flow._flow_decorators.get("trigger_on_finish"):
+            triggers.extend(
+                self.flow._flow_decorators.get("trigger_on_finish")[0].triggers
+            )
+        for event in triggers:
+            event["sanitized_name"] = "%s_%s" % (
+                event["name"].replace(".", "_").replace("-", "_"),
+                to_unicode(base64.b32encode(sha1(to_bytes(event["name"])).digest()))[
+                    :4
+                ].lower(),
+            )
+        return triggers
+
     def _compile_workflow_template(self):
         # This method compiles a Metaflow FlowSpec into Argo WorkflowTemplate
         #
@@ -384,15 +410,12 @@ class ArgoWorkflows(object):
                         + [
                             # Introduce non-required parameters for argo events so
                             # that the entire event payload can be accessed within the
-                            # run. The parameter name starts with 0 that ensures that
+                            # run. The parameter name is hashed to ensure that
                             # there won't be any collisions with Metaflow parameters.
-                            Parameter("0%s" % event["name"])
+                            Parameter(event["sanitized_name"])
                             .value(json.dumps(None))  # None in Argo Workflows world.
                             .description("auto-set by metaflow. safe to ignore.")
-                            for event in self.flow._flow_decorators.get("trigger")[
-                                0
-                            ].events
-                            if self.flow._flow_decorators.get("trigger")
+                            for event in self.triggers
                         ]
                     )
                 )
@@ -868,10 +891,10 @@ class ArgoWorkflows(object):
             env["METAFLOW_CARD_GSROOT"] = CARD_GSROOT
 
             # Map Argo Events payload (if any) to environment variables
-            if self.flow._flow_decorators.get("trigger"):
-                for event in self.flow._flow_decorators.get("trigger")[0].events:
+            if self.triggers:
+                for event in self.triggers:
                     env["METAFLOW_ARGO_EVENT_%s" % event["name"]] = (
-                        "{{workflow.parameters.0%s}}" % event["name"]
+                        "{{workflow.parameters.%s}}" % event["sanitized_name"]
                     )
 
             metaflow_version = self.environment.get_environment_info()
@@ -1108,12 +1131,9 @@ class ArgoWorkflows(object):
         # events agree on the same date field. Unfortunately, there isn't any way in
         # Argo Events (as of mar'23) to ensure that.
 
-        has_trigger = self.flow._flow_decorators.get("trigger") is not None
         # Nothing to do here - let's short circuit and exit.
-        if not has_trigger:
+        if not self.triggers:
             return {}
-
-        events = self.flow._flow_decorators.get("trigger")[0].events
 
         labels = {"app.kubernetes.io/part-of": "metaflow"}
 
@@ -1184,10 +1204,10 @@ class ArgoWorkflows(object):
                                                 ]
                                                 # Also consume event data
                                                 + [
-                                                    Parameter("0%s" % event["name"])
+                                                    Parameter(event["sanitized_name"])
                                                     .value(json.dumps(None))
                                                     .to_json()
-                                                    for event in events
+                                                    for event in self.triggers
                                                 ]
                                             },
                                             "workflowTemplateRef": {
@@ -1204,7 +1224,7 @@ class ArgoWorkflows(object):
                                         list(
                                             TriggerParameter()
                                             .src(
-                                                dependency_name=event["name"],
+                                                dependency_name=event["sanitized_name"],
                                                 data_key="body.payload.%s" % v,
                                                 # Unfortunately the sensor needs to
                                                 # record the default values for
@@ -1226,7 +1246,7 @@ class ArgoWorkflows(object):
                                                 "parameters", {}
                                             ).items()
                                         )
-                                        for event in events
+                                        for event in self.triggers
                                     )
                                     for y in x
                                 ]
@@ -1234,15 +1254,15 @@ class ArgoWorkflows(object):
                                     # Map event payload to parameters for current
                                     TriggerParameter()
                                     .src(
-                                        dependency_name=event["name"],
+                                        dependency_name=event["sanitized_name"],
                                         data_key="body.payload",
                                         value=json.dumps(None),
                                     )
                                     .dest(
-                                        "spec.arguments.parameters.#(name=0%s).value"
-                                        % event["name"]
+                                        "spec.arguments.parameters.#(name=%s).value"
+                                        % event["sanitized_name"]
                                     )
-                                    for event in events
+                                    for event in self.triggers
                                 ]
                             )
                         )
@@ -1250,7 +1270,8 @@ class ArgoWorkflows(object):
                 )
                 # Event dependencies
                 .dependencies(
-                    EventDependency(event["name"]).event_name("event")
+                    # Event dependencies don't entertain dots
+                    EventDependency(event["sanitized_name"]).event_name("event")
                     # TODO: Make this configurable
                     .event_source_name("metaflow-webhook").filters(
                         # Ensure that event name matches and all required parameter
@@ -1271,18 +1292,31 @@ class ArgoWorkflows(object):
                                     "fields": [
                                         {
                                             "name": "field",
-                                            "path": "body.payload.%s" % k,
+                                            "path": "body.payload.%s" % v,
                                         }
                                     ],
                                 }
-                                for parameter_name, _ in event.get(
+                                for parameter_name, v in event.get(
                                     "parameters", {}
                                 ).items()
                                 if self.parameters[parameter_name]["is_required"]
                             ]
+                            + [
+                                {
+                                    "expr": "field == '%s'" % v,  # trigger_on_finish
+                                    "fields": [
+                                        {
+                                            "name": "field",
+                                            "path": "body.payload.%s" % filter_key,
+                                        }
+                                    ],
+                                }
+                                for filter_key, v in event.get("filters", {}).items()
+                                if v
+                            ]
                         )
                     )
-                    for event in events
+                    for event in self.triggers
                 )
             )
         )
