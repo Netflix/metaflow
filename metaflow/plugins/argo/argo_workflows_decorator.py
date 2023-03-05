@@ -61,7 +61,7 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
                     )
             if trigger:
                 current._update_env({"trigger": trigger})
-                # _asdict happens to be documented method for namedtuples
+                # _asdict happens to be documented method for namedtuples.
                 # Luckily there aren't many events for us to be concerned about the
                 # size of the metadata field yet! However we don't really need this
                 # metadata outside of the start step so we can save a few bytes in the
@@ -121,6 +121,8 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
                 name="metaflow.%s.%s"
                 % (current.get("project_flow_name", flow.name), step_name)
             )
+            # There should only be one event generated even when the task is retried.
+            event.add_to_payload("id", current.pathspec)
             event.add_to_payload("pathspec", current.pathspec)
             event.add_to_payload("flow_name", flow.name)
             event.add_to_payload("run_id", self.run_id)

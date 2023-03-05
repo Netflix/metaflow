@@ -150,6 +150,7 @@ class TriggerOnFinishDecorator(FlowDecorator):
                     ),
                     "filters": {
                         "auto-generated-by-metaflow": True,
+                        # TODO: Add a time based filter to guard against cached events
                     },
                 }
             )
