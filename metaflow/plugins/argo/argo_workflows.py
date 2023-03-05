@@ -1253,7 +1253,7 @@ class ArgoWorkflows(object):
                     EventDependency(event["name"]).event_name("event")
                     # TODO: Make this configurable
                     .event_source_name("metaflow-webhook").filters(
-                        # Ensure that event name matches and all required parameter 
+                        # Ensure that event name matches and all required parameter
                         # fields are present in the payload. There is a possibility of
                         # dependency on an event where none of the fields are required.
                         # At the moment, this event is required but the restriction

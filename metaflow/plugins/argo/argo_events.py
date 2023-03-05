@@ -3,8 +3,8 @@ import os
 import sys
 import time
 import urllib
-from datetime import datetime
 import uuid
+from datetime import datetime
 
 from metaflow.exception import MetaflowException
 
