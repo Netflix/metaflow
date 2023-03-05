@@ -4,7 +4,7 @@ import time
 
 from metaflow import current
 from metaflow.decorators import StepDecorator
-from metaflow.events import MetaflowEvent
+from metaflow.events import MetaflowTrigger
 from metaflow.metadata import MetaDatum
 
 from .argo_events import ArgoEvent
@@ -42,7 +42,7 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
             events.extend(flow._flow_decorators.get("trigger_on_finish")[0].triggers)
         if events:
             # TODO: Introduce MetaflowTrigger instead of trigger dict
-            trigger = {}
+            triggers = []
             for event in events:
                 payload = os.environ.get("METAFLOW_ARGO_EVENT_%s" % event["name"])
                 if payload and payload != "null":  # Argo-Workflow's None
@@ -50,26 +50,23 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
                         payload = json.loads(payload)
                     except (TypeError, ValueError) as e:
                         payload = {}
-                    trigger[event["name"]] = MetaflowEvent(
-                        **{
+                    triggers.append(
+                        {
                             "timestamp": payload.get("timestamp"),
                             "id": payload.get("id"),
                             "name": event["name"],
-                            "type": "argo-events"
+                            "type": event["type"]
                             # Add more event metadata here
                         }
                     )
-            if trigger:
-                current._update_env({"trigger": trigger})
-                # _asdict happens to be documented method for namedtuples.
+            if triggers:
+                current._update_env({"triggers": MetaflowTrigger(triggers)})
                 # Luckily there aren't many events for us to be concerned about the
                 # size of the metadata field yet! However we don't really need this
                 # metadata outside of the start step so we can save a few bytes in the
                 # db.
                 if step_name == "start":
-                    meta["triggering-events"] = json.dumps(
-                        dict((k, v._asdict()) for k, v in trigger.items())
-                    )
+                    meta["execution-triggers"] = json.dumps(triggers)
 
         meta["argo-workflow-template"] = os.environ["ARGO_WORKFLOW_TEMPLATE"]
         meta["argo-workflow-name"] = os.environ["ARGO_WORKFLOW_NAME"]

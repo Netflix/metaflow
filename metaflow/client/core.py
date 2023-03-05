@@ -1,37 +1,30 @@
 from __future__ import print_function
-from datetime import datetime
+
+import json
 import os
 import tarfile
-import json
-from io import BytesIO
 from collections import namedtuple
+from datetime import datetime
+from io import BytesIO
 from itertools import chain
-from typing import (
-    Any,
-    Dict,
-    FrozenSet,
-    Iterable,
-    List,
-    Optional,
-    Tuple,
-)
+from typing import Any, Dict, FrozenSet, Iterable, List, Optional, Tuple
 
-from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.current import current
+from metaflow.events import MetaflowTrigger
 from metaflow.exception import (
-    MetaflowNotFound,
-    MetaflowNamespaceMismatch,
     MetaflowInternalError,
     MetaflowInvalidPathspec,
-)
+    MetaflowNamespaceMismatch,
+    MetaflowNotFound )
 from metaflow.includefile import IncludedFile
 from metaflow.metaflow_config import DEFAULT_METADATA, MAX_ATTEMPTS
+from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.plugins import ENVIRONMENTS, METADATA_PROVIDERS
 from metaflow.unbounded_foreach import CONTROL_TASK_TAG
-from metaflow.util import cached_property, resolve_identity, to_unicode, is_stringish
+from metaflow.util import cached_property, is_stringish, resolve_identity, to_unicode
 
-from .filecache import FileCache
 from .. import INFO_FILE
+from .filecache import FileCache
 
 try:
     # python2
@@ -1900,6 +1893,13 @@ class Run(MetaflowObject):
         # refresh Run object with the latest tags
         self._user_tags = frozenset(final_user_tags)
         self._tags = frozenset([*self._user_tags, *self._system_tags])
+
+    @property
+    def trigger(self):
+        if "start" in self:
+            _meta = self["start"].task.metadata_dict.get("execution-triggers")
+            if _meta:
+                return MetaflowTrigger(json.loads(_meta))
 
 
 class Flow(MetaflowObject):

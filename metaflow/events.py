@@ -1,3 +1,127 @@
 from collections import namedtuple
+from collections.abc import Mapping
+from itertools import groupby
 
 MetaflowEvent = namedtuple("MetaflowEvent", ["name", "id", "timestamp", "type"])
+
+
+class MetaflowTrigger(object):
+    def __init__(self, _meta=[]):
+        self._meta = _meta
+
+    @property
+    def event(self):
+        """
+        Returns a `MetaflowEvent` object corresponding to the triggering event. If multiple events triggered the run, returns None - use `events` instead.
+        """
+        return self.events[0] if self.events and len(self.events) == 1 else None
+
+    @property
+    def events(self):
+        """
+        Returns a list of `MetaflowEvent` objects correspondings to all the triggering events.
+        """
+        return [
+            MetaflowEvent(**obj)
+            for obj in filter(lambda x: x.get("type") in ["event"], self._meta)
+        ] or None
+
+    @property
+    def run(self):
+        """
+        If the triggering event is a Metaflow run, returns the corresponding `Run` object. `None` if the event is not a `Run` or multiple events are present.
+        """
+        return self.runs[0] if self.runs and len(self.runs) == 1 else None
+
+    @property
+    def runs(self):
+        """
+        If the triggering events correspond to Metaflow runs, returns a list of `Run` objects. Otherwise returns `None`.
+        """
+        # to avoid circular import
+        from metaflow import Run
+
+        # TODO: Should I be able to access Run objects outside the namespace?
+        return [
+            Run(obj["id"][: obj["id"].index("/", obj["id"].index("/") + 1)])
+            for obj in filter(lambda x: x.get("type") in ["run"], self._meta)
+        ] or None
+
+    @property
+    def data(self):
+        """
+        A shorthand for `trigger.run.data`, except lazy-loads only the artifacts accessed instead of loading all of them as `run.data` does.
+        """
+        run = self.run
+        if run:
+            return LazyDataArtifactProxy(run.end_task)
+
+    @property
+    def type(self):
+        """
+        Return trigger type: `RUN`, `MANY-RUNS` (and), `EVENT`, `MANY-EVENTS` (and).
+        """
+        _counts = {
+            k: len(list(v))
+            for k, v in groupby(
+                sorted(
+                    list(
+                        filter(lambda x: x.get("type") in ["event", "run"], self._meta)
+                    ),
+                    key=lambda x: x["type"],
+                ),
+                key=lambda x: x["type"],
+            )
+        }
+        # Mixing runs and events is disallowed.
+        if _counts.get("run"):
+            if _counts.get("run") > 1:
+                return "MANY-RUNS"
+            return "RUN"
+        if _counts.get("event"):
+            if _counts.get("event") > 1:
+                return "MANY-EVENTS"
+            return "EVENT"
+
+    def __getitem__(self, key):
+        """
+        If triggering events are runs, `key` corresponds to the flow name of the triggering run. Returns a triggering `Run` object corresponding to the key. If triggering events are not runs, `key` corresponds to the event name and a `MetaflowEvent` object is returned.
+        """
+        if self.type in ("RUN", "MANY-RUNS", "ONE-OF-RUNS"):
+            for run in self.runs:
+                if run.path_components[0] == key:
+                    return run
+        elif self.type in ("EVENT", "MANY-EVENTS", "ONE-OF-EVENTS"):
+            for event in self.events:
+                if event.name == key:
+                    return event
+        else:
+            return None
+
+
+class LazyDataArtifactProxy(Mapping):
+    __slots__ = ("task",)
+
+    def __init__(self, task):
+        self.task = task
+
+    def __getitem__(self, key):
+        return self.task[key].data
+
+    def __iter__(self):
+        return iter(self.task)
+
+    def __len__(self):
+        return len(self.task)
+
+
+if __name__ == "__main__":
+    foo = MetaflowTrigger(
+        [
+            {"name": "foo", "id": "1", "timestamp": 2000, "type": "evsent"},
+            {"name": "baz", "id": "2", "timestamp": 1000, "type": "evsent"},
+            {"name": "bar", "id": "foo/34/bah/23", "timestamp": 1000, "type": "rusn"},
+            {"name": "boz", "id": "bug/23/bun/12", "timestamp": 1000, "type": "rusn"},
+        ]
+    )
+    print(foo.event)

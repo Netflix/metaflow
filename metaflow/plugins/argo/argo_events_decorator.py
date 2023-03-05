@@ -40,13 +40,17 @@ class ArgoEventsDecorator(FlowDecorator):
             #     2. event={'name': 'table.prod_db.members',
             #               'parameters': {'alpha': 'member_weight'}}
             if is_stringish(self.attributes["event"]):
-                self.triggers.append({"name": str(self.attributes["event"])})
+                self.triggers.append(
+                    {"name": str(self.attributes["event"]), "type": "event"}
+                )
             elif isinstance(self.attributes["event"], dict):
                 if "name" not in dict(self.attributes["event"]):
                     raise MetaflowException(
                         "The *event* attribute for *@trigger* is missing the *name* key."
                     )
-                self.triggers.append(dict(self.attributes["event"]))
+                self.triggers.append(
+                    dict(**self.attributes["event"], **{"type": "event"})
+                )
             else:
                 raise MetaflowException(
                     "Incorrect format for *event* attribute in *@trigger* decorator. "
@@ -64,18 +68,18 @@ class ArgoEventsDecorator(FlowDecorator):
             #               'parameters': {'beta': 'grade'}}]
             if is_stringish(self.attributes["events"]):
                 for event in str(self.attributes["events"]).split(" AND "):
-                    self.triggers.append({"name": event})
+                    self.triggers.append({"name": event, "type": "event"})
             elif isinstance(self.attributes["events"], list):
                 for event in self.attributes["events"]:
                     if is_stringish(event) and str(event).upper() != "AND":
-                        self.triggers.append({"name": str(event)})
+                        self.triggers.append({"name": str(event), "type": "event"})
                     elif isinstance(event, dict):
                         if "name" not in dict(event):
                             raise MetaflowException(
                                 "One or more events in *events* attribute for "
                                 "*@trigger* are missing the *name* key."
                             )
-                        self.triggers.append(dict(event))
+                        self.triggers.append(dict(event, **{"type": "event"}))
                     else:
                         raise MetaflowException(
                             "One or more events in *events* attribute in *@trigger* "
@@ -152,5 +156,6 @@ class TriggerOnFinishDecorator(FlowDecorator):
                         "auto-generated-by-metaflow": True,
                         # TODO: Add a time based filter to guard against cached events
                     },
+                    "type": "run",
                 }
             )
