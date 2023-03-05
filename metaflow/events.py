@@ -1,5 +1,6 @@
 from collections import namedtuple
 from collections.abc import Mapping
+from datetime import datetime
 from itertools import groupby
 
 MetaflowEvent = namedtuple("MetaflowEvent", ["name", "id", "timestamp", "type"])
@@ -22,8 +23,23 @@ class MetaflowTrigger(object):
         Returns a list of `MetaflowEvent` objects correspondings to all the triggering events.
         """
         return [
-            MetaflowEvent(**obj)
-            for obj in filter(lambda x: x.get("type") in ["event"], self._meta)
+            MetaflowEvent(
+                **{
+                    **obj,
+                    # Add timestamp as datetime. Guaranteed to exist for Metaflow 
+                    # events - best effort for everything else.
+                    **(
+                        {"timestamp": datetime.fromtimestamp(obj["timestamp"])}
+                        if obj.get("timestamp")
+                        and isinstance(obj.get("timestamp"), int)
+                        else {}
+                    ),
+                }
+            )
+            for obj in filter(
+                lambda x: x.get("type") in ["event"],
+                self._meta,
+            )
         ] or None
 
     @property
@@ -44,7 +60,10 @@ class MetaflowTrigger(object):
         # TODO: Should I be able to access Run objects outside the namespace?
         return [
             Run(obj["id"][: obj["id"].index("/", obj["id"].index("/") + 1)])
-            for obj in filter(lambda x: x.get("type") in ["run"], self._meta)
+            for obj in filter(
+                lambda x: x.get("type") in ["run"],
+                self._meta,
+            )
         ] or None
 
     @property

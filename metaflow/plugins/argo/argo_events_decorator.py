@@ -23,8 +23,6 @@ class ArgoEventsDecorator(FlowDecorator):
     def flow_init(
         self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
     ):
-        # TODO: Fix up all error messages so that they pretty print nicely.
-        # TODO: Check if parameters indeed exist for the mapping.
         self.triggers = []
         if sum(map(bool, (self.attributes["event"], self.attributes["events"]))) > 1:
             raise MetaflowException(
@@ -87,7 +85,6 @@ class ArgoEventsDecorator(FlowDecorator):
                             "'beta'}},  'AND', {'name': 'bar', 'parameters': "
                             "{'gamma': 'kappa'}}])"
                         )
-                # TODO: Check that parameters don't conflict and are present in flow.
             else:
                 raise MetaflowException(
                     "Incorrect format for *events* attribute in *@trigger* decorator. "
@@ -97,8 +94,38 @@ class ArgoEventsDecorator(FlowDecorator):
                     "'beta'}},  'AND', {'name': 'bar', 'parameters': "
                     "{'gamma': 'kappa'}}])"
                 )
+
         if not self.triggers:
             raise MetaflowException("No event(s) specified in *@trigger* decorator.")
+
+        # same event shouldn't occur more than once
+        names = [x["name"] for x in self.triggers]
+        if len(names) != len(set(names)):
+            raise MetaflowException(
+                "Duplicate event names defined in *@trigger* decorator."
+            )
+
+        # parameters are not duplicated, and exist in the flow.
+        # additionally, convert them to lower case since metaflow parameters are
+        # case insensitive.
+        seen = set()
+        params = set([param.name.lower() for var, param in flow._get_parameters()])
+        for event in self.triggers:
+            parameters = {}
+            for key, value in event.get("parameters", {}).items():
+                if key.lower() not in params:
+                    raise MetaflowException(
+                        "Parameter *%s* defined in the event mappings for *@trigger* decorator not found in the flow."
+                        % key
+                    )
+                if key.lower() in seen:
+                    raise MetaflowException(
+                        "Duplicate entries for parameter *%s* defined in the event mappings for *@trigger* decorator."
+                        % key.lower()
+                    )
+                seen.add(key.lower())
+                parameters[key.lower()] = value
+            event["parameters"] = parameters
 
 
 class TriggerOnFinishDecorator(FlowDecorator):
