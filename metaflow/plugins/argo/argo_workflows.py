@@ -272,6 +272,7 @@ class ArgoWorkflows(object):
                 description=param.kwargs.get("help"),
                 is_required=is_required,
             )
+
         return parameters
 
     def _compile_workflow_template(self):
@@ -1074,6 +1075,7 @@ class ArgoWorkflows(object):
         #
         #
         # TODO:  1. Ensure sensors are not running in a best effort QoS class.
+        #        2. Ensure that sensors have appropriate resources set.
         #
         # At the moment, there is parity between the labels and annotations for
         # workflow templates and sensors - that may or may not be the case in the
@@ -1175,7 +1177,7 @@ class ArgoWorkflows(object):
                                             TriggerParameter()
                                             .src(
                                                 dependency_name=event["name"],
-                                                data_key="body.payload.%s" % k,
+                                                data_key="body.payload.%s" % v,
                                                 # Unfortunately the sensor needs to
                                                 # record the default values for
                                                 # the parameters - there doesn't
@@ -1186,10 +1188,13 @@ class ArgoWorkflows(object):
                                                 ],
                                             )
                                             .dest(
+                                                # this undocumented (mis?)feature in 
+                                                # argo-events allows us to reference 
+                                                # parameters by name rather than index
                                                 "spec.arguments.parameters.#(name=%s).value"
                                                 % parameter_name
                                             )
-                                            for k, parameter_name in event.get(
+                                            for parameter_name, v in event.get(
                                                 "parameters", {}
                                             ).items()
                                         )
@@ -1225,7 +1230,7 @@ class ArgoWorkflows(object):
                                         }
                                     ],
                                 }
-                                for k, parameter_name in event.get(
+                                for parameter_name, _ in event.get(
                                     "parameters", {}
                                 ).items()
                                 if self.parameters[parameter_name]["is_required"]
