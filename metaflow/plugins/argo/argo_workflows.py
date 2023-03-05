@@ -263,7 +263,9 @@ class ArgoWorkflows(object):
             #               no-default parameter.
             value = deploy_time_eval(param.kwargs.get("default"))
             # If the value is not required and the value is None, we set the value to
-            # the JSON equivalent of None to please argo-workflows.
+            # the JSON equivalent of None to please argo-workflows. Unfortunately it
+            # has the side effect of casting the parameter value to string null during
+            # execution - which needs to be fixed imminently.
             if not is_required or value is not None:
                 value = json.dumps(value)
             parameters[param.name] = dict(
@@ -272,7 +274,6 @@ class ArgoWorkflows(object):
                 description=param.kwargs.get("help"),
                 is_required=is_required,
             )
-
         return parameters
 
     def _compile_workflow_template(self):
@@ -379,6 +380,19 @@ class ArgoWorkflows(object):
                             .description(parameter.get("description"))
                             # TODO: Better handle IncludeFile in Argo Workflows UI.
                             for parameter in self.parameters.values()
+                        ]
+                        + [
+                            # Introduce non-required parameters for argo events so
+                            # that the entire event payload can be accessed within the
+                            # run. The parameter name starts with 0 that ensures that
+                            # there won't be any collisions with Metaflow parameters.
+                            Parameter("0%s" % event["name"])
+                            .value(json.dumps(None))  # None in Argo Workflows world.
+                            .description("auto-set by metaflow. safe to ignore.")
+                            for event in self.flow._flow_decorators.get("trigger")[
+                                0
+                            ].events
+                            if self.flow._flow_decorators.get("trigger")
                         ]
                     )
                 )
@@ -774,8 +788,8 @@ class ArgoWorkflows(object):
             ):
                 raise ArgoWorkflowsException(
                     "Multi-namespace Kubernetes execution of flows in Argo Workflows "
-                    "is not currently supported. \nStep *%s* is trying to override the "
-                    "default Kubernetes namespace *%s*."
+                    "is not currently supported. \nStep *%s* is trying to override "
+                    "the default Kubernetes namespace *%s*."
                     % (node.name, KUBERNETES_NAMESPACE)
                 )
 
@@ -836,22 +850,29 @@ class ArgoWorkflows(object):
             # support Metaflow sandboxes
             env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
 
-            # secrets stuff
+            # support for @secret
             env["METAFLOW_DEFAULT_SECRETS_BACKEND_TYPE"] = DEFAULT_SECRETS_BACKEND_TYPE
             env[
                 "METAFLOW_AWS_SECRETS_MANAGER_DEFAULT_REGION"
             ] = AWS_SECRETS_MANAGER_DEFAULT_REGION
 
-            # Azure stuff
+            # support for Azure
             env[
                 "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
             ] = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
             env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = DATASTORE_SYSROOT_AZURE
             env["METAFLOW_CARD_AZUREROOT"] = CARD_AZUREROOT
 
-            # GCP stuff
+            # support for GCP
             env["METAFLOW_DATASTORE_SYSROOT_GS"] = DATASTORE_SYSROOT_GS
             env["METAFLOW_CARD_GSROOT"] = CARD_GSROOT
+
+            # Map Argo Events payload (if any) to environment variables
+            if self.flow._flow_decorators.get("trigger"):
+                for event in self.flow._flow_decorators.get("trigger")[0].events:
+                    env["METAFLOW_ARGO_EVENT_%s" % event["name"]] = (
+                        "{{workflow.parameters.0%s}}" % event["name"]
+                    )
 
             metaflow_version = self.environment.get_environment_info()
             metaflow_version["flow_name"] = self.graph.name
@@ -1161,6 +1182,13 @@ class ArgoWorkflows(object):
                                                     .to_json()
                                                     for parameter in self.parameters.values()
                                                 ]
+                                                # Also consume event data
+                                                + [
+                                                    Parameter("0%s" % event["name"])
+                                                    .value(json.dumps(None))
+                                                    .to_json()
+                                                    for event in events
+                                                ]
                                             },
                                             "workflowTemplateRef": {
                                                 "name": self.name,
@@ -1188,8 +1216,8 @@ class ArgoWorkflows(object):
                                                 ],
                                             )
                                             .dest(
-                                                # this undocumented (mis?)feature in 
-                                                # argo-events allows us to reference 
+                                                # this undocumented (mis?)feature in
+                                                # argo-events allows us to reference
                                                 # parameters by name rather than index
                                                 "spec.arguments.parameters.#(name=%s).value"
                                                 % parameter_name
@@ -1202,6 +1230,20 @@ class ArgoWorkflows(object):
                                     )
                                     for y in x
                                 ]
+                                + [
+                                    # Map event payload to parameters for current
+                                    TriggerParameter()
+                                    .src(
+                                        dependency_name=event["name"],
+                                        data_key="body.payload",
+                                        value=json.dumps(None),
+                                    )
+                                    .dest(
+                                        "spec.arguments.parameters.#(name=0%s).value"
+                                        % event["name"]
+                                    )
+                                    for event in events
+                                ]
                             )
                         )
                     )
@@ -1211,8 +1253,11 @@ class ArgoWorkflows(object):
                     EventDependency(event["name"]).event_name("event")
                     # TODO: Make this configurable
                     .event_source_name("metaflow-webhook").filters(
-                        # Ensure that event name matches and all parameter fields are
-                        # present in the payload
+                        # Ensure that event name matches and all required parameter 
+                        # fields are present in the payload. There is a possibility of
+                        # dependency on an event where none of the fields are required.
+                        # At the moment, this event is required but the restriction
+                        # can be removed if needed.
                         EventDependencyFilter().exprs(
                             [
                                 {

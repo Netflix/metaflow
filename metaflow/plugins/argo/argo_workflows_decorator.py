@@ -7,6 +7,7 @@ from metaflow.decorators import StepDecorator
 from metaflow.metadata import MetaDatum
 
 from .argo_events import ArgoEvent
+from metaflow.events import MetaflowEvent
 
 
 class ArgoWorkflowsInternalDecorator(StepDecorator):
@@ -47,6 +48,23 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
         # TODO (savin): Also register Argo Events metadata if the flow was triggered
         #               through Argo Events.
         metadata.register_metadata(run_id, step_name, task_id, entries)
+
+        # Expose events through current singleton
+        if flow._flow_decorators.get("trigger"):
+            # TODO: Introduce MetaflowTrigger instead of trigger dict
+            trigger = {}
+            for event in flow._flow_decorators.get("trigger")[0].events:
+                payload = os.environ.get("METAFLOW_ARGO_EVENT_%s" % event["name"])
+                if payload != "null": # Argo-Workflow's None
+                    payload = json.loads(payload)
+                    trigger[event["name"]] = MetaflowEvent(**{
+                        "timestamp": payload.get("timestamp"),
+                        "id": payload.get("id"),
+                        "name": event["name"]
+                        # Add more event metadata here
+                    })
+            if trigger:
+                current._update_env({"trigger": trigger})
 
     def task_finished(
         self, step_name, flow, graph, is_task_ok, retry_count, max_user_code_retries

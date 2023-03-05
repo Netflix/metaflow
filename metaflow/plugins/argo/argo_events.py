@@ -4,6 +4,7 @@ import sys
 import time
 import urllib
 from datetime import datetime
+import uuid
 
 from metaflow.exception import MetaflowException
 
@@ -44,6 +45,7 @@ class ArgoEvent(object):
                             "name": self.name,
                             "payload": {
                                 # Add default fields here...
+                                "id": uuid.uuid4(),
                                 "timestamp": int(time.time()),
                                 "utc_date": datetime.utcnow().strftime("%Y%m%d"),
                                 "generated-by-metaflow": True,

@@ -6,6 +6,9 @@ from metaflow.decorators import FlowDecorator
 from metaflow.exception import MetaflowException
 from metaflow.util import get_username, is_stringish
 
+# TODO: Support dynamic parameter mapping through a context object that exposes
+#       flow name and user name similar to parameter context
+
 
 # TODO: At some point, lift this decorator interface to be a top-level decorator since
 #       the interface stays consistent for a similar implementation for AWS Step
