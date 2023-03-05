@@ -286,6 +286,17 @@ ARGO_WORKFLOWS_KUBERNETES_SECRETS = from_conf("ARGO_WORKFLOWS_KUBERNETES_SECRETS
 ARGO_WORKFLOWS_ENV_VARS_TO_SKIP = from_conf("ARGO_WORKFLOWS_ENV_VARS_TO_SKIP", "")
 
 ##
+# Argo Events Configuration
+##
+ARGO_EVENTS_SERVICE_ACCOUNT = from_conf(
+    "ARGO_EVENTS_SERVICE_ACCOUNT", "operate-workflow-sa"
+)
+ARGO_EVENTS_EVENT_BUS = from_conf("ARGO_EVENTS_EVENT_BUS", "default")
+ARGO_EVENTS_EVENT_SOURCE = from_conf("ARGO_EVENTS_EVENT_SOURCE", "metaflow-webhook")
+ARGO_EVENTS_EVENT = from_conf("ARGO_EVENTS_EVENT", "event")
+
+
+##
 # Airflow Configuration
 ##
 # This configuration sets `startup_timeout_seconds` in airflow's KubernetesPodOperator.

@@ -1,55 +1,53 @@
-from io import BytesIO
 import json
 import os
 import random
 import string
 import sys
 from datetime import datetime, timedelta
-from metaflow.includefile import FilePathClass
+from io import BytesIO
 
 import metaflow.util as util
+from metaflow import current
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
+from metaflow.includefile import FilePathClass
 from metaflow.metaflow_config import (
-    SERVICE_HEADERS,
-    SERVICE_INTERNAL_URL,
-    CARD_S3ROOT,
-    DATASTORE_SYSROOT_S3,
-    DATATOOLS_S3ROOT,
-    KUBERNETES_SERVICE_ACCOUNT,
-    KUBERNETES_SECRETS,
-    AIRFLOW_KUBERNETES_STARTUP_TIMEOUT_SECONDS,
-    AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
-    DATASTORE_SYSROOT_AZURE,
-    CARD_AZUREROOT,
     AIRFLOW_KUBERNETES_CONN_ID,
     AIRFLOW_KUBERNETES_KUBECONFIG_CONTEXT,
     AIRFLOW_KUBERNETES_KUBECONFIG_FILE,
-    DATASTORE_SYSROOT_GS,
-    CARD_GSROOT,
-    DEFAULT_SECRETS_BACKEND_TYPE,
+    AIRFLOW_KUBERNETES_STARTUP_TIMEOUT_SECONDS,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
+    AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
+    CARD_AZUREROOT,
+    CARD_GSROOT,
+    CARD_S3ROOT,
+    DATASTORE_SYSROOT_AZURE,
+    DATASTORE_SYSROOT_GS,
+    DATASTORE_SYSROOT_S3,
+    DATATOOLS_S3ROOT,
+    DEFAULT_SECRETS_BACKEND_TYPE,
+    KUBERNETES_SECRETS,
+    KUBERNETES_SERVICE_ACCOUNT,
     S3_ENDPOINT_URL,
+    SERVICE_HEADERS,
+    SERVICE_INTERNAL_URL,
 )
-from metaflow.parameters import DelayedEvaluationParameter, deploy_time_eval
-from metaflow.plugins.kubernetes.kubernetes import Kubernetes
+from metaflow.parameters import (
+    DelayedEvaluationParameter,
+    JSONTypeClass,
+    deploy_time_eval,
+)
 
 # TODO: Move chevron to _vendor
 from metaflow.plugins.cards.card_modules import chevron
+from metaflow.plugins.kubernetes.kubernetes import Kubernetes
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
-from metaflow.util import dict_to_cli_options, get_username, compress_list
-from metaflow.parameters import JSONTypeClass
+from metaflow.util import compress_list, dict_to_cli_options, get_username
 
 from . import airflow_utils
+from .airflow_utils import AIRFLOW_MACROS, TASK_ID_XCOM_KEY, AirflowTask, Workflow
 from .exception import AirflowException
 from .sensors import SUPPORTED_SENSORS
-from .airflow_utils import (
-    TASK_ID_XCOM_KEY,
-    AirflowTask,
-    Workflow,
-    AIRFLOW_MACROS,
-)
-from metaflow import current
 
 AIRFLOW_DEPLOY_TEMPLATE_FILE = os.path.join(os.path.dirname(__file__), "dag.py")
 
@@ -627,6 +625,14 @@ class Airflow(object):
         return False
 
     def compile(self):
+        if self.flow._flow_decorators.get("trigger") or self.flow._flow_decorators.get(
+            "trigger_on_finish"
+        ):
+            raise AirflowException(
+                "Deploying flows with @trigger or @trigger_on_finish decorator(s) "
+                "to Airflow is not supported currently."
+            )
+
         # Visit every node of the flow and recursively build the state machine.
         def _visit(node, workflow, exit_node=None):
             kube_deco = dict(

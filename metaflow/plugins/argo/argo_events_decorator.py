@@ -21,8 +21,6 @@ class ArgoEventsDecorator(FlowDecorator):
         "options": {},  # TODO: introduce support for options
     }
 
-    # TODO: Ensure that step-functions and airflow throw a nice unsupported error
-
     def flow_init(
         self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
     ):
@@ -107,8 +105,6 @@ class ArgoEventsDecorator(FlowDecorator):
 class TriggerOnFinishDecorator(FlowDecorator):
     name = "trigger_on_finish"
     defaults = {"flow": None, "branch": None, "project": None, "flows": []}
-
-    # TODO: figure out a way to depend on flow without any project/branch decorator
 
     def flow_init(
         self, flow, graph, environment, flow_datastore, metadata, logger, echo, options

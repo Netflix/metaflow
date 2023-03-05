@@ -10,6 +10,10 @@ from metaflow import current
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
+    ARGO_EVENTS_EVENT,
+    ARGO_EVENTS_EVENT_BUS,
+    ARGO_EVENTS_EVENT_SOURCE,
+    ARGO_EVENTS_SERVICE_ACCOUNT,
     ARGO_WORKFLOWS_ENV_VARS_TO_SKIP,
     ARGO_WORKFLOWS_KUBERNETES_SECRETS,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
@@ -1166,9 +1170,7 @@ class ArgoWorkflows(object):
             .spec(
                 SensorSpec().template(
                     # Sensor template.
-                    SensorTemplate()
-                    # TODO (savin): Make this configurable before shipping.
-                    .service_account_name("operate-workflow-sa")
+                    SensorTemplate().service_account_name(ARGO_EVENTS_SERVICE_ACCOUNT)
                     # TODO (savin): Run sensor in guaranteed QoS.
                 )
                 # Set sensor replica to 1 for now.
@@ -1176,8 +1178,7 @@ class ArgoWorkflows(object):
                 .replicas(1)
                 # TODO: Support revision history limit to manage old deployments
                 # .revision_history_limit(...)
-                # TODO: Make this configurable before release
-                # .event_bus_name(...)
+                .event_bus_name(ARGO_EVENTS_EVENT_BUS)
                 # Workflow trigger.
                 .trigger(
                     Trigger().template(
@@ -1228,9 +1229,8 @@ class ArgoWorkflows(object):
                                                 data_key="body.payload.%s" % v,
                                                 # Unfortunately the sensor needs to
                                                 # record the default values for
-                                                # the parameters - there doesn't
-                                                # seem to be any way for us to
-                                                # skip
+                                                # the parameters - there doesn't seem
+                                                # to be any way for us to skip
                                                 value=self.parameters[parameter_name][
                                                     "value"
                                                 ],
@@ -1271,9 +1271,11 @@ class ArgoWorkflows(object):
                 # Event dependencies
                 .dependencies(
                     # Event dependencies don't entertain dots
-                    EventDependency(event["sanitized_name"]).event_name("event")
-                    # TODO: Make this configurable
-                    .event_source_name("metaflow-webhook").filters(
+                    EventDependency(event["sanitized_name"]).event_name(
+                        ARGO_EVENTS_EVENT
+                    )
+                    # TODO: Alternatively fetch this from trigger config options
+                    .event_source_name(ARGO_EVENTS_EVENT_SOURCE).filters(
                         # Ensure that event name matches and all required parameter
                         # fields are present in the payload. There is a possibility of
                         # dependency on an event where none of the fields are required.

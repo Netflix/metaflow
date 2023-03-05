@@ -41,7 +41,6 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
         if flow._flow_decorators.get("trigger_on_finish"):
             events.extend(flow._flow_decorators.get("trigger_on_finish")[0].triggers)
         if events:
-            # TODO: Introduce MetaflowTrigger instead of trigger dict
             triggers = []
             for event in events:
                 payload = os.environ.get("METAFLOW_ARGO_EVENT_%s" % event["name"])
@@ -49,6 +48,7 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
                     try:
                         payload = json.loads(payload)
                     except (TypeError, ValueError) as e:
+                        # There could be arbitrary events that Metaflow doesn't know of
                         payload = {}
                     triggers.append(
                         {

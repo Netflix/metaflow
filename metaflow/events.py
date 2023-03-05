@@ -99,6 +99,7 @@ class MetaflowTrigger(object):
             return None
 
 
+# TODO: can we do away with this?
 class LazyDataArtifactProxy(Mapping):
     __slots__ = ("task",)
 
@@ -113,15 +114,3 @@ class LazyDataArtifactProxy(Mapping):
 
     def __len__(self):
         return len(self.task)
-
-
-if __name__ == "__main__":
-    foo = MetaflowTrigger(
-        [
-            {"name": "foo", "id": "1", "timestamp": 2000, "type": "evsent"},
-            {"name": "baz", "id": "2", "timestamp": 1000, "type": "evsent"},
-            {"name": "bar", "id": "foo/34/bah/23", "timestamp": 1000, "type": "rusn"},
-            {"name": "boz", "id": "bug/23/bun/12", "timestamp": 1000, "type": "rusn"},
-        ]
-    )
-    print(foo.event)
