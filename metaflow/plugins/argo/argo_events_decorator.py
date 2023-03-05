@@ -10,9 +10,8 @@ from metaflow.util import get_username, is_stringish
 #       flow name and user name similar to parameter context
 
 
-# TODO: At some point, lift this decorator interface to be a top-level decorator since
-#       the interface stays consistent for a similar implementation for AWS Step
-#       Functions and Airflow.
+# TODO: This decorator interface can be a top-level decorator to support similar
+#       implementations for Netflix Maestro, AWS Step Functions, Apache Airflow...
 class ArgoEventsDecorator(FlowDecorator):
     name = "trigger"
     defaults = {
@@ -104,7 +103,13 @@ class ArgoEventsDecorator(FlowDecorator):
 
 class TriggerOnFinishDecorator(FlowDecorator):
     name = "trigger_on_finish"
-    defaults = {"flow": None, "branch": None, "project": None, "flows": []}
+    defaults = {
+        "flow": None,
+        "branch": None,
+        "project": None,
+        "flows": [],
+        "options": {},
+    }
 
     def flow_init(
         self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
