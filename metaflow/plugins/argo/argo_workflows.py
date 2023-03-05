@@ -8,27 +8,27 @@ from metaflow import current
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
-    SERVICE_HEADERS,
-    SERVICE_INTERNAL_URL,
+    ARGO_WORKFLOWS_ENV_VARS_TO_SKIP,
+    ARGO_WORKFLOWS_KUBERNETES_SECRETS,
+    AWS_SECRETS_MANAGER_DEFAULT_REGION,
+    AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
+    CARD_AZUREROOT,
+    CARD_GSROOT,
     CARD_S3ROOT,
+    DATASTORE_SYSROOT_AZURE,
+    DATASTORE_SYSROOT_GS,
     DATASTORE_SYSROOT_S3,
     DATATOOLS_S3ROOT,
     DEFAULT_METADATA,
+    DEFAULT_SECRETS_BACKEND_TYPE,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
     KUBERNETES_SECRETS,
     KUBERNETES_FETCH_EC2_METADATA,
     S3_ENDPOINT_URL,
-    AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
-    DATASTORE_SYSROOT_AZURE,
-    DATASTORE_SYSROOT_GS,
-    CARD_AZUREROOT,
-    CARD_GSROOT,
-    DEFAULT_SECRETS_BACKEND_TYPE,
-    AWS_SECRETS_MANAGER_DEFAULT_REGION,
-    ARGO_WORKFLOWS_KUBERNETES_SECRETS,
-    ARGO_WORKFLOWS_ENV_VARS_TO_SKIP,
+    SERVICE_HEADERS,
+    SERVICE_INTERNAL_URL,
 )
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
@@ -1080,7 +1080,7 @@ class ArgoWorkflows(object):
         # future.
         #
         # Unfortunately, there doesn't seem to be a way to create a sensor filter
-        # where one (or more) fields across multiple events have the same value. 
+        # where one (or more) fields across multiple events have the same value.
         # Imagine a scenario where we want to trigger a flow iff both the dependent
         # events agree on the same date field. Unfortunately, there isn't any way in
         # Argo Events (as of mar'23) to ensure that.
@@ -1203,11 +1203,9 @@ class ArgoWorkflows(object):
                 )
                 # Event dependencies
                 .dependencies(
-                    EventDependency(event["name"])
-                    .event_name("event")
+                    EventDependency(event["name"]).event_name("event")
                     # TODO: Make this configurable
-                    .event_source_name("metaflow-webhook")
-                    .filters(
+                    .event_source_name("metaflow-webhook").filters(
                         # Ensure that event name matches and all parameter fields are
                         # present in the payload
                         EventDependencyFilter().exprs(

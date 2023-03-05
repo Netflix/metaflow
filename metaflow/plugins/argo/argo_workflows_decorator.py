@@ -2,9 +2,9 @@ import json
 import os
 import time
 
+from metaflow import current
 from metaflow.decorators import StepDecorator
 from metaflow.metadata import MetaDatum
-from metaflow import current
 
 from .argo_events import ArgoEvent
 
@@ -30,12 +30,12 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
     ):
         self.task_id = task_id
         self.run_id = run_id
-        self.argo_workflow_template = os.environ["ARGO_WORKFLOW_TEMPLATE"]
 
         meta = {}
         meta["argo-workflow-template"] = os.environ["ARGO_WORKFLOW_TEMPLATE"]
         meta["argo-workflow-name"] = os.environ["ARGO_WORKFLOW_NAME"]
         meta["argo-workflow-namespace"] = os.environ["ARGO_WORKFLOW_NAMESPACE"]
+        meta["auto-emit-argo-events"] = self.attributes["auto-emit-argo-events"]
         entries = [
             MetaDatum(
                 field=k, value=v, type=k, tags=["attempt_id:{0}".format(retry_count)]
@@ -78,7 +78,10 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
         # emit events when the task succeeds, we can piggy back on this decorator
         # hook which is guaranteed to execute only after rest of the task has
         # finished execution.
+
         if self.attributes["auto-emit-argo-events"]:
+            # Event name is set to flow name. The expectation is that every downstream
+            # consumer will primarily filter on flow name or flow name & step name.
             event = ArgoEvent(name=flow.name)
             event.add_to_payload("pathspec", current.pathspec)
             event.add_to_payload("flow_name", flow.name)
@@ -96,7 +99,9 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
             ):
                 if current.get(key):
                     event.add_to_payload(key, current.get(key))
-            event.add_to_payload("auto-generated-by-metaflow", True)
-            event.add_to_payload("timestamp", int(time.time()))
             # Add more fields here...
-            event.publish()
+            event.add_to_payload("auto-generated-by-metaflow", True)
+            # Keep in mind that any errors raised here will fail the run but the task
+            # will still be marked as success. That's why we explicitly swallow any
+            # errors and instead print them to std.err.
+            event.publish(ignore_errors=True)

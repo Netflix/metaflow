@@ -8,11 +8,9 @@ from hashlib import sha1
 
 from metaflow import JSONType, current, decorators, parameters
 from metaflow._vendor import click
-from metaflow.metaflow_config import SERVICE_VERSION_CHECK, UI_URL
 from metaflow.exception import MetaflowException, MetaflowInternalError
+from metaflow.metaflow_config import SERVICE_VERSION_CHECK, UI_URL
 from metaflow.package import MetaflowPackage
-from metaflow.plugins.environment_decorator import EnvironmentDecorator
-from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
 
 # TODO: Move production_token to utils
 from metaflow.plugins.aws.step_functions.production_token import (
@@ -20,8 +18,10 @@ from metaflow.plugins.aws.step_functions.production_token import (
     new_token,
     store_token,
 )
-from metaflow.util import get_username, to_bytes, to_unicode
+from metaflow.plugins.environment_decorator import EnvironmentDecorator
+from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
 from metaflow.tagging_util import validate_tags
+from metaflow.util import get_username, to_bytes, to_unicode
 
 from .argo_workflows import ArgoWorkflows
 
@@ -204,14 +204,14 @@ def create(
         obj.echo("What will trigger execution of the workflow:", bold=True)
         obj.echo(flow.trigger_explanation(), indent=True)
 
-        # response = ArgoWorkflows.trigger(obj.workflow_name)
-        # run_id = "argo-" + response["metadata"]["name"]
+        response = ArgoWorkflows.trigger(obj.workflow_name)
+        run_id = "argo-" + response["metadata"]["name"]
 
-        # obj.echo(
-        #     "Workflow *{name}* triggered on Argo Workflows "
-        #     "(run-id *{run_id}*).".format(name=obj.workflow_name, run_id=run_id),
-        #     bold=True,
-        # )
+        obj.echo(
+            "Workflow *{name}* triggered on Argo Workflows "
+            "(run-id *{run_id}*).".format(name=obj.workflow_name, run_id=run_id),
+            bold=True,
+        )
 
 
 def check_python_version(obj):

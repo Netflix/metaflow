@@ -1,17 +1,10 @@
 import json
 import re
 
-from metaflow.exception import MetaflowException
-from metaflow.decorators import FlowDecorator
 from metaflow import current
-from metaflow.util import get_username
 from metaflow.decorators import FlowDecorator
-from metaflow.util import is_stringish
-
-# TODO (savin) : Ensure that this list is addressed in it's entirety before merging PR
-#                1. Support events UX
-#                2. Support flows UX
-#                3. Clean out error messages
+from metaflow.exception import MetaflowException
+from metaflow.util import get_username, is_stringish
 
 
 # TODO: At some point, lift this decorator interface to be a top-level decorator since
@@ -22,7 +15,7 @@ class ArgoEventsDecorator(FlowDecorator):
     defaults = {
         "event": None,
         "events": [],
-        "options": {} # TODO: introduce support for options
+        "options": {},  # TODO: introduce support for options
     }
 
     # TODO: Ensure that step-functions and airflow throw a nice unsupported error
@@ -31,6 +24,7 @@ class ArgoEventsDecorator(FlowDecorator):
         self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
     ):
         # TODO: Fix up all error messages so that they pretty print nicely.
+        # TODO: Check if parameters indeed exist for the mapping.
         self.events = []
         if sum(map(bool, (self.attributes["event"], self.attributes["events"]))) > 1:
             raise MetaflowException(
