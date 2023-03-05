@@ -290,6 +290,15 @@ class ArgoWorkflows(object):
         return parameters
 
     def _process_event_triggers(self):
+        # Disallow usage of @trigger and @trigger_on_finish together for now.
+        if self.flow._flow_decorators.get("trigger") and self.flow._flow_decorators.get(
+            "trigger_on_finish"
+        ):
+            raise ArgoWorkflowsException(
+                "Argo Workflows doesn't support both *@trigger* and "
+                "*@trigger_on_finish* decorators concurrently yet. Use one or the "
+                "other for now."
+            )
         triggers = []
         if self.flow._flow_decorators.get("trigger"):
             triggers.extend(self.flow._flow_decorators.get("trigger")[0].triggers)
@@ -298,12 +307,17 @@ class ArgoWorkflows(object):
                 self.flow._flow_decorators.get("trigger_on_finish")[0].triggers
             )
         for event in triggers:
-            event["sanitized_name"] = "%s_%s" % (
-                event["name"].replace(".", "_").replace("-", "_"),
-                to_unicode(base64.b32encode(sha1(to_bytes(event["name"])).digest()))[
-                    :4
-                ].lower(),
-            )
+            # Assign a sanitized name since we need this at many places to please
+            # Argo Events sensors. There is a slight possibility of name collision
+            # but quite unlikely for us to worry about at this point.
+            event["sanitized_name"] = event["name"]
+            if any([x in event["name"] for x in [".", "-"]]):
+                event["sanitized_name"] = "%s_%s" % (
+                    event["name"].replace(".", "").replace("-", ""),
+                    to_unicode(
+                        base64.b32encode(sha1(to_bytes(event["name"])).digest())
+                    )[:4].lower(),
+                )
         return triggers
 
     def _compile_workflow_template(self):

@@ -26,7 +26,7 @@ class MetaflowTrigger(object):
             MetaflowEvent(
                 **{
                     **obj,
-                    # Add timestamp as datetime. Guaranteed to exist for Metaflow 
+                    # Add timestamp as datetime. Guaranteed to exist for Metaflow
                     # events - best effort for everything else.
                     **(
                         {"timestamp": datetime.fromtimestamp(obj["timestamp"])}
@@ -73,7 +73,7 @@ class MetaflowTrigger(object):
         """
         run = self.run
         if run:
-            return LazyDataArtifactProxy(run.end_task)
+            return DataArtifactProxy(run.end_task)
 
     @property
     def type(self):
@@ -119,13 +119,16 @@ class MetaflowTrigger(object):
 
 
 # TODO: can we do away with this?
-class LazyDataArtifactProxy(Mapping):
+class DataArtifactProxy(Mapping):
     __slots__ = ("task",)
 
     def __init__(self, task):
         self.task = task
 
     def __getitem__(self, key):
+        return self.task[key].data
+
+    def __getattr__(self, key):
         return self.task[key].data
 
     def __iter__(self):

@@ -60,7 +60,8 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
                         }
                     )
             if triggers:
-                current._update_env({"triggers": MetaflowTrigger(triggers)})
+                # Enable current.trigger
+                current._update_env({"trigger": MetaflowTrigger(triggers)})
                 # Luckily there aren't many events for us to be concerned about the
                 # size of the metadata field yet! However we don't really need this
                 # metadata outside of the start step so we can save a few bytes in the

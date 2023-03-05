@@ -41,7 +41,8 @@ class ArgoEventsDecorator(FlowDecorator):
             elif isinstance(self.attributes["event"], dict):
                 if "name" not in dict(self.attributes["event"]):
                     raise MetaflowException(
-                        "The *event* attribute for *@trigger* is missing the *name* key."
+                        "The *event* attribute for *@trigger* is missing the "
+                        "*name* key."
                     )
                 self.triggers.append(
                     dict(**self.attributes["event"], **{"type": "event"})
@@ -112,16 +113,28 @@ class ArgoEventsDecorator(FlowDecorator):
         params = set([param.name.lower() for var, param in flow._get_parameters()])
         for event in self.triggers:
             parameters = {}
+            # TODO: Add a check to guard against names starting with numerals(?)
+            if not re.match(r"^[A-Za-z0-9_.-]+$", event["name"]):
+                raise MetaflowException(
+                    "Invalid event name *%s*. Only alphanumeric characters, "
+                    "underscores(_), dashes(-) and dots(.) are allowed." % event["name"]
+                )
             for key, value in event.get("parameters", {}).items():
+                if not re.match(r"^[A-Za-z0-9_]+$", value):
+                    raise MetaflowException(
+                        "Invalid event payload key *%s* for event *%s*. Only "
+                        "alphanumeric characters and underscores(_) are allowed."
+                        % (value, event["name"])
+                    )
                 if key.lower() not in params:
                     raise MetaflowException(
-                        "Parameter *%s* defined in the event mappings for *@trigger* decorator not found in the flow."
-                        % key
+                        "Parameter *%s* defined in the event mappings for *@trigger* "
+                        "decorator not found in the flow." % key
                     )
                 if key.lower() in seen:
                     raise MetaflowException(
-                        "Duplicate entries for parameter *%s* defined in the event mappings for *@trigger* decorator."
-                        % key.lower()
+                        "Duplicate entries for parameter *%s* defined in the event "
+                        "mappings for *@trigger* decorator." % key.lower()
                     )
                 seen.add(key.lower())
                 parameters[key.lower()] = value
