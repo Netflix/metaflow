@@ -33,23 +33,8 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
         self.run_id = run_id
 
         meta = {}
-        meta["argo-workflow-template"] = os.environ["ARGO_WORKFLOW_TEMPLATE"]
-        meta["argo-workflow-name"] = os.environ["ARGO_WORKFLOW_NAME"]
-        meta["argo-workflow-namespace"] = os.environ["ARGO_WORKFLOW_NAMESPACE"]
-        meta["auto-emit-argo-events"] = self.attributes["auto-emit-argo-events"]
-        entries = [
-            MetaDatum(
-                field=k, value=v, type=k, tags=["attempt_id:{0}".format(retry_count)]
-            )
-            for k, v in meta.items()
-        ]
-        # Register book-keeping metadata for debugging.
 
-        # TODO (savin): Also register Argo Events metadata if the flow was triggered
-        #               through Argo Events.
-        metadata.register_metadata(run_id, step_name, task_id, entries)
-
-        # Expose events through current singleton
+        # Expose event triggering metadata through current singleton
         if flow._flow_decorators.get("trigger"):
             # TODO: Introduce MetaflowTrigger instead of trigger dict
             trigger = {}
@@ -64,12 +49,35 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
                         **{
                             "timestamp": payload.get("timestamp"),
                             "id": payload.get("id"),
-                            "name": event["name"]
+                            "name": event["name"],
+                            "type": "argo-events"
                             # Add more event metadata here
                         }
                     )
             if trigger:
                 current._update_env({"trigger": trigger})
+                # _asdict happens to be documented method for namedtuples
+                # Luckily there aren't many events for us to be concerned about the
+                # size of the metadata field yet! However we don't really need this
+                # metadata outside of the start step so we can save a few bytes in the
+                # db.
+                if step_name == "start":
+                    meta["triggering-events"] = json.dumps(
+                        dict((k, v._asdict()) for k, v in trigger.items())
+                    )
+
+        meta["argo-workflow-template"] = os.environ["ARGO_WORKFLOW_TEMPLATE"]
+        meta["argo-workflow-name"] = os.environ["ARGO_WORKFLOW_NAME"]
+        meta["argo-workflow-namespace"] = os.environ["ARGO_WORKFLOW_NAMESPACE"]
+        meta["auto-emit-argo-events"] = self.attributes["auto-emit-argo-events"]
+        entries = [
+            MetaDatum(
+                field=k, value=v, type=k, tags=["attempt_id:{0}".format(retry_count)]
+            )
+            for k, v in meta.items()
+        ]
+        # Register book-keeping metadata for debugging.
+        metadata.register_metadata(run_id, step_name, task_id, entries)
 
     def task_finished(
         self, step_name, flow, graph, is_task_ok, retry_count, max_user_code_retries

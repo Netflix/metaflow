@@ -45,7 +45,7 @@ class ArgoEvent(object):
                             "name": self.name,
                             "payload": {
                                 # Add default fields here...
-                                "id": uuid.uuid4(),
+                                "id": str(uuid.uuid4()),
                                 "timestamp": int(time.time()),
                                 "utc_date": datetime.utcnow().strftime("%Y%m%d"),
                                 "generated-by-metaflow": True,
