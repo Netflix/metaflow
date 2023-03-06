@@ -297,10 +297,11 @@ class NativeRuntime(object):
         # assert that end was executed and it was successful
         if ("end", ()) in self._finished:
             if MFGUI_URL:
-                self._logger("Done! See the run in the UI at %s"
-                % (
-                    os.path.join(MFGUI_URL, self._flow.name, self._run_id),
-                ), system_msg=True)
+                self._logger(
+                    "Done! See the run in the UI at %s"
+                    % (os.path.join(MFGUI_URL, self._flow.name, self._run_id),),
+                    system_msg=True,
+                )
             else:
                 self._logger("Done!", system_msg=True)
         elif self._clone_only:
