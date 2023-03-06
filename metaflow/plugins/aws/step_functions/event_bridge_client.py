@@ -60,6 +60,20 @@ class EventBridgeClient(object):
             ],
         )
 
+    def delete(self):
+        try:
+            response = self._client.remove_targets(
+                Rule=self.name,
+                Ids=[self.name],
+            )
+            if response.get("FailedEntryCount", 0) > 0:
+                raise RuntimeError("Failed to remove targets from rule %s" % self.name)
+            self._client.delete_rule(Name=self.name)
+        except self._client.exceptions.ResourceNotFoundException:
+            # Ignore if the rule does not exist.
+            pass
+
+
 
 def format(name):
     # AWS Event Bridge has a limit of 64 chars for rule names.

@@ -160,6 +160,12 @@ class StepFunctions(object):
 
     @classmethod
     def delete(cls, name):
+        # First, attempt to delete the event bridge rule (if it exists).
+        try:
+            EventBridgeClient(name).delete()
+        except Exception as e:
+            raise StepFunctionsSchedulingException(repr(e))
+
         try:
             response = StepFunctionsClient().delete(name)
         except Exception as e:
