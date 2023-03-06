@@ -152,13 +152,6 @@ class ArgoWorkflows(object):
             ArgoClient(namespace=KUBERNETES_NAMESPACE).register_workflow_template(
                 self.name, self._workflow_template.to_json()
             )
-            # Register sensor. Unfortunately, Argo Events Sensor names don't allow for
-            # dots (sensors run into an error) which rules out self.name :(
-            print(self._sensor)
-            ArgoClient(namespace=KUBERNETES_NAMESPACE).register_sensor(
-                self.name.replace(".", "-"),
-                self._sensor.to_json() if self._sensor else {},
-            )
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
 
@@ -215,15 +208,50 @@ class ArgoWorkflows(object):
             ArgoClient(namespace=KUBERNETES_NAMESPACE).schedule_workflow_template(
                 self.name, self._schedule, self._timezone
             )
+            # Register sensor. Unfortunately, Argo Events Sensor names don't allow for
+            # dots (sensors run into an error) which rules out self.name :(
+            # Metaflow will overwrite any existing sensor.
+            ArgoClient(namespace=KUBERNETES_NAMESPACE).register_sensor(
+                self.name.replace(".", "-"),
+                self._sensor.to_json() if self._sensor else {},
+            )
         except Exception as e:
             raise ArgoWorkflowsSchedulingException(str(e))
 
     def trigger_explanation(self):
+        # Trigger explanation for cron workflows
         if self.flow._flow_decorators.get("schedule"):
             return (
                 "This workflow triggers automatically via the CronWorkflow *%s*."
                 % self.name
             )
+
+        # Trigger explanation for @trigger
+        elif self.flow._flow_decorators.get("trigger"):
+            return (
+                "This workflow triggers automatically when the upstream %s "
+                "is/are published."
+                % self.list_to_prose(
+                    [event["name"] for event in self.triggers], "event"
+                )
+            )
+
+        # Trigger explanation for @trigger_on_finish
+        elif self.flow._flow_decorators.get("trigger_on_finish"):
+            msg = (
+                "This workflow triggers automatically when the upstream %s succeed(s)"
+                % self.list_to_prose([event["flow"] for event in self.triggers], "flow")
+            )
+            deco_attr = self.flow._flow_decorators.get("trigger_on_finish")[
+                0
+            ].attributes
+            project = deco_attr.get("project") or current.get("project_name")
+            if project:
+                branch = deco_attr.get("branch") or current.get("branch_name")
+                msg += " in *%s/%s* branch" % (project, branch)
+            msg += "."
+            return msg
+
         else:
             return "No triggers defined. You need to launch this workflow manually."
 
@@ -355,7 +383,7 @@ class ArgoWorkflows(object):
                     raise ArgoWorkflowsException(
                         "Invalid flow name *%s* in *@trigger_on_finish* "
                         "decorator. Only alphanumeric characters and "
-                        "underscores(_) are allowed." % (value, event["name"])
+                        "underscores(_) are allowed." % (value, event["flow"])
                     )
                 # Actual event names are deduced here since we don't have access to
                 # the current object in the @trigger_on_finish decorator.
@@ -378,6 +406,7 @@ class ArgoWorkflows(object):
                             # TODO: Add a time filters to guard against cached events
                         },
                         "type": "run",
+                        "flow": event["flow"],
                     }
                 )
 
@@ -1420,6 +1449,28 @@ class ArgoWorkflows(object):
                 )
             )
         )
+
+    def list_to_prose(self, items, singular):
+        items = ["*%s*" % item for item in items]
+        item_count = len(items)
+        plural = singular + "s"
+        item_type = singular
+        if item_count == 1:
+            result = items[0]
+        elif item_count == 2:
+            result = "%s and %s" % (items[0], items[1])
+            item_type = plural
+        elif item_count > 2:
+            result = "%s and %s" % (
+                ", ".join(items[0 : item_count - 1]),
+                items[item_count - 1],
+            )
+            item_type = plural
+        else:
+            result = ""
+        if result:
+            result = "%s %s" % (result, item_type)
+        return result
 
 
 # Helper classes to assist with JSON-foo. This can very well replaced with an explicit
