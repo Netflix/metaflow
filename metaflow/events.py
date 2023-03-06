@@ -36,10 +36,7 @@ class MetaflowTrigger(object):
                     ),
                 }
             )
-            for obj in filter(
-                lambda x: x.get("type") in ["event"],
-                self._meta,
-            )
+            for obj in self._meta
         ] or None
 
     @property

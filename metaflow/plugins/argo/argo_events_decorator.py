@@ -1,10 +1,6 @@
-import json
-import re
-
-from metaflow import current
 from metaflow.decorators import FlowDecorator
 from metaflow.exception import MetaflowException
-from metaflow.util import get_username, is_stringish
+from metaflow.util import is_stringish
 
 # TODO: Support dynamic parameter mapping through a context object that exposes
 #       flow name and user name similar to parameter context
@@ -35,18 +31,14 @@ class ArgoEventsDecorator(FlowDecorator):
             #     2. event={'name': 'table.prod_db.members',
             #               'parameters': {'alpha': 'member_weight'}}
             if is_stringish(self.attributes["event"]):
-                self.triggers.append(
-                    {"name": str(self.attributes["event"]), "type": "event"}
-                )
+                self.triggers.append({"name": str(self.attributes["event"])})
             elif isinstance(self.attributes["event"], dict):
                 if "name" not in dict(self.attributes["event"]):
                     raise MetaflowException(
                         "The *event* attribute for *@trigger* is missing the "
                         "*name* key."
                     )
-                self.triggers.append(
-                    dict(**self.attributes["event"], **{"type": "event"})
-                )
+                self.triggers.append(self.attributes["event"])
             else:
                 raise MetaflowException(
                     "Incorrect format for *event* attribute in *@trigger* decorator. "
@@ -64,18 +56,18 @@ class ArgoEventsDecorator(FlowDecorator):
             #               'parameters': {'beta': 'grade'}}]
             if is_stringish(self.attributes["events"]):
                 for event in str(self.attributes["events"]).split(" AND "):
-                    self.triggers.append({"name": event, "type": "event"})
+                    self.triggers.append({"name": event})
             elif isinstance(self.attributes["events"], list):
                 for event in self.attributes["events"]:
                     if is_stringish(event) and str(event).upper() != "AND":
-                        self.triggers.append({"name": str(event), "type": "event"})
+                        self.triggers.append({"name": str(event)})
                     elif isinstance(event, dict):
                         if "name" not in dict(event):
                             raise MetaflowException(
                                 "One or more events in *events* attribute for "
                                 "*@trigger* are missing the *name* key."
                             )
-                        self.triggers.append(dict(event, **{"type": "event"}))
+                        self.triggers.append(event)
                     else:
                         raise MetaflowException(
                             "One or more events in *events* attribute in *@trigger* "
@@ -99,49 +91,12 @@ class ArgoEventsDecorator(FlowDecorator):
         if not self.triggers:
             raise MetaflowException("No event(s) specified in *@trigger* decorator.")
 
-        # These checks can be safely moved to argo_workflows.py at a later date
-        # since many of these are specific to the inner workings of Argo Events.
-
         # same event shouldn't occur more than once
         names = [x["name"] for x in self.triggers]
         if len(names) != len(set(names)):
             raise MetaflowException(
                 "Duplicate event names defined in *@trigger* decorator."
             )
-
-        # parameters are not duplicated, and exist in the flow.
-        # additionally, convert them to lower case since metaflow parameters are
-        # case insensitive.
-        seen = set()
-        params = set([param.name.lower() for var, param in flow._get_parameters()])
-        for event in self.triggers:
-            parameters = {}
-            # TODO: Add a check to guard against names starting with numerals(?)
-            if not re.match(r"^[A-Za-z0-9_.-]+$", event["name"]):
-                raise MetaflowException(
-                    "Invalid event name *%s*. Only alphanumeric characters, "
-                    "underscores(_), dashes(-) and dots(.) are allowed." % event["name"]
-                )
-            for key, value in event.get("parameters", {}).items():
-                if not re.match(r"^[A-Za-z0-9_]+$", value):
-                    raise MetaflowException(
-                        "Invalid event payload key *%s* for event *%s*. Only "
-                        "alphanumeric characters and underscores(_) are allowed."
-                        % (value, event["name"])
-                    )
-                if key.lower() not in params:
-                    raise MetaflowException(
-                        "Parameter *%s* defined in the event mappings for *@trigger* "
-                        "decorator not found in the flow." % key
-                    )
-                if key.lower() in seen:
-                    raise MetaflowException(
-                        "Duplicate entries for parameter *%s* defined in the event "
-                        "mappings for *@trigger* decorator." % key.lower()
-                    )
-                seen.add(key.lower())
-                parameters[key.lower()] = value
-            event["parameters"] = parameters
 
 
 class TriggerOnFinishDecorator(FlowDecorator):
@@ -157,7 +112,6 @@ class TriggerOnFinishDecorator(FlowDecorator):
     def flow_init(
         self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
     ):
-        print(self.attributes.get("project", current.get("project_name")))
         self.triggers = []
         if sum(map(bool, (self.attributes["flow"], self.attributes["flows"]))) > 1:
             raise MetaflowException(
@@ -165,42 +119,55 @@ class TriggerOnFinishDecorator(FlowDecorator):
                 "attributes in *@trigger_on_finish* decorator."
             )
         elif self.attributes["flow"]:
-            list(
-                filter(
-                    lambda item: item is not None,
-                    [
-                        "metaflow",
-                        self.attributes.get("project", current.get("project_name")),
-                        self.attributes.get("branch", current.get("branch_name")),
-                        self.attributes["flow"],
-                    ],
+            # flow supports the format @trigger_on_finish(flow='FooFlow')
+            if is_stringish(self.attributes["flow"]):
+                self.triggers.append(self.attributes)
+            else:
+                raise MetaflowException(
+                    "Incorrect format for *flow* attribute in *@trigger_on_finish* "
+                    " decorator. Supported format is string - \n"
+                    "@trigger_on_finish(flow='FooFlow')"
                 )
-            )
-            self.triggers.append(
-                # Trigger on metaflow.project.branch.flow.end event
-                {
-                    "name": ".".join(
-                        list(
-                            filter(
-                                lambda item: item is not None,
-                                [
-                                    "metaflow",
-                                    self.attributes.get(
-                                        "project", current.get("project_name")
-                                    ),
-                                    self.attributes.get(
-                                        "branch", current.get("branch_name")
-                                    ),
-                                    self.attributes["flow"],
-                                    "end",
-                                ],
-                            )
+        elif self.attributes["flows"]:
+            # flows attribute supports the following formats -
+            #     1. flows='FooFlow AND BarFlow'
+            #     2. flows=['FooFlow', 'BarFlow']
+            if is_stringish(self.attributes["flows"]):
+                for flow in str(self.attributes["flows"]).split(" AND "):
+                    self.triggers.append(
+                        {
+                            "flow": flow,
+                            "project": self.attributes["project"],
+                            "branch": self.attributes["branch"],
+                        }
+                    )
+            elif isinstance(self.attributes["flows"], list):
+                for flow in self.attributes["flows"]:
+                    if is_stringish(flow):
+                        self.triggers.append(
+                            {
+                                "flow": flow,
+                                "project": self.attributes["project"],
+                                "branch": self.attributes["branch"],
+                            }
                         )
-                    ),
-                    "filters": {
-                        "auto-generated-by-metaflow": True,
-                        # TODO: Add a time based filter to guard against cached events
-                    },
-                    "type": "run",
-                }
+                    else:
+                        raise MetaflowException(
+                            "One or more flows in *flows* attribute in "
+                            "*@trigger_on_finish* decorator have an incorrect format. "
+                            "Supported format is string - \n"
+                            "@trigger_on_finish(flows='FooFlow AND BarFlow') or "
+                            "@trigger_on_finish(flows=['FooFlow', 'BarFlow']"
+                        )
+            else:
+                raise MetaflowException(
+                    "Incorrect format for *flows* attribute in *@trigger_on_finish* "
+                    "decorator. Supported format is list or string - \n"
+                    "@trigger_on_finish(flows='FooFlow AND BarFlow') or "
+                    "@trigger_on_finish(flows=['FooFlow', 'BarFlow']"
+                )
+
+        if not self.triggers:
+            raise MetaflowException(
+                "No flow(s) specified in *@trigger_on_finish* decorator."
             )

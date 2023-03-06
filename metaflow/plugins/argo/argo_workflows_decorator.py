@@ -6,6 +6,7 @@ from metaflow import current
 from metaflow.decorators import StepDecorator
 from metaflow.events import MetaflowTrigger
 from metaflow.metadata import MetaDatum
+from metaflow.metaflow_config import ARGO_EVENTS_WEBHOOK_URL
 
 from .argo_events import ArgoEvent
 
@@ -32,19 +33,11 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
         self.task_id = task_id
         self.run_id = run_id
 
-        meta = {}
-
+        triggers = []
         # Expose event triggering metadata through current singleton
-        events = []
-        if flow._flow_decorators.get("trigger"):
-            events.extend(flow._flow_decorators.get("trigger")[0].triggers)
-        if flow._flow_decorators.get("trigger_on_finish"):
-            events.extend(flow._flow_decorators.get("trigger_on_finish")[0].triggers)
-        if events:
-            triggers = []
-            for event in events:
-                payload = os.environ.get("METAFLOW_ARGO_EVENT_%s" % event["name"])
-                if payload and payload != "null":  # Argo-Workflow's None
+        for key, payload in os.environ.items():
+            if key.startswith("METAFLOW_ARGO_EVENT_PAYLOAD_"):
+                if payload != "null":  # Argo-Workflow's None
                     try:
                         payload = json.loads(payload)
                     except (TypeError, ValueError) as e:
@@ -54,20 +47,26 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
                         {
                             "timestamp": payload.get("timestamp"),
                             "id": payload.get("id"),
-                            "name": event["name"],
-                            "type": event["type"]
+                            "name": payload.get("name"),  # will exist since filter
+                            "type": key[len("METAFLOW_ARGO_EVENT_PAYLOAD_") :].split(
+                                "_", 1
+                            )[
+                                0
+                            ]  # infer type from env var key
                             # Add more event metadata here
                         }
                     )
-            if triggers:
-                # Enable current.trigger
-                current._update_env({"trigger": MetaflowTrigger(triggers)})
-                # Luckily there aren't many events for us to be concerned about the
-                # size of the metadata field yet! However we don't really need this
-                # metadata outside of the start step so we can save a few bytes in the
-                # db.
-                if step_name == "start":
-                    meta["execution-triggers"] = json.dumps(triggers)
+
+        meta = {}
+        if triggers:
+            # Enable current.trigger
+            current._update_env({"trigger": MetaflowTrigger(triggers)})
+            # Luckily there aren't many events for us to be concerned about the
+            # size of the metadata field yet! However we don't really need this
+            # metadata outside of the start step so we can save a few bytes in the
+            # db.
+            if step_name == "start":
+                meta["execution-triggers"] = json.dumps(triggers)
 
         meta["argo-workflow-template"] = os.environ["ARGO_WORKFLOW_TEMPLATE"]
         meta["argo-workflow-name"] = os.environ["ARGO_WORKFLOW_NAME"]
@@ -115,6 +114,7 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
 
         if self.attributes["auto-emit-argo-events"]:
             # Event name is set to metaflow.project.branch.flow.step
+            # TODO: Check length limits for fields in Argo Events
             event = ArgoEvent(
                 name="metaflow.%s.%s"
                 % (current.get("project_flow_name", flow.name), step_name)

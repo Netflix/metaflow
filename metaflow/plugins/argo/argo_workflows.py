@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+import re
 import shlex
 import sys
 from collections import defaultdict
@@ -151,10 +152,12 @@ class ArgoWorkflows(object):
             ArgoClient(namespace=KUBERNETES_NAMESPACE).register_workflow_template(
                 self.name, self._workflow_template.to_json()
             )
-            # Register sensor.
+            # Register sensor. Unfortunately, Argo Events Sensor names don't allow for
+            # dots (sensors run into an error) which rules out self.name :(
             print(self._sensor)
             ArgoClient(namespace=KUBERNETES_NAMESPACE).register_sensor(
-                self.name, self._sensor.to_json() if self._sensor else {}
+                self.name.replace(".", "-"),
+                self._sensor.to_json() if self._sensor else {},
             )
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
@@ -300,12 +303,84 @@ class ArgoWorkflows(object):
                 "other for now."
             )
         triggers = []
+
+        # @trigger decorator
         if self.flow._flow_decorators.get("trigger"):
-            triggers.extend(self.flow._flow_decorators.get("trigger")[0].triggers)
-        if self.flow._flow_decorators.get("trigger_on_finish"):
-            triggers.extend(
-                self.flow._flow_decorators.get("trigger_on_finish")[0].triggers
+            # parameters are not duplicated, and exist in the flow.
+            # additionally, convert them to lower case since metaflow parameters are
+            # case insensitive.
+            seen = set()
+            params = set(
+                [param.name.lower() for var, param in self.flow._get_parameters()]
             )
+            for event in self.flow._flow_decorators.get("trigger")[0].triggers:
+                parameters = {}
+                # TODO: Add a check to guard against names starting with numerals(?)
+                if not re.match(r"^[A-Za-z0-9_.-]+$", event["name"]):
+                    raise ArgoWorkflowsException(
+                        "Invalid event name *%s* in *@trigger* decorator. Only "
+                        "alphanumeric characters, underscores(_), dashes(-) and "
+                        "dots(.) are allowed." % event["name"]
+                    )
+                for key, value in event.get("parameters", {}).items():
+                    if not re.match(r"^[A-Za-z0-9_]+$", value):
+                        raise ArgoWorkflowsException(
+                            "Invalid event payload key *%s* for event *%s* in "
+                            "*@trigger* decorator. Only alphanumeric characters and "
+                            "underscores(_) are allowed." % (value, event["name"])
+                        )
+                    if key.lower() not in params:
+                        raise ArgoWorkflowsException(
+                            "Parameter *%s* defined in the event mappings for "
+                            "*@trigger* decorator not found in the flow." % key
+                        )
+                    if key.lower() in seen:
+                        raise ArgoWorkflowsException(
+                            "Duplicate entries for parameter *%s* defined in the "
+                            "event mappings for *@trigger* decorator." % key.lower()
+                        )
+                    seen.add(key.lower())
+                    parameters[key.lower()] = value
+                event["parameters"] = parameters
+                event["type"] = "event"
+            triggers.extend(self.flow._flow_decorators.get("trigger")[0].triggers)
+
+        # @trigger_on_finish decorator
+        if self.flow._flow_decorators.get("trigger_on_finish"):
+            for event in self.flow._flow_decorators.get("trigger_on_finish")[
+                0
+            ].triggers:
+                # TODO: Also sanity check project and branch names
+                if not re.match(r"^[A-Za-z0-9_]+$", event["flow"]):
+                    raise ArgoWorkflowsException(
+                        "Invalid flow name *%s* in *@trigger_on_finish* "
+                        "decorator. Only alphanumeric characters and "
+                        "underscores(_) are allowed." % (value, event["name"])
+                    )
+                # Actual event names are deduced here since we don't have access to
+                # the current object in the @trigger_on_finish decorator.
+                triggers.append(
+                    {
+                        "name": ".".join(
+                            filter(
+                                lambda item: item is not None,
+                                [
+                                    "metaflow",
+                                    event.get("project") or current.get("project_name"),
+                                    event.get("branch") or current.get("branch_name"),
+                                    event["flow"],
+                                    "end",
+                                ],
+                            )
+                        ),
+                        "filters": {
+                            "auto-generated-by-metaflow": True,
+                            # TODO: Add a time filters to guard against cached events
+                        },
+                        "type": "run",
+                    }
+                )
+
         for event in triggers:
             # Assign a sanitized name since we need this at many places to please
             # Argo Events sensors. There is a slight possibility of name collision
@@ -911,9 +986,10 @@ class ArgoWorkflows(object):
             # Map Argo Events payload (if any) to environment variables
             if self.triggers:
                 for event in self.triggers:
-                    env["METAFLOW_ARGO_EVENT_%s" % event["name"]] = (
-                        "{{workflow.parameters.%s}}" % event["sanitized_name"]
-                    )
+                    env[
+                        "METAFLOW_ARGO_EVENT_PAYLOAD_%s_%s"
+                        % (event["type"], event["sanitized_name"])
+                    ] = ("{{workflow.parameters.%s}}" % event["sanitized_name"])
 
             metaflow_version = self.environment.get_environment_info()
             metaflow_version["flow_name"] = self.graph.name
@@ -1175,7 +1251,7 @@ class ArgoWorkflows(object):
             .metadata(
                 # Sensor metadata.
                 ObjectMeta()
-                .name(self.name)
+                .name(self.name.replace(".", "-"))
                 .namespace(KUBERNETES_NAMESPACE)
                 .label("app.kubernetes.io/name", "metaflow-sensor")
                 .label("app.kubernetes.io/part-of", "metaflow")
@@ -1240,6 +1316,9 @@ class ArgoWorkflows(object):
                                             TriggerParameter()
                                             .src(
                                                 dependency_name=event["sanitized_name"],
+                                                # Technically, we don't need to create
+                                                # a payload carry-on and can stuff
+                                                # everything within the body.
                                                 data_key="body.payload.%s" % v,
                                                 # Unfortunately the sensor needs to
                                                 # record the default values for
@@ -1282,7 +1361,10 @@ class ArgoWorkflows(object):
                         )
                     )
                 )
-                # Event dependencies
+                # Event dependencies. As of Mar' 23, Argo Events docs suggest using
+                # Jetstream event bus rather than NATS streaming bus since the later
+                # doesn't support multiple combos of the same event name and event
+                # source name.
                 .dependencies(
                     # Event dependencies don't entertain dots
                     EventDependency(event["sanitized_name"]).event_name(
@@ -1299,7 +1381,9 @@ class ArgoWorkflows(object):
                             [
                                 {
                                     "expr": "name == '%s'" % event["name"],
-                                    "fields": [{"name": "name", "path": "body.name"}],
+                                    "fields": [
+                                        {"name": "name", "path": "body.payload.name"}
+                                    ],
                                 }
                             ]
                             + [

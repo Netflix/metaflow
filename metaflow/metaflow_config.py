@@ -294,6 +294,9 @@ ARGO_EVENTS_SERVICE_ACCOUNT = from_conf(
 ARGO_EVENTS_EVENT_BUS = from_conf("ARGO_EVENTS_EVENT_BUS", "default")
 ARGO_EVENTS_EVENT_SOURCE = from_conf("ARGO_EVENTS_EVENT_SOURCE", "metaflow-webhook")
 ARGO_EVENTS_EVENT = from_conf("ARGO_EVENTS_EVENT", "event")
+ARGO_EVENTS_WEBHOOK_URL = from_conf(
+    "ARGO_EVENTS_WEBHOOK_URL", "http://10.10.29.11:12000/event"
+)
 
 
 ##

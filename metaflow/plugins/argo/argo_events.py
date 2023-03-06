@@ -7,6 +7,7 @@ import uuid
 from datetime import datetime
 
 from metaflow.exception import MetaflowException
+from metaflow.metaflow_config import ARGO_EVENTS_WEBHOOK_URL
 
 
 class ArgoEventException(MetaflowException):
@@ -14,37 +15,40 @@ class ArgoEventException(MetaflowException):
 
 
 class ArgoEvent(object):
-    def __init__(self, name, payload={}):
+    def __init__(
+        self, name, url=ARGO_EVENTS_WEBHOOK_URL, payload={}, access_token=None
+    ):
         # TODO: Introduce support for NATS
-        self.name = name
+        self._name = name
+        self._url = url
         self._payload = payload
+        self._access_token = access_token
 
     def add_to_payload(self, key, value):
         self._payload[key] = str(value)
         return self
 
-    def publish(self, payload={}, force=False, access_token=None, ignore_errors=False):
+    def publish(self, payload={}, force=False, ignore_errors=False):
         # Publish event iff forced or running on Argo Workflows
         if force or os.environ["ARGO_WORKFLOW_TEMPLATE"]:
             try:
-                # TODO: Do away with this hard code before shipping
-                url = "http://10.10.29.11:12000/event"
                 headers = {}
-                if access_token:
+                if self._access_token:
                     # TODO: Test with bearer tokens
-                    headers = {"Authorization": "Bearer {}".format(access_token)}
+                    headers = {"Authorization": "Bearer {}".format(self._access_token)}
                 # TODO: do we need to worry about certs?
 
                 # Use urllib to avoid introducing any dependency in Metaflow
                 request = urllib.request.Request(
-                    url,
+                    self._url,
                     method="POST",
                     headers={"Content-Type": "application/json", **headers},
                     data=json.dumps(
                         {
-                            "name": self.name,
+                            "name": self._name,
                             "payload": {
                                 # Add default fields here...
+                                "name": self._name,
                                 "id": str(uuid.uuid4()),
                                 "timestamp": int(time.time()),
                                 "utc_date": datetime.utcnow().strftime("%Y%m%d"),
@@ -62,7 +66,7 @@ class ArgoEvent(object):
                     try:
                         urllib.request.urlopen(request, timeout=10.0)
                         print(
-                            "Argo Event for %s published." % self.name, file=sys.stderr
+                            "Argo Event (%s) published." % self._name, file=sys.stderr
                         )
                         break
                     except urllib.error.HTTPError as e:
@@ -73,16 +77,16 @@ class ArgoEvent(object):
                         else:
                             time.sleep(backoff_factor**i)
             except Exception as e:
-                msg = "Unable to publish Argo Event for '%s': %s" % (self.name, e)
+                msg = "Unable to publish Argo Event (%s): %s" % (self._name, e)
                 if ignore_errors:
                     print(msg, file=sys.stderr)
                 else:
                     raise ArgoEventException(msg)
         else:
             msg = (
-                "Argo Event for '%s' was not published. Use "
+                "Argo Event (%s) was not published. Use "
                 + "ArgoEvent(...).publish(..., force=True) "
-                + "to force publish." % self.name
+                + "to force publish." % self._name
             )
             if ignore_errors:
                 print(msg, file=sys.stderr)
