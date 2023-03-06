@@ -1192,7 +1192,7 @@ class ArgoWorkflows(object):
                 .replicas(1)
                 # TODO: Support revision history limit to manage old deployments
                 # .revision_history_limit(...)
-                .event_bus_name(ARGO_EVENTS_EVENT_BUS)
+                # .event_bus_name(ARGO_EVENTS_EVENT_BUS)
                 # Workflow trigger.
                 .trigger(
                     Trigger().template(

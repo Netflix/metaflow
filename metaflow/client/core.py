@@ -349,7 +349,8 @@ class MetaflowObject(object):
             Iterator over all children
         """
         query_filter = {}
-        # skip namespace filtering if _namespace_check is False
+
+        # skip namespace filtering if _namespace_check is unset.
         if self._namespace_check and current_namespace:
             query_filter = {"any_tags": current_namespace}
 

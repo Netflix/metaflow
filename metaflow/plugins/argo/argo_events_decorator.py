@@ -99,6 +99,9 @@ class ArgoEventsDecorator(FlowDecorator):
         if not self.triggers:
             raise MetaflowException("No event(s) specified in *@trigger* decorator.")
 
+        # These checks can be safely moved to argo_workflows.py at a later date
+        # since many of these are specific to the inner workings of Argo Events.
+
         # same event shouldn't occur more than once
         names = [x["name"] for x in self.triggers]
         if len(names) != len(set(names)):
@@ -154,6 +157,7 @@ class TriggerOnFinishDecorator(FlowDecorator):
     def flow_init(
         self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
     ):
+        print(self.attributes.get("project", current.get("project_name")))
         self.triggers = []
         if sum(map(bool, (self.attributes["flow"], self.attributes["flows"]))) > 1:
             raise MetaflowException(

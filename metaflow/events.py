@@ -57,9 +57,11 @@ class MetaflowTrigger(object):
         # to avoid circular import
         from metaflow import Run
 
-        # TODO: Should I be able to access Run objects outside the namespace?
         return [
-            Run(obj["id"][: obj["id"].index("/", obj["id"].index("/") + 1)])
+            Run(
+                obj["id"][: obj["id"].index("/", obj["id"].index("/") + 1)],
+                _namespace_check=False,
+            )
             for obj in filter(
                 lambda x: x.get("type") in ["run"],
                 self._meta,
@@ -73,6 +75,7 @@ class MetaflowTrigger(object):
         """
         run = self.run
         if run:
+            # end task has to necessarily exist
             return DataArtifactProxy(run.end_task)
 
     @property
