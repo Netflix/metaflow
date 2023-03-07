@@ -162,10 +162,9 @@ class Conda(object):
     def _env_path(self, env_id):
         envs = self._info()["envs"]
         for env in envs:
-            if "/envs/" in env:
-                name = os.path.basename(env)
-                if name == env_id:
-                    return env
+            name = os.path.basename(env)
+            if name == env_id:
+                return env
         return None
 
     def _env_lock_file(self, env_id):
