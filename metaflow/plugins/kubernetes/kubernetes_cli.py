@@ -116,7 +116,7 @@ def step(
         msg = util.to_unicode(msg)
         if job_id:
             msg = "[%s] %s" % (job_id, msg)
-        ctx.obj.echo_always(msg, err=(stream == sys.stderr))
+        ctx.obj.echo_always(msg, err=(stream == sys.stderr), no_bold=True)
 
     node = ctx.obj.graph[step_name]
 
