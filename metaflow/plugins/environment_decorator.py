@@ -1,6 +1,3 @@
-import os
-
-from metaflow.exception import MetaflowException
 from metaflow.decorators import StepDecorator
 
 
@@ -20,4 +17,6 @@ class EnvironmentDecorator(StepDecorator):
     def runtime_step_cli(
         self, cli_args, retry_count, max_user_code_retries, ubf_context
     ):
-        cli_args.env.update(self.attributes["vars"].items())
+        cli_args.env.update(
+            {key: str(value) for key, value in self.attributes["vars"].items()}
+        )
