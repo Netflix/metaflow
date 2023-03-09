@@ -177,7 +177,7 @@ def step(
         msg = util.to_unicode(msg)
         if batch_id:
             msg = "[%s] %s" % (batch_id, msg)
-        ctx.obj.echo_always(msg, err=(stream == sys.stderr))
+        ctx.obj.echo_always(msg, err=(stream == sys.stderr), no_bold=True)
 
     if R.use_r():
         entrypoint = R.entrypoint()
