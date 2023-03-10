@@ -3,6 +3,7 @@ import requests
 
 from metaflow.exception import MetaflowException
 
+
 def get_ec2_instance_metadata():
     """
     Fetches the EC2 instance metadata through AWS instance metadata service
@@ -29,6 +30,7 @@ def get_ec2_instance_metadata():
     except:
         pass
     return meta
+
 
 def get_docker_registry(image_uri):
     """

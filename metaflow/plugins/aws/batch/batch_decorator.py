@@ -24,7 +24,11 @@ from metaflow.sidecar import Sidecar
 from metaflow.unbounded_foreach import UBF_CONTROL
 
 from .batch import BatchException
-from ..aws_utils import compute_resource_attributes, get_docker_registry, get_ec2_instance_metadata
+from ..aws_utils import (
+    compute_resource_attributes,
+    get_docker_registry,
+    get_ec2_instance_metadata,
+)
 
 
 class BatchDecorator(StepDecorator):
@@ -264,7 +268,6 @@ class BatchDecorator(StepDecorator):
     def task_finished(
         self, step_name, flow, graph, is_task_ok, retry_count, max_retries
     ):
-
         # task_finished may run locally if fallback is activated for @catch
         # decorator.
         if "AWS_BATCH_JOB_ID" in os.environ:

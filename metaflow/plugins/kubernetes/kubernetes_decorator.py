@@ -329,7 +329,7 @@ class KubernetesDecorator(StepDecorator):
             #               Google Cloud Platform
             instance_meta = get_ec2_instance_metadata()
             meta.update(instance_meta)
-            
+
             # Unfortunately, there doesn't seem to be any straight forward way right
             # now to attach the Batch/v1 name - While we can rely on a hacky approach
             # given we know that the pod name is simply a unique suffix with a hyphen
