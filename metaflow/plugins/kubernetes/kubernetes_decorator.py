@@ -112,7 +112,7 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["labels"] = self.parse_kube_keyvalue_list(
                 self.attributes["labels"].split(","), False
             )
-        self.attributes["labels"] = self.clean_kube_labels(self.attributes["labels"])
+        self.attributes["labels"] = self.validate_kube_labels(self.attributes["labels"])
 
         if isinstance(self.attributes["node_selector"], str):
             self.attributes["node_selector"] = self.parse_kube_keyvalue_list(
@@ -450,25 +450,23 @@ class KubernetesDecorator(StepDecorator):
             raise KubernetesException("Unable to parse kubernetes list: %s" % items)
 
     @staticmethod
-    def clean_kube_labels(
+    def validate_kube_labels(
         labels: Optional[Dict[str, Optional[str]]],
-        max_len: int = 63,
-        regex_sub: str = r"^[^a-z0-9A-Z]*|[^a-zA-Z0-9_\-\.]|[^a-z0-9A-Z]*$",
+        regex_match: str = r"^(([A-Za-z0-9][-A-Za-z0-9_.]{0,61})?[A-Za-z0-9])?$",
     ):
-        """Inspired by apache airflow label cleaner."""
-
-        def clean_label(s: Optional[str]):
+        def validate_label(s: Optional[str]):
             if not s:
                 # allow empty label
                 return s
-            s_clean = re.sub(regex_sub, "", s)
-            if len(s_clean) > max_len or s != s_clean:
-                s_hash = hashlib.blake2b(s.encode(), digest_size=5).hexdigest()
-                s_clean = f"{s_clean[: max_len - len(s_hash) - 1]}-{s_hash}"
-            # Could recursively call this function but a random hash label is most likely a mistake
-            assert not s_clean.startswith(
-                "-"
-            ), f"Label, {s}, contains no valid characters"
-            return s_clean
+            if not re.search(regex_match, s):
+                # this is the same message kubernetes itself returns
+                raise Exception(
+                    f'Invalid value: "{s}": a valid label must be an empty string or '
+                    "consist of alphanumeric characters, '-', '_' or '.', and must "
+                    "start and end with an alphanumeric character (e.g. 'MyValue', "
+                    "or 'my_value', or '12345', regex used for validation is "
+                    "'^(([A-Za-z0-9][-A-Za-z0-9_.]{0,61})?[A-Za-z0-9])?$'"
+                )
+            return s
 
-        return {k: clean_label(v) for k, v in labels.items()} if labels else labels
+        return {k: validate_label(v) for k, v in labels.items()} if labels else labels
