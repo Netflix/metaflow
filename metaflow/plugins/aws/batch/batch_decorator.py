@@ -24,7 +24,7 @@ from metaflow.sidecar import Sidecar
 from metaflow.unbounded_foreach import UBF_CONTROL
 
 from .batch import BatchException
-from ..aws_utils import compute_resource_attributes, get_docker_registry
+from ..aws_utils import compute_resource_attributes, get_docker_registry, get_ec2_instance_metadata
 
 
 class BatchDecorator(StepDecorator):
@@ -224,6 +224,9 @@ class BatchDecorator(StepDecorator):
                 meta["aws-batch-awslogs-stream"] = logs_meta.get("awslogs-stream")
             except:
                 pass
+
+            instance_meta = get_ec2_instance_metadata()
+            meta.update(instance_meta)
 
             entries = [
                 MetaDatum(
