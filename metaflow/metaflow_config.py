@@ -258,7 +258,14 @@ KUBERNETES_CONTAINER_IMAGE = from_conf(
 KUBERNETES_CONTAINER_REGISTRY = from_conf(
     "KUBERNETES_CONTAINER_REGISTRY", DEFAULT_CONTAINER_REGISTRY
 )
-
+# Remove job after a week by default
+# https://kubernetes.io/docs/concepts/workloads/controllers/ttlafterfinished/
+KUBERNETES_JOB_TTL_SECONDS_AFTER_FINISHED = from_conf(
+    "KUBERNETES_JOB_TTL_SECONDS_AFTER_FINISHED",
+    7 * 60 * 60 * 24,
+)
+# https://argoproj.github.io/argo-workflows/fields/#ttlstrategy
+ARGO_WORKFLOWS_TTL_STRATEGY = from_conf("ARGO_WORKFLOWS_TTL_STRATEGY", {})
 ARGO_WORKFLOWS_KUBERNETES_SECRETS = from_conf("ARGO_WORKFLOWS_KUBERNETES_SECRETS", "")
 ARGO_WORKFLOWS_ENV_VARS_TO_SKIP = from_conf("ARGO_WORKFLOWS_ENV_VARS_TO_SKIP", "")
 

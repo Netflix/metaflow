@@ -28,6 +28,7 @@ from metaflow.metaflow_config import (
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
     ARGO_WORKFLOWS_KUBERNETES_SECRETS,
     ARGO_WORKFLOWS_ENV_VARS_TO_SKIP,
+    ARGO_WORKFLOWS_TTL_STRATEGY,
 )
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
@@ -341,6 +342,8 @@ class ArgoWorkflows(object):
                 # .image_pull_secrets(...)
                 # Limit workflow parallelism
                 .parallelism(self.max_workers)
+                # Possibly have Argo Workflows controller clean up old Workflows
+                .ttl_strategy(ARGO_WORKFLOWS_TTL_STRATEGY)
                 # TODO: Support Prometheus metrics for Argo
                 # .metrics(...)
                 # TODO: Support PodGC and DisruptionBudgets
@@ -1111,6 +1114,11 @@ class WorkflowSpec(object):
     def parallelism(self, parallelism):
         # Set parallelism at Workflow level
         self.payload["parallelism"] = int(parallelism)
+        return self
+
+    def ttl_strategy(self, ttl_strategy={}):
+        if ttl_strategy != {}:
+            self.payload["ttlStrategy"] = ttl_strategy
         return self
 
     def pod_metadata(self, metadata):
