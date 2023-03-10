@@ -1,7 +1,34 @@
 import re
+import requests
 
 from metaflow.exception import MetaflowException
 
+def get_ec2_instance_metadata():
+    """
+    Fetches the EC2 instance metadata through AWS instance metadata service
+
+    Returns either an empty dictionary, or one with the keys
+        - ec2-instance-id
+        - ec2-instance-type
+        - ec2-region
+        - ec2-availability-zone
+    """
+    meta = {}
+    # Capture AWS instance identity metadata. This is best-effort only since
+    # access to this end-point might be blocked on AWS and not available
+    # for non-AWS deployments.
+    # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-identity-documents.html
+    try:
+        instance_meta = requests.get(
+            url="http://169.254.169.254/latest/dynamic/instance-identity/document"
+        ).json()
+        meta["ec2-instance-id"] = instance_meta.get("instanceId")
+        meta["ec2-instance-type"] = instance_meta.get("instanceType")
+        meta["ec2-region"] = instance_meta.get("region")
+        meta["ec2-availability-zone"] = instance_meta.get("availabilityZone")
+    except:
+        pass
+    return meta
 
 def get_docker_registry(image_uri):
     """
