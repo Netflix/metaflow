@@ -94,7 +94,7 @@ class Conda(object):
         for env in envs:
             name = os.path.basename(env)
             if name.startswith("metaflow_%s" % flow):
-                   ret[name] = env
+               ret[name] = env
         return ret
 
     def package_info(self, env_id):
