@@ -118,7 +118,7 @@ def tail_logs(prefix, stdout_tail, stderr_tail, echo, has_log_updates):
                     line = set_should_persist(line)
                 else:
                     line = refine(line, prefix=prefix)
-                echo(line.strip().decode("utf-8", errors="replace"), stream)
+                echo(line.strip().decode("utf-8", errors="replace"), stream, no_bold=True)
         except Exception as ex:
             echo(
                 "%s[ temporary error in fetching logs: %s ]" % (to_unicode(prefix), ex),
