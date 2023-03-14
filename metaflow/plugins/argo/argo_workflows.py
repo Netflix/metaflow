@@ -385,6 +385,17 @@ class ArgoWorkflows(object):
                         "decorator. Only alphanumeric characters and "
                         "underscores(_) are allowed." % (value, event["flow"])
                     )
+                # Throw an error if we are unable to impute project for specified
+                # branch.
+                if (
+                    not event.get("project")
+                    and not current.get("project_name")
+                    and event.get("branch")
+                ):
+                    raise ArgoWorkflowsException(
+                        "No project specified for branch in *@trigger_on_finish* "
+                        "decorator."
+                    )
                 # Actual event names are deduced here since we don't have access to
                 # the current object in the @trigger_on_finish decorator.
                 triggers.append(
