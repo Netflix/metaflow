@@ -1898,9 +1898,9 @@ class Run(MetaflowObject):
     @property
     def trigger(self):
         if "start" in self:
-            _meta = self["start"].task.metadata_dict.get("execution-triggers")
-            if _meta:
-                return MetaflowTrigger(json.loads(_meta))
+            meta = self["start"].task.metadata_dict.get("execution-triggers")
+            if meta:
+                return MetaflowTrigger(json.loads(meta))
 
 
 class Flow(MetaflowObject):
