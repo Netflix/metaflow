@@ -48,18 +48,13 @@ class ArgoEventsDecorator(FlowDecorator):
                 )
         elif self.attributes["events"]:
             # events attribute supports the following formats -
-            #     1. events='table.prod_db.members AND table.prod_db.metadata'
-            #     2. events=[{'name': 'table.prod_db.members',
+            #     1. events=[{'name': 'table.prod_db.members',
             #               'parameters': {'alpha': 'member_weight'}},
-            #               'AND', -- optional - if omitted, default is AND
             #                {'name': 'table.prod_db.metadata',
             #               'parameters': {'beta': 'grade'}}]
-            if is_stringish(self.attributes["events"]):
-                for event in str(self.attributes["events"]).split(" AND "):
-                    self.triggers.append({"name": event})
-            elif isinstance(self.attributes["events"], list):
+            if isinstance(self.attributes["events"], list):
                 for event in self.attributes["events"]:
-                    if is_stringish(event) and str(event).upper() != "AND":
+                    if is_stringish(event):
                         self.triggers.append({"name": str(event)})
                     elif isinstance(event, dict):
                         if "name" not in dict(event):
@@ -71,20 +66,18 @@ class ArgoEventsDecorator(FlowDecorator):
                     else:
                         raise MetaflowException(
                             "One or more events in *events* attribute in *@trigger* "
-                            "decorator have an incorrect format. Supported formats "
-                            "are string and dictionary - \n"
-                            "@trigger(events='foo AND bar') or "
+                            "decorator have an incorrect format. Supported format "
+                            "is dictionary - \n"
                             "@trigger(events=[{'name': 'foo', 'parameters': {'alpha': "
-                            "'beta'}},  'AND', {'name': 'bar', 'parameters': "
+                            "'beta'}}, {'name': 'bar', 'parameters': "
                             "{'gamma': 'kappa'}}])"
                         )
             else:
                 raise MetaflowException(
                     "Incorrect format for *events* attribute in *@trigger* decorator. "
-                    "Supported format is list or string - \n"
-                    "@trigger(events='foo AND bar') or "
+                    "Supported format is list - \n"
                     "@trigger(events=[{'name': 'foo', 'parameters': {'alpha': "
-                    "'beta'}},  'AND', {'name': 'bar', 'parameters': "
+                    "'beta'}}, {'name': 'bar', 'parameters': "
                     "{'gamma': 'kappa'}}])"
                 )
 
@@ -130,18 +123,8 @@ class TriggerOnFinishDecorator(FlowDecorator):
                 )
         elif self.attributes["flows"]:
             # flows attribute supports the following formats -
-            #     1. flows='FooFlow AND BarFlow'
-            #     2. flows=['FooFlow', 'BarFlow']
-            if is_stringish(self.attributes["flows"]):
-                for flow in str(self.attributes["flows"]).split(" AND "):
-                    self.triggers.append(
-                        {
-                            "flow": flow,
-                            "project": self.attributes["project"],
-                            "branch": self.attributes["branch"],
-                        }
-                    )
-            elif isinstance(self.attributes["flows"], list):
+            #     1. flows=['FooFlow', 'BarFlow']
+            if isinstance(self.attributes["flows"], list):
                 for flow in self.attributes["flows"]:
                     if is_stringish(flow):
                         self.triggers.append(
@@ -156,14 +139,12 @@ class TriggerOnFinishDecorator(FlowDecorator):
                             "One or more flows in *flows* attribute in "
                             "*@trigger_on_finish* decorator have an incorrect format. "
                             "Supported format is string - \n"
-                            "@trigger_on_finish(flows='FooFlow AND BarFlow') or "
                             "@trigger_on_finish(flows=['FooFlow', 'BarFlow']"
                         )
             else:
                 raise MetaflowException(
                     "Incorrect format for *flows* attribute in *@trigger_on_finish* "
-                    "decorator. Supported format is list or string - \n"
-                    "@trigger_on_finish(flows='FooFlow AND BarFlow') or "
+                    "decorator. Supported format is list - \n"
                     "@trigger_on_finish(flows=['FooFlow', 'BarFlow']"
                 )
 
