@@ -38,7 +38,11 @@ def _load_config(path):
 
 
 def _path(token_prefix):
-    home = os.environ.get("METAFLOW_HOME", "~/.metaflowconfig")
+    # TODO make this a MF config variable
+    if os.environ.get("METAFLOW_TOKEN_HOME"):
+        home = os.environ.get("METAFLOW_TOKEN_HOME")
+    else:
+        home = os.environ.get("METAFLOW_HOME", "~/.metaflowconfig")
     return os.path.expanduser("%s/%s" % (home, token_prefix))
 
 
