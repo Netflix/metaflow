@@ -173,11 +173,11 @@ def step(
     num_parallel=None,
     **kwargs
 ):
-    def echo(msg, stream="stderr", batch_id=None):
+    def echo(msg, stream="stderr", batch_id=None, **kwargs):
         msg = util.to_unicode(msg)
         if batch_id:
             msg = "[%s] %s" % (batch_id, msg)
-        ctx.obj.echo_always(msg, err=(stream == sys.stderr))
+        ctx.obj.echo_always(msg, err=(stream == sys.stderr), **kwargs)
 
     if R.use_r():
         entrypoint = R.entrypoint()
