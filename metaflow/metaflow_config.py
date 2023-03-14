@@ -193,7 +193,7 @@ DEFAULT_CONTAINER_IMAGE = from_conf("DEFAULT_CONTAINER_IMAGE")
 # Default container registry
 DEFAULT_CONTAINER_REGISTRY = from_conf("DEFAULT_CONTAINER_REGISTRY")
 
-MFGUI_URL = from_conf("UI_URL")
+UI_URL = from_conf("UI_URL")
 
 ###
 # AWS Batch configuration

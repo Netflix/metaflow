@@ -18,7 +18,7 @@ from metaflow.datastore.exceptions import DataException
 
 from . import get_namespace
 from .metadata import MetaDatum
-from .metaflow_config import MAX_ATTEMPTS, MFGUI_URL
+from .metaflow_config import MAX_ATTEMPTS, UI_URL
 from .exception import (
     MetaflowException,
     MetaflowInternalError,
@@ -198,12 +198,16 @@ class NativeRuntime(object):
         self._is_cloned[task.path] = task.is_cloned
 
     def execute(self):
-        if MFGUI_URL:
+        run_url = None
+        if UI_URL:
+            run_url = "%s/%s/%s" % (UI_URL.rstrip("/"), self._flow.name, self._run_id)
+
+        if run_url:
             self._logger(
                 "Workflow starting (run-id %s), see it in the UI at %s"
                 % (
                     self._run_id,
-                    os.path.join(MFGUI_URL, self._flow.name, self._run_id),
+                    run_url,
                 ),
                 system_msg=True,
             )
@@ -296,10 +300,9 @@ class NativeRuntime(object):
 
         # assert that end was executed and it was successful
         if ("end", ()) in self._finished:
-            if MFGUI_URL:
+            if run_url:
                 self._logger(
-                    "Done! See the run in the UI at %s"
-                    % (os.path.join(MFGUI_URL, self._flow.name, self._run_id),),
+                    "Done! See the run in the UI at %s" % run_url,
                     system_msg=True,
                 )
             else:
