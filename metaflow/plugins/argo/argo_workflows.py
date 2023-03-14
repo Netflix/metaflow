@@ -2155,7 +2155,8 @@ class TriggerParameter(object):
             "dependencyName": dependency_name,
             "dataKey": data_key,
             "value": value,
-            "useRawData": True,
+            # explicitly set it to false to ensure proper deserialization
+            "useRawData": False,
         }
         return self
 

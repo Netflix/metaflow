@@ -205,14 +205,14 @@ def create(
         obj.echo("What will trigger execution of the workflow:", bold=True)
         obj.echo(flow.trigger_explanation(), indent=True)
 
-        response = ArgoWorkflows.trigger(obj.workflow_name)
-        run_id = "argo-" + response["metadata"]["name"]
+        # response = ArgoWorkflows.trigger(obj.workflow_name)
+        # run_id = "argo-" + response["metadata"]["name"]
 
-        obj.echo(
-            "Workflow *{name}* triggered on Argo Workflows "
-            "(run-id *{run_id}*).".format(name=obj.workflow_name, run_id=run_id),
-            bold=True,
-        )
+        # obj.echo(
+        #     "Workflow *{name}* triggered on Argo Workflows "
+        #     "(run-id *{run_id}*).".format(name=obj.workflow_name, run_id=run_id),
+        #     bold=True,
+        # )
 
 
 def check_python_version(obj):
