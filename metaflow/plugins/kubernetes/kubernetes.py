@@ -24,6 +24,7 @@ from metaflow.metaflow_config import (
     DEFAULT_SECRETS_BACKEND_TYPE,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
     OTEL_ENDPOINT,
+    ZIPKIN_ENDPOINT,
 )
 from metaflow.mflog import (
     BASH_SAVE_LOGS,
@@ -228,6 +229,7 @@ class Kubernetes(object):
                 "METAFLOW_INIT_SCRIPT", KUBERNETES_SANDBOX_INIT_SCRIPT
             )
             .environment_variable("METAFLOW_OTEL_ENDPOINT", OTEL_ENDPOINT)
+            .environment_variable("METAFLOW_ZIPKIN_ENDPOINT", ZIPKIN_ENDPOINT)
             # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync
             # between the local user instance and the remote Kubernetes pod
             # assumes metadata is stored in DATASTORE_LOCAL_DIR on the Kubernetes

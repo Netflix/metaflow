@@ -15,14 +15,19 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.propagate import set_global_textmap
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 
+
+from opentelemetry.exporter.zipkin.proto.http import ZipkinExporter
+
 tracer_provider = None
 
 
 def init_tracing():
+    print("initialize otel!")
     from metaflow.metaflow_config import (
         SERVICE_AUTH_KEY,
         SERVICE_HEADERS,
         OTEL_ENDPOINT,
+        ZIPKIN_ENDPOINT,
     )
 
     global tracer_provider
@@ -35,18 +40,30 @@ def init_tracing():
 
     set_global_textmap(EnvPropagator(None))
 
+
     if SERVICE_AUTH_KEY:
-        span_exporter = OTLPSpanExporter(
-            endpoint=OTEL_ENDPOINT,
-            headers={"x-api-key": SERVICE_AUTH_KEY},
-            timeout=1,
-        )
+        if ZIPKIN_ENDPOINT:
+            print("I'm zipkin!!")
+            span_exporter = ZipkinExporter(
+                endpoint=ZIPKIN_ENDPOINT,
+            )
+        else:
+            span_exporter = OTLPSpanExporter(
+                endpoint=OTEL_ENDPOINT,
+                headers={"x-api-key": SERVICE_AUTH_KEY},
+                timeout=1,
+            )
     elif SERVICE_HEADERS:
-        span_exporter = OTLPSpanExporter(
-            endpoint=OTEL_ENDPOINT,
-            headers=SERVICE_HEADERS,
-            timeout=1,
-        )
+        if ZIPKIN_ENDPOINT:
+            span_exporter = ZipkinExporter(
+                endpoint=ZIPKIN_ENDPOINT,
+            )
+        else:
+            span_exporter = OTLPSpanExporter(
+                endpoint=OTEL_ENDPOINT,
+                headers=SERVICE_HEADERS,
+                timeout=1,
+            )
     else:
         print("WARNING: no auth settings for Opentelemetry", file=sys.stderr)
         return
@@ -62,7 +79,7 @@ def init_tracing():
         resource=Resource.create({SERVICE_NAME: service_name})
     )
     trace_api.set_tracer_provider(tracer_provider)
-
+    
     span_processor = BatchSpanProcessor(span_exporter)
     tracer_provider.add_span_processor(span_processor)
 
