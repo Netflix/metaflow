@@ -10,7 +10,7 @@ from .extension_support import EXT_PKG, package_mfext_all
 from .metaflow_config import DEFAULT_PACKAGE_SUFFIXES
 from .exception import MetaflowException
 from .util import to_unicode
-from . import R
+from . import R, INFO_FILE
 
 DEFAULT_SUFFIXES_LIST = DEFAULT_PACKAGE_SUFFIXES.split(",")
 METAFLOW_SUFFIXES_LIST = [".py", ".html", ".css", ".js"]
@@ -108,7 +108,10 @@ class MetaflowPackage(object):
 
         # Metaflow extensions; for now, we package *all* extensions but this may change
         # at a later date; it is possible to call `package_mfext_package` instead of
-        # `package_mfext_all`
+        # `package_mfext_all` but in that case, make sure to also add a
+        # metaflow_extensions/__init__.py file to properly "close" the metaflow_extensions
+        # package and prevent other extensions from being loaded that may be
+        # present in the rest of the system
         for path_tuple in package_mfext_all():
             yield path_tuple
 
@@ -147,7 +150,7 @@ class MetaflowPackage(object):
                 yield path_tuple
 
     def _add_info(self, tar):
-        info = tarfile.TarInfo("INFO")
+        info = tarfile.TarInfo(os.path.basename(INFO_FILE))
         env = self.environment.get_environment_info()
         buf = BytesIO()
         buf.write(json.dumps(env).encode("utf-8"))

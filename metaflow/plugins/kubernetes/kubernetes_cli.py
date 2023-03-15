@@ -119,11 +119,11 @@ def step(
     labels=None,
     **kwargs
 ):
-    def echo(msg, stream="stderr", job_id=None):
+    def echo(msg, stream="stderr", job_id=None, **kwargs):
         msg = util.to_unicode(msg)
         if job_id:
             msg = "[%s] %s" % (job_id, msg)
-        ctx.obj.echo_always(msg, err=(stream == sys.stderr))
+        ctx.obj.echo_always(msg, err=(stream == sys.stderr), **kwargs)
 
     node = ctx.obj.graph[step_name]
 

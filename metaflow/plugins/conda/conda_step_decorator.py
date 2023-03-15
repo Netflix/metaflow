@@ -25,6 +25,7 @@ from metaflow.metaflow_config import (
 )
 from metaflow.util import get_metaflow_root
 
+from ... import INFO_FILE
 from ..env_escape import generate_trampolines
 from . import read_conda_manifest, write_to_conda_manifest, get_conda_package_root
 from .conda import Conda
@@ -260,9 +261,10 @@ class CondaStepDecorator(StepDecorator):
             )
 
     def runtime_init(self, flow, graph, package, run_id):
+        info_file_name = os.path.basename(INFO_FILE)
         # Create a symlink to installed version of metaflow to execute user code against
         path_to_metaflow = os.path.join(get_metaflow_root(), "metaflow")
-        path_to_info = os.path.join(get_metaflow_root(), "INFO")
+        path_to_info = os.path.join(get_metaflow_root(), info_file_name)
         self.metaflow_home = tempfile.mkdtemp(dir="/tmp")
         self.addl_paths = None
         os.symlink(path_to_metaflow, os.path.join(self.metaflow_home, "metaflow"))
@@ -270,16 +272,18 @@ class CondaStepDecorator(StepDecorator):
         # Symlink the INFO file as well to properly propagate down the Metaflow version
         # if launching on AWS Batch for example
         if os.path.isfile(path_to_info):
-            os.symlink(path_to_info, os.path.join(self.metaflow_home, "INFO"))
+            os.symlink(path_to_info, os.path.join(self.metaflow_home, info_file_name))
         else:
-            # If there is no "INFO" file, we will actually create one in this new
+            # If there is no info_file_name file, we will actually create one in this new
             # place because we won't be able to properly resolve the EXT_PKG extensions
             # the same way as outside conda (looking at distributions, etc.). In a
             # Conda environment, as shown below (where we set self.addl_paths), all
             # EXT_PKG extensions are PYTHONPATH extensions. Instead of re-resolving,
             # we use the resolved information that is written out to the INFO file.
             with open(
-                os.path.join(self.metaflow_home, "INFO"), mode="wt", encoding="utf-8"
+                os.path.join(self.metaflow_home, info_file_name),
+                mode="wt",
+                encoding="utf-8",
             ) as f:
                 f.write(json.dumps(self._cur_environment.get_environment_info()))
 

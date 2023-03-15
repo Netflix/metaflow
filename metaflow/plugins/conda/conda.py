@@ -92,11 +92,9 @@ class Conda(object):
         envs = self._info()["envs"]
         ret = {}
         for env in envs:
-            # Named environments are always $CONDA_PREFIX/envs/
-            if "/envs/" in env:
-                name = os.path.basename(env)
-                if name.startswith("metaflow_%s" % flow):
-                    ret[name] = env
+            name = os.path.basename(env)
+            if name.startswith("metaflow_%s" % flow):
+                ret[name] = env
         return ret
 
     def package_info(self, env_id):
@@ -164,10 +162,9 @@ class Conda(object):
     def _env_path(self, env_id):
         envs = self._info()["envs"]
         for env in envs:
-            if "/envs/" in env:
-                name = os.path.basename(env)
-                if name == env_id:
-                    return env
+            name = os.path.basename(env)
+            if name == env_id:
+                return env
         return None
 
     def _env_lock_file(self, env_id):

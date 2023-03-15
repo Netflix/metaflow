@@ -30,6 +30,7 @@ from metaflow.unbounded_foreach import CONTROL_TASK_TAG
 from metaflow.util import cached_property, resolve_identity, to_unicode, is_stringish
 
 from .filecache import FileCache
+from .. import INFO_FILE
 
 try:
     # python2
@@ -708,7 +709,9 @@ class MetaflowCode(object):
         code_obj = BytesIO(blobdata)
         self._tar = tarfile.open(fileobj=code_obj, mode="r:gz")
         # The JSON module in Python3 deals with Unicode. Tar gives bytes.
-        info_str = self._tar.extractfile("INFO").read().decode("utf-8")
+        info_str = (
+            self._tar.extractfile(os.path.basename(INFO_FILE)).read().decode("utf-8")
+        )
         self._info = json.loads(info_str)
         self._flowspec = self._tar.extractfile(self._info["script"]).read()
 

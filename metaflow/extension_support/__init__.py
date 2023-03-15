@@ -149,6 +149,14 @@ def package_mfext_package(package_name):
 
 
 def package_mfext_all():
+    # When packaging extensions, we always add a __init__.py to make
+    # the packaged metaflow_extensions directory "self-contained" so that
+    # python doesn't go and search other parts of the system for more
+    # metaflow_extensions.
+    yield os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "_empty_file.py"
+    ), os.path.join(EXT_PKG, "__init__.py")
+
     for p in _all_packages:
         for path_tuple in package_mfext_package(p):
             yield path_tuple
@@ -752,7 +760,6 @@ def _get_extension_packages():
 
     # We have the load order globally; we now figure it out per extension point.
     for k, v in extension_points_to_pkg.items():
-
         # v is a dict distributionName/packagePath -> (dict tl_name -> MFPackage)
         l = [v[pkg].values() for pkg in mf_pkg_list if pkg in v]
         # In the case of the plugins.cards extension we allow those packages

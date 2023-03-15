@@ -3,7 +3,6 @@ import json
 import os
 import platform
 import re
-import requests
 import sys
 from typing import Dict, List, Optional, Union
 
@@ -27,7 +26,8 @@ from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.sidecar import Sidecar
 
-from ..aws.aws_utils import get_docker_registry
+from ..aws.aws_utils import get_docker_registry, get_ec2_instance_metadata
+
 from .kubernetes import KubernetesException
 
 try:
@@ -341,22 +341,11 @@ class KubernetesDecorator(StepDecorator):
             ]
             meta["kubernetes-node-ip"] = os.environ["METAFLOW_KUBERNETES_NODE_IP"]
 
-            # Capture AWS instance identity metadata. This is best-effort only since
-            # access to this end-point might be blocked on AWS and not available
-            # for non-AWS deployments.
-            # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-identity-documents.html
             # TODO (savin): Introduce equivalent support for Microsoft Azure and
             #               Google Cloud Platform
-            try:
-                instance_meta = requests.get(
-                    url="http://169.254.169.254/latest/dynamic/instance-identity/document"
-                ).json()
-                meta["ec2-instance-id"] = instance_meta.get("instanceId")
-                meta["ec2-instance-type"] = instance_meta.get("instanceType")
-                meta["ec2-region"] = instance_meta.get("region")
-                meta["ec2-availability-zone"] = instance_meta.get("availabilityZone")
-            except:
-                pass
+            instance_meta = get_ec2_instance_metadata()
+            meta.update(instance_meta)
+
             # Unfortunately, there doesn't seem to be any straight forward way right
             # now to attach the Batch/v1 name - While we can rely on a hacky approach
             # given we know that the pod name is simply a unique suffix with a hyphen
