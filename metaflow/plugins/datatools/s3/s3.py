@@ -819,7 +819,8 @@ class S3(object):
                     raise MetaflowS3Exception("Did not get a response to HEAD")
 
         return list(starmap(S3Object, _head()))
-
+    
+    @tracing.cli_entrypoint("s3/get")
     def get(
         self,
         key: Optional[Union[str, S3GetObject]] = None,
@@ -847,6 +848,8 @@ class S3(object):
         `S3Object`
             An S3Object corresponding to the object requested.
         """
+        print("I'm in s3 get")
+        print("sync???")
         url, r = self._url_and_range(key)
         src = urlparse(url)
 
@@ -1065,7 +1068,8 @@ class S3(object):
             )
         else:
             return self.get_recursive([None], return_info)
-
+        
+    @tracing.cli_entrypoint("s3/put")
     def put(
         self,
         key: Union[str, S3PutObject],
@@ -1097,7 +1101,7 @@ class S3(object):
         str
             URL of the object stored.
         """
-
+        print("I'm in s3 put")
         if isinstance(obj, (RawIOBase, BufferedIOBase)):
             if not obj.readable() or not obj.seekable():
                 raise MetaflowS3InvalidObject(

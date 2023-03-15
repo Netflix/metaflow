@@ -43,7 +43,7 @@ def init_tracing():
 
     if SERVICE_AUTH_KEY:
         if ZIPKIN_ENDPOINT:
-            print("I'm zipkin!!")
+            print("I'm zipkin auth key")
             span_exporter = ZipkinExporter(
                 endpoint=ZIPKIN_ENDPOINT,
             )
@@ -55,6 +55,7 @@ def init_tracing():
             )
     elif SERVICE_HEADERS:
         if ZIPKIN_ENDPOINT:
+            print("I'm zipkin header")
             span_exporter = ZipkinExporter(
                 endpoint=ZIPKIN_ENDPOINT,
             )
@@ -91,6 +92,7 @@ def init_tracing():
 
 @contextlib.contextmanager
 def post_fork():
+    print("enter post_fork")
     global tracer_provider
     tracer_provider = None
     init_tracing()
@@ -113,9 +115,11 @@ def _extract_token_after(tokens: List[str], before_token: str) -> Optional[str]:
 
 
 def cli_entrypoint(name: str):
+   
     def cli_entrypoint_wrap(func):
         @wraps(func)
         def wrapper_func(*args, **kwargs):
+            print("enter cli_entrypoint", name)
             init_tracing()
             # print("CLI ENTRYPOINT traceparent", os.environ.get("traceparent"), file=sys.stderr)
             token = context.attach(extract(os.environ))
@@ -151,6 +155,7 @@ def cli_entrypoint(name: str):
 
 
 def inject_tracing_vars(env_dict: Dict[str, str]) -> Dict[str, str]:
+    print("injecting tracing vars")
     inject(env_dict)
     return env_dict
 

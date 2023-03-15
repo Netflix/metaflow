@@ -1,4 +1,5 @@
-from metaflow import FlowSpec, step
+from metaflow import FlowSpec, step, S3, tracing
+import json
 
 
 class HelloFlow(FlowSpec):
@@ -17,6 +18,12 @@ class HelloFlow(FlowSpec):
 
         """
         print("HelloFlow is starting.")
+
+
+        with S3(run=self) as s3:
+            message = json.dumps({'message': 'hello world!'})
+            url = s3.put('example_object', message)
+            print("Message saved at", url)
         self.next(self.hello)
 
     @step
@@ -26,6 +33,10 @@ class HelloFlow(FlowSpec):
 
         """
         print("Metaflow says: Hi!")
+        with S3(run=self) as s3:
+            s3obj = s3.get('example_object')
+            print("Object found at", s3obj.url)
+            print("Message:", json.loads(s3obj.text))
         self.next(self.end)
 
     @step

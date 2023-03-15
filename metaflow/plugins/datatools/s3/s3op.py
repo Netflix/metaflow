@@ -158,6 +158,7 @@ def worker(result_file_name, queue, mode, s3config):
     # info_download or info_upload which implies:
     #  - for download: we need to return the information as well
     #  - for upload: we need to not overwrite the file if it exists
+    print("s3op worker") 
     modes = mode.split("_")
     pre_op_info = False
     if len(modes) > 1:
@@ -732,7 +733,7 @@ def lst(
     s3sessionvars=None,
     s3clientparams=None,
 ):
-
+    print("s3op list")   
     s3config = S3Config(
         s3role,
         json.loads(s3sessionvars) if s3sessionvars else None,
@@ -808,6 +809,7 @@ def put(
     s3clientparams=None,
     inject_failure=0,
 ):
+    print("s3op put")
     if inputs is not None and filelist is not None:
         raise RuntimeError("Cannot specify inputs and filelist at the same time")
     if inputs is not None and filelist is None:
