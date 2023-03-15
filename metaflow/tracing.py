@@ -29,4 +29,5 @@ if OTEL_ENDPOINT or ZIPKIN_ENDPOINT:
         tracing = metaflow.tracing_otel.tracing
         post_fork = metaflow.tracing_otel.post_fork
     except ImportError:
-        pass   
+        pass  
+ 

@@ -849,7 +849,6 @@ class S3(object):
             An S3Object corresponding to the object requested.
         """
         print("I'm in s3 get")
-        print("sync???")
         url, r = self._url_and_range(key)
         src = urlparse(url)
 
