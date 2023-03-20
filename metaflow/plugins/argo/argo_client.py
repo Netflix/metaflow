@@ -85,6 +85,45 @@ class ArgoClient(object):
             raise ArgoClientException(
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
+    
+    def delete_workflow_schedule(self, name):
+        client = self._kubernetes_client.get()
+
+        try:
+            return client.CustomObjectsApi().delete_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="cronworkflows",
+                name=name,
+            )
+        except client.rest.ApiException as e:
+            if e.status == 404:
+                return None
+            else:
+                raise ArgoClientException(
+                    json.loads(e.body)["message"] if e.body is not None else e.reason
+                )
+
+
+    def delete_workflow_template(self, name):
+        client = self._kubernetes_client.get()
+
+        try:
+            return client.CustomObjectsApi().delete_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="workflowtemplates",
+                name=name,
+            )
+        except client.rest.ApiException as e:
+            if e.status == 404:
+                return None
+            else:
+                raise ArgoClientException(
+                    json.loads(e.body)["message"] if e.body is not None else e.reason
+                )
 
     def trigger_workflow_template(self, name, parameters={}):
         client = self._client.get()
