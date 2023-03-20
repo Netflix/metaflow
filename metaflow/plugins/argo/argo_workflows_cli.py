@@ -399,22 +399,12 @@ def resolve_token(
         # we allow the user who deployed the previous version to re-deploy,
         # even if they don't have the token
         if prev_user != get_username() and authorize != prev_token:
-            obj.echo(
-                "There is an existing version of *%s* on Argo Workflows which was "
-                "deployed by the user *%s*." % (name, prev_user)
-            )
-            obj.echo(
-                "To deploy a new version of this flow, you need to use the same "
-                "production token that they used. "
-            )
-            obj.echo(
-                "Please reach out to them to get the token. Once you have it, call "
-                "this command:"
-            )
-            obj.echo("    argo-workflows create --authorize MY_TOKEN", fg="green")
-            obj.echo(
-                'See "Organizing Results" at docs.metaflow.org for more information '
-                "about production tokens."
+            echo_token_instructions(
+                obj,
+                name,
+                prev_user,
+                cmd_name="create",
+                cmd_description="deploy a new version of",
             )
             raise IncorrectProductionToken(
                 "Try again with the correct production token."
@@ -522,13 +512,7 @@ def trigger(obj, run_id_file=None, **kwargs):
 )
 @click.pass_obj
 def delete(obj, authorize=None):
-    validate_token(
-        obj.workflow_name,
-        obj.token_prefix,
-        obj,
-        authorize,
-        "delete"
-    )
+    validate_token(obj.workflow_name, obj.token_prefix, obj, authorize, "delete")
 
     response = ArgoWorkflows.delete(obj.workflow_name)
     if response:
@@ -538,9 +522,8 @@ def delete(obj, authorize=None):
             "will fail until the deletion has completed.".format(name=obj.workflow_name)
         )
 
-def validate_token(
-    name, token_prefix, obj, authorize, cmd_name
-):
+
+def validate_token(name, token_prefix, obj, authorize, cmd_name):
     # 1) retrieve the previous deployment, if one exists
     workflow = ArgoWorkflows.get_existing_deployment(name)
     if workflow is None:
@@ -560,23 +543,7 @@ def validate_token(
         # NOTE: The username is visible in multiple sources, and can be set by the user.
         # Should we consider being stricter here?
         if prev_user != get_username() and authorize != prev_token:
-            obj.echo(
-                "There is an existing version of *%s* on Argo Workflows which was "
-                "deployed by the user *%s*." % (name, prev_user)
-            )
-            obj.echo(
-                "To %s this flow, you need to use the same "
-                "production token that they used. " % cmd_name
-            )
-            obj.echo(
-                "Please reach out to them to get the token. Once you have it, call "
-                "this command:"
-            )
-            obj.echo("    argo-workflows %s --authorize MY_TOKEN" % cmd_name, fg="green")
-            obj.echo(
-                'See "Organizing Results" at docs.metaflow.org for more information '
-                "about production tokens."
-            )
+            echo_token_instructions(obj, name, prev_user, cmd_name)
             raise IncorrectProductionToken(
                 "Try again with the correct production token."
             )
@@ -586,3 +553,24 @@ def validate_token(
 
     store_token(token_prefix, token)
     return True
+
+
+def echo_token_instructions(obj, name, prev_user, cmd_name, cmd_description=None):
+    obj.echo(
+        "There is an existing version of *%s* on Argo Workflows which was "
+        "deployed by the user *%s*." % (name, prev_user)
+    )
+    obj.echo(
+        "To %s this flow, you need to use the same "
+        "production token that they used. " % cmd_description
+        or cmd_name
+    )
+    obj.echo(
+        "Please reach out to them to get the token. Once you have it, call "
+        "this command:"
+    )
+    obj.echo("    argo-workflows %s --authorize MY_TOKEN" % cmd_name, fg="green")
+    obj.echo(
+        'See "Organizing Results" at docs.metaflow.org for more information '
+        "about production tokens."
+    )

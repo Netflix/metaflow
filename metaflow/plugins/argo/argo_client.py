@@ -86,7 +86,7 @@ class ArgoClient(object):
             raise ArgoClientException(
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
-    
+
     def delete_workflow_schedule(self, name):
         client = self._kubernetes_client.get()
 
@@ -105,7 +105,6 @@ class ArgoClient(object):
                 raise ArgoClientException(
                     json.loads(e.body)["message"] if e.body is not None else e.reason
                 )
-
 
     def delete_workflow_template(self, name):
         client = self._kubernetes_client.get()
