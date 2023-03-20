@@ -182,6 +182,7 @@ class ArgoWorkflows(object):
                 "on Argo Workflows. Please "
                 "deploy your flow first." % name
             )
+        return True
 
     @classmethod
     def trigger(cls, name, parameters=None):

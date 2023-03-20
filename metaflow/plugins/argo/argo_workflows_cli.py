@@ -551,5 +551,67 @@ def trigger(obj, run_id_file=None, **kwargs):
 )
 @click.pass_obj
 def delete(obj, authorize=None):
-    # TODO: This needs to verify that the user has a valid token to perform deletion
-    ArgoWorkflows.delete(obj.workflow_name)
+    validate_token(
+        obj.workflow_name,
+        obj.token_prefix,
+        obj,
+        authorize,
+        "delete"
+    )
+
+    response = ArgoWorkflows.delete(obj.workflow_name)
+    if response:
+        obj.echo(
+            "Deleting workflow *{name}*. This might take a while.\n"
+            "Deploying a flow with the same name during this time "
+            "will fail until the deletion has completed.".format(name=obj.workflow_name)
+        )
+
+def validate_token(
+    name, token_prefix, obj, authorize, cmd_name
+):
+    # 1) retrieve the previous deployment, if one exists
+    workflow = ArgoWorkflows.get_existing_deployment(name)
+    if workflow is None:
+        prev_token = None
+    else:
+        prev_user, prev_token = workflow
+
+    # 2) authorize this deployment
+    if prev_token is not None:
+        if authorize is None:
+            authorize = load_token(token_prefix)
+        elif authorize.startswith("production:"):
+            authorize = authorize[11:]
+
+        # we allow the user who deployed the previous version to re-deploy,
+        # even if they don't have the token
+        # NOTE: The username is visible in multiple sources, and can be set by the user.
+        # Should we consider being stricter here?
+        if prev_user != get_username() and authorize != prev_token:
+            obj.echo(
+                "There is an existing version of *%s* on Argo Workflows which was "
+                "deployed by the user *%s*." % (name, prev_user)
+            )
+            obj.echo(
+                "To %s this flow, you need to use the same "
+                "production token that they used. " % cmd_name
+            )
+            obj.echo(
+                "Please reach out to them to get the token. Once you have it, call "
+                "this command:"
+            )
+            obj.echo("    argo-workflows %s --authorize MY_TOKEN" % cmd_name, fg="green")
+            obj.echo(
+                'See "Organizing Results" at docs.metaflow.org for more information '
+                "about production tokens."
+            )
+            raise IncorrectProductionToken(
+                "Try again with the correct production token."
+            )
+
+    # 3) all validations passed, store the previous token for future use
+    token = prev_token
+
+    store_token(token_prefix, token)
+    return True
