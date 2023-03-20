@@ -144,6 +144,26 @@ class ArgoWorkflows(object):
         return name.replace("_", "-")
 
     @classmethod
+    def delete(cls, name):
+        client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+
+        try:
+            client.delete_workflow_schedule(name)
+        except Exception:
+            pass
+
+        try:
+            response = client.delete_workflow_template(name)
+        except Exception as e:
+            raise ArgoWorkflowsException(repr(e))
+        if response is None:
+            raise ArgoWorkflowsException(
+                "The workflow *%s* doesn't exist "
+                "on Argo Workflows. Please "
+                "deploy your flow first." % name
+            )
+
+    @classmethod
     def trigger(cls, name, parameters=None):
         if parameters is None:
             parameters = {}

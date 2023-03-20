@@ -511,3 +511,16 @@ def trigger(obj, run_id_file=None, **kwargs):
         "(run-id *{run_id}*).".format(name=obj.workflow_name, run_id=run_id),
         bold=True,
     )
+
+
+@argo_workflows.command(help="Delete the Argo workflow")
+@click.option(
+    "--authorize",
+    default=None,
+    type=str,
+    help="Authorize the deletion with a production token",
+)
+@click.pass_obj
+def delete(obj, authorize=None):
+    # TODO: This needs to verify that the user has a valid token to perform deletion
+    ArgoWorkflows.delete(obj.workflow_name)
