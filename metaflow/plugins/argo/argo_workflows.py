@@ -164,13 +164,23 @@ class ArgoWorkflows(object):
         return name.replace("_", "-")
 
     @classmethod
-    def delete(cls, name):
+    def remove_schedule(cls, name):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
         try:
-            client.delete_workflow_schedule(name)
+            response = client.delete_workflow_schedule(name)
         except Exception:
-            pass
+            raise ArgoWorkflowsException(repr(e))
+        if response is None:
+            return (
+                False  # Failing to remove the schedule is not a show stopper for now.
+            )
+
+        return True
+
+    @classmethod
+    def delete(cls, name):
+        client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
         try:
             response = client.delete_workflow_template(name)

@@ -542,13 +542,18 @@ def trigger(obj, run_id_file=None, **kwargs):
 @click.pass_obj
 def delete(obj, authorize=None):
     validate_token(obj.workflow_name, obj.token_prefix, obj, authorize, "delete")
+    obj.echo("Deleting workflow *{name}*...".format(name=obj.workflow_name))
+    schedule_deleted = ArgoWorkflows.remove_schedule(obj.workflow_name)
+    if schedule_deleted:
+        obj.echo("   Removed schedule")
 
     response = ArgoWorkflows.delete(obj.workflow_name)
     if response:
         obj.echo(
-            "Deleting workflow *{name}*. This might take a while.\n"
+            "   Workflow is being deleted\n"
+            "Deletion of resources might take a while. "
             "Deploying a flow with the same name during this time "
-            "will fail until the deletion has completed.".format(name=obj.workflow_name)
+            "will fail until the deletion has completed."
         )
 
 
