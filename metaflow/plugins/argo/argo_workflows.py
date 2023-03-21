@@ -163,23 +163,22 @@ class ArgoWorkflows(object):
         # allowed by Metaflow - guaranteeing uniqueness.
         return name.replace("_", "-")
 
-    @classmethod
-    def remove_schedule(cls, name):
+    @staticmethod
+    def remove_schedule(name):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
         try:
-            response = client.delete_workflow_schedule(name)
-        except Exception:
+            response = client.delete_cronworkflow(name)
+        except Exception as e:
             raise ArgoWorkflowsException(repr(e))
         if response is None:
-            return (
-                False  # Failing to remove the schedule is not a show stopper for now.
-            )
+            # Failing to remove the schedule is not a show stopper for now.
+            return False
 
         return True
 
-    @classmethod
-    def delete(cls, name):
+    @staticmethod
+    def delete(name):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
         try:
@@ -189,8 +188,7 @@ class ArgoWorkflows(object):
         if response is None:
             raise ArgoWorkflowsException(
                 "The workflow *%s* doesn't exist "
-                "on Argo Workflows. Please "
-                "deploy your flow first." % name
+                "on Argo Workflows." % name
             )
         return True
 
