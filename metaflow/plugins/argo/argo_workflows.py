@@ -158,6 +158,29 @@ class ArgoWorkflows(object):
         return True
 
     @staticmethod
+    def suspend_schedule(name, disable=True):
+        client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+        try:
+            result = client.get_cronworkflow(name)
+        except Exception as e:
+            raise ArgoWorkflowsException(repr(e))
+        if result is None:
+            raise ArgoWorkflowsException("No CronWorkflow found for *%s*" % name)
+
+        try:
+            # Use schedule and tz values from deployed workflow
+            schedule = result["spec"]["schedule"]
+            tz = result["spec"]["timezone"]
+
+            client.schedule_workflow_template(
+                name, schedule=schedule, timezone=tz, suspend=disable
+            )
+        except Exception as e:
+            raise ArgoWorkflowsException(repr(e))
+
+        return True
+
+    @staticmethod
     def delete(name):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
@@ -232,6 +255,10 @@ class ArgoWorkflows(object):
             )
         else:
             return "No triggers defined. You need to launch this workflow manually."
+
+    @staticmethod
+    def get_cronworkflow(name):
+        pass
 
     @classmethod
     def get_existing_deployment(cls, name):

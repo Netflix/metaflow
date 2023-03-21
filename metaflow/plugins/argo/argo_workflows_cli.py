@@ -588,3 +588,20 @@ def echo_token_instructions(obj, name, prev_user, cmd_name, cmd_description=None
         'See "Organizing Results" at docs.metaflow.org for more information '
         "about production tokens."
     )
+
+
+@argo_workflows.command(help="Disable the Argo workflow")
+@click.option(
+    "--authorize",
+    default=None,
+    type=str,
+    help="Authorize the disabling with a production token",
+)
+@click.pass_obj
+def disable(obj, authorize=None):
+    validate_token(obj.workflow_name, obj.token_prefix, obj, authorize, "disable")
+    obj.echo("Disabling workflow *{name}*...".format(name=obj.workflow_name))
+
+    schedule_disabled = ArgoWorkflows.suspend_schedule(obj.workflow_name, disable=True)
+    if schedule_disabled:
+        obj.echo("   Schedule disabled")

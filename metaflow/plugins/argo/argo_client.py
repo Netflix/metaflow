@@ -35,6 +35,23 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
+    def get_cronworkflow(self, name):
+        client = self._kubernetes_client.get()
+        try:
+            return client.CustomObjectsApi().get_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="cronworkflows",
+                name=name,
+            )
+        except client.rest.ApiException as e:
+            if e.status == 404:
+                return None
+            raise ArgoClientException(
+                json.loads(e.body)["message"] if e.body is not None else e.reason
+            )
+
     def register_workflow_template(self, name, workflow_template):
         # Unfortunately, Kubernetes client does not handle optimistic
         # concurrency control by itself unlike kubectl
@@ -164,7 +181,9 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
-    def schedule_workflow_template(self, name, schedule=None, timezone=None):
+    def schedule_workflow_template(
+        self, name, schedule=None, timezone=None, suspend=False
+    ):
         # Unfortunately, Kubernetes client does not handle optimistic
         # concurrency control by itself unlike kubectl
         client = self._kubernetes_client.get()
@@ -173,7 +192,7 @@ class ArgoClient(object):
             "kind": "CronWorkflow",
             "metadata": {"name": name},
             "spec": {
-                "suspend": schedule is None,
+                "suspend": suspend or schedule is None,
                 "schedule": schedule,
                 "timezone": timezone,
                 "workflowSpec": {"workflowTemplateRef": {"name": name}},
