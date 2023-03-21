@@ -543,12 +543,21 @@ def trigger(obj, run_id_file=None, **kwargs):
 def delete(obj, authorize=None):
     validate_token(obj.workflow_name, obj.token_prefix, obj, authorize, "delete")
     obj.echo("Deleting workflow *{name}*...".format(name=obj.workflow_name))
+
+    # Always try to delete the schedule. Failure in deleting the schedule should not
+    # be treated as an error, due to any of the following reasons
+    # - there might not have been a schedule, or it was deleted by some other means
+    # - retaining these resources should have no consequences as long as the workflow deletion succeeds.
+    # - regarding cost and compute, the significant resources are part of the workflow teardown, not the schedule.
     schedule_deleted = ArgoWorkflows.remove_schedule(obj.workflow_name)
     if schedule_deleted:
         obj.echo("   Removed schedule")
 
-    response = ArgoWorkflows.delete(obj.workflow_name)
-    if response:
+    # After cleaning up related resources, delete the workflow in question.
+    # Failure in deleting is treated as critical and will be made visible to the user
+    # for further action.
+    workflow_deleted = ArgoWorkflows.delete(obj.workflow_name)
+    if workflow_deleted:
         obj.echo(
             "   Workflow is being deleted\n"
             "Deletion of resources might take a while. "
