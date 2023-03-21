@@ -87,7 +87,12 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
-    def delete_workflow_schedule(self, name):
+    def delete_cronworkflow(self, name):
+        """
+        Issues an API call for deleting a cronworkflow
+
+        Returns either the successful API response, or None in case the resource was not found.
+        """
         client = self._kubernetes_client.get()
 
         try:
@@ -107,6 +112,11 @@ class ArgoClient(object):
                 )
 
     def delete_workflow_template(self, name):
+        """
+        Issues an API call for deleting a cronworkflow
+
+        Returns either the successful API response, or None in case the resource was not found.
+        """
         client = self._kubernetes_client.get()
 
         try:
