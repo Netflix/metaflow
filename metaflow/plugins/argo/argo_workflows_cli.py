@@ -602,3 +602,26 @@ def echo_token_instructions(obj, name, prev_user, cmd_name, cmd_description=None
         'See "Organizing Results" at docs.metaflow.org for more information '
         "about production tokens."
     )
+
+
+@argo_workflows.command(help="Terminate the Argo workflow")
+@click.option(
+    "--authorize",
+    default=None,
+    type=str,
+    help="Authorize the termination with a production token",
+)
+@click.option(
+    "--run-id",
+    required=True,
+    type=str,
+    help="Specify the ID of the run to be terminated.",
+)
+@click.pass_obj
+def terminate(obj, run_id, authorize=None):
+    validate_token(obj.workflow_name, obj.token_prefix, obj, authorize, "terminate")
+    obj.echo("Terminating workflow *{run_id}*...".format(run_id=run_id))
+
+    terminated = ArgoWorkflows.terminate(obj.workflow_name, run_id)
+    if terminated:
+        obj.echo("   Terminated.")

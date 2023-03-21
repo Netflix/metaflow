@@ -135,6 +135,37 @@ class ArgoClient(object):
                     json.loads(e.body)["message"] if e.body is not None else e.reason
                 )
 
+    def terminate_workflow(self, name):
+        client = self._kubernetes_client.get()
+        try:
+            workflow = client.CustomObjectsApi().get_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="workflows",
+                name=name,
+            )
+        except client.rest.ApiException as e:
+            raise ArgoClientException(
+                json.loads(e.body)["message"] if e.body is not None else e.reason
+            )
+        # TODO: perform check that the found workflow is able to be terminated. We do not want to patch failed / completed workflows.
+        try:
+            body = {"spec": workflow["spec"]}
+            body["spec"]["shutdown"] = "Terminate"
+            return client.CustomObjectsApi().patch_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="workflows",
+                name=name,
+                body=body,
+            )
+        except client.rest.ApiException as e:
+            raise ArgoClientException(
+                json.loads(e.body)["message"] if e.body is not None else e.reason
+            )
+
     def trigger_workflow_template(self, name, parameters={}):
         client = self._kubernetes_client.get()
         body = {

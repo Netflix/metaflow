@@ -165,6 +165,27 @@ class ArgoWorkflows(object):
             )
         return True
 
+    @staticmethod
+    def terminate(name, run_id):
+        client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+
+        # Verify that user is trying to terminate an Argo workflow
+        if not run_id.startswith("argo-"):
+            raise ArgoWorkflowsException(
+                "The run *%s* is not an Argo workflow." % run_id
+            )
+        name = run_id[5:]
+
+        try:
+            response = client.terminate_workflow(name)
+        except Exception as e:
+            raise ArgoWorkflowsException(repr(e))
+        if response is None:
+            raise ArgoWorkflowsException(
+                "The workflow *%s* doesn't exist on Argo Workflows." % name
+            )
+        return True
+
     @classmethod
     def trigger(cls, name, parameters=None):
         if parameters is None:
