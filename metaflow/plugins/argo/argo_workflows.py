@@ -167,8 +167,7 @@ class ArgoWorkflows(object):
             raise ArgoWorkflowsException(repr(e))
         if response is None:
             raise ArgoWorkflowsException(
-                "The workflow *%s* doesn't exist "
-                "on Argo Workflows." % name
+                "The workflow *%s* doesn't exist on Argo Workflows." % name
             )
         return True
 
