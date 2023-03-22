@@ -4,7 +4,10 @@
 monitor all of your Metaflow flows.**
 
 #### Showcasing:
-- The metaflow client API.
+- The Metaflow client API.
+
+#### Before playing this episode:
+1. ```python -m pip install notebook``` (only locally, if you don't have it already)
 
 #### To play this episode:
 1. Open ```07-worldview/worldview.ipynb```
