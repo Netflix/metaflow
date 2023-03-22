@@ -9,6 +9,7 @@ from metaflow import current, decorators, parameters, JSONType
 from metaflow.metaflow_config import (
     SERVICE_VERSION_CHECK,
     SFN_STATE_MACHINE_PREFIX,
+    UI_URL,
 )
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.package import MetaflowPackage
@@ -451,6 +452,16 @@ def trigger(obj, run_id_file=None, **kwargs):
         "(run-id *{run_id}*).".format(name=obj.state_machine_name, run_id=run_id),
         bold=True,
     )
+
+    run_url = (
+        "%s/%s/%s" % (UI_URL.rstrip("/"), obj.flow.name, run_id) if UI_URL else None
+    )
+
+    if run_url:
+        obj.echo(
+            "See the run in the UI at %s" % run_url,
+            bold=True,
+        )
 
 
 @step_functions.command(help="List all runs of the workflow on AWS Step Functions.")

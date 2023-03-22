@@ -8,7 +8,7 @@ from hashlib import sha1
 
 from metaflow import JSONType, current, decorators, parameters
 from metaflow._vendor import click
-from metaflow.metaflow_config import SERVICE_VERSION_CHECK
+from metaflow.metaflow_config import SERVICE_VERSION_CHECK, UI_URL
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.package import MetaflowPackage
 from metaflow.plugins.environment_decorator import EnvironmentDecorator
@@ -511,3 +511,13 @@ def trigger(obj, run_id_file=None, **kwargs):
         "(run-id *{run_id}*).".format(name=obj.workflow_name, run_id=run_id),
         bold=True,
     )
+
+    run_url = (
+        "%s/%s/%s" % (UI_URL.rstrip("/"), obj.flow.name, run_id) if UI_URL else None
+    )
+
+    if run_url:
+        obj.echo(
+            "See the run in the UI at %s" % run_url,
+            bold=True,
+        )
