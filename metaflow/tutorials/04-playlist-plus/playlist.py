@@ -48,7 +48,6 @@ class PlayListFlow(FlowSpec):
         default=5,
     )
 
-    @conda(libraries={"pandas": "1.4.2"})
     @step
     def start(self):
         """
@@ -80,7 +79,7 @@ class PlayListFlow(FlowSpec):
         # Compute our two recommendation types in parallel.
         self.next(self.bonus_movie, self.genre_movies)
 
-    @conda(libraries={"editdistance": "0.5.3", "pandas": "1.4.2"})
+    @conda(libraries={"editdistance": "0.5.3"})
     @step
     def bonus_movie(self):
         """
@@ -92,7 +91,6 @@ class PlayListFlow(FlowSpec):
         environment.
 
         """
-        import pandas
         import editdistance
 
         # Define a helper function to compute the similarity between two
@@ -101,16 +99,13 @@ class PlayListFlow(FlowSpec):
             return editdistance.eval(self.hint, movie_title)
 
         # Compute the distance and take the argmin to find the closest title.
-        distance = self.dataframe["movie_title"].apply(_edit_distance)
-        index = distance.idxmin()
-        self.bonus = (
-            self.dataframe["movie_title"].values[index],
-            self.dataframe["genres"].values[index],
-        )
+        #  distance = self.dataframe["movie_title"].apply(_edit_distance)
+        distance = [_edit_distance(movie_title) for movie_title in self.dataframe["movie_title"]]
+        index = distance.index(min(distance))
+        self.bonus = (self.dataframe["movie_title"][index], self.dataframe["genres"][index])
 
         self.next(self.join)
 
-    @conda(libraries={"pandas": "1.4.2"})
     @step
     def genre_movies(self):
         """
@@ -121,7 +116,7 @@ class PlayListFlow(FlowSpec):
         system.
 
         """
-        import pandas
+        from itertools import compress
         from random import shuffle
 
         # For the genre of interest, generate a potential playlist using only
@@ -133,8 +128,8 @@ class PlayListFlow(FlowSpec):
         else:
             df = self.genre_stats[genre]["dataframe"]
             quartiles = self.genre_stats[genre]["quartiles"]
-            selector = df["gross"] >= quartiles[-1]
-            self.movies = list(df[selector]["movie_title"])
+            selector = list(map(lambda x: x >= quartiles[-1], df["gross"]))
+            self.movies = list(compress(df["movie_title"], selector))
 
         # Shuffle the content.
         shuffle(self.movies)
