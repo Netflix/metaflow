@@ -160,10 +160,8 @@ class ArgoWorkflows(object):
     @staticmethod
     def suspend_schedule(name, disable=True):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
-        try:
-            result = client.get_cronworkflow(name)
-        except Exception as e:
-            raise ArgoWorkflowsException(repr(e))
+
+        result = client.get_cronworkflow(name)
         if result is None:
             raise ArgoWorkflowsException("No CronWorkflow found for *%s*" % name)
 
@@ -175,7 +173,7 @@ class ArgoWorkflows(object):
             client.schedule_workflow_template(
                 name, schedule=schedule, timezone=tz, suspend=disable
             )
-        except Exception as e:
+        except KeyError as e:
             raise ArgoWorkflowsException(repr(e))
 
         return True
