@@ -590,7 +590,7 @@ def echo_token_instructions(obj, name, prev_user, cmd_name, cmd_description=None
     )
 
 
-@argo_workflows.command(help="Disable the Argo workflow")
+@argo_workflows.command(help="Disable the schedule for an Argo workflow")
 @click.option(
     "--authorize",
     default=None,
@@ -600,7 +600,7 @@ def echo_token_instructions(obj, name, prev_user, cmd_name, cmd_description=None
 @click.pass_obj
 def disable(obj, authorize=None):
     validate_token(obj.workflow_name, obj.token_prefix, obj, authorize, "disable")
-    obj.echo("Disabling workflow *{name}*...".format(name=obj.workflow_name))
+    obj.echo("Disabling schedule for workflow *{name}*...".format(name=obj.workflow_name))
 
     schedule_disabled = ArgoWorkflows.suspend_schedule(obj.workflow_name, disable=True)
     if schedule_disabled:
