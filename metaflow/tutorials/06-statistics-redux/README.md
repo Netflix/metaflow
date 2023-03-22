@@ -15,7 +15,6 @@ because the data is being stored in AWS S3.**
 - '--with kubernetes' command line option
 - '--max-workers' command line option
 - Accessing data locally or remotely
-- Metaflow's conda based dependency management.
 
 #### To play this episode:
 1. ```python 02-statistics/stats.py run --with kubernetes --max-workers 4```
