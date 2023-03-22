@@ -512,7 +512,7 @@ def trigger(obj, run_id_file=None, **kwargs):
         bold=True,
     )
 
-    run_url=None
+    run_url = None
     if UI_URL:
         run_url = "%s/%s/%s" % (UI_URL.rstrip("/"), obj.flow.name, run_id)
 

@@ -9,7 +9,7 @@ from metaflow import current, decorators, parameters, JSONType
 from metaflow.metaflow_config import (
     SERVICE_VERSION_CHECK,
     SFN_STATE_MACHINE_PREFIX,
-    UI_URL
+    UI_URL,
 )
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.package import MetaflowPackage
@@ -453,7 +453,7 @@ def trigger(obj, run_id_file=None, **kwargs):
         bold=True,
     )
 
-    run_url=None
+    run_url = None
     if UI_URL:
         run_url = "%s/%s/%s" % (UI_URL.rstrip("/"), obj.flow.name, run_id)
 
