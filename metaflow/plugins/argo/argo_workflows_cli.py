@@ -501,7 +501,7 @@ def trigger(obj, run_id_file=None, **kwargs):
         "(run-id *{run_id}*).".format(name=obj.workflow_name, run_id=run_id),
         bold=True,
     )
-    
+
     run_url = (
         "%s/%s/%s" % (UI_URL.rstrip("/"), obj.flow.name, run_id) if UI_URL else None
     )
