@@ -181,10 +181,7 @@ class ArgoWorkflows(object):
     def delete(name):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
-        try:
-            response = client.delete_workflow_template(name)
-        except Exception as e:
-            raise ArgoWorkflowsException(repr(e))
+        response = client.delete_workflow_template(name)
         if response is None:
             raise ArgoWorkflowsException(
                 "The workflow *%s* doesn't exist on Argo Workflows." % name
