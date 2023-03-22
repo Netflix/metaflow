@@ -620,8 +620,12 @@ def echo_token_instructions(obj, name, prev_user, cmd_name, cmd_description=None
 @click.pass_obj
 def terminate(obj, run_id, authorize=None):
     validate_token(obj.workflow_name, obj.token_prefix, obj, authorize, "terminate")
-    obj.echo("Terminating workflow *{run_id}*...".format(run_id=run_id))
+    obj.echo(
+        "Terminating run *{run_id}* for {flow_name} ...".format(
+            run_id=run_id, flow_name=obj.flow.name
+        )
+    )
 
-    terminated = ArgoWorkflows.terminate(obj.workflow_name, run_id)
+    terminated = ArgoWorkflows.terminate(obj.flow.name, run_id)
     if terminated:
-        obj.echo("   Terminated.")
+        obj.echo("   Run terminated.")

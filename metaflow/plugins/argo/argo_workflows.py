@@ -166,20 +166,24 @@ class ArgoWorkflows(object):
         return True
 
     @staticmethod
-    def terminate(name, run_id):
+    def terminate(flow_name, run_id):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
         # Verify that user is trying to terminate an Argo workflow
         if not run_id.startswith("argo-"):
             raise ArgoWorkflowsException(
-                "The run *%s* is not an Argo workflow." % run_id
+                "No active workflow for {flow_name}/{run_id} found in Argo Workflows.".format(
+                    flow_name=flow_name, run_id=run_id
+                )
             )
-        run_id = run_id[5:]
+        trimmed_run_id = run_id[5:]
 
-        response = client.terminate_workflow(run_id)
+        response = client.terminate_workflow(trimmed_run_id)
         if response is None:
             raise ArgoWorkflowsException(
-                "The workflow *%s* doesn't exist on Argo Workflows." % name
+                "No execution found for {flow_name}/{run_id} in Argo Workflows.".format(
+                    flow_name=flow_name, run_id=run_id
+                )
             )
         return True
 

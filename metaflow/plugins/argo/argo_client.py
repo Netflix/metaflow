@@ -152,7 +152,7 @@ class ArgoClient(object):
 
         if workflow["status"]["finishedAt"] is not None:
             raise ArgoClientException(
-                "Can not terminate a workflow that has already finished."
+                "Cannot terminate an execution that has already finished."
             )
 
         try:
