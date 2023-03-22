@@ -560,9 +560,13 @@ def delete(obj, authorize=None):
     if workflow_deleted:
         obj.echo(
             "   Workflow is being deleted\n"
-            "Deletion of resources might take a while. "
+            "Deletion of resources might take a while.\n"
             "Deploying a flow with the same name during this time "
             "will fail until the deletion has completed."
+        )
+        obj.echo(
+            "Workflows that are currently running will not be affected. "
+            "If necessary, these should be stopped manually."
         )
 
 
