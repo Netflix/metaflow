@@ -135,7 +135,7 @@ class ArgoClient(object):
                     json.loads(e.body)["message"] if e.body is not None else e.reason
                 )
 
-    def terminate_workflow(self, name):
+    def terminate_workflow(self, run_id):
         client = self._kubernetes_client.get()
         try:
             workflow = client.CustomObjectsApi().get_namespaced_custom_object(
@@ -143,13 +143,18 @@ class ArgoClient(object):
                 version=self._version,
                 namespace=self._namespace,
                 plural="workflows",
-                name=name,
+                name=run_id,
             )
         except client.rest.ApiException as e:
             raise ArgoClientException(
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
-        # TODO: perform check that the found workflow is able to be terminated. We do not want to patch failed / completed workflows.
+
+        if workflow["status"]["finishedAt"] is not None:
+            raise ArgoClientException(
+                "Can not terminate a workflow that has already finished."
+            )
+
         try:
             body = {"spec": workflow["spec"]}
             body["spec"]["shutdown"] = "Terminate"
@@ -158,7 +163,7 @@ class ArgoClient(object):
                 version=self._version,
                 namespace=self._namespace,
                 plural="workflows",
-                name=name,
+                name=run_id,
                 body=body,
             )
         except client.rest.ApiException as e:

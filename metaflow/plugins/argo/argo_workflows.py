@@ -174,12 +174,9 @@ class ArgoWorkflows(object):
             raise ArgoWorkflowsException(
                 "The run *%s* is not an Argo workflow." % run_id
             )
-        name = run_id[5:]
+        run_id = run_id[5:]
 
-        try:
-            response = client.terminate_workflow(name)
-        except Exception as e:
-            raise ArgoWorkflowsException(repr(e))
+        response = client.terminate_workflow(run_id)
         if response is None:
             raise ArgoWorkflowsException(
                 "The workflow *%s* doesn't exist on Argo Workflows." % name
