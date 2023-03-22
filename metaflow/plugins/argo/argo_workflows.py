@@ -167,12 +167,9 @@ class ArgoWorkflows(object):
     def remove_schedule(name):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
-        try:
-            response = client.delete_cronworkflow(name)
-        except Exception as e:
-            raise ArgoWorkflowsException(repr(e))
+        response = client.delete_cronworkflow(name)
         if response is None:
-            # Failing to remove the schedule is not a show stopper for now.
+            # Not finding a schedule to delete is not a show stopper.
             return False
 
         return True
