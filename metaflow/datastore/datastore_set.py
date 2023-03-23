@@ -22,8 +22,7 @@ class TaskDataStoreSet(object):
         prefetch_data_artifacts=None,
         allow_not_done=False,
     ):
-
-        task_datastores = flow_datastore.get_latest_task_datastores(
+        self.task_datastores = flow_datastore.get_latest_task_datastores(
             run_id, steps=steps, pathspecs=pathspecs, allow_not_done=allow_not_done
         )
 
@@ -43,9 +42,10 @@ class TaskDataStoreSet(object):
 
         self.pathspec_index_cache = {}
         self.pathspec_cache = {}
-        for ds in task_datastores:
-            self.pathspec_index_cache[ds.pathspec_index] = ds
-            self.pathspec_cache[ds.pathspec] = ds
+        if not allow_not_done:
+            for ds in self.task_datastores:
+                self.pathspec_index_cache[ds.pathspec_index] = ds
+                self.pathspec_cache[ds.pathspec] = ds
 
     def get_with_pathspec(self, pathspec):
         return self.pathspec_cache.get(pathspec, None)
@@ -54,7 +54,7 @@ class TaskDataStoreSet(object):
         return self.pathspec_index_cache.get(pathspec_index, None)
 
     def __iter__(self):
-        for v in self.pathspec_cache.values():
+        for v in self.task_datastores:
             yield v
 
 
