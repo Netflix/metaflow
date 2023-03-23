@@ -54,10 +54,6 @@ class PlayListFlow(FlowSpec):
         Use the Metaflow client to retrieve the latest successful run from our
         MovieStatsFlow and assign them as data artifacts in this flow.
 
-        This step uses 'conda' to isolate the environment. This step will
-        always use pandas==1.4.2 regardless of what is installed on the
-        system.
-
         """
         # Load the analysis from the MovieStatsFlow.
         from metaflow import Flow, get_metadata
@@ -89,7 +85,6 @@ class PlayListFlow(FlowSpec):
         This step uses 'conda' to isolate the environment. Note that the
         package 'editdistance' need not be installed in your python
         environment.
-
         """
         import editdistance
 
@@ -110,11 +105,6 @@ class PlayListFlow(FlowSpec):
     def genre_movies(self):
         """
         Select the top performing movies from the use specified genre.
-
-        This step uses 'conda' to isolate the environment. This step will
-        always use pandas==1.4.2 regardless of what is installed on the
-        system.
-
         """
         from itertools import compress
         from random import shuffle
