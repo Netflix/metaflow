@@ -13,6 +13,7 @@ def script_path(filename):
     filepath = os.path.join(os.path.dirname(__file__))
     return os.path.join(filepath, filename)
 
+
 class MovieStatsFlow(FlowSpec):
     """
     A flow to generate some statistics about the movie genres.
@@ -44,8 +45,13 @@ class MovieStatsFlow(FlowSpec):
         from io import StringIO
 
         # Load the data set into a dataframe structure.
-        self.dataframe = {"movie_title": [], "title_year": [], "genres": [], "gross": []}
-        
+        self.dataframe = {
+            "movie_title": [],
+            "title_year": [],
+            "genres": [],
+            "gross": [],
+        }
+
         for row in csv.reader(StringIO(self.movie_data), delimiter=","):
             if row[0] == "movie_title":
                 continue
@@ -53,7 +59,7 @@ class MovieStatsFlow(FlowSpec):
             self.dataframe["title_year"].append(int(row[1]))
             self.dataframe["genres"].append(row[2])
             self.dataframe["gross"].append(int(row[3]))
-                
+
         # The column 'genres' has a list of genres for each movie. Let's get
         # all the unique genres.
         self.genres = {
@@ -71,8 +77,6 @@ class MovieStatsFlow(FlowSpec):
         """
         Compute statistics for a single genre.
         """
-        from itertools import compress
-        from operator import itemgetter
 
         # The genre currently being processed is a class property called
         # 'input'.
@@ -82,24 +86,26 @@ class MovieStatsFlow(FlowSpec):
         # Find all the movies that have this genre and build a dataframe with
         # just those movies and just the columns of interest.
         selector = [self.genre in row for row in self.dataframe["genres"]]
-        
+
         for col in self.dataframe.keys():
-            self.dataframe[col] = list(compress(self.dataframe[col], selector))
+            self.dataframe[col] = [
+                col for col, is_genre in zip(self.dataframe[col], selector) if is_genre
+            ]
 
         # Sort by gross box office and drop unused column.
-        argsort_indices = sorted(range(len(self.dataframe['gross'])), key=self.dataframe['gross'].__getitem__)
-        sorted_df = {} 
+        argsort_indices = sorted(
+            range(len(self.dataframe["gross"])), key=self.dataframe["gross"].__getitem__
+        )
         for col in self.dataframe.keys():
-            sorted_values = itemgetter(*argsort_indices)(self.dataframe[col])
-            self.dataframe[col] = list(sorted_values) if isinstance(sorted_values, tuple) else [sorted_values]
-        del self.dataframe['title_year'] 
+            self.dataframe[col] = [self.dataframe[col][idx] for idx in argsort_indices]
+        del self.dataframe["title_year"]
 
-        # Get some statistics on the gross box office for these titles. 
-        n_points = len(self.dataframe['movie_title'])
-        self.quartiles = [] 
+        # Get some statistics on the gross box office for these titles.
+        n_points = len(self.dataframe["movie_title"])
+        self.quartiles = []
         for cut in [0.25, 0.5, 0.75]:
             idx = 0 if n_points < 2 else round(n_points * cut)
-            self.quartiles.append(self.dataframe['gross'][idx])
+            self.quartiles.append(self.dataframe["gross"][idx])
 
         # Join the results from other genres.
         self.next(self.join)

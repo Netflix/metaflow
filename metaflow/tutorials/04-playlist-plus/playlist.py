@@ -94,10 +94,14 @@ class PlayListFlow(FlowSpec):
             return editdistance.eval(self.hint, movie_title)
 
         # Compute the distance and take the argmin to find the closest title.
-        #  distance = self.dataframe["movie_title"].apply(_edit_distance)
-        distance = [_edit_distance(movie_title) for movie_title in self.dataframe["movie_title"]]
+        distance = [
+            _edit_distance(movie_title) for movie_title in self.dataframe["movie_title"]
+        ]
         index = distance.index(min(distance))
-        self.bonus = (self.dataframe["movie_title"][index], self.dataframe["genres"][index])
+        self.bonus = (
+            self.dataframe["movie_title"][index],
+            self.dataframe["genres"][index],
+        )
 
         self.next(self.join)
 
@@ -106,7 +110,7 @@ class PlayListFlow(FlowSpec):
         """
         Select the top performing movies from the use specified genre.
         """
-        from itertools import compress
+
         from random import shuffle
 
         # For the genre of interest, generate a potential playlist using only
@@ -114,12 +118,14 @@ class PlayListFlow(FlowSpec):
         genre = self.genre.lower()
         if genre not in self.genre_stats:
             self.movies = []
-
         else:
             df = self.genre_stats[genre]["dataframe"]
             quartiles = self.genre_stats[genre]["quartiles"]
-            selector = list(map(lambda x: x >= quartiles[-1], df["gross"]))
-            self.movies = list(compress(df["movie_title"], selector))
+            self.movies = [
+                df["movie_title"][i]
+                for i, g in enumerate(df["gross"])
+                if g >= quartiles[-1]
+            ]
 
         # Shuffle the content.
         shuffle(self.movies)

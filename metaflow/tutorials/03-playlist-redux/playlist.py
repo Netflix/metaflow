@@ -55,17 +55,25 @@ class PlayListFlow(FlowSpec):
         """
         import random
 
-        # Concatenate all the genre-specific data frames and choose a random
-        # movie.
-        df = {"movie_title": [], "genres": [], "gross": []}
+        # Concatenate all the genre-specific data frames.
+        df = {"movie_title": [], "genres": []}
         for genre, data in self.genre_stats.items():
             if genre != self.genre.lower():
-                for col in ["movie_title", "genres", "gross"]:
-                    df[col].extend(data["dataframe"][col])
-        random_index = random.randint(0, len(df["movie_title"]) - 1)
+                for row_idx in range(len(data["dataframe"]["movie_title"])):
+                    if (
+                        self.genre.lower()
+                        not in data["dataframe"]["genres"][row_idx].lower()
+                    ):
+                        df["movie_title"].append(
+                            data["dataframe"]["movie_title"][row_idx]
+                        )
+                        df["genres"].append(data["dataframe"]["genres"][row_idx])
+
+        # Choose a random movie.
+        random_index = random.randint(0, len(df["genres"]) - 1)
         self.bonus = (df["movie_title"][random_index], df["genres"][random_index])
 
-        self.next(self.join) 
+        self.next(self.join)
 
     @step
     def genre_movies(self):
@@ -74,7 +82,6 @@ class PlayListFlow(FlowSpec):
 
         """
         from random import shuffle
-        from itertools import compress
 
         # For the genre of interest, generate a potential playlist using only
         # highest gross box office titles (i.e. those in the last quartile).
@@ -84,8 +91,11 @@ class PlayListFlow(FlowSpec):
         else:
             df = self.genre_stats[genre]["dataframe"]
             quartiles = self.genre_stats[genre]["quartiles"]
-            selector = list(map(lambda x: x >= quartiles[-1], df["gross"]))
-            self.movies = list(compress(df["movie_title"], selector))
+            self.movies = [
+                df["movie_title"][i]
+                for i, g in enumerate(df["gross"])
+                if g >= quartiles[-1]
+            ]
 
         # Shuffle the playlist.
         shuffle(self.movies)
