@@ -28,6 +28,7 @@ if OTEL_ENDPOINT or ZIPKIN_ENDPOINT:
         traced = metaflow.tracing_otel.traced
         tracing = metaflow.tracing_otel.tracing
         post_fork = metaflow.tracing_otel.post_fork
-    except ImportError:
-        pass  
+    except ImportError as e:
+        print("Warning: using no-op tracing", file=sys.stderr)
+        print(e, file=sys.stderr)
  
