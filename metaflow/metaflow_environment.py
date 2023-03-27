@@ -138,12 +138,20 @@ class MetaflowEnvironment(object):
                 % datastore_type
             )
         return " && ".join(cmds)
+    
+        
+    def _should_install_dependencies(self):
+        return os.environ.get("METAFLOW_INSTALL_DEPENDENCIES", True)
 
     def get_package_commands(self, code_package_url, datastore_type):
+        if self._should_install_dependencies():
+            install_dependencies_cmd = self._get_install_dependencies_cmd(datastore_type)
+        else:
+            install_dependencies_cmd = "mflog 'Skipping installation of Metaflow dependencies.'"
         cmds = [
             BASH_MFLOG,
             "mflog 'Setting up task environment.'",
-            self._get_install_dependencies_cmd(datastore_type),
+            install_dependencies_cmd,
             "mkdir metaflow",
             "cd metaflow",
             "mkdir .metaflow",  # mute local datastore creation log
