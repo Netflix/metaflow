@@ -117,7 +117,7 @@ class MetaflowEnvironment(object):
             "cd metaflow",
             "mkdir .metaflow",  # mute local datastore creation log
             "i=0; while [ $i -le 5 ]; do "
-            "mflog 'Downloading code package...'; "
+            f"mflog 'Downloading code package from {code_package_url}'; "
             "%s && mflog 'Code package downloaded.' && break; "
             "sleep 10; i=$((i+1)); "
             "done" % self.get_boto3_copy_command(code_package_url, "job.tar"),
