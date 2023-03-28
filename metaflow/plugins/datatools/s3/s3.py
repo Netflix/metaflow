@@ -142,7 +142,6 @@ class S3Object(object):
         range_info: Optional[RangeInfo] = None,
         last_modified: int = None,
     ):
-
         # all fields of S3Object should return a unicode object
         prefix, url, path = map(ensure_unicode, (prefix, url, path))
 

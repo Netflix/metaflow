@@ -6,7 +6,6 @@ MockDeco = namedtuple("MockDeco", ["name", "attributes"])
 
 
 def test_compute_resource_attributes():
-
     # use default if nothing is set
     assert compute_resource_attributes([], MockDeco("batch", {}), {"cpu": "1"}) == {
         "cpu": "1"

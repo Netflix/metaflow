@@ -1,5 +1,8 @@
+import sys
+
 import os
 
+from metaflow import FlowSpec
 from metaflow._vendor import click
 
 from metaflow.extension_support.cmd import process_cmds, resolve_cmds
@@ -60,6 +63,19 @@ def status():
         echo("* %s" % flow, fg="cyan")
 
 
+@main.command(
+    context_settings=dict(
+        ignore_unknown_options=True,
+    ),
+    help="Select a flow.",
+)
+@click.argument("flow_path")
+@click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
+def flow(flow_path, extra_args):
+    flow_spec = FlowSpec.load(flow_path)
+    flow_spec(args=extra_args)
+
+
 CMDS_DESC = [("configure", ".configure_cmd.cli"), ("tutorials", ".tutorials_cmd.cli")]
 
 process_cmds(globals())
@@ -77,12 +93,10 @@ def start(ctx):
 
     import metaflow
 
-    echo("Metaflow ", fg="magenta", bold=True, nl=False)
-
     if ctx.invoked_subcommand is None:
-        echo("(%s): " % metaflow.__version__, fg="magenta", bold=False, nl=False)
-    else:
-        echo("(%s)\n" % metaflow.__version__, fg="magenta", bold=False)
+        echo(
+            "Metaflow (%s): " % metaflow.__version__, fg="magenta", bold=False, nl=False
+        )
 
     if ctx.invoked_subcommand is None:
         echo("More data science, less engineering\n", fg="magenta")

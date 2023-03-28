@@ -31,12 +31,90 @@ ParameterContext = NamedTuple(
     ],
 )
 
-# currently we execute only one flow per process, so we can treat
-# Parameters globally. If this was to change, it should/might be
-# possible to move these globals in a FlowSpec (instance) specific
-# closure.
-parameters = []
+# Global FlowSpec → List[Parameters] registry; initial value `None` indicates uninitialized state
+_parameters: Union[None, dict] = None
 context_proto = None
+
+
+# Record the main flow being executed in this global singleton, for applying the correct Parameter flags during
+# metaflow.cli initialization
+_flow = None
+
+# Map from `click` commands to inserted Options corresponding to the main flow's Parameters
+_param_opts: Union[None, dict] = None
+
+
+def register_main_flow(flow, overwrite=False):
+    """Register a flow class as being the "main" executable flow for this Metaflow invocation
+
+    Used for augmenting the Metaflow CLI with the correct flow's Parameter flags"""
+    global _flow
+    add_param_cmds = False
+    if _flow is not None and _flow is not flow:
+        if overwrite:
+            clear_main_flow()
+            add_param_cmds = True
+        else:
+            raise Exception(
+                "metaflow.parameters._flow already registered (%s); refusing to overwrite with %s"
+                % (_flow.__name__, flow.__name__)
+            )
+
+    _flow = flow
+    register_parameters(flow)
+
+    if _param_opts and add_param_cmds:
+        for cmd in _param_opts:
+            add_custom_cmd_parameters(cmd)
+
+
+def register_parameters(flow):
+    """Register a flow class's Parameters with the global `_parameters` dict
+
+    Called during FlowSpec.__init__ (if not during FlowSpec class construction)"""
+    if not isinstance(flow, type):
+        raise ValueError("Expected a FlowSpec class: %s" % str(flow))
+
+    params = dict(flow._get_parameters())
+
+    global _parameters
+    if _parameters is None:
+        _parameters = {}
+    if flow not in _parameters:
+        _parameters[flow] = params
+
+
+def clear_main_flow(empty_ok=False):
+    global _flow, _param_opts
+
+    if _flow is None:
+        if empty_ok:
+            return
+        else:
+            raise RuntimeError("Main `_flow` singleton already empty, can't clear")
+
+    assert _param_opts is not None
+    _flow = None
+    for cmd, v in _param_opts.items():
+        param_opts = v["opts"]
+        while param_opts:
+            param = param_opts.pop(0)
+            cmd_param = cmd.params[0]
+            if param is cmd_param:
+                cmd.params.pop(0)
+            else:
+                raise RuntimeError(
+                    "Attempting to remove parameter-option %s from cmd %s, found %s instead"
+                    % (
+                        param.name,
+                        cmd.name,
+                        cmd_param.name,
+                    )
+                )
+
+
+def has_main_flow():
+    return _flow is not None
 
 
 class JSONTypeClass(click.ParamType):
@@ -77,7 +155,6 @@ class DeployTimeField(object):
         return_str=True,
         print_representation=None,
     ):
-
         self.fun = fun
         self.field = field
         self.parameter_name = parameter_name
@@ -335,7 +412,6 @@ class Parameter(object):
                 "Parameter *%s*: Separator is only allowed "
                 "for string parameters." % name
             )
-        parameters.append(self)
 
     def option_kwargs(self, deploy_mode):
         kwargs = self.kwargs
@@ -375,14 +451,84 @@ class Parameter(object):
 
 
 def add_custom_parameters(deploy_mode=False):
+    """Decorator for adding the main flow's Parameters' flags to the Metaflow CLI (cf. metaflow.cli.run)"""
     # deploy_mode determines whether deploy-time functions should or should
     # not be evaluated for this command
-    def wrapper(cmd):
-        # Iterate over parameters in reverse order so cmd.params lists options
-        # in the order they are defined in the FlowSpec subclass
-        for arg in parameters[::-1]:
-            kwargs = arg.option_kwargs(deploy_mode)
-            cmd.params.insert(0, click.Option(("--" + arg.name,), **kwargs))
-        return cmd
+    return lambda cmd: add_custom_cmd_parameters(cmd, deploy_mode=deploy_mode)
 
-    return wrapper
+
+def add_custom_cmd_parameters(cmd, deploy_mode=None):
+    global _param_cmds, _param_opts, _parameters
+
+    if _parameters is None:
+        raise Exception(
+            "Attempting to initialize Metaflow CLI before any flows have been processed (global "
+            "`parameters` is None); avoid importing `metaflow.cli` until relevant flows have been "
+            "declared/imported"
+        )
+
+    if _flow is None:
+        raise Exception(
+            "Attempting to initialize Metaflow CLI without knowing which flow will be run (_flow is None)"
+        )
+    if _flow not in _parameters:
+        raise Exception(
+            "Flow %s not found in global `_parameters` registry (%s)"
+            % (
+                _flow.__name__,
+                ",".join([flow.__name__ for flow in _parameters.keys()]),
+            )
+        )
+
+    if _param_opts is None:
+        _param_opts = {}
+
+    if cmd not in _param_opts:
+        assert deploy_mode is not None
+        _param_opts[cmd] = dict(deploy_mode=deploy_mode, opts=[])
+
+    v = _param_opts[cmd]
+    deploy_mode = v["deploy_mode"]
+    param_opts = v["opts"]
+
+    # if cmd was already present, it should be empty (⟹ a previous main flow's params have been cleared by
+    # `clear_main_flow`)
+    assert not param_opts
+
+    # Iterate over parameters in reverse order so cmd.params lists options
+    # in the order they are defined in the FlowSpec subclass
+    params = list(_parameters[_flow].values())
+    for param in params[::-1]:
+        kwargs = param.option_kwargs(deploy_mode)
+        opt = click.Option(("--" + param.name,), **kwargs)
+
+        # Add this option to the command, as well as to our record of param-options we've added (for later removal, in
+        # case a different flow is run)
+        cmd.params.insert(0, opt)
+        param_opts.insert(0, opt)
+
+    return cmd
+
+
+def set_parameters(flow, kwargs):
+    seen = set()
+    for var, param in flow._get_parameters():
+        norm = param.name.lower()
+        if norm in seen:
+            raise MetaflowException(
+                "Parameter *%s* is specified twice. "
+                "Note that parameter names are "
+                "case-insensitive." % param.name
+            )
+        seen.add(norm)
+
+    flow._success = True
+    for var, param in flow._get_parameters():
+        k = param.name.replace("-", "_").lower()
+        val = kwargs[k]
+        # Support for delayed evaluation of parameters. This is used for
+        # includefile in particular
+        if callable(val):
+            val = val()
+        val = val.split(param.separator) if val and param.separator else val
+        setattr(flow, var, val)

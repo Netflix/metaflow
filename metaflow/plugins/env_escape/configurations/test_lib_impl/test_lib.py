@@ -10,7 +10,6 @@ class SomeException(MyBaseException):
 
 
 class TestClass1(object):
-
     cls_object = 25
 
     def __init__(self, value):

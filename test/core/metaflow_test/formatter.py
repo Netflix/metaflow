@@ -78,7 +78,6 @@ class FlowFormatter(object):
         )
 
     def _flow_lines(self):
-
         tags = []
         for step in self.steps:
             tags.extend(tag.split("(")[0] for tag in step.tags)

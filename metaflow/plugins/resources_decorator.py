@@ -34,3 +34,10 @@ class ResourcesDecorator(StepDecorator):
 
     name = "resources"
     defaults = {"cpu": "1", "gpu": "0", "memory": "4096", "shared_memory": None}
+
+    def __eq__(self, other):
+        """Useful for tests: compare decoartors"""
+        if isinstance(other, ResourcesDecorator):
+            return self.attributes == other.attributes
+        else:
+            return False

@@ -487,7 +487,6 @@ class LocalMetadataProvider(MetadataProvider):
     def _make_path(
         flow_name=None, run_id=None, step_name=None, task_id=None, create_on_absent=True
     ):
-
         from metaflow.plugins.datastores.local_storage import LocalStorage
 
         if LocalStorage.datastore_root is None:

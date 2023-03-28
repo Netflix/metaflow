@@ -1,0 +1,4 @@
+boto3
+click>=7.0
+pylint
+requests

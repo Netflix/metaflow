@@ -36,9 +36,22 @@ class CLIArgs(object):
         return self._step_kwargs
 
     def step_command(
-        self, executable, script, step_name, top_kwargs=None, step_kwargs=None
+        self,
+        executable,
+        script,
+        step_name,
+        top_kwargs=None,
+        step_kwargs=None,
+        flow=None,
     ):
         cmd = [executable, "-u", script]
+        if flow:
+            if not script.endswith("metaflow/cmd/main_cli.py"):
+                raise RuntimeError("Unexpected entrypoint script: %s" % script)
+            cmd += [
+                "flow",
+                flow.path_spec,
+            ]
         if top_kwargs is None:
             top_kwargs = self._top_kwargs
         if step_kwargs is None:
@@ -55,7 +68,6 @@ class CLIArgs(object):
     @staticmethod
     def _options(mapping):
         for k, v in mapping.items():
-
             # None or False arguments are ignored
             # v needs to be explicitly False, not falsy, e.g. 0 is an acceptable value
             if v is None or v is False:

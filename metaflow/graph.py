@@ -2,6 +2,8 @@ import inspect
 import ast
 import re
 
+from metaflow.meta import IS_STEP, META_KEY
+
 
 def deindent_docstring(doc):
     if doc:
@@ -42,12 +44,30 @@ def deindent_docstring(doc):
 
 
 class DAGNode(object):
-    def __init__(self, func_ast, decos, doc):
+    def __init__(self, func_ast, func, parse=True, file=None, lineno=None):
+        self.func_ast = func_ast
+        self.func = func
+        self.file = file
+        self.func_lineno = lineno or func_ast.lineno
+
         self.name = func_ast.name
-        self.func_lineno = func_ast.lineno
-        self.decorators = decos
-        self.doc = deindent_docstring(doc)
-        self.parallel_step = any(getattr(deco, "IS_PARALLEL", False) for deco in decos)
+        self.tail = func_ast.body[-1]
+
+        self.func_lineno = lineno or func_ast.lineno
+        self.file = file
+
+        if func:
+            self.meta = getattr(func, META_KEY, {})
+            self.decorators = func.decorators
+            self.doc = deindent_docstring(func.__doc__)
+        else:
+            self.meta = {}
+            self.decorators = []
+            self.doc = None
+
+        self.parallel_step = any(
+            getattr(deco, "IS_PARALLEL", False) for deco in self.decorators
+        )
 
         # these attributes are populated by _parse
         self.tail_next_lineno = 0
@@ -55,11 +75,12 @@ class DAGNode(object):
         self.out_funcs = []
         self.has_tail_next = False
         self.invalid_tail_next = False
-        self.num_args = 0
+        self.num_args = len(func_ast.args.args)
         self.foreach_param = None
         self.num_parallel = 0
         self.parallel_foreach = False
-        self._parse(func_ast)
+        if parse:
+            self._parse()
 
         # these attributes are populated by _traverse_graph
         self.in_funcs = set()
@@ -71,17 +92,16 @@ class DAGNode(object):
     def _expr_str(self, expr):
         return "%s.%s" % (expr.value.id, expr.attr)
 
-    def _parse(self, func_ast):
-
-        self.num_args = len(func_ast.args.args)
-        tail = func_ast.body[-1]
+    def _parse(self):
+        tail = self.tail
 
         # end doesn't need a transition
         if self.name == "end":
             # TYPE: end
             self.type = "end"
+            return
 
-        # ensure that the tail an expression
+        # ensure that the tail is an expression
         if not isinstance(tail, ast.Expr):
             return
 
@@ -154,35 +174,72 @@ class DAGNode(object):
         )
 
 
+def parse_flow(file, name=None):
+    """Parse a FlowSpec's AST from a file
+
+    The FlowSpec must be the only top-level class found in `source` (or the only one matching `name`, if provided)
+
+    :param file: path to load a FlowSpec's AST from
+    :param name: optional class-name to load (required if multiple top-level classes exist in `file`)
+    :return: (FlowSpec ClassDef AST, full `source` AST)
+    """
+    with open(file, "r") as f:
+        source = f.read()
+    tree = ast.parse(source).body
+    roots = [
+        n
+        for n in tree
+        if isinstance(n, ast.ClassDef) and (name is None or n.name == name)
+    ]
+    if not roots:
+        if name is None:
+            raise RuntimeError("No roots found in %s" % file)
+        else:
+            raise RuntimeError("No roots found named %s in %s" % (name, file))
+    if len(roots) > 1:
+        if name is None:
+            raise RuntimeError("%d roots found in %s" % (len(roots), file))
+        else:
+            raise RuntimeError(
+                "%d roots found named %s in %s" % (len(roots), name, file)
+            )
+    root = roots[0]
+    return root, tree
+
+
 class StepVisitor(ast.NodeVisitor):
-    def __init__(self, nodes, flow):
-        self.nodes = nodes
+    def __init__(self, flow, node=None, parse=True):
         self.flow = flow
+        self.parse = parse
+        self.nodes = {}
         super(StepVisitor, self).__init__()
+        if node:
+            self.visit(node)
 
     def visit_FunctionDef(self, node):
         func = getattr(self.flow, node.name)
-        if hasattr(func, "is_step"):
-            self.nodes[node.name] = DAGNode(node, func.decorators, func.__doc__)
+        if getattr(func, IS_STEP, None):
+            self.nodes[node.name] = DAGNode(node, func, parse=self.parse)
+        elif getattr(func, META_KEY, {}).get(IS_STEP):
+            raise RuntimeError("New-style step found: %s" % node.name)
 
 
 class FlowGraph(object):
-    def __init__(self, flow):
-        self.name = flow.__name__
-        self.nodes = self._create_nodes(flow)
+    def __init__(self, flow, nodes=None):
+        self.name = flow.name
+        if nodes:
+            self.nodes = nodes
+        else:
+            self.nodes = self._create_nodes(flow)
+
         self.doc = deindent_docstring(flow.__doc__)
         self._traverse_graph()
         self._postprocess()
 
     def _create_nodes(self, flow):
-        module = __import__(flow.__module__)
-        tree = ast.parse(inspect.getsource(module)).body
-        root = [n for n in tree if isinstance(n, ast.ClassDef) and n.name == self.name][
-            0
-        ]
-        nodes = {}
-        StepVisitor(nodes, flow).visit(root)
-        return nodes
+        root, tree = parse_flow(flow.file, flow.name)
+        visitor = StepVisitor(flow, root)
+        return visitor.nodes
 
     def _postprocess(self):
         # any node who has a foreach as any of its split parents
@@ -262,7 +319,6 @@ class FlowGraph(object):
         )
 
     def output_steps(self):
-
         steps_info = {}
         graph_structure = []
 

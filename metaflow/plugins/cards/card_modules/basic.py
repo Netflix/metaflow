@@ -511,7 +511,6 @@ class TaskInfoComponent(MetaflowCardComponent):
 
 
 class ErrorCard(MetaflowCard):
-
     type = "error"
 
     def __init__(self, options={}, components=[], graph=None):
@@ -556,7 +555,6 @@ class ErrorCard(MetaflowCard):
 
 
 class DefaultCardJSON(MetaflowCard):
-
     type = "default_json"
 
     def __init__(self, options=dict(only_repr=True), components=[], graph=None):
@@ -577,7 +575,6 @@ class DefaultCardJSON(MetaflowCard):
 
 
 class DefaultCard(MetaflowCard):
-
     ALLOW_USER_COMPONENTS = True
 
     type = "default"
@@ -613,7 +610,6 @@ class DefaultCard(MetaflowCard):
 
 
 class BlankCard(MetaflowCard):
-
     ALLOW_USER_COMPONENTS = True
 
     type = "blank"

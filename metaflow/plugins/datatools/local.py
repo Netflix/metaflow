@@ -23,7 +23,6 @@ class LocalObject(object):
     """
 
     def __init__(self, url, path):
-
         # all fields of S3Object should return a unicode object
         def ensure_unicode(x):
             return None if x is None else to_unicode(x)

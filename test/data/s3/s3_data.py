@@ -133,7 +133,6 @@ ExpectedRange = namedtuple(
 
 
 class RandomFile(object):
-
     cached_digests = {}
     cached_files = {}
 

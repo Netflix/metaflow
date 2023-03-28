@@ -1,0 +1,5 @@
+coverage
+numpy
+pandas  # used by MovieStatsFlow tutorial, which is exercised by metaflow/tests/test_foreach.py
+pytest
+tox

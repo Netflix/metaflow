@@ -83,7 +83,6 @@ class ProjectDecorator(FlowDecorator):
 
 
 def format_name(flow_name, project_name, deploy_prod, given_branch, user_name):
-
     if not project_name:
         # an empty string is not a valid project name
         raise MetaflowException(

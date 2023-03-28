@@ -144,15 +144,15 @@ class MetaflowEnvironment(object):
             BASH_MFLOG,
             "mflog 'Setting up task environment.'",
             self._get_install_dependencies_cmd(datastore_type),
-            "mkdir metaflow",
+            "mkdir -p metaflow",
             "cd metaflow",
-            "mkdir .metaflow",  # mute local datastore creation log
+            "mkdir -p .metaflow",  # mute local datastore creation log
             "i=0; while [ $i -le 5 ]; do "
-            "mflog 'Downloading code package...'; "
+            "mflog 'Downloading code package %s...'; " % code_package_url
             + self._get_download_code_package_cmd(code_package_url, datastore_type)
-            + " && mflog 'Code package downloaded.' && break; "
+            + " && mflog 'Code package %s downloaded.' && break; "
             "sleep 10; i=$((i+1)); "
-            "done",
+            "done" % code_package_url,
             "if [ $i -gt 5 ]; then "
             "mflog 'Failed to download code package from %s "
             "after 6 tries. Exiting...' && exit 1; "

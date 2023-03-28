@@ -12,7 +12,7 @@ else:
     OrderedDict = dict
 
 
-__all__ = ['Path']
+__all__ = ["Path"]
 
 
 def _parents(path):
@@ -93,7 +93,7 @@ class CompleteDirs(zipfile.ZipFile):
         as a directory (with the trailing slash).
         """
         names = self._name_set()
-        dirname = name + '/'
+        dirname = name + "/"
         dir_match = name not in names and dirname in names
         return dirname if dir_match else name
 
@@ -110,7 +110,7 @@ class CompleteDirs(zipfile.ZipFile):
             return cls(_pathlib_compat(source))
 
         # Only allow for FastLookup when supplied zipfile is read-only
-        if 'r' not in source.mode:
+        if "r" not in source.mode:
             cls = CompleteDirs
 
         source.__class__ = cls
@@ -240,7 +240,7 @@ class Path:
         self.root = FastLookup.make(root)
         self.at = at
 
-    def open(self, mode='r', *args, pwd=None, **kwargs):
+    def open(self, mode="r", *args, pwd=None, **kwargs):
         """
         Open this entry as text or binary following the semantics
         of ``pathlib.Path.open()`` by passing arguments through
@@ -249,10 +249,10 @@ class Path:
         if self.is_dir():
             raise IsADirectoryError(self)
         zip_mode = mode[0]
-        if not self.exists() and zip_mode == 'r':
+        if not self.exists() and zip_mode == "r":
             raise FileNotFoundError(self)
         stream = self.root.open(self.at, zip_mode, pwd=pwd)
-        if 'b' in mode:
+        if "b" in mode:
             if args or kwargs:
                 raise ValueError("encoding args invalid for binary operation")
             return stream
@@ -279,11 +279,11 @@ class Path:
         return pathlib.Path(self.root.filename).joinpath(self.at)
 
     def read_text(self, *args, **kwargs):
-        with self.open('r', *args, **kwargs) as strm:
+        with self.open("r", *args, **kwargs) as strm:
             return strm.read()
 
     def read_bytes(self):
-        with self.open('rb') as strm:
+        with self.open("rb") as strm:
             return strm.read()
 
     def _is_child(self, path):
@@ -323,7 +323,7 @@ class Path:
     def parent(self):
         if not self.at:
             return self.filename.parent
-        parent_at = posixpath.dirname(self.at.rstrip('/'))
+        parent_at = posixpath.dirname(self.at.rstrip("/"))
         if parent_at:
-            parent_at += '/'
+            parent_at += "/"
         return self._next(parent_at)

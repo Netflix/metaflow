@@ -102,7 +102,6 @@ class CliCheck(MetaflowCheck):
     def assert_log(self, step, logtype, value, exact_match=True):
         log = self.get_log(step, logtype)
         if (exact_match and log != value) or (not exact_match and value not in log):
-
             raise AssertLogFailed(
                 "Task '%s/%s' expected %s log '%s' but got '%s'"
                 % (self.run_id, step, logtype, repr(value), repr(log))

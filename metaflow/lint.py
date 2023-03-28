@@ -1,5 +1,6 @@
 import re
 from .exception import MetaflowException
+from .meta import FOREACH
 from .util import all_equal
 
 
@@ -109,7 +110,13 @@ def check_num_args(graph):
     for node in graph:
         if node.num_args > 2:
             raise LintWarn(msg0.format(node), node.func_lineno)
-        elif node.num_args == 2 and node.type != "join":
+        elif node.num_args == 2:
+            if node.type == "join":
+                # "join" step-functions can (must!) take an `inputs` argument
+                return
+            if FOREACH in node.meta:
+                # The current node is a `@foreach` that takes `self.input` as an explicit argument, so this is fine
+                return
             raise LintWarn(msg1.format(node), node.func_lineno)
         elif node.num_args == 0:
             raise LintWarn(msg2.format(node), node.func_lineno)

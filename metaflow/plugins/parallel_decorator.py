@@ -16,7 +16,6 @@ class ParallelDecorator(StepDecorator):
     def runtime_step_cli(
         self, cli_args, retry_count, max_user_code_retries, ubf_context
     ):
-
         if ubf_context == UBF_CONTROL:
             num_parallel = cli_args.task.ubf_iter.num_parallel
             cli_args.command_options["num-parallel"] = str(num_parallel)
@@ -108,7 +107,9 @@ def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_c
         kwargs["ubf_context"] = UBF_TASK
         kwargs["retry_count"] = str(retry_count)
 
-        cmd = cli_args.step_command(executable, script, step_name, step_kwargs=kwargs)
+        cmd = cli_args.step_command(
+            executable, script, step_name, step_kwargs=kwargs, flow=flow
+        )
         p = subprocess.Popen(cmd)
         subprocesses.append(p)
 

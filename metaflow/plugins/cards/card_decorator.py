@@ -89,7 +89,6 @@ class CardDecorator(StepDecorator):
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
     ):
-
         self._flow_datastore = flow_datastore
         self._environment = environment
         self._logger = logger
@@ -186,7 +185,7 @@ class CardDecorator(StepDecorator):
             return
         component_strings = current.card._serialize_components(self._card_uuid)
         runspec = "/".join([current.run_id, current.step_name, current.task_id])
-        self._run_cards_subprocess(runspec, component_strings)
+        self._run_cards_subprocess(runspec, component_strings, flow)
 
     @staticmethod
     def _options(mapping):
@@ -200,7 +199,6 @@ class CardDecorator(StepDecorator):
                         yield to_unicode(value)
 
     def _create_top_level_args(self):
-
         top_level_options = {
             "quiet": True,
             "metadata": self._metadata.TYPE,
@@ -215,7 +213,7 @@ class CardDecorator(StepDecorator):
         }
         return list(self._options(top_level_options))
 
-    def _run_cards_subprocess(self, runspec, component_strings):
+    def _run_cards_subprocess(self, runspec, component_strings, flow):
         temp_file = None
         if len(component_strings) > 0:
             temp_file = tempfile.NamedTemporaryFile("w", suffix=".json")
@@ -224,7 +222,10 @@ class CardDecorator(StepDecorator):
         executable = sys.executable
         cmd = [
             executable,
-            sys.argv[0],
+            "-m",
+            "metaflow.cmd.main_cli",
+            "flow",
+            flow.path_spec,
         ]
         cmd += self._create_top_level_args() + [
             "card",

@@ -62,7 +62,6 @@ class MetaflowTask(object):
             step_function(input_obj)
 
     def _init_parameters(self, parameter_ds, passdown=True):
-
         cls = self.flow.__class__
 
         def _set_cls_var(_, __):
@@ -381,7 +380,6 @@ class MetaflowTask(object):
         retry_count,
         max_user_code_retries,
     ):
-
         if run_id and task_id:
             self.metadata.register_run_id(run_id)
             self.metadata.register_task_id(run_id, step_name, task_id, retry_count)
@@ -551,7 +549,6 @@ class MetaflowTask(object):
                     )
 
             for deco in decorators:
-
                 deco.task_pre_step(
                     step_name,
                     output,
