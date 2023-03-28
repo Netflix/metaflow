@@ -442,6 +442,15 @@ class KubernetesDecorator(StepDecorator):
     def validate_kube_labels(
         labels: Optional[Dict[str, Optional[str]]],
     ) -> bool:
+        """Validate label values.
+
+        This validates the kubernetes label values.  It does not validate the keys.
+        Ideally, keys should be static and also the validation rules for keys are
+        more complex than those for values.  For full validation rules, see:
+
+        https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
+        """
+
         def validate_label(s: Optional[str]):
             regex_match: str = r"^(([A-Za-z0-9][-A-Za-z0-9_.]{0,61})?[A-Za-z0-9])?$"
             if not s:
