@@ -154,6 +154,8 @@ class ArgoClient(object):
             raise ArgoClientException(
                 "Cannot terminate an execution that has already finished."
             )
+        if workflow["spec"].get("shutdown") == "Terminate":
+            raise ArgoClientException("Execution has already been terminated.")
 
         try:
             body = {"spec": workflow["spec"]}
