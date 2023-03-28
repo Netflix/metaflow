@@ -448,12 +448,12 @@ class KubernetesDecorator(StepDecorator):
                 # allow empty label
                 return True
             if not re.search(regex_match, s):
-                # this is the same message kubernetes itself returns
                 raise KubernetesException(
-                    f'Invalid value: "{s}": a valid label must be an empty string or '
-                    "consist of alphanumeric characters, '-', '_' or '.', must "
-                    "start and end with an alphanumeric character (e.g. 'MyValue', "
-                    "or 'my_value', or '12345'), and be 63 characters or less"
+                    f'Invalid value: "{s}"\n'
+                    "A valid label must be an empty string or one that\n"
+                    "  - Consist of alphanumeric, '-', '_' or '.' characters\n"
+                    "  - Begins and ends with an alphanumeric character\n"
+                    "  - Is at most 63 characters"
                 )
             return True
 
