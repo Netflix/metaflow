@@ -542,7 +542,7 @@ def trigger(obj, run_id_file=None, **kwargs):
 @click.pass_obj
 def delete(obj, authorize=None):
     validate_token(obj.workflow_name, obj.token_prefix, obj, authorize, "delete")
-    obj.echo("Deleting workflow *{name}*...".format(name=obj.workflow_name))
+    obj.echo("Deleting workflow *{name}*...".format(name=obj.workflow_name), bold=True)
 
     # Always try to delete the schedule. Failure in deleting the schedule should not
     # be treated as an error, due to any of the following reasons
@@ -551,7 +551,10 @@ def delete(obj, authorize=None):
     # - regarding cost and compute, the significant resources are part of the workflow teardown, not the schedule.
     schedule_deleted = ArgoWorkflows.remove_schedule(obj.workflow_name)
     if schedule_deleted:
-        obj.echo("   Removed schedule")
+        obj.echo(
+            "Deleting cronworkflow *{name}* as well...".format(name=obj.workflow_name),
+            bold=True,
+        )
 
     # After cleaning up related resources, delete the workflow in question.
     # Failure in deleting is treated as critical and will be made visible to the user
@@ -559,14 +562,12 @@ def delete(obj, authorize=None):
     workflow_deleted = ArgoWorkflows.delete(obj.workflow_name)
     if workflow_deleted:
         obj.echo(
-            "   Workflow is being deleted\n"
-            "Deletion of resources might take a while.\n"
-            "Deploying a flow with the same name during this time "
-            "will fail until the deletion has completed."
+            "Deleting Kubernetes resources may take a while. "
+            "Deploying the flow again to Argo Workflows while the delete is in-flight will fail."
         )
         obj.echo(
-            "Workflows that are currently running will not be affected. "
-            "If necessary, these should be stopped manually."
+            "In-flight executions will not be affected. "
+            "If necessary, terminate them manually."
         )
 
 
