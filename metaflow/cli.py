@@ -1,4 +1,3 @@
-import inspect
 import sys
 import traceback
 from datetime import datetime
@@ -138,11 +137,11 @@ def cli(ctx):
 @click.pass_obj
 def check(obj, warnings=False):
     _check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint, warnings=warnings)
-    fname = inspect.getfile(obj.flow.__class__)
+    file = obj.flow.file
     echo(
         "\n*'{cmd} show'* shows a description of this flow.\n"
         "*'{cmd} run'* runs the flow locally.\n"
-        "*'{cmd} help'* shows all available commands and options.\n".format(cmd=fname),
+        "*'{cmd} help'* shows all available commands and options.\n".format(cmd=file),
         highlight="magenta",
         highlight_bold=False,
     )
@@ -234,7 +233,6 @@ def output_dot(obj):
 )
 @click.pass_obj
 def dump(obj, input_path, private=None, max_value_size=None, include=None, file=None):
-
     output = {}
     kwargs = {
         "show_private": private,
@@ -737,7 +735,6 @@ def resume(
     decospecs=None,
     run_id_file=None,
 ):
-
     before_run(obj, tags, decospecs + obj.environment.decospecs())
 
     if origin_run_id is None:
@@ -822,7 +819,6 @@ def run(
     user_namespace=None,
     **kwargs
 ):
-
     if user_namespace is not None:
         namespace(user_namespace or None)
     before_run(obj, tags, decospecs + obj.environment.decospecs())
@@ -870,7 +866,7 @@ def before_run(obj, tags, decospecs):
     # doesn't get called twice.
     if decospecs:
         decorators._attach_decorators(obj.flow, decospecs)
-        obj.graph = FlowGraph(obj.flow.__class__)
+        obj.graph = obj.flow._graph
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
     # obj.environment.init_environment(obj.logger)
 
@@ -1105,9 +1101,9 @@ def _check(graph, flow, environment, pylint=True, warnings=False, **kwargs):
     linter.run_checks(graph, **kwargs)
     echo("The graph looks good!", fg="green", bold=True, indent=True)
     if pylint:
-        echo("Running pylint...", fg="magenta", bold=False)
-        fname = inspect.getfile(flow.__class__)
-        pylint = PyLint(fname)
+        file = flow.file
+        echo("Running pylint on %s" % file, fg="magenta", bold=False)
+        pylint = PyLint(file)
         if pylint.has_pylint():
             pylint_is_happy, pylint_exception_msg = pylint.run(
                 warnings=warnings,
@@ -1154,7 +1150,9 @@ class CliState(object):
         self.flow = flow
 
 
-def main(flow, args=None, handle_exceptions=True, entrypoint=None):
+def main(
+    flow, args=None, handle_exceptions=True, entrypoint=None, standalone_mode=True
+):
     # Ignore warning(s) and prevent spamming the end-user.
     # TODO: This serves as a short term workaround for RuntimeWarning(s) thrown
     # in py3.8 related to log buffering (bufsize=1).
@@ -1167,14 +1165,14 @@ def main(flow, args=None, handle_exceptions=True, entrypoint=None):
     state = CliState(flow)
     state.entrypoint = entrypoint
 
+    start_kwargs = dict(
+        auto_envvar_prefix="METAFLOW", obj=state, standalone_mode=standalone_mode
+    )
+    if args is not None:
+        start_kwargs["args"] = args
+
     try:
-        if args is None:
-            start(auto_envvar_prefix="METAFLOW", obj=state)
-        else:
-            try:
-                start.main(args=args, obj=state, auto_envvar_prefix="METAFLOW")
-            except SystemExit as e:
-                return e.code
+        start(**start_kwargs)
     except MetaflowException as x:
         if handle_exceptions:
             print_metaflow_exception(x)

@@ -100,7 +100,6 @@ class TaskToDict:
         return task_dict
 
     def _create_task_data_dict(self, task):
-
         task_data_dict = {}
         type_inferred_objects = {"images": {}, "tables": {}}
         for data in task:

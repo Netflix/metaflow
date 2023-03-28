@@ -72,7 +72,6 @@ class DAGNode(object):
         return "%s.%s" % (expr.value.id, expr.attr)
 
     def _parse(self, func_ast):
-
         self.num_args = len(func_ast.args.args)
         tail = func_ast.body[-1]
 
@@ -168,15 +167,16 @@ class StepVisitor(ast.NodeVisitor):
 
 class FlowGraph(object):
     def __init__(self, flow):
-        self.name = flow.__name__
+        self.name = flow.name
         self.nodes = self._create_nodes(flow)
         self.doc = deindent_docstring(flow.__doc__)
         self._traverse_graph()
         self._postprocess()
 
     def _create_nodes(self, flow):
-        module = __import__(flow.__module__)
-        tree = ast.parse(inspect.getsource(module)).body
+        with open(flow.file, "r") as f:
+            source = f.read()
+        tree = ast.parse(source).body
         root = [n for n in tree if isinstance(n, ast.ClassDef) and n.name == self.name][
             0
         ]
@@ -262,7 +262,6 @@ class FlowGraph(object):
         )
 
     def output_steps(self):
-
         steps_info = {}
         graph_structure = []
 

@@ -228,7 +228,6 @@ def json_dump(val):
 
 
 class AirflowDAGArgs(object):
-
     # `_arg_types` is a dictionary which represents the types of the arguments of an Airflow `DAG`.
     # `_arg_types` is used when parsing types back from the configuration json.
     # It doesn't cover all the arguments but covers many of the important one which can come from the cli.

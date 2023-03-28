@@ -346,7 +346,6 @@ class ServiceMetadataProvider(MetadataProvider):
         tags=None,
         sys_tags=None,
     ):
-
         if tags is None:
             tags = set()
         if sys_tags is None:

@@ -62,7 +62,6 @@ class TagCatchTest(MetaflowTest):
         os.kill(os.getpid(), signal.SIGKILL)
 
     def check_results(self, flow, checker):
-
         checker.assert_log(
             "start", "stdout", "stdout testing logs 3\n", exact_match=False
         )
@@ -71,7 +70,6 @@ class TagCatchTest(MetaflowTest):
         )
 
         for step in flow:
-
             if step.name == "start":
                 checker.assert_artifact("start", "test_attempt", 3)
                 try:

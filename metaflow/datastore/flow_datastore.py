@@ -187,7 +187,6 @@ class FlowDataStore(object):
         mode="r",
         allow_not_done=False,
     ):
-
         return TaskDataStore(
             self,
             run_id,

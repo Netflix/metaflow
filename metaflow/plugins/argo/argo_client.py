@@ -12,7 +12,6 @@ class ArgoClientException(MetaflowException):
 
 class ArgoClient(object):
     def __init__(self, namespace=None):
-
         self._kubernetes_client = KubernetesClient()
         self._namespace = namespace or "default"
         self._group = "argoproj.io"

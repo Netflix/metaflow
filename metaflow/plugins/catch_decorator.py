@@ -65,7 +65,6 @@ class CatchDecorator(StepDecorator):
     def task_exception(
         self, exception, step, flow, graph, retry_count, max_user_code_retries
     ):
-
         # Only "catch" exceptions after all retries are exhausted
         if retry_count < max_user_code_retries:
             return False
@@ -100,7 +99,6 @@ class CatchDecorator(StepDecorator):
     def task_decorate(
         self, step_func, func, graph, retry_count, max_user_code_retries, ubf_context
     ):
-
         # if the user code has failed max_user_code_retries times, @catch
         # runs a piece of fallback code instead. This way we can continue
         # running the flow downstream, as we have a proper entry for this task.

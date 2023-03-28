@@ -174,7 +174,6 @@ class Decorator(object):
 
 
 class FlowDecorator(Decorator):
-
     _flow_decorators = []
     options = {}
 

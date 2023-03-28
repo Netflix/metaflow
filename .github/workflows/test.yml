@@ -38,7 +38,11 @@ jobs:
     - name: Install Python ${{ matrix.ver }} dependencies
       run: |
         python3 -m pip install --upgrade pip setuptools
-        python3 -m pip install tox numpy
+        python3 -m pip install -e .
+        python3 -m pip install numpy pytest tox
+
+    - name: Execute pytest tests
+      run: pytest
 
     - name: Execute Python tests
       run: tox
@@ -75,5 +79,3 @@ jobs:
       run: |
         cd R/tests
         Rscript run_tests.R
-
-

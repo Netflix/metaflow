@@ -16,7 +16,6 @@ class ParallelDecorator(StepDecorator):
     def runtime_step_cli(
         self, cli_args, retry_count, max_user_code_retries, ubf_context
     ):
-
         if ubf_context == UBF_CONTROL:
             num_parallel = cli_args.task.ubf_iter.num_parallel
             cli_args.command_options["num-parallel"] = str(num_parallel)

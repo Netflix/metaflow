@@ -31,7 +31,7 @@ class LinuxProcPoll(ProcPoll):
         self._poll.unregister(fd)
 
     def poll(self, timeout):
-        for (fd, event) in self._poll.poll(timeout):
+        for fd, event in self._poll.poll(timeout):
             yield ProcPollEvent(
                 fd=fd,
                 can_read=bool(event & select.POLLIN),
