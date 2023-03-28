@@ -609,8 +609,7 @@ def echo_token_instructions(obj, name, prev_user, cmd_name, cmd_description=None
     )
     obj.echo(
         "To %s this flow, you need to use the same "
-        "production token that they used. " % cmd_description
-        or cmd_name
+        "production token that they used. " % (cmd_description or cmd_name)
     )
     obj.echo(
         "Please reach out to them to get the token. Once you have it, call "
