@@ -164,26 +164,26 @@ class ArgoWorkflows(object):
         return name.replace("_", "-")
 
     @staticmethod
-    def remove_schedule(name):
-        client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
-
-        response = client.delete_cronworkflow(name)
-        if response is None:
-            # Not finding a schedule to delete is not a show stopper.
-            return False
-
-        return True
-
-    @staticmethod
     def delete(name):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
-        response = client.delete_workflow_template(name)
-        if response is None:
+        # Always try to delete the schedule. Failure in deleting the schedule should not
+        # be treated as an error, due to any of the following reasons
+        # - there might not have been a schedule, or it was deleted by some other means
+        # - retaining these resources should have no consequences as long as the workflow deletion succeeds.
+        # - regarding cost and compute, the significant resources are part of the workflow teardown, not the schedule.
+        schedule_deleted = client.delete_cronworkflow(name)
+
+        # After cleaning up related resources, delete the workflow in question.
+        # Failure in deleting is treated as critical and will be made visible to the user
+        # for further action.
+        workflow_deleted = client.delete_workflow_template(name)
+        if workflow_deleted is None:
             raise ArgoWorkflowsException(
                 "The workflow *%s* doesn't exist on Argo Workflows." % name
             )
-        return True
+
+        return schedule_deleted, workflow_deleted
 
     @staticmethod
     def terminate(flow_name, run_id):
