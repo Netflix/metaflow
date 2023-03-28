@@ -429,7 +429,6 @@ class UploaderV1:
 
 
 class UploaderV2:
-
     file_type = "uploader-v2"
 
     @classmethod

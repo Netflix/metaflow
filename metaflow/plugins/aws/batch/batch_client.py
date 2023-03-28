@@ -522,7 +522,6 @@ class TriableException(Exception):
 
 
 class RunningJob(object):
-
     NUM_RETRIES = 8
 
     def __init__(self, id, client):

@@ -274,7 +274,6 @@ def render(
             # If the scope is a callable (as described in
             # https://mustache.github.io/mustache.5.html)
             if isinstance(scope, Callable):
-
                 # Generate template text from tags
                 text = unicode("", "utf-8")
                 tags = []

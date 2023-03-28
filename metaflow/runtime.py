@@ -75,7 +75,6 @@ class NativeRuntime(object):
         max_num_splits=MAX_NUM_SPLITS,
         max_log_size=MAX_LOG_SIZE,
     ):
-
         if run_id is None:
             self._run_id = metadata.new_run_id()
         else:
@@ -151,7 +150,6 @@ class NativeRuntime(object):
                 deco.runtime_init(flow, graph, package, self._run_id)
 
     def _new_task(self, step, input_paths=None, **kwargs):
-
         if input_paths is None:
             may_clone = True
         else:
@@ -230,7 +228,6 @@ class NativeRuntime(object):
             # main scheduling loop
             exception = None
             while self._run_queue or self._active_tasks[0] > 0:
-
                 # 1. are any of the current workers finished?
                 finished_tasks = list(self._poll_workers())
                 # 2. push new tasks triggered by the finished tasks to the queue
@@ -497,7 +494,6 @@ class NativeRuntime(object):
                 )
 
     def _queue_task_foreach(self, task, next_steps):
-
         # CHECK: this condition should be enforced by the linter but
         # let's assert that the assumption holds
         if len(next_steps) > 1:
@@ -711,7 +707,6 @@ class Task(object):
         join_type=None,
         task_id=None,
     ):
-
         self.step = step
         self.flow_name = flow.name
         self.run_id = run_id
@@ -1141,11 +1136,9 @@ class CLIArgs(object):
         self.env = {}
 
     def get_args(self):
-
         # TODO: Make one with dict_to_cli_options; see cli_args.py for more detail
         def _options(mapping):
             for k, v in mapping.items():
-
                 # None or False arguments are ignored
                 # v needs to be explicitly False, not falsy, e.g. 0 is an acceptable value
                 if v is None or v is False:
@@ -1178,7 +1171,6 @@ class CLIArgs(object):
 
 class Worker(object):
     def __init__(self, task, max_logs_size):
-
         self.task = task
         self._proc = self._launch()
 

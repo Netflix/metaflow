@@ -17,6 +17,7 @@ from .exception import (
 from .graph import FlowGraph
 from .unbounded_foreach import UnboundedForeachInput
 
+
 # For Python 3 compatibility
 try:
     basestring
@@ -60,7 +61,7 @@ class FlowSpec(object):
     """
 
     # Attributes that are not saved in the datastore when checkpointing.
-    # Name starting with '__', methods, functions and Parameters do not need
+    # Names starting with '__', methods, functions and Parameters do not need
     # to be listed.
     _EPHEMERAL = {
         "_EPHEMERAL",
@@ -191,12 +192,13 @@ class FlowSpec(object):
         }
         self._graph_info = graph_info
 
-    def _get_parameters(self):
-        for var in dir(self):
-            if var[0] == "_" or var in self._NON_PARAMETERS:
+    @classmethod
+    def _get_parameters(cls):
+        for var in dir(cls):
+            if var[0] == "_" or var in cls._NON_PARAMETERS:
                 continue
             try:
-                val = getattr(self, var)
+                val = getattr(cls, var)
             except:
                 continue
             if isinstance(val, Parameter):
@@ -228,11 +230,11 @@ class FlowSpec(object):
         else:
             raise AttributeError("Flow %s has no attribute '%s'" % (self.name, name))
 
-    def cmd(self, cmdline, input={}, output=[]):
+    def cmd(self, cmdline, input=None, output=None):
         """
         [Legacy function - do not use]
         """
-        return cmd_with_io.cmd(cmdline, input=input, output=output)
+        return cmd_with_io.cmd(cmdline, input=input or {}, output=output or [])
 
     @property
     def index(self) -> Optional[int]:

@@ -152,7 +152,6 @@ class Kubernetes(object):
         env=None,
         tolerations=None,
     ):
-
         if env is None:
             env = {}
 

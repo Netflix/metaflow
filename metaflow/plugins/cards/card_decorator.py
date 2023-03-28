@@ -89,7 +89,6 @@ class CardDecorator(StepDecorator):
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
     ):
-
         self._flow_datastore = flow_datastore
         self._environment = environment
         self._logger = logger
@@ -200,7 +199,6 @@ class CardDecorator(StepDecorator):
                         yield to_unicode(value)
 
     def _create_top_level_args(self):
-
         top_level_options = {
             "quiet": True,
             "metadata": self._metadata.TYPE,

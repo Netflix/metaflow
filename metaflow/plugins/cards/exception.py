@@ -23,7 +23,6 @@ class CardClassFoundException(MetaflowException):
 
 
 class TypeRequiredException(MetaflowException):
-
     headline = "Card type missing exception"
 
     def __init__(self):
@@ -62,7 +61,6 @@ class CardNotPresentException(MetaflowException):
 
 
 class TaskNotFoundException(MetaflowException):
-
     headline = "Cannot resolve task for pathspec"
 
     def __init__(
@@ -84,7 +82,6 @@ class TaskNotFoundException(MetaflowException):
 
 
 class IncorrectCardArgsException(MetaflowException):
-
     headline = "Incorrect arguments to @card decorator"
 
     def __init__(self, card_type, args):
@@ -93,7 +90,6 @@ class IncorrectCardArgsException(MetaflowException):
 
 
 class UnrenderableCardException(MetaflowException):
-
     headline = "Unable to render @card"
 
     def __init__(self, card_type, args):
@@ -105,7 +101,6 @@ class UnrenderableCardException(MetaflowException):
 
 
 class UnresolvableDatastoreException(MetaflowException):
-
     headline = "Cannot resolve datastore type from `Task.metadata`"
 
     def __init__(self, task):

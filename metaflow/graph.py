@@ -72,7 +72,6 @@ class DAGNode(object):
         return "%s.%s" % (expr.value.id, expr.attr)
 
     def _parse(self, func_ast):
-
         self.num_args = len(func_ast.args.args)
         tail = func_ast.body[-1]
 
@@ -80,8 +79,9 @@ class DAGNode(object):
         if self.name == "end":
             # TYPE: end
             self.type = "end"
+            return
 
-        # ensure that the tail an expression
+        # ensure that the tail is an expression
         if not isinstance(tail, ast.Expr):
             return
 
@@ -262,7 +262,6 @@ class FlowGraph(object):
         )
 
     def output_steps(self):
-
         steps_info = {}
         graph_structure = []
 

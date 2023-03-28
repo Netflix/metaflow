@@ -27,7 +27,8 @@ class PyLint(object):
     def has_pylint(self):
         return self._run is not None
 
-    def run(self, logger=None, warnings=False, pylint_config=[]):
+    def run(self, logger=None, warnings=False, pylint_config=None):
+        pylint_config = pylint_config or []
         args = [self._fname]
         if not warnings:
             args.append("--errors-only")

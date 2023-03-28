@@ -723,7 +723,6 @@ def verify_gcp_credentials(ctx):
 )
 @click.pass_context
 def azure(ctx, profile):
-
     # Greet the user!
     echo(
         "Welcome to Metaflow! Follow the prompts to configure your installation.\n",
@@ -765,7 +764,6 @@ def azure(ctx, profile):
 )
 @click.pass_context
 def gcp(ctx, profile):
-
     # Greet the user!
     echo(
         "Welcome to Metaflow! Follow the prompts to configure your installation.\n",
@@ -807,7 +805,6 @@ def gcp(ctx, profile):
 )
 @click.pass_context
 def aws(ctx, profile):
-
     # Greet the user!
     echo(
         "Welcome to Metaflow! Follow the prompts to configure your " "installation.\n",
@@ -855,7 +852,6 @@ def aws(ctx, profile):
 )
 @click.pass_context
 def kubernetes(ctx, profile):
-
     check_kubernetes_client(ctx)
 
     # Greet the user!

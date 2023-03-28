@@ -77,7 +77,6 @@ class DeployTimeField(object):
         return_str=True,
         print_representation=None,
     ):
-
         self.fun = fun
         self.field = field
         self.parameter_name = parameter_name

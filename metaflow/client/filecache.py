@@ -83,7 +83,6 @@ class FileCache(object):
     def get_log_legacy(
         self, ds_type, location, logtype, attempt, flow_name, run_id, step_name, task_id
     ):
-
         ds_cls = self._get_datastore_storage_impl(ds_type)
         ds_root = ds_cls.path_join(*ds_cls.path_split(location)[:-5])
         cache_id = self._flow_ds_id(ds_type, ds_root, flow_name)

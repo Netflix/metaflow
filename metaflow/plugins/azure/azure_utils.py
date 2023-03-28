@@ -198,7 +198,6 @@ def create_static_token_credential(token_):
             self._credential = None
 
         def get_token(self, *_scopes, **_kwargs):
-
             if (self._cached_token.expires_on - time.time()) < 300:
                 from azure.identity import DefaultAzureCredential
 
