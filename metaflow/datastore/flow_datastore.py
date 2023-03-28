@@ -172,7 +172,7 @@ class FlowDataStore(object):
         else:
             latest_to_fetch = latest_started_attempts & done_attempts
         latest_to_fetch = [
-            (v[0], v[1], v[2], v[3], data_objs[v], "r", allow_not_done)
+            (v[0], v[1], v[2], v[3], data_objs.get(v), "r", allow_not_done)
             for v in latest_to_fetch
         ]
         return list(itertools.starmap(self.get_task_datastore, latest_to_fetch))
@@ -187,7 +187,6 @@ class FlowDataStore(object):
         mode="r",
         allow_not_done=False,
     ):
-
         return TaskDataStore(
             self,
             run_id,
