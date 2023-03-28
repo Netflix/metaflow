@@ -66,3 +66,29 @@ def test_kubernetes_decorator_validate_kube_labels_fail(labels):
     """Fail if label contains invalid characters or is too long"""
     with pytest.raises(KubernetesException):
         KubernetesDecorator.validate_kube_labels(labels)
+
+
+@pytest.mark.parametrize(
+    "items,requires_both,expected",
+    [
+        (["key=value"], True, {"key": "value"}),
+        (["key=value"], False, {"key": "value"}),
+        (["key"], False, {"key": None}),
+        (["key=value", "key2=value2"], True, {"key": "value", "key2": "value2"}),
+    ],
+)
+def test_kubernetes_parse_keyvalue_list(items, requires_both, expected):
+    ret = KubernetesDecorator.parse_kube_keyvalue_list(items, requires_both)
+    assert ret == expected
+
+
+@pytest.mark.parametrize(
+    "items,requires_both",
+    [
+        (["key=value", "key=value2"], True),
+        (["key"], True),
+    ],
+)
+def test_kubernetes_parse_keyvalue_list(items, requires_both):
+    with pytest.raises(KubernetesException):
+        KubernetesDecorator.parse_kube_keyvalue_list(items, requires_both)

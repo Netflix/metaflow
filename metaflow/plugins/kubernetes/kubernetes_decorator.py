@@ -414,8 +414,15 @@ class KubernetesDecorator(StepDecorator):
             name, val = part.split("=", 1)
             if name in {"labels", "node_selector"}:
                 try:
-                    json.loads(val.strip().replace('\\"', '"'))
+                    tmp_vals = json.loads(val.strip().replace('\\"', '"'))
+                    for val_i in tmp_vals.values():
+                        if not (val_i is None or isinstance(val_i, str)):
+                            raise KubernetesException(
+                                "All values must be string or null."
+                            )
                 except json.JSONDecodeError:
+                    if val.startswith("{"):
+                        raise KubernetesException(f"Malform json detected in {val}")
                     both = name == "node_selector"
                     val = json.dumps(
                         cls.parse_kube_keyvalue_list(val.split(","), both),
@@ -433,8 +440,12 @@ class KubernetesDecorator(StepDecorator):
                 item = item_str.split("=", 1)
                 if requires_both:
                     item[1]  # raise IndexError
+                if str(item[0]) in ret:
+                    raise KubernetesException("Duplicate key found: %s", str(item[0]))
                 ret[str(item[0])] = str(item[1]) if len(item) > 1 else None
             return ret
+        except KubernetesException as e:
+            raise e
         except (AttributeError, IndexError):
             raise KubernetesException("Unable to parse kubernetes list: %s" % items)
 
