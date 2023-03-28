@@ -112,7 +112,7 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["labels"] = self.parse_kube_keyvalue_list(
                 self.attributes["labels"].split(","), False
             )
-        self.attributes["labels"] = self.validate_kube_labels(self.attributes["labels"])
+        self.validate_kube_labels(self.attributes["labels"])
 
         if isinstance(self.attributes["node_selector"], str):
             self.attributes["node_selector"] = self.parse_kube_keyvalue_list(
@@ -441,21 +441,20 @@ class KubernetesDecorator(StepDecorator):
     @staticmethod
     def validate_kube_labels(
         labels: Optional[Dict[str, Optional[str]]],
-        regex_match: str = r"^(([A-Za-z0-9][-A-Za-z0-9_.]{0,61})?[A-Za-z0-9])?$",
-    ):
+    ) -> bool:
         def validate_label(s: Optional[str]):
+            regex_match: str = r"^(([A-Za-z0-9][-A-Za-z0-9_.]{0,61})?[A-Za-z0-9])?$"
             if not s:
                 # allow empty label
-                return s
+                return True
             if not re.search(regex_match, s):
                 # this is the same message kubernetes itself returns
-                raise Exception(
+                raise KubernetesException(
                     f'Invalid value: "{s}": a valid label must be an empty string or '
-                    "consist of alphanumeric characters, '-', '_' or '.', and must "
+                    "consist of alphanumeric characters, '-', '_' or '.', must "
                     "start and end with an alphanumeric character (e.g. 'MyValue', "
-                    "or 'my_value', or '12345', regex used for validation is "
-                    "'^(([A-Za-z0-9][-A-Za-z0-9_.]{0,61})?[A-Za-z0-9])?$'"
+                    "or 'my_value', or '12345'), and be 63 characters or less"
                 )
-            return s
+            return True
 
-        return {k: validate_label(v) for k, v in labels.items()} if labels else labels
+        return all([validate_label(v) for v in labels.values()]) if labels else True

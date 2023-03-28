@@ -186,9 +186,8 @@ def step(
 
     # `labels` is a tuple of strings or a tuple with a single comma separated string
     # convert it to a dict
-    labels = KubernetesDecorator.validate_kube_labels(
-        KubernetesDecorator.parse_kube_keyvalue_list(labels, False)
-    )
+    labels = KubernetesDecorator.parse_kube_keyvalue_list(labels, False)
+    KubernetesDecorator.validate_kube_labels(labels)
 
     def _sync_metadata():
         if ctx.obj.metadata.TYPE == "local":
