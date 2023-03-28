@@ -1308,7 +1308,7 @@ class ArgoWorkflows(object):
                 .replicas(1)
                 # TODO: Support revision history limit to manage old deployments
                 # .revision_history_limit(...)
-                # .event_bus_name(ARGO_EVENTS_EVENT_BUS)
+                .event_bus_name(ARGO_EVENTS_EVENT_BUS)
                 # Workflow trigger.
                 .trigger(
                     Trigger().template(
@@ -1410,8 +1410,9 @@ class ArgoWorkflows(object):
                     EventDependency(event["sanitized_name"]).event_name(
                         ARGO_EVENTS_EVENT
                     )
-                    # TODO: Alternatively fetch this from trigger config options
-                    .event_source_name(ARGO_EVENTS_EVENT_SOURCE).filters(
+                    # TODO: Alternatively fetch this from @trigger config options
+                    .event_source_name(ARGO_EVENTS_EVENT_SOURCE)
+                    .filters(
                         # Ensure that event name matches and all required parameter
                         # fields are present in the payload. There is a possibility of
                         # dependency on an event where none of the fields are required.

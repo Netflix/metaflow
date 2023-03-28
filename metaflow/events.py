@@ -8,7 +8,7 @@ MetaflowEvent = namedtuple("MetaflowEvent", ["name", "id", "timestamp", "type"])
 class MetaflowTrigger(object):
     def __init__(self, _meta=[]):
         _meta.sort(key=lambda x: x.get("timestamp") or float("-inf"), reverse=True)
-        self._meta = OrderedDict(
+        self._events = OrderedDict(
             {
                 obj["name"]: MetaflowEvent(
                     **{
@@ -39,7 +39,7 @@ class MetaflowTrigger(object):
         """
         Returns a list of `MetaflowEvent` objects correspondings to all the triggering events.
         """
-        return list(self._meta.values()) or None
+        return list(self._events.values()) or None
 
     @property
     def run(self):
@@ -63,7 +63,7 @@ class MetaflowTrigger(object):
             )
             for obj in filter(
                 lambda x: x.type in ["run"],
-                self._meta.values(),
+                self._events.values(),
             )
         ] or None
 

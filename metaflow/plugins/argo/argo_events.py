@@ -31,7 +31,7 @@ class ArgoEvent(object):
 
     def publish(self, payload={}, force=False, ignore_errors=False):
         # Publish event iff forced or running on Argo Workflows
-        if force or os.environ["ARGO_WORKFLOW_TEMPLATE"]:
+        if force or os.environ.get("ARGO_WORKFLOW_TEMPLATE"):
             try:
                 headers = {}
                 if self._access_token:

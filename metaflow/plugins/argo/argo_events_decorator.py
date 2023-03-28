@@ -1,6 +1,7 @@
 from metaflow.decorators import FlowDecorator
 from metaflow.exception import MetaflowException
 from metaflow.util import is_stringish
+from metaflow import current
 
 # TODO: Support dynamic parameter mapping through a context object that exposes
 #       flow name and user name similar to parameter context
@@ -101,6 +102,13 @@ class TriggerOnFinishDecorator(FlowDecorator):
         "flows": [],
         "options": {},
     }
+    options = {
+        "trigger": dict(
+            multiple=True,
+            default=None,
+            help="Specify run pathspec for testing @trigger_on_finish locally.",
+        ),
+    }
 
     def flow_init(
         self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
@@ -152,3 +160,19 @@ class TriggerOnFinishDecorator(FlowDecorator):
             raise MetaflowException(
                 "No flow(s) specified in *@trigger_on_finish* decorator."
             )
+
+        self._option_values = options
+        if options["trigger"]:
+            print(options)
+            # from metaflow import Run
+            # triggers = {}
+            # for trigger in options["trigger"]:
+            #     run_obj = Run(trigger)
+            #     triggers.append({
+            #         "name": run_obj.flow_name
+            #         })
+
+            # current._update_env({"trigger": MetaflowTrigger(triggers)})
+
+    def get_top_level_options(self):
+        return list(self._option_values.items())
