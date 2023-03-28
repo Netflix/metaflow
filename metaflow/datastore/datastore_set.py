@@ -29,7 +29,7 @@ class TaskDataStoreSet(object):
         if prefetch_data_artifacts:
             # produce a set of SHA keys to prefetch based on artifact names
             prefetch = set()
-            for ds in task_datastores:
+            for ds in self.task_datastores:
                 prefetch.update(ds.keys_for_artifacts(prefetch_data_artifacts))
             # ignore missing keys
             prefetch.discard(None)
