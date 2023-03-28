@@ -139,7 +139,6 @@ class MetaflowEnvironment(object):
             )
         return " && ".join(cmds)
     
-        
     def _should_install_dependencies(self):
         return os.environ.get("METAFLOW_INSTALL_DEPENDENCIES", True)
 
@@ -147,7 +146,9 @@ class MetaflowEnvironment(object):
         if self._should_install_dependencies():
             install_dependencies_cmd = self._get_install_dependencies_cmd(datastore_type)
         else:
-            install_dependencies_cmd = "mflog 'Skipping installation of Metaflow dependencies.'"
+            install_dependencies_cmd = (
+                "mflog 'Skipping installation of Metaflow dependencies.'"
+            )
         cmds = [
             BASH_MFLOG,
             "mflog 'Setting up task environment.'",
