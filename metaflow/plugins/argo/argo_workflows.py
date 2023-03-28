@@ -172,7 +172,7 @@ class ArgoWorkflows(object):
         # Verify that user is trying to terminate an Argo workflow
         if not run_id.startswith("argo-"):
             raise ArgoWorkflowsException(
-                "No active workflow for {flow_name}/{run_id} found in Argo Workflows.".format(
+                "No execution found for {flow_name}/{run_id} in Argo Workflows.".format(
                     flow_name=flow_name, run_id=run_id
                 )
             )
