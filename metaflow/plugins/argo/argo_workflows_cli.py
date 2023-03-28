@@ -532,7 +532,8 @@ def trigger(obj, run_id_file=None, **kwargs):
             bold=True,
         )
 
-@argo_workflows.command(help="Delete the Argo workflow")
+
+@argo_workflows.command(help="Delete the flow on Argo Workflows.")
 @click.option(
     "--authorize",
     default=None,
