@@ -54,7 +54,6 @@ AIRFLOW_DEPLOY_TEMPLATE_FILE = os.path.join(os.path.dirname(__file__), "dag.py")
 
 
 class Airflow(object):
-
     TOKEN_STORAGE_ROOT = "mf.airflow"
 
     def __init__(
@@ -332,7 +331,7 @@ class Airflow(object):
         metadata_env = self.metadata.get_runtime_environment("airflow")
         env.update(metadata_env)
 
-        metaflow_version = self.environment.get_environment_info()
+        metaflow_version = self.environment.get_environment_info(include_ext_info=False)
         metaflow_version["flow_name"] = self.graph.name
         metaflow_version["production_token"] = self.production_token
         env["METAFLOW_VERSION"] = json.dumps(metaflow_version)

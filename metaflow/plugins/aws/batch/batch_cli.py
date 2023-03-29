@@ -230,9 +230,9 @@ def step(
     }
     attrs = {"metaflow.%s" % k: v for k, v in task_spec.items()}
     attrs["metaflow.user"] = util.get_username()
-    attrs["metaflow.version"] = ctx.obj.environment.get_environment_info()[
-        "metaflow_version"
-    ]
+    attrs["metaflow.version"] = ctx.obj.environment.get_environment_info(
+        include_ext_info=False
+    )["metaflow_version"]
 
     env_deco = [deco for deco in node.decorators if deco.name == "environment"]
     if env_deco:
