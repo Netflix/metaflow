@@ -163,6 +163,10 @@ class BatchDecorator(StepDecorator):
                 "least 60 seconds for execution on AWS Batch.".format(step=step)
             )
 
+        # Validate tmpfs_path. Batch requires this to be an absolute path
+        if self.attributes["tmpfs_path"] and self.attributes["tmpfs_path"][0] != "/":
+            raise BatchException("'tmpfs_path' needs to be an absolute path")
+
     def runtime_init(self, flow, graph, package, run_id):
         # Set some more internal state.
         self.flow = flow
@@ -211,7 +215,7 @@ class BatchDecorator(StepDecorator):
         # current.tempdir reflects the value of METAFLOW_TEMPDIR (the current working
         # directory by default), or the value of tmpfs_path if tmpfs_tempdir=False.
         if not self.attributes["tmpfs_tempdir"]:
-            current._update_env("tempdir", self.attributes["tmpfs_path"])
+            current._update_env({"tempdir": self.attributes["tmpfs_path"]})
 
         # task_pre_step may run locally if fallback is activated for @catch
         # decorator. In that scenario, we skip collecting AWS Batch execution
