@@ -287,7 +287,7 @@ class BatchJob(object):
                     {"sourceVolume": name, "containerPath": host_path}
                 )
 
-        if use_tmpfs or tmpfs_size:
+        if use_tmpfs or (tmpfs_size and use_tmpfs is None):
             if tmpfs_size:
                 if not (isinstance(tmpfs_size, (int, unicode, basestring))):
                     raise BatchJobException(

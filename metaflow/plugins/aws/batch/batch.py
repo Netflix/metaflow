@@ -257,7 +257,9 @@ class Batch(object):
                 AWS_SECRETS_MANAGER_DEFAULT_REGION,
             )
 
-        if tmpfs_tempdir:
+        tmpfs_enabled = use_tmpfs or (tmpfs_size and use_tmpfs is None)
+
+        if tmpfs_enabled and tmpfs_tempdir:
             job.environment_variable("METAFLOW_TEMPDIR", tmpfs_path)
 
         # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync between the local user
