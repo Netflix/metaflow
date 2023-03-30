@@ -14,3 +14,9 @@ Everyone is welcome to join us in our [chatroom](http://chat.metaflow.org)!
 Please maintain appropriate, professional conduct while participating in our community. This includes all channels of
 communication. We take reports of harassment or unwelcoming behavior very seriously. To report such behavior, please 
 contact us via [email](mailto:help@metaflow.org). 
+
+### Code style
+
+We use [black](https://black.readthedocs.io/en/stable/) as a code formatter. The easiest way to ensure your commits are always formatted with the correct version of `black` it is to use [pre-commit](https://pre-commit.com/): install it and then run `pre-commit install` once in your local copy of the repo.
+
+We also follow the [numpydoc](https://numpydoc.readthedocs.io/en/latest/format.html) docstring style to enable automatic documentation using [nbdoc](https://github.com/outerbounds/nbdoc).
