@@ -610,7 +610,7 @@ class MetadataProvider(object):
         - task-level metadata generation
         """
         sys_info = dict()
-        env = self._environment.get_environment_info(include_ext_info=False)
+        env = self._environment.get_environment_info()
         sys_info["runtime"] = env["runtime"]
         sys_info["python_version"] = env["python_version_code"]
         identity_type, identity_value = resolve_identity_as_tuple()

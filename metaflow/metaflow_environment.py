@@ -162,7 +162,7 @@ class MetaflowEnvironment(object):
         ]
         return cmds
 
-    def get_environment_info(self, include_ext_info=True):
+    def get_environment_info(self, include_ext_info=False):
         global version_cache
         if version_cache is None:
             version_cache = metaflow_version.get_version()

@@ -389,9 +389,9 @@ class StepFunctions(object):
             # `$$.State.RetryCount` resolves to an int dynamically and
             # AWS Batch job specification only accepts strings. We handle
             # retries/catch within AWS Batch to get around this limitation.
-            "metaflow.version": self.environment.get_environment_info(
-                include_ext_info=False
-            )["metaflow_version"],
+            "metaflow.version": self.environment.get_environment_info()[
+                "metaflow_version"
+            ],
             # We rely on step names and task ids of parent steps to construct
             # input paths for a task. Since the only information we can pass
             # between states (via `InputPath` and `ResultPath`) in AWS Step
@@ -592,7 +592,7 @@ class StepFunctions(object):
         metadata_env = self.metadata.get_runtime_environment("step-functions")
         env.update(metadata_env)
 
-        metaflow_version = self.environment.get_environment_info(include_ext_info=False)
+        metaflow_version = self.environment.get_environment_info()
         metaflow_version["flow_name"] = self.graph.name
         metaflow_version["production_token"] = self.production_token
         env["METAFLOW_VERSION"] = json.dumps(metaflow_version)

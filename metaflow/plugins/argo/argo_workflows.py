@@ -826,9 +826,7 @@ class ArgoWorkflows(object):
             env["METAFLOW_DATASTORE_SYSROOT_GS"] = DATASTORE_SYSROOT_GS
             env["METAFLOW_CARD_GSROOT"] = CARD_GSROOT
 
-            metaflow_version = self.environment.get_environment_info(
-                include_ext_info=False
-            )
+            metaflow_version = self.environment.get_environment_info()
             metaflow_version["flow_name"] = self.graph.name
             metaflow_version["production_token"] = self.production_token
             env["METAFLOW_VERSION"] = json.dumps(metaflow_version)
