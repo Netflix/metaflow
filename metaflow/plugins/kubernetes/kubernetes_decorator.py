@@ -327,6 +327,8 @@ class KubernetesDecorator(StepDecorator):
 
             # TODO (savin): Introduce equivalent support for Microsoft Azure and
             #               Google Cloud Platform
+            # TODO: Introduce a way to detect Cloud Provider, so unnecessary requests (and delays)
+            # can be avoided by not having to try out all providers.
             instance_meta = get_ec2_instance_metadata()
             meta.update(instance_meta)
 
