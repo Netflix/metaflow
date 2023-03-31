@@ -162,7 +162,7 @@ class MetaflowEnvironment(object):
         ]
         return cmds
 
-    def get_environment_info(self):
+    def get_environment_info(self, include_ext_info=False):
         global version_cache
         if version_cache is None:
             version_cache = metaflow_version.get_version()
@@ -187,9 +187,10 @@ class MetaflowEnvironment(object):
             env["metaflow_r_version"] = R.metaflow_r_version()
             env["r_version"] = R.r_version()
             env["r_version_code"] = R.r_version_code()
-        # Information about extension modules (to load them in the proper order)
-        ext_key, ext_val = dump_module_info()
-        env[ext_key] = ext_val
+        if include_ext_info:
+            # Information about extension modules (to load them in the proper order)
+            ext_key, ext_val = dump_module_info()
+            env[ext_key] = ext_val
         return env
 
     def executable(self, step_name):

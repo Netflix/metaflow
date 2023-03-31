@@ -285,7 +285,13 @@ class CondaStepDecorator(StepDecorator):
                 mode="wt",
                 encoding="utf-8",
             ) as f:
-                f.write(json.dumps(self._cur_environment.get_environment_info()))
+                f.write(
+                    json.dumps(
+                        self._cur_environment.get_environment_info(
+                            include_ext_info=True
+                        )
+                    )
+                )
 
         # Do the same for EXT_PKG
         try:

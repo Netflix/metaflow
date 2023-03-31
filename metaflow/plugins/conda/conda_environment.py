@@ -132,5 +132,5 @@ class CondaEnvironment(MetaflowEnvironment):
     def get_package_commands(self, code_package_url, datastore_type):
         return self.base_env.get_package_commands(code_package_url, datastore_type)
 
-    def get_environment_info(self):
-        return self.base_env.get_environment_info()
+    def get_environment_info(self, include_ext_info=False):
+        return self.base_env.get_environment_info(include_ext_info)
