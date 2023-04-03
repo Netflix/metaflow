@@ -4,7 +4,8 @@ from metaflow._vendor import click
 
 from metaflow.extension_support.cmd import process_cmds, resolve_cmds
 from metaflow.plugins.datastores.local_storage import LocalStorage
-from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
+from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, CONTACT_INFO
+from metaflow.metaflow_version import get_version
 
 from .util import echo_always
 
@@ -80,24 +81,18 @@ def start(ctx):
     echo("Metaflow ", fg="magenta", bold=True, nl=False)
 
     if ctx.invoked_subcommand is None:
-        echo("(%s): " % metaflow.__version__, fg="magenta", bold=False, nl=False)
+        echo("(%s): " % get_version(), fg="magenta", bold=False, nl=False)
     else:
-        echo("(%s)\n" % metaflow.__version__, fg="magenta", bold=False)
+        echo("(%s)\n" % get_version(), fg="magenta", bold=False)
 
     if ctx.invoked_subcommand is None:
         echo("More data science, less engineering\n", fg="magenta")
 
-        # metaflow URL
-        echo("http://docs.metaflow.org", fg="cyan", nl=False)
-        echo(" - Read the documentation")
-
-        # metaflow chat
-        echo("http://chat.metaflow.org", fg="cyan", nl=False)
-        echo(" - Chat with us")
-
-        # metaflow help email
-        echo("help@metaflow.org", fg="cyan", nl=False)
-        echo("        - Get help by email\n")
+        lnk_sz = max(len(lnk) for lnk in CONTACT_INFO.values()) + 1
+        for what, lnk in CONTACT_INFO.items():
+            echo("%s%s" % (lnk, " " * (lnk_sz - len(lnk))), fg="cyan", nl=False)
+            echo("- %s" % what)
+        echo("")
 
         print(ctx.get_help())
 

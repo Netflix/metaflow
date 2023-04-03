@@ -193,7 +193,18 @@ DEFAULT_CONTAINER_IMAGE = from_conf("DEFAULT_CONTAINER_IMAGE")
 # Default container registry
 DEFAULT_CONTAINER_REGISTRY = from_conf("DEFAULT_CONTAINER_REGISTRY")
 
+###
+# Organization customizations
+###
 UI_URL = from_conf("UI_URL")
+CONTACT_INFO = from_conf(
+    "CONTACT_INFO",
+    {
+        "Read the documentation": "http://docs.metaflow.org",
+        "Chat with us": "http://chat.metaflow.org",
+        "Get help by email": "help@metaflow.org",
+    },
+)
 
 ###
 # AWS Batch configuration
