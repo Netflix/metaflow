@@ -71,6 +71,16 @@ class BatchDecorator(StepDecorator):
         A swappiness value of 0 causes swapping not to happen unless absolutely
         necessary. A swappiness value of 100 causes pages to be swapped very
         aggressively. Accepted values are whole numbers between 0 and 100.
+    use_tmpfs: bool, default: False
+        This enables an explicit tmpfs mount for this step.
+    tmpfs_tempdir: bool, default: True
+        sets METAFLOW_TEMPDIR to tmpfs_path if set for this step.
+    tmpfs_size: int, optional
+        The value for the size (in MiB) of the tmpfs mount for this step.
+        This parameter maps to the `--tmpfs` option in Docker. Defaults to 50% of the
+        memory allocated for this step.
+    tmpfs_path: string, optional
+        Path to tmpfs mount for this step. Defaults to /metaflow_temp.
     inferentia : int, default: 0
         Number of Inferentia chips required for this step.
     """
@@ -89,6 +99,10 @@ class BatchDecorator(StepDecorator):
         "swappiness": None,
         "inferentia": None,
         "host_volumes": None,
+        "use_tmpfs": False,
+        "tmpfs_tempdir": True,
+        "tmpfs_size": None,
+        "tmpfs_path": "/metaflow_temp",
     }
     resource_defaults = {
         "cpu": "1",
@@ -153,6 +167,10 @@ class BatchDecorator(StepDecorator):
                 "least 60 seconds for execution on AWS Batch.".format(step=step)
             )
 
+        # Validate tmpfs_path. Batch requires this to be an absolute path
+        if self.attributes["tmpfs_path"] and self.attributes["tmpfs_path"][0] != "/":
+            raise BatchException("'tmpfs_path' needs to be an absolute path")
+
     def runtime_init(self, flow, graph, package, run_id):
         # Set some more internal state.
         self.flow = flow
@@ -197,6 +215,11 @@ class BatchDecorator(StepDecorator):
     ):
         self.metadata = metadata
         self.task_datastore = task_datastore
+
+        # current.tempdir reflects the value of METAFLOW_TEMPDIR (the current working
+        # directory by default), or the value of tmpfs_path if tmpfs_tempdir=False.
+        if not self.attributes["tmpfs_tempdir"]:
+            current._update_env({"tempdir": self.attributes["tmpfs_path"]})
 
         # task_pre_step may run locally if fallback is activated for @catch
         # decorator. In that scenario, we skip collecting AWS Batch execution
