@@ -265,6 +265,7 @@ class MetaflowObject(object):
         self._parent = _parent
         self._path_components = None
         self._attempt = attempt
+        self._namespace_check = _namespace_check
 
         if self._attempt is not None:
             if self._NAME not in ["task", "artifact"]:
@@ -315,7 +316,7 @@ class MetaflowObject(object):
         self._user_tags = frozenset(self._object.get("tags") or [])
         self._system_tags = frozenset(self._object.get("system_tags") or [])
 
-        if _namespace_check and not self.is_in_namespace():
+        if self._namespace_check and not self.is_in_namespace():
             raise MetaflowNamespaceMismatch(current_namespace)
 
     def _get_object(self, *path_components):
@@ -330,7 +331,8 @@ class MetaflowObject(object):
         """
         Iterate over all child objects of this object if any.
 
-        Note that only children present in the current namespace are returned.
+        Note that only children present in the current namespace are returned iff
+        _namespace_check is set.
 
         Returns
         -------
@@ -338,7 +340,8 @@ class MetaflowObject(object):
             Iterator over all children
         """
         query_filter = {}
-        if current_namespace:
+        # skip namespace filtering if _namespace_check is False
+        if self._namespace_check and current_namespace:
             query_filter = {"any_tags": current_namespace}
 
         unfiltered_children = self._metaflow.metadata.get_object(
@@ -444,7 +447,10 @@ class MetaflowObject(object):
         obj = self._get_child(id)
         if obj:
             return _CLASSES[self._CHILD_CLASS](
-                attempt=self._attempt, _object=obj, _parent=self
+                attempt=self._attempt,
+                _object=obj,
+                _parent=self,
+                _namespace_check=self._namespace_check,
             )
         else:
             raise KeyError(id)
