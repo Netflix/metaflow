@@ -207,8 +207,6 @@ class ArgoClient(object):
         except client.rest.ApiException as e:
             # Sensor does not exist and we want to add one
             if e.status == 404:
-                if sensor.get("kind") is None:
-                    return
                 try:
                     return client.CustomObjectsApi().create_namespaced_custom_object(
                         group=self._group,
@@ -227,30 +225,21 @@ class ArgoClient(object):
                 raise ArgoClientException(
                     json.loads(e.body)["message"] if e.body is not None else e.reason
                 )
-        # Since sensors occupy real resources, delete existing sensor if needed
-        if sensor.get("kind") is None:
-            try:
-                return client.CustomObjectsApi().delete_namespaced_custom_object(
-                    group=self._group,
-                    version=self._version,
-                    namespace=self._namespace,
-                    plural="sensors",
-                    name=name,
-                )
-            except client.rest.ApiException as e:
-                raise ArgoClientException(
-                    json.loads(e.body)["message"] if e.body is not None else e.reason
-                )
+
+    def delete_sensor(self, name):
+        client = self._client.get()
+
         try:
-            return client.CustomObjectsApi().replace_namespaced_custom_object(
+            return client.CustomObjectsApi().delete_namespaced_custom_object(
                 group=self._group,
                 version=self._version,
                 namespace=self._namespace,
                 plural="sensors",
-                body=sensor,
                 name=name,
             )
         except client.rest.ApiException as e:
+            if e.status == 404:
+                return None
             raise ArgoClientException(
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
