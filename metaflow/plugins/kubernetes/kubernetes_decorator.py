@@ -410,7 +410,7 @@ class KubernetesDecorator(StepDecorator):
 
         valid_options = "|".join(cls.defaults.keys())
         deco_spec_parts = []
-        for part in re.split(f""",(?=[\s\w]+[{valid_options}]=)""", deco_spec):
+        for part in re.split(""",(?=[\s\w]+[{}]=)""".format(valid_options), deco_spec):
             name, val = part.split("=", 1)
             if name in {"labels", "node_selector"}:
                 try:
@@ -422,7 +422,9 @@ class KubernetesDecorator(StepDecorator):
                             )
                 except json.JSONDecodeError:
                     if val.startswith("{"):
-                        raise KubernetesException(f"Malform json detected in {val}")
+                        raise KubernetesException(
+                            "Malform json detected in %s" % str(val)
+                        )
                     both = name == "node_selector"
                     val = json.dumps(
                         cls.parse_kube_keyvalue_list(val.split(","), both),
@@ -441,7 +443,7 @@ class KubernetesDecorator(StepDecorator):
                 if requires_both:
                     item[1]  # raise IndexError
                 if str(item[0]) in ret:
-                    raise KubernetesException("Duplicate key found: %s", str(item[0]))
+                    raise KubernetesException("Duplicate key found: %s" % str(item[0]))
                 ret[str(item[0])] = str(item[1]) if len(item) > 1 else None
             return ret
         except KubernetesException as e:
@@ -469,11 +471,11 @@ class KubernetesDecorator(StepDecorator):
                 return True
             if not re.search(regex_match, s):
                 raise KubernetesException(
-                    f'Invalid value: "{s}"\n'
+                    'Invalid value: "%s"\n'
                     "A valid label must be an empty string or one that\n"
                     "  - Consist of alphanumeric, '-', '_' or '.' characters\n"
                     "  - Begins and ends with an alphanumeric character\n"
-                    "  - Is at most 63 characters"
+                    "  - Is at most 63 characters" % s
                 )
             return True
 
