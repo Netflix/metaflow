@@ -469,7 +469,7 @@ class KubernetesDecorator(StepDecorator):
         """
 
         def validate_label(s: Optional[str]):
-            regex_match: str = r"^(([A-Za-z0-9][-A-Za-z0-9_.]{0,61})?[A-Za-z0-9])?$"
+            regex_match = r"^(([A-Za-z0-9][-A-Za-z0-9_.]{0,61})?[A-Za-z0-9])?$"
             if not s:
                 # allow empty label
                 return True
