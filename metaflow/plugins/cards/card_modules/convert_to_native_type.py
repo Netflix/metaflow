@@ -295,7 +295,8 @@ class TaskToDict:
     def _parse_range(self, data_object):
         return self._get_repr().repr(data_object)
 
-    def _pandas_column_parser(self, data_object):
+    @staticmethod
+    def _parse_pandas_column(column_object):
         # There are two types of parsing we do here.
         # 1. We explicitly parse the types we know how to parse
         # 2. We try to partially match a type name to the column's type.
@@ -305,6 +306,7 @@ class TaskToDict:
         # We have a default parser called `truncate_long_objects` which type casts any column to string
         # and truncates it to 30 characters.
         # If there is any form of TypeError or ValueError we set the column value to "Unsupported Type"
+        # We also set columns which are have null values to "null" strings
         time_format = "%Y-%m-%dT%H:%M:%SZ"
         truncate_long_objects = (
             lambda x: x.astype("string").str.slice(0, 30) + "..."
@@ -315,7 +317,7 @@ class TaskToDict:
             "int64": lambda x: x,
             "float64": lambda x: x,
             "bool": lambda x: x,
-            "object": truncate_long_objects,
+            "object": lambda x: truncate_long_objects(x.fillna("null")),
             "category": truncate_long_objects,
         }
 
@@ -335,29 +337,27 @@ class TaskToDict:
             },
         }
 
-        def _match_partial_type(column):
+        def _match_partial_type():
+            col_type = column_object.dtype
             for _, type_parsers in partial_type_name_match_parsers.items():
                 for type_name, parser in type_parsers.items():
                     if type_name in str(col_type):
-                        data_object[column] = parser(data_object[column])
-                        return True
-            return False
+                        return parser(column_object)
+            return None
 
-        for col in data_object.columns:
-            try:
-                col_type = data_object[col].dtype
-                types_matched = False
-                if col_type in type_parser:
-                    types_matched = True
-                    data_object[col] = type_parser[col_type](data_object[col])
-                else:
-                    types_matched = _match_partial_type(col)
-                if not types_matched:
-                    data_object[col] = truncate_long_objects(data_object[col])
-            except ValueError as e:
-                data_object[col] = "Unsupported type: {0}".format(col_type)
-            except TypeError as e:
-                data_object[col] = "Unsupported type: {0}".format(col_type)
+        try:
+            col_type = str(column_object.dtype)
+            if col_type in type_parser:
+                return type_parser[col_type](column_object)
+            else:
+                parsed_col = _match_partial_type()
+                if parsed_col is not None:
+                    return parsed_col
+            return truncate_long_objects(column_object)
+        except ValueError as e:
+            return "Unsupported type: {0}".format(col_type)
+        except TypeError as e:
+            return "Unsupported type: {0}".format(col_type)
 
     def _parse_pandas_dataframe(self, data_object, truncate=True):
         headers = list(data_object.columns)
@@ -367,15 +367,15 @@ class TaskToDict:
         index_column = data.index
         time_format = "%Y-%m-%dT%H:%M:%SZ"
 
-        if index_column.dtype == "datetime64[ns]":
+        if "datetime64" in str(index_column.dtype):
             if index_column.__class__.__name__ == "DatetimeIndex":
                 index_column = index_column.strftime(time_format)
             else:
                 index_column = index_column.dt.strftime(time_format)
 
-        self._pandas_column_parser(data)
+        for col in data.columns:
+            data[col] = self._parse_pandas_column(data[col])
 
-        data = data.astype(object).where(data.notnull(), None)
         data_vals = data.values.tolist()
         for row, idx in zip(data_vals, index_column.values.tolist()):
             row.insert(0, idx)
