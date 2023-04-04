@@ -197,6 +197,12 @@ DEFAULT_CONTAINER_REGISTRY = from_conf("DEFAULT_CONTAINER_REGISTRY")
 # Organization customizations
 ###
 UI_URL = from_conf("UI_URL")
+
+# Contact information displayed when running the `metaflow` command.
+# Value should be a dictionary where:
+#  - key is a string describing contact method
+#  - value is a string describing contact itself (email, web address, etc.)
+# The default value shows an example of this
 CONTACT_INFO = from_conf(
     "CONTACT_INFO",
     {
