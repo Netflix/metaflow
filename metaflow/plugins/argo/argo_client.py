@@ -227,6 +227,11 @@ class ArgoClient(object):
                 )
 
     def delete_sensor(self, name):
+        """
+        Issues an API call for deleting a sensor
+
+        Returns either the successful API response, or None in case the resource was not found.
+        """
         client = self._client.get()
 
         try:
