@@ -225,6 +225,19 @@ class ArgoClient(object):
                 raise ArgoClientException(
                     json.loads(e.body)["message"] if e.body is not None else e.reason
                 )
+        try:
+            return client.CustomObjectsApi().replace_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="sensors",
+                body=sensor,
+                name=name,
+            )
+        except client.rest.ApiException as e:
+            raise ArgoClientException(
+                json.loads(e.body)["message"] if e.body is not None else e.reason
+            )
 
     def delete_sensor(self, name):
         """
