@@ -18,9 +18,10 @@ from metaflow.metaflow_config import (
     KUBERNETES_LABELS,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
+    KUBERNETES_TOLERATIONS,
     KUBERNETES_SECRETS,
     KUBERNETES_SERVICE_ACCOUNT,
-    KUBERNETES_TOLERATIONS,
+    KUBERNETES_FETCH_EC2_METADATA,
 )
 from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
@@ -343,8 +344,11 @@ class KubernetesDecorator(StepDecorator):
 
             # TODO (savin): Introduce equivalent support for Microsoft Azure and
             #               Google Cloud Platform
-            instance_meta = get_ec2_instance_metadata()
-            meta.update(instance_meta)
+            # TODO: Introduce a way to detect Cloud Provider, so unnecessary requests (and delays)
+            # can be avoided by not having to try out all providers.
+            if KUBERNETES_FETCH_EC2_METADATA:
+                instance_meta = get_ec2_instance_metadata()
+                meta.update(instance_meta)
 
             # Unfortunately, there doesn't seem to be any straight forward way right
             # now to attach the Batch/v1 name - While we can rely on a hacky approach

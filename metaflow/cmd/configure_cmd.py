@@ -249,13 +249,13 @@ def configure_s3_datastore(existing_env):
         show_default=True,
     )
     # Set Amazon S3 folder for datatools.
-    env["METAFLOW_DATATOOLS_SYSROOT_S3"] = click.prompt(
-        cyan("[METAFLOW_DATATOOLS_SYSROOT_S3]")
+    env["METAFLOW_DATATOOLS_S3ROOT"] = click.prompt(
+        cyan("[METAFLOW_DATATOOLS_S3ROOT]")
         + yellow(" (optional)")
         + " Amazon S3 folder for Metaflow datatools "
         + "(s3://<bucket>/<prefix>).",
         default=existing_env.get(
-            "METAFLOW_DATATOOLS_SYSROOT_S3",
+            "METAFLOW_DATATOOLS_S3ROOT",
             os.path.join(env["METAFLOW_DATASTORE_SYSROOT_S3"], "data"),
         ),
         show_default=True,

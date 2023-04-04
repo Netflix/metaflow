@@ -179,6 +179,10 @@ class Batch(object):
         env={},
         attrs={},
         host_volumes=None,
+        use_tmpfs=None,
+        tmpfs_tempdir=None,
+        tmpfs_size=None,
+        tmpfs_path=None,
         num_parallel=0,
     ):
         job_name = self._job_name(
@@ -201,6 +205,14 @@ class Batch(object):
             .image(image)
             .iam_role(iam_role)
             .execution_role(execution_role)
+            .cpu(cpu)
+            .gpu(gpu)
+            .memory(memory)
+            .shared_memory(shared_memory)
+            .max_swap(max_swap)
+            .swappiness(swappiness)
+            .inferentia(inferentia)
+            .timeout_in_secs(run_time_limit)
             .job_def(
                 image,
                 iam_role,
@@ -210,17 +222,14 @@ class Batch(object):
                 max_swap,
                 swappiness,
                 inferentia,
+                memory=memory,
                 host_volumes=host_volumes,
+                use_tmpfs=use_tmpfs,
+                tmpfs_tempdir=tmpfs_tempdir,
+                tmpfs_size=tmpfs_size,
+                tmpfs_path=tmpfs_path,
                 num_parallel=num_parallel,
             )
-            .cpu(cpu)
-            .gpu(gpu)
-            .memory(memory)
-            .shared_memory(shared_memory)
-            .max_swap(max_swap)
-            .swappiness(swappiness)
-            .inferentia(inferentia)
-            .timeout_in_secs(run_time_limit)
             .task_id(attrs.get("metaflow.task_id"))
             .environment_variable("AWS_DEFAULT_REGION", self._client.region())
             .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
@@ -247,6 +256,11 @@ class Batch(object):
                 "METAFLOW_AWS_SECRETS_MANAGER_DEFAULT_REGION",
                 AWS_SECRETS_MANAGER_DEFAULT_REGION,
             )
+
+        tmpfs_enabled = use_tmpfs or (tmpfs_size and use_tmpfs is None)
+
+        if tmpfs_enabled and tmpfs_tempdir:
+            job.environment_variable("METAFLOW_TEMPDIR", tmpfs_path)
 
         # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync between the local user
         # instance and the remote AWS Batch instance assumes metadata is stored in DATASTORE_LOCAL_DIR
@@ -300,6 +314,10 @@ class Batch(object):
         swappiness=None,
         inferentia=None,
         host_volumes=None,
+        use_tmpfs=None,
+        tmpfs_tempdir=None,
+        tmpfs_size=None,
+        tmpfs_path=None,
         num_parallel=0,
         env={},
         attrs={},
@@ -333,6 +351,10 @@ class Batch(object):
             env=env,
             attrs=attrs,
             host_volumes=host_volumes,
+            use_tmpfs=use_tmpfs,
+            tmpfs_tempdir=tmpfs_tempdir,
+            tmpfs_size=tmpfs_size,
+            tmpfs_path=tmpfs_path,
             num_parallel=num_parallel,
         )
         self.num_parallel = num_parallel

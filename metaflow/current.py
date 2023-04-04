@@ -2,6 +2,8 @@ from collections import namedtuple
 import os
 from typing import Any, Optional
 
+from metaflow.metaflow_config import TEMPDIR
+
 Parallel = namedtuple("Parallel", ["main_ip", "num_nodes", "node_index"])
 
 
@@ -17,6 +19,7 @@ class Current(object):
         self._username = None
         self._metadata_str = None
         self._is_running = False
+        self._tempdir = TEMPDIR
 
         def _raise(ex):
             raise ex
@@ -229,6 +232,18 @@ class Current(object):
         Access tags through the Run object instead.
         """
         return self._tags
+
+    @property
+    def tempdir(self) -> str:
+        """
+        Currently configured temp dir.
+
+        Returns
+        -------
+        str
+            temp dir.
+        """
+        return self._tempdir
 
 
 # instantiate the Current singleton. This will be populated

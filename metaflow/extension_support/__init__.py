@@ -283,6 +283,7 @@ _extension_points = [
     "exceptions",
     "toplevel",
     "cmd",
+    "alias",
 ]
 
 

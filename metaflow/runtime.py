@@ -198,9 +198,11 @@ class NativeRuntime(object):
         self._is_cloned[task.path] = task.is_cloned
 
     def execute(self):
-        run_url = None
-        if UI_URL:
-            run_url = "%s/%s/%s" % (UI_URL.rstrip("/"), self._flow.name, self._run_id)
+        run_url = (
+            "%s/%s/%s" % (UI_URL.rstrip("/"), self._flow.name, self._run_id)
+            if UI_URL
+            else None
+        )
 
         if run_url:
             self._logger(

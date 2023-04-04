@@ -149,7 +149,12 @@ class BatchJob(object):
         max_swap,
         swappiness,
         inferentia,
+        memory,
         host_volumes,
+        use_tmpfs,
+        tmpfs_tempdir,
+        tmpfs_size,
+        tmpfs_path,
         num_parallel,
     ):
         # identify platform from any compute environment associated with the
@@ -251,7 +256,7 @@ class BatchJob(object):
         if inferentia:
             if not (isinstance(inferentia, (int, unicode, basestring))):
                 raise BatchJobException(
-                    "invalid inferentia value: ({}) (should be 0 or greater)".format(
+                    "Invalid inferentia value: ({}) (should be 0 or greater)".format(
                         inferentia
                     )
                 )
@@ -281,6 +286,29 @@ class BatchJob(object):
                 job_definition["containerProperties"]["mountPoints"].append(
                     {"sourceVolume": name, "containerPath": host_path}
                 )
+
+        if use_tmpfs or (tmpfs_size and use_tmpfs is None):
+            if tmpfs_size:
+                if not (isinstance(tmpfs_size, (int, unicode, basestring))):
+                    raise BatchJobException(
+                        "Invalid tmpfs value: ({}) (should be 0 or greater)".format(
+                            tmpfs_size
+                        )
+                    )
+            else:
+                # default tmpfs behavior - https://man7.org/linux/man-pages/man5/tmpfs.5.html
+                tmpfs_size = int(memory) / 2
+
+            job_definition["containerProperties"]["linuxParameters"]["tmpfs"] = [
+                {
+                    "containerPath": tmpfs_path,
+                    "size": int(tmpfs_size),
+                    "mountOptions": [
+                        # should map to rw, suid, dev, exec, auto, nouser, and async
+                        "defaults"
+                    ],
+                }
+            ]
 
         self.num_parallel = num_parallel or 0
         if self.num_parallel >= 1:
@@ -343,7 +371,12 @@ class BatchJob(object):
         max_swap,
         swappiness,
         inferentia,
+        memory,
         host_volumes,
+        use_tmpfs,
+        tmpfs_tempdir,
+        tmpfs_size,
+        tmpfs_path,
         num_parallel,
     ):
         self.payload["jobDefinition"] = self._register_job_definition(
@@ -355,7 +388,12 @@ class BatchJob(object):
             max_swap,
             swappiness,
             inferentia,
+            memory,
             host_volumes,
+            use_tmpfs,
+            tmpfs_tempdir,
+            tmpfs_size,
+            tmpfs_path,
             num_parallel,
         )
         return self
@@ -522,7 +560,6 @@ class TriableException(Exception):
 
 
 class RunningJob(object):
-
     NUM_RETRIES = 8
 
     def __init__(self, id, client):

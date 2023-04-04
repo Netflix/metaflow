@@ -19,7 +19,7 @@ class MovieStatsFlow(FlowSpec):
     A flow to generate some statistics about the movie genres.
 
     The flow performs the following steps:
-    1) Ingests a CSV into a Pandas Dataframe.
+    1) Ingests a CSV into a dataframe.
     2) Fan-out over genre using Metaflow foreach.
     3) Compute quartiles for each genre.
     4) Save a dictionary of genre-specific statistics.
@@ -36,16 +36,29 @@ class MovieStatsFlow(FlowSpec):
     def start(self):
         """
         The start step:
-        1) Loads the movie metadata into pandas dataframe.
+        1) Loads the movie metadata into dataframe.
         2) Finds all the unique genres.
         3) Launches parallel statistics computation for each genre.
 
         """
-        import pandas
+        import csv
         from io import StringIO
 
-        # Load the data set into a pandas dataframe.
-        self.dataframe = pandas.read_csv(StringIO(self.movie_data))
+        # Load the data set into a dataframe structure.
+        self.dataframe = {
+            "movie_title": [],
+            "title_year": [],
+            "genres": [],
+            "gross": [],
+        }
+
+        for row in csv.reader(StringIO(self.movie_data), delimiter=","):
+            if row[0] == "movie_title":
+                continue
+            self.dataframe["movie_title"].append(row[0])
+            self.dataframe["title_year"].append(int(row[1]))
+            self.dataframe["genres"].append(row[2])
+            self.dataframe["gross"].append(int(row[3]))
 
         # The column 'genres' has a list of genres for each movie. Let's get
         # all the unique genres.
@@ -63,8 +76,8 @@ class MovieStatsFlow(FlowSpec):
     def compute_statistics(self):
         """
         Compute statistics for a single genre.
-
         """
+
         # The genre currently being processed is a class property called
         # 'input'.
         self.genre = self.input
@@ -72,13 +85,27 @@ class MovieStatsFlow(FlowSpec):
 
         # Find all the movies that have this genre and build a dataframe with
         # just those movies and just the columns of interest.
-        selector = self.dataframe["genres"].apply(lambda row: self.genre in row)
-        self.dataframe = self.dataframe[selector]
-        self.dataframe = self.dataframe[["movie_title", "genres", "gross"]]
+        selector = [self.genre in row for row in self.dataframe["genres"]]
+
+        for col in self.dataframe.keys():
+            self.dataframe[col] = [
+                col for col, is_genre in zip(self.dataframe[col], selector) if is_genre
+            ]
+
+        # Sort by gross box office and drop unused column.
+        argsort_indices = sorted(
+            range(len(self.dataframe["gross"])), key=self.dataframe["gross"].__getitem__
+        )
+        for col in self.dataframe.keys():
+            self.dataframe[col] = [self.dataframe[col][idx] for idx in argsort_indices]
+        del self.dataframe["title_year"]
 
         # Get some statistics on the gross box office for these titles.
-        points = [0.25, 0.5, 0.75]
-        self.quartiles = self.dataframe["gross"].quantile(points).values
+        n_points = len(self.dataframe["movie_title"])
+        self.quartiles = []
+        for cut in [0.25, 0.5, 0.75]:
+            idx = 0 if n_points < 2 else round(n_points * cut)
+            self.quartiles.append(self.dataframe["gross"][idx])
 
         # Join the results from other genres.
         self.next(self.join)

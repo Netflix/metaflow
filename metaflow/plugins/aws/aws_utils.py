@@ -20,8 +20,13 @@ def get_ec2_instance_metadata():
     # for non-AWS deployments.
     # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-identity-documents.html
     try:
+        # Set a very aggressive timeout, as the communication is happening in the same subnet,
+        # there should not be any significant delay in the response.
+        # Having a long default timeout here introduces unnecessary delay in launching tasks when the
+        # instance is unreachable.
         instance_meta = requests.get(
-            url="http://169.254.169.254/latest/dynamic/instance-identity/document"
+            url="http://169.254.169.254/latest/dynamic/instance-identity/document",
+            timeout=(1, 10),
         ).json()
         meta["ec2-instance-id"] = instance_meta.get("instanceId")
         meta["ec2-instance-type"] = instance_meta.get("instanceType")

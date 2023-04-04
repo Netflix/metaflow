@@ -54,7 +54,6 @@ AIRFLOW_DEPLOY_TEMPLATE_FILE = os.path.join(os.path.dirname(__file__), "dag.py")
 
 
 class Airflow(object):
-
     TOKEN_STORAGE_ROOT = "mf.airflow"
 
     def __init__(
