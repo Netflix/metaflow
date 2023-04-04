@@ -308,7 +308,7 @@ class TaskToDict:
         time_format = "%Y-%m-%dT%H:%M:%SZ"
         truncate_long_objects = (
             lambda x: x.astype("string").str.slice(0, 30) + "..."
-            if x.str.len().max() > 30
+            if x.astype("string").str.len().max() > 30
             else x.astype("string")
         )
         type_parser = {
