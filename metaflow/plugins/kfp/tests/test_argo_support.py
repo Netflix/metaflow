@@ -44,7 +44,7 @@ def test_flows(pytestconfig, flow_file_path: str) -> None:
                 validation_cmd = f"argo template lint {output_path}"
 
             subprocess_tee.run(
-                "argo lint output_path",
+                validation_cmd,
                 universal_newlines=True,
                 shell=True,
             )
