@@ -44,12 +44,6 @@ RUN pip install --upgrade --force-reinstall \
     -i https://artifactory.zgtools.net/artifactory/api/pypi/analytics-python/simple \
     awscli click requests boto3 pytest pytest-xdist zillow-kfp kfp-server-api
 
-# Installing Argo Workflow CLI For testing Argo Workflow / WorkflowTemplate support
-RUN curl -sLO https://github.com/argoproj/argo-workflows/releases/download/v3.4.6/argo-linux-amd64.gz  \
-    && gunzip argo-linux-amd64.gz \
-    && chmod +x argo-linux-amd64 \
-    && mv ./argo-linux-amd64 /usr/local/bin/argo
-
 # Create Z_USER with UID=1000 and in the 'users' group
 ARG Z_USER="zservice"
 ARG Z_UID="1000"
