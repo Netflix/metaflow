@@ -194,7 +194,10 @@ def test_error_and_opsgenie_alert(pytestconfig) -> None:
     return
 
 
-@pytest.mark.parametrize("flow_file_path", obtain_flow_file_paths("flows"))
+@pytest.mark.parametrize(
+    "flow_file_path",
+    obtain_flow_file_paths("flows", non_standard_test_flows + disabled_test_flows),
+)
 def test_flows(pytestconfig, flow_file_path: str) -> None:
     full_path: str = os.path.join("flows", flow_file_path)
 
