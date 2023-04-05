@@ -8,7 +8,7 @@ from . import _python, obtain_flow_file_paths
 
 
 @pytest.mark.parametrize("flow_file_path", obtain_flow_file_paths("flows"))
-def test_flows(pytestconfig, flow_file_path: str) -> None:
+def test_argo_flows(pytestconfig, flow_file_path: str) -> None:
     """Validate that all test flows can be successfully converted to Argo Workflow / WorkflowTemplate schema."""
 
     full_path: str = os.path.join("flows", flow_file_path)
@@ -17,10 +17,10 @@ def test_flows(pytestconfig, flow_file_path: str) -> None:
     output_formats = ["argo-workflow", "argo-workflow-template"]
 
     for output_format in output_formats:
-        output_yaml_name = f"{flow_base_name}-{output_format}.yaml"
-        output_path = os.path.join(test_dir, output_yaml_name)
-
         with TemporaryDirectory() as test_dir:
+            output_yaml_name = f"{flow_base_name}-{output_format}.yaml"
+            output_path = os.path.join(test_dir, output_yaml_name)
+
             test_cmd: str = (
                 f"{_python()} {full_path} --datastore=s3 --with retry kfp run "
                 "--argo-wait --workflow-timeout 1800 "
