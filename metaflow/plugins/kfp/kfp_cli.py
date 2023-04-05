@@ -293,27 +293,24 @@ def run(
         if yaml_format == "kfp":
             pass  # KFP pipeline yaml is created by default
         elif yaml_format == "argo-workflow":
-            flow.update_kfp_pipeline_yaml(
+            flow.update_kfp_yaml(
                 pipeline_path,
-                update=[("spec.serviceAccountName", "default-editor")],
-                remove=[
-                    # "spec.serviceAccountName",  # pending on default workflow spec in Argo WorkflowController
-                ],
+                [("spec.serviceAccountName", "default-editor")],
             )
         elif yaml_format == "argo-workflow-template":
-            flow.update_kfp_pipeline_yaml(
+            flow.update_kfp_yaml(
                 pipeline_path,
-                update=[
+                [
                     ("spec.serviceAccountName", "default-editor"),
                     ("kind", "WorkflowTemplate"),
-                ],
-                remove=[
-                    # "spec.serviceAccountName",  # pending on default workflow spec in Argo WorkflowController
-                    "status",
+                    ("status", None),
                 ],
             )
         else:
-            obj.echo("")
+            raise CommandException(
+                f"Unsupported yaml format {yaml_format}. "
+                f"Only 'kfp', 'argo-workflow' and 'argo-workflow-template' are supported"
+            )
 
         obj.echo(f"\nDone converting *{current.flow_name}* to {pipeline_path}")
     else:
