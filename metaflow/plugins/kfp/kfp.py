@@ -230,17 +230,54 @@ class KubeflowPipelines(object):
         # re-write the workflow serviceAccountName if metaflow KUBERNETES_SERVICE_ACCOUNT
         # is set.
         if KUBERNETES_SERVICE_ACCOUNT:
-            self.set_kfp_client()
-            # use kfp client extract yaml method so we do not recreate logic that accounts
-            # for various extensions supported by kfp
-            workflow_yaml = self._client._extract_pipeline_yaml(pipeline_file_path)
-            workflow_yaml["spec"]["serviceAccountName"] = KUBERNETES_SERVICE_ACCOUNT
-            # use internal kfp static method to write the modified yaml back to the
-            # pipeline_file_path so we do not have to recreate kfp support for the
-            # various extensions it supports
-            kfp.compiler.Compiler()._write_workflow(workflow_yaml, pipeline_file_path)
+            self.update_kfp_pipeline_yaml(
+                pipeline_file_path,
+                update=[("spec.serviceAccountName", KUBERNETES_SERVICE_ACCOUNT)],
+            )
 
         return os.path.abspath(pipeline_file_path)
+
+    def update_kfp_pipeline_yaml(
+        self,
+        pipeline_file_path,
+        update: List[Tuple[str, str]] = None,
+        remove: List[str] = None,
+    ):
+        def update_dict(d: dict, changes: List):
+            """Remove keys from nested dict, where keys are comma separated strings."""
+            if not changes:
+                return
+
+            for change in changes:
+                if isinstance(change, tuple):
+                    key, value = change
+                else:
+                    key = change
+                    value = None
+                key_parts = key.split(".")
+                last_key = key_parts.pop()
+                parent_dict = d
+                for key_part in key_parts:
+                    parent_dict = parent_dict[key_part]
+                if value:
+                    parent_dict[last_key] = value
+                else:
+                    parent_dict.pop(last_key)
+
+        self.set_kfp_client()
+        # use kfp client extract yaml method, so we do not recreate logic that accounts
+        # for various extensions supported by kfp
+        workflow_yaml = self._client._extract_pipeline_yaml(pipeline_file_path)
+
+        if update:
+            update_dict(workflow_yaml, update)
+        if remove:
+            update_dict(workflow_yaml, remove)
+
+        # use internal kfp static method to write the modified yaml back to the
+        # pipeline_file_path, so we do not have to recreate kfp support for the
+        # various extensions it supports
+        kfp.compiler.Compiler()._write_workflow(workflow_yaml, pipeline_file_path)
 
     @staticmethod
     def _get_retries(node: DAGNode) -> Tuple[int, int]:
