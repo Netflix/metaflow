@@ -227,12 +227,24 @@ class KubeflowPipelines(object):
             pipeline_conf=pipeline_conf,
         )
 
+        self.update_kfp_yaml(  # Make flow_parameters_json optional. This aligns with Metaflow CLI's behavior.
+            pipeline_file_path,
+            [
+                (
+                    "spec.arguments.parameters",
+                    [{"name": "flow_parameters_json", "value": "{}"}],
+                ),
+            ],
+        )
+
         # re-write the workflow serviceAccountName if metaflow KUBERNETES_SERVICE_ACCOUNT
         # is set.
         if KUBERNETES_SERVICE_ACCOUNT:
             self.update_kfp_yaml(
                 pipeline_file_path,
-                [("spec.serviceAccountName", KUBERNETES_SERVICE_ACCOUNT)],
+                [
+                    ("spec.serviceAccountName", KUBERNETES_SERVICE_ACCOUNT),
+                ],
             )
 
         return os.path.abspath(pipeline_file_path)
@@ -240,7 +252,7 @@ class KubeflowPipelines(object):
     def update_kfp_yaml(
         self,
         file_path,
-        changes: List[Tuple[str, Optional[str]]],
+        changes: List[Tuple[str, Optional[Any]]],
     ):
         """
         Update yaml file using KFP client and compiler code.
@@ -271,7 +283,9 @@ class KubeflowPipelines(object):
             if value:
                 parent_dict[last_key] = value
             else:
-                parent_dict.pop(last_key)
+                parent_dict.pop(
+                    last_key, None
+                )  # Not throwing KeyError for parameters not found
 
         # use internal kfp static method to write the modified yaml back to the
         # pipeline_file_path, so we do not have to recreate kfp support for the
