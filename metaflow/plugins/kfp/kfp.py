@@ -278,14 +278,14 @@ class KubeflowPipelines(object):
             key_parts = key.split(".")
             last_key = key_parts.pop()
             parent_dict = workflow_yaml
+
             for key_part in key_parts:
                 parent_dict = parent_dict[key_part]
+
             if value:
                 parent_dict[last_key] = value
-            else:
-                parent_dict.pop(
-                    last_key, None
-                )  # Not throwing KeyError for parameters not found
+            else:  # Not throwing KeyError for keys not found
+                parent_dict.pop(last_key, None)
 
         # use internal kfp static method to write the modified yaml back to the
         # pipeline_file_path, so we do not have to recreate kfp support for the

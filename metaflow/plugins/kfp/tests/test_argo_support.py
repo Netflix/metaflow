@@ -4,7 +4,7 @@ from tempfile import TemporaryDirectory
 import pytest
 import subprocess_tee
 
-from . import obtain_flow_file_paths
+from . import _python, obtain_flow_file_paths
 
 
 @pytest.mark.parametrize("flow_file_path", obtain_flow_file_paths("flows"))
