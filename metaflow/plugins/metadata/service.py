@@ -137,9 +137,10 @@ class ServiceMetadataProvider(MetadataProvider):
             payload[HB_URL_KEY] = self.url_run_template.format(**data)
         else:
             raise Exception("invalid heartbeat type")
-        payload["service_version"] = self.version()
+        service_version = self.version()
+        payload["service_version"] = service_version
         # start sidecar
-        if self.version() is None or LooseVersion(self.version()) < LooseVersion(
+        if service_version is None or LooseVersion(service_version) < LooseVersion(
             "2.0.4"
         ):
             # if old version of the service is running
