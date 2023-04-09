@@ -91,6 +91,13 @@ class MetaflowNamespaceMismatch(MetaflowException):
         super(MetaflowNamespaceMismatch, self).__init__(msg)
 
 
+class MetaflowInvalidPathspec(MetaflowException):
+    headline = "Invalid pathspec for the MetaflowObject type"
+
+    def __init__(self, msg):
+        super(MetaflowInvalidPathspec, self).__init__(msg)
+
+
 class MetaflowInternalError(MetaflowException):
     headline = "Internal error"
 
