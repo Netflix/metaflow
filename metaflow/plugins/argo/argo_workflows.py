@@ -462,8 +462,6 @@ class ArgoWorkflows(object):
         # generate container templates at the top level (in WorkflowSpec) and maintain
         # references to them within the DAGTask.
 
-        labels = {"app.kubernetes.io/part-of": "metaflow"}
-
         annotations = {
             "metaflow/production_token": self.production_token,
             "metaflow/owner": self.username,
