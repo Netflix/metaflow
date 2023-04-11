@@ -36,7 +36,7 @@ class Channel(object):
             sz_bytes = self._stream.read(self._fmt.size, timeout)
             msg_sz = self._fmt.unpack(sz_bytes)[0]
             obj_bytes = self._stream.read(msg_sz, timeout)
-            return json.loads(obj_bytes, encoding="utf-8")
+            return json.loads(obj_bytes)
         except EOFError as e:
             raise RuntimeError("Cannot receive object over streaming interface: %s" % e)
         except BaseException as e:
