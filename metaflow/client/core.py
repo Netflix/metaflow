@@ -314,10 +314,6 @@ class MetaflowObject(object):
         else:
             self._object = _object
             self._pathspec = pathspec
-            if not isinstance(self._object, MetaflowObject):
-                raise MetaflowInternalError(
-                    msg="MetaflowObject is expected but recieved %s" % self._object
-                )
 
             if self._NAME in ("flow", "task"):
                 self.id = str(self._object[self._NAME + "_id"])
