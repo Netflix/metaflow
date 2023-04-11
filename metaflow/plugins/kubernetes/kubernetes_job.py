@@ -413,8 +413,23 @@ class RunningJob(object):
                 except:
                     # Best effort. It's likely that this API call could be
                     # blocked for the user.
-                    pass
-                    # raise
+                    # --------------------------------------------------------
+                    # We try patching Job parallelism anyway. Stopping any runaway
+                    # jobs (and their pods) is secondary to correctly showing
+                    # "Killed" status on the Kubernetes pod.
+                    #
+                    # This has the effect of pausing the job.
+                    try:
+                        client.BatchV1Api().patch_namespaced_job(
+                            name=self._name,
+                            namespace=self._namespace,
+                            field_manager="metaflow",
+                            body={"spec": {"parallelism": 0}},
+                        )
+                    except:
+                        # Best effort.
+                        pass
+                        # raise
             else:
                 # Case 2.
                 # This has the effect of pausing the job.
