@@ -289,29 +289,7 @@ def run(
         if pipeline_path is None:
             raise CommandException("Please specify --pipeline-path")
 
-        pipeline_path = flow.create_kfp_pipeline_yaml(pipeline_path)
-        if yaml_format == "kfp":
-            pass  # KFP pipeline yaml is created by default
-        elif yaml_format == "argo-workflow":
-            flow.update_kfp_yaml(
-                pipeline_path,
-                [("spec.serviceAccountName", "default-editor")],
-            )
-        elif yaml_format == "argo-workflow-template":
-            flow.update_kfp_yaml(
-                pipeline_path,
-                [
-                    ("spec.serviceAccountName", "default-editor"),
-                    ("kind", "WorkflowTemplate"),
-                    ("status", None),
-                ],
-            )
-        else:
-            raise CommandException(
-                f"Unsupported yaml format {yaml_format}. "
-                f"Only 'kfp', 'argo-workflow' and 'argo-workflow-template' are supported"
-            )
-
+        pipeline_path = flow.create_workflow_yaml(pipeline_path)
         obj.echo(f"\nDone converting *{current.flow_name}* to {pipeline_path}")
     else:
         if s3_code_package and obj.flow_datastore.TYPE != "s3":

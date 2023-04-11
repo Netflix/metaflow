@@ -6,7 +6,7 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Text, Tuple, Union
 
 import kfp
 from kfp import dsl
@@ -215,82 +215,41 @@ class KubeflowPipelines(object):
             service_account=KUBERNETES_SERVICE_ACCOUNT,
         )
 
-    def create_kfp_pipeline_yaml(self, pipeline_file_path) -> str:
+    def create_workflow_yaml(self, output_path: str, output_format: str = "kfp") -> str:
         """
         Creates a new KFP pipeline YAML using `kfp.compiler.Compiler()`.
         Note: Intermediate pipeline YAML is saved at `pipeline_file_path`
         """
         pipeline_func, pipeline_conf = self.create_kfp_pipeline_from_flow_graph()
-        kfp.compiler.Compiler().compile(
-            pipeline_func,
-            pipeline_file_path,
+        workflow: Dict[Text, Any] = kfp.compiler.Compiler()._create_workflow(
+            pipeline_func=pipeline_func,
             pipeline_conf=pipeline_conf,
         )
 
-        self.update_kfp_yaml(  # Make flow_parameters_json optional. This aligns with Metaflow CLI's behavior.
-            pipeline_file_path,
-            [
-                (
-                    "spec.arguments.parameters",
-                    [{"name": "flow_parameters_json", "value": "{}"}],
-                ),
-            ],
-        )
-
-        # re-write the workflow serviceAccountName if metaflow KUBERNETES_SERVICE_ACCOUNT
-        # is set.
         if KUBERNETES_SERVICE_ACCOUNT:
-            self.update_kfp_yaml(
-                pipeline_file_path,
-                [
-                    ("spec.serviceAccountName", KUBERNETES_SERVICE_ACCOUNT),
-                ],
+            workflow["spec"]["serviceAccountName"] = KUBERNETES_SERVICE_ACCOUNT
+
+        if output_format == "kfp":
+            pass  # KFP pipeline yaml is created by default
+        elif output_format == "argo-workflow":
+            workflow["spec"]["serviceAccountName"] = (
+                KUBERNETES_SERVICE_ACCOUNT or "default-editor"
+            )
+        elif output_format == "argo-workflow-template":
+            workflow["spec"]["serviceAccountName"] = (
+                KUBERNETES_SERVICE_ACCOUNT or "default-editor"
+            )
+            workflow["kind"] = "WorkflowTemplate"
+            workflow["status"] = None
+        else:
+            raise ValueError(
+                f"Unsupported output format {output_format}. "
+                f"Only 'kfp', 'argo-workflow' or 'argo-workflow-template' are supported"
             )
 
-        return os.path.abspath(pipeline_file_path)
+        kfp.compiler.Compiler()._write_workflow(workflow, output_path)
 
-    def update_kfp_yaml(
-        self,
-        file_path,
-        changes: List[Tuple[str, Optional[Any]]],
-    ):
-        """
-        Update yaml file using KFP client and compiler code.
-
-        For longer term these can be replaced by simple yaml loads and dumps with formatting and ordering.
-
-        Args:
-            file_path: Path to the yaml file
-            changes: List of (comma-separated-key, new-value).
-                If new-value == None, everything under the key is removed.
-                Otherwise, the new value overwrites the older one.
-
-        Returns:
-
-        """
-        self.set_kfp_client()
-        # use kfp client extract yaml method, so we do not recreate logic that accounts
-        # for various extensions supported by kfp
-        workflow_yaml = self._client._extract_pipeline_yaml(file_path)
-
-        for change in changes:
-            key, value = change
-            key_parts = key.split(".")
-            last_key = key_parts.pop()
-            parent_dict = workflow_yaml
-
-            for key_part in key_parts:
-                parent_dict = parent_dict[key_part]
-
-            if value:
-                parent_dict[last_key] = value
-            else:  # Not throwing KeyError for keys not found
-                parent_dict.pop(last_key, None)
-
-        # use internal kfp static method to write the modified yaml back to the
-        # pipeline_file_path, so we do not have to recreate kfp support for the
-        # various extensions it supports
-        kfp.compiler.Compiler()._write_workflow(workflow_yaml, file_path)
+        return os.path.abspath(output_path)
 
     @staticmethod
     def _get_retries(node: DAGNode) -> Tuple[int, int]:
@@ -859,7 +818,7 @@ class KubeflowPipelines(object):
 
         @dsl.pipeline(name=self.name, description=self.graph.doc)
         def kfp_pipeline_from_flow(
-            flow_parameters_json: str = None,
+            flow_parameters_json: str = "{}",
         ):
             visited: Dict[str, ContainerOp] = {}
             visited_resource_ops: Dict[str, ResourceOp] = {}
