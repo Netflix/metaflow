@@ -1132,7 +1132,7 @@ class S3(object):
         url = self._url(key)
         src = urlparse(url)
         extra_args = None
-        if content_type or metadata or self._encryption:
+        if content_type or metadata or self._settings:
             extra_args = {}
             if content_type:
                 extra_args["ContentType"] = content_type
@@ -1140,8 +1140,9 @@ class S3(object):
                 extra_args["Metadata"] = {
                     "metaflow-user-attributes": json.dumps(metadata)
                 }
-            if self._encryption:
-                extra_args['ServerSideEncryption'] = self._encryption
+            if self._settings:
+                upload_settings = self.parse_custom_s3_settings(self._settings)
+                extra_args.update(upload_settings)
 
         def _upload(s3, _):
             # We make sure we are at the beginning in case we are retrying
@@ -1214,8 +1215,9 @@ class S3(object):
                     store_info["metadata"] = {
                         "metaflow-user-attributes": json.dumps(metadata)
                     }
-                if self._encryption:
-                    store_info['ServerSideEncryption'] = self._encryption
+                if self._settings:
+                    upload_settings = self.parse_custom_s3_settings(self._settings)
+                    store_info.update(upload_settings)
                 if isinstance(obj, (RawIOBase, BufferedIOBase)):
                     if not obj.readable() or not obj.seekable():
                         raise MetaflowS3InvalidObject(
@@ -1288,8 +1290,9 @@ class S3(object):
                     store_info["metadata"] = {
                         "metaflow-user-attributes": json.dumps(metadata)
                     }
-                if self._encryption:
-                    store_info['ServerSideEncryption'] = self._encryption
+                if self._settings:
+                    upload_settings = self.parse_custom_s3_settings(self._settings)
+                    store_info.update(upload_settings)
                 if not os.path.exists(path):
                     raise MetaflowS3NotFound("Local file not found: %s" % path)
                 yield path, self._url(key), store_info
