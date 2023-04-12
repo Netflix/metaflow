@@ -20,6 +20,7 @@ from metaflow.metaflow_config import (
     S3_ENDPOINT_URL,
     DEFAULT_SECRETS_BACKEND_TYPE,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
+    S3_UPLOAD_ARGS,
 )
 from metaflow.mflog import (
     export_mflog_env_vars,
@@ -261,6 +262,11 @@ class Batch(object):
 
         if tmpfs_enabled and tmpfs_tempdir:
             job.environment_variable("METAFLOW_TEMPDIR", tmpfs_path)
+
+        if S3_UPLOAD_ARGS is not None:
+            for key, value in S3_UPLOAD_ARGS.items():
+                env_var = "METAFLOW_S3_UPLOAD_ARGS_" + key
+                job.environment_variable(env_var, value)
 
         # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync between the local user
         # instance and the remote AWS Batch instance assumes metadata is stored in DATASTORE_LOCAL_DIR

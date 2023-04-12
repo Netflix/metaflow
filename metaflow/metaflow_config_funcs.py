@@ -49,7 +49,7 @@ def config_values(include=0):
             yield name, config_value.serializer(config_value.value)
 
 
-def from_conf(name, default=None, validate_fn=None):
+def from_conf(name, default=None, validate_fn=None, prefix=False):
     """
     First try to pull value from environment, then from metaflow config JSON
 
@@ -59,9 +59,23 @@ def from_conf(name, default=None, validate_fn=None):
     validate_fn should accept (name, value).
     If the value validates, return None, else raise an MetaflowException.
     """
-    env_name = "METAFLOW_%s" % name
     is_default = True
-    value = os.environ.get(env_name, METAFLOW_CONFIG.get(env_name, default))
+    env_name = "METAFLOW_%s" % name
+    if prefix:
+        len_prefix = len(env_name)
+        env_vars = {
+            k[len_prefix:None]: v
+            for k, v in os.environ.items()
+            if k.startswith(env_name)
+        }
+        config_vars = {
+            k[len_prefix:None]: v
+            for k, v in METAFLOW_CONFIG.items()
+            if k.startswith(env_name)
+        }
+        value = {**config_vars, **env_vars}
+    else:
+        value = os.environ.get(env_name, METAFLOW_CONFIG.get(env_name, default))
     if validate_fn and value is not None:
         validate_fn(env_name, value)
     if default is not None:

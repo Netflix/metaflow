@@ -66,6 +66,7 @@ class S3Url(object):
         metadata=None,
         range=None,
         idx=None,
+        upload_args=None,
     ):
 
         self.bucket = bucket
@@ -77,6 +78,7 @@ class S3Url(object):
         self.metadata = metadata
         self.range = range
         self.idx = idx
+        self.upload_args = upload_args
 
     def __str__(self):
         return self.url
@@ -171,6 +173,7 @@ def worker(result_file_name, queue, mode, s3config):
                 "error": None,
                 "size": head["ContentLength"],
                 "content_type": head["ContentType"],
+                "encryption": head["ServerSideEncryption"],
                 "metadata": head["Metadata"],
                 "last_modified": get_timestamp(head["LastModified"]),
             }
@@ -276,6 +279,8 @@ def worker(result_file_name, queue, mode, s3config):
                                 args["content_type"] = resp["ContentType"]
                             if resp["Metadata"] is not None:
                                 args["metadata"] = resp["Metadata"]
+                            if resp["ServerSideEncryption"] is not None:
+                                args["encryption"] = resp["ServerSideEncryption"]
                             if resp["LastModified"]:
                                 args["last_modified"] = get_timestamp(
                                     resp["LastModified"]
@@ -299,12 +304,14 @@ def worker(result_file_name, queue, mode, s3config):
                         do_upload = True
                     if do_upload:
                         extra = None
-                        if url.content_type or url.metadata:
+                        if url.content_type or url.metadata or url.upload_args:
                             extra = {}
                             if url.content_type:
                                 extra["ContentType"] = url.content_type
                             if url.metadata is not None:
                                 extra["Metadata"] = url.metadata
+                            if url.upload_args is not None:
+                                extra.update(url.upload_args)
                         try:
                             s3.upload_file(
                                 url.local, url.bucket, url.path, ExtraArgs=extra
@@ -461,6 +468,7 @@ class S3Ops(object):
                             prefix=url.prefix,
                             content_type=head["ContentType"],
                             metadata=head["Metadata"],
+                            encryption=head["ServerSideEncryption"],
                             range=url.range,
                         ),
                         head["ContentLength"],
@@ -578,7 +586,7 @@ def verify_results(urls, verbose=False):
             raise
         if expected != got:
             exit(ERROR_VERIFY_FAILED, url)
-        if url.content_type or url.metadata:
+        if url.content_type or url.metadata or url.upload_args:
             # Verify that we also have a metadata file present
             try:
                 os.stat("%s_meta" % url.local)
@@ -837,12 +845,18 @@ def put(
                 local = r["local"]
                 url = r["url"]
                 content_type = r.get("content_type", None)
+                upload_args = {
+                    k: v
+                    for k, v in r.items()
+                    if k
+                    not in ["local", "url", "content_type", "metadata", "idx", "key"]
+                }
                 metadata = r.get("metadata", None)
                 if not os.path.exists(local):
                     exit(ERROR_LOCAL_FILE_NOT_FOUND, local)
-                yield input_line_idx, local, url, content_type, metadata
+                yield input_line_idx, local, url, content_type, metadata, upload_args
 
-    def _make_url(idx, local, user_url, content_type, metadata):
+    def _make_url(idx, local, user_url, content_type, metadata, upload_args):
         src = urlparse(user_url)
         url = S3Url(
             url=user_url,
@@ -853,6 +867,7 @@ def put(
             content_type=content_type,
             metadata=metadata,
             idx=idx,
+            upload_args=upload_args,
         )
         if src.scheme != "s3":
             exit(ERROR_INVALID_URL, url)
@@ -896,6 +911,7 @@ def put(
                         "local": url.local,
                         "content_type": url.content_type,
                         "metadata": url.metadata,
+                        "upload_args": url.upload_args,
                     }
                 )
                 + "\n"
