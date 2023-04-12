@@ -62,3 +62,4 @@ RUN echo "%users ALL=(ALL) NOPASSWD:/usr/local/bin/pip" >> /etc/sudoers && \
     echo "%users ALL=(ALL) NOPASSWD:/usr/local/bin/python" >> /etc/sudoers && \
     echo "%users ALL=(ALL) NOPASSWD:/usr/bin/apt-get" >> /etc/sudoers && \
     echo "%users ALL=(ALL) NOPASSWD:/usr/bin/apt" >> /etc/sudoers
+

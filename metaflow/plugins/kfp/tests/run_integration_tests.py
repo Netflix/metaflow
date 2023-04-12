@@ -3,8 +3,7 @@ import re
 import tempfile
 import time
 import uuid
-from os import listdir
-from os.path import isfile, join
+import os
 from subprocess import CompletedProcess
 from typing import Dict, List, Tuple
 
@@ -14,7 +13,7 @@ import yaml
 from requests.models import Response
 from subprocess_tee import run
 
-from metaflow import R
+from . import _python, obtain_flow_file_paths
 from metaflow.exception import MetaflowException
 
 """
@@ -57,24 +56,6 @@ disabled_test_flows = [
     "foreach_split_linear.py",
     "nested_foreach_with_branching.py",
 ]
-
-
-def _python():
-    if R.use_r():
-        return "python3"
-    else:
-        return "python"
-
-
-def obtain_flow_file_paths(flow_dir_path: str) -> List[str]:
-    file_paths: List[str] = [
-        file_name
-        for file_name in listdir(flow_dir_path)
-        if isfile(join(flow_dir_path, file_name))
-        and not file_name.startswith(".")
-        and not file_name in non_standard_test_flows + disabled_test_flows
-    ]
-    return file_paths
 
 
 def test_s3_sensor_flow(pytestconfig) -> None:
@@ -213,9 +194,12 @@ def test_error_and_opsgenie_alert(pytestconfig) -> None:
     return
 
 
-@pytest.mark.parametrize("flow_file_path", obtain_flow_file_paths("flows"))
+@pytest.mark.parametrize(
+    "flow_file_path",
+    obtain_flow_file_paths("flows", non_standard_test_flows + disabled_test_flows),
+)
 def test_flows(pytestconfig, flow_file_path: str) -> None:
-    full_path: str = join("flows", flow_file_path)
+    full_path: str = os.path.join("flows", flow_file_path)
 
     test_cmd: str = (
         f"{_python()} {full_path} --datastore=s3 --with retry kfp run "
@@ -327,7 +311,7 @@ def get_compiled_yaml(compile_to_yaml_cmd, yaml_file_path) -> Dict[str, str]:
 
 def test_kfp_pod_default() -> None:
     with tempfile.TemporaryDirectory() as yaml_tmp_dir:
-        yaml_file_path: str = join(yaml_tmp_dir, "s3_sensor_flow.yaml")
+        yaml_file_path: str = os.path.join(yaml_tmp_dir, "s3_sensor_flow.yaml")
 
         compile_to_yaml_cmd: str = (
             f" {_python()} flows/s3_sensor_flow.py --no-pylint --datastore s3 kfp run"
@@ -346,7 +330,9 @@ def test_kfp_pod_default() -> None:
 def test_kubernetes_service_account_compile_only() -> None:
     service_account = "test-service-account"
     with tempfile.TemporaryDirectory() as yaml_tmp_dir:
-        yaml_file_path: str = join(yaml_tmp_dir, "kubernetes_service_account.yaml")
+        yaml_file_path: str = os.path.join(
+            yaml_tmp_dir, "kubernetes_service_account.yaml"
+        )
 
         compile_to_yaml_cmd: str = (
             f"export METAFLOW_KUBERNETES_SERVICE_ACCOUNT={service_account};"
@@ -368,7 +354,9 @@ def test_kubernetes_service_account_compile_only() -> None:
 def test_toleration_and_affinity_compile_only() -> None:
     step_templates: Dict[str, str] = {}
     with tempfile.TemporaryDirectory() as yaml_tmp_dir:
-        yaml_file_path: str = join(yaml_tmp_dir, "toleration_and_affinity_flow.yaml")
+        yaml_file_path: str = os.path.join(
+            yaml_tmp_dir, "toleration_and_affinity_flow.yaml"
+        )
 
         compile_to_yaml_cmd: str = (
             f"{_python()} flows/toleration_and_affinity_flow.py --datastore=s3 --with retry kfp run"

@@ -132,6 +132,14 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
     show_default=True,
 )
 @click.option(
+    "--yaml-format",
+    "yaml_format",
+    default="kfp",
+    type=click.Choice(["kfp", "argo-workflow", "argo-workflow-template"]),
+    help="'kfp', 'argo-workflow', or 'argo-workflow-template'",
+    show_default=True,
+)
+@click.option(
     "--pipeline-path",
     "pipeline_path",
     default=None,
@@ -226,6 +234,7 @@ def run(
     kfp_namespace=KFP_SDK_NAMESPACE,
     api_namespace=KFP_SDK_API_NAMESPACE,
     yaml_only=False,
+    yaml_format=None,
     pipeline_path=None,
     s3_code_package=True,
     base_image=None,
@@ -281,12 +290,8 @@ def run(
         if pipeline_path is None:
             raise CommandException("Please specify --pipeline-path")
 
-        pipeline_path = flow.create_kfp_pipeline_yaml(pipeline_path)
-        obj.echo(
-            "\nDone converting *{name}* to {path}".format(
-                name=current.flow_name, path=pipeline_path
-            )
-        )
+        pipeline_path = flow.create_workflow_yaml(pipeline_path, yaml_format)
+        obj.echo(f"\nDone converting *{current.flow_name}* to {pipeline_path}")
     else:
         if s3_code_package and obj.flow_datastore.TYPE != "s3":
             raise CommandException(
@@ -294,7 +299,7 @@ def run(
             )
 
         obj.echo(
-            "Deploying *%s* to Kubeflow Pipelines..." % current.flow_name,
+            f"Deploying *{current.flow_name}* to Kubeflow Pipelines...",
             bold=True,
         )
         run_pipeline_result = flow.create_run_on_kfp(run_name, flow_parameters)
