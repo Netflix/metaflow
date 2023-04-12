@@ -47,8 +47,6 @@ from metaflow.metaflow_config import (
 from metaflow.plugins import EnvironmentDecorator, KfpInternalDecorator
 from metaflow.plugins.kfp.kfp_constants import S3_SENSOR_RETRY_COUNT
 from metaflow.plugins.kfp.kfp_decorator import KfpException
-from metaflow.plugins.kfp.argo_util import validate_workflow
-
 
 from ...graph import DAGNode
 from ...metaflow_environment import MetaflowEnvironment
@@ -246,13 +244,6 @@ class KubeflowPipelines(object):
             raise NotImplementedError(f"Unsupported output format {output_format}.")
 
         kfp.compiler.Compiler()._write_workflow(workflow, output_path)
-
-        # Validate after write, so that in case of validation failure,
-        # yaml file is available to be inspected for debugging purpose
-        if output_format in ["kfp", "argo-workflow"]:
-            validate_workflow(workflow)
-        else:  # argo-workflow-template
-            validate_workflow(workflow, kinds="workflowtemplates")
 
         return os.path.abspath(output_path)
 
