@@ -475,7 +475,7 @@ class S3(object):
     s3root : str, optional
         If `run` is not specified, use this as the S3 prefix.
     """
-    @classmethod  # check this decorator
+    @classmethod
     def parse_custom_s3_settings(self, settings_str: Optional[str]):
         s3_settings = {}
         for setting in settings_str.split(","):
