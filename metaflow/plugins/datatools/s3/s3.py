@@ -17,7 +17,7 @@ from metaflow.metaflow_config import (
     DATATOOLS_S3ROOT,
     S3_RETRY_COUNT,
     S3_TRANSIENT_RETRY_COUNT,
-    S3_SERVER_SIDE_ENCRYPTION,
+    S3_CUSTOM_UPLOAD_SETTINGS,
     TEMPDIR,
 )
 from metaflow.util import (
@@ -476,7 +476,7 @@ class S3(object):
         If `run` is not specified, use this as the S3 prefix.
     """
     @classmethod  # check this decorator
-    def parse_s3_custom_settings(settings_str: Optional[str]):
+    def parse_custom_s3_settings(settings_str: Optional[str]):
         s3_settings = {}
         for setting in settings_str.split(","):
             setting = setting.strip()
@@ -484,7 +484,6 @@ class S3(object):
                 key, value = setting.split("=")
                 s3_settings[key.strip()] = value.strip()
         return s3_settings
-
 
     @classmethod
     def get_root_from_config(cls, echo, create_on_absent=True):
@@ -497,7 +496,7 @@ class S3(object):
         prefix: Optional[str] = None,
         run: Optional[Union[FlowSpec, "Run"]] = None,
         s3root: Optional[str] = None,
-        encryption: Optional[str] = S3_SERVER_SIDE_ENCRYPTION,
+        settings: Optional[str] = S3_CUSTOM_UPLOAD_SETTINGS,
         **kwargs
     ):
         if not boto_found:
@@ -551,7 +550,7 @@ class S3(object):
             "inject_failure_rate", TEST_INJECT_RETRYABLE_FAILURES
         )
         self._tmpdir = mkdtemp(dir=tmproot, prefix="metaflow.s3.")
-        self._encryption = encryption
+        self._settings = settings
 
     def __enter__(self) -> "S3":
         return self
