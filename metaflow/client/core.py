@@ -384,6 +384,10 @@ class MetaflowObject(object):
             if all(tag in child.tags for tag in tags):
                 yield child
 
+    def _ipython_key_completions_(self):
+        """Returns available options for ipython auto-complete."""
+        return [child.id for child in self._filtered_children()]
+
     @classmethod
     def _url_token(cls):
         return "%ss" % cls._NAME
