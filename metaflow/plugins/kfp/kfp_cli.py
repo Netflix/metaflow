@@ -135,7 +135,8 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
     "--yaml-format",
     "yaml_format",
     default="kfp",
-    help="One of 'kfp', 'argo-workflow' or 'argo-workflow-template'.",
+    type=click.Choice(["kfp", "argo-workflow", "argo-workflow-template"]),
+    help="'kfp', 'argo-workflow', or 'argo-workflow-template'",
     show_default=True,
 )
 @click.option(
@@ -289,7 +290,7 @@ def run(
         if pipeline_path is None:
             raise CommandException("Please specify --pipeline-path")
 
-        pipeline_path = flow.create_workflow_yaml(pipeline_path)
+        pipeline_path = flow.create_workflow_yaml(pipeline_path, yaml_format)
         obj.echo(f"\nDone converting *{current.flow_name}* to {pipeline_path}")
     else:
         if s3_code_package and obj.flow_datastore.TYPE != "s3":

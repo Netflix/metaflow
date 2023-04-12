@@ -243,10 +243,7 @@ class KubeflowPipelines(object):
             workflow["kind"] = "WorkflowTemplate"
             workflow["status"] = None
         else:
-            raise ValueError(
-                f"Unsupported output format {output_format}. "
-                f"Only 'kfp', 'argo-workflow' or 'argo-workflow-template' are supported"
-            )
+            raise NotImplementedError(f"Unsupported output format {output_format}.")
 
         kfp.compiler.Compiler()._write_workflow(workflow, output_path)
 
