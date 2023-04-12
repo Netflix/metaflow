@@ -68,7 +68,10 @@ CLIENT_CACHE_MAX_TASKDATASTORE_COUNT = from_conf(
 ###
 S3_ENDPOINT_URL = from_conf("S3_ENDPOINT_URL")
 S3_VERIFY_CERTIFICATE = from_conf("S3_VERIFY_CERTIFICATE")
-S3_SERVER_SIDE_ENCRYPTION = from_conf("S3_SERVER_SIDE_ENCRYPTION")
+
+# Map for custom S3 upload settings
+# Can be used for things like ServerSideEncryption, Tagging, StorageClass, etc. 
+S3_CUSTOM_UPLOAD_SETTINGS = from_conf("CUSTOM_UPLOAD_SETTINGS_S3")
 
 # S3 retry configuration
 # This is useful if you want to "fail fast" on S3 operations; use with caution
