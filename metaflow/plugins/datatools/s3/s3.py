@@ -475,6 +475,16 @@ class S3(object):
     s3root : str, optional
         If `run` is not specified, use this as the S3 prefix.
     """
+    @classmethod  # check this decorator
+    def parse_s3_custom_settings(settings_str: Optional[str]):
+        s3_settings = {}
+        for setting in settings_str.split(","):
+            setting = setting.strip()
+            if setting:
+                key, value = setting.split("=")
+                s3_settings[key.strip()] = value.strip()
+        return s3_settings
+
 
     @classmethod
     def get_root_from_config(cls, echo, create_on_absent=True):
