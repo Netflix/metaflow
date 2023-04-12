@@ -68,6 +68,7 @@ CLIENT_CACHE_MAX_TASKDATASTORE_COUNT = from_conf(
 ###
 S3_ENDPOINT_URL = from_conf("S3_ENDPOINT_URL")
 S3_VERIFY_CERTIFICATE = from_conf("S3_VERIFY_CERTIFICATE")
+S3_SERVER_SIDE_ENCRYPTION = from_conf("S3_SERVER_SIDE_ENCRYPTION")
 
 # S3 retry configuration
 # This is useful if you want to "fail fast" on S3 operations; use with caution
