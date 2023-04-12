@@ -296,16 +296,14 @@ class MetaflowObject(object):
             elif self._NAME == "run" and len(ids) != 2:
                 raise MetaflowInvalidPathspec("Expects Run('FlowName/RunID')")
             elif self._NAME == "step" and len(ids) != 3:
-                raise MetaflowInvalidPathspec(
-                    " Expects Step('FlowName/RunID/StepName')"
-                )
+                raise MetaflowInvalidPathspec("Expects Step('FlowName/RunID/StepName')")
             elif self._NAME == "task" and len(ids) != 4:
                 raise MetaflowInvalidPathspec(
-                    " Expects Task('FlowName/RunID/StepName/TaskID')"
+                    "Expects Task('FlowName/RunID/StepName/TaskID')"
                 )
             elif self._NAME == "artifact" and len(ids) != 5:
                 raise MetaflowInvalidPathspec(
-                    " Expects DataArtifact('FlowName/RunID/StepName/TaskID/ArtifactName')"
+                    "Expects DataArtifact('FlowName/RunID/StepName/TaskID/ArtifactName')"
                 )
 
             self.id = ids[-1]
