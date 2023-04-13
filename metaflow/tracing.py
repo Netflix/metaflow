@@ -1,6 +1,7 @@
 import sys
 from metaflow.metaflow_config import (
     OTEL_ENDPOINT,
+    ZIPKIN_ENDPOINT
 )
 
 import metaflow.tracing_noop
@@ -13,7 +14,7 @@ traced = metaflow.tracing_noop.traced
 tracing = metaflow.tracing_noop.tracing
 post_fork = metaflow.tracing_noop.post_fork
 
-if OTEL_ENDPOINT:
+if OTEL_ENDPOINT or ZIPKIN_ENDPOINT:
     try:
         import metaflow.tracing_otel
 
@@ -24,5 +25,5 @@ if OTEL_ENDPOINT:
         traced = metaflow.tracing_otel.traced
         tracing = metaflow.tracing_otel.tracing
         post_fork = metaflow.tracing_otel.post_fork
-    except ImportError:
-        pass
+    except ImportError as e:
+        print(str(e))

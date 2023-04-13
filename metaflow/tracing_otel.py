@@ -15,6 +15,12 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.propagate import set_global_textmap
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 
+
+from opentelemetry.exporter.zipkin.proto.http import ZipkinExporter
+
+import requests
+from opentelemetry.instrumentation.requests import RequestsInstrumentor
+
 tracer_provider = None
 
 
@@ -23,6 +29,7 @@ def init_tracing():
         SERVICE_AUTH_KEY,
         SERVICE_HEADERS,
         OTEL_ENDPOINT,
+        ZIPKIN_ENDPOINT
     )
 
     global tracer_provider
@@ -35,7 +42,14 @@ def init_tracing():
 
     set_global_textmap(EnvPropagator(None))
 
-    if SERVICE_AUTH_KEY:
+    if ZIPKIN_ENDPOINT:
+        print(ZIPKIN_ENDPOINT)
+        span_exporter = ZipkinExporter(
+            endpoint=ZIPKIN_ENDPOINT,
+            timeout=1,
+            session=requests.Session()
+        )
+    elif SERVICE_AUTH_KEY:
         span_exporter = OTLPSpanExporter(
             endpoint=OTEL_ENDPOINT,
             headers={"x-api-key": SERVICE_AUTH_KEY},
@@ -51,6 +65,7 @@ def init_tracing():
         print("WARNING: no auth settings for Opentelemetry", file=sys.stderr)
         return
 
+
     if "METAFLOW_KUBERNETES_POD_NAMESPACE" in os.environ:
         service_name = "metaflow-kubernetes"
     elif "AWS_BATCH_JOB_ID" in os.environ:
@@ -65,9 +80,6 @@ def init_tracing():
 
     span_processor = BatchSpanProcessor(span_exporter)
     tracer_provider.add_span_processor(span_processor)
-
-    import requests
-    from opentelemetry.instrumentation.requests import RequestsInstrumentor
 
     RequestsInstrumentor().instrument()
 

@@ -348,6 +348,7 @@ if AWS_SANDBOX_ENABLED:
 KUBERNETES_SANDBOX_INIT_SCRIPT = from_conf("KUBERNETES_SANDBOX_INIT_SCRIPT")
 
 OTEL_ENDPOINT = from_conf("OTEL_ENDPOINT")
+ZIPKIN_ENDPOINT= from_conf("ZIPKIN_ENDPOINT")
 
 # MAX_ATTEMPTS is the maximum number of attempts, including the first
 # task, retries, and the final fallback task and its retries.
