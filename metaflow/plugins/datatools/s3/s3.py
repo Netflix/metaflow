@@ -86,7 +86,7 @@ S3PutObject = namedtuple_with_defaults(
         ("content_type", Optional[str]),
         ("metadata", Optional[Dict[str, str]]),
     ],
-    defaults=(None, None, None, None,),
+    defaults=(None, None, None, None),
 )
 S3PutObject.__module__ = __name__
 
@@ -475,15 +475,6 @@ class S3(object):
     s3root : str, optional
         If `run` is not specified, use this as the S3 prefix.
     """
-    @classmethod
-    def parse_custom_s3_settings(self, settings_str: Optional[str]):
-        s3_settings = {}
-        for setting in settings_str.split(","):
-            setting = setting.strip()
-            if setting:
-                key, value = setting.split("=")
-                s3_settings[key.strip()] = value.strip()
-        return s3_settings
 
     @classmethod
     def get_root_from_config(cls, echo, create_on_absent=True):
@@ -496,7 +487,7 @@ class S3(object):
         prefix: Optional[str] = None,
         run: Optional[Union[FlowSpec, "Run"]] = None,
         s3root: Optional[str] = None,
-        upload_settings: Optional[str] = S3_CUSTOM_UPLOAD_SETTINGS,
+        upload_settings: Optional[dict] = S3_CUSTOM_UPLOAD_SETTINGS,
         **kwargs
     ):
         if not boto_found:
@@ -1141,7 +1132,6 @@ class S3(object):
                     "metaflow-user-attributes": json.dumps(metadata)
                 }
             if self._upload_settings:
-                #upload_settings = self.parse_custom_s3_settings(self._upload_settings)
                 upload_settings = self._upload_settings
                 extra_args.update(upload_settings)
 
@@ -1217,7 +1207,6 @@ class S3(object):
                         "metaflow-user-attributes": json.dumps(metadata)
                     }
                 if self._upload_settings:
-                    #upload_settings = self.parse_custom_s3_settings(self._upload_settings)
                     upload_settings = self._upload_settings
                     store_info.update(upload_settings)
                 if isinstance(obj, (RawIOBase, BufferedIOBase)):
@@ -1294,7 +1283,6 @@ class S3(object):
                     }
                 if self._upload_settings:
                     upload_settings = self._upload_settings
-                    #upload_settings = self.parse_custom_s3_settings(self._upload_settings)
                     store_info.update(upload_settings)
                 if not os.path.exists(path):
                     raise MetaflowS3NotFound("Local file not found: %s" % path)
