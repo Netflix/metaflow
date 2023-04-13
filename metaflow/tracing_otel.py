@@ -18,9 +18,6 @@ from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 
 from opentelemetry.exporter.zipkin.proto.http import ZipkinExporter
 
-import requests
-from opentelemetry.instrumentation.requests import RequestsInstrumentor
-
 tracer_provider = None
 
 
@@ -37,17 +34,23 @@ def init_tracing():
         print("Tracing already initialized", file=sys.stderr)
         return
     # print("initializing tracing", os.environ.get("traceparent"))
+    if OTEL_ENDPOINT:
+        from metaflow.tracing_propagator import EnvPropagator
+        set_global_textmap(EnvPropagator(None))
+    
+    if ZIPKIN_ENDPOINT:
+        from opentelemetry.propagators.b3 import ( 
+            B3MultiFormat,
+            B3SingleFormat,
+        )
+        set_global_textmap(B3MultiFormat())
 
-    from metaflow.tracing_propagator import EnvPropagator
 
-    set_global_textmap(EnvPropagator(None))
+    
 
     if ZIPKIN_ENDPOINT:
-        print(ZIPKIN_ENDPOINT)
         span_exporter = ZipkinExporter(
             endpoint=ZIPKIN_ENDPOINT,
-            timeout=1,
-            session=requests.Session()
         )
     elif SERVICE_AUTH_KEY:
         span_exporter = OTLPSpanExporter(
@@ -80,6 +83,9 @@ def init_tracing():
 
     span_processor = BatchSpanProcessor(span_exporter)
     tracer_provider.add_span_processor(span_processor)
+
+    import requests
+    from opentelemetry.instrumentation.requests import RequestsInstrumentor
 
     RequestsInstrumentor().instrument()
 
