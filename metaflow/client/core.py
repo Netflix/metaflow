@@ -679,7 +679,7 @@ class MetaflowData(object):
 class MetaflowCode(object):
     """
     Snapshot of the code used to execute this `Run`. Instantiate the object through
-    `Run(...).code` (if all steps are executed remotely) or `Task(...).code` for an
+    `Run(...).code` (if any step is executed remotely) or `Task(...).code` for an
     individual task. The code package is the same for all steps of a `Run`.
 
     `MetaflowCode` includes a package of the user-defined `FlowSpec` class and supporting
@@ -1658,16 +1658,17 @@ class Run(MetaflowObject):
     def code(self) -> Optional[MetaflowCode]:
         """
         Returns the MetaflowCode object for this run, if present.
-
-        Not all runs save their code so this call may return None in those cases.
+        Code is packed if atleast one `Step` runs remotely, else None is returned.
 
         Returns
         -------
         MetaflowCode, optional
             Code package for this run
         """
-        if "start" in self:
-            return self["start"].task.code
+        for step in self:
+            code = step.task.code
+            if code:
+                return code
 
     @property
     def data(self) -> Optional[MetaflowData]:
