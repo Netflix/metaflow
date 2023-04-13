@@ -86,7 +86,7 @@ S3PutObject = namedtuple_with_defaults(
         ("content_type", Optional[str]),
         ("metadata", Optional[Dict[str, str]]),
     ],
-    defaults=(None, None, None, None),
+    defaults=(None, None, None, None,),
 )
 S3PutObject.__module__ = __name__
 
@@ -496,7 +496,7 @@ class S3(object):
         prefix: Optional[str] = None,
         run: Optional[Union[FlowSpec, "Run"]] = None,
         s3root: Optional[str] = None,
-        settings: Optional[str] = S3_CUSTOM_UPLOAD_SETTINGS,
+        upload_settings: Optional[str] = S3_CUSTOM_UPLOAD_SETTINGS,
         **kwargs
     ):
         if not boto_found:
@@ -550,7 +550,7 @@ class S3(object):
             "inject_failure_rate", TEST_INJECT_RETRYABLE_FAILURES
         )
         self._tmpdir = mkdtemp(dir=tmproot, prefix="metaflow.s3.")
-        self._settings = settings
+        self._upload_settings = upload_settings
 
     def __enter__(self) -> "S3":
         return self
@@ -1132,7 +1132,7 @@ class S3(object):
         url = self._url(key)
         src = urlparse(url)
         extra_args = None
-        if content_type or metadata or self._settings:
+        if content_type or metadata or self._upload_settings:
             extra_args = {}
             if content_type:
                 extra_args["ContentType"] = content_type
@@ -1140,8 +1140,9 @@ class S3(object):
                 extra_args["Metadata"] = {
                     "metaflow-user-attributes": json.dumps(metadata)
                 }
-            if self._settings:
-                upload_settings = self.parse_custom_s3_settings(self._settings)
+            if self._upload_settings:
+                #upload_settings = self.parse_custom_s3_settings(self._upload_settings)
+                upload_settings = self._upload_settings
                 extra_args.update(upload_settings)
 
         def _upload(s3, _):
@@ -1215,8 +1216,9 @@ class S3(object):
                     store_info["metadata"] = {
                         "metaflow-user-attributes": json.dumps(metadata)
                     }
-                if self._settings:
-                    upload_settings = self.parse_custom_s3_settings(self._settings)
+                if self._upload_settings:
+                    #upload_settings = self.parse_custom_s3_settings(self._upload_settings)
+                    upload_settings = self._upload_settings
                     store_info.update(upload_settings)
                 if isinstance(obj, (RawIOBase, BufferedIOBase)):
                     if not obj.readable() or not obj.seekable():
@@ -1290,8 +1292,9 @@ class S3(object):
                     store_info["metadata"] = {
                         "metaflow-user-attributes": json.dumps(metadata)
                     }
-                if self._settings:
-                    upload_settings = self.parse_custom_s3_settings(self._settings)
+                if self._upload_settings:
+                    upload_settings = self._upload_settings
+                    #upload_settings = self.parse_custom_s3_settings(self._upload_settings)
                     store_info.update(upload_settings)
                 if not os.path.exists(path):
                     raise MetaflowS3NotFound("Local file not found: %s" % path)
