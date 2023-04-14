@@ -73,8 +73,7 @@ S3_VERIFY_CERTIFICATE = from_conf("S3_VERIFY_CERTIFICATE")
 # e.g. ServerSideEncryption, Tagging, StorageClass, etc. 
 # Use a JSON string to represent this parameter as an environment variable
 # and use a dictionary to represent this parameter in a JSON config file.
-S3_CUSTOM_UPLOAD_SETTINGS = from_conf("CUSTOM_UPLOAD_SETTINGS_S3", default={})
-
+S3_UPLOAD_ARGS = from_conf("UPLOAD_ARGS_S3", {})
 
 # S3 retry configuration
 # This is useful if you want to "fail fast" on S3 operations; use with caution
