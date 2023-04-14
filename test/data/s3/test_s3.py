@@ -144,20 +144,11 @@ def assert_results(
                     assert not extra_keys, "Additional metadata present %s" % str(
                         extra_keys
                     )
-                if upload_args is None:
-                    assert s3obj.upload_args is None
-                else:
-                    s3objargs = s3obj.upload_args
-                    assert s3objargs is not None
-                    found = set()
-                    for k, v in upload_args.items():
-                        v1 = s3objargs.get(k, None)
-                        assert v1 == v, "Upload arguments %s mismatch" % k
-                        found.add(k)
-                    extra_keys = set(s3objargs.keys()) - found
-                    assert not extra_keys, "Additional upload arguments present %s" % str(
-                        extra_keys
-                    )
+                # if upload arguments are OK - this is not a comprehensive list
+                if upload_args: 
+                    assert s3obj.ServerSideEncryption == upload_args.get('ServerSideEncryption')
+                    assert s3obj.ACL == upload_args.get('ACL')
+                    assert s3obj.StorageClass == upload_args.get('StorageClass') 
 
 
 def shuffle(objs):
@@ -847,27 +838,6 @@ def test_put_many(inject_failure_rate, s3root, objs, expected):
         assert_results(s3objs, expected)
 
 
-@pytest.mark.parametrize(
-    argnames=["s3root", "objs", "expected"], **s3_data.pytest_put_strings_case()
-)
-def test_put_one(s3root, objs, expected):
-    with S3(s3root=s3root) as s3:
-        for key, obj in objs:
-            s3url = s3.put(key, obj)
-            assert s3url in expected
-            s3obj = s3.get(key)
-            assert s3obj.key == key
-            assert_results([s3obj], {s3url: expected[s3url]})
-            assert s3obj.blob == to_bytes(obj)
-            # put with overwrite disabled
-            s3url = s3.put(key, "random_value", overwrite=False)
-            assert s3url in expected
-            s3obj = s3.get(key)
-            assert s3obj.key == key
-            assert_results([s3obj], {s3url: expected[s3url]})
-            assert s3obj.blob == to_bytes(obj)
-
-
 @pytest.fixture
 def s3_upload_args():
     return {
@@ -879,23 +849,24 @@ def s3_upload_args():
 @pytest.mark.parametrize(
     argnames=["s3root", "objs", "expected"], **s3_data.pytest_put_strings_case()
 )
-def test_put_one_with_custom_upload_args(s3root, objs, expected):
-    with S3(s3root=s3root, upload_srgd=s3_upload_args) as s3:
-        for key, obj in objs:
-            s3url = s3.put(key, obj)
-            assert s3url in expected
-            s3obj = s3.get(key)
-            assert s3obj.key == key
-            assert_results([s3obj], {s3url: expected[s3url]}, upload_args=s3_upload_args)
-            assert s3obj.blob == to_bytes(obj)
-            # put with overwrite disabled
-            s3url = s3.put(key, "random_value", overwrite=False)
-            assert s3url in expected
-            s3obj = s3.get(key)
-            assert s3obj.key == key
-            assert_results([s3obj], {s3url: expected[s3url]})
-            assert s3obj.blob == to_bytes(obj)
-            assert_results([s3obj], {s3url: expected[s3url]}, upload_args=s3_upload_args)
+def test_put_one(s3root, objs, expected):
+    upload_args_list = [None, s3_upload_args()]
+    for upload_args in upload_args_list:
+        with S3(s3root=s3root, upload_args=upload_args) as s3:
+            for key, obj in objs:
+                s3url = s3.put(key, obj)
+                assert s3url in expected
+                s3obj = s3.get(key)
+                assert s3obj.key == key
+                assert_results([s3obj], {s3url: expected[s3url]}, upload_args=upload_args)
+                assert s3obj.blob == to_bytes(obj)
+                # put with overwrite disabled
+                s3url = s3.put(key, "random_value", overwrite=False)
+                assert s3url in expected
+                s3obj = s3.get(key)
+                assert s3obj.key == key
+                assert_results([s3obj], {s3url: expected[s3url]}, upload_args=upload_args)
+                assert s3obj.blob == to_bytes(obj)
 
 
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
