@@ -1665,6 +1665,12 @@ class Run(MetaflowObject):
         MetaflowCode, optional
             Code package for this run
         """
+        # Note that this can be quite slow in the edge-case where the codepackage is only available
+        # for the last step on the list. Steps are reverse-ordered, so the worst-case scenario is
+        # if the start step executes remotely and every step after that is remote.
+        #
+        # TODO: A more optimized way of figuring out if a run has remote steps (and thus a codepackage) available.
+        # This might require changes to the metadata-service as well.
         for step in self:
             code = step.task.code
             if code:
