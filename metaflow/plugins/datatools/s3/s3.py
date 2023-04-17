@@ -361,7 +361,7 @@ class S3Object(object):
         Returns
         -------
         str
-            Server-side-encryption or None if the content type is undefined.
+            Server-side-encryption or None if server side encryption is not specified through s3 upload args.
         """
         return self._encryption
 
@@ -759,7 +759,6 @@ class S3(object):
                 "metadata": resp["Metadata"],
                 "size": resp["ContentLength"],
                 "last_modified": get_timestamp(resp["LastModified"]),
-                # upload args?
             }
 
         info_results = None

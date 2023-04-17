@@ -146,7 +146,7 @@ def assert_results(
                     )
                 # if upload arguments are OK - this is not a comprehensive list
                 if upload_args: 
-                    assert s3obj.ServerSideEncryption == upload_args.get('ServerSideEncryption')
+                    assert s3obj.encryption == upload_args.get('ServerSideEncryption')
 
 
 def shuffle(objs):
