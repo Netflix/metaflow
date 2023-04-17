@@ -516,8 +516,9 @@ def ensure_test_data():
                     # (since it is the same) but we modify the path to post-pend
                     # the name
                     print("Test data case %s: upload to %s started" % (prefix, f.url))
+                    extra = {"ServerSideEncryption": "AES256"}
                     s3client.upload_fileobj(
-                        f.fileobj(), url.netloc, url.path.lstrip("/"), ServerSideEncryption="AES256"
+                        f.fileobj(), url.netloc, url.path.lstrip("/"), ExtraArgs=extra
                     )
                     print("Test data case %s: uploaded to %s" % (prefix, f.url))
                     if meta is not None:
@@ -552,8 +553,9 @@ def ensure_test_data():
         for prefix, filespecs in BASIC_DATA:
             _do_upload(prefix, filespecs, meta=BASIC_METADATA)
 
+        extra = {"ServerSideEncryption": "AES256"}
         s3client.upload_fileobj(
-            to_fileobj("ok"), Bucket=mark.netloc, Key=mark.path.lstrip("/"), ServerSideEncryption="AES256"
+            to_fileobj("ok"), Bucket=mark.netloc, Key=mark.path.lstrip("/"), ExtraArgs=extra
         )
         print("Test data uploaded ok")
 
