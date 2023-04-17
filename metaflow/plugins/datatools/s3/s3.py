@@ -356,12 +356,12 @@ class S3Object(object):
     @property
     def encryption(self) -> Optional[str]:
         """
-        Returns the server-side-encryption the S3 object or None if it is not defined.
+        Returns the encryption type of the S3 object or None if it is not defined.
 
         Returns
         -------
         str
-            Server-side-encryption or None if server side encryption is not specified through s3 upload args.
+            Server-side-encryption type or None if server side encryption is not specified through s3 upload args.
         """
         return self._encryption
 
