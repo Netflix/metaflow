@@ -1,10 +1,7 @@
-import hashlib
 import json
 import os
 import platform
-import re
 import sys
-from typing import Dict, List, Optional, Union
 
 from metaflow.decorators import StepDecorator
 from metaflow.exception import MetaflowException
@@ -15,12 +12,11 @@ from metaflow.metaflow_config import (
     KUBERNETES_CONTAINER_IMAGE,
     KUBERNETES_CONTAINER_REGISTRY,
     KUBERNETES_GPU_VENDOR,
-    KUBERNETES_LABELS,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_TOLERATIONS,
-    KUBERNETES_SECRETS,
     KUBERNETES_SERVICE_ACCOUNT,
+    KUBERNETES_SECRETS,
     KUBERNETES_FETCH_EC2_METADATA,
 )
 from metaflow.plugins.resources_decorator import ResourcesDecorator
@@ -69,8 +65,6 @@ class KubernetesDecorator(StepDecorator):
         in Metaflow configuration.
     tolerations : List[str], default: METAFLOW_KUBERNETES_TOLERATIONS
         Kubernetes tolerations to use when launching pod in Kubernetes.
-    labels : Dict[str, str], default: METAFLOW_KUBERNETES_LABELS
-        Kubernetes labels to use when launching pod in Kubernetes.
     """
 
     name = "kubernetes"
@@ -82,7 +76,6 @@ class KubernetesDecorator(StepDecorator):
         "service_account": None,
         "secrets": None,  # e.g., mysecret
         "node_selector": None,  # e.g., kubernetes.io/os=linux
-        "labels": None,  # e.g., my_label=my_value
         "namespace": None,
         "gpu": None,  # value of 0 implies that the scheduled node should not have GPUs
         "gpu_vendor": None,
@@ -106,17 +99,9 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["node_selector"] = KUBERNETES_NODE_SELECTOR
         if not self.attributes["tolerations"] and KUBERNETES_TOLERATIONS:
             self.attributes["tolerations"] = json.loads(KUBERNETES_TOLERATIONS)
-        if not self.attributes["labels"] and KUBERNETES_LABELS:
-            self.attributes["labels"] = KUBERNETES_LABELS
-
-        if isinstance(self.attributes["labels"], str):
-            self.attributes["labels"] = self.parse_kube_keyvalue_list(
-                self.attributes["labels"].split(","), False
-            )
-        self.validate_kube_labels(self.attributes["labels"])
 
         if isinstance(self.attributes["node_selector"], str):
-            self.attributes["node_selector"] = self.parse_kube_keyvalue_list(
+            self.attributes["node_selector"] = self.parse_node_selector(
                 self.attributes["node_selector"].split(",")
             )
 
@@ -295,11 +280,10 @@ class KubernetesDecorator(StepDecorator):
             for k, v in self.attributes.items():
                 if k == "namespace":
                     cli_args.command_options["k8s_namespace"] = v
-                elif k in {"node_selector", "labels"} and v:
-                    cli_args.command_options[k] = [
-                        "=".join([key, str(val)]) if val else key
-                        for key, val in v.items()
-                    ]
+                elif k == "node_selector" and v:
+                    cli_args.command_options[k] = ",".join(
+                        ["=".join([key, str(val)]) for key, val in v.items()]
+                    )
                 elif k == "tolerations":
                     cli_args.command_options[k] = json.dumps(v)
                 else:
@@ -407,80 +391,14 @@ class KubernetesDecorator(StepDecorator):
                 [package.blob], len_hint=1
             )[0]
 
-    @classmethod
-    def _parse_decorator_spec(cls, deco_spec: str):
-        if not deco_spec:
-            return cls()
-
-        valid_options = "|".join(cls.defaults.keys())
-        deco_spec_parts = []
-        for part in re.split(""",(?=[\s\w]+[{}]=)""".format(valid_options), deco_spec):
-            name, val = part.split("=", 1)
-            if name in {"labels", "node_selector"}:
-                try:
-                    tmp_vals = json.loads(val.strip().replace('\\"', '"'))
-                    for val_i in tmp_vals.values():
-                        if not (val_i is None or isinstance(val_i, str)):
-                            raise KubernetesException(
-                                "All values must be string or null."
-                            )
-                except json.JSONDecodeError:
-                    if val.startswith("{"):
-                        raise KubernetesException(
-                            "Malform json detected in %s" % str(val)
-                        )
-                    both = name == "node_selector"
-                    val = json.dumps(
-                        cls.parse_kube_keyvalue_list(val.split(","), both),
-                        separators=(",", ":"),
-                    )
-            deco_spec_parts.append("=".join([name, val]))
-        deco_spec_parsed = ",".join(deco_spec_parts)
-        return super()._parse_decorator_spec(deco_spec_parsed)
-
     @staticmethod
-    def parse_kube_keyvalue_list(items: List[str], requires_both: bool = True):
+    def parse_node_selector(node_selector: list):
         try:
-            ret = {}
-            for item_str in items:
-                item = item_str.split("=", 1)
-                if requires_both:
-                    item[1]  # raise IndexError
-                if str(item[0]) in ret:
-                    raise KubernetesException("Duplicate key found: %s" % str(item[0]))
-                ret[str(item[0])] = str(item[1]) if len(item) > 1 else None
-            return ret
-        except KubernetesException as e:
-            raise e
+            return {
+                str(k.split("=", 1)[0]): str(k.split("=", 1)[1])
+                for k in node_selector or []
+            }
         except (AttributeError, IndexError):
-            raise KubernetesException("Unable to parse kubernetes list: %s" % items)
-
-    @staticmethod
-    def validate_kube_labels(
-        labels: Optional[Dict[str, Optional[str]]],
-    ) -> bool:
-        """Validate label values.
-
-        This validates the kubernetes label values.  It does not validate the keys.
-        Ideally, keys should be static and also the validation rules for keys are
-        more complex than those for values.  For full validation rules, see:
-
-        https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
-        """
-
-        def validate_label(s: Optional[str]):
-            regex_match = r"^(([A-Za-z0-9][-A-Za-z0-9_.]{0,61})?[A-Za-z0-9])?$"
-            if not s:
-                # allow empty label
-                return True
-            if not re.search(regex_match, s):
-                raise KubernetesException(
-                    'Invalid value: "%s"\n'
-                    "A valid label must be an empty string or one that\n"
-                    "  - Consist of alphanumeric, '-', '_' or '.' characters\n"
-                    "  - Begins and ends with an alphanumeric character\n"
-                    "  - Is at most 63 characters" % s
-                )
-            return True
-
-        return all([validate_label(v) for v in labels.values()]) if labels else True
+            raise KubernetesException(
+                "Unable to parse node_selector: %s" % node_selector
+            )
