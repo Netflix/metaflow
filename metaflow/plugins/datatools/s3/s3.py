@@ -352,6 +352,18 @@ class S3Object(object):
             Content type or None if the content type is undefined.
         """
         return self._content_type
+    
+    @property
+    def encryption(self) -> Optional[str]:
+        """
+        Returns the server-side-encryption the S3 object or None if it is not defined.
+
+        Returns
+        -------
+        str
+            Server-side-encryption or None if the content type is undefined.
+        """
+        return self._encryption
 
     @property
     def range_info(self) -> Optional[RangeInfo]:
