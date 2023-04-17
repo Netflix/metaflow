@@ -847,24 +847,24 @@ def s3_upload_args():
 @pytest.mark.parametrize(
     argnames=["s3root", "objs", "expected"], **s3_data.pytest_put_strings_case()
 )
-def test_put_one(s3root, objs, expected):
-    upload_args_list = [None, s3_upload_args()]
-    for upload_args in upload_args_list:
-        with S3(s3root=s3root, upload_args=upload_args) as s3:
-            for key, obj in objs:
-                s3url = s3.put(key, obj)
-                assert s3url in expected
-                s3obj = s3.get(key)
-                assert s3obj.key == key
-                assert_results([s3obj], {s3url: expected[s3url]}, upload_args=upload_args)
-                assert s3obj.blob == to_bytes(obj)
-                # put with overwrite disabled
-                s3url = s3.put(key, "random_value", overwrite=False)
-                assert s3url in expected
-                s3obj = s3.get(key)
-                assert s3obj.key == key
-                assert_results([s3obj], {s3url: expected[s3url]}, upload_args=upload_args)
-                assert s3obj.blob == to_bytes(obj)
+def test_put_one(s3root, objs, expected, s3_upload_args):
+        upload_args = [s3_upload_args, None]
+        for args in upload_args:
+            with S3(s3root=s3root, upload_args=args) as s3:
+                for key, obj in objs:
+                    s3url = s3.put(key, obj)
+                    assert s3url in expected
+                    s3obj = s3.get(key)
+                    assert s3obj.key == key
+                    assert_results([s3obj], {s3url: expected[s3url]}, upload_args=args)
+                    assert s3obj.blob == to_bytes(obj)
+                    # put with overwrite disabled
+                    s3url = s3.put(key, "random_value", overwrite=False)
+                    assert s3url in expected
+                    s3obj = s3.get(key)
+                    assert s3obj.key == key
+                    assert_results([s3obj], {s3url: expected[s3url]}, upload_args=args)
+                    assert s3obj.blob == to_bytes(obj)
 
 
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
