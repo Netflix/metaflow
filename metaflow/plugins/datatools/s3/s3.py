@@ -352,19 +352,6 @@ class S3Object(object):
             Content type or None if the content type is undefined.
         """
         return self._content_type
-    
-    @property
-    def upload_args(self) -> Optional[str]:
-        """
-        Returns the upload arguments of the S3 object or None if it is not defined.
-
-        Returns
-        -------
-        str
-            Upload args or None if the content type is undefined.
-        """
-        return self._upload_args
-
 
     @property
     def range_info(self) -> Optional[RangeInfo]:
@@ -753,7 +740,7 @@ class S3(object):
         src = urlparse(url)
 
         def _info(s3, tmp):
-            resp = s3.head_object(Bucket=src.netloc, Key=src.path.lstrip('/"')) # what exactly does head object return
+            resp = s3.head_object(Bucket=src.netloc, Key=src.path.lstrip('/"'))
             return {
                 "content_type": resp["ContentType"],
                 "encryption": resp["ServerSideEncryption"],
@@ -893,7 +880,7 @@ class S3(object):
                     + 1,
                 )
             else:
-                resp = s3.get_object(Bucket=src.netloc, Key=src.path.lstrip("/")) # what does get object return?
+                resp = s3.get_object(Bucket=src.netloc, Key=src.path.lstrip("/"))
                 range_result = None
             sz = resp["ContentLength"]
             if range_result is None:
