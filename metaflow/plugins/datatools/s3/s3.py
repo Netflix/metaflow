@@ -84,9 +84,10 @@ S3PutObject = namedtuple_with_defaults(
         ("value", Optional[PutValue]),
         ("path", Optional[str]),
         ("content_type", Optional[str]),
+        ("encryption", Optional[str]),
         ("metadata", Optional[Dict[str, str]]),
     ],
-    defaults=(None, None, None, None),
+    defaults=(None, None, None, None, None),
 )
 S3PutObject.__module__ = __name__
 
@@ -140,6 +141,7 @@ class S3Object(object):
         path: str,
         size: Optional[int] = None,
         content_type: Optional[str] = None,
+        encryption: Optional[str] = None,
         metadata: Optional[Dict[str, str]] = None,
         range_info: Optional[RangeInfo] = None,
         last_modified: int = None,
@@ -152,6 +154,7 @@ class S3Object(object):
         self._path = path
         self._key = None
         self._content_type = content_type
+        self._encryption = encryption
         self._last_modified = last_modified
 
         self._metadata = None
@@ -322,6 +325,7 @@ class S3Object(object):
             self._content_type is not None
             or self._metadata is not None
             or self._range_info is not None
+            or self._encryption is not None
         )
 
     @property
@@ -348,6 +352,19 @@ class S3Object(object):
             Content type or None if the content type is undefined.
         """
         return self._content_type
+    
+    @property
+    def upload_args(self) -> Optional[str]:
+        """
+        Returns the upload arguments of the S3 object or None if it is not defined.
+
+        Returns
+        -------
+        str
+            Upload args or None if the content type is undefined.
+        """
+        return self._upload_args
+
 
     @property
     def range_info(self) -> Optional[RangeInfo]:
@@ -736,12 +753,14 @@ class S3(object):
         src = urlparse(url)
 
         def _info(s3, tmp):
-            resp = s3.head_object(Bucket=src.netloc, Key=src.path.lstrip('/"'))
+            resp = s3.head_object(Bucket=src.netloc, Key=src.path.lstrip('/"')) # what exactly does head object return
             return {
                 "content_type": resp["ContentType"],
+                "encryption": resp["ServerSideEncryption"],
                 "metadata": resp["Metadata"],
                 "size": resp["ContentLength"],
                 "last_modified": get_timestamp(resp["LastModified"]),
+                # upload args?
             }
 
         info_results = None
@@ -759,6 +778,7 @@ class S3(object):
                 path=None,
                 size=info_results["size"],
                 content_type=info_results["content_type"],
+                encryption=info_results["ServerSideEncryption"],
                 metadata=info_results["metadata"],
                 last_modified=info_results["last_modified"],
             )
@@ -814,7 +834,7 @@ class S3(object):
                     else:
                         yield self._s3root, s3url, None, info["size"], info[
                             "content_type"
-                        ], info["metadata"], None, info["last_modified"]
+                        ], info["encryption"], info["metadata"], None, info["last_modified"]
                 else:
                     # This should not happen; we should always get a response
                     # even if it contains an error inside it
@@ -873,7 +893,7 @@ class S3(object):
                     + 1,
                 )
             else:
-                resp = s3.get_object(Bucket=src.netloc, Key=src.path.lstrip("/"))
+                resp = s3.get_object(Bucket=src.netloc, Key=src.path.lstrip("/")) # what does get object return?
                 range_result = None
             sz = resp["ContentLength"]
             if range_result is None:
@@ -889,6 +909,7 @@ class S3(object):
             if return_info:
                 return {
                     "content_type": resp["ContentType"],
+                    "encryption": resp["ServerSideEncryption"],
                     "metadata": resp["Metadata"],
                     "range_result": range_result,
                     "last_modified": get_timestamp(resp["LastModified"]),
@@ -909,6 +930,7 @@ class S3(object):
                 url,
                 path,
                 content_type=addl_info["content_type"],
+                encryption=addl_info["encryption"],
                 metadata=addl_info["metadata"],
                 range_info=addl_info["range_result"],
                 last_modified=addl_info["last_modified"],
@@ -974,7 +996,7 @@ class S3(object):
                             self._tmpdir, fname
                         ), None, info["content_type"], info[
                             "metadata"
-                        ], range_info, info[
+                        ], info["encryption"], range_info, info[
                             "last_modified"
                         ]
                     else:
@@ -1034,7 +1056,7 @@ class S3(object):
                         )
                     yield self._s3root, s3url, os.path.join(
                         self._tmpdir, fname
-                    ), None, info["content_type"], info["metadata"], range_info, info[
+                    ), None, info["content_type"], info["encryption"], info["metadata"], range_info, info[
                         "last_modified"
                     ]
                 else:
