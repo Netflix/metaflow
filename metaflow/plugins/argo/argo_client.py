@@ -181,7 +181,9 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
-    def register_sensor(self, name, sensor={}):
+    def register_sensor(self, name, sensor=None):
+        if sensor is None:
+            sensor = {}
         # Unfortunately, Kubernetes client does not handle optimistic
         # concurrency control by itself unlike kubectl
         client = self._client.get()

@@ -8,7 +8,7 @@
 
 from metaflow.extension_support.integrations import process_integration_aliases
 
-# To enable an alias `metaflow.alias.get_s3_client` to
+# To enable an alias `metaflow.integrations.get_s3_client` to
 # `metaflow.plugins.aws.aws_client.get_aws_client`, use the following:
 #
 # ALIASES_DESC = [("get_s3_client", ".plugins.aws.aws_client.get_aws_client")]
@@ -17,6 +17,8 @@ from metaflow.extension_support.integrations import process_integration_aliases
 #  - name: name of the integration alias
 #  - obj: object it points to
 #
+ALIASES_DESC = [("ArgoEvent", ".plugins.argo.argo_events.ArgoEvent")]
+
 # Aliases can be enabled or disabled through configuration or extensions:
 #  - ENABLED_INTEGRATION_ALIAS: list of alias names to enable.
 #  - TOGGLE_INTEGRATION_ALIAS: if ENABLED_INTEGRATION_ALIAS is not set anywhere

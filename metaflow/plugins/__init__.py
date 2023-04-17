@@ -139,7 +139,6 @@ SIDECARS.update(MONITOR_SIDECARS)
 AWS_CLIENT_PROVIDERS = resolve_plugins("aws_client_provider")
 SECRETS_PROVIDERS = resolve_plugins("secrets_provider")
 
-from .argo.argo_events import ArgoEvent
 from .cards.card_modules import MF_EXTERNAL_CARDS
 
 # Cards; due to the way cards were designed, it is harder to make them fit

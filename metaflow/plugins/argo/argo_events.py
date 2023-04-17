@@ -17,19 +17,21 @@ class ArgoEventException(MetaflowException):
 
 class ArgoEvent(object):
     def __init__(
-        self, name, url=ARGO_EVENTS_WEBHOOK_URL, payload={}, access_token=None
+        self, name, url=ARGO_EVENTS_WEBHOOK_URL, payload=None, access_token=None
     ):
         # TODO: Introduce support for NATS
         self._name = name
         self._url = url
-        self._payload = payload
+        self._payload = payload or {}
         self._access_token = access_token
 
     def add_to_payload(self, key, value):
         self._payload[key] = str(value)
         return self
 
-    def publish(self, payload={}, force=False, ignore_errors=False):
+    def publish(self, payload=None, force=False, ignore_errors=False):
+        if payload = None
+            payload = {}
         # Publish event iff forced or running on Argo Workflows
         if force or os.environ.get("ARGO_WORKFLOW_TEMPLATE"):
             try:
