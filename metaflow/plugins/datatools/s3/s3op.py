@@ -75,8 +75,8 @@ class S3Url(object):
         self.local = local
         self.prefix = prefix
         self.content_type = content_type
-        self.metadata = metadata,
-        self.encryption=encryption,
+        self.metadata = metadata
+        self.encryption=encryption
         self.range = range
         self.idx = idx
 
