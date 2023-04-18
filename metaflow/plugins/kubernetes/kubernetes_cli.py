@@ -3,7 +3,7 @@ import sys
 import time
 import traceback
 
-from metaflow import util, JSONTypeClass
+from metaflow import JSONTypeClass, util
 from metaflow._vendor import click
 from metaflow.exception import METAFLOW_EXIT_DISALLOW_RETRY, CommandException
 from metaflow.metadata.util import sync_local_metadata_from_datastore
@@ -91,6 +91,12 @@ def kubernetes():
     type=JSONTypeClass(),
     multiple=False,
 )
+@click.option(
+    "--labels",
+    multiple=True,
+    default=None,
+    help="Labels for Kubernetes pod.",
+)
 @click.pass_context
 def step(
     ctx,
@@ -110,6 +116,7 @@ def step(
     gpu_vendor=None,
     run_time_limit=None,
     tolerations=None,
+    labels=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", job_id=None, **kwargs):
@@ -175,7 +182,12 @@ def step(
     stderr_location = ds.get_log_location(TASK_LOG_SOURCE, "stderr")
 
     # `node_selector` is a tuple of strings, convert it to a dictionary
-    node_selector = KubernetesDecorator.parse_node_selector(node_selector)
+    node_selector = KubernetesDecorator.parse_kube_keyvalue_list(node_selector)
+
+    # `labels` is a tuple of strings or a tuple with a single comma separated string
+    # convert it to a dict
+    labels = KubernetesDecorator.parse_kube_keyvalue_list(labels, False)
+    KubernetesDecorator.validate_kube_labels(labels)
 
     def _sync_metadata():
         if ctx.obj.metadata.TYPE == "local":
@@ -218,6 +230,7 @@ def step(
                 run_time_limit=run_time_limit,
                 env=env,
                 tolerations=tolerations,
+                labels=labels,
             )
     except Exception as e:
         traceback.print_exc(chain=False)

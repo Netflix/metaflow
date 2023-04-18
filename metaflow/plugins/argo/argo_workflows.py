@@ -887,8 +887,7 @@ class ArgoWorkflows(object):
                 .retry_strategy(
                     times=total_retries,
                     minutes_between_retries=minutes_between_retries,
-                )
-                .metadata(
+                ).metadata(
                     ObjectMeta().annotation("metaflow/step_name", node.name)
                     # Unfortunately, we can't set the task_id since it is generated
                     # inside the pod. However, it can be inferred from the annotation
@@ -896,11 +895,14 @@ class ArgoWorkflows(object):
                     # the field 'task-id' in 'parameters'
                     # .annotation("metaflow/task_id", ...)
                     .annotation("metaflow/attempt", retry_count)
+                    # Set labels
+                    .labels(resources.get("labels"))
                 )
                 # Set emptyDir volume for state management
                 .empty_dir_volume("out")
                 # Set node selectors
                 .node_selectors(resources.get("node_selector"))
+                # Set tolerations
                 .tolerations(resources.get("tolerations"))
                 # Set container
                 .container(
