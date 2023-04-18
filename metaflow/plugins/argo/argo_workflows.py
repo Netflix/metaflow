@@ -36,6 +36,12 @@ from metaflow.util import compress_list, dict_to_cli_options, to_camelcase
 
 from .argo_client import ArgoClient
 
+try:
+    unicode
+except NameError:
+    unicode = str
+    basestring = str
+
 
 class ArgoWorkflowsException(MetaflowException):
     headline = "Argo Workflows error"
@@ -867,11 +873,35 @@ class ArgoWorkflows(object):
                 if v is not None and k not in env_vars_to_skip
             }
 
+            # Tmpfs variables
+            use_tmpfs = resources["use_tmpfs"]
+            tmpfs_size = resources["tmpfs_size"]
+            tmpfs_path = resources["tmpfs_path"]
+            tmpfs_tempdir = resources["tmpfs_tempdir"]
+
+            tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
+            if tmpfs_enabled:
+                if tmpfs_size:
+                    if not (isinstance(tmpfs_size, (int, unicode, basestring))):
+                        raise ArgoWorkflowsException(
+                            "Invalid tmpfs value: ({}) (should be 0 or greater)".format(
+                                tmpfs_size
+                            )
+                        )
+                else:
+                    # default tmpfs behavior - https://man7.org/linux/man-pages/man5/tmpfs.5.html
+                    tmpfs_size = int(resources["memory"]) / 2
+                # Add default unit as ours differs from Kubernetes default.
+                tmpfs_size = "{}Mi".format(tmpfs_size)
+
+            if tmpfs_enabled and tmpfs_tempdir:
+                env["METAFLOW_TEMPDIR"] = tmpfs_path
+
             # Create a ContainerTemplate for this node. Ideally, we would have
             # liked to inline this ContainerTemplate and avoid scanning the workflow
             # twice, but due to issues with variable substitution, we will have to
             # live with this routine.
-            yield (
+            template = (
                 Template(self._sanitize(node.name))
                 # Set @timeout values
                 .active_deadline_seconds(run_time_limit)
@@ -977,11 +1007,23 @@ class ArgoWorkflows(object):
                                 kubernetes_sdk.V1VolumeMount(
                                     name="out", mount_path="/mnt/out"
                                 )
-                            ],
+                            ]
+                            + (
+                                [
+                                    kubernetes_sdk.V1VolumeMount(
+                                        name="argo-tmpfs-volume", mount_path=tmpfs_path
+                                    )
+                                ]
+                                if tmpfs_enabled
+                                else []
+                            ),
                         ).to_dict()
                     )
                 )
             )
+            if tmpfs_enabled:
+                template.empty_dir_volume("argo-tmpfs-volume", size_limit=tmpfs_size)
+            yield template
 
     def _get_retries(self, node):
         max_user_code_retries = 0
@@ -1244,12 +1286,17 @@ class Template(object):
             }
         return self
 
-    def empty_dir_volume(self, name):
+    def empty_dir_volume(self, name, size_limit=None):
         # Attach an emptyDir volume
         # https://argoproj.github.io/argo-workflows/empty-dir/
         if "volumes" not in self.payload:
             self.payload["volumes"] = []
-        self.payload["volumes"].append({"name": name, "emptyDir": {}})
+        self.payload["volumes"].append(
+            {
+                "name": name,
+                "emptyDir": {"sizeLimit": size_limit} if size_limit else {},
+            }
+        )
         return self
 
     def node_selectors(self, node_selectors):
