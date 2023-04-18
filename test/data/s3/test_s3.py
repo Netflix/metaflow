@@ -887,7 +887,7 @@ def test_put_files(tempdir, inject_failure_rate, s3root, blobs, expected, s3_upl
             yield S3PutObject(
                 key=key, value=path, content_type=content_type, metadata=metadata, encryption=encryption
             )
-    upload_args = [s3_upload_args ,None]
+    upload_args = [s3_upload_args, None]
     for args in upload_args:
         with S3(s3root=s3root, inject_failure_rate=inject_failure_rate, upload_args=args) as s3:
             s3urls = s3.put_files(_files(blobs))
