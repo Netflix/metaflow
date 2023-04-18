@@ -92,7 +92,7 @@ class MetaflowNamespaceMismatch(MetaflowException):
 
 
 class MetaflowInvalidPathspec(MetaflowException):
-    headline = "Invalid pathspec for the MetaflowObject type"
+    headline = "Invalid pathspec"
 
     def __init__(self, msg):
         super(MetaflowInvalidPathspec, self).__init__(msg)
