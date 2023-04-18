@@ -1169,7 +1169,7 @@ class S3(object):
         else:
 
             def _head(s3, _):
-                s3.head_object(Bucket=src.netloc, Key=src.path.lstrip("/"))
+                s3.head_object(Bucket=src.netloc, Key=src.path.lstrip("/"), ExtraArgs=extra_args)
 
             try:
                 self._one_boto_op(_head, url, create_tmp_file=False)

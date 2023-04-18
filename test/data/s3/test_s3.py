@@ -808,34 +808,6 @@ def test_put_exceptions(inject_failure_rate):
             s3.put_many([("foo", "bar")])
 
 
-@pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
-@pytest.mark.parametrize(
-    argnames=["s3root", "objs", "expected"], **s3_data.pytest_put_strings_case()
-)
-def test_put_many(inject_failure_rate, s3root, objs, expected):
-    with S3(s3root=s3root, inject_failure_rate=inject_failure_rate) as s3:
-        s3urls = s3.put_many(objs)
-        assert list(dict(s3urls)) == list(dict(objs))
-        # results must be in the same order as the keys requested
-        for i in range(len(s3urls)):
-            assert objs[i][0] == s3urls[i][0]
-    with S3(inject_failure_rate=inject_failure_rate) as s3:
-        s3objs = s3.get_many(dict(s3urls).values())
-        assert_results(s3objs, expected)
-    with S3(s3root=s3root, inject_failure_rate=inject_failure_rate) as s3:
-        s3objs = s3.get_many(list(dict(objs)))
-        assert {s3obj.key for s3obj in s3objs} == {key for key, _ in objs}
-
-    # upload shuffled objs with overwrite disabled
-    shuffled_objs = deranged_shuffle(objs)
-    with S3(s3root=s3root, inject_failure_rate=inject_failure_rate) as s3:
-        overwrite_disabled_s3urls = s3.put_many(shuffled_objs, overwrite=False)
-        assert len(overwrite_disabled_s3urls) == 0
-    with S3(inject_failure_rate=inject_failure_rate) as s3:
-        s3objs = s3.get_many(dict(s3urls).values())
-        assert_results(s3objs, expected)
-
-
 @pytest.fixture
 def s3_upload_args():
     return {
@@ -843,6 +815,36 @@ def s3_upload_args():
         'ACL': 'private', 
         'StorageClass': 'STANDARD_IA'
     }
+
+@pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
+@pytest.mark.parametrize(
+    argnames=["s3root", "objs", "expected"], **s3_data.pytest_put_strings_case()
+)
+def test_put_many(inject_failure_rate, s3root, objs, expected, s3_upload_args):
+    upload_args = [s3_upload_args, None]
+    for args in upload_args:
+        with S3(s3root=s3root, inject_failure_rate=inject_failure_rate, upload_args=args) as s3:
+            s3urls = s3.put_many(objs)
+            assert list(dict(s3urls)) == list(dict(objs))
+            # results must be in the same order as the keys requested
+            for i in range(len(s3urls)):
+                assert objs[i][0] == s3urls[i][0]
+        with S3(inject_failure_rate=inject_failure_rate, upload_args=args) as s3:
+            s3objs = s3.get_many(dict(s3urls).values())
+            assert_results(s3objs, expected, upload_args=args)
+        with S3(s3root=s3root, inject_failure_rate=inject_failure_rate, upload_args=args) as s3:
+            s3objs = s3.get_many(list(dict(objs)))
+            assert {s3obj.key for s3obj in s3objs} == {key for key, _ in objs}
+
+        # upload shuffled objs with overwrite disabled
+        shuffled_objs = deranged_shuffle(objs)
+        with S3(s3root=s3root, inject_failure_rate=inject_failure_rate, upload_args=args) as s3:
+            overwrite_disabled_s3urls = s3.put_many(shuffled_objs, overwrite=False)
+            assert len(overwrite_disabled_s3urls) == 0
+        with S3(inject_failure_rate=inject_failure_rate, upload_args=args) as s3:
+            s3objs = s3.get_many(dict(s3urls).values())
+            assert_results(s3objs, expected, upload_args=args)
+
 
 @pytest.mark.parametrize(
     argnames=["s3root", "objs", "expected"], **s3_data.pytest_put_strings_case()
@@ -871,46 +873,48 @@ def test_put_one(s3root, objs, expected, s3_upload_args):
 @pytest.mark.parametrize(
     argnames=["s3root", "blobs", "expected"], **s3_data.pytest_put_blobs_case()
 )
-def test_put_files(tempdir, inject_failure_rate, s3root, blobs, expected):
+def test_put_files(tempdir, inject_failure_rate, s3root, blobs, expected, s3_upload_args):
     def _files(blobs):
         for blob in blobs:
             key = getattr(blob, "key", blob[0])
             data = getattr(blob, "value", blob[1])
             content_type = getattr(blob, "content_type", None)
             metadata = getattr(blob, "metadata", None)
+            encryption = getattr(blob, "encryption", None)
             path = os.path.join(tempdir, key)
             with open(path, "wb") as f:
                 f.write(data)
             yield S3PutObject(
-                key=key, value=path, content_type=content_type, metadata=metadata
+                key=key, value=path, content_type=content_type, metadata=metadata, encryption=encryption
             )
+    upload_args = [s3_upload_args ,None]
+    for args in upload_args:
+        with S3(s3root=s3root, inject_failure_rate=inject_failure_rate, upload_args=args) as s3:
+            s3urls = s3.put_files(_files(blobs))
+            assert list(dict(s3urls)) == list(dict(blobs))
 
-    with S3(s3root=s3root, inject_failure_rate=inject_failure_rate) as s3:
-        s3urls = s3.put_files(_files(blobs))
-        assert list(dict(s3urls)) == list(dict(blobs))
+        with S3(inject_failure_rate=inject_failure_rate, upload_args=args) as s3:
+            # get urls
+            s3objs = s3.get_many(dict(s3urls).values())
+            assert_results(s3objs, expected, upload_args=args)
 
-    with S3(inject_failure_rate=inject_failure_rate) as s3:
-        # get urls
-        s3objs = s3.get_many(dict(s3urls).values())
-        assert_results(s3objs, expected)
+        with S3(s3root=s3root, inject_failure_rate=inject_failure_rate, upload_args=args) as s3:
+            # get keys
+            s3objs = s3.get_many(key for key, blob in blobs)
+            assert {s3obj.key for s3obj in s3objs} == {key for key, _ in blobs}
 
-    with S3(s3root=s3root, inject_failure_rate=inject_failure_rate) as s3:
-        # get keys
-        s3objs = s3.get_many(key for key, blob in blobs)
-        assert {s3obj.key for s3obj in s3objs} == {key for key, _ in blobs}
+        # upload shuffled blobs with overwrite disabled
+        shuffled_blobs = blobs[:]
+        shuffle(shuffled_blobs)
+        with S3(s3root=s3root, inject_failure_rate=inject_failure_rate, upload_args=args) as s3:
+            overwrite_disabled_s3urls = s3.put_files(
+                _files(shuffled_blobs), overwrite=False
+            )
+            assert len(overwrite_disabled_s3urls) == 0
 
-    # upload shuffled blobs with overwrite disabled
-    shuffled_blobs = blobs[:]
-    shuffle(shuffled_blobs)
-    with S3(s3root=s3root, inject_failure_rate=inject_failure_rate) as s3:
-        overwrite_disabled_s3urls = s3.put_files(
-            _files(shuffled_blobs), overwrite=False
-        )
-        assert len(overwrite_disabled_s3urls) == 0
-
-    with S3(inject_failure_rate=inject_failure_rate) as s3:
-        s3objs = s3.get_many(dict(s3urls).values())
-        assert_results(s3objs, expected)
-    with S3(s3root=s3root, inject_failure_rate=inject_failure_rate) as s3:
-        s3objs = s3.get_many(key for key, blob in shuffled_blobs)
-        assert {s3obj.key for s3obj in s3objs} == {key for key, _ in shuffled_blobs}
+        with S3(inject_failure_rate=inject_failure_rate, upload_args=args) as s3:
+            s3objs = s3.get_many(dict(s3urls).values())
+            assert_results(s3objs, expected, upload_args=args)
+        with S3(s3root=s3root, inject_failure_rate=inject_failure_rate, upload_args=args) as s3:
+            s3objs = s3.get_many(key for key, blob in shuffled_blobs)
+            assert {s3obj.key for s3obj in s3objs} == {key for key, _ in shuffled_blobs}
