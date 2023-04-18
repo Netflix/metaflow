@@ -3,6 +3,7 @@ import os
 import platform
 import sys
 
+from metaflow import current
 from metaflow.decorators import StepDecorator
 from metaflow.exception import MetaflowException
 from metaflow.metadata import MetaDatum
@@ -65,6 +66,16 @@ class KubernetesDecorator(StepDecorator):
         in Metaflow configuration.
     tolerations : List[str], default: METAFLOW_KUBERNETES_TOLERATIONS
         Kubernetes tolerations to use when launching pod in Kubernetes.
+    use_tmpfs: bool, default: False
+        This enables an explicit tmpfs mount for this step.
+    tmpfs_tempdir: bool, default: True
+        sets METAFLOW_TEMPDIR to tmpfs_path if set for this step.
+    tmpfs_size: int, optional
+        The value for the size (in MiB) of the tmpfs mount for this step.
+        This parameter maps to the `--tmpfs` option in Docker. Defaults to 50% of the
+        memory allocated for this step.
+    tmpfs_path: string, optional
+        Path to tmpfs mount for this step. Defaults to /metaflow_temp.
     """
 
     name = "kubernetes"
@@ -81,6 +92,10 @@ class KubernetesDecorator(StepDecorator):
         "gpu_vendor": None,
         "tolerations": None,  # e.g., [{"key": "arch", "operator": "Equal", "value": "amd"},
         #                              {"key": "foo", "operator": "Equal", "value": "bar"}]
+        "use_tmpfs": None,
+        "tmpfs_tempdir": True,
+        "tmpfs_size": None,
+        "tmpfs_path": "/metaflow_temp",
     }
     package_url = None
     package_sha = None
@@ -307,6 +322,11 @@ class KubernetesDecorator(StepDecorator):
     ):
         self.metadata = metadata
         self.task_datastore = task_datastore
+
+        # current.tempdir reflects the value of METAFLOW_TEMPDIR (the current working
+        # directory by default), or the value of tmpfs_path if tmpfs_tempdir=False.
+        if not self.attributes["tmpfs_tempdir"]:
+            current._update_env({"tempdir": self.attributes["tmpfs_path"]})
 
         # task_pre_step may run locally if fallback is activated for @catch
         # decorator. In that scenario, we skip collecting Kubernetes execution

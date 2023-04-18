@@ -6,6 +6,12 @@ import time
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import KUBERNETES_SECRETS
 
+try:
+    unicode
+except NameError:
+    unicode = str
+    basestring = str
+
 CLIENT_REFRESH_INTERVAL_SECONDS = 300
 
 
@@ -69,6 +75,24 @@ class KubernetesJob(object):
         # Note: This implementation ensures that there is only one unique Pod
         # (unique UID) per Metaflow task attempt.
         client = self._client.get()
+
+        # tmpfs variables
+        use_tmpfs = self._kwargs["use_tmpfs"]
+        tmpfs_size = self._kwargs["tmpfs_size"]
+        tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
+        if tmpfs_enabled:
+            if tmpfs_size:
+                if not (isinstance(tmpfs_size, (int, unicode, basestring))):
+                    raise KubernetesJobException(
+                        "Invalid tmpfs value: ({}) (should be 0 or greater)".format(
+                            tmpfs_size
+                        )
+                    )
+            else:
+                # default tmpfs behavior - https://man7.org/linux/man-pages/man5/tmpfs.5.html
+                tmpfs_size = int(self._kwargs["memory"]) / 2
+            # Add default unit as ours differs from Kubernetes default.
+            tmpfs_size = "{}Mi".format(tmpfs_size)
 
         self._job = client.V1Job(
             api_version="batch/v1",
@@ -161,6 +185,14 @@ class KubernetesJob(object):
                                         if self._kwargs["gpu"] is not None
                                     },
                                 ),
+                                volume_mounts=[
+                                    client.V1VolumeMount(
+                                        mount_path=self._kwargs.get("tmpfs_path"),
+                                        name="tmpfs-ephemeral-volume",
+                                    )
+                                ]
+                                if tmpfs_enabled
+                                else [],
                             )
                         ],
                         node_selector=self._kwargs.get("node_selector"),
@@ -182,7 +214,16 @@ class KubernetesJob(object):
                             client.V1Toleration(**toleration)
                             for toleration in self._kwargs.get("tolerations") or []
                         ],
-                        # volumes=?,
+                        volumes=[
+                            client.V1Volume(
+                                name="tmpfs-ephemeral-volume",
+                                empty_dir=client.V1EmptyDirVolumeSource(
+                                    size_limit=tmpfs_size
+                                ),
+                            )
+                        ]
+                        if tmpfs_enabled
+                        else [],
                         # TODO (savin): Set termination_message_policy
                     ),
                 ),

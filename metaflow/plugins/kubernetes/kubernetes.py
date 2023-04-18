@@ -149,6 +149,10 @@ class Kubernetes(object):
         gpu_vendor=None,
         disk=None,
         memory=None,
+        use_tmpfs=None,
+        tmpfs_tempdir=None,
+        tmpfs_size=None,
+        tmpfs_path=None,
         run_time_limit=None,
         env=None,
         tolerations=None,
@@ -185,6 +189,10 @@ class Kubernetes(object):
                 retries=0,
                 step_name=step_name,
                 tolerations=tolerations,
+                use_tmpfs=use_tmpfs,
+                tmpfs_tempdir=tmpfs_tempdir,
+                tmpfs_size=tmpfs_size,
+                tmpfs_path=tmpfs_path,
             )
             .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
             .environment_variable("METAFLOW_CODE_URL", code_package_url)
@@ -236,6 +244,10 @@ class Kubernetes(object):
             # pod; this happens when METAFLOW_DATASTORE_SYSROOT_LOCAL is NOT set (
             # see get_datastore_root_from_config in datastore/local.py).
         )
+
+        tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
+        if tmpfs_enabled and tmpfs_tempdir:
+            job.environment_variable("METAFLOW_TEMPDIR", tmpfs_path)
 
         for name, value in env.items():
             job.environment_variable(name, value)
