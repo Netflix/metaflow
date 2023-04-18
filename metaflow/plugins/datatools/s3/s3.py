@@ -1305,6 +1305,8 @@ class S3(object):
                     }
                 if self._upload_args:
                     upload_args = self._upload_args
+                    if "ServerSideEncryption" in upload_args:
+                        store_info["encryption"] = upload_args["ServerSideEncryption"]
                     store_info.update(upload_args)
                 if not os.path.exists(path):
                     raise MetaflowS3NotFound("Local file not found: %s" % path)
