@@ -64,6 +64,7 @@ class S3Url(object):
         prefix,
         content_type=None,
         metadata=None,
+        encryption=None,
         range=None,
         idx=None,
     ):
@@ -74,7 +75,8 @@ class S3Url(object):
         self.local = local
         self.prefix = prefix
         self.content_type = content_type
-        self.metadata = metadata
+        self.metadata = metadata,
+        self.encryption=encryption,
         self.range = range
         self.idx = idx
 
@@ -171,6 +173,7 @@ def worker(result_file_name, queue, mode, s3config):
                 "error": None,
                 "size": head["ContentLength"],
                 "content_type": head["ContentType"],
+                "encryption": head["ServerSideEncryption"],
                 "metadata": head["Metadata"],
                 "last_modified": get_timestamp(head["LastModified"]),
             }
@@ -276,6 +279,8 @@ def worker(result_file_name, queue, mode, s3config):
                                 args["content_type"] = resp["ContentType"]
                             if resp["Metadata"] is not None:
                                 args["metadata"] = resp["Metadata"]
+                            if resp["ServerSideEncryption"] is not None:
+                                args["encryptoin"] = resp["ServerSideEncryption"]
                             if resp["LastModified"]:
                                 args["last_modified"] = get_timestamp(
                                     resp["LastModified"]
@@ -299,12 +304,14 @@ def worker(result_file_name, queue, mode, s3config):
                         do_upload = True
                     if do_upload:
                         extra = None
-                        if url.content_type or url.metadata:
+                        if url.content_type or url.metadata or url.encryption:
                             extra = {}
                             if url.content_type:
                                 extra["ContentType"] = url.content_type
                             if url.metadata is not None:
                                 extra["Metadata"] = url.metadata
+                            if url.encryption is not None:
+                                extra["ServerSideEncryption"] = url.encryption
                         try:
                             s3.upload_file(
                                 url.local, url.bucket, url.path, ExtraArgs=extra
@@ -461,6 +468,7 @@ class S3Ops(object):
                             prefix=url.prefix,
                             content_type=head["ContentType"],
                             metadata=head["Metadata"],
+                            encryption=head["ServerSideEncryption"],
                             range=url.range,
                         ),
                         head["ContentLength"],
@@ -578,7 +586,7 @@ def verify_results(urls, verbose=False):
             raise
         if expected != got:
             exit(ERROR_VERIFY_FAILED, url)
-        if url.content_type or url.metadata:
+        if url.content_type or url.metadata or url.encryption:
             # Verify that we also have a metadata file present
             try:
                 os.stat("%s_meta" % url.local)
@@ -837,12 +845,13 @@ def put(
                 local = r["local"]
                 url = r["url"]
                 content_type = r.get("content_type", None)
+                encryption = r.get("encryption", None)
                 metadata = r.get("metadata", None)
                 if not os.path.exists(local):
                     exit(ERROR_LOCAL_FILE_NOT_FOUND, local)
-                yield input_line_idx, local, url, content_type, metadata
+                yield input_line_idx, local, url, content_type, metadata, encryption
 
-    def _make_url(idx, local, user_url, content_type, metadata):
+    def _make_url(idx, local, user_url, content_type, metadata, encryption):
         src = urlparse(user_url)
         url = S3Url(
             url=user_url,
@@ -851,6 +860,7 @@ def put(
             local=local,
             prefix=None,
             content_type=content_type,
+            encryption=encryption,
             metadata=metadata,
             idx=idx,
         )
@@ -895,6 +905,7 @@ def put(
                         "url": url.url,
                         "local": url.local,
                         "content_type": url.content_type,
+                        "encryption": url.encryption,
                         "metadata": url.metadata,
                     }
                 )
