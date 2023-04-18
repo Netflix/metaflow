@@ -280,7 +280,7 @@ def worker(result_file_name, queue, mode, s3config):
                             if resp["Metadata"] is not None:
                                 args["metadata"] = resp["Metadata"]
                             if resp["ServerSideEncryption"] is not None:
-                                args["encryptoin"] = resp["ServerSideEncryption"]
+                                args["encryption"] = resp["ServerSideEncryption"]
                             if resp["LastModified"]:
                                 args["last_modified"] = get_timestamp(
                                     resp["LastModified"]

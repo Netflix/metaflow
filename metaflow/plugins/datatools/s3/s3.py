@@ -776,7 +776,7 @@ class S3(object):
                 path=None,
                 size=info_results["size"],
                 content_type=info_results["content_type"],
-                encryption=info_results["ServerSideEncryption"],
+                encryption=info_results["encryption"],
                 metadata=info_results["metadata"],
                 last_modified=info_results["last_modified"],
             )
