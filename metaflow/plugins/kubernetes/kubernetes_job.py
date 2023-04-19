@@ -6,12 +6,6 @@ import time
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import KUBERNETES_SECRETS
 
-try:
-    unicode
-except NameError:
-    unicode = str
-    basestring = str
-
 CLIENT_REFRESH_INTERVAL_SECONDS = 300
 
 
@@ -81,16 +75,9 @@ class KubernetesJob(object):
         tmpfs_size = self._kwargs["tmpfs_size"]
         tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
         if tmpfs_enabled:
-            if tmpfs_size:
-                if not (isinstance(tmpfs_size, (int, unicode, basestring))):
-                    raise KubernetesJobException(
-                        "Invalid tmpfs value: ({}) (should be 0 or greater)".format(
-                            tmpfs_size
-                        )
-                    )
-            else:
+            if not tmpfs_size:
                 # default tmpfs behavior - https://man7.org/linux/man-pages/man5/tmpfs.5.html
-                tmpfs_size = int(self._kwargs["memory"]) / 2
+                tmpfs_size = int(int(self._kwargs["memory"]) / 2)
             # Add default unit as ours differs from Kubernetes default.
             tmpfs_size = "{}Mi".format(tmpfs_size)
 

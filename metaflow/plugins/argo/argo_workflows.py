@@ -36,12 +36,6 @@ from metaflow.util import compress_list, dict_to_cli_options, to_camelcase
 
 from .argo_client import ArgoClient
 
-try:
-    unicode
-except NameError:
-    unicode = str
-    basestring = str
-
 
 class ArgoWorkflowsException(MetaflowException):
     headline = "Argo Workflows error"
@@ -1292,12 +1286,6 @@ class Template(object):
         # Do not add volume if size is zero. Enables conditional chaining.
         if size_limit == 0:
             return self
-        if size_limit and not (isinstance(size_limit, (int, unicode, basestring))):
-            raise ArgoWorkflowsException(
-                "Invalid tmpfs value: ({}) (should be greater than 0)".format(
-                    size_limit
-                )
-            )
         # Attach an emptyDir volume
         # https://argoproj.github.io/argo-workflows/empty-dir/
         if "volumes" not in self.payload:

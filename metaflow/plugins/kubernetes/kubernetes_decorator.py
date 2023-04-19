@@ -249,6 +249,17 @@ class KubernetesDecorator(StepDecorator):
                 )
             )
 
+        if self.attributes["tmpfs_size"]:
+            if not (
+                isinstance(self.attributes["tmpfs_size"], (int, unicode, basestring))
+                and float(self.attributes["tmpfs_size"]).is_integer()
+            ):
+                raise KubernetesException(
+                    "Invalid tmpfs_size value: *{size}* for step *{step}* (should be an integer 0 or greater)".format(
+                        size=self.attributes["tmpfs_size"], step=step
+                    )
+                )
+
     def package_init(self, flow, step_name, environment):
         try:
             # Kubernetes is a soft dependency.
