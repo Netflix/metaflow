@@ -141,10 +141,10 @@ class S3Object(object):
         path: str,
         size: Optional[int] = None,
         content_type: Optional[str] = None,
-        encryption: Optional[str] = None,
         metadata: Optional[Dict[str, str]] = None,
         range_info: Optional[RangeInfo] = None,
         last_modified: int = None,
+        encryption: Optional[str] = None,
     ):
         # all fields of S3Object should return a unicode object
         prefix, url, path = map(ensure_unicode, (prefix, url, path))
@@ -154,7 +154,6 @@ class S3Object(object):
         self._path = path
         self._key = None
         self._content_type = content_type
-        self._encryption = encryption
         self._last_modified = last_modified
 
         self._metadata = None
@@ -179,6 +178,8 @@ class S3Object(object):
         else:
             self._key = url[len(prefix.rstrip("/")) + 1 :].rstrip("/")
             self._prefix = prefix
+        
+        self._encryption = encryption
 
     @property
     def exists(self) -> bool:
@@ -755,10 +756,10 @@ class S3(object):
             resp = s3.head_object(Bucket=src.netloc, Key=src.path.lstrip('/"'))
             return {
                 "content_type": resp["ContentType"],
-                "encryption": resp["ServerSideEncryption"],
                 "metadata": resp["Metadata"],
                 "size": resp["ContentLength"],
                 "last_modified": get_timestamp(resp["LastModified"]),
+                "encryption": resp["ServerSideEncryption"]
             }
 
         info_results = None
@@ -776,9 +777,9 @@ class S3(object):
                 path=None,
                 size=info_results["size"],
                 content_type=info_results["content_type"],
-                encryption=info_results["encryption"],
                 metadata=info_results["metadata"],
                 last_modified=info_results["last_modified"],
+                encryption=info_results["encryption"]
             )
         return S3Object(self._s3root, url, None)
 
@@ -830,9 +831,8 @@ class S3(object):
                         else:
                             raise MetaflowS3Exception("Got error: %d" % info["error"])
                     else:
-                        yield self._s3root, s3url, None, info["size"], info[
-                            "content_type"
-                        ], info["encryption"], info["metadata"], None, info["last_modified"]
+                        yield self._s3root, s3url, None, info["size"], info["content_type"
+                        ], info["metadata"], None, info["last_modified"], info["encryption"]
                 else:
                     # This should not happen; we should always get a response
                     # even if it contains an error inside it
@@ -991,12 +991,8 @@ class S3(object):
                                 + 1,
                             )
                         yield self._s3root, s3url, os.path.join(
-                            self._tmpdir, fname
-                        ), None, info["content_type"], info[
-                            "metadata"
-                        ], info["encryption"], range_info, info[
-                            "last_modified"
-                        ]
+                            self._tmpdir, fname), None, info["content_type"], info[ "metadata"], 
+                        range_info, info["last_modified"], info["encryption"]
                     else:
                         yield self._s3root, s3prefix, None
                 else:
@@ -1054,9 +1050,8 @@ class S3(object):
                         )
                     yield self._s3root, s3url, os.path.join(
                         self._tmpdir, fname
-                    ), None, info["content_type"], info["encryption"], info["metadata"], range_info, info[
-                        "last_modified"
-                    ]
+                    ), None, info["content_type"], info["metadata"], range_info, 
+                    info["last_modified"], info["encryption"]
                 else:
                     yield s3prefix, s3url, os.path.join(self._tmpdir, fname)
 
@@ -1229,7 +1224,7 @@ class S3(object):
                 if self._upload_args:
                     upload_args = self._upload_args
                     if "ServerSideEncryption" in upload_args:
-                        store_info["encryption"] = upload_args["ServerSideEncryption"]
+                        upload_args["encryption"] = upload_args["ServerSideEncryption"]
                     store_info.update(upload_args)
                 if isinstance(obj, (RawIOBase, BufferedIOBase)):
                     if not obj.readable() or not obj.seekable():
@@ -1306,7 +1301,7 @@ class S3(object):
                 if self._upload_args:
                     upload_args = self._upload_args
                     if "ServerSideEncryption" in upload_args:
-                        store_info["encryption"] = upload_args["ServerSideEncryption"]
+                        upload_args["encryption"] = upload_args["ServerSideEncryption"]
                     store_info.update(upload_args)
                 if not os.path.exists(path):
                     raise MetaflowS3NotFound("Local file not found: %s" % path)
