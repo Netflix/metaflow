@@ -199,8 +199,9 @@ class KubernetesJob(object):
                             client.V1Volume(
                                 name="tmpfs-ephemeral-volume",
                                 empty_dir=client.V1EmptyDirVolumeSource(
+                                    medium="Memory",
                                     # Add default unit as ours differs from Kubernetes default.
-                                    size_limit="{}Mi".format(tmpfs_size)
+                                    size_limit="{}Mi".format(tmpfs_size),
                                 ),
                             )
                         ]

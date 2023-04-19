@@ -912,7 +912,9 @@ class ArgoWorkflows(object):
                 .empty_dir_volume("out")
                 # Set tmpfs emptyDir volume if enabled
                 .empty_dir_volume(
-                    "argo-tmpfs-volume", size_limit=tmpfs_size if tmpfs_enabled else 0
+                    "argo-tmpfs-volume",
+                    medium="Memory",
+                    size_limit=tmpfs_size if tmpfs_enabled else 0,
                 )
                 # Set node selectors
                 .node_selectors(resources.get("node_selector"))
@@ -1268,7 +1270,7 @@ class Template(object):
             }
         return self
 
-    def empty_dir_volume(self, name, size_limit=None):
+    def empty_dir_volume(self, name, medium=None, size_limit=None):
         """
         Create and attach an emptyDir volume for Kubernetes.
 
@@ -1278,6 +1280,8 @@ class Template(object):
             name for the volume
         size_limit: int (optional)
             sizeLimit (in MiB) for the volume
+        medium: str (optional)
+            storage medium of the emptyDir
         """
         # Do not add volume if size is zero. Enables conditional chaining.
         if size_limit == 0:
@@ -1291,10 +1295,9 @@ class Template(object):
                 "name": name,
                 "emptyDir": {
                     # Add default unit as ours differs from Kubernetes default.
-                    "sizeLimit": "{}Mi".format(size_limit)
-                }
-                if size_limit
-                else {},
+                    **({"sizeLimit": "{}Mi".format(size_limit)} if size_limit else {}),
+                    **({"medium": medium} if medium else {}),
+                },
             }
         )
         return self
