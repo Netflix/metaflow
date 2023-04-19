@@ -991,8 +991,7 @@ class S3(object):
                                 + 1,
                             )
                         yield self._s3root, s3url, os.path.join(
-                            self._tmpdir, fname), None, info["content_type"], info[ "metadata"], 
-                        range_info, info["last_modified"], info["encryption"]
+                            self._tmpdir, fname), None, info["content_type"], info[ "metadata"], range_info, info["last_modified"], info["encryption"]
                     else:
                         yield self._s3root, s3prefix, None
                 else:
@@ -1001,7 +1000,6 @@ class S3(object):
                     else:
                         # missing entries per return_missing=True
                         yield self._s3root, s3prefix, None
-
         return list(starmap(S3Object, _get()))
 
     def get_recursive(
@@ -1050,11 +1048,9 @@ class S3(object):
                         )
                     yield self._s3root, s3url, os.path.join(
                         self._tmpdir, fname
-                    ), None, info["content_type"], info["metadata"], range_info, 
-                    info["last_modified"], info["encryption"]
+                    ), None, info["content_type"], info["metadata"], range_info, info["last_modified"], info["encryption"]
                 else:
                     yield s3prefix, s3url, os.path.join(self._tmpdir, fname)
-
         return list(starmap(S3Object, _get()))
 
     def get_all(self, return_info: bool = False) -> List[S3Object]:
