@@ -912,7 +912,7 @@ class ArgoWorkflows(object):
                 .empty_dir_volume("out")
                 # Set tmpfs emptyDir volume if enabled
                 .empty_dir_volume(
-                    "argo-tmpfs-volume",
+                    "tmpfs-ephemeral-volume",
                     medium="Memory",
                     size_limit=tmpfs_size if tmpfs_enabled else 0,
                 )
