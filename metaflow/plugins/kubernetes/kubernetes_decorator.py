@@ -165,6 +165,13 @@ class KubernetesDecorator(StepDecorator):
                     KUBERNETES_CONTAINER_REGISTRY.rstrip("/"),
                     self.attributes["image"],
                 )
+        # Check if TmpFS is enabled and set default tmpfs_size if missing.
+        if self.attributes["use_tmpfs"] or (
+            self.attributes["tmpfs_size"] and not self.attributes["use_tmpfs"]
+        ):
+            if not self.attributes["tmpfs_size"]:
+                # default tmpfs behavior - https://man7.org/linux/man-pages/man5/tmpfs.5.html
+                self.attributes["tmpfs_size"] = int(self.attributes["memory"]) // 2
 
     # Refer https://github.com/Netflix/metaflow/blob/master/docs/lifecycle.png
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
@@ -252,10 +259,10 @@ class KubernetesDecorator(StepDecorator):
         if self.attributes["tmpfs_size"]:
             if not (
                 isinstance(self.attributes["tmpfs_size"], (int, unicode, basestring))
-                and float(self.attributes["tmpfs_size"]).is_integer()
+                and int(self.attributes["tmpfs_size"]) > 0
             ):
                 raise KubernetesException(
-                    "Invalid tmpfs_size value: *{size}* for step *{step}* (should be an integer 0 or greater)".format(
+                    "Invalid tmpfs_size value: *{size}* for step *{step}* (should be an integer greater than 0)".format(
                         size=self.attributes["tmpfs_size"], step=step
                     )
                 )

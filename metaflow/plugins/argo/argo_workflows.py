@@ -874,10 +874,6 @@ class ArgoWorkflows(object):
             tmpfs_tempdir = resources["tmpfs_tempdir"]
 
             tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
-            if tmpfs_enabled:
-                if not tmpfs_size:
-                    # default tmpfs behavior - https://man7.org/linux/man-pages/man5/tmpfs.5.html
-                    tmpfs_size = int(int(resources["memory"]) / 2)
 
             if tmpfs_enabled and tmpfs_tempdir:
                 env["METAFLOW_TEMPDIR"] = tmpfs_path

@@ -74,12 +74,6 @@ class KubernetesJob(object):
         use_tmpfs = self._kwargs["use_tmpfs"]
         tmpfs_size = self._kwargs["tmpfs_size"]
         tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
-        if tmpfs_enabled:
-            if not tmpfs_size:
-                # default tmpfs behavior - https://man7.org/linux/man-pages/man5/tmpfs.5.html
-                tmpfs_size = int(int(self._kwargs["memory"]) / 2)
-            # Add default unit as ours differs from Kubernetes default.
-            tmpfs_size = "{}Mi".format(tmpfs_size)
 
         self._job = client.V1Job(
             api_version="batch/v1",
@@ -205,7 +199,8 @@ class KubernetesJob(object):
                             client.V1Volume(
                                 name="tmpfs-ephemeral-volume",
                                 empty_dir=client.V1EmptyDirVolumeSource(
-                                    size_limit=tmpfs_size
+                                    # Add default unit as ours differs from Kubernetes default.
+                                    size_limit="{}Mi".format(tmpfs_size)
                                 ),
                             )
                         ]
