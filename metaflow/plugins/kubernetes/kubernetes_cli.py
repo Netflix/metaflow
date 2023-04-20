@@ -86,11 +86,17 @@ def kubernetes():
     help="Run time limit in seconds for Kubernetes pod.",
 )
 @click.option(
+    "--volumes",
+    default=None,
+    help="This option mounts volumes into your pods. Please note: Currently only *NFS* volumes"
+)
+@click.option(
     "--tolerations",
     default=None,
     type=JSONTypeClass(),
     multiple=False,
 )
+
 @click.pass_context
 def step(
     ctx,
@@ -110,6 +116,7 @@ def step(
     gpu_vendor=None,
     run_time_limit=None,
     tolerations=None,
+    volumes=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", job_id=None, **kwargs):
@@ -218,6 +225,7 @@ def step(
                 run_time_limit=run_time_limit,
                 env=env,
                 tolerations=tolerations,
+                volumes=volumes,
             )
     except Exception as e:
         traceback.print_exc(chain=False)

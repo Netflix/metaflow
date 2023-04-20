@@ -2,6 +2,7 @@ import json
 import math
 import random
 import time
+from ast import literal_eval
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import KUBERNETES_SECRETS
@@ -70,6 +71,9 @@ class KubernetesJob(object):
         # (unique UID) per Metaflow task attempt.
         client = self._client.get()
 
+        # get all volumes as dict
+        volumes = dict(literal_eval(self._kwargs["volumes"]))
+       
         self._job = client.V1Job(
             api_version="batch/v1",
             kind="Job",
@@ -161,6 +165,12 @@ class KubernetesJob(object):
                                         if self._kwargs["gpu"] is not None
                                     },
                                 ),
+                                # only NFS volumes at the moment
+                                volume_mounts=[client.V1VolumeMount(
+                                    name=f"metaflow-nfs-{volume['source']['path'].replace('/','-')}",
+                                    mount_path=volume["mount"]["path"],
+                                    read_only=volume["mount"]["read_only"] if volume["mount"]["read_only"] else False
+                                ) for volume in volumes["nfs"]]
                             )
                         ],
                         node_selector=self._kwargs.get("node_selector"),
@@ -182,8 +192,19 @@ class KubernetesJob(object):
                             client.V1Toleration(**toleration)
                             for toleration in self._kwargs.get("tolerations") or []
                         ],
-                        # volumes=?,
                         # TODO (savin): Set termination_message_policy
+                        # only NFS volumes at the moment
+                        volumes=[
+                              client.V1Volume(
+                                name=f"metaflow-nfs-{volume['source']['path'].replace('/','-')}",
+                                nfs=client.V1NFSVolumeSource(
+                                    path=volume['source']['path'],
+                                    read_only=volume["source"]["read_only"] if volume["source"]["read_only"] else False,
+                                    server=volume['source']['server']
+                                ),
+                            )
+                        for volume in volumes["nfs"] ]
+                        
                     ),
                 ),
             ),
