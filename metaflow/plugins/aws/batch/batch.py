@@ -257,7 +257,7 @@ class Batch(object):
                 AWS_SECRETS_MANAGER_DEFAULT_REGION,
             )
 
-        tmpfs_enabled = use_tmpfs or (tmpfs_size and use_tmpfs is None)
+        tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
 
         if tmpfs_enabled and tmpfs_tempdir:
             job.environment_variable("METAFLOW_TEMPDIR", tmpfs_path)
