@@ -326,16 +326,8 @@ class MetaflowObject(object):
         self._user_tags = frozenset(self._object.get("tags") or [])
         self._system_tags = frozenset(self._object.get("system_tags") or [])
 
-        if self._get_attribute("_namespace_check", True) and not self.is_in_namespace():
+        if self._namespace_check and not self.is_in_namespace():
             raise MetaflowNamespaceMismatch(current_namespace)
-
-    def _get_attribute(self, name, default=None):
-        """
-        Returns the attribute if it exists in this object else returns a default
-        """
-        if name in self.__dict__:
-            return self.__dict__[name]
-        return default
 
     def _get_object(self, *path_components):
         result = self._metaflow.metadata.get_object(
@@ -360,7 +352,7 @@ class MetaflowObject(object):
         query_filter = {}
 
         # skip namespace filtering if _namespace_check is unset.
-        if self._get_attribute("_namespace_check", True) and current_namespace:
+        if self._namespace_check and current_namespace:
             query_filter = {"any_tags": current_namespace}
 
         unfiltered_children = self._metaflow.metadata.get_object(
@@ -473,7 +465,7 @@ class MetaflowObject(object):
                 attempt=self._attempt,
                 _object=obj,
                 _parent=self,
-                _namespace_check=self._get_attribute("_namespace_check", True),
+                _namespace_check=self._namespace_check,
             )
         else:
             raise KeyError(id)
@@ -493,6 +485,11 @@ class MetaflowObject(object):
             True if the child exists or False otherwise
         """
         return bool(self._get_child(id))
+
+    def __setstate__(self, state):
+        self.__dict__ = state
+        if "_namespace_check" not in state:
+            self._namespace_check = True
 
     @property
     def tags(self) -> FrozenSet[str]:
