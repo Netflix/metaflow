@@ -241,8 +241,8 @@ class KubernetesDecorator(StepDecorator):
                     isinstance(volume["source"]["path"], (unicode, basestring))
                     and isinstance(volume["source"]["server"], (unicode, basestring))
                     and isinstance(volume["mount"]["path"], (unicode, basestring))
-                    and os.path.abspath(volume["source"]["path"])
-                    and os.path.abspath(volume["mount"]["path"])
+                    and os.path.isabs(volume["source"]["path"])
+                    and os.path.isabs(volume["mount"]["path"])
                 ):
                     raise KubernetesException(
                         "Invalid NFS volume mount for step *{step}*. Please check again {server}, {path}, {mounted_path}".format(
