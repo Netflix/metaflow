@@ -234,22 +234,22 @@ class KubernetesDecorator(StepDecorator):
                     self.attributes["gpu"], step=step
                 )
             )
-        
+
         if self.attributes["volumes"]:
             for volume in self.attributes["volumes"]["nfs"]:
-                
-                if not (isinstance(volume["source"]["path"], (unicode, basestring))
-                        and isinstance(volume["source"]["server"], (unicode, basestring))
-                        and isinstance(volume["mount"]["path"], (unicode, basestring))
-                        and os.path.abspath(volume["source"]["path"])
-                        and os.path.abspath(volume["mount"]["path"])):
-                    
+                if not (
+                    isinstance(volume["source"]["path"], (unicode, basestring))
+                    and isinstance(volume["source"]["server"], (unicode, basestring))
+                    and isinstance(volume["mount"]["path"], (unicode, basestring))
+                    and os.path.abspath(volume["source"]["path"])
+                    and os.path.abspath(volume["mount"]["path"])
+                ):
                     raise KubernetesException(
                         "Invalid NFS volume mount for step *{step}*. Please check again {server}, {path}, {mounted_path}".format(
                             server=volume["source"]["server"],
                             path=volume["source"]["path"],
                             mounted_path=volume["mount"]["path"],
-                            step=step
+                            step=step,
                         )
                     )
 

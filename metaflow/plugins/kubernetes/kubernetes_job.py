@@ -73,7 +73,7 @@ class KubernetesJob(object):
 
         # get all volumes as dict
         volumes = dict(literal_eval(self._kwargs["volumes"]))
-       
+
         self._job = client.V1Job(
             api_version="batch/v1",
             kind="Job",
@@ -166,11 +166,16 @@ class KubernetesJob(object):
                                     },
                                 ),
                                 # only NFS volumes at the moment
-                                volume_mounts=[client.V1VolumeMount(
-                                    name=f"metaflow-nfs-{volume['source']['path'].replace('/','-')}",
-                                    mount_path=volume["mount"]["path"],
-                                    read_only=volume["mount"]["read_only"] if volume["mount"]["read_only"] else False
-                                ) for volume in volumes["nfs"]]
+                                volume_mounts=[
+                                    client.V1VolumeMount(
+                                        name=f"metaflow-nfs-{volume['source']['path'].replace('/','-')}",
+                                        mount_path=volume["mount"]["path"],
+                                        read_only=volume["mount"]["read_only"]
+                                        if volume["mount"]["read_only"]
+                                        else False,
+                                    )
+                                    for volume in volumes["nfs"]
+                                ],
                             )
                         ],
                         node_selector=self._kwargs.get("node_selector"),
@@ -195,16 +200,18 @@ class KubernetesJob(object):
                         # TODO (savin): Set termination_message_policy
                         # only NFS volumes at the moment
                         volumes=[
-                              client.V1Volume(
+                            client.V1Volume(
                                 name=f"metaflow-nfs-{volume['source']['path'].replace('/','-')}",
                                 nfs=client.V1NFSVolumeSource(
-                                    path=volume['source']['path'],
-                                    read_only=volume["source"]["read_only"] if volume["source"]["read_only"] else False,
-                                    server=volume['source']['server']
+                                    path=volume["source"]["path"],
+                                    read_only=volume["source"]["read_only"]
+                                    if volume["source"]["read_only"]
+                                    else False,
+                                    server=volume["source"]["server"],
                                 ),
                             )
-                        for volume in volumes["nfs"] ]
-                        
+                            for volume in volumes["nfs"]
+                        ],
                     ),
                 ),
             ),
@@ -287,7 +294,6 @@ class KubernetesJob(object):
 
 
 class RunningJob(object):
-
     # State Machine implementation for the lifecycle behavior documented in
     # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
     #
@@ -407,7 +413,6 @@ class RunningJob(object):
         client = self._client.get()
         if not self.is_done:
             if self.is_running:
-
                 # Case 1.
                 from kubernetes.stream import stream
 

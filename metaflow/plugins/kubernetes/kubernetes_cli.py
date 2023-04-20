@@ -88,7 +88,7 @@ def kubernetes():
 @click.option(
     "--volumes",
     default=None,
-    help="This option mounts volumes into your pods. Please note: Currently only *NFS* volumes"
+    help="This option mounts volumes into your pods. Please note: Currently only *NFS* volumes",
 )
 @click.option(
     "--tolerations",
@@ -96,7 +96,6 @@ def kubernetes():
     type=JSONTypeClass(),
     multiple=False,
 )
-
 @click.pass_context
 def step(
     ctx,
