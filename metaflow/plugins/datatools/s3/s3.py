@@ -831,8 +831,9 @@ class S3(object):
                         else:
                             raise MetaflowS3Exception("Got error: %d" % info["error"])
                     else:
-                        yield self._s3root, s3url, None, info["size"], info["content_type"],
-                        info["metadata"], None, info["last_modified"], info["encryption"]
+                        yield self._s3root, s3url, None, info["size"], \
+                        info["content_type"], info["metadata"], None, \
+                        info["last_modified"], info["encryption"]
                 else:
                     # This should not happen; we should always get a response
                     # even if it contains an error inside it
@@ -990,8 +991,9 @@ class S3(object):
                                 - range_info["start"]
                                 + 1,
                             )
-                        yield self._s3root, s3url, os.path.join(self._tmpdir, fname),
-                        None, info["content_type"], info[ "metadata"], range_info, info["last_modified"], info["encryption"]
+                            yield self._s3root, s3url, os.path.join(self._tmpdir, fname ), \
+                                None, info["content_type"], info["metadata"], \
+                                range_info, info["last_modified"], info["encryption"]
                     else:
                         yield self._s3root, s3prefix, None
                 else:
@@ -1046,8 +1048,8 @@ class S3(object):
                             request_offset=range_info["start"],
                             request_length=range_info["end"] - range_info["start"] + 1,
                         )
-                    yield self._s3root, s3url, os.path.join(self._tmpdir, fname),
-                    None, info["content_type"], info["metadata"], range_info,
+                    yield self._s3root, s3url, os.path.join(self._tmpdir, fname), \
+                    None, info["content_type"], info["metadata"], range_info, \
                     info["last_modified"], info["encryption"]
                 else:
                     yield s3prefix, s3url, os.path.join(self._tmpdir, fname)
