@@ -71,11 +71,11 @@ class KubernetesJob(object):
         # (unique UID) per Metaflow task attempt.
         client = self._client.get()
 
-        # get all volumes as dict
+        # get all volumes as dict else make empty nfs volume
         volumes = (
             dict(literal_eval(self._kwargs["volumes"]))
             if self._kwargs["volumes"] is not None
-            else {}
+            else {"nfs": []}
         )
 
         self._job = client.V1Job(
