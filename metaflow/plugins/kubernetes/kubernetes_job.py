@@ -72,7 +72,11 @@ class KubernetesJob(object):
         client = self._client.get()
 
         # get all volumes as dict
-        volumes = dict(literal_eval(self._kwargs["volumes"]))
+        volumes = (
+            dict(literal_eval(self._kwargs["volumes"]))
+            if self._kwargs["volumes"] is not None
+            else {}
+        )
 
         self._job = client.V1Job(
             api_version="batch/v1",
