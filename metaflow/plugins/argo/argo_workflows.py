@@ -998,7 +998,8 @@ class ArgoWorkflows(object):
                             + (
                                 [
                                     kubernetes_sdk.V1VolumeMount(
-                                        name="argo-tmpfs-volume", mount_path=tmpfs_path
+                                        name="tmpfs-ephemeral-volume",
+                                        mount_path=tmpfs_path,
                                     )
                                 ]
                                 if tmpfs_enabled
