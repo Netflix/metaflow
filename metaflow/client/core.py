@@ -22,6 +22,7 @@ from metaflow.exception import (
     MetaflowNotFound,
     MetaflowNamespaceMismatch,
     MetaflowInternalError,
+    MetaflowInvalidPathspec,
 )
 from metaflow.includefile import IncludedFile
 from metaflow.metaflow_config import DEFAULT_METADATA, MAX_ATTEMPTS
@@ -290,6 +291,21 @@ class MetaflowObject(object):
         if pathspec:
             ids = pathspec.split("/")
 
+            if self._NAME == "flow" and len(ids) != 1:
+                raise MetaflowInvalidPathspec("Expects Flow('FlowName')")
+            elif self._NAME == "run" and len(ids) != 2:
+                raise MetaflowInvalidPathspec("Expects Run('FlowName/RunID')")
+            elif self._NAME == "step" and len(ids) != 3:
+                raise MetaflowInvalidPathspec("Expects Step('FlowName/RunID/StepName')")
+            elif self._NAME == "task" and len(ids) != 4:
+                raise MetaflowInvalidPathspec(
+                    "Expects Task('FlowName/RunID/StepName/TaskID')"
+                )
+            elif self._NAME == "artifact" and len(ids) != 5:
+                raise MetaflowInvalidPathspec(
+                    "Expects DataArtifact('FlowName/RunID/StepName/TaskID/ArtifactName')"
+                )
+
             self.id = ids[-1]
             self._pathspec = pathspec
             self._object = self._get_object(*ids)
@@ -297,16 +313,16 @@ class MetaflowObject(object):
             self._object = _object
             self._pathspec = pathspec
 
-        if self._NAME in ("flow", "task"):
-            self.id = str(self._object[self._NAME + "_id"])
-        elif self._NAME == "run":
-            self.id = str(self._object["run_number"])
-        elif self._NAME == "step":
-            self.id = str(self._object["step_name"])
-        elif self._NAME == "artifact":
-            self.id = str(self._object["name"])
-        else:
-            raise MetaflowInternalError(msg="Unknown type: %s" % self._NAME)
+            if self._NAME in ("flow", "task"):
+                self.id = str(self._object[self._NAME + "_id"])
+            elif self._NAME == "run":
+                self.id = str(self._object["run_number"])
+            elif self._NAME == "step":
+                self.id = str(self._object["step_name"])
+            elif self._NAME == "artifact":
+                self.id = str(self._object["name"])
+            else:
+                raise MetaflowInternalError(msg="Unknown type: %s" % self._NAME)
 
         self._created_at = datetime.fromtimestamp(self._object["ts_epoch"] / 1000.0)
 
