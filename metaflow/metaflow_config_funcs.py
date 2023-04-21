@@ -65,7 +65,7 @@ def from_conf(name, default=None, validate_fn=None, prefix=False):
         len_prefix = len(env_name) + 1
         env_vars = {k[len_prefix:None]: v for k, v in os.environ.items() if k.startswith(env_name)}
         config_vars = {k[len_prefix:None]: v for k, v in METAFLOW_CONFIG.items() if k.startswith(env_name)}
-        value= {**config_vars, **env_vars}
+        value = {**config_vars, **env_vars}
     else:
         value = os.environ.get(env_name, METAFLOW_CONFIG.get(env_name, default))
     if validate_fn and value is not None:

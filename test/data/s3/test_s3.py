@@ -41,7 +41,8 @@ def s3_get_object_from_url_range(url, range_info):
 
 
 def assert_results(
-    s3objs, expected, upload_args=None, info_should_be_empty=False, info_only=False, ranges_fetched=None
+    s3objs, expected, upload_args=None, info_should_be_empty=False,
+    info_only=False, ranges_fetched=None
 ):
     # did we receive all expected objects and nothing else?
     if info_only:
@@ -145,7 +146,7 @@ def assert_results(
                         extra_keys
                     )
                 # if upload arguments are OK - this is not a comprehensive list
-                if upload_args: 
+                if upload_args:
                     assert s3obj.encryption == upload_args.get('ServerSideEncryption')
 
 
@@ -786,7 +787,7 @@ def test_get_recursive(inject_failure_rate, s3root, prefixes, expected):
         if len(prefixes) == 1:
             [prefix] = prefixes
             s3root = os.path.join(s3root, prefix)
-            keys = {url[len(s3root) + 1 :] for url in expected_exists}
+            keys = {url[len(s3root) + 1:] for url in expected_exists}
             assert {e.key for e in s3objs} == keys
 
         local_files = [s3obj.path for s3obj in s3objs]
@@ -812,9 +813,10 @@ def test_put_exceptions(inject_failure_rate):
 def s3_upload_args():
     return {
         'ServerSideEncryption': 'AES256',
-        'ACL': 'private', 
-        'StorageClass': 'STANDARD_IA'
+        'ACL': 'private',
+        'StorageClass': 'STANDARD_IA',
     }
+
 
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
 @pytest.mark.parametrize(
@@ -850,23 +852,23 @@ def test_put_many(inject_failure_rate, s3root, objs, expected, s3_upload_args):
     argnames=["s3root", "objs", "expected"], **s3_data.pytest_put_strings_case()
 )
 def test_put_one(s3root, objs, expected, s3_upload_args):
-        upload_args = [s3_upload_args, None]
-        for args in upload_args:
-            with S3(s3root=s3root, upload_args=args) as s3:
-                for key, obj in objs:
-                    s3url = s3.put(key, obj)
-                    assert s3url in expected
-                    s3obj = s3.get(key)
-                    assert s3obj.key == key
-                    assert_results([s3obj], {s3url: expected[s3url]}, upload_args=args)
-                    assert s3obj.blob == to_bytes(obj)
-                    # put with overwrite disabled
-                    s3url = s3.put(key, "random_value", overwrite=False)
-                    assert s3url in expected
-                    s3obj = s3.get(key)
-                    assert s3obj.key == key
-                    assert_results([s3obj], {s3url: expected[s3url]}, upload_args=args)
-                    assert s3obj.blob == to_bytes(obj)
+    upload_args = [s3_upload_args, None]
+    for args in upload_args:
+        with S3(s3root=s3root, upload_args=args) as s3:
+            for key, obj in objs:
+                s3url = s3.put(key, obj)
+                assert s3url in expected
+                s3obj = s3.get(key)
+                assert s3obj.key == key
+                assert_results([s3obj], {s3url: expected[s3url]}, upload_args=args)
+                assert s3obj.blob == to_bytes(obj)
+                # put with overwrite disabled
+                s3url = s3.put(key, "random_value", overwrite=False)
+                assert s3url in expected
+                s3obj = s3.get(key)
+                assert s3obj.key == key
+                assert_results([s3obj], {s3url: expected[s3url]}, upload_args=args)
+                assert s3obj.blob == to_bytes(obj)
 
 
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
