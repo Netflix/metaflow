@@ -845,7 +845,7 @@ def put(
                 local = r["local"]
                 url = r["url"]
                 content_type = r.get("content_type", None)
-                upload_args = {k: v for k, v in r.items() if k not in ["local", "url", "content_type", "metadata", "idx", "key", "encryption"]}
+                upload_args = {k: v for k, v in r.items() if k not in ["local", "url", "content_type", "metadata", "idx", "key"]}
                 metadata = r.get("metadata", None)
                 if not os.path.exists(local):
                     exit(ERROR_LOCAL_FILE_NOT_FOUND, local)
