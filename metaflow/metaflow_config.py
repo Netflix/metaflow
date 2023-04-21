@@ -72,7 +72,7 @@ S3_VERIFY_CERTIFICATE = from_conf("S3_VERIFY_CERTIFICATE")
 # Dictionary containing configurable S3 upload settings
 # e.g. ServerSideEncryption, Tagging, StorageClass, etc. 
 # List these parameters out using the prefix "METAFLOW_UPLOAD_ARGS_S3_[Key]".
-S3_UPLOAD_ARGS = from_conf("UPLOAD_ARGS_S3", {}, prefix=True)
+S3_UPLOAD_ARGS = from_conf("UPLOAD_ARGS_S3_", {}, prefix=True)
 
 # S3 retry configuration
 # This is useful if you want to "fail fast" on S3 operations; use with caution
