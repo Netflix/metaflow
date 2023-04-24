@@ -15,7 +15,8 @@ from metaflow.exception import (
     MetaflowInternalError,
     MetaflowInvalidPathspec,
     MetaflowNamespaceMismatch,
-    MetaflowNotFound )
+    MetaflowNotFound,
+)
 from metaflow.includefile import IncludedFile
 from metaflow.metaflow_config import DEFAULT_METADATA, MAX_ATTEMPTS
 from metaflow.metaflow_environment import MetaflowEnvironment

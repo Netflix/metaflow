@@ -137,7 +137,7 @@ class ArgoWorkflows(object):
         self.auto_emit_argo_events = auto_emit_argo_events
 
         self.parameters = self._process_parameters()
-        self.triggers = self._process_triggers()
+        self.triggers, self.trigger_options = self._process_triggers()
         self._schedule, self._timezone = self._get_schedule()
 
         self._workflow_template = self._compile_workflow_template()
@@ -376,6 +376,7 @@ class ArgoWorkflows(object):
             # specified with no explicit parameter mapping
             if len(triggers) == 1 and not triggers[0].get("parameters"):
                 triggers[0]["parameters"] = dict(zip(params, params))
+            options = self.flow._flow_decorators.get("trigger")[0].options
 
         # @trigger_on_finish decorator
         if self.flow._flow_decorators.get("trigger_on_finish"):
@@ -406,6 +407,7 @@ class ArgoWorkflows(object):
                         "flow": event["flow"],
                     }
                 )
+            options = self.flow._flow_decorators.get("trigger_on_finish")[0].options
 
         for event in triggers:
             # Assign a sanitized name since we need this at many places to please
@@ -419,7 +421,7 @@ class ArgoWorkflows(object):
                         base64.b32encode(sha1(to_bytes(event["name"])).digest())
                     )[:4].lower(),
                 )
-        return triggers
+        return triggers, options
 
     def _compile_workflow_template(self):
         # This method compiles a Metaflow FlowSpec into Argo WorkflowTemplate
@@ -493,6 +495,8 @@ class ArgoWorkflows(object):
                 #       the size of the generated YAML by a tiny bit.
                 # .automount_service_account_token()
                 # TODO: Support ImagePullSecrets for Argo & Kubernetes
+                #       Not strictly needed since a very valid workaround exists
+                #       https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#add-imagepullsecrets-to-a-service-account
                 # .image_pull_secrets(...)
                 # Limit workflow parallelism
                 .parallelism(self.max_workers)
@@ -1254,11 +1258,22 @@ class ArgoWorkflows(object):
         # where one (or more) fields across multiple events have the same value.
         # Imagine a scenario where we want to trigger a flow iff both the dependent
         # events agree on the same date field. Unfortunately, there isn't any way in
-        # Argo Events (as of mar'23) to ensure that.
+        # Argo Events (as of apr'23) to ensure that.
 
         # Nothing to do here - let's short circuit and exit.
         if not self.triggers:
             return {}
+
+        try:
+            # Kubernetes is a soft dependency for generating Argo objects.
+            # We can very well remove this dependency for Argo with the downside of
+            # adding a bunch more json bloat classes (looking at you... V1Container)
+            from kubernetes import client as kubernetes_sdk
+        except (NameError, ImportError):
+            raise MetaflowException(
+                "Could not import Python package 'kubernetes'. Install kubernetes "
+                "sdk (https://pypi.org/project/kubernetes/) first."
+            )
 
         labels = {"app.kubernetes.io/part-of": "metaflow"}
 
@@ -1291,8 +1306,35 @@ class ArgoWorkflows(object):
             .spec(
                 SensorSpec().template(
                     # Sensor template.
-                    SensorTemplate().service_account_name(ARGO_EVENTS_SERVICE_ACCOUNT)
-                    # TODO (savin): Run sensor in guaranteed QoS.
+                    SensorTemplate()
+                    .metadata(
+                        ObjectMeta()
+                        .label("app.kubernetes.io/name", "metaflow-sensor")
+                        .label("app.kubernetes.io/part-of", "metaflow")
+                        .annotations(annotations)
+                    )
+                    .container(
+                        # Run sensor in guaranteed QoS. The sensor isn't doing a lot
+                        # of work so we roll with minimal resource allocation. It is
+                        # likely that in subsequent releases we will agressively lower
+                        # sensor resources to pack more of them on a single node.
+                        to_camelcase(
+                            kubernetes_sdk.V1Container(
+                                name="main",
+                                resources=kubernetes_sdk.V1ResourceRequirements(
+                                    requests={
+                                        "cpu": "100m",
+                                        "memory": "250Mi",
+                                    },
+                                    limits={
+                                        "cpu": "100m",
+                                        "memory": "250Mi",
+                                    },
+                                ),
+                            )
+                        )
+                    )
+                    .service_account_name(ARGO_EVENTS_SERVICE_ACCOUNT)
                     # TODO (savin): Handle bypassing docker image rate limit errors.
                 )
                 # Set sensor replica to 1 for now.
@@ -1390,14 +1432,17 @@ class ArgoWorkflows(object):
                                     for event in self.triggers
                                 ]
                             )
+                            # Reset trigger conditions ever so often by wiping
+                            # away event tracking history on a schedule.
+                            # @trigger(options={"reset_at": {"cron": , "timezone": }})
+                            # timezone is IANA standard, e.g. America/Los_Angeles
+                            # TODO: Introduce "end_of_day", "end_of_hour" ..
+                        ).conditions_reset(
+                            cron=self.trigger_options.get("reset_at", {}).get("cron"),
+                            timezone=self.trigger_options.get("reset_at", {}).get(
+                                "timezone"
+                            ),
                         )
-                        # .conditions_reset(
-                        #     # Reset trigger conditions ever so often by wiping
-                        #     # away event tracking history on a schedule
-                        #     ConditionsResetCriteria().by_time(
-                        #         ConditionsResetByTime().cron().timezone()
-                        #     )
-                        # )
                     )
                 )
                 # Event dependencies. As of Mar' 23, Argo Events docs suggest using
@@ -2006,11 +2051,15 @@ class SensorTemplate(object):
         self.payload["serviceAccountName"] = service_account_name
         return self
 
-    # Introduce more fields as needed. Remember to set image_pull_secrets in this
-    # template when configuring container image pull secrets.
+    def metadata(self, object_meta):
+        self.payload["metadata"] = object_meta.to_json()
+        return self
 
-    # TODO (savin): Introduce other fields to ensure container doesn't run in best
-    #               effort QoS
+    def container(self, container):
+        # Luckily this can simply be V1Container and we are spared from writing more
+        # boilerplate - https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1Container.md.
+        self.payload["container"] = container
+        return self
 
     def to_json(self):
         return self.payload
@@ -2118,48 +2167,11 @@ class TriggerTemplate(object):
         self.payload["argoWorkflow"] = argo_workflow_trigger.to_json()
         return self
 
-    def conditions_reset(self, conditions_reset):
-        self.payload["conditionsReset"] = conditions_reset.to_json()
-        return self
-
-    def to_json(self):
-        return self.payload
-
-    def __str__(self):
-        return json.dumps(self.payload, indent=4)
-
-
-class ConditionsResetCriteria(object):
-    # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.ConditionsResetCriteria
-
-    def __init__(self):
-        tree = lambda: defaultdict(tree)
-        self.payload = tree()
-
-    def by_time(self, conditions_reset_by_time):
-        self.payload["byTime"] = conditions_reset_by_time.to_json()
-        return self
-
-    def to_json(self):
-        return self.payload
-
-    def __str__(self):
-        return json.dumps(self.payload, indent=4)
-
-
-class ConditionsResetByTime(object):
-    # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.ConditionsResetByTime
-
-    def __init__(self):
-        tree = lambda: defaultdict(tree)
-        self.payload = tree()
-
-    def cron(self, cron):
-        self.payload["cron"] = cron
-        return self
-
-    def timezone(self, timezone):
-        self.payload["timezone"] = timezone
+    def conditions_reset(self, cron, timezone):
+        if cron:
+            self.payload["conditionsReset"] = [
+                {"byTime": {"cron": cron, "timezone": timezone}}
+            ]
         return self
 
     def to_json(self):
