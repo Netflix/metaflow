@@ -20,6 +20,7 @@ from metaflow.metaflow_config import (
     S3_ENDPOINT_URL,
     DEFAULT_SECRETS_BACKEND_TYPE,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
+    S3_UPLOAD_ARGS,
 )
 from metaflow.mflog import (
     export_mflog_env_vars,
@@ -246,6 +247,7 @@ class Batch(object):
             .environment_variable("METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA)
             .environment_variable("METAFLOW_CARD_S3ROOT", CARD_S3ROOT)
             .environment_variable("METAFLOW_RUNTIME_ENVIRONMENT", "aws-batch")
+            .environment_variable("METAFLOW_S3_UPLOAD_ARGS", S3_UPLOAD_ARGS)
         )
         if DEFAULT_SECRETS_BACKEND_TYPE is not None:
             job.environment_variable(
