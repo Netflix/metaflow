@@ -247,7 +247,6 @@ class Batch(object):
             .environment_variable("METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA)
             .environment_variable("METAFLOW_CARD_S3ROOT", CARD_S3ROOT)
             .environment_variable("METAFLOW_RUNTIME_ENVIRONMENT", "aws-batch")
-            .environment_variable("METAFLOW_S3_UPLOAD_ARGS", S3_UPLOAD_ARGS)
         )
         if DEFAULT_SECRETS_BACKEND_TYPE is not None:
             job.environment_variable(
@@ -263,6 +262,9 @@ class Batch(object):
 
         if tmpfs_enabled and tmpfs_tempdir:
             job.environment_variable("METAFLOW_TEMPDIR", tmpfs_path)
+
+        if S3_UPLOAD_ARGS is not None:
+            job.environment_variable("METAFLOW_S3_UPLOAD_ARGS_", S3_UPLOAD_ARGS)
 
         # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync between the local user
         # instance and the remote AWS Batch instance assumes metadata is stored in DATASTORE_LOCAL_DIR
