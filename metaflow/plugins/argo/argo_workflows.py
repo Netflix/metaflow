@@ -970,6 +970,13 @@ class ArgoWorkflows(object):
                         "METAFLOW_OWNER": self.username,
                     },
                     **{
+                        # Configuration for Argo Events
+                        "METAFLOW_ARGO_EVENTS_EVENT": ARGO_EVENTS_EVENT,
+                        "METAFLOW_ARGO_EVENTS_EVENT_BUS": ARGO_EVENTS_EVENT_BUS,
+                        "METAFLOW_ARGO_EVENTS_EVENT_SOURCE": ARGO_EVENTS_EVENT_SOURCE,
+                        "METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT": ARGO_EVENTS_SERVICE_ACCOUNT,
+                    },
+                    **{
                         # Some optional values for bookkeeping
                         "METAFLOW_FLOW_NAME": self.flow.name,
                         "METAFLOW_STEP_NAME": node.name,
