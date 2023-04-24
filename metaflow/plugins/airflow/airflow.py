@@ -29,6 +29,7 @@ from metaflow.metaflow_config import (
     CARD_GSROOT,
     DEFAULT_SECRETS_BACKEND_TYPE,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
+    S3_ENDPOINT_URL,
 )
 from metaflow.parameters import DelayedEvaluationParameter, deploy_time_eval
 from metaflow.plugins.kubernetes.kubernetes import Kubernetes
@@ -383,6 +384,7 @@ class Airflow(object):
             # GCP stuff
             "METAFLOW_DATASTORE_SYSROOT_GS": DATASTORE_SYSROOT_GS,
             "METAFLOW_CARD_GSROOT": CARD_GSROOT,
+            "METAFLOW_S3_ENDPOINT_URL": S3_ENDPOINT_URL,
         }
         env[
             "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
