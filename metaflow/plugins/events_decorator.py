@@ -11,6 +11,38 @@ from metaflow.util import is_stringish
 
 
 class TriggerDecorator(FlowDecorator):
+    """
+    Specifies the event(s) that this flow depends on.
+
+    ```
+    @trigger(event='foo')
+    ```
+    or
+    ```
+    @trigger(events=['foo', 'bar'])
+    ```
+
+    Additionally, you can specify the parameter mappings
+    to map event payload to Metaflow parameters for the flow.
+    ```
+    @trigger(event={'name':'foo', 'parameters':{'my_param': 'event_field'})
+    ```
+    or
+    ```
+    @trigger(events=[{'name':'foo', 'parameters':{'my_param_1': 'event_field_1'},
+                     {'name':'bar', 'parameters':{'my_param_2': 'event_field_2'}])
+    ```
+
+    Parameters
+    ----------
+    event : str or dict, optional
+        Event dependency for this flow.
+    events : List[str or dict], optional
+        Events dependency for this flow.
+    options : dict, optional
+        Backend-specific configuration for tuning eventing behavior.
+    """
+
     name = "trigger"
     defaults = {
         "event": None,
@@ -107,6 +139,39 @@ class TriggerDecorator(FlowDecorator):
 
 
 class TriggerOnFinishDecorator(FlowDecorator):
+    """
+    Specifies the flow(s) that this flow depends on.
+
+    ```
+    @trigger_on_finish(flow='FooFlow')
+    ```
+    or
+    ```
+    @trigger_on_finish(flows=['FooFlow', 'BarFlow'])
+    ```
+    This decorator respects the @project decorator and triggers the flow
+    when upstream runs within the same namespace complete successfully
+
+    Additionally, you can specify project aware upstream flow dependencies
+    by specifying the fully qualified project_flow_name.
+    ```
+    @trigger_on_finish(flow='my_project.branch.my_branch.FooFlow')
+    ```
+    or
+    ```
+    @trigger_on_finish(flows=['my_project.branch.my_branch.FooFlow', 'BarFlow'])
+    ```
+
+    Parameters
+    ----------
+    flow : str, optional
+        Upstream flow dependency for this flow.
+    flows : List[str], optional
+        Upstream flow dependencies for this flow.
+    options : dict, optional
+        Backend-specific configuration for tuning eventing behavior.
+    """
+
     name = "trigger_on_finish"
     defaults = {
         "flow": None,  # flow_name or project_flow_name

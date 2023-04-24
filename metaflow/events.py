@@ -2,10 +2,30 @@ from collections import OrderedDict, namedtuple
 from datetime import datetime
 
 MetaflowEvent = namedtuple("MetaflowEvent", ["name", "id", "timestamp", "type"])
+MetaflowEvent.__doc__ = """
+    Container of metadata that identifies the event that triggered
+    the `Run` under consideration.
+
+    Attributes
+    ----------
+    name : str
+        name of the event.
+    id : str
+        unique identifier for the event.
+    timestamp : datetime
+        timestamp recording creation time for the event.
+    type : str
+        type for the event - one of `event` or `run`
+    """
 
 
 # TODO: Rename MetaflowTrigger to Trigger
 class MetaflowTrigger(object):
+    """
+    Defines a container of event triggers' metadata.
+
+    """
+
     def __init__(self, _meta=None):
         if _meta is None:
             _meta = []

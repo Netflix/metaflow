@@ -1896,7 +1896,17 @@ class Run(MetaflowObject):
         self._tags = frozenset([*self._user_tags, *self._system_tags])
 
     @property
-    def trigger(self):
+    def trigger(self) -> Optional[MetaflowTrigger]:
+        """
+        Returns a container of events that triggered this run.
+
+        This returns None if the run was not triggered by any events.
+
+        Returns
+        -------
+        MetaflowTrigger, optional
+            Container of triggering events
+        """
         if "start" in self:
             meta = self["start"].task.metadata_dict.get("execution-triggers")
             if meta:
