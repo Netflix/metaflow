@@ -1240,15 +1240,11 @@ class ArgoWorkflows(object):
         # https://argoproj.github.io/argo-events/eventsources/ha/.
         #
         # There is some potential for confusion between Metaflow concepts and Argo
-        # Events concepts -
-        #   1. Argo Events EventSource define an event name which is different than the
-        #      Metaflow event name - think of Argo Events name as a type of
-        #      event (conceptually like topics in Kafka) while Metaflow event names
-        #      are a field within the Argo Event.
+        # Events concepts, particularly for event names. Argo Events EventSource
+        # define an event name which is different than the Metaflow event name - think
+        # of Argo Events name as a type of event (conceptually like topics in Kafka)
+        # while Metaflow event names are a field within the Argo Event.
         #
-        #
-        # TODO:  1. Ensure sensors are not running in a best effort QoS class.
-        #        2. Ensure that sensors have appropriate resources set.
         #
         # At the moment, there is parity between the labels and annotations for
         # workflow templates and sensors - that may or may not be the case in the
@@ -1263,6 +1259,42 @@ class ArgoWorkflows(object):
         # Nothing to do here - let's short circuit and exit.
         if not self.triggers:
             return {}
+
+        # Ensure proper configuration is available for Argo Events
+        if ARGO_EVENTS_EVENT is None:
+            raise ArgoWorkflowsException(
+                "An Argo Event name hasn't been configured for your deployment yet. "
+                "Please see this article for more details on event names - "
+                "https://argoproj.github.io/argo-events/eventsources/naming/. "
+                "It is very likely that all events for your deployment share the "
+                "same name. You can configure it by executing "
+                "`metaflow configure events` or setting METAFLOW_ARGO_EVENTS_EVENT "
+                "in your configuration. If in doubt, reach out for support at "
+                "http://chat.metaflow.org"
+            )
+        # Unfortunately argo events requires knowledge of event source today.
+        # Hopefully, some day this requirement can be removed and events can be truly
+        # impervious to their source and destination.
+        if ARGO_EVENTS_EVENT_SOURCE is None:
+            raise ArgoWorkflowsException(
+                "An Argo Event Source name hasn't been configured for your deployment "
+                "yet. Please see this article for more details on event names - "
+                "https://argoproj.github.io/argo-events/eventsources/naming/. "
+                "You can configure it by executing `metaflow configure events` or "
+                "setting METAFLOW_ARGO_EVENTS_EVENT_SOURCE in your configuration. If "
+                "in doubt, reach out for support at http://chat.metaflow.org"
+            )
+        # Service accounts are a hard requirement since we utilize the
+        # argoWorkflow trigger for resource sensors today.
+        if ARGO_EVENTS_SERVICE_ACCOUNT is None:
+            raise ArgoWorkflowsException(
+                "An Argo Event service account hasn't been configured for your "
+                "deployment yet. Please see this article for more details on event "
+                "names - https://argoproj.github.io/argo-events/service-accounts/. "
+                "You can configure it by executing `metaflow configure events` or "
+                "setting METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT in your configuration. "
+                "If in doubt, reach out for support at http://chat.metaflow.org"
+            )
 
         try:
             # Kubernetes is a soft dependency for generating Argo objects.
