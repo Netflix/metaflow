@@ -72,6 +72,7 @@ class ArgoEvent(object):
                         )
                         break
                     except urllib.error.HTTPError as e:
+                        # TODO: Retry retryable HTTP error codes
                         raise e
                     except urllib.error.URLError as e:
                         if i == retries - 1:
