@@ -52,12 +52,10 @@ def k8s_retry(deadline_seconds=60, max_backoff=32):
 
 
 def nfs_volumes(client, kwargs):
+    volumes = {"nfs": []}
 
-    volumes = (
-        dict(literal_eval(kwargs["volumes"]))
-        if kwargs["volumes"] is not None
-        else {"nfs": []}
-    )
+    if kwargs["volumes"] is not None:
+        volumes = dict(literal_eval(kwargs["volumes"]))
 
     container_volumes = []
     pod_volumes = []
@@ -145,8 +143,16 @@ class KubernetesJob(object):
         # get all volumes tmpfs and NFS at the moment
         tmp_container_volumes, tmp_pod_volumes = tmpfs_volumes(client, self._kwargs)
         nfs_container_volumes, nfs_pod_volumes = nfs_volumes(client, self._kwargs)
-        volume_mounts = nfs_container_volumes.extend(tmp_container_volumes)
-        volumes = tmp_pod_volumes.extend(nfs_pod_volumes)
+
+        # attach all volume_mounts into a single list
+        volume_mounts = []
+        volume_mounts.extend(tmp_container_volumes)
+        volume_mounts.extend(nfs_container_volumes)
+
+        # attach all volumes into a single list
+        volumes = []
+        volumes.extend(tmp_pod_volumes)
+        volumes.extend(nfs_pod_volumes)
 
         self._job = client.V1Job(
             api_version="batch/v1",
@@ -263,7 +269,6 @@ class KubernetesJob(object):
                             for toleration in self._kwargs.get("tolerations") or []
                         ],
                         # TODO (savin): Set termination_message_policy
-                        # tmpfs and NFS volumes at the moment
                         volumes=volumes,
                     ),
                 ),
