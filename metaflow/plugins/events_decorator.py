@@ -1,24 +1,33 @@
+import json
+import time
+
+from metaflow import current
 from metaflow.decorators import FlowDecorator
 from metaflow.exception import MetaflowException
 from metaflow.util import is_stringish
-from metaflow import current
 
 # TODO: Support dynamic parameter mapping through a context object that exposes
 #       flow name and user name similar to parameter context
 
 
-# TODO: This decorator interface can be a top-level decorator to support similar
-#       implementations for Netflix Maestro, AWS Step Functions, Apache Airflow...
-class ArgoEventsDecorator(FlowDecorator):
+class TriggerDecorator(FlowDecorator):
     name = "trigger"
     defaults = {
         "event": None,
         "events": [],
-        "options": {},  # TODO: introduce support for options
+        "options": {},
     }
 
     def flow_init(
-        self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
+        self,
+        flow_name,
+        graph,
+        environment,
+        flow_datastore,
+        metadata,
+        logger,
+        echo,
+        options,
     ):
         self.triggers = []
         if sum(map(bool, (self.attributes["event"], self.attributes["events"]))) > 1:
@@ -92,14 +101,16 @@ class ArgoEventsDecorator(FlowDecorator):
                 "Duplicate event names defined in *@trigger* decorator."
             )
 
+        self.options = self.attributes["options"]
+
+        # TODO: Handle scenario for local testing using --trigger.
+
 
 class TriggerOnFinishDecorator(FlowDecorator):
     name = "trigger_on_finish"
     defaults = {
-        "flow": None,
-        "branch": None,
-        "project": None,
-        "flows": [],
+        "flow": None,  # flow_name or project_flow_name
+        "flows": [],  # flow_names or project_flow_names
         "options": {},
     }
     options = {
@@ -111,7 +122,15 @@ class TriggerOnFinishDecorator(FlowDecorator):
     }
 
     def flow_init(
-        self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
+        self,
+        flow_name,
+        graph,
+        environment,
+        flow_datastore,
+        metadata,
+        logger,
+        echo,
+        options,
     ):
         self.triggers = []
         if sum(map(bool, (self.attributes["flow"], self.attributes["flows"]))) > 1:
@@ -122,11 +141,15 @@ class TriggerOnFinishDecorator(FlowDecorator):
         elif self.attributes["flow"]:
             # flow supports the format @trigger_on_finish(flow='FooFlow')
             if is_stringish(self.attributes["flow"]):
-                self.triggers.append(self.attributes)
+                self.triggers.append(
+                    {
+                        "fq_name": self.attributes["flow"],
+                    }
+                )
             else:
                 raise MetaflowException(
-                    "Incorrect format for *flow* attribute in *@trigger_on_finish* "
-                    " decorator. Supported format is string - \n"
+                    "Incorrect type for *flow* attribute in *@trigger_on_finish* "
+                    " decorator. Supported type is string - \n"
                     "@trigger_on_finish(flow='FooFlow')"
                 )
         elif self.attributes["flows"]:
@@ -137,22 +160,20 @@ class TriggerOnFinishDecorator(FlowDecorator):
                     if is_stringish(flow):
                         self.triggers.append(
                             {
-                                "flow": flow,
-                                "project": self.attributes["project"],
-                                "branch": self.attributes["branch"],
+                                "fq_name": flow,
                             }
                         )
                     else:
                         raise MetaflowException(
                             "One or more flows in *flows* attribute in "
-                            "*@trigger_on_finish* decorator have an incorrect format. "
-                            "Supported format is string - \n"
+                            "*@trigger_on_finish* decorator have an incorrect type. "
+                            "Supported type is string - \n"
                             "@trigger_on_finish(flows=['FooFlow', 'BarFlow']"
                         )
             else:
                 raise MetaflowException(
-                    "Incorrect format for *flows* attribute in *@trigger_on_finish* "
-                    "decorator. Supported format is list - \n"
+                    "Incorrect type for *flows* attribute in *@trigger_on_finish* "
+                    "decorator. Supported type is list - \n"
                     "@trigger_on_finish(flows=['FooFlow', 'BarFlow']"
                 )
 
@@ -161,18 +182,44 @@ class TriggerOnFinishDecorator(FlowDecorator):
                 "No flow(s) specified in *@trigger_on_finish* decorator."
             )
 
+        # Make triggers @project aware
+        for trigger in self.triggers:
+            if trigger["fq_name"].count(".") == 0:
+                # fully qualified name is just the flow name
+                trigger["flow"] = trigger["fq_name"]
+            elif trigger["fq_name"].count(".") == 3:
+                # fully qualified name is of the format - project.branch.flow_name
+                trigger["project"], _ = trigger["fq_name"].split(".", maxsplit=1)
+                trigger["branch"], trigger["flow"] = _.rsplit(".", maxsplit=1)
+            else:
+                raise MetaflowException(
+                    "Incorrect format for *flow* in *@trigger_on_finish* "
+                    "decorator. Specify either just the *flow_name* or a fully "
+                    "qualified name like *project_name.branch_name.flow_name*."
+                )
+
+        self.options = self.attributes["options"]
+
+        # Handle scenario for local testing using --trigger.
         self._option_values = options
         if options["trigger"]:
-            print(options)
-            # from metaflow import Run
-            # triggers = {}
-            # for trigger in options["trigger"]:
-            #     run_obj = Run(trigger)
-            #     triggers.append({
-            #         "name": run_obj.flow_name
-            #         })
+            from metaflow import Run
+            from metaflow.events import MetaflowTrigger
 
-            # current._update_env({"trigger": MetaflowTrigger(triggers)})
+            run_objs = []
+            for run_pathspec in options["trigger"]:
+                if len(run_pathspec.split("/")) != 2:
+                    raise MetaflowException(
+                        "Incorrect format for run pathspec for *--trigger*. "
+                        "Supported format is flow_name/run_id."
+                    )
+                run_obj = Run(run_pathspec, _namespace_check=False)
+                if not run_obj.successful:
+                    raise MetaflowException(
+                        "*--trigger* does not support runs that are not successful yet."
+                    )
+                run_objs.append(run_obj)
+            current._update_env({"trigger": MetaflowTrigger.from_runs(run_objs)})
 
     def get_top_level_options(self):
         return list(self._option_values.items())

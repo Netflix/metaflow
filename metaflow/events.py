@@ -1,10 +1,10 @@
-from collections import namedtuple, OrderedDict
+from collections import OrderedDict, namedtuple
 from datetime import datetime
-
 
 MetaflowEvent = namedtuple("MetaflowEvent", ["name", "id", "timestamp", "type"])
 
 
+# TODO: Rename MetaflowTrigger to Trigger
 class MetaflowTrigger(object):
     def __init__(self, _meta=None):
         if _meta is None:
@@ -29,6 +29,23 @@ class MetaflowTrigger(object):
             )
             for obj in _meta
         ]
+
+    @classmethod
+    def from_runs(cls, run_objs):
+        run_objs.sort(key=lambda x: x.finished_at, reverse=True)
+        trigger = MetaflowTrigger(
+            [
+                {
+                    "type": "run",
+                    "timestamp": run_obj.finished_at,
+                    "name": "metaflow.%s.%s" % (run_obj.parent.id, run_obj["end"].id),
+                    "id": run_obj.end_task.pathspec,
+                }
+                for run_obj in run_objs
+            ]
+        )
+        trigger._runs = run_objs
+        return trigger
 
     @property
     def event(self):

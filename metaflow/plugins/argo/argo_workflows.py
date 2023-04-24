@@ -28,11 +28,11 @@ from metaflow.metaflow_config import (
     DATATOOLS_S3ROOT,
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
+    KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
     KUBERNETES_SECRETS,
-    KUBERNETES_FETCH_EC2_METADATA,
     S3_ENDPOINT_URL,
     SERVICE_HEADERS,
     SERVICE_INTERNAL_URL,
@@ -137,7 +137,7 @@ class ArgoWorkflows(object):
         self.auto_emit_argo_events = auto_emit_argo_events
 
         self.parameters = self._process_parameters()
-        self.triggers = self._process_event_triggers()
+        self.triggers = self._process_triggers()
         self._schedule, self._timezone = self._get_schedule()
 
         self._workflow_template = self._compile_workflow_template()
@@ -238,19 +238,17 @@ class ArgoWorkflows(object):
 
         # Trigger explanation for @trigger_on_finish
         elif self.flow._flow_decorators.get("trigger_on_finish"):
-            msg = (
+            return (
                 "This workflow triggers automatically when the upstream %s succeed(s)"
-                % self.list_to_prose([event["flow"] for event in self.triggers], "flow")
+                % self.list_to_prose(
+                    [
+                        # Truncate prefix `metaflow.` and suffix `.end` from event name
+                        event["name"][len("metaflow.") : -len(".end")]
+                        for event in self.triggers
+                    ],
+                    "flow",
+                )
             )
-            deco_attr = self.flow._flow_decorators.get("trigger_on_finish")[
-                0
-            ].attributes
-            project = deco_attr.get("project") or current.get("project_name")
-            if project:
-                branch = deco_attr.get("branch") or current.get("branch_name")
-                msg += " in *%s/%s* branch" % (project, branch)
-            msg += "."
-            return msg
 
         else:
             return "No triggers defined. You need to launch this workflow manually."
@@ -303,8 +301,6 @@ class ArgoWorkflows(object):
                     "Scheduling such parameters via Argo CronWorkflows is not "
                     "currently supported." % param.name
                 )
-            # TODO (savin): Check if the trigger decorator specifies a required but
-            #               no-default parameter.
             value = deploy_time_eval(param.kwargs.get("default"))
             # If the value is not required and the value is None, we set the value to
             # the JSON equivalent of None to please argo-workflows. Unfortunately it
@@ -320,7 +316,10 @@ class ArgoWorkflows(object):
             )
         return parameters
 
-    def _process_event_triggers(self):
+    def _process_triggers(self):
+        # Impute triggers for Argo Workflow Template specified through @trigger and
+        # @trigger_on_finish decorators
+
         # Disallow usage of @trigger and @trigger_on_finish together for now.
         if self.flow._flow_decorators.get("trigger") and self.flow._flow_decorators.get(
             "trigger_on_finish"
@@ -334,7 +333,7 @@ class ArgoWorkflows(object):
 
         # @trigger decorator
         if self.flow._flow_decorators.get("trigger"):
-            # parameters are not duplicated, and exist in the flow.
+            # Parameters are not duplicated, and exist in the flow.
             # additionally, convert them to lower case since metaflow parameters are
             # case insensitive.
             seen = set()
@@ -373,6 +372,11 @@ class ArgoWorkflows(object):
                 event["type"] = "event"
             triggers.extend(self.flow._flow_decorators.get("trigger")[0].triggers)
 
+            # Set automatic parameter mapping iff only a single event dependency is
+            # specified with no explicit parameter mapping
+            if len(triggers) == 1 and not triggers[0].get("parameters"):
+                triggers[0]["parameters"] = dict(zip(params, params))
+
         # @trigger_on_finish decorator
         if self.flow._flow_decorators.get("trigger_on_finish"):
             for event in self.flow._flow_decorators.get("trigger_on_finish")[
@@ -385,35 +389,17 @@ class ArgoWorkflows(object):
                         "decorator. Only alphanumeric characters and "
                         "underscores(_) are allowed." % (value, event["flow"])
                     )
-                # Throw an error if we are unable to impute project for specified
-                # branch.
-                if (
-                    not event.get("project")
-                    and not current.get("project_name")
-                    and event.get("branch")
-                ):
-                    raise ArgoWorkflowsException(
-                        "No project specified for branch in *@trigger_on_finish* "
-                        "decorator."
-                    )
-                # Actual event names are deduced here since we don't have access to
+                # Actual filters are deduced here since we don't have access to
                 # the current object in the @trigger_on_finish decorator.
                 triggers.append(
                     {
-                        "name": ".".join(
-                            filter(
-                                lambda item: item is not None,
-                                [
-                                    "metaflow",
-                                    event.get("project") or current.get("project_name"),
-                                    event.get("branch") or current.get("branch_name"),
-                                    event["flow"],
-                                    "end",
-                                ],
-                            )
-                        ),
+                        "name": "metaflow.%s.end" % event["flow"],
                         "filters": {
                             "auto-generated-by-metaflow": True,
+                            "project_name": event.get("project")
+                            or current.get("project_name"),
+                            "branch_name": event.get("branch")
+                            or current.get("branch_name"),
                             # TODO: Add a time filters to guard against cached events
                         },
                         "type": "run",
@@ -1300,6 +1286,7 @@ class ArgoWorkflows(object):
                     # Sensor template.
                     SensorTemplate().service_account_name(ARGO_EVENTS_SERVICE_ACCOUNT)
                     # TODO (savin): Run sensor in guaranteed QoS.
+                    # TODO (savin): Handle bypassing docker image rate limit errors.
                 )
                 # Set sensor replica to 1 for now.
                 # TODO (savin): Allow for multiple replicas for HA.
@@ -1397,6 +1384,13 @@ class ArgoWorkflows(object):
                                 ]
                             )
                         )
+                        # .conditions_reset(
+                        #     # Reset trigger conditions ever so often by wiping
+                        #     # away event tracking history on a schedule
+                        #     ConditionsResetCriteria().by_time(
+                        #         ConditionsResetByTime().cron().timezone()
+                        #     )
+                        # )
                     )
                 )
                 # Event dependencies. As of Mar' 23, Argo Events docs suggest using
@@ -1409,8 +1403,7 @@ class ArgoWorkflows(object):
                         ARGO_EVENTS_EVENT
                     )
                     # TODO: Alternatively fetch this from @trigger config options
-                    .event_source_name(ARGO_EVENTS_EVENT_SOURCE)
-                    .filters(
+                    .event_source_name(ARGO_EVENTS_EVENT_SOURCE).filters(
                         # Ensure that event name matches and all required parameter
                         # fields are present in the payload. There is a possibility of
                         # dependency on an event where none of the fields are required.
@@ -1438,6 +1431,7 @@ class ArgoWorkflows(object):
                                 for parameter_name, v in event.get(
                                     "parameters", {}
                                 ).items()
+                                # only for required parameters
                                 if self.parameters[parameter_name]["is_required"]
                             ]
                             + [
@@ -2115,6 +2109,50 @@ class TriggerTemplate(object):
 
     def argo_workflow_trigger(self, argo_workflow_trigger):
         self.payload["argoWorkflow"] = argo_workflow_trigger.to_json()
+        return self
+
+    def conditions_reset(self, conditions_reset):
+        self.payload["conditionsReset"] = conditions_reset.to_json()
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.payload, indent=4)
+
+
+class ConditionsResetCriteria(object):
+    # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.ConditionsResetCriteria
+
+    def __init__(self):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+
+    def by_time(self, conditions_reset_by_time):
+        self.payload["byTime"] = conditions_reset_by_time.to_json()
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.payload, indent=4)
+
+
+class ConditionsResetByTime(object):
+    # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.ConditionsResetByTime
+
+    def __init__(self):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+
+    def cron(self, cron):
+        self.payload["cron"] = cron
+        return self
+
+    def timezone(self, timezone):
+        self.payload["timezone"] = timezone
         return self
 
     def to_json(self):

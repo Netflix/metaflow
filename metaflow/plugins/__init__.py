@@ -56,8 +56,8 @@ FLOW_DECORATORS_DESC = [
     ("conda_base", ".conda.conda_flow_decorator.CondaFlowDecorator"),
     ("schedule", ".aws.step_functions.schedule_decorator.ScheduleDecorator"),
     ("project", ".project_decorator.ProjectDecorator"),
-    ("trigger", ".argo.argo_events_decorator.ArgoEventsDecorator"),
-    ("trigger_on_finish", ".argo.argo_events_decorator.TriggerOnFinishDecorator"),
+    ("trigger", ".events_decorator.TriggerDecorator"),
+    ("trigger_on_finish", ".events_decorator.TriggerOnFinishDecorator"),
 ]
 
 # Add environments here

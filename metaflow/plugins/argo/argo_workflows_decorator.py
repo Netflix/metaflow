@@ -53,7 +53,7 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
                             )[
                                 0
                             ]  # infer type from env var key
-                            # Add more event metadata here
+                            # Add more event metadata here in the future
                         }
                     )
 
@@ -113,13 +113,11 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
         # finished execution.
 
         if self.attributes["auto-emit-argo-events"]:
-            # Event name is set to metaflow.project.branch.flow.step
+            # Event name is set to metaflow.flow.step
             # TODO: Check length limits for fields in Argo Events
-            event = ArgoEvent(
-                name="metaflow.%s.%s"
-                % (current.get("project_flow_name", flow.name), step_name)
-            )
+            event = ArgoEvent(name="metaflow.%s.%s" % (flow.name, step_name))
             # There should only be one event generated even when the task is retried.
+            # Take care to only add to the list and not modify existing values.
             event.add_to_payload("id", current.pathspec)
             event.add_to_payload("pathspec", current.pathspec)
             event.add_to_payload("flow_name", flow.name)
