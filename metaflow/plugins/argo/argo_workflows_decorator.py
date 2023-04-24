@@ -113,8 +113,15 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
         # finished execution.
 
         if self.attributes["auto-emit-argo-events"]:
-            # Event name is set to metaflow.flow.step
+            # Event name is set to metaflow.project.branch.step so that users can
+            # place explicit dependencies on namespaced events. Also, argo events
+            # sensors don't allow for filtering against absent fields - which limits
+            # our ability to subset non-project namespaced events.
             # TODO: Check length limits for fields in Argo Events
+            event = ArgoEvent(
+                name="metaflow.%s.%s"
+                % (current.get("project_flow_name", flow.name), step_name)
+            )
             event = ArgoEvent(name="metaflow.%s.%s" % (flow.name, step_name))
             # There should only be one event generated even when the task is retried.
             # Take care to only add to the list and not modify existing values.

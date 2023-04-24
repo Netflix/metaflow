@@ -243,7 +243,6 @@ class ArgoWorkflows(object):
                 % self.list_to_prose(
                     [
                         # Truncate prefix `metaflow.` and suffix `.end` from event name
-                        # TODO: Should we return the fully qualified name instead?
                         event["name"][len("metaflow.") : -len(".end")]
                         for event in self.triggers
                     ],
@@ -388,7 +387,18 @@ class ArgoWorkflows(object):
                 # the current object in the @trigger_on_finish decorator.
                 triggers.append(
                     {
-                        "name": "metaflow.%s.end" % event["flow"],
+                        "name": ".".join(
+                            filter(
+                                lambda item: item is not None,
+                                [
+                                    "metaflow",
+                                    event.get("project") or current.get("project_name"),
+                                    event.get("branch") or current.get("branch_name"),
+                                    event["flow"],
+                                    "end",
+                                ],
+                            )
+                        ),
                         "filters": {
                             "auto-generated-by-metaflow": True,
                             "project_name": event.get("project")
