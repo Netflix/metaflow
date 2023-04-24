@@ -10,7 +10,7 @@ from itertools import chain
 from typing import Any, Dict, FrozenSet, Iterable, List, Optional, Tuple
 
 from metaflow.current import current
-from metaflow.events import MetaflowTrigger
+from metaflow.events import Trigger
 from metaflow.exception import (
     MetaflowInternalError,
     MetaflowInvalidPathspec,
@@ -1896,7 +1896,7 @@ class Run(MetaflowObject):
         self._tags = frozenset([*self._user_tags, *self._system_tags])
 
     @property
-    def trigger(self) -> Optional[MetaflowTrigger]:
+    def trigger(self) -> Optional[Trigger]:
         """
         Returns a container of events that triggered this run.
 
@@ -1904,13 +1904,13 @@ class Run(MetaflowObject):
 
         Returns
         -------
-        MetaflowTrigger, optional
+        Trigger, optional
             Container of triggering events
         """
         if "start" in self:
             meta = self["start"].task.metadata_dict.get("execution-triggers")
             if meta:
-                return MetaflowTrigger(json.loads(meta))
+                return Trigger(json.loads(meta))
 
 
 class Flow(MetaflowObject):

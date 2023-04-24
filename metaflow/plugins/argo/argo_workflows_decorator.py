@@ -4,7 +4,7 @@ import time
 
 from metaflow import current
 from metaflow.decorators import StepDecorator
-from metaflow.events import MetaflowTrigger
+from metaflow.events import Trigger
 from metaflow.metadata import MetaDatum
 from metaflow.metaflow_config import ARGO_EVENTS_WEBHOOK_URL
 
@@ -60,7 +60,7 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
         meta = {}
         if triggers:
             # Enable current.trigger
-            current._update_env({"trigger": MetaflowTrigger(triggers)})
+            current._update_env({"trigger": Trigger(triggers)})
             # Luckily there aren't many events for us to be concerned about the
             # size of the metadata field yet! However we don't really need this
             # metadata outside of the start step so we can save a few bytes in the

@@ -19,8 +19,7 @@ MetaflowEvent.__doc__ = """
     """
 
 
-# TODO: Rename MetaflowTrigger to Trigger
-class MetaflowTrigger(object):
+class Trigger(object):
     """
     Defines a container of event triggers' metadata.
 
@@ -53,7 +52,7 @@ class MetaflowTrigger(object):
     @classmethod
     def from_runs(cls, run_objs):
         run_objs.sort(key=lambda x: x.finished_at, reverse=True)
-        trigger = MetaflowTrigger(
+        trigger = Trigger(
             [
                 {
                     "type": "run",

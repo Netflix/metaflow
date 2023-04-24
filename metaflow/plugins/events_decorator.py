@@ -269,7 +269,7 @@ class TriggerOnFinishDecorator(FlowDecorator):
         self._option_values = options
         if options["trigger"]:
             from metaflow import Run
-            from metaflow.events import MetaflowTrigger
+            from metaflow.events import Trigger
 
             run_objs = []
             for run_pathspec in options["trigger"]:
@@ -284,7 +284,7 @@ class TriggerOnFinishDecorator(FlowDecorator):
                         "*--trigger* does not support runs that are not successful yet."
                     )
                 run_objs.append(run_obj)
-            current._update_env({"trigger": MetaflowTrigger.from_runs(run_objs)})
+            current._update_env({"trigger": Trigger.from_runs(run_objs)})
 
     def get_top_level_options(self):
         return list(self._option_values.items())
