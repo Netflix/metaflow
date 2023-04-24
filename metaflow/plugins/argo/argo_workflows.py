@@ -867,6 +867,17 @@ class ArgoWorkflows(object):
                 if v is not None and k not in env_vars_to_skip
             }
 
+            # Tmpfs variables
+            use_tmpfs = resources["use_tmpfs"]
+            tmpfs_size = resources["tmpfs_size"]
+            tmpfs_path = resources["tmpfs_path"]
+            tmpfs_tempdir = resources["tmpfs_tempdir"]
+
+            tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
+
+            if tmpfs_enabled and tmpfs_tempdir:
+                env["METAFLOW_TEMPDIR"] = tmpfs_path
+
             # Create a ContainerTemplate for this node. Ideally, we would have
             # liked to inline this ContainerTemplate and avoid scanning the workflow
             # twice, but due to issues with variable substitution, we will have to
@@ -900,6 +911,12 @@ class ArgoWorkflows(object):
                 )
                 # Set emptyDir volume for state management
                 .empty_dir_volume("out")
+                # Set tmpfs emptyDir volume if enabled
+                .empty_dir_volume(
+                    "tmpfs-ephemeral-volume",
+                    medium="Memory",
+                    size_limit=tmpfs_size if tmpfs_enabled else 0,
+                )
                 # Set node selectors
                 .node_selectors(resources.get("node_selector"))
                 # Set tolerations
@@ -979,7 +996,17 @@ class ArgoWorkflows(object):
                                 kubernetes_sdk.V1VolumeMount(
                                     name="out", mount_path="/mnt/out"
                                 )
-                            ],
+                            ]
+                            + (
+                                [
+                                    kubernetes_sdk.V1VolumeMount(
+                                        name="tmpfs-ephemeral-volume",
+                                        mount_path=tmpfs_path,
+                                    )
+                                ]
+                                if tmpfs_enabled
+                                else []
+                            ),
                         ).to_dict()
                     )
                 )
@@ -1246,12 +1273,36 @@ class Template(object):
             }
         return self
 
-    def empty_dir_volume(self, name):
+    def empty_dir_volume(self, name, medium=None, size_limit=None):
+        """
+        Create and attach an emptyDir volume for Kubernetes.
+
+        Parameters:
+        -----------
+        name: str
+            name for the volume
+        size_limit: int (optional)
+            sizeLimit (in MiB) for the volume
+        medium: str (optional)
+            storage medium of the emptyDir
+        """
+        # Do not add volume if size is zero. Enables conditional chaining.
+        if size_limit == 0:
+            return self
         # Attach an emptyDir volume
         # https://argoproj.github.io/argo-workflows/empty-dir/
         if "volumes" not in self.payload:
             self.payload["volumes"] = []
-        self.payload["volumes"].append({"name": name, "emptyDir": {}})
+        self.payload["volumes"].append(
+            {
+                "name": name,
+                "emptyDir": {
+                    # Add default unit as ours differs from Kubernetes default.
+                    **({"sizeLimit": "{}Mi".format(size_limit)} if size_limit else {}),
+                    **({"medium": medium} if medium else {}),
+                },
+            }
+        )
         return self
 
     def node_selectors(self, node_selectors):

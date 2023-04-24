@@ -80,6 +80,12 @@ def kubernetes():
 @click.option(
     "--max-user-code-retries", default=0, help="Passed to the top-level 'step'."
 )
+@click.option("--use-tmpfs", is_flag=True, help="tmpfs requirement for Kubernetes pod.")
+@click.option(
+    "--tmpfs-tempdir", is_flag=True, help="tmpfs requirement for Kubernetes pod."
+)
+@click.option("--tmpfs-size", help="tmpfs requirement for Kubernetes pod.")
+@click.option("--tmpfs-path", help="tmpfs requirement for Kubernetes pod.")
 @click.option(
     "--run-time-limit",
     default=5 * 24 * 60 * 60,  # Default is set to 5 days
@@ -114,6 +120,10 @@ def step(
     memory=None,
     gpu=None,
     gpu_vendor=None,
+    use_tmpfs=None,
+    tmpfs_tempdir=None,
+    tmpfs_size=None,
+    tmpfs_path=None,
     run_time_limit=None,
     tolerations=None,
     labels=None,
@@ -227,6 +237,10 @@ def step(
                 memory=memory,
                 gpu=gpu,
                 gpu_vendor=gpu_vendor,
+                use_tmpfs=use_tmpfs,
+                tmpfs_tempdir=tmpfs_tempdir,
+                tmpfs_size=tmpfs_size,
+                tmpfs_path=tmpfs_path,
                 run_time_limit=run_time_limit,
                 env=env,
                 tolerations=tolerations,

@@ -627,6 +627,21 @@ class Airflow(object):
     def compile(self):
         # Visit every node of the flow and recursively build the state machine.
         def _visit(node, workflow, exit_node=None):
+            kube_deco = dict(
+                [deco for deco in node.decorators if deco.name == "kubernetes"][
+                    0
+                ].attributes
+            )
+            if kube_deco:
+                # Only guard against use_tmpfs and tmpfs_size as these determine if tmpfs is enabled.
+                for attr in ["use_tmpfs", "tmpfs_size"]:
+                    if kube_deco[attr]:
+                        raise AirflowException(
+                            "tmpfs attribute *%s* is currently not supported on Airflow "
+                            "for the @kubernetes decorator on step *%s*"
+                            % (attr, node.name)
+                        )
+
             parent_is_foreach = any(  # Any immediate parent is a foreach node.
                 self.graph[n].type == "foreach" for n in node.in_funcs
             )

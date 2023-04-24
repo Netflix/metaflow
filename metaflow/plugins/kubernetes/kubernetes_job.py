@@ -70,6 +70,11 @@ class KubernetesJob(object):
         # (unique UID) per Metaflow task attempt.
         client = self._client.get()
 
+        # tmpfs variables
+        use_tmpfs = self._kwargs["use_tmpfs"]
+        tmpfs_size = self._kwargs["tmpfs_size"]
+        tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
+
         self._job = client.V1Job(
             api_version="batch/v1",
             kind="Job",
@@ -161,6 +166,14 @@ class KubernetesJob(object):
                                         if self._kwargs["gpu"] is not None
                                     },
                                 ),
+                                volume_mounts=[
+                                    client.V1VolumeMount(
+                                        mount_path=self._kwargs.get("tmpfs_path"),
+                                        name="tmpfs-ephemeral-volume",
+                                    )
+                                ]
+                                if tmpfs_enabled
+                                else [],
                             )
                         ],
                         node_selector=self._kwargs.get("node_selector"),
@@ -182,7 +195,18 @@ class KubernetesJob(object):
                             client.V1Toleration(**toleration)
                             for toleration in self._kwargs.get("tolerations") or []
                         ],
-                        # volumes=?,
+                        volumes=[
+                            client.V1Volume(
+                                name="tmpfs-ephemeral-volume",
+                                empty_dir=client.V1EmptyDirVolumeSource(
+                                    medium="Memory",
+                                    # Add default unit as ours differs from Kubernetes default.
+                                    size_limit="{}Mi".format(tmpfs_size),
+                                ),
+                            )
+                        ]
+                        if tmpfs_enabled
+                        else [],
                         # TODO (savin): Set termination_message_policy
                     ),
                 ),
