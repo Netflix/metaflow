@@ -1,5 +1,6 @@
 import json
 import time
+import re
 
 from metaflow import current
 from metaflow.decorators import FlowDecorator
@@ -261,6 +262,13 @@ class TriggerOnFinishDecorator(FlowDecorator):
                     "Incorrect format for *flow* in *@trigger_on_finish* "
                     "decorator. Specify either just the *flow_name* or a fully "
                     "qualified name like *project_name.branch_name.flow_name*."
+                )
+            # TODO: Also sanity check project and branch names
+            if not re.match(r"^[A-Za-z0-9_]+$", trigger["flow"]):
+                raise MetaflowException(
+                    "Invalid flow name *%s* in *@trigger_on_finish* "
+                    "decorator. Only alphanumeric characters and "
+                    "underscores(_) are allowed." % trigger["flow"]
                 )
 
         self.options = self.attributes["options"]

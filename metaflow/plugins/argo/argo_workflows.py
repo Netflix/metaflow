@@ -243,6 +243,7 @@ class ArgoWorkflows(object):
                 % self.list_to_prose(
                     [
                         # Truncate prefix `metaflow.` and suffix `.end` from event name
+                        # TODO: Should we return the fully qualified name instead?
                         event["name"][len("metaflow.") : -len(".end")]
                         for event in self.triggers
                     ],
@@ -383,13 +384,6 @@ class ArgoWorkflows(object):
             for event in self.flow._flow_decorators.get("trigger_on_finish")[
                 0
             ].triggers:
-                # TODO: Also sanity check project and branch names
-                if not re.match(r"^[A-Za-z0-9_]+$", event["flow"]):
-                    raise ArgoWorkflowsException(
-                        "Invalid flow name *%s* in *@trigger_on_finish* "
-                        "decorator. Only alphanumeric characters and "
-                        "underscores(_) are allowed." % (value, event["flow"])
-                    )
                 # Actual filters are deduced here since we don't have access to
                 # the current object in the @trigger_on_finish decorator.
                 triggers.append(
