@@ -387,17 +387,15 @@ class ArgoWorkflows(object):
                 # the current object in the @trigger_on_finish decorator.
                 triggers.append(
                     {
-                        "name": ".".join(
-                            filter(
-                                lambda item: item is not None,
-                                [
-                                    "metaflow",
-                                    event.get("project") or current.get("project_name"),
-                                    event.get("branch") or current.get("branch_name"),
-                                    event["flow"],
-                                    "end",
-                                ],
-                            )
+                        "name": "metaflow.%s.end"
+                        % ".".join(
+                            v
+                            for v in [
+                                event.get("project") or current.get("project_name"),
+                                event.get("branch") or current.get("branch_name"),
+                                event["flow"],
+                            ]
+                            if v
                         ),
                         "filters": {
                             "auto-generated-by-metaflow": True,
