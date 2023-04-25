@@ -979,6 +979,7 @@ class ArgoWorkflows(object):
                     },
                     **{
                         # Configuration for Argo Events
+                        # TODO: Move this to @kubernetes decorator instead.
                         "METAFLOW_ARGO_EVENTS_EVENT": ARGO_EVENTS_EVENT,
                         "METAFLOW_ARGO_EVENTS_EVENT_BUS": ARGO_EVENTS_EVENT_BUS,
                         "METAFLOW_ARGO_EVENTS_EVENT_SOURCE": ARGO_EVENTS_EVENT_SOURCE,

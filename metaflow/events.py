@@ -71,7 +71,7 @@ class Trigger(object):
         """
         Returns a `MetaflowEvent` object corresponding to the triggering event. If multiple events triggered the run, returns the latest event.
         """
-        return next(iter(self.events), None)
+        return next(iter(self._events), None)
 
     @property
     def events(self):
@@ -85,7 +85,9 @@ class Trigger(object):
         """
         If the triggering event is a Metaflow run, returns the corresponding `Run` object. If multiple runs triggered the run, returns the latest run. `None` if the event is not a `Run`.
         """
-        return next(iter(self.runs), None)
+        if self._runs is None:
+            self.runs
+        return next(iter(self._runs), None)
 
     @property
     def runs(self):
