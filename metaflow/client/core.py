@@ -1912,6 +1912,7 @@ class Run(MetaflowObject):
             meta = self["start"].task.metadata_dict.get("execution-triggers")
             if meta:
                 return Trigger(json.loads(meta))
+        return None
 
 
 class Flow(MetaflowObject):
