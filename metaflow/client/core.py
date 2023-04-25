@@ -1,5 +1,5 @@
 from __future__ import print_function
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import tarfile
 import json
@@ -324,6 +324,9 @@ class MetaflowObject(object):
             else:
                 raise MetaflowInternalError(msg="Unknown type: %s" % self._NAME)
 
+        self._created_at = datetime.fromtimestamp(
+            self._object["ts_epoch"] / 1000.0, tz=timezone.utc
+        )
         self._created_at = datetime.fromtimestamp(self._object["ts_epoch"] / 1000.0)
 
         self._tags = frozenset(
