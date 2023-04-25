@@ -65,6 +65,7 @@ class Kubernetes(object):
     def _command(
         self,
         flow_name,
+        flow_dir,
         run_id,
         step_name,
         task_id,
@@ -92,6 +93,7 @@ class Kubernetes(object):
                 + step_cmds
             )
         )
+        cd_expr = "cd %s" % flow_dir if flow_dir else "true"
 
         # Construct an entry point that
         # 1) initializes the mflog environment (mflog_expr)
@@ -101,10 +103,11 @@ class Kubernetes(object):
         # The `true` command is to make sure that the generated command
         # plays well with docker containers which have entrypoint set as
         # eval $@
-        cmd_str = "true && mkdir -p %s && %s && %s && %s; " % (
+        cmd_str = "true && mkdir -p %s && %s && %s && %s && %s; " % (
             LOGS_DIR,
             mflog_expr,
             init_expr,
+            cd_expr,
             step_expr,
         )
         # After the task has finished, we save its exit code (fail/success)
@@ -140,6 +143,7 @@ class Kubernetes(object):
         code_package_ds,
         step_cli,
         docker_image,
+        flow_dir=None,
         service_account=None,
         secrets=None,
         node_selector=None,
@@ -171,6 +175,7 @@ class Kubernetes(object):
                 node_selector=node_selector,
                 command=self._command(
                     flow_name=flow_name,
+                    flow_dir=flow_dir,
                     run_id=run_id,
                     step_name=step_name,
                     task_id=task_id,
