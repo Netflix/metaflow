@@ -339,15 +339,16 @@ class RunningJob(object):
         self._job = self._fetch_job()
         self._pod = self._fetch_pod()
 
-        import atexit
+        import signal
 
-        def best_effort_kill():
+        def best_effort_kill(signum, frame):
             try:
                 self.kill()
             except:
                 pass
-
-        atexit.register(best_effort_kill)
+        # Best effort attempt to terminate the pod if there the user
+        # tries to Ctrl+C the process
+        signal.signal(signal.SIGINT, best_effort_kill)
 
     def __repr__(self):
         return "{}('{}/{}')".format(
@@ -563,9 +564,24 @@ class RunningJob(object):
     @property
     def is_running(self):
         # Returns true if the pod is running.
-        return not self.is_done and (
-            self._pod.get("status", {}).get("phase") == "Running"
-        )
+        if self.is_done:
+            return False
+
+        container_statuses = self._pod.get("status", {}).get("container_statuses", [])
+        if not container_statuses:
+            # Yet to start, most likely
+            return True
+        if len(container_statuses) < 1:
+            # Yet to start, most likely
+            return True
+        # There is guaranteed to be only 1 container
+        cstatus = container_statuses[0]
+        terminated = cstatus.get("state", {}).get("terminated", {})
+        if terminated and terminated.get("finished_at"):
+            return False
+
+        return True
+
 
     @property
     def is_waiting(self):
