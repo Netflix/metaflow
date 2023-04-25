@@ -59,9 +59,11 @@ def nfs_volumes(client, kwargs):
 
     container_volumes = []
     pod_volumes = []
-
+    ctx = 0
     for volume in volumes["nfs"]:
-        name = f"metaflow-nfs-{volume['source']['path'].replace('/','-')}"
+        name = "metaflow-nfs-{}-{}".format(
+            volume["source"]["path"].replace("/", "-"), ctx
+        )
 
         container_volumes.append(
             client.V1VolumeMount(
@@ -85,6 +87,8 @@ def nfs_volumes(client, kwargs):
                 ),
             )
         )
+
+        ctx += 1
 
     return container_volumes, pod_volumes
 
