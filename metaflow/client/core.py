@@ -486,31 +486,40 @@ class MetaflowObject(object):
         """
         return bool(self._get_child(id))
 
+    def _unpickle_284(self, data):
+        if len(data) != 3:
+            raise MetaflowInternalError(
+                "Unexpected size of array: {}".format(len(data))
+            )
+        pathspec, attempt, namespace_check = data
+        self.__init__(
+            pathspec=pathspec, attempt=attempt, _namespace_check=namespace_check
+        )
+
+    _UNPICKLE_FUNC = {"2.8.4": _unpickle_284}
+
     def __setstate__(self, state):
         """
         This function is used during the unpickling operation.
         More info here https://docs.python.org/3/library/pickle.html#object.__setstate__
         """
-        if isinstance(state, dict):
-            # For backward compatibility: handles pickled objects that were serialized as a `dict`
+        if "version" in state and "data" in state:
+            version = state["version"]
+            if version not in self._UNPICKLE_FUNC:
+                # this happens when an object pickled using a newer version of Metaflow is
+                # being un-pickled using an older version of Metaflow
+                raise MetaflowInternalError(
+                    "Unpickling this object requires a Metaflow version greater than or equal to {}".format(
+                        version
+                    )
+                )
+            self._UNPICKLE_FUNC[version](self, state["data"])
+        else:
+            # For backward compatibility: handles pickled objects that were serialized without a __getstate__ override
             self.__init__(
                 pathspec=state.get("_pathspec", None),
                 attempt=state.get("_attempt", None),
-                _namespace_check=state.get("_namespace_check", None),
-            )
-        elif isinstance(state, tuple):
-            # The new way where __getstate__ serializes to a tuple
-            if len(state) != 3:
-                raise MetaflowInternalError(
-                    "Unexpected size of tuple: {}".format(len(state))
-                )
-            pathspec, attempt, namespace_check = state
-            self.__init__(
-                pathspec=pathspec, attempt=attempt, _namespace_check=namespace_check
-            )
-        else:
-            raise MetaflowInternalError(
-                "Type not supported: {}".format(state.__class__)
+                _namespace_check=state.get("_namespace_check", True),
             )
 
     def __getstate__(self):
@@ -519,10 +528,17 @@ class MetaflowObject(object):
         More info here https://docs.python.org/3/library/pickle.html#object.__getstate__
 
         This function is not forward compatible i.e., if this object (or any of the objects deriving
-        from this object) are pickled (serialized) in a later version of Metaflow, it will not be possible
+        from this object) are pickled (serialized) in a later version of Metaflow, it may not be possible
         to unpickle (deserialize) them in a previous version of Metaflow.
         """
-        return self.pathspec, self._attempt, self._namespace_check
+        return {
+            "version": "2.8.4",
+            "data": [
+                self.pathspec,
+                self._attempt,
+                self._namespace_check,
+            ],
+        }
 
     @property
     def tags(self) -> FrozenSet[str]:
