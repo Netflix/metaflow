@@ -270,7 +270,7 @@ class Kubernetes(object):
 
         (
             job.annotation("metaflow/run_id", run_id)
-            .annotation("autoscaler.kubernetes.io/safe-to-evict", "false")
+            .annotation("cluster-autoscaler.kubernetes.io/safe-to-evict", "false")
             .annotation("metaflow/step_name", step_name)
             .annotation("metaflow/task_id", task_id)
             .annotation("metaflow/attempt", attempt)
