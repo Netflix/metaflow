@@ -122,7 +122,6 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
                 name="metaflow.%s.%s"
                 % (current.get("project_flow_name", flow.name), step_name)
             )
-            event = ArgoEvent(name="metaflow.%s.%s" % (flow.name, step_name))
             # There should only be one event generated even when the task is retried.
             # Take care to only add to the list and not modify existing values.
             event.add_to_payload("id", current.pathspec)
