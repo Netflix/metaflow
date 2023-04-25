@@ -36,9 +36,9 @@ class TriggerDecorator(FlowDecorator):
 
     Parameters
     ----------
-    event : str or dict, optional
+    event : Union[str, dict], optional
         Event dependency for this flow.
-    events : List[str or dict], optional
+    events : List[Union[str, dict]], optional
         Events dependency for this flow.
     options : dict, optional
         Backend-specific configuration for tuning eventing behavior.
