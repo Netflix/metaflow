@@ -487,9 +487,42 @@ class MetaflowObject(object):
         return bool(self._get_child(id))
 
     def __setstate__(self, state):
-        self.__dict__ = state
-        if "_namespace_check" not in state:
-            self._namespace_check = True
+        """
+        This function is used during the unpickling operation.
+        More info here https://docs.python.org/3/library/pickle.html#object.__setstate__
+        """
+        if isinstance(state, dict):
+            # For backward compatibility: handles pickled objects that were serialized as a `dict`
+            self.__init__(
+                pathspec=state.get("_pathspec", None),
+                attempt=state.get("_attempt", None),
+                _namespace_check=state.get("_namespace_check", None),
+            )
+        elif isinstance(state, tuple):
+            # The new way where __getstate__ serializes to a tuple
+            if len(state) != 3:
+                raise MetaflowInternalError(
+                    "Unexpected size of tuple: {}".format(len(state))
+                )
+            pathspec, attempt, namespace_check = state
+            self.__init__(
+                pathspec=pathspec, attempt=attempt, _namespace_check=namespace_check
+            )
+        else:
+            raise MetaflowInternalError(
+                "Type not supported: {}".format(state.__class__)
+            )
+
+    def __getstate__(self):
+        """
+        This function is used during the pickling operation.
+        More info here https://docs.python.org/3/library/pickle.html#object.__getstate__
+
+        This function is not forward compatible i.e., if this object (or any of the objects deriving
+        from this object) are pickled (serialized) in a later version of Metaflow, it will not be possible
+        to unpickle (deserialize) them in a previous version of Metaflow.
+        """
+        return self.pathspec, self._attempt, self._namespace_check
 
     @property
     def tags(self) -> FrozenSet[str]:
@@ -918,6 +951,12 @@ class DataArtifact(MetaflowObject):
             Creation time
         """
         return self.created_at
+
+    def __getstate__(self):
+        return super(DataArtifact, self).__getstate__()
+
+    def __setstate__(self, state):
+        super(DataArtifact, self).__setstate__(state)
 
 
 class Task(MetaflowObject):
@@ -1464,6 +1503,12 @@ class Task(MetaflowObject):
             ds_type, ds_root, stream, attempt, *self.path_components
         )
 
+    def __getstate__(self):
+        return super(Task, self).__getstate__()
+
+    def __setstate__(self, state):
+        super(Task, self).__setstate__(state)
+
 
 class Step(MetaflowObject):
     """
@@ -1580,6 +1625,12 @@ class Step(MetaflowObject):
         children = super(Step, self).__iter__()
         for t in children:
             yield t
+
+    def __getstate__(self):
+        return super(Step, self).__getstate__()
+
+    def __setstate__(self, state):
+        super(Step, self).__setstate__(state)
 
     @property
     def finished_at(self) -> Optional[datetime]:
@@ -1901,6 +1952,12 @@ class Run(MetaflowObject):
         self._user_tags = frozenset(final_user_tags)
         self._tags = frozenset([*self._user_tags, *self._system_tags])
 
+    def __getstate__(self):
+        return super(Run, self).__getstate__()
+
+    def __setstate__(self, state):
+        super(Run, self).__setstate__(state)
+
     @property
     def trigger(self) -> Optional[Trigger]:
         """
@@ -1989,6 +2046,12 @@ class Flow(MetaflowObject):
             Iterator over `Run` objects in this flow.
         """
         return self._filtered_children(*tags)
+
+    def __getstate__(self):
+        return super(Flow, self).__getstate__()
+
+    def __setstate__(self, state):
+        super(Flow, self).__setstate__(state)
 
 
 class Metaflow(object):
