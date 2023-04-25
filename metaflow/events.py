@@ -69,21 +69,41 @@ class Trigger(object):
     @property
     def event(self):
         """
-        Returns a `MetaflowEvent` object corresponding to the triggering event. If multiple events triggered the run, returns the latest event.
+        The `MetaflowEvent` object corresponding to the triggering event.
+
+        If multiple events triggered the run, this property is the latest event.
+
+        Returns
+        -------
+        MetaflowEvent, optional
+            The latest event that triggered the run, if applicable.
         """
         return next(iter(self._events), None)
 
     @property
     def events(self):
         """
-        Returns a list of `MetaflowEvent` objects correspondings to all the triggering events.
+        The list of `MetaflowEvent` objects correspondings to all the triggering events.
+
+        Returns
+        -------
+        List[MetaflowEvent], optional
+            List of all events that triggered the run
         """
         return list(self._events) or None
 
     @property
     def run(self):
         """
-        If the triggering event is a Metaflow run, returns the corresponding `Run` object. If multiple runs triggered the run, returns the latest run. `None` if the event is not a `Run`.
+        The corresponding `Run` object if the triggering event is a Metaflow run.
+
+        In case multiple runs triggered the run, this property is the latest run.
+        Returns `None` if none of the triggering events are a `Run`.
+
+        Returns
+        -------
+        Run, optional
+            Latest Run that triggered this run, if applicable.
         """
         if self._runs is None:
             self.runs
@@ -92,7 +112,13 @@ class Trigger(object):
     @property
     def runs(self):
         """
-        If the triggering events correspond to Metaflow runs, returns a list of `Run` objects. Otherwise returns `None`.
+        The list of `Run` objects in the triggering events.
+        Returns `None` if none of the triggering events are `Run` objects.
+
+        Returns
+        -------
+        List[Run], optional
+            List of runs that triggered this run, if applicable.
         """
         if self._runs is None:
             # to avoid circular import
