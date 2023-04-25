@@ -102,13 +102,11 @@ class Trigger(object):
                     obj.id[: obj.id.index("/", obj.id.index("/") + 1)],
                     _namespace_check=False,
                 )
-                for obj in filter(
-                    lambda x: x.type in ["run"],
-                    self.events,
-                )
-            ] or None
+                for obj in self.events
+                if obj.type == "run"
+            ]
 
-        return self._runs
+        return list(self._runs) or None
 
     def __getitem__(self, key):
         """
