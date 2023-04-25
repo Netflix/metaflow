@@ -104,7 +104,7 @@ class Trigger(object):
                     obj.id[: obj.id.index("/", obj.id.index("/") + 1)],
                     _namespace_check=False,
                 )
-                for obj in self.events
+                for obj in self._events
                 if obj.type == "run"
             ]
 

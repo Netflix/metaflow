@@ -255,8 +255,8 @@ class TriggerOnFinishDecorator(FlowDecorator):
                 trigger["flow"] = trigger["fq_name"]
             elif trigger["fq_name"].count(".") in (2, 3):
                 # fully qualified name is of the format - project.branch.flow_name
-                trigger["project"], _ = trigger["fq_name"].split(".", maxsplit=1)
-                trigger["branch"], trigger["flow"] = _.rsplit(".", maxsplit=1)
+                trigger["project"], tail = trigger["fq_name"].split(".", maxsplit=1)
+                trigger["branch"], trigger["flow"] = tail.rsplit(".", maxsplit=1)
             else:
                 raise MetaflowException(
                     "Incorrect format for *flow* in *@trigger_on_finish* "
