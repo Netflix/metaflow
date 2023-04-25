@@ -12,14 +12,13 @@ class ArgoClientException(MetaflowException):
 
 class ArgoClient(object):
     def __init__(self, namespace=None):
-
-        self._kubernetes_client = KubernetesClient()
+        self._client = KubernetesClient()
         self._namespace = namespace or "default"
         self._group = "argoproj.io"
         self._version = "v1alpha1"
 
     def get_workflow_template(self, name):
-        client = self._kubernetes_client.get()
+        client = self._client.get()
         try:
             return client.CustomObjectsApi().get_namespaced_custom_object(
                 group=self._group,
@@ -38,7 +37,7 @@ class ArgoClient(object):
     def register_workflow_template(self, name, workflow_template):
         # Unfortunately, Kubernetes client does not handle optimistic
         # concurrency control by itself unlike kubectl
-        client = self._kubernetes_client.get()
+        client = self._client.get()
         try:
             workflow_template["metadata"][
                 "resourceVersion"
@@ -88,7 +87,7 @@ class ArgoClient(object):
             )
 
     def trigger_workflow_template(self, name, parameters={}):
-        client = self._kubernetes_client.get()
+        client = self._client.get()
         body = {
             "apiVersion": "argoproj.io/v1alpha1",
             "kind": "Workflow",
@@ -119,7 +118,7 @@ class ArgoClient(object):
     def schedule_workflow_template(self, name, schedule=None, timezone=None):
         # Unfortunately, Kubernetes client does not handle optimistic
         # concurrency control by itself unlike kubectl
-        client = self._kubernetes_client.get()
+        client = self._client.get()
         body = {
             "apiVersion": "argoproj.io/v1alpha1",
             "kind": "CronWorkflow",
@@ -175,6 +174,80 @@ class ArgoClient(object):
                 namespace=self._namespace,
                 plural="cronworkflows",
                 body=body,
+                name=name,
+            )
+        except client.rest.ApiException as e:
+            raise ArgoClientException(
+                json.loads(e.body)["message"] if e.body is not None else e.reason
+            )
+
+    def register_sensor(self, name, sensor=None):
+        if sensor is None:
+            sensor = {}
+        # Unfortunately, Kubernetes client does not handle optimistic
+        # concurrency control by itself unlike kubectl
+        client = self._client.get()
+        if not sensor:
+            sensor["metadata"] = {}
+
+        try:
+            sensor["metadata"][
+                "resourceVersion"
+            ] = client.CustomObjectsApi().get_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="sensors",
+                name=name,
+            )[
+                "metadata"
+            ][
+                "resourceVersion"
+            ]
+        except client.rest.ApiException as e:
+            # Sensor does not exist and we want to add one
+            if e.status == 404:
+                if sensor.get("kind") is None:
+                    return
+                try:
+                    return client.CustomObjectsApi().create_namespaced_custom_object(
+                        group=self._group,
+                        version=self._version,
+                        namespace=self._namespace,
+                        plural="sensors",
+                        body=sensor,
+                    )
+                except client.rest.ApiException as e:
+                    raise ArgoClientException(
+                        json.loads(e.body)["message"]
+                        if e.body is not None
+                        else e.reason
+                    )
+            else:
+                raise ArgoClientException(
+                    json.loads(e.body)["message"] if e.body is not None else e.reason
+                )
+        # Since sensors occupy real resources, delete existing sensor if needed
+        if sensor.get("kind") is None:
+            try:
+                return client.CustomObjectsApi().delete_namespaced_custom_object(
+                    group=self._group,
+                    version=self._version,
+                    namespace=self._namespace,
+                    plural="sensors",
+                    name=name,
+                )
+            except client.rest.ApiException as e:
+                raise ArgoClientException(
+                    json.loads(e.body)["message"] if e.body is not None else e.reason
+                )
+        try:
+            return client.CustomObjectsApi().replace_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="sensors",
+                body=sensor,
                 name=name,
             )
         except client.rest.ApiException as e:

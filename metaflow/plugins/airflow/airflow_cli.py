@@ -1,23 +1,23 @@
+import base64
 import os
 import re
 import sys
-import base64
+from hashlib import sha1
+
 from metaflow import current, decorators
 from metaflow._vendor import click
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.package import MetaflowPackage
-from hashlib import sha1
-from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
-from metaflow.util import get_username, to_bytes, to_unicode
-
-from .airflow import Airflow
-from .exception import AirflowException, NotSupportedException
-
 from metaflow.plugins.aws.step_functions.production_token import (
     load_token,
     new_token,
     store_token,
 )
+from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
+from metaflow.util import get_username, to_bytes, to_unicode
+
+from .airflow import Airflow
+from .exception import AirflowException, NotSupportedException
 
 
 class IncorrectProductionToken(MetaflowException):
@@ -372,9 +372,9 @@ def _validate_workflow(flow, graph, flow_datastore, metadata, workflow_timeout):
         seen.add(norm)
         if "default" not in param.kwargs:
             raise MetaflowException(
-                "Parameter *%s* does not have a "
-                "default value. "
+                "Parameter *%s* does not have a default value. "
                 "A default value is required for parameters when deploying flows on Airflow."
+                % param.name
             )
     # check for other compute related decorators.
     _validate_foreach_constraints(graph)
