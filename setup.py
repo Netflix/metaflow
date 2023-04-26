@@ -43,6 +43,5 @@ setup(
     install_requires=[
         "requests",
         "boto3",
-        "pylint",
     ],
 )

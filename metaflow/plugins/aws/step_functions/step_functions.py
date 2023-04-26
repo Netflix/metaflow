@@ -1,33 +1,33 @@
-import os
-from collections import defaultdict
-import sys
 import hashlib
 import json
-import time
-import string
+import os
 import random
+import string
+import sys
+import time
 import uuid
+from collections import defaultdict
 
+from metaflow import R
+from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException, MetaflowInternalError
+from metaflow.metaflow_config import (
+    EVENTS_SFN_ACCESS_IAM_ROLE,
+    S3_ENDPOINT_URL,
+    SFN_DYNAMO_DB_TABLE,
+    SFN_EXECUTION_LOG_GROUP_ARN,
+    SFN_IAM_ROLE,
+)
+from metaflow.parameters import deploy_time_eval
 from metaflow.plugins.aws.batch.batch_decorator import BatchDecorator
 from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.retry_decorator import RetryDecorator
-from metaflow.parameters import deploy_time_eval
-from metaflow.decorators import flow_decorators
 from metaflow.util import compress_list, dict_to_cli_options, to_pascalcase
-from metaflow.metaflow_config import (
-    SFN_IAM_ROLE,
-    EVENTS_SFN_ACCESS_IAM_ROLE,
-    SFN_DYNAMO_DB_TABLE,
-    SFN_EXECUTION_LOG_GROUP_ARN,
-    S3_ENDPOINT_URL,
-)
-from metaflow import R
 
-from .step_functions_client import StepFunctionsClient
-from .event_bridge_client import EventBridgeClient
-from ..batch.batch import Batch
 from ..aws_utils import compute_resource_attributes
+from ..batch.batch import Batch
+from .event_bridge_client import EventBridgeClient
+from .step_functions_client import StepFunctionsClient
 
 
 class StepFunctionsException(MetaflowException):
@@ -227,6 +227,13 @@ class StepFunctions(object):
         return None
 
     def _compile(self):
+        if self.flow._flow_decorators.get("trigger") or self.flow._flow_decorators.get(
+            "trigger_on_finish"
+        ):
+            raise StepFunctionsException(
+                "Deploying flows with @trigger or @trigger_on_finish decorator(s) "
+                "to AWS Step Functions is not supported currently."
+            )
         # Visit every node of the flow and recursively build the state machine.
         def _visit(node, workflow, exit_node=None):
             if node.parallel_foreach:

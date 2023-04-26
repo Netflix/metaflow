@@ -1,6 +1,6 @@
 from metaflow.extension_support.plugins import (
-    process_plugins,
     merge_lists,
+    process_plugins,
     resolve_plugins,
 )
 
@@ -56,6 +56,8 @@ FLOW_DECORATORS_DESC = [
     ("conda_base", ".conda.conda_flow_decorator.CondaFlowDecorator"),
     ("schedule", ".aws.step_functions.schedule_decorator.ScheduleDecorator"),
     ("project", ".project_decorator.ProjectDecorator"),
+    ("trigger", ".events_decorator.TriggerDecorator"),
+    ("trigger_on_finish", ".events_decorator.TriggerOnFinishDecorator"),
 ]
 
 # Add environments here
@@ -137,28 +139,29 @@ SIDECARS.update(MONITOR_SIDECARS)
 AWS_CLIENT_PROVIDERS = resolve_plugins("aws_client_provider")
 SECRETS_PROVIDERS = resolve_plugins("secrets_provider")
 
+from .cards.card_modules import MF_EXTERNAL_CARDS
+
 # Cards; due to the way cards were designed, it is harder to make them fit
 # in the resolve_plugins mechanism. This should be OK because it is unlikely that
 # cards will need to be *removed*. No card should be too specific (for example, no
 # card should be something just for Airflow, or Argo or step-functions -- those should
 # be added externally).
 from .cards.card_modules.basic import (
-    DefaultCard,
-    TaskSpecCard,
-    ErrorCard,
     BlankCard,
+    DefaultCard,
     DefaultCardJSON,
+    ErrorCard,
+    TaskSpecCard,
 )
 from .cards.card_modules.test_cards import (
-    TestErrorCard,
-    TestTimeoutCard,
-    TestMockCard,
-    TestPathSpecCard,
     TestEditableCard,
     TestEditableCard2,
+    TestErrorCard,
+    TestMockCard,
     TestNonEditableCard,
+    TestPathSpecCard,
+    TestTimeoutCard,
 )
-from .cards.card_modules import MF_EXTERNAL_CARDS
 
 CARDS = [
     DefaultCard,

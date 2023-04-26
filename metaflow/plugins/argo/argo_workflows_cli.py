@@ -8,11 +8,9 @@ from hashlib import sha1
 
 from metaflow import JSONType, current, decorators, parameters
 from metaflow._vendor import click
-from metaflow.metaflow_config import SERVICE_VERSION_CHECK, UI_URL
 from metaflow.exception import MetaflowException, MetaflowInternalError
+from metaflow.metaflow_config import SERVICE_VERSION_CHECK, UI_URL
 from metaflow.package import MetaflowPackage
-from metaflow.plugins.environment_decorator import EnvironmentDecorator
-from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
 
 # TODO: Move production_token to utils
 from metaflow.plugins.aws.step_functions.production_token import (
@@ -20,8 +18,10 @@ from metaflow.plugins.aws.step_functions.production_token import (
     new_token,
     store_token,
 )
-from metaflow.util import get_username, to_bytes, to_unicode
+from metaflow.plugins.environment_decorator import EnvironmentDecorator
+from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
 from metaflow.tagging_util import validate_tags
+from metaflow.util import get_username, to_bytes, to_unicode
 
 from .argo_workflows import ArgoWorkflows
 
@@ -55,7 +55,7 @@ def cli():
     default=None,
     type=str,
     help="Argo Workflow name. The flow name is used instead if "
-    "this option is not specified",
+    "this option is not specified.",
 )
 @click.pass_obj
 def argo_workflows(obj, name=None):
@@ -129,6 +129,12 @@ def argo_workflows(obj, name=None):
     "are processed first if Argo Workflows controller is configured to process limited "
     "number of workflows in parallel",
 )
+@click.option(
+    "--auto-emit-argo-events/--no-auto-emit-argo-events",
+    default=True,  # TODO: Default to a value from config
+    show_default=True,
+    help="Auto emits Argo Events when the run completes successfully",
+)
 @click.pass_obj
 def create(
     obj,
@@ -141,6 +147,7 @@ def create(
     max_workers=None,
     workflow_timeout=None,
     workflow_priority=None,
+    auto_emit_argo_events=False,
 ):
     validate_tags(tags)
 
@@ -172,10 +179,12 @@ def create(
         max_workers,
         workflow_timeout,
         workflow_priority,
+        auto_emit_argo_events,
     )
 
     if only_json:
         obj.echo_always(str(flow), err=False, no_bold=True)
+        # TODO: Support echo-ing Argo Events Sensor template
     else:
         flow.deploy()
         obj.echo(
@@ -195,6 +204,8 @@ def create(
         flow.schedule()
         obj.echo("What will trigger execution of the workflow:", bold=True)
         obj.echo(flow.trigger_explanation(), indent=True)
+
+        # TODO: Print events emitted by execution of this flow
 
         # response = ArgoWorkflows.trigger(obj.workflow_name)
         # run_id = "argo-" + response["metadata"]["name"]
@@ -325,7 +336,15 @@ def resolve_workflow_name(obj, name):
 
 
 def make_flow(
-    obj, token, name, tags, namespace, max_workers, workflow_timeout, workflow_priority
+    obj,
+    token,
+    name,
+    tags,
+    namespace,
+    max_workers,
+    workflow_timeout,
+    workflow_priority,
+    auto_emit_argo_events,
 ):
     # TODO: Make this check less specific to Amazon S3 as we introduce
     #       support for more cloud object stores.
@@ -371,6 +390,7 @@ def make_flow(
         username=get_username(),
         workflow_timeout=workflow_timeout,
         workflow_priority=workflow_priority,
+        auto_emit_argo_events=auto_emit_argo_events,
     )
 
 

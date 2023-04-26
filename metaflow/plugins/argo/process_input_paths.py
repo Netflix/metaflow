@@ -1,5 +1,5 @@
-import sys
 import re
+import sys
 
 
 def process_input_paths(input_paths):
