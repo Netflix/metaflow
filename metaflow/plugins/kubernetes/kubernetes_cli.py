@@ -239,6 +239,13 @@ def step(
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
     try:
         kubernetes.wait(stdout_location, stderr_location, echo=echo)
+        # The above wait returns when the main container completes execution.
+        # There is a subsequent process that takes the logs of that container
+        # and writes them to S3. And the task is marked completed only after
+        # that process ends. Therefore, we wait here until the task has been
+        # marked as completed.
+        while not ds.has_metadata("DONE.lock"):
+            time.sleep(1)
     except KubernetesKilledException:
         # don't retry killed tasks
         traceback.print_exc()

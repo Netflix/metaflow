@@ -293,7 +293,7 @@ class Kubernetes(object):
         def wait_for_launch(job):
             status = job.status
             echo(
-                "Task is starting (%s)..." % status,
+                "Task is starting 1 (%s)..." % status,
                 "stderr",
                 job_id=job.id,
             )
@@ -304,7 +304,7 @@ class Kubernetes(object):
                 if status != new_status or (time.time() - t) > 30:
                     status = new_status
                     echo(
-                        "Task is starting (%s)..." % status,
+                        "Task is starting 2 (%s)..." % status,
                         "stderr",
                         job_id=job.id,
                     )
