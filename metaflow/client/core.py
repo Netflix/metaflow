@@ -486,6 +486,60 @@ class MetaflowObject(object):
         """
         return bool(self._get_child(id))
 
+    def _unpickle_284(self, data):
+        if len(data) != 3:
+            raise MetaflowInternalError(
+                "Unexpected size of array: {}".format(len(data))
+            )
+        pathspec, attempt, namespace_check = data
+        self.__init__(
+            pathspec=pathspec, attempt=attempt, _namespace_check=namespace_check
+        )
+
+    _UNPICKLE_FUNC = {"2.8.4": _unpickle_284}
+
+    def __setstate__(self, state):
+        """
+        This function is used during the unpickling operation.
+        More info here https://docs.python.org/3/library/pickle.html#object.__setstate__
+        """
+        if "version" in state and "data" in state:
+            version = state["version"]
+            if version not in self._UNPICKLE_FUNC:
+                # this happens when an object pickled using a newer version of Metaflow is
+                # being un-pickled using an older version of Metaflow
+                raise MetaflowInternalError(
+                    "Unpickling this object requires a Metaflow version greater than or equal to {}".format(
+                        version
+                    )
+                )
+            self._UNPICKLE_FUNC[version](self, state["data"])
+        else:
+            # For backward compatibility: handles pickled objects that were serialized without a __getstate__ override
+            self.__init__(
+                pathspec=state.get("_pathspec", None),
+                attempt=state.get("_attempt", None),
+                _namespace_check=state.get("_namespace_check", True),
+            )
+
+    def __getstate__(self):
+        """
+        This function is used during the pickling operation.
+        More info here https://docs.python.org/3/library/pickle.html#object.__getstate__
+
+        This function is not forward compatible i.e., if this object (or any of the objects deriving
+        from this object) are pickled (serialized) in a later version of Metaflow, it may not be possible
+        to unpickle (deserialize) them in a previous version of Metaflow.
+        """
+        return {
+            "version": "2.8.4",
+            "data": [
+                self.pathspec,
+                self._attempt,
+                self._namespace_check,
+            ],
+        }
+
     @property
     def tags(self) -> FrozenSet[str]:
         """
@@ -913,6 +967,12 @@ class DataArtifact(MetaflowObject):
             Creation time
         """
         return self.created_at
+
+    def __getstate__(self):
+        return super(DataArtifact, self).__getstate__()
+
+    def __setstate__(self, state):
+        super(DataArtifact, self).__setstate__(state)
 
 
 class Task(MetaflowObject):
@@ -1459,6 +1519,12 @@ class Task(MetaflowObject):
             ds_type, ds_root, stream, attempt, *self.path_components
         )
 
+    def __getstate__(self):
+        return super(Task, self).__getstate__()
+
+    def __setstate__(self, state):
+        super(Task, self).__setstate__(state)
+
 
 class Step(MetaflowObject):
     """
@@ -1575,6 +1641,12 @@ class Step(MetaflowObject):
         children = super(Step, self).__iter__()
         for t in children:
             yield t
+
+    def __getstate__(self):
+        return super(Step, self).__getstate__()
+
+    def __setstate__(self, state):
+        super(Step, self).__setstate__(state)
 
     @property
     def finished_at(self) -> Optional[datetime]:
@@ -1896,6 +1968,12 @@ class Run(MetaflowObject):
         self._user_tags = frozenset(final_user_tags)
         self._tags = frozenset([*self._user_tags, *self._system_tags])
 
+    def __getstate__(self):
+        return super(Run, self).__getstate__()
+
+    def __setstate__(self, state):
+        super(Run, self).__setstate__(state)
+
     @property
     def trigger(self) -> Optional[Trigger]:
         """
@@ -1984,6 +2062,12 @@ class Flow(MetaflowObject):
             Iterator over `Run` objects in this flow.
         """
         return self._filtered_children(*tags)
+
+    def __getstate__(self):
+        return super(Flow, self).__getstate__()
+
+    def __setstate__(self, state):
+        super(Flow, self).__setstate__(state)
 
 
 class Metaflow(object):
