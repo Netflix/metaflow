@@ -30,6 +30,7 @@ from metaflow.metaflow_config import (
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
     KUBERNETES_FETCH_EC2_METADATA,
+    KUBERNETES_LABELS,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
@@ -40,6 +41,10 @@ from metaflow.metaflow_config import (
 )
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
+from metaflow.plugins.kubernetes.kubernetes import (
+    parse_kube_keyvalue_list,
+    validate_kube_labels,
+)
 from metaflow.util import (
     compress_list,
     dict_to_cli_options,
@@ -469,6 +474,11 @@ class ArgoWorkflows(object):
                 }
             )
 
+        # get labels from env vars
+        env_labels = KUBERNETES_LABELS.split(",")
+        env_labels = parse_kube_keyvalue_list(env_labels, False)
+        validate_kube_labels(env_labels)
+
         return (
             WorkflowTemplate()
             .metadata(
@@ -550,6 +560,7 @@ class ArgoWorkflows(object):
                     .label("app.kubernetes.io/name", "metaflow-task")
                     .label("app.kubernetes.io/part-of", "metaflow")
                     .annotations(annotations)
+                    .labels(env_labels)
                 )
                 # Set the entrypoint to flow name
                 .entrypoint(self.flow.name)

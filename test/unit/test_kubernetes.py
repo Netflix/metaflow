@@ -1,7 +1,10 @@
 import pytest
 
-from metaflow.plugins.kubernetes.kubernetes import KubernetesException
-from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
+from metaflow.plugins.kubernetes.kubernetes import (
+    KubernetesException,
+    validate_kube_labels,
+    parse_kube_keyvalue_list,
+)
 
 
 @pytest.mark.parametrize(
@@ -38,7 +41,7 @@ from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
     ],
 )
 def test_kubernetes_decorator_validate_kube_labels(labels):
-    assert KubernetesDecorator.validate_kube_labels(labels)
+    assert validate_kube_labels(labels)
 
 
 @pytest.mark.parametrize(
@@ -65,7 +68,7 @@ def test_kubernetes_decorator_validate_kube_labels(labels):
 def test_kubernetes_decorator_validate_kube_labels_fail(labels):
     """Fail if label contains invalid characters or is too long"""
     with pytest.raises(KubernetesException):
-        KubernetesDecorator.validate_kube_labels(labels)
+        validate_kube_labels(labels)
 
 
 @pytest.mark.parametrize(
@@ -78,7 +81,7 @@ def test_kubernetes_decorator_validate_kube_labels_fail(labels):
     ],
 )
 def test_kubernetes_parse_keyvalue_list(items, requires_both, expected):
-    ret = KubernetesDecorator.parse_kube_keyvalue_list(items, requires_both)
+    ret = parse_kube_keyvalue_list(items, requires_both)
     assert ret == expected
 
 
@@ -91,4 +94,4 @@ def test_kubernetes_parse_keyvalue_list(items, requires_both, expected):
 )
 def test_kubernetes_parse_keyvalue_list(items, requires_both):
     with pytest.raises(KubernetesException):
-        KubernetesDecorator.parse_kube_keyvalue_list(items, requires_both)
+        parse_kube_keyvalue_list(items, requires_both)
