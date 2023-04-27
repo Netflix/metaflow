@@ -234,11 +234,15 @@ class KubeflowPipelines(object):
             workflow["spec"]["serviceAccountName"] = (
                 KUBERNETES_SERVICE_ACCOUNT or "default-editor"
             )
+            workflow["metadata"]["generateName"] = None
+            workflow["metadata"]["name"] = self.name
         elif output_format == "argo-workflow-template":
             workflow["spec"]["serviceAccountName"] = (
                 KUBERNETES_SERVICE_ACCOUNT or "default-editor"
             )
             workflow["kind"] = "WorkflowTemplate"
+            workflow["metadata"]["generateName"] = None
+            workflow["metadata"]["name"] = self.name
             workflow["status"] = None
         else:
             raise NotImplementedError(f"Unsupported output format {output_format}.")
