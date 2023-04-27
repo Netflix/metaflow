@@ -15,7 +15,6 @@ except NameError:
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import AWS_SANDBOX_ENABLED
-from metaflow.plugins.aws.aws_utils import sanitize_batch_tag
 
 
 class BatchClient(object):
@@ -513,8 +512,7 @@ class BatchJob(object):
         return self
 
     def tag(self, key, value):
-        _key, _value = sanitize_batch_tag(key, value)
-        self.payload["tags"][_key] = str(_value)
+        self.payload["tags"][key] = str(value)
         return self
 
     def parameter(self, key, value):
