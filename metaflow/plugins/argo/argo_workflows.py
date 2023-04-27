@@ -146,6 +146,7 @@ class ArgoWorkflows(object):
         self.triggers, self.trigger_options = self._process_triggers()
         self._schedule, self._timezone = self._get_schedule()
 
+        self.kubernetes_labels = self._get_kubernetes_labels()
         self._workflow_template = self._compile_workflow_template()
         self._sensor = self._compile_sensor()
 
@@ -200,6 +201,19 @@ class ArgoWorkflows(object):
             )
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
+
+    @staticmethod
+    def _get_kubernetes_labels():
+        """
+        Get Kubernetes labels from environment variable.
+        Parses the string into a dict and validates that values adhere to Kubernetes restrictions.
+        """
+        if not KUBERNETES_LABELS:
+            return {}
+        env_labels = KUBERNETES_LABELS.split(",")
+        env_labels = parse_kube_keyvalue_list(env_labels, False)
+        validate_kube_labels(env_labels)
+        return env_labels
 
     def _get_schedule(self):
         schedule = self.flow._flow_decorators.get("schedule")
@@ -474,11 +488,6 @@ class ArgoWorkflows(object):
                 }
             )
 
-        # get labels from env vars
-        env_labels = KUBERNETES_LABELS.split(",") if KUBERNETES_LABELS else []
-        env_labels = parse_kube_keyvalue_list(env_labels, False)
-        validate_kube_labels(env_labels)
-
         return (
             WorkflowTemplate()
             .metadata(
@@ -560,7 +569,7 @@ class ArgoWorkflows(object):
                     .label("app.kubernetes.io/name", "metaflow-task")
                     .label("app.kubernetes.io/part-of", "metaflow")
                     .annotations(annotations)
-                    .labels(env_labels)
+                    .labels(self.kubernetes_labels)
                 )
                 # Set the entrypoint to flow name
                 .entrypoint(self.flow.name)
@@ -1350,6 +1359,7 @@ class ArgoWorkflows(object):
                 .namespace(KUBERNETES_NAMESPACE)
                 .label("app.kubernetes.io/name", "metaflow-sensor")
                 .label("app.kubernetes.io/part-of", "metaflow")
+                .labels(self.kubernetes_labels)
                 .annotations(annotations)
             )
             .spec(
