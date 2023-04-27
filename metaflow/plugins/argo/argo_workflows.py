@@ -475,7 +475,7 @@ class ArgoWorkflows(object):
             )
 
         # get labels from env vars
-        env_labels = KUBERNETES_LABELS.split(",") if KUBERNETES_LABELS else {}
+        env_labels = KUBERNETES_LABELS.split(",") if KUBERNETES_LABELS else []
         env_labels = parse_kube_keyvalue_list(env_labels, False)
         validate_kube_labels(env_labels)
 
@@ -1121,8 +1121,6 @@ class ArgoWorkflows(object):
                     # the field 'task-id' in 'parameters'
                     # .annotation("metaflow/task_id", ...)
                     .annotation("metaflow/attempt", retry_count)
-                    # Set labels
-                    .labels(resources.get("labels"))
                 )
                 # Set emptyDir volume for state management
                 .empty_dir_volume("out")
