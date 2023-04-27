@@ -384,7 +384,7 @@ class Kubernetes(object):
     def _get_labels(extra_labels=None):
         if extra_labels is None:
             extra_labels = {}
-        env_labels = KUBERNETES_LABELS.split(",")
+        env_labels = KUBERNETES_LABELS.split(",") if KUBERNETES_LABELS else {}
         env_labels = parse_kube_keyvalue_list(env_labels, False)
         labels = {**env_labels, **extra_labels}
         validate_kube_labels(labels)

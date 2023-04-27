@@ -475,7 +475,7 @@ class ArgoWorkflows(object):
             )
 
         # get labels from env vars
-        env_labels = KUBERNETES_LABELS.split(",")
+        env_labels = KUBERNETES_LABELS.split(",") if KUBERNETES_LABELS else {}
         env_labels = parse_kube_keyvalue_list(env_labels, False)
         validate_kube_labels(env_labels)
 
