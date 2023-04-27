@@ -160,22 +160,17 @@ class StepFunctions(object):
 
     @classmethod
     def delete(cls, name):
-        # First, attempt to delete the event bridge rule (if it exists).
-        try:
-            EventBridgeClient(name).delete()
-        except Exception as e:
-            raise StepFunctionsSchedulingException(repr(e))
+        # Always attempt to delete the event bridge rule.
+        schedule_deleted = EventBridgeClient(name).delete()
 
-        try:
-            response = StepFunctionsClient().delete(name)
-        except Exception as e:
-            raise StepFunctionsException(repr(e))
-        if response is None:
+        sfn_deleted = StepFunctionsClient().delete(name)
+
+        if sfn_deleted is None:
             raise StepFunctionsException(
-                "The workflow *%s* doesn't exist "
-                "on AWS Step Functions. Please "
-                "deploy your flow first." % name
+                "The workflow *%s* doesn't exist on AWS Step Functions." % name
             )
+
+        return schedule_deleted, sfn_deleted
 
     @classmethod
     def trigger(cls, name, parameters):

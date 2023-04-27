@@ -333,23 +333,12 @@ def resolve_token(
         # we allow the user who deployed the previous version to re-deploy,
         # even if they don't have the token
         if prev_user != get_username() and authorize != prev_token:
-            obj.echo(
-                "There is an existing version of *%s* on AWS Step "
-                "Functions which was deployed by the user "
-                "*%s*." % (name, prev_user)
-            )
-            obj.echo(
-                "To deploy a new version of this flow, you need to use "
-                "the same production token that they used. "
-            )
-            obj.echo(
-                "Please reach out to them to get the token. Once you "
-                "have it, call this command:"
-            )
-            obj.echo("    step-functions create --authorize MY_TOKEN", fg="green")
-            obj.echo(
-                'See "Organizing Results" at docs.metaflow.org for more '
-                "information about production tokens."
+            echo_token_instructions(
+                obj,
+                name,
+                prev_user,
+                cmd_name="create",
+                cmd_description="deploy a new version of",
             )
             raise IncorrectProductionToken(
                 "Try again with the correct " "production token."
@@ -546,9 +535,90 @@ def list_runs(
                 % (obj.state_machine_name)
             )
 
-@step_functions.command(
-    help="Delete a workflow"
+
+@step_functions.command(help="Delete a workflow")
+@click.option(
+    "--authorize",
+    default=None,
+    type=str,
+    help="Authorize the deletion with a production token",
 )
 @click.pass_obj
-def delete(obj):
-    StepFunctions.delete(obj.state_machine_name)
+def delete(obj, authorize=None):
+    validate_token(obj.state_machine_name, obj.token_prefix, obj, authorize, "delete")
+
+    obj.echo(
+        "Deleting Step Function *{name}*...".format(name=obj.state_machine_name),
+        bold=True,
+    )
+    schedule_deleted, sfn_deleted = StepFunctions.delete(obj.state_machine_name)
+
+    if schedule_deleted:
+        obj.echo(
+            "Deleting EventBridge rule *{name}* as well...".format(
+                name=obj.state_machine_name
+            ),
+            bold=True,
+        )
+    if sfn_deleted:
+        obj.echo(
+            "Deleting the Step Function may take a while. "
+            "Deploying the flow again to Step Functions while the delete is in-flight will fail."
+        )
+        obj.echo(
+            "In-flight executions will not be affected. "
+            "If necessary, terminate them manually."
+        )
+
+
+def validate_token(name, token_prefix, obj, authorize, cmd_name):
+    # 1) retrieve the previous deployment, if one exists
+    workflow = StepFunctions.get_existing_deployment(name)
+    if workflow is None:
+        prev_token = None
+    else:
+        prev_user, prev_token = workflow
+
+    # 2) authorize this deployment
+    if prev_token is not None:
+        if authorize is None:
+            authorize = load_token(token_prefix)
+        elif authorize.startswith("production:"):
+            authorize = authorize[11:]
+
+        # we allow the user who deployed the previous version to re-deploy,
+        # even if they don't have the token
+        # NOTE: The username is visible in multiple sources, and can be set by the user.
+        # Should we consider being stricter here?
+        if prev_user != get_username() and authorize != prev_token:
+            echo_token_instructions(obj, name, prev_user, cmd_name)
+            raise IncorrectProductionToken(
+                "Try again with the correct production token."
+            )
+
+    # 3) all validations passed, store the previous token for future use
+    token = prev_token
+
+    store_token(token_prefix, token)
+    return True
+
+
+def echo_token_instructions(obj, name, prev_user, cmd_name, cmd_description=None):
+    obj.echo(
+        "There is an existing version of *%s* on AWS Step "
+        "Functions which was deployed by the user "
+        "*%s*." % (name, prev_user)
+    )
+    obj.echo(
+        "To deploy a new version of this flow, you need to use "
+        "the same production token that they used. "
+    )
+    obj.echo(
+        "Please reach out to them to get the token. Once you "
+        "have it, call this command:"
+    )
+    obj.echo("    step-functions %s --authorize MY_TOKEN" % cmd_name, fg="green")
+    obj.echo(
+        'See "Organizing Results" at docs.metaflow.org for more '
+        "information about production tokens."
+    )

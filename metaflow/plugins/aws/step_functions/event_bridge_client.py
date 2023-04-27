@@ -68,11 +68,10 @@ class EventBridgeClient(object):
             )
             if response.get("FailedEntryCount", 0) > 0:
                 raise RuntimeError("Failed to remove targets from rule %s" % self.name)
-            self._client.delete_rule(Name=self.name)
+            return self._client.delete_rule(Name=self.name)
         except self._client.exceptions.ResourceNotFoundException:
             # Ignore if the rule does not exist.
-            pass
-
+            return None
 
 
 def format(name):
