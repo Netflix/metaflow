@@ -419,12 +419,22 @@ def resolve_token(
         # we allow the user who deployed the previous version to re-deploy,
         # even if they don't have the token
         if prev_user != get_username() and authorize != prev_token:
-            echo_token_instructions(
-                obj,
-                name,
-                prev_user,
-                cmd_name="create",
-                cmd_description="deploy a new version of",
+            obj.echo(
+                "There is an existing version of *%s* on Argo Workflows which was "
+                "deployed by the user *%s*." % (name, prev_user)
+            )
+            obj.echo(
+                "To deploy a new version of this flow, you need to use the same "
+                "production token that they used. "
+            )
+            obj.echo(
+                "Please reach out to them to get the token. Once you have it, call "
+                "this command:"
+            )
+            obj.echo("    argo-workflows create --authorize MY_TOKEN", fg="green")
+            obj.echo(
+                'See "Organizing Results" at docs.metaflow.org for more information '
+                "about production tokens."
             )
             raise IncorrectProductionToken(
                 "Try again with the correct production token."
@@ -542,7 +552,25 @@ def trigger(obj, run_id_file=None, **kwargs):
 )
 @click.pass_obj
 def delete(obj, authorize=None):
-    validate_token(obj.workflow_name, obj.token_prefix, obj, authorize, "delete")
+    def _token_instructions(flow_name, prev_user):
+        obj.echo(
+            "There is an existing version of *%s* on Argo Workflows which was "
+            "deployed by the user *%s*." % (flow_name, prev_user)
+        )
+        obj.echo(
+            "To delete this flow, you need to use the same production token that they used."
+        )
+        obj.echo(
+            "Please reach out to them to get the token. Once you have it, call "
+            "this command:"
+        )
+        obj.echo("    argo-workflows delete --authorize MY_TOKEN", fg="green")
+        obj.echo(
+            'See "Organizing Results" at docs.metaflow.org for more information '
+            "about production tokens."
+        )
+
+    validate_token(obj.workflow_name, obj.token_prefix, authorize, _token_instructions)
     obj.echo("Deleting workflow *{name}*...".format(name=obj.workflow_name), bold=True)
 
     schedule_deleted, sensor_deleted, workflow_deleted = ArgoWorkflows.delete(
@@ -572,7 +600,7 @@ def delete(obj, authorize=None):
         )
 
 
-def validate_token(name, token_prefix, obj, authorize, cmd_name):
+def validate_token(name, token_prefix, authorize, instructions_fn=None):
     # 1) retrieve the previous deployment, if one exists
     workflow = ArgoWorkflows.get_existing_deployment(name)
     if workflow is None:
@@ -592,7 +620,8 @@ def validate_token(name, token_prefix, obj, authorize, cmd_name):
         # NOTE: The username is visible in multiple sources, and can be set by the user.
         # Should we consider being stricter here?
         if prev_user != get_username() and authorize != prev_token:
-            echo_token_instructions(obj, name, prev_user, cmd_name)
+            if instructions_fn:
+                instructions_fn(flow_name=name, prev_user=prev_user)
             raise IncorrectProductionToken(
                 "Try again with the correct production token."
             )
@@ -602,26 +631,6 @@ def validate_token(name, token_prefix, obj, authorize, cmd_name):
 
     store_token(token_prefix, token)
     return True
-
-
-def echo_token_instructions(obj, name, prev_user, cmd_name, cmd_description=None):
-    obj.echo(
-        "There is an existing version of *%s* on Argo Workflows which was "
-        "deployed by the user *%s*." % (name, prev_user)
-    )
-    obj.echo(
-        "To %s this flow, you need to use the same "
-        "production token that they used. " % (cmd_description or cmd_name)
-    )
-    obj.echo(
-        "Please reach out to them to get the token. Once you have it, call "
-        "this command:"
-    )
-    obj.echo("    argo-workflows %s --authorize MY_TOKEN" % cmd_name, fg="green")
-    obj.echo(
-        'See "Organizing Results" at docs.metaflow.org for more information '
-        "about production tokens."
-    )
 
 
 @argo_workflows.command(help="Terminate flow execution on Argo Workflows.")
@@ -634,7 +643,25 @@ def echo_token_instructions(obj, name, prev_user, cmd_name, cmd_description=None
 @click.argument("run-id", required=True, type=str)
 @click.pass_obj
 def terminate(obj, run_id, authorize=None):
-    validate_token(obj.workflow_name, obj.token_prefix, obj, authorize, "terminate")
+    def _token_instructions(flow_name, prev_user):
+        obj.echo(
+            "There is an existing version of *%s* on Argo Workflows which was "
+            "deployed by the user *%s*." % (flow_name, prev_user)
+        )
+        obj.echo(
+            "To terminate this flow, you need to use the same production token that they used."
+        )
+        obj.echo(
+            "Please reach out to them to get the token. Once you have it, call "
+            "this command:"
+        )
+        obj.echo("    argo-workflows terminate --authorize MY_TOKEN RUN_ID", fg="green")
+        obj.echo(
+            'See "Organizing Results" at docs.metaflow.org for more information '
+            "about production tokens."
+        )
+
+    validate_token(obj.workflow_name, obj.token_prefix, authorize, _token_instructions)
     obj.echo(
         "Terminating run *{run_id}* for {flow_name} ...".format(
             run_id=run_id, flow_name=obj.flow.name
