@@ -92,7 +92,7 @@ class ArgoClient(object):
 
         Returns either the successful API response, or None in case the resource was not found.
         """
-        client = self._kubernetes_client.get()
+        client = self._client.get()
 
         try:
             return client.CustomObjectsApi().delete_namespaced_custom_object(
@@ -116,7 +116,7 @@ class ArgoClient(object):
 
         Returns either the successful API response, or None in case the resource was not found.
         """
-        client = self._kubernetes_client.get()
+        client = self._client.get()
 
         try:
             return client.CustomObjectsApi().delete_namespaced_custom_object(
@@ -135,7 +135,7 @@ class ArgoClient(object):
                 )
 
     def terminate_workflow(self, run_id):
-        client = self._kubernetes_client.get()
+        client = self._client.get()
         try:
             workflow = client.CustomObjectsApi().get_namespaced_custom_object(
                 group=self._group,
