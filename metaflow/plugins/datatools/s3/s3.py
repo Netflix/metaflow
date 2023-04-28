@@ -178,7 +178,7 @@ class S3Object(object):
         else:
             self._key = url[len(prefix.rstrip("/")) + 1 :].rstrip("/")
             self._prefix = prefix
-        
+
         self._encryption = encryption
 
     @property
@@ -353,7 +353,7 @@ class S3Object(object):
             Content type or None if the content type is undefined.
         """
         return self._content_type
-    
+
     @property
     def encryption(self) -> Optional[str]:
         """
@@ -759,7 +759,7 @@ class S3(object):
                 "metadata": resp["Metadata"],
                 "size": resp["ContentLength"],
                 "last_modified": get_timestamp(resp["LastModified"]),
-                "encryption": resp["ServerSideEncryption"]
+                "encryption": resp["ServerSideEncryption"],
             }
 
         info_results = None
@@ -779,7 +779,7 @@ class S3(object):
                 content_type=info_results["content_type"],
                 metadata=info_results["metadata"],
                 last_modified=info_results["last_modified"],
-                encryption=info_results["encryption"]
+                encryption=info_results["encryption"],
             )
         return S3Object(self._s3root, url, None)
 
@@ -831,9 +831,11 @@ class S3(object):
                         else:
                             raise MetaflowS3Exception("Got error: %d" % info["error"])
                     else:
-                        yield self._s3root, s3url, None, info["size"], \
-                        info["content_type"], info["metadata"], None, \
-                        info["last_modified"], info["encryption"]
+                        yield self._s3root, s3url, None, info["size"], info[
+                            "content_type"
+                        ], info["metadata"], None, info["last_modified"], info[
+                            "encryption"
+                        ]
                 else:
                     # This should not happen; we should always get a response
                     # even if it contains an error inside it
@@ -991,9 +993,15 @@ class S3(object):
                                 - range_info["start"]
                                 + 1,
                             )
-                            yield self._s3root, s3url, os.path.join(self._tmpdir, fname ), \
-                                None, info["content_type"], info["metadata"], \
-                                range_info, info["last_modified"], info["encryption"]
+                            yield self._s3root, s3url, os.path.join(
+                                self._tmpdir, fname
+                            ), None, info["content_type"], info[
+                                "metadata"
+                            ], range_info, info[
+                                "last_modified"
+                            ], info[
+                                "encryption"
+                            ]
                     else:
                         yield self._s3root, s3prefix, None
                 else:
@@ -1002,6 +1010,7 @@ class S3(object):
                     else:
                         # missing entries per return_missing=True
                         yield self._s3root, s3prefix, None
+
         return list(starmap(S3Object, _get()))
 
     def get_recursive(
@@ -1048,11 +1057,16 @@ class S3(object):
                             request_offset=range_info["start"],
                             request_length=range_info["end"] - range_info["start"] + 1,
                         )
-                    yield self._s3root, s3url, os.path.join(self._tmpdir, fname), \
-                    None, info["content_type"], info["metadata"], range_info, \
-                    info["last_modified"], info["encryption"]
+                    yield self._s3root, s3url, os.path.join(
+                        self._tmpdir, fname
+                    ), None, info["content_type"], info["metadata"], range_info, info[
+                        "last_modified"
+                    ], info[
+                        "encryption"
+                    ]
                 else:
                     yield s3prefix, s3url, os.path.join(self._tmpdir, fname)
+
         return list(starmap(S3Object, _get()))
 
     def get_all(self, return_info: bool = False) -> List[S3Object]:

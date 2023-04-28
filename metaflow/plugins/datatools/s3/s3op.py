@@ -78,7 +78,7 @@ class S3Url(object):
         self.metadata = metadata
         self.range = range
         self.idx = idx
-        self.upload_args=upload_args
+        self.upload_args = upload_args
 
     def __str__(self):
         return self.url
@@ -845,7 +845,12 @@ def put(
                 local = r["local"]
                 url = r["url"]
                 content_type = r.get("content_type", None)
-                upload_args = {k: v for k, v in r.items() if k not in ["local", "url", "content_type", "metadata", "idx", "key"]}
+                upload_args = {
+                    k: v
+                    for k, v in r.items()
+                    if k
+                    not in ["local", "url", "content_type", "metadata", "idx", "key"]
+                }
                 metadata = r.get("metadata", None)
                 if not os.path.exists(local):
                     exit(ERROR_LOCAL_FILE_NOT_FOUND, local)
@@ -862,7 +867,7 @@ def put(
             content_type=content_type,
             metadata=metadata,
             idx=idx,
-            upload_args=upload_args
+            upload_args=upload_args,
         )
         if src.scheme != "s3":
             exit(ERROR_INVALID_URL, url)

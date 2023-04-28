@@ -70,7 +70,7 @@ S3_ENDPOINT_URL = from_conf("S3_ENDPOINT_URL")
 S3_VERIFY_CERTIFICATE = from_conf("S3_VERIFY_CERTIFICATE")
 
 # Dictionary containing configurable S3 upload settings
-# e.g. ServerSideEncryption, Tagging, StorageClass, etc. 
+# e.g. ServerSideEncryption, Tagging, StorageClass, etc.
 # List these parameters out using the prefix "METAFLOW_UPLOAD_ARGS_S3_[Key]".
 S3_UPLOAD_ARGS = from_conf("S3_UPLOAD_ARGS_", prefix=True)
 
