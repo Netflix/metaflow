@@ -250,16 +250,20 @@ class ArgoWorkflows(object):
 
     def schedule(self):
         try:
-            ArgoClient(namespace=KUBERNETES_NAMESPACE).schedule_workflow_template(
+            argo_client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+            argo_client.schedule_workflow_template(
                 self.name, self._schedule, self._timezone
             )
             # Register sensor. Unfortunately, Argo Events Sensor names don't allow for
             # dots (sensors run into an error) which rules out self.name :(
             # Metaflow will overwrite any existing sensor.
-            ArgoClient(namespace=KUBERNETES_NAMESPACE).register_sensor(
-                self.name.replace(".", "-"),
-                self._sensor.to_json() if self._sensor else {},
-            )
+            sensor_name = self.name.replace(".", "-")
+            if self._sensor:
+                argo_client.register_sensor(sensor_name, self._sensor.to_json())
+            else:
+                # Since sensors occupy real resources, delete existing sensor if needed
+                # Deregister sensors that might have existed before this deployment
+                argo_client.delete_sensor(sensor_name)
         except Exception as e:
             raise ArgoWorkflowsSchedulingException(str(e))
 
