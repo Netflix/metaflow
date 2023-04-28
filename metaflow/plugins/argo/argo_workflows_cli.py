@@ -545,13 +545,22 @@ def delete(obj, authorize=None):
     validate_token(obj.workflow_name, obj.token_prefix, obj, authorize, "delete")
     obj.echo("Deleting workflow *{name}*...".format(name=obj.workflow_name), bold=True)
 
-    schedule_deleted, workflow_deleted = ArgoWorkflows.delete(obj.workflow_name)
+    schedule_deleted, sensor_deleted, workflow_deleted = ArgoWorkflows.delete(
+        obj.workflow_name
+    )
 
     if schedule_deleted:
         obj.echo(
-            "Deleting cronworkflow *{name}* as well...".format(name=obj.workflow_name),
+            "Deleting cronworkflow *{name}*...".format(name=obj.workflow_name),
             bold=True,
         )
+
+    if sensor_deleted:
+        obj.echo(
+            "Deleting sensor *{name}*...".format(name=obj.workflow_name),
+            bold=True,
+        )
+
     if workflow_deleted:
         obj.echo(
             "Deleting Kubernetes resources may take a while. "

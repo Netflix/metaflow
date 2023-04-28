@@ -174,6 +174,10 @@ class ArgoWorkflows(object):
         # - regarding cost and compute, the significant resources are part of the workflow teardown, not the schedule.
         schedule_deleted = client.delete_cronworkflow(name)
 
+        # The workflow might have sensors attached to it, which consume actual resources.
+        # Try to delete these as well.
+        sensor_deleted = client.delete_sensor(name)
+
         # After cleaning up related resources, delete the workflow in question.
         # Failure in deleting is treated as critical and will be made visible to the user
         # for further action.
@@ -183,7 +187,7 @@ class ArgoWorkflows(object):
                 "The workflow *%s* doesn't exist on Argo Workflows." % name
             )
 
-        return schedule_deleted, workflow_deleted
+        return schedule_deleted, sensor_deleted, workflow_deleted
 
     @staticmethod
     def terminate(flow_name, run_id):
