@@ -231,16 +231,23 @@ class KubeflowPipelines(object):
         if output_format == "kfp":
             pass  # KFP pipeline yaml is created by default
         elif output_format == "argo-workflow":
-            workflow["metadata"]["name"] = (
-                workflow["metadata"].pop("generateName").rstrip("-")
-            )
+            # Output of KFP compiler already has workflow["kind"] = "Workflow".
+
+            # Keep generateName - Argo Workflow is usually used in single run.
+
+            # Service account is added through webhooks.
+            workflow["spec"].pop("serviceAccountName", None)
+
         elif output_format == "argo-workflow-template":
             workflow["kind"] = "WorkflowTemplate"
+
+            # Use static name to make referencing easier.
             workflow["metadata"]["name"] = (
                 workflow["metadata"].pop("generateName").rstrip("-")
             )
-            workflow["metadata"].pop("generateName", None)
-            workflow.pop("status", None)
+
+            # Service account is added through webhooks.
+            workflow["spec"].pop("serviceAccountName", None)
         else:
             raise NotImplementedError(f"Unsupported output format {output_format}.")
 
