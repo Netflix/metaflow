@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-version = "2.8.2"
+version = "2.8.3"
 
 setup(
     include_package_data=True,
@@ -43,6 +43,5 @@ setup(
     install_requires=[
         "requests",
         "boto3",
-        "pylint",
     ],
 )

@@ -7,30 +7,31 @@ import time
 from metaflow import current, util
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
-    SERVICE_HEADERS,
-    SERVICE_INTERNAL_URL,
+    ARGO_EVENTS_WEBHOOK_URL,
+    AWS_SECRETS_MANAGER_DEFAULT_REGION,
+    AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
+    CARD_AZUREROOT,
+    CARD_GSROOT,
     CARD_S3ROOT,
+    DATASTORE_SYSROOT_AZURE,
+    DATASTORE_SYSROOT_GS,
     DATASTORE_SYSROOT_S3,
     DATATOOLS_S3ROOT,
     DEFAULT_AWS_CLIENT_PROVIDER,
     DEFAULT_METADATA,
+    DEFAULT_SECRETS_BACKEND_TYPE,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
     KUBERNETES_FETCH_EC2_METADATA,
     S3_ENDPOINT_URL,
-    AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
-    DATASTORE_SYSROOT_AZURE,
-    CARD_AZUREROOT,
-    CARD_GSROOT,
-    DATASTORE_SYSROOT_GS,
-    DEFAULT_SECRETS_BACKEND_TYPE,
-    AWS_SECRETS_MANAGER_DEFAULT_REGION,
+    SERVICE_HEADERS,
+    SERVICE_INTERNAL_URL,
 )
 from metaflow.mflog import (
     BASH_SAVE_LOGS,
     bash_capture_logs,
     export_mflog_env_vars,
-    tail_logs,
     get_log_tailer,
+    tail_logs,
 )
 
 from .kubernetes_client import KubernetesClient
@@ -149,11 +150,14 @@ class Kubernetes(object):
         gpu_vendor=None,
         disk=None,
         memory=None,
+        use_tmpfs=None,
+        tmpfs_tempdir=None,
+        tmpfs_size=None,
+        tmpfs_path=None,
         run_time_limit=None,
         env=None,
         tolerations=None,
     ):
-
         if env is None:
             env = {}
 
@@ -185,6 +189,10 @@ class Kubernetes(object):
                 retries=0,
                 step_name=step_name,
                 tolerations=tolerations,
+                use_tmpfs=use_tmpfs,
+                tmpfs_tempdir=tmpfs_tempdir,
+                tmpfs_size=tmpfs_size,
+                tmpfs_path=tmpfs_path,
             )
             .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
             .environment_variable("METAFLOW_CODE_URL", code_package_url)
@@ -230,12 +238,19 @@ class Kubernetes(object):
             .environment_variable(
                 "METAFLOW_INIT_SCRIPT", KUBERNETES_SANDBOX_INIT_SCRIPT
             )
+            .environment_variable(
+                "METAFLOW_ARGO_EVENTS_WEBHOOK_URL", ARGO_EVENTS_WEBHOOK_URL
+            )
             # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync
             # between the local user instance and the remote Kubernetes pod
             # assumes metadata is stored in DATASTORE_LOCAL_DIR on the Kubernetes
             # pod; this happens when METAFLOW_DATASTORE_SYSROOT_LOCAL is NOT set (
             # see get_datastore_root_from_config in datastore/local.py).
         )
+
+        tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
+        if tmpfs_enabled and tmpfs_tempdir:
+            job.environment_variable("METAFLOW_TEMPDIR", tmpfs_path)
 
         for name, value in env.items():
             job.environment_variable(name, value)

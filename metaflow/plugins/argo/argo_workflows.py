@@ -1,38 +1,52 @@
+import base64
 import json
 import os
+import re
 import shlex
 import sys
 from collections import defaultdict
+from hashlib import sha1
 
 from metaflow import current
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
-    SERVICE_HEADERS,
-    SERVICE_INTERNAL_URL,
+    ARGO_EVENTS_EVENT,
+    ARGO_EVENTS_EVENT_BUS,
+    ARGO_EVENTS_EVENT_SOURCE,
+    ARGO_EVENTS_SERVICE_ACCOUNT,
+    ARGO_EVENTS_WEBHOOK_URL,
+    ARGO_WORKFLOWS_ENV_VARS_TO_SKIP,
+    ARGO_WORKFLOWS_KUBERNETES_SECRETS,
+    AWS_SECRETS_MANAGER_DEFAULT_REGION,
+    AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
+    CARD_AZUREROOT,
+    CARD_GSROOT,
     CARD_S3ROOT,
+    DATASTORE_SYSROOT_AZURE,
+    DATASTORE_SYSROOT_GS,
     DATASTORE_SYSROOT_S3,
     DATATOOLS_S3ROOT,
     DEFAULT_METADATA,
+    DEFAULT_SECRETS_BACKEND_TYPE,
+    KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
     KUBERNETES_SECRETS,
-    KUBERNETES_FETCH_EC2_METADATA,
     S3_ENDPOINT_URL,
-    AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
-    DATASTORE_SYSROOT_AZURE,
-    DATASTORE_SYSROOT_GS,
-    CARD_AZUREROOT,
-    CARD_GSROOT,
-    DEFAULT_SECRETS_BACKEND_TYPE,
-    AWS_SECRETS_MANAGER_DEFAULT_REGION,
-    ARGO_WORKFLOWS_KUBERNETES_SECRETS,
-    ARGO_WORKFLOWS_ENV_VARS_TO_SKIP,
+    SERVICE_HEADERS,
+    SERVICE_INTERNAL_URL,
 )
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
-from metaflow.util import compress_list, dict_to_cli_options, to_camelcase
+from metaflow.util import (
+    compress_list,
+    dict_to_cli_options,
+    to_bytes,
+    to_camelcase,
+    to_unicode,
+)
 
 from .argo_client import ArgoClient
 
@@ -47,16 +61,15 @@ class ArgoWorkflowsSchedulingException(MetaflowException):
 
 # List of future enhancements -
 #     1. Configure Argo metrics.
-#     2. Support Argo Events.
-#     3. Support resuming failed workflows within Argo Workflows.
-#     4. Support gang-scheduled clusters for distributed PyTorch/TF - One option is to
+#     2. Support resuming failed workflows within Argo Workflows.
+#     3. Support gang-scheduled clusters for distributed PyTorch/TF - One option is to
 #        use volcano - https://github.com/volcano-sh/volcano/tree/master/example/integrations/argo
-#     5. Support GitOps workflows.
-#     6. Add Metaflow tags to labels/annotations.
-#     7. Support Multi-cluster scheduling - https://github.com/argoproj/argo-workflows/issues/3523#issuecomment-792307297
-#     8. Support for workflow notifications.
-#     9. Support R lang.
-#     10.Ping @savin at slack.outerbounds.co for any feature request.
+#     4. Support GitOps workflows.
+#     5. Add Metaflow tags to labels/annotations.
+#     6. Support Multi-cluster scheduling - https://github.com/argoproj/argo-workflows/issues/3523#issuecomment-792307297
+#     7. Support for workflow notifications.
+#     8. Support R lang.
+#     9. Ping @savin at slack.outerbounds.co for any feature request.
 
 
 class ArgoWorkflows(object):
@@ -79,6 +92,7 @@ class ArgoWorkflows(object):
         max_workers=None,
         workflow_timeout=None,
         workflow_priority=None,
+        auto_emit_argo_events=False,
     ):
         # Some high-level notes -
         #
@@ -121,16 +135,21 @@ class ArgoWorkflows(object):
         self.max_workers = max_workers
         self.workflow_timeout = workflow_timeout
         self.workflow_priority = workflow_priority
+        self.auto_emit_argo_events = auto_emit_argo_events
 
         self.parameters = self._process_parameters()
-        self._workflow_template = self._compile()
-        self._cron = self._get_cron()
+        self.triggers, self.trigger_options = self._process_triggers()
+        self._schedule, self._timezone = self._get_schedule()
+
+        self._workflow_template = self._compile_workflow_template()
+        self._sensor = self._compile_sensor()
 
     def __str__(self):
         return str(self._workflow_template)
 
     def deploy(self):
         try:
+            # Register workflow template.
             ArgoClient(namespace=KUBERNETES_NAMESPACE).register_workflow_template(
                 self.name, self._workflow_template.to_json()
             )
@@ -177,32 +196,61 @@ class ArgoWorkflows(object):
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
 
-    def _get_cron(self):
+    def _get_schedule(self):
         schedule = self.flow._flow_decorators.get("schedule")
         if schedule:
             # Remove the field "Year" if it exists
             schedule = schedule[0]
             return " ".join(schedule.schedule.split()[:5]), schedule.timezone
-        return None
+        return None, None
 
     def schedule(self):
         try:
-            if self._cron is None:
-                cron, timezone = None, None
-            else:
-                cron, timezone = self._cron
             ArgoClient(namespace=KUBERNETES_NAMESPACE).schedule_workflow_template(
-                self.name, cron, timezone
+                self.name, self._schedule, self._timezone
+            )
+            # Register sensor. Unfortunately, Argo Events Sensor names don't allow for
+            # dots (sensors run into an error) which rules out self.name :(
+            # Metaflow will overwrite any existing sensor.
+            ArgoClient(namespace=KUBERNETES_NAMESPACE).register_sensor(
+                self.name.replace(".", "-"),
+                self._sensor.to_json() if self._sensor else {},
             )
         except Exception as e:
             raise ArgoWorkflowsSchedulingException(str(e))
 
     def trigger_explanation(self):
-        if self._cron:
+        # Trigger explanation for cron workflows
+        if self.flow._flow_decorators.get("schedule"):
             return (
                 "This workflow triggers automatically via the CronWorkflow *%s*."
                 % self.name
             )
+
+        # Trigger explanation for @trigger
+        elif self.flow._flow_decorators.get("trigger"):
+            return (
+                "This workflow triggers automatically when the upstream %s "
+                "is/are published."
+                % self.list_to_prose(
+                    [event["name"] for event in self.triggers], "event"
+                )
+            )
+
+        # Trigger explanation for @trigger_on_finish
+        elif self.flow._flow_decorators.get("trigger_on_finish"):
+            return (
+                "This workflow triggers automatically when the upstream %s succeed(s)"
+                % self.list_to_prose(
+                    [
+                        # Truncate prefix `metaflow.` and suffix `.end` from event name
+                        event["name"][len("metaflow.") : -len(".end")]
+                        for event in self.triggers
+                    ],
+                    "flow",
+                )
+            )
+
         else:
             return "No triggers defined. You need to launch this workflow manually."
 
@@ -229,8 +277,8 @@ class ArgoWorkflows(object):
         return None
 
     def _process_parameters(self):
-        parameters = []
-        has_schedule = self._get_cron() is not None
+        parameters = {}
+        has_schedule = self.flow._flow_decorators.get("schedule") is not None
         seen = set()
         for var, param in self.flow._get_parameters():
             # Throw an exception if the parameter is specified twice.
@@ -248,7 +296,6 @@ class ArgoWorkflows(object):
             # parameters with no defaults. We currently don't have any notion
             # of data triggers in Argo Workflows.
 
-            # TODO: Support Argo Events for data triggering in the near future.
             if "default" not in param.kwargs and is_required and has_schedule:
                 raise MetaflowException(
                     "The parameter *%s* does not have a default and is required. "
@@ -257,15 +304,130 @@ class ArgoWorkflows(object):
                 )
             value = deploy_time_eval(param.kwargs.get("default"))
             # If the value is not required and the value is None, we set the value to
-            # the JSON equivalent of None to please argo-workflows.
+            # the JSON equivalent of None to please argo-workflows. Unfortunately it
+            # has the side effect of casting the parameter value to string null during
+            # execution - which needs to be fixed imminently.
             if not is_required or value is not None:
                 value = json.dumps(value)
-            parameters.append(
-                dict(name=param.name, value=value, description=param.kwargs.get("help"))
+            parameters[param.name] = dict(
+                name=param.name,
+                value=value,
+                description=param.kwargs.get("help"),
+                is_required=is_required,
             )
         return parameters
 
-    def _compile(self):
+    def _process_triggers(self):
+        # Impute triggers for Argo Workflow Template specified through @trigger and
+        # @trigger_on_finish decorators
+
+        # Disallow usage of @trigger and @trigger_on_finish together for now.
+        if self.flow._flow_decorators.get("trigger") and self.flow._flow_decorators.get(
+            "trigger_on_finish"
+        ):
+            raise ArgoWorkflowsException(
+                "Argo Workflows doesn't support both *@trigger* and "
+                "*@trigger_on_finish* decorators concurrently yet. Use one or the "
+                "other for now."
+            )
+        triggers = []
+        options = None
+
+        # @trigger decorator
+        if self.flow._flow_decorators.get("trigger"):
+            # Parameters are not duplicated, and exist in the flow.
+            # additionally, convert them to lower case since metaflow parameters are
+            # case insensitive.
+            seen = set()
+            params = set(
+                [param.name.lower() for var, param in self.flow._get_parameters()]
+            )
+            for event in self.flow._flow_decorators.get("trigger")[0].triggers:
+                parameters = {}
+                # TODO: Add a check to guard against names starting with numerals(?)
+                if not re.match(r"^[A-Za-z0-9_.-]+$", event["name"]):
+                    raise ArgoWorkflowsException(
+                        "Invalid event name *%s* in *@trigger* decorator. Only "
+                        "alphanumeric characters, underscores(_), dashes(-) and "
+                        "dots(.) are allowed." % event["name"]
+                    )
+                for key, value in event.get("parameters", {}).items():
+                    if not re.match(r"^[A-Za-z0-9_]+$", value):
+                        raise ArgoWorkflowsException(
+                            "Invalid event payload key *%s* for event *%s* in "
+                            "*@trigger* decorator. Only alphanumeric characters and "
+                            "underscores(_) are allowed." % (value, event["name"])
+                        )
+                    if key.lower() not in params:
+                        raise ArgoWorkflowsException(
+                            "Parameter *%s* defined in the event mappings for "
+                            "*@trigger* decorator not found in the flow." % key
+                        )
+                    if key.lower() in seen:
+                        raise ArgoWorkflowsException(
+                            "Duplicate entries for parameter *%s* defined in the "
+                            "event mappings for *@trigger* decorator." % key.lower()
+                        )
+                    seen.add(key.lower())
+                    parameters[key.lower()] = value
+                event["parameters"] = parameters
+                event["type"] = "event"
+            triggers.extend(self.flow._flow_decorators.get("trigger")[0].triggers)
+
+            # Set automatic parameter mapping iff only a single event dependency is
+            # specified with no explicit parameter mapping
+            if len(triggers) == 1 and not triggers[0].get("parameters"):
+                triggers[0]["parameters"] = dict(zip(params, params))
+            options = self.flow._flow_decorators.get("trigger")[0].options
+
+        # @trigger_on_finish decorator
+        if self.flow._flow_decorators.get("trigger_on_finish"):
+            for event in self.flow._flow_decorators.get("trigger_on_finish")[
+                0
+            ].triggers:
+                # Actual filters are deduced here since we don't have access to
+                # the current object in the @trigger_on_finish decorator.
+                triggers.append(
+                    {
+                        "name": "metaflow.%s.end"
+                        % ".".join(
+                            v
+                            for v in [
+                                event.get("project") or current.get("project_name"),
+                                event.get("branch") or current.get("branch_name"),
+                                event["flow"],
+                            ]
+                            if v
+                        ),
+                        "filters": {
+                            "auto-generated-by-metaflow": True,
+                            "project_name": event.get("project")
+                            or current.get("project_name"),
+                            "branch_name": event.get("branch")
+                            or current.get("branch_name"),
+                            # TODO: Add a time filters to guard against cached events
+                        },
+                        "type": "run",
+                        "flow": event["flow"],
+                    }
+                )
+            options = self.flow._flow_decorators.get("trigger_on_finish")[0].options
+
+        for event in triggers:
+            # Assign a sanitized name since we need this at many places to please
+            # Argo Events sensors. There is a slight possibility of name collision
+            # but quite unlikely for us to worry about at this point.
+            event["sanitized_name"] = event["name"]
+            if any([x in event["name"] for x in [".", "-"]]):
+                event["sanitized_name"] = "%s_%s" % (
+                    event["name"].replace(".", "").replace("-", ""),
+                    to_unicode(
+                        base64.b32encode(sha1(to_bytes(event["name"])).digest())
+                    )[:4].lower(),
+                )
+        return triggers, options
+
+    def _compile_workflow_template(self):
         # This method compiles a Metaflow FlowSpec into Argo WorkflowTemplate
         #
         # WorkflowTemplate
@@ -291,8 +453,6 @@ class ArgoWorkflows(object):
         # (https://github.com/argoproj/argo-workflows/issues/7432) and we are forced to
         # generate container templates at the top level (in WorkflowSpec) and maintain
         # references to them within the DAGTask.
-
-        labels = {"app.kubernetes.io/part-of": "metaflow"}
 
         annotations = {
             "metaflow/production_token": self.production_token,
@@ -339,6 +499,8 @@ class ArgoWorkflows(object):
                 #       the size of the generated YAML by a tiny bit.
                 # .automount_service_account_token()
                 # TODO: Support ImagePullSecrets for Argo & Kubernetes
+                #       Not strictly needed since a very valid workaround exists
+                #       https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#add-imagepullsecrets-to-a-service-account
                 # .image_pull_secrets(...)
                 # Limit workflow parallelism
                 .parallelism(self.max_workers)
@@ -368,7 +530,17 @@ class ArgoWorkflows(object):
                             .value(parameter["value"])
                             .description(parameter.get("description"))
                             # TODO: Better handle IncludeFile in Argo Workflows UI.
-                            for parameter in self.parameters
+                            for parameter in self.parameters.values()
+                        ]
+                        + [
+                            # Introduce non-required parameters for argo events so
+                            # that the entire event payload can be accessed within the
+                            # run. The parameter name is hashed to ensure that
+                            # there won't be any collisions with Metaflow parameters.
+                            Parameter(event["sanitized_name"])
+                            .value(json.dumps(None))  # None in Argo Workflows world.
+                            .description("auto-set by metaflow. safe to ignore.")
+                            for event in self.triggers
                         ]
                     )
                 )
@@ -603,13 +775,27 @@ class ArgoWorkflows(object):
             task_id = "$METAFLOW_TASK_ID"
 
             # Resolve retry strategy.
-            (
-                user_code_retries,
-                total_retries,
-                retry_count,
-                minutes_between_retries,
-            ) = self._get_retries(node)
+            max_user_code_retries = 0
+            max_error_retries = 0
+            minutes_between_retries = "2"
+            for decorator in node.decorators:
+                if decorator.name == "retry":
+                    minutes_between_retries = decorator.attributes.get(
+                        "minutes_between_retries", minutes_between_retries
+                    )
+                user_code_retries, error_retries = decorator.step_task_retry_count()
+                max_user_code_retries = max(max_user_code_retries, user_code_retries)
+                max_error_retries = max(max_error_retries, error_retries)
 
+            user_code_retries = max_user_code_retries
+            total_retries = max_user_code_retries + max_error_retries
+            # {{retries}} is only available if retryStrategy is specified
+            retry_count = (
+                "{{retries}}" if max_user_code_retries + max_error_retries else 0
+            )
+            minutes_between_retries = int(minutes_between_retries)
+
+            # Configure log capture.
             mflog_expr = export_mflog_env_vars(
                 datastore_type=self.flow_datastore.TYPE,
                 stdout_path="$PWD/.logs/mflog_stdout",
@@ -663,7 +849,8 @@ class ArgoWorkflows(object):
                 "--event-logger=%s" % self.event_logger.TYPE,
                 "--monitor=%s" % self.monitor.TYPE,
                 "--no-pylint",
-                "--with=argo_workflows_internal",
+                "--with=argo_workflows_internal:auto-emit-argo-events=%s"
+                % self.auto_emit_argo_events,
             ]
 
             if node.name == "start":
@@ -682,7 +869,7 @@ class ArgoWorkflows(object):
                         # {{foo.bar['param_name']}}
                         "--%s={{workflow.parameters.%s}}"
                         % (parameter["name"], parameter["name"])
-                        for parameter in self.parameters
+                        for parameter in self.parameters.values()
                     ]
                 )
                 if self.tags:
@@ -749,8 +936,8 @@ class ArgoWorkflows(object):
             ):
                 raise ArgoWorkflowsException(
                     "Multi-namespace Kubernetes execution of flows in Argo Workflows "
-                    "is not currently supported. \nStep *%s* is trying to override the "
-                    "default Kubernetes namespace *%s*."
+                    "is not currently supported. \nStep *%s* is trying to override "
+                    "the default Kubernetes namespace *%s*."
                     % (node.name, KUBERNETES_NAMESPACE)
                 )
 
@@ -791,6 +978,15 @@ class ArgoWorkflows(object):
                         "METAFLOW_OWNER": self.username,
                     },
                     **{
+                        # Configuration for Argo Events
+                        # TODO: Move this to @kubernetes decorator instead.
+                        "METAFLOW_ARGO_EVENTS_EVENT": ARGO_EVENTS_EVENT,
+                        "METAFLOW_ARGO_EVENTS_EVENT_BUS": ARGO_EVENTS_EVENT_BUS,
+                        "METAFLOW_ARGO_EVENTS_EVENT_SOURCE": ARGO_EVENTS_EVENT_SOURCE,
+                        "METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT": ARGO_EVENTS_SERVICE_ACCOUNT,
+                        "METAFLOW_ARGO_EVENTS_WEBHOOK_URL": ARGO_EVENTS_WEBHOOK_URL,
+                    },
+                    **{
                         # Some optional values for bookkeeping
                         "METAFLOW_FLOW_NAME": self.flow.name,
                         "METAFLOW_STEP_NAME": node.name,
@@ -811,22 +1007,30 @@ class ArgoWorkflows(object):
             # support Metaflow sandboxes
             env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
 
-            # secrets stuff
+            # support for @secret
             env["METAFLOW_DEFAULT_SECRETS_BACKEND_TYPE"] = DEFAULT_SECRETS_BACKEND_TYPE
             env[
                 "METAFLOW_AWS_SECRETS_MANAGER_DEFAULT_REGION"
             ] = AWS_SECRETS_MANAGER_DEFAULT_REGION
 
-            # Azure stuff
+            # support for Azure
             env[
                 "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
             ] = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
             env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = DATASTORE_SYSROOT_AZURE
             env["METAFLOW_CARD_AZUREROOT"] = CARD_AZUREROOT
 
-            # GCP stuff
+            # support for GCP
             env["METAFLOW_DATASTORE_SYSROOT_GS"] = DATASTORE_SYSROOT_GS
             env["METAFLOW_CARD_GSROOT"] = CARD_GSROOT
+
+            # Map Argo Events payload (if any) to environment variables
+            if self.triggers:
+                for event in self.triggers:
+                    env[
+                        "METAFLOW_ARGO_EVENT_PAYLOAD_%s_%s"
+                        % (event["type"], event["sanitized_name"])
+                    ] = ("{{workflow.parameters.%s}}" % event["sanitized_name"])
 
             metaflow_version = self.environment.get_environment_info()
             metaflow_version["flow_name"] = self.graph.name
@@ -860,12 +1064,23 @@ class ArgoWorkflows(object):
 
             # It makes no sense to set env vars to None (shows up as "None" string)
             # Also we skip some env vars (e.g. in case we want to pull them from KUBERNETES_SECRETS)
-            env_vars_to_skip = set(ARGO_WORKFLOWS_ENV_VARS_TO_SKIP.split(","))
             env = {
                 k: v
                 for k, v in env.items()
-                if v is not None and k not in env_vars_to_skip
+                if v is not None
+                and k not in set(ARGO_WORKFLOWS_ENV_VARS_TO_SKIP.split(","))
             }
+
+            # Tmpfs variables
+            use_tmpfs = resources["use_tmpfs"]
+            tmpfs_size = resources["tmpfs_size"]
+            tmpfs_path = resources["tmpfs_path"]
+            tmpfs_tempdir = resources["tmpfs_tempdir"]
+
+            tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
+
+            if tmpfs_enabled and tmpfs_tempdir:
+                env["METAFLOW_TEMPDIR"] = tmpfs_path
 
             # Create a ContainerTemplate for this node. Ideally, we would have
             # liked to inline this ContainerTemplate and avoid scanning the workflow
@@ -899,6 +1114,12 @@ class ArgoWorkflows(object):
                 )
                 # Set emptyDir volume for state management
                 .empty_dir_volume("out")
+                # Set tmpfs emptyDir volume if enabled
+                .empty_dir_volume(
+                    "tmpfs-ephemeral-volume",
+                    medium="Memory",
+                    size_limit=tmpfs_size if tmpfs_enabled else 0,
+                )
                 # Set node selectors
                 .node_selectors(resources.get("node_selector"))
                 .tolerations(resources.get("tolerations"))
@@ -977,32 +1198,373 @@ class ArgoWorkflows(object):
                                 kubernetes_sdk.V1VolumeMount(
                                     name="out", mount_path="/mnt/out"
                                 )
-                            ],
+                            ]
+                            + (
+                                [
+                                    kubernetes_sdk.V1VolumeMount(
+                                        name="tmpfs-ephemeral-volume",
+                                        mount_path=tmpfs_path,
+                                    )
+                                ]
+                                if tmpfs_enabled
+                                else []
+                            ),
                         ).to_dict()
                     )
                 )
             )
 
-    def _get_retries(self, node):
-        max_user_code_retries = 0
-        max_error_retries = 0
-        minutes_between_retries = "2"
-        for deco in node.decorators:
-            if deco.name == "retry":
-                minutes_between_retries = deco.attributes.get(
-                    "minutes_between_retries", minutes_between_retries
-                )
-            user_code_retries, error_retries = deco.step_task_retry_count()
-            max_user_code_retries = max(max_user_code_retries, user_code_retries)
-            max_error_retries = max(max_error_retries, error_retries)
+    def _compile_sensor(self):
+        # This method compiles a Metaflow @trigger decorator into Argo Events Sensor.
+        #
+        # Event payload is assumed as -
+        # ----------------------------------------------------------------------
+        # | name                   | name of the event                         |
+        # | payload                |                                           |
+        # |     parameter name...  |  parameter value                          |
+        # |     parameter name...  |  parameter value                          |
+        # |     parameter name...  |  parameter value                          |
+        # |     parameter name...  |  parameter value                          |
+        # ----------------------------------------------------------------------
+        #
+        #
+        #
+        # At the moment, every event-triggered workflow template has a dedicated
+        # sensor (which can potentially be a bit wasteful in scenarios with high
+        # volume of workflows and low volume of events) - introducing a many-to-one
+        # sensor-to-workflow-template solution is completely in the realm of
+        # possibilities (modulo consistency and transactional guarantees).
+        #
+        # This implementation side-steps the more prominent/popular usage of event
+        # sensors where the sensor is responsible for submitting the workflow object
+        # directly. Instead we construct the equivalent behavior of `argo submit
+        # --from` to reference an already submitted workflow template. This ensures
+        # that Metaflow generated Kubernetes objects can be easily reasoned about.
+        #
+        # At the moment, Metaflow configures for webhook and NATS event sources. If you
+        # are interested in the HA story for either - please follow this link
+        # https://argoproj.github.io/argo-events/eventsources/ha/.
+        #
+        # There is some potential for confusion between Metaflow concepts and Argo
+        # Events concepts, particularly for event names. Argo Events EventSource
+        # define an event name which is different than the Metaflow event name - think
+        # of Argo Events name as a type of event (conceptually like topics in Kafka)
+        # while Metaflow event names are a field within the Argo Event.
+        #
+        #
+        # At the moment, there is parity between the labels and annotations for
+        # workflow templates and sensors - that may or may not be the case in the
+        # future.
+        #
+        # Unfortunately, there doesn't seem to be a way to create a sensor filter
+        # where one (or more) fields across multiple events have the same value.
+        # Imagine a scenario where we want to trigger a flow iff both the dependent
+        # events agree on the same date field. Unfortunately, there isn't any way in
+        # Argo Events (as of apr'23) to ensure that.
+
+        # Nothing to do here - let's short circuit and exit.
+        if not self.triggers:
+            return {}
+
+        # Ensure proper configuration is available for Argo Events
+        if ARGO_EVENTS_EVENT is None:
+            raise ArgoWorkflowsException(
+                "An Argo Event name hasn't been configured for your deployment yet. "
+                "Please see this article for more details on event names - "
+                "https://argoproj.github.io/argo-events/eventsources/naming/. "
+                "It is very likely that all events for your deployment share the "
+                "same name. You can configure it by executing "
+                "`metaflow configure events` or setting METAFLOW_ARGO_EVENTS_EVENT "
+                "in your configuration. If in doubt, reach out for support at "
+                "http://chat.metaflow.org"
+            )
+        # Unfortunately argo events requires knowledge of event source today.
+        # Hopefully, some day this requirement can be removed and events can be truly
+        # impervious to their source and destination.
+        if ARGO_EVENTS_EVENT_SOURCE is None:
+            raise ArgoWorkflowsException(
+                "An Argo Event Source name hasn't been configured for your deployment "
+                "yet. Please see this article for more details on event names - "
+                "https://argoproj.github.io/argo-events/eventsources/naming/. "
+                "You can configure it by executing `metaflow configure events` or "
+                "setting METAFLOW_ARGO_EVENTS_EVENT_SOURCE in your configuration. If "
+                "in doubt, reach out for support at http://chat.metaflow.org"
+            )
+        # Service accounts are a hard requirement since we utilize the
+        # argoWorkflow trigger for resource sensors today.
+        if ARGO_EVENTS_SERVICE_ACCOUNT is None:
+            raise ArgoWorkflowsException(
+                "An Argo Event service account hasn't been configured for your "
+                "deployment yet. Please see this article for more details on event "
+                "names - https://argoproj.github.io/argo-events/service-accounts/. "
+                "You can configure it by executing `metaflow configure events` or "
+                "setting METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT in your configuration. "
+                "If in doubt, reach out for support at http://chat.metaflow.org"
+            )
+
+        try:
+            # Kubernetes is a soft dependency for generating Argo objects.
+            # We can very well remove this dependency for Argo with the downside of
+            # adding a bunch more json bloat classes (looking at you... V1Container)
+            from kubernetes import client as kubernetes_sdk
+        except (NameError, ImportError):
+            raise MetaflowException(
+                "Could not import Python package 'kubernetes'. Install kubernetes "
+                "sdk (https://pypi.org/project/kubernetes/) first."
+            )
+
+        labels = {"app.kubernetes.io/part-of": "metaflow"}
+
+        annotations = {
+            "metaflow/production_token": self.production_token,
+            "metaflow/owner": self.username,
+            "metaflow/user": "argo-workflows",
+            "metaflow/flow_name": self.flow.name,
+        }
+        if current.get("project_name"):
+            annotations.update(
+                {
+                    "metaflow/project_name": current.project_name,
+                    "metaflow/branch_name": current.branch_name,
+                    "metaflow/project_flow_name": current.project_flow_name,
+                }
+            )
 
         return (
-            max_user_code_retries,
-            max_user_code_retries + max_error_retries,
-            # {{retries}} is only available if retryStrategy is specified
-            "{{retries}}" if max_user_code_retries + max_error_retries else 0,
-            int(minutes_between_retries),
+            Sensor()
+            .metadata(
+                # Sensor metadata.
+                ObjectMeta()
+                .name(self.name.replace(".", "-"))
+                .namespace(KUBERNETES_NAMESPACE)
+                .label("app.kubernetes.io/name", "metaflow-sensor")
+                .label("app.kubernetes.io/part-of", "metaflow")
+                .annotations(annotations)
+            )
+            .spec(
+                SensorSpec().template(
+                    # Sensor template.
+                    SensorTemplate()
+                    .metadata(
+                        ObjectMeta()
+                        .label("app.kubernetes.io/name", "metaflow-sensor")
+                        .label("app.kubernetes.io/part-of", "metaflow")
+                        .annotations(annotations)
+                    )
+                    .container(
+                        # Run sensor in guaranteed QoS. The sensor isn't doing a lot
+                        # of work so we roll with minimal resource allocation. It is
+                        # likely that in subsequent releases we will agressively lower
+                        # sensor resources to pack more of them on a single node.
+                        to_camelcase(
+                            kubernetes_sdk.V1Container(
+                                name="main",
+                                resources=kubernetes_sdk.V1ResourceRequirements(
+                                    requests={
+                                        "cpu": "100m",
+                                        "memory": "250Mi",
+                                    },
+                                    limits={
+                                        "cpu": "100m",
+                                        "memory": "250Mi",
+                                    },
+                                ),
+                            )
+                        )
+                    )
+                    .service_account_name(ARGO_EVENTS_SERVICE_ACCOUNT)
+                    # TODO (savin): Handle bypassing docker image rate limit errors.
+                )
+                # Set sensor replica to 1 for now.
+                # TODO (savin): Allow for multiple replicas for HA.
+                .replicas(1)
+                # TODO: Support revision history limit to manage old deployments
+                # .revision_history_limit(...)
+                .event_bus_name(ARGO_EVENTS_EVENT_BUS)
+                # Workflow trigger.
+                .trigger(
+                    Trigger().template(
+                        TriggerTemplate(self.name)
+                        # Trigger a deployed workflow template
+                        .argo_workflow_trigger(
+                            ArgoWorkflowTrigger()
+                            .source(
+                                {
+                                    "resource": {
+                                        "apiVersion": "argoproj.io/v1alpha1",
+                                        "kind": "Workflow",
+                                        "metadata": {
+                                            "generateName": "%s-" % self.name,
+                                            "namespace": KUBERNETES_NAMESPACE,
+                                        },
+                                        "spec": {
+                                            "arguments": {
+                                                "parameters": [
+                                                    Parameter(parameter["name"])
+                                                    .value(parameter["value"])
+                                                    .to_json()
+                                                    for parameter in self.parameters.values()
+                                                ]
+                                                # Also consume event data
+                                                + [
+                                                    Parameter(event["sanitized_name"])
+                                                    .value(json.dumps(None))
+                                                    .to_json()
+                                                    for event in self.triggers
+                                                ]
+                                            },
+                                            "workflowTemplateRef": {
+                                                "name": self.name,
+                                            },
+                                        },
+                                    }
+                                }
+                            )
+                            .parameters(
+                                [
+                                    y
+                                    for x in list(
+                                        list(
+                                            TriggerParameter()
+                                            .src(
+                                                dependency_name=event["sanitized_name"],
+                                                # Technically, we don't need to create
+                                                # a payload carry-on and can stuff
+                                                # everything within the body.
+                                                data_key="body.payload.%s" % v,
+                                                # Unfortunately the sensor needs to
+                                                # record the default values for
+                                                # the parameters - there doesn't seem
+                                                # to be any way for us to skip
+                                                value=self.parameters[parameter_name][
+                                                    "value"
+                                                ],
+                                            )
+                                            .dest(
+                                                # this undocumented (mis?)feature in
+                                                # argo-events allows us to reference
+                                                # parameters by name rather than index
+                                                "spec.arguments.parameters.#(name=%s).value"
+                                                % parameter_name
+                                            )
+                                            for parameter_name, v in event.get(
+                                                "parameters", {}
+                                            ).items()
+                                        )
+                                        for event in self.triggers
+                                    )
+                                    for y in x
+                                ]
+                                + [
+                                    # Map event payload to parameters for current
+                                    TriggerParameter()
+                                    .src(
+                                        dependency_name=event["sanitized_name"],
+                                        data_key="body.payload",
+                                        value=json.dumps(None),
+                                    )
+                                    .dest(
+                                        "spec.arguments.parameters.#(name=%s).value"
+                                        % event["sanitized_name"]
+                                    )
+                                    for event in self.triggers
+                                ]
+                            )
+                            # Reset trigger conditions ever so often by wiping
+                            # away event tracking history on a schedule.
+                            # @trigger(options={"reset_at": {"cron": , "timezone": }})
+                            # timezone is IANA standard, e.g. America/Los_Angeles
+                            # TODO: Introduce "end_of_day", "end_of_hour" ..
+                        ).conditions_reset(
+                            cron=self.trigger_options.get("reset_at", {}).get("cron"),
+                            timezone=self.trigger_options.get("reset_at", {}).get(
+                                "timezone"
+                            ),
+                        )
+                    )
+                )
+                # Event dependencies. As of Mar' 23, Argo Events docs suggest using
+                # Jetstream event bus rather than NATS streaming bus since the later
+                # doesn't support multiple combos of the same event name and event
+                # source name.
+                .dependencies(
+                    # Event dependencies don't entertain dots
+                    EventDependency(event["sanitized_name"]).event_name(
+                        ARGO_EVENTS_EVENT
+                    )
+                    # TODO: Alternatively fetch this from @trigger config options
+                    .event_source_name(ARGO_EVENTS_EVENT_SOURCE).filters(
+                        # Ensure that event name matches and all required parameter
+                        # fields are present in the payload. There is a possibility of
+                        # dependency on an event where none of the fields are required.
+                        # At the moment, this event is required but the restriction
+                        # can be removed if needed.
+                        EventDependencyFilter().exprs(
+                            [
+                                {
+                                    "expr": "name == '%s'" % event["name"],
+                                    "fields": [
+                                        {"name": "name", "path": "body.payload.name"}
+                                    ],
+                                }
+                            ]
+                            + [
+                                {
+                                    "expr": "true == true",  # field name is present
+                                    "fields": [
+                                        {
+                                            "name": "field",
+                                            "path": "body.payload.%s" % v,
+                                        }
+                                    ],
+                                }
+                                for parameter_name, v in event.get(
+                                    "parameters", {}
+                                ).items()
+                                # only for required parameters
+                                if self.parameters[parameter_name]["is_required"]
+                            ]
+                            + [
+                                {
+                                    "expr": "field == '%s'" % v,  # trigger_on_finish
+                                    "fields": [
+                                        {
+                                            "name": "field",
+                                            "path": "body.payload.%s" % filter_key,
+                                        }
+                                    ],
+                                }
+                                for filter_key, v in event.get("filters", {}).items()
+                                if v
+                            ]
+                        )
+                    )
+                    for event in self.triggers
+                )
+            )
         )
+
+    def list_to_prose(self, items, singular):
+        items = ["*%s*" % item for item in items]
+        item_count = len(items)
+        plural = singular + "s"
+        item_type = singular
+        if item_count == 1:
+            result = items[0]
+        elif item_count == 2:
+            result = "%s and %s" % (items[0], items[1])
+            item_type = plural
+        elif item_count > 2:
+            result = "%s and %s" % (
+                ", ".join(items[0 : item_count - 1]),
+                items[item_count - 1],
+            )
+            item_type = plural
+        else:
+            result = ""
+        if result:
+            result = "%s %s" % (result, item_type)
+        return result
 
 
 # Helper classes to assist with JSON-foo. This can very well replaced with an explicit
@@ -1244,12 +1806,36 @@ class Template(object):
             }
         return self
 
-    def empty_dir_volume(self, name):
+    def empty_dir_volume(self, name, medium=None, size_limit=None):
+        """
+        Create and attach an emptyDir volume for Kubernetes.
+
+        Parameters:
+        -----------
+        name: str
+            name for the volume
+        size_limit: int (optional)
+            sizeLimit (in MiB) for the volume
+        medium: str (optional)
+            storage medium of the emptyDir
+        """
+        # Do not add volume if size is zero. Enables conditional chaining.
+        if size_limit == 0:
+            return self
         # Attach an emptyDir volume
         # https://argoproj.github.io/argo-workflows/empty-dir/
         if "volumes" not in self.payload:
             self.payload["volumes"] = []
-        self.payload["volumes"].append({"name": name, "emptyDir": {}})
+        self.payload["volumes"].append(
+            {
+                "name": name,
+                "emptyDir": {
+                    # Add default unit as ours differs from Kubernetes default.
+                    **({"sizeLimit": "{}Mi".format(size_limit)} if size_limit else {}),
+                    **({"medium": medium} if medium else {}),
+                },
+            }
+        )
         return self
 
     def node_selectors(self, node_selectors):
@@ -1419,6 +2005,268 @@ class Arguments(object):
             self.payload["parameters"] = []
         for parameter in parameters:
             self.payload["parameters"].append(parameter.to_json())
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.payload, indent=4)
+
+
+class Sensor(object):
+    # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.Sensor
+
+    def __init__(self):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+        self.payload["apiVersion"] = "argoproj.io/v1alpha1"
+        self.payload["kind"] = "Sensor"
+
+    def metadata(self, object_meta):
+        self.payload["metadata"] = object_meta.to_json()
+        return self
+
+    def spec(self, sensor_spec):
+        self.payload["spec"] = sensor_spec.to_json()
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.payload, indent=4)
+
+
+class SensorSpec(object):
+    # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.SensorSpec
+
+    def __init__(self):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+
+    def replicas(self, replicas=1):
+        # TODO: Make number of deployment replicas configurable.
+        self.payload["replicas"] = int(replicas)
+        return self
+
+    def template(self, sensor_template):
+        self.payload["template"] = sensor_template.to_json()
+        return self
+
+    def trigger(self, trigger):
+        if "triggers" not in self.payload:
+            self.payload["triggers"] = []
+        self.payload["triggers"].append(trigger.to_json())
+        return self
+
+    def dependencies(self, dependencies):
+        if "dependencies" not in self.payload:
+            self.payload["dependencies"] = []
+        for dependency in dependencies:
+            self.payload["dependencies"].append(dependency.to_json())
+        return self
+
+    def event_bus_name(self, event_bus_name):
+        self.payload["eventBusName"] = event_bus_name
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.to_json(), indent=4)
+
+
+class SensorTemplate(object):
+    # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.Template
+
+    def __init__(self):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+
+    def service_account_name(self, service_account_name):
+        self.payload["serviceAccountName"] = service_account_name
+        return self
+
+    def metadata(self, object_meta):
+        self.payload["metadata"] = object_meta.to_json()
+        return self
+
+    def container(self, container):
+        # Luckily this can simply be V1Container and we are spared from writing more
+        # boilerplate - https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1Container.md.
+        self.payload["container"] = container
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.to_json(), indent=4)
+
+
+class EventDependency(object):
+    # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.EventDependency
+
+    def __init__(self, name):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+        self.payload["name"] = name
+
+    def event_source_name(self, event_source_name):
+        self.payload["eventSourceName"] = event_source_name
+        return self
+
+    def event_name(self, event_name):
+        self.payload["eventName"] = event_name
+        return self
+
+    def filters(self, event_dependency_filter):
+        self.payload["filters"] = event_dependency_filter.to_json()
+        return self
+
+    def transform(self, event_dependency_transformer=None):
+        if event_dependency_transformer:
+            self.payload["transform"] = event_dependency_transformer
+        return self
+
+    def filters_logical_operator(self, logical_operator):
+        self.payload["filtersLogicalOperator"] = logical_operator.to_json()
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.to_json(), indent=4)
+
+
+class EventDependencyFilter(object):
+    # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.EventDependencyFilter
+
+    def __init__(self):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+
+    def exprs(self, exprs):
+        self.payload["exprs"] = exprs
+        return self
+
+    def context(self, event_context):
+        self.payload["context"] = event_context
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.to_json(), indent=4)
+
+
+class Trigger(object):
+    # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.Trigger
+
+    def __init__(self):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+
+    def template(self, trigger_template):
+        self.payload["template"] = trigger_template.to_json()
+        return self
+
+    def parameters(self, trigger_parameters):
+        if "parameters" not in self.payload:
+            self.payload["parameters"] = []
+        for trigger_parameter in trigger_parameters:
+            self.payload["parameters"].append(trigger_parameter.to_json())
+        return self
+
+    def policy(self, trigger_policy):
+        self.payload["policy"] = trigger_policy.to_json()
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.to_json(), indent=4)
+
+
+class TriggerTemplate(object):
+    # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.TriggerTemplate
+
+    def __init__(self, name):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+        self.payload["name"] = name
+
+    def argo_workflow_trigger(self, argo_workflow_trigger):
+        self.payload["argoWorkflow"] = argo_workflow_trigger.to_json()
+        return self
+
+    def conditions_reset(self, cron, timezone):
+        if cron:
+            self.payload["conditionsReset"] = [
+                {"byTime": {"cron": cron, "timezone": timezone}}
+            ]
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.payload, indent=4)
+
+
+class ArgoWorkflowTrigger(object):
+    # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.ArgoWorkflowTrigger
+
+    def __init__(self):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+        self.payload["operation"] = "submit"
+        self.payload["group"] = "argoproj.io"
+        self.payload["version"] = "v1alpha1"
+        self.payload["resource"] = "workflows"
+
+    def source(self, source):
+        self.payload["source"] = source
+        return self
+
+    def parameters(self, trigger_parameters):
+        if "parameters" not in self.payload:
+            self.payload["parameters"] = []
+        for trigger_parameter in trigger_parameters:
+            self.payload["parameters"].append(trigger_parameter.to_json())
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.payload, indent=4)
+
+
+class TriggerParameter(object):
+    # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.TriggerParameter
+
+    def __init__(self):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+
+    def src(self, dependency_name, data_key, value):
+        self.payload["src"] = {
+            "dependencyName": dependency_name,
+            "dataKey": data_key,
+            "value": value,
+            # explicitly set it to false to ensure proper deserialization
+            "useRawData": False,
+        }
+        return self
+
+    def dest(self, dest):
+        self.payload["dest"] = dest
         return self
 
     def to_json(self):
