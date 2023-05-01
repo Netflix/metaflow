@@ -507,7 +507,7 @@ def ensure_test_data():
     except:
         print("Uploading test data")
 
-        def _do_upload(prefix, filespecs, meta=None): # NEED TO ADD SSE ENCRYPTION HERE TO TEST LOCALLY
+        def _do_upload(prefix, filespecs, meta=None):
             for fname, size in filespecs.items():
                 if size is not None:
                     f = RandomFile(prefix, fname, size)
@@ -516,9 +516,8 @@ def ensure_test_data():
                     # (since it is the same) but we modify the path to post-pend
                     # the name
                     print("Test data case %s: upload to %s started" % (prefix, f.url))
-                    extra = {"ServerSideEncryption": "AES256"}
                     s3client.upload_fileobj(
-                        f.fileobj(), url.netloc, url.path.lstrip("/"), ExtraArgs=extra
+                        f.fileobj(), url.netloc, url.path.lstrip("/")
                     )
                     print("Test data case %s: uploaded to %s" % (prefix, f.url))
                     if meta is not None:
@@ -529,7 +528,7 @@ def ensure_test_data():
                                 "Test data case %s: upload to %s started"
                                 % (prefix, new_url)
                             )
-                            extra = {"ServerSideEncryption": "AES256"}
+                            extra = {}
                             content_type, user_meta = metainfo
                             if content_type:
                                 extra["ContentType"] = content_type
@@ -553,9 +552,8 @@ def ensure_test_data():
         for prefix, filespecs in BASIC_DATA:
             _do_upload(prefix, filespecs, meta=BASIC_METADATA)
 
-        extra = {"ServerSideEncryption": "AES256"}
         s3client.upload_fileobj(
-            to_fileobj("ok"), Bucket=mark.netloc, Key=mark.path.lstrip("/"), ExtraArgs=extra
+            to_fileobj("ok"), Bucket=mark.netloc, Key=mark.path.lstrip("/")
         )
         print("Test data uploaded ok")
 
