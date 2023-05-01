@@ -270,6 +270,7 @@ class Kubernetes(object):
 
         (
             job.annotation("metaflow/run_id", run_id)
+            # Prevents AWS autoscaler from targeting metaflow jobs for scaledown
             .annotation("cluster-autoscaler.kubernetes.io/safe-to-evict", "false")
             .annotation("metaflow/step_name", step_name)
             .annotation("metaflow/task_id", task_id)
