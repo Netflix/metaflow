@@ -131,7 +131,7 @@ def argo_workflows(obj, name=None):
 )
 @click.option(
     "--auto-emit-argo-events/--no-auto-emit-argo-events",
-    default=True,  # TODO: Default to a value from config
+    default=False,  # TODO: Default to a value from config
     show_default=True,
     help="Auto emits Argo Events when the run completes successfully",
 )
