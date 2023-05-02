@@ -2,10 +2,13 @@ from collections import namedtuple
 import os
 from typing import Any, Optional
 
-from metaflow import Run, Task
 from metaflow.metaflow_config import TEMPDIR
 
 Parallel = namedtuple("Parallel", ["main_ip", "num_nodes", "node_index"])
+
+# Can add this if we are ok with 3.5.2+
+# if typing.TYPE_CHECKING:
+#     from metaflow.client.core import Run, Task
 
 
 class Current(object):
@@ -201,7 +204,7 @@ class Current(object):
         return "/".join(pathspec_components)
 
     @property
-    def task(self) -> Optional[Task]:
+    def task(self) -> Optional["Task"]:
         """
         Task object of the current task. Will be None if not inside a currently
         executing task.
@@ -211,6 +214,8 @@ class Current(object):
         Task, optional
             Current task.
         """
+        from metaflow import Task  # Prevent circular dependency
+
         pathspec_components = (
             self._flow_name,
             self._run_id,
@@ -222,7 +227,7 @@ class Current(object):
         return Task("/".join(pathspec_components), _namespace_check=False)
 
     @property
-    def run(self) -> Optional[Run]:
+    def run(self) -> Optional["Run"]:
         """
         Run object of the current run. Will be None if not inside a currently
         executing run.
@@ -232,6 +237,8 @@ class Current(object):
         Run, optional
             Current run.
         """
+        from metaflow import Run  # Prevent circular dependency
+
         pathspec_components = (self._flow_name, self._run_id)
         if any(v is None for v in pathspec_components):
             return None
