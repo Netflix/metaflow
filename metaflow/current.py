@@ -2,6 +2,7 @@ from collections import namedtuple
 import os
 from typing import Any, Optional
 
+from metaflow import Run, Task
 from metaflow.metaflow_config import TEMPDIR
 
 Parallel = namedtuple("Parallel", ["main_ip", "num_nodes", "node_index"])
@@ -83,49 +84,53 @@ class Current(object):
         return self._is_running
 
     @property
-    def flow_name(self) -> str:
+    def flow_name(self) -> Optional[str]:
         """
-        The name of the currently executing flow.
+        The name of the currently executing flow. Will be None if not inside
+        a currently executing flow.
 
         Returns
         -------
-        str
+        str, optional
             Flow name.
         """
         return self._flow_name
 
     @property
-    def run_id(self) -> str:
+    def run_id(self) -> Optional[str]:
         """
-        The run ID of the currently executing run.
+        The run ID of the currently executing run. Will be None if not
+        inside a currently executing run.
 
         Returns
         -------
-        str
+        str, optional
             Run ID.
         """
         return self._run_id
 
     @property
-    def step_name(self) -> str:
+    def step_name(self) -> Optional[str]:
         """
-        The name of the currently executing step.
+        The name of the currently executing step. Will be None if not
+        inside a currently executing step.
 
         Returns
         -------
-        str
+        str, optional
             Step name.
         """
         return self._step_name
 
     @property
-    def task_id(self) -> str:
+    def task_id(self) -> Optional[str]:
         """
-        The task ID of the currently executing task.
+        The task ID of the currently executing task. Will be None if not
+        inside a currently executing task.
 
         Returns
         -------
-        str
+        str, optional
             Task ID.
         """
         return self._task_id
@@ -167,18 +172,21 @@ class Current(object):
         return self._origin_run_id
 
     @property
-    def pathspec(self) -> str:
+    def pathspec(self) -> Optional[str]:
         """
-        Pathspec of the current run, i.e. a unique
+        Pathspec of the current task, i.e. a unique
         identifier of the current task. The returned
         string follows this format:
         ```
         {flow_name}/{run_id}/{step_name}/{task_id}
         ```
 
+        Will be None if not inside a currently executing task.
+        This is a shorthand to `current.task.pathspec`.
+
         Returns
         -------
-        str
+        str, optional
             Pathspec.
         """
 
@@ -191,6 +199,43 @@ class Current(object):
         if any(v is None for v in pathspec_components):
             return None
         return "/".join(pathspec_components)
+
+    @property
+    def task(self) -> Optional[Task]:
+        """
+        Task object of the current task. Will be None if not inside a currently
+        executing task.
+
+        Returns
+        -------
+        Task, optional
+            Current task.
+        """
+        pathspec_components = (
+            self._flow_name,
+            self._run_id,
+            self._step_name,
+            self._task_id,
+        )
+        if any(v is None for v in pathspec_components):
+            return None
+        return Task("/".join(pathspec_components), _namespace_check=False)
+
+    @property
+    def run(self) -> Optional[Run]:
+        """
+        Run object of the current run. Will be None if not inside a currently
+        executing run.
+
+        Returns
+        -------
+        Run, optional
+            Current run.
+        """
+        pathspec_components = (self._flow_name, self._run_id)
+        if any(v is None for v in pathspec_components):
+            return None
+        return Run("/".join(pathspec_components), _namespace_check=False)
 
     @property
     def namespace(self) -> str:
@@ -234,14 +279,14 @@ class Current(object):
         return self._tags
 
     @property
-    def tempdir(self) -> str:
+    def tempdir(self) -> Optional[str]:
         """
-        Currently configured temp dir.
+        Currently configured temporary directory.
 
         Returns
         -------
-        str
-            temp dir.
+        str, optional
+            Temporary director.
         """
         return self._tempdir
 
