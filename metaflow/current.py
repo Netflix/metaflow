@@ -89,8 +89,7 @@ class Current(object):
     @property
     def flow_name(self) -> Optional[str]:
         """
-        The name of the currently executing flow. Will be None if not inside
-        a currently executing flow.
+        The name of the currently executing flow.
 
         Returns
         -------
@@ -102,8 +101,7 @@ class Current(object):
     @property
     def run_id(self) -> Optional[str]:
         """
-        The run ID of the currently executing run. Will be None if not
-        inside a currently executing run.
+        The run ID of the currently executing run.
 
         Returns
         -------
@@ -115,8 +113,7 @@ class Current(object):
     @property
     def step_name(self) -> Optional[str]:
         """
-        The name of the currently executing step. Will be None if not
-        inside a currently executing step.
+        The name of the currently executing step.
 
         Returns
         -------
@@ -128,8 +125,7 @@ class Current(object):
     @property
     def task_id(self) -> Optional[str]:
         """
-        The task ID of the currently executing task. Will be None if not
-        inside a currently executing task.
+        The task ID of the currently executing task.
 
         Returns
         -------
@@ -184,7 +180,6 @@ class Current(object):
         {flow_name}/{run_id}/{step_name}/{task_id}
         ```
 
-        Will be None if not inside a currently executing task.
         This is a shorthand to `current.task.pathspec`.
 
         Returns
@@ -206,8 +201,7 @@ class Current(object):
     @property
     def task(self) -> Optional["Task"]:
         """
-        Task object of the current task. Will be None if not inside a currently
-        executing task.
+        Task object of the current task.
 
         Returns
         -------
@@ -229,8 +223,7 @@ class Current(object):
     @property
     def run(self) -> Optional["Run"]:
         """
-        Run object of the current run. Will be None if not inside a currently
-        executing run.
+        Run object of the current run.
 
         Returns
         -------
