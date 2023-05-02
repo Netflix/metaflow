@@ -29,6 +29,7 @@ class CurrentSingletonTest(MetaflowTest):
         self.uuid = str(uuid4())
         self.task_data = {current.pathspec: self.uuid}
         self.tags = current.tags
+        self.task_obj = current.task
 
     @steps(1, ["join"])
     def step_join(self):
@@ -70,6 +71,7 @@ class CurrentSingletonTest(MetaflowTest):
         self.uuid = str(uuid4())
         self.task_data[current.pathspec] = self.uuid
         self.tags.update(current.tags)
+        self.task_obj = current.task
 
     @steps(2, ["all"])
     def step_all(self):
@@ -90,6 +92,8 @@ class CurrentSingletonTest(MetaflowTest):
         self.uuid = str(uuid4())
         self.task_data[current.pathspec] = self.uuid
         self.tags.update(current.tags)
+        self.task_obj = current.task
+        self.run_obj = current.run
 
     def check_results(self, flow, checker):
         run = checker.get_run()
@@ -111,6 +115,8 @@ class CurrentSingletonTest(MetaflowTest):
                     assert_equals(task.data.step_name, step.id)
                     pathspec = "/".join(task.pathspec.split("/")[-4:])
                     assert_equals(task.data.uuid, task_data[pathspec])
+                    assert_equals(task.data.task_obj.pathspec, task.pathspec)
+            assert_equals(run.data.run_obj.pathspec, run.pathspec)
             assert_equals(run.data.project_names, {"current_singleton"})
             assert_equals(run.data.branch_names, {"user.tester"})
             assert_equals(
