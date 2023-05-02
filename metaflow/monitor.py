@@ -197,6 +197,7 @@ class Gauge(Metric):
     def serialize(self):
         parent_ser = super(Gauge, self).serialize()
         parent_ser["_value"] = self._value
+        return parent_ser
 
     @classmethod
     def deserialize(cls, metric_name, value):
