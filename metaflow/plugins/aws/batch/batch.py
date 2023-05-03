@@ -8,6 +8,7 @@ import time
 
 from metaflow import util
 from metaflow.plugins.datatools.s3.s3tail import S3Tail
+from metaflow.plugins.aws.aws_utils import sanitize_batch_tag
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
     SERVICE_INTERNAL_URL,
@@ -283,14 +284,20 @@ class Batch(object):
                 "metaflow.flow_name",
                 "metaflow.run_id",
                 "metaflow.step_name",
-                "metaflow.version",
                 "metaflow.run_id.$",
-                "metaflow.user",
-                "metaflow.owner",
                 "metaflow.production_token",
             ]:
                 if key in attrs:
                     job.tag(key, attrs.get(key))
+            # As some values can be affected by users, sanitize them so they adhere to AWS tagging restrictions.
+            for key in [
+                "metaflow.version",
+                "metaflow.user",
+                "metaflow.owner",
+            ]:
+                if key in attrs:
+                    k, v = sanitize_batch_tag(key, attrs.get(key))
+                    job.tag(k, v)
         return job
 
     def launch_job(
