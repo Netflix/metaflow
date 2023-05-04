@@ -53,6 +53,8 @@ def from_conf(name, default=None, validate_fn=None, prefix=False):
     """
     First try to pull value from environment, then from metaflow config JSON
 
+    If 'prefix=True', parse variables having the specified prefix into a dictionary.
+
     Prior to a value being returned, we will validate using validate_fn (if provided).
     Only non-None values are validated.
 
@@ -62,18 +64,7 @@ def from_conf(name, default=None, validate_fn=None, prefix=False):
     is_default = True
     env_name = "METAFLOW_%s" % name
     if prefix:
-        len_prefix = len(env_name)
-        env_vars = {
-            k[len_prefix:None]: v
-            for k, v in os.environ.items()
-            if k.startswith(env_name)
-        }
-        config_vars = {
-            k[len_prefix:None]: v
-            for k, v in METAFLOW_CONFIG.items()
-            if k.startswith(env_name)
-        }
-        value = {**config_vars, **env_vars}
+        value = parse_dict_from_env(env_name)
     else:
         value = os.environ.get(env_name, METAFLOW_CONFIG.get(env_name, default))
     if validate_fn and value is not None:
@@ -118,6 +109,20 @@ def from_conf(name, default=None, validate_fn=None, prefix=False):
         is_default=is_default,
     )
     return value
+
+def parse_dict_from_env(prefix):
+    len_prefix = len(prefix)
+    env_vars = {
+        k[len_prefix:]: v
+        for k, v in os.environ.items()
+        if k.startswith(prefix)
+    }
+    config_vars = {
+        k[len_prefix:]: v
+        for k, v in METAFLOW_CONFIG.items()
+        if k.startswith(prefix)
+    }
+    return {**config_vars, **env_vars}
 
 
 def get_validate_choice_fn(choices):
