@@ -18,6 +18,7 @@ echo = echo_always
 METAFLOW_CONFIGURATION_DIR = expanduser(
     os.environ.get("METAFLOW_HOME", "~/.metaflowconfig")
 )
+METAFLOW_PROFILE = os.environ.get("METAFLOW_PROFILE", "")
 
 
 @click.group()
@@ -91,7 +92,9 @@ def persist_env(env_dict, profile):
 
 
 @configure.command(help="Reset configuration to disable cloud access.")
-@click.option("--profile", "-p", default="", help="Optional named profile.")
+@click.option(
+    "--profile", "-p", default=METAFLOW_PROFILE, help="Optional named profile."
+)
 def reset(profile):
     check_for_missing_profile(profile)
     path = get_config_path(profile)
@@ -108,7 +111,9 @@ def reset(profile):
 
 
 @configure.command(help="Show existing configuration.")
-@click.option("--profile", "-p", default="", help="Optional named profile.")
+@click.option(
+    "--profile", "-p", default=METAFLOW_PROFILE, help="Optional named profile."
+)
 def show(profile):
     check_for_missing_profile(profile)
     path = get_config_path(profile)
@@ -129,7 +134,7 @@ def show(profile):
 @click.option(
     "--profile",
     "-p",
-    default="",
+    default=METAFLOW_PROFILE,
     help="Optional named profile whose configuration must be " "exported.",
 )
 @click.argument("output_filename", type=click.Path(resolve_path=True))
@@ -162,7 +167,7 @@ def export(profile, output_filename):
 @click.option(
     "--profile",
     "-p",
-    default="",
+    default=METAFLOW_PROFILE,
     help="Optional named profile to which the configuration must be " "imported into.",
 )
 @click.argument("input_filename", type=click.Path(exists=True, resolve_path=True))
