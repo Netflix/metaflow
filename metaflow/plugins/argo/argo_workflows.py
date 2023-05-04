@@ -37,6 +37,7 @@ from metaflow.metaflow_config import (
     S3_ENDPOINT_URL,
     SERVICE_HEADERS,
     SERVICE_INTERNAL_URL,
+    S3_UPLOAD_ARGS,
 )
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
@@ -1036,6 +1037,10 @@ class ArgoWorkflows(object):
             metaflow_version["flow_name"] = self.graph.name
             metaflow_version["production_token"] = self.production_token
             env["METAFLOW_VERSION"] = json.dumps(metaflow_version)
+
+            if S3_UPLOAD_ARGS is not None:
+                for key, value in S3_UPLOAD_ARGS.items():
+                    env["METAFLOW_S3_UPLOAD_ARGS_" + key] = value
 
             # Set the template inputs and outputs for passing state. Very simply,
             # the container template takes in input-paths as input and outputs

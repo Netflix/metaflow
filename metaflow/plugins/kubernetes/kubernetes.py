@@ -25,6 +25,7 @@ from metaflow.metaflow_config import (
     S3_ENDPOINT_URL,
     SERVICE_HEADERS,
     SERVICE_INTERNAL_URL,
+    S3_UPLOAD_ARGS,
 )
 from metaflow.mflog import (
     BASH_SAVE_LOGS,
@@ -247,6 +248,12 @@ class Kubernetes(object):
             # pod; this happens when METAFLOW_DATASTORE_SYSROOT_LOCAL is NOT set (
             # see get_datastore_root_from_config in datastore/local.py).
         )
+
+        if S3_UPLOAD_ARGS is not None:
+            for key, value in S3_UPLOAD_ARGS.items():
+                env_var = "METAFLOW_S3_UPLOAD_ARGS_" + key
+                job.environment_variable(env_var, value)
+
 
         tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
         if tmpfs_enabled and tmpfs_tempdir:
