@@ -242,6 +242,9 @@ class KubeflowPipelines(object):
             workflow["kind"] = "WorkflowTemplate"
 
             # Use static name to make referencing easier.
+            # Note the name has to follow k8s format.
+            # self.name is typically CamelCase as it's python class name.
+            # generateName contains a sanitized version of self.name from kfp.compiler
             workflow["metadata"]["name"] = (
                 workflow["metadata"].pop("generateName").rstrip("-")
             )
