@@ -99,6 +99,8 @@ class CurrentSingletonTest(MetaflowTest):
 
     def check_results(self, flow, checker):
         run = checker.get_run()
+        from metaflow import get_namespace
+        checker_namespace = get_namespace()
         if run is None:
             # very basic sanity check for CLI
             for step in flow:
@@ -112,6 +114,8 @@ class CurrentSingletonTest(MetaflowTest):
             task_data = run.data.task_data
             for pathspec, uuid in task_data.items():
                 assert_equals(Task(pathspec).data.uuid, uuid)
+
+            # Override the namespace for the pickling/unpickling checks
             namespace("non-existent-namespace-to-test-namespacecheck")
             for step in run:
                 for task in step:
@@ -125,6 +129,8 @@ class CurrentSingletonTest(MetaflowTest):
                     assert_equals(
                         task.data.run_obj[task.data.step_name].id, task.data.step_name
                     )
+            # Restore the original namespace back
+            namespace(checker_namespace)
             assert_equals(run.data.run_obj.pathspec, run.pathspec)
             assert_equals(run.data.project_names, {"current_singleton"})
             assert_equals(run.data.branch_names, {"user.tester"})
