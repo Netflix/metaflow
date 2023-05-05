@@ -516,10 +516,12 @@ class MetaflowObject(object):
             self._UNPICKLE_FUNC[version](self, state["data"])
         else:
             # For backward compatibility: handles pickled objects that were serialized without a __getstate__ override
+            # We set namespace_check to False if it doesn't exist for the same
+            # reason as the one listed in __getstate__
             self.__init__(
                 pathspec=state.get("_pathspec", None),
                 attempt=state.get("_attempt", None),
-                _namespace_check=state.get("_namespace_check", True),
+                _namespace_check=state.get("_namespace_check", False),
             )
 
     def __getstate__(self):
@@ -531,12 +533,16 @@ class MetaflowObject(object):
         from this object) are pickled (serialized) in a later version of Metaflow, it may not be possible
         to unpickle (deserialize) them in a previous version of Metaflow.
         """
+        # Note that we set _namespace_check to False because we want the user to
+        # be able to access this object even after unpickling it. If we set it to
+        # True, it would check the namespace again at the time of unpickling even
+        # if the user properly got the object in the first place and pickled it.
         return {
             "version": "2.8.4",
             "data": [
                 self.pathspec,
                 self._attempt,
-                self._namespace_check,
+                False,
             ],
         }
 
