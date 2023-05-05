@@ -100,6 +100,7 @@ class CurrentSingletonTest(MetaflowTest):
     def check_results(self, flow, checker):
         run = checker.get_run()
         from metaflow import get_namespace
+
         checker_namespace = get_namespace()
         if run is None:
             # very basic sanity check for CLI
@@ -129,7 +130,7 @@ class CurrentSingletonTest(MetaflowTest):
                     assert_equals(
                         task.data.run_obj[task.data.step_name].id, task.data.step_name
                     )
-            # Restore the original namespace back
+            # Restore the original namespace back for these tests
             namespace(checker_namespace)
             assert_equals(run.data.run_obj.pathspec, run.pathspec)
             assert_equals(run.data.project_names, {"current_singleton"})
