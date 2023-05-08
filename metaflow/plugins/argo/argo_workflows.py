@@ -849,7 +849,7 @@ class ArgoWorkflows(object):
                 "--event-logger=%s" % self.event_logger.TYPE,
                 "--monitor=%s" % self.monitor.TYPE,
                 "--no-pylint",
-                "--with=argo_workflows_internal:auto-emit-argo-events=%s"
+                "--with=argo_workflows_internal:auto-emit-argo-events=%i"
                 % self.auto_emit_argo_events,
             ]
 
