@@ -72,10 +72,21 @@ def working_dir():
 
 
 def load_module_from_path(module_name: str, path: str):
+    """
+    Loads a module from a given path
+
+    Parameters
+    ----------
+    module_name: str
+        Name to assign for the loaded module. Usable for importing after loading.
+    path: str
+        path to the file to be loaded
+    """
     loader = imp_machinery.SourceFileLoader(module_name, path)
     spec = imp_util.spec_from_loader(loader.name, loader)
     module = imp_util.module_from_spec(spec)
     loader.exec_module(module)
+    # Required in order to be able to import the module by name later.
     sys.modules[module_name] = module
     return module
 
