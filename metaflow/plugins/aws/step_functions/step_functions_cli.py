@@ -580,22 +580,24 @@ def delete(obj, authorize=None):
     )
 
     obj.echo(
-        "Deleting Step Function *{name}*...".format(name=obj.state_machine_name),
+        "Deleting AWS Step Functions state machine *{name}*...".format(
+            name=obj.state_machine_name
+        ),
         bold=True,
     )
     schedule_deleted, sfn_deleted = StepFunctions.delete(obj.state_machine_name)
 
     if schedule_deleted:
         obj.echo(
-            "Deleting EventBridge rule *{name}* as well...".format(
+            "Deleting Amazon EventBridge rule *{name}* as well...".format(
                 name=obj.state_machine_name
             ),
             bold=True,
         )
     if sfn_deleted:
         obj.echo(
-            "Deleting the Step Function may take a while. "
-            "Deploying the flow again to Step Functions while the delete is in-flight will fail."
+            "Deleting the AWS Step Functions state machine may take a while. "
+            "Deploying the flow again to AWS Step Functions while the delete is in-flight will fail."
         )
         obj.echo(
             "In-flight executions will not be affected. "
