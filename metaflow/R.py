@@ -1,5 +1,6 @@
 import os
-import imp
+import sys
+from importlib import util as imp_util, machinery as imp_machinery
 from tempfile import NamedTemporaryFile
 
 from .util import to_bytes
@@ -70,6 +71,15 @@ def working_dir():
     return None
 
 
+def load_module_from_path(module_name: str, path: str):
+    loader = imp_machinery.SourceFileLoader(module_name, path)
+    spec = imp_util.spec_from_loader(loader.name, loader)
+    module = imp_util.module_from_spec(spec)
+    loader.exec_module(module)
+    sys.modules[module_name] = module
+    return module
+
+
 def run(
     flow_script,
     r_functions,
@@ -100,7 +110,7 @@ def run(
     full_cmdline[0] = os.path.basename(full_cmdline[0])
     with NamedTemporaryFile(prefix="metaflowR.", delete=False) as tmp:
         tmp.write(to_bytes(flow_script))
-    module = imp.load_source("metaflowR", tmp.name)
+    module = load_module_from_path("metaflowR", tmp.name)
     flow = module.FLOW(use_cli=False)
 
     from . import exception
