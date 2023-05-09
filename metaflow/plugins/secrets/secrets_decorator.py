@@ -3,6 +3,7 @@ import re
 
 from metaflow.exception import MetaflowException
 from metaflow.decorators import StepDecorator
+from metaflow.metaflow_config import DEFAULT_SECRETS_ROLE
 from metaflow.unbounded_foreach import UBF_CONTROL
 
 from typing import Any, Dict, List, Union
@@ -22,10 +23,11 @@ def get_default_secrets_backend_type():
 
 
 class SecretSpec:
-    def __init__(self, secrets_backend_type, secret_id, options={}):
+    def __init__(self, secrets_backend_type, secret_id, options={}, role=None):
         self._secrets_backend_type = secrets_backend_type
         self._secret_id = secret_id
         self._options = options
+        self._role = role
 
     @property
     def secrets_backend_type(self):
@@ -39,19 +41,24 @@ class SecretSpec:
     def options(self):
         return self._options
 
+    @property
+    def role(self):
+        return self._role
+
     def to_json(self):
         """Mainly used for testing... not the same as the input dict in secret_spec_from_dict()!"""
         return {
             "secrets_backend_type": self.secrets_backend_type,
             "secret_id": self.secret_id,
             "options": self.options,
+            "role": self.role,
         }
 
     def __str__(self):
         return "%s (%s)" % (self._secret_id, self._secrets_backend_type)
 
     @staticmethod
-    def secret_spec_from_str(secret_spec_str):
+    def secret_spec_from_str(secret_spec_str, role):
         # "." may be used in secret_id one day (provider specific). HOWEVER, it provides the best UX for
         # non-conflicting cases (i.e. for secret ids that don't contain "."). This is true for all AWS
         # Secrets Manager secrets.
@@ -74,10 +81,12 @@ class SecretSpec:
         else:
             secrets_backend_type = parts[0]
             secret_id = parts[1]
-        return SecretSpec(secrets_backend_type, secret_id=secret_id)
+        return SecretSpec(
+            secrets_backend_type, secret_id=secret_id, options={}, role=role
+        )
 
     @staticmethod
-    def secret_spec_from_dict(secret_spec_dict):
+    def secret_spec_from_dict(secret_spec_dict, role):
         if "type" not in secret_spec_dict:
             secrets_backend_type = get_default_secrets_backend_type()
         else:
@@ -99,7 +108,9 @@ class SecretSpec:
                 "Bad @secrets specification - 'option' must be a dict - found %s"
                 % type(options)
             )
-        return SecretSpec(secrets_backend_type, secret_id=secret_id, options=options)
+        return SecretSpec(
+            secrets_backend_type, secret_id=secret_id, options=options, role=role
+        )
 
 
 def validate_env_vars_across_secrets(all_secrets_env_vars):
@@ -172,7 +183,10 @@ class SecretsDecorator(StepDecorator):
     """
 
     name = "secrets"
-    defaults = {"sources": []}
+    defaults = {
+        "sources": [],
+        "role": None,
+    }
 
     def task_pre_step(
         self,
@@ -195,14 +209,25 @@ class SecretsDecorator(StepDecorator):
         all_secrets_env_vars = []
         secret_specs = []
 
+        # Role (in terms of RBAC) to use when retrieving secrets.
+        # This is a general concept applicable to multiple backends
+        # E.g in AWS, this would be an IAM Role ARN.
+        #
+        # Config precedence (decreasing):
+        # - Decorator level: @secrets(role=...)
+        # - Metaflow config key DEFAULT_SECRETS_ROLE
+        role = self.attributes["role"]
+        if role is None:
+            role = DEFAULT_SECRETS_ROLE
+
         for secret_spec_str_or_dict in self.attributes["sources"]:
             if isinstance(secret_spec_str_or_dict, str):
                 secret_specs.append(
-                    SecretSpec.secret_spec_from_str(secret_spec_str_or_dict)
+                    SecretSpec.secret_spec_from_str(secret_spec_str_or_dict, role=role)
                 )
             elif isinstance(secret_spec_str_or_dict, dict):
                 secret_specs.append(
-                    SecretSpec.secret_spec_from_dict(secret_spec_str_or_dict)
+                    SecretSpec.secret_spec_from_dict(secret_spec_str_or_dict, role=role)
                 )
             else:
                 raise MetaflowException(
@@ -215,7 +240,9 @@ class SecretsDecorator(StepDecorator):
             )
             try:
                 env_vars_for_secret = secrets_backend_provider.get_secret_as_dict(
-                    secret_spec.secret_id, options=secret_spec.options
+                    secret_spec.secret_id,
+                    options=secret_spec.options,
+                    role=secret_spec.role,
                 )
             except Exception as e:
                 raise MetaflowException(
