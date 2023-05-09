@@ -160,10 +160,11 @@ def get_username():
     Return the name of the current user, or None if the current user
     could not be determined.
     """
+    from metaflow.metaflow_config import USER
+
     # note: the order of the list matters
-    ENVVARS = ["METAFLOW_USER", "SUDO_USER", "USERNAME", "USER"]
-    for var in ENVVARS:
-        user = os.environ.get(var)
+    ENVVARS = ["SUDO_USER", "USERNAME", "USER"]
+    for user in [USER] + [os.environ.get(x) for x in ENVVARS]:
         if user and user != "root":
             return user
     return None
@@ -244,7 +245,6 @@ def get_object_package_version(obj):
 
 
 def compress_list(lst, separator=",", rangedelim=":", zlibmarker="!", zlibmin=500):
-
     bad_items = [x for x in lst if separator in x or rangedelim in x or zlibmarker in x]
     if bad_items:
         raise MetaflowInternalError(
