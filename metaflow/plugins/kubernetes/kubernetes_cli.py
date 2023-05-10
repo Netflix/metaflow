@@ -91,7 +91,9 @@ def kubernetes():
     default=5 * 24 * 60 * 60,  # Default is set to 5 days
     help="Run time limit in seconds for Kubernetes pod.",
 )
-@click.option("--persistent-volume-claims", default=None, multiple=False)
+@click.option(
+    "--persistent-volume-claims", type=JSONTypeClass(), default=None, multiple=False
+)
 @click.option(
     "--tolerations",
     default=None,

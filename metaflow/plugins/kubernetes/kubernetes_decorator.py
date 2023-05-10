@@ -326,7 +326,7 @@ class KubernetesDecorator(StepDecorator):
                     cli_args.command_options[k] = ",".join(
                         ["=".join([key, str(val)]) for key, val in v.items()]
                     )
-                elif k == "tolerations":
+                elif k in ["tolerations", "persistent_volume_claims"]:
                     cli_args.command_options[k] = json.dumps(v)
                 else:
                     cli_args.command_options[k] = v

@@ -1,4 +1,3 @@
-from ast import literal_eval
 import json
 import math
 import random
@@ -246,7 +245,6 @@ class KubernetesJob(object):
         if pvcs is None:
             return [], []
 
-        pvcs = dict(literal_eval(pvcs))
         container_mounts = []
         volumes = []
 
