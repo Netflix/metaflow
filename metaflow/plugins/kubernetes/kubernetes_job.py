@@ -70,10 +70,13 @@ class KubernetesJob(object):
         # (unique UID) per Metaflow task attempt.
         client = self._client.get()
 
-        # tmpfs variables
-        use_tmpfs = self._kwargs["use_tmpfs"]
-        tmpfs_size = self._kwargs["tmpfs_size"]
-        tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
+        tmpfs_mounts, tmpfs_volumes = self.tmpfs_volumes()
+
+        volume_mounts = []
+        volume_mounts.extend(tmpfs_mounts)
+
+        volumes = []
+        volumes.extend(tmpfs_volumes)
 
         self._job = client.V1Job(
             api_version="batch/v1",
@@ -166,14 +169,7 @@ class KubernetesJob(object):
                                         if self._kwargs["gpu"] is not None
                                     },
                                 ),
-                                volume_mounts=[
-                                    client.V1VolumeMount(
-                                        mount_path=self._kwargs.get("tmpfs_path"),
-                                        name="tmpfs-ephemeral-volume",
-                                    )
-                                ]
-                                if tmpfs_enabled
-                                else [],
+                                volume_mounts=volume_mounts,
                             )
                         ],
                         node_selector=self._kwargs.get("node_selector"),
@@ -195,24 +191,48 @@ class KubernetesJob(object):
                             client.V1Toleration(**toleration)
                             for toleration in self._kwargs.get("tolerations") or []
                         ],
-                        volumes=[
-                            client.V1Volume(
-                                name="tmpfs-ephemeral-volume",
-                                empty_dir=client.V1EmptyDirVolumeSource(
-                                    medium="Memory",
-                                    # Add default unit as ours differs from Kubernetes default.
-                                    size_limit="{}Mi".format(tmpfs_size),
-                                ),
-                            )
-                        ]
-                        if tmpfs_enabled
-                        else [],
+                        volumes=volumes,
                         # TODO (savin): Set termination_message_policy
                     ),
                 ),
             ),
         )
         return self
+
+    def tmpfs_volumes(self):
+        client = self._client.get()
+        # tmpfs variables
+        use_tmpfs = self._kwargs["use_tmpfs"]
+        tmpfs_size = self._kwargs["tmpfs_size"]
+        tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
+
+        container_mounts = (
+            [
+                client.V1VolumeMount(
+                    mount_path=self._kwargs.get("tmpfs_path"),
+                    name="tmpfs-ephemeral-volume",
+                )
+            ]
+            if tmpfs_enabled
+            else []
+        )
+
+        volumes = (
+            [
+                client.V1Volume(
+                    name="tmpfs-ephemeral-volume",
+                    empty_dir=client.V1EmptyDirVolumeSource(
+                        medium="Memory",
+                        # Add default unit as ours differs from Kubernetes default.
+                        size_limit="{}Mi".format(tmpfs_size),
+                    ),
+                )
+            ]
+            if tmpfs_enabled
+            else []
+        )
+
+        return container_mounts, volumes
 
     def execute(self):
         client = self._client.get()
