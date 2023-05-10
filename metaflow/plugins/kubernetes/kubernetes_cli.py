@@ -92,6 +92,9 @@ def kubernetes():
     help="Run time limit in seconds for Kubernetes pod.",
 )
 @click.option(
+    "--persistent-volume-claims", type=JSONTypeClass(), default=None, multiple=False
+)
+@click.option(
     "--tolerations",
     default=None,
     type=JSONTypeClass(),
@@ -119,6 +122,7 @@ def step(
     tmpfs_size=None,
     tmpfs_path=None,
     run_time_limit=None,
+    persistent_volume_claims=None,
     tolerations=None,
     **kwargs
 ):
@@ -231,6 +235,7 @@ def step(
                 tmpfs_path=tmpfs_path,
                 run_time_limit=run_time_limit,
                 env=env,
+                persistent_volume_claims=persistent_volume_claims,
                 tolerations=tolerations,
             )
     except Exception as e:

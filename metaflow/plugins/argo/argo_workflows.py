@@ -1120,6 +1120,7 @@ class ArgoWorkflows(object):
                     medium="Memory",
                     size_limit=tmpfs_size if tmpfs_enabled else 0,
                 )
+                .pvc_volumes(resources.get("persistent_volume_claims"))
                 # Set node selectors
                 .node_selectors(resources.get("node_selector"))
                 .tolerations(resources.get("tolerations"))
@@ -1207,6 +1208,18 @@ class ArgoWorkflows(object):
                                     )
                                 ]
                                 if tmpfs_enabled
+                                else []
+                            )
+                            + (
+                                [
+                                    kubernetes_sdk.V1VolumeMount(
+                                        name=claim, mount_path=path
+                                    )
+                                    for claim, path in resources.get(
+                                        "persistent_volume_claims"
+                                    ).items()
+                                ]
+                                if resources.get("persistent_volume_claims") is not None
                                 else []
                             ),
                         ).to_dict()
@@ -1836,6 +1849,26 @@ class Template(object):
                 },
             }
         )
+        return self
+
+    def pvc_volumes(self, pvcs=None):
+        """
+        Create and attach Persistent Volume Claims as volumes.
+
+        Parameters:
+        -----------
+        pvcs: Optional[Dict]
+            a dictionary of pvc's and the paths they should be mounted to. e.g.
+            {"pv-claim-1": "/mnt/path1", "pv-claim-2": "/mnt/path2"}
+        """
+        if pvcs is None:
+            return self
+        if "volumes" not in self.payload:
+            self.payload["volumes"] = []
+        for claim in pvcs.keys():
+            self.payload["volumes"].append(
+                {"name": claim, "persistentVolumeClaim": {"claimName": claim}}
+            )
         return self
 
     def node_selectors(self, node_selectors):
