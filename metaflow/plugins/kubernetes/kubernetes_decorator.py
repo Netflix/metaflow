@@ -19,6 +19,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_SERVICE_ACCOUNT,
     KUBERNETES_SECRETS,
     KUBERNETES_FETCH_EC2_METADATA,
+    KUBERNETES_PERSISTENT_VOLUME_CLAIMS,
 )
 from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
@@ -96,6 +97,7 @@ class KubernetesDecorator(StepDecorator):
         "tmpfs_tempdir": True,
         "tmpfs_size": None,
         "tmpfs_path": "/metaflow_temp",
+        "persistent_volume_claims": None,  # e.g., {"pvc-name": "/mnt/vol", "another-pvc": "/mnt/vol2"}
     }
     package_url = None
     package_sha = None
@@ -114,6 +116,13 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["node_selector"] = KUBERNETES_NODE_SELECTOR
         if not self.attributes["tolerations"] and KUBERNETES_TOLERATIONS:
             self.attributes["tolerations"] = json.loads(KUBERNETES_TOLERATIONS)
+        if (
+            not self.attributes["persistent_volume_claims"]
+            and KUBERNETES_PERSISTENT_VOLUME_CLAIMS
+        ):
+            self.attributes["persistent_volume_claims"] = json.loads(
+                KUBERNETES_PERSISTENT_VOLUME_CLAIMS
+            )
 
         if isinstance(self.attributes["node_selector"], str):
             self.attributes["node_selector"] = self.parse_node_selector(
