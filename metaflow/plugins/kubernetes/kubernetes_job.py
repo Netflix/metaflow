@@ -339,16 +339,15 @@ class RunningJob(object):
         self._job = self._fetch_job()
         self._pod = self._fetch_pod()
 
-        import signal
+        import atexit
 
-        def best_effort_kill(signum, frame):
+        def best_effort_kill():
             try:
                 self.kill()
             except:
                 pass
-        # Best effort attempt to terminate the pod if there the user
-        # tries to Ctrl+C the process
-        signal.signal(signal.SIGINT, best_effort_kill)
+
+        atexit.register(best_effort_kill)
 
     def __repr__(self):
         return "{}('{}/{}')".format(
@@ -488,22 +487,19 @@ class RunningJob(object):
             # Either the container succeeds or fails naturally or else we may have
             # forced the pod termination causing the job to still be in an
             # active state but for all intents and purposes dead to us.
-            if self.is_container_running or (self._job["spec"]["parallelism"] == 0):
-                return True
+            return (
+                bool(self._job["status"].get("succeeded"))
+                or bool(self._job["status"].get("failed"))
+                or self.are_pod_containers_done or
+                (self._job["spec"]["parallelism"] == 0)
+            )
 
 
         if not done():
             # If not done, fetch newer status
             self._job = self._fetch_job()
-        if done():
-            return True
-        else:
-            # It is possible for the job metadata to not be updated yet, but the
-            # pod may have already succeeded or failed.
             self._pod = self._fetch_pod()
-            return self._pod and (
-                self._pod.get("status", {}).get("phase") in ("Succeeded", "Failed")
-            )
+        return done()
 
     @property
     def status(self):
@@ -544,44 +540,18 @@ class RunningJob(object):
     @property
     def has_succeeded(self):
         # The tasks container is in a terminal state and the status is marked as succeeded
-        return self.is_done and (
-            self.has_container_succeeded
-            or (self._pod.get("status", {}).get("phase") == "Succeeded")
-        )
+        return self.is_done and self.has_container_succeeded
 
     @property
     def has_failed(self):
         # Either the container is marked as failed or the Job is not allowed to
         # any more pods
-        return self.is_done and (
-            self.has_container_failed
+        retval = self.is_done and (
+            bool(self._job["status"].get("failed"))
+            or self.has_any_container_failed
             or (self._job["spec"]["parallelism"] == 0)
         )
-
-    @property
-    def has_container_failed(self):
-        container_statuses = self._pod.get("status", {}).get("container_statuses", [])
-        if not container_statuses or len(container_statuses) < 1:
-            return False
-
-        for cstatus in container_statuses:
-            # If the terminated field is not set, the pod is still running.
-            terminated = cstatus.get("state", {}).get("terminated", {})
-            if not terminated:
-                return False
-
-            # If the terminated field is set but the `finished_at` field is not set,
-            # the pod is still considered as running.
-            if not terminated.get("finished_at"):
-                return False
-
-            # If finished_at is set AND reason is Error
-            if terminated.get("reason", "").lower() == "error":
-                return True
-
-        # If none of the containers are marked as failed, the pod is not
-        # considered failed.
-        return False
+        return retval
 
     @property
     def has_container_succeeded(self):
@@ -607,27 +577,82 @@ class RunningJob(object):
         return True
 
     @property
-    def is_container_running(self):
+    def have_pod_containers_succeeded(self):
+        # Container status updates before pod phase, often by multiple seconds.
         container_statuses = self._pod.get("status", {}).get("container_statuses", [])
         if not container_statuses:
-            # Yet to start, most likely
-            return self._pod.get("status", {}).get("phase") == "Running"
-        if len(container_statuses) < 1:
-            # Yet to start, most likely
-            return self._pod.get("status", {}).get("phase") == "Running"
+            return False
 
         for cstatus in container_statuses:
-            # If the terminated field is not set, the pod is still running.
+            # If the terminated field is not set, the pod is still running. Too early to
+            # decide whether the container succeeded or not.
             terminated = cstatus.get("state", {}).get("terminated", {})
             if not terminated:
+                return False
+
+            # If the terminated field is set but the `finished_at` field is not set,
+            # the pod is still considered as running. Too early to determine if any
+            # container failed.
+            if not terminated.get("finished_at"):
+                return False
+
+            # If finished_at is set AND reason is NOT Completed,
+            if terminated.get("reason", "").lower() != "completed":
+                return False
+
+        return True
+
+    @property
+    def has_any_container_failed(self):
+        container_statuses = self._pod.get("status", {}).get("container_statuses", [])
+        if not container_statuses:
+            return False
+
+        for cstatus in container_statuses:
+            # If the terminated field is not set, the pod is still running. Too early
+            # to determine if any container failed.
+            terminated = cstatus.get("state", {}).get("terminated", {})
+            if not terminated:
+                return False
+
+            # If the terminated field is set but the `finished_at` field is not set,
+            # the pod is still considered as running. Too early to determine if any
+            # container failed.
+            if not terminated.get("finished_at"):
+                return False
+
+            # If finished_at is set AND reason is Error, it means that the
+            # container failed.
+            if terminated.get("reason", "").lower() == "error":
                 return True
+
+        # If none of the containers are marked as failed, the pod is not
+        # considered failed.
+        return False
+
+    @property
+    def are_pod_containers_done(self):
+        # All containers in the pod have a containerStatus that has a
+        # finishedAt set.
+        container_statuses = self._pod.get("status", {}).get("container_statuses", [])
+        if not container_statuses:
+            return False
+
+        for cstatus in container_statuses:
+            # If the terminated field is not set, the pod is still running. Too early
+            # to determine if any container failed.
+            terminated = cstatus.get("state", {}).get("terminated", {})
+            if not terminated:
+                return False
 
             # If the terminated field is set but the `finished_at` field is not set,
             # the pod is still considered as running.
             if not terminated.get("finished_at"):
-                return True
+                return False
 
-        return False
+        # If we got until here, the containers were marked terminated and their
+        # finishedAt was set.
+        return True
 
     @property
     def is_running(self):
@@ -635,7 +660,7 @@ class RunningJob(object):
         if self.is_done:
             return False
 
-        return self.is_container_running
+        return not self.are_pod_containers_done
 
     @property
     def is_waiting(self):
