@@ -93,6 +93,9 @@ class ArgoWorkflows(object):
         workflow_timeout=None,
         workflow_priority=None,
         auto_emit_argo_events=False,
+        notify_on_error=False,
+        notify_on_success=False,
+        notify_slack_webhook_url=None,
     ):
         # Some high-level notes -
         #
@@ -136,6 +139,9 @@ class ArgoWorkflows(object):
         self.workflow_timeout = workflow_timeout
         self.workflow_priority = workflow_priority
         self.auto_emit_argo_events = auto_emit_argo_events
+        self.notify_on_error = notify_on_error
+        self.notify_on_success = notify_on_success
+        self.notify_slack_webhook_url = notify_slack_webhook_url
 
         self.parameters = self._process_parameters()
         self.triggers, self.trigger_options = self._process_triggers()
@@ -335,9 +341,9 @@ class ArgoWorkflows(object):
 
         # @trigger decorator
         if self.flow._flow_decorators.get("trigger"):
-            # Parameters are not duplicated, and exist in the flow.
-            # additionally, convert them to lower case since metaflow parameters are
-            # case insensitive.
+            # Parameters are not duplicated, and exist in the flow. Additionally,
+            # convert them to lower case since Metaflow parameters are case
+            # insensitive.
             seen = set()
             params = set(
                 [param.name.lower() for var, param in self.flow._get_parameters()]
@@ -375,7 +381,7 @@ class ArgoWorkflows(object):
             triggers.extend(self.flow._flow_decorators.get("trigger")[0].triggers)
 
             # Set automatic parameter mapping iff only a single event dependency is
-            # specified with no explicit parameter mapping
+            # specified with no explicit parameter mapping.
             if len(triggers) == 1 and not triggers[0].get("parameters"):
                 triggers[0]["parameters"] = dict(zip(params, params))
             options = self.flow._flow_decorators.get("trigger")[0].options
@@ -389,6 +395,8 @@ class ArgoWorkflows(object):
                 # the current object in the @trigger_on_finish decorator.
                 triggers.append(
                     {
+                        # Make sure this remains consistent with the event name format
+                        # in ArgoWorkflowsInternalDecorator.
                         "name": "metaflow.%s.end"
                         % ".".join(
                             v
@@ -553,10 +561,40 @@ class ArgoWorkflows(object):
                 )
                 # Set the entrypoint to flow name
                 .entrypoint(self.flow.name)
+                # Set exit hook handlers if notifications are enabled
+                .hooks(
+                    {
+                        **(
+                            {
+                                # workflow status maps to Completed
+                                "notify-on-success": LifecycleHook()
+                                .expression("workflow.status == 'Succeeded'")
+                                .template("notify-on-success")
+                            }
+                            if self.notify_on_success
+                            else {}
+                        ),
+                        **(
+                            {
+                                # workflow status maps to Failed or Error
+                                "notify-on-failure": LifecycleHook()
+                                .expression("workflow.status == 'Failed'")
+                                .template("notify-on-error"),
+                                "notify-on-error": LifecycleHook()
+                                .expression("workflow.status == 'Error'")
+                                .template("notify-on-error"),
+                            }
+                            if self.notify_on_error
+                            else {}
+                        ),
+                    }
+                )
                 # Top-level DAG template(s)
                 .templates(self._dag_templates())
                 # Container templates
                 .templates(self._container_templates())
+                # Exit hook template(s)
+                .templates(self._exit_hook_templates())
             )
         )
 
@@ -1227,6 +1265,42 @@ class ArgoWorkflows(object):
                 )
             )
 
+    # Return exit hook templates for workflow execution notifications.
+    def _exit_hook_templates(self):
+        # TODO: Add details to slack message
+        templates = []
+        if self.notify_on_error:
+            templates.append(
+                Template("notify-on-error").http(
+                    Http("POST")
+                    .url(self.notify_slack_webhook_url)
+                    .body(
+                        json.dumps(
+                            {
+                                "text": ":rotating_light: _%s/argo-{{workflow.name}}_ failed!"
+                                % self.flow.name
+                            }
+                        )
+                    )
+                )
+            )
+        if self.notify_on_success:
+            templates.append(
+                Template("notify-on-success").http(
+                    Http("POST")
+                    .url(self.notify_slack_webhook_url)
+                    .body(
+                        json.dumps(
+                            {
+                                "text": ":white_check_mark: _%s/argo-{{workflow.name}}_ succeeded!"
+                                % self.flow.name
+                            }
+                        )
+                    )
+                )
+            )
+        return templates
+
     def _compile_sensor(self):
         # This method compiles a Metaflow @trigger decorator into Argo Events Sensor.
         #
@@ -1715,6 +1789,14 @@ class WorkflowSpec(object):
             self.payload["templates"].append(template.to_json())
         return self
 
+    def hooks(self, hooks):
+        # https://argoproj.github.io/argo-workflows/fields/#lifecyclehook
+        if "hooks" not in self.payload:
+            self.payload["hooks"] = {}
+        for k, v in hooks.items():
+            self.payload["hooks"].update({k: v.to_json()})
+        return self
+
     def to_json(self):
         return self.payload
 
@@ -1787,6 +1869,10 @@ class Template(object):
         # Luckily this can simply be V1Container and we are spared from writing more
         # boilerplate - https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1Container.md.
         self.payload["container"] = container
+        return self
+
+    def http(self, http):
+        self.payload["http"] = http.to_json()
         return self
 
     def inputs(self, inputs):
@@ -2300,6 +2386,51 @@ class TriggerParameter(object):
 
     def dest(self, dest):
         self.payload["dest"] = dest
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.payload, indent=4)
+
+
+class Http(object):
+    # https://argoproj.github.io/argo-workflows/fields/#http
+
+    def __init__(self, method):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+        self.payload["method"] = method
+
+    def body(self, body):
+        self.payload["body"] = str(body)
+        return self
+
+    def url(self, url):
+        self.payload["url"] = url
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.payload, indent=4)
+
+
+class LifecycleHook(object):
+    # https://argoproj.github.io/argo-workflows/fields/#lifecyclehook
+
+    def __init__(self):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+
+    def expression(self, expression):
+        self.payload["expression"] = str(expression)
+        return self
+
+    def template(self, template):
+        self.payload["template"] = template
         return self
 
     def to_json(self):
