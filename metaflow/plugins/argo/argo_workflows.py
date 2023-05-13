@@ -67,9 +67,8 @@ class ArgoWorkflowsSchedulingException(MetaflowException):
 #     4. Support GitOps workflows.
 #     5. Add Metaflow tags to labels/annotations.
 #     6. Support Multi-cluster scheduling - https://github.com/argoproj/argo-workflows/issues/3523#issuecomment-792307297
-#     7. Support for workflow notifications.
-#     8. Support R lang.
-#     9. Ping @savin at slack.outerbounds.co for any feature request.
+#     7. Support R lang.
+#     8. Ping @savin at slack.outerbounds.co for any feature request.
 
 
 class ArgoWorkflows(object):
@@ -569,7 +568,7 @@ class ArgoWorkflows(object):
                                 # workflow status maps to Completed
                                 "notify-on-success": LifecycleHook()
                                 .expression("workflow.status == 'Succeeded'")
-                                .template("notify-on-success")
+                                .template("notify-on-success"),
                             }
                             if self.notify_on_success
                             else {}
@@ -585,6 +584,16 @@ class ArgoWorkflows(object):
                                 .template("notify-on-error"),
                             }
                             if self.notify_on_error
+                            else {}
+                        ),
+                        # Warning: terrible hack to workaround a bug in Argo Workflow
+                        #          where the hooks listed above do not execute unless
+                        #          there is an explicit exit hook. as and when this
+                        #          bug is patched, we should remove this effectively
+                        #          no-op hook.
+                        **(
+                            {"exit": LifecycleHook().template("exit-hook-hack")}
+                            if self.notify_on_error or self.notify_on_success
                             else {}
                         ),
                     }
@@ -1297,6 +1306,18 @@ class ArgoWorkflows(object):
                             }
                         )
                     )
+                )
+            )
+        if self.notify_on_error or self.notify_on_success:
+            # Warning: terrible hack to workaround a bug in Argo Workflow where the
+            #          templates listed above do not execute unless there is an
+            #          explicit exit hook. as and when this bug is patched, we should
+            #          remove this effectively no-op template.
+            templates.append(
+                Template("exit-hook-hack").http(
+                    Http("GET")
+                    .url(self.notify_slack_webhook_url)
+                    .success_condition("true == true")
                 )
             )
         return templates
@@ -2409,6 +2430,10 @@ class Http(object):
 
     def url(self, url):
         self.payload["url"] = url
+        return self
+
+    def success_condition(self, success_condition):
+        self.payload["successCondition"] = success_condition
         return self
 
     def to_json(self):
