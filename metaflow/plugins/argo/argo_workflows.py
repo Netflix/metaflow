@@ -865,6 +865,7 @@ class ArgoWorkflows(object):
                         "--task-id %s" % task_id_params,
                     ]
                     + [
+                        # Parameter names can be hyphenated, hence we use
                         # {{foo.bar['param_name']}}. We quote the value to
                         # make sure whitespaces are properly handled since
                         # Argo Events wouldn't do that for us.
