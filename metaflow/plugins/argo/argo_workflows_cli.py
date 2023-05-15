@@ -9,7 +9,12 @@ from hashlib import sha1
 from metaflow import JSONType, current, decorators, parameters
 from metaflow._vendor import click
 from metaflow.exception import MetaflowException, MetaflowInternalError
-from metaflow.metaflow_config import SERVICE_VERSION_CHECK, UI_URL
+from metaflow.metaflow_config import (
+    SERVICE_VERSION_CHECK,
+    UI_URL,
+    ARGO_WORKFLOWS_UI_URL,
+    KUBERNETES_NAMESPACE,
+)
 from metaflow.package import MetaflowPackage
 
 # TODO: Move production_token to utils
@@ -200,6 +205,16 @@ def create(
                 "Note that the flow was deployed with a modified name "
                 "due to Kubernetes naming conventions\non Argo Workflows. The "
                 "original flow name is stored in the workflow annotation.\n"
+            )
+        if ARGO_WORKFLOWS_UI_URL:
+            obj.echo(
+                "See it in the Argo Workflows UI here - \n"
+                "%s/workflow-templates/%s/%s\n"
+                % (
+                    ARGO_WORKFLOWS_UI_URL.rstrip("/"),
+                    KUBERNETES_NAMESPACE,
+                    obj.workflow_name,
+                )
             )
         flow.schedule()
         obj.echo("What will trigger execution of the workflow:", bold=True)
