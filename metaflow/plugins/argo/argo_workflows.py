@@ -962,7 +962,7 @@ class ArgoWorkflows(object):
                 {
                     **{
                         # These values are needed by Metaflow to set it's internal
-                        # state appropriately
+                        # state appropriately.
                         "METAFLOW_CODE_URL": self.code_package_url,
                         "METAFLOW_CODE_SHA": self.code_package_sha,
                         "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
@@ -980,8 +980,8 @@ class ArgoWorkflows(object):
                         "METAFLOW_OWNER": self.username,
                     },
                     **{
-                        # Configuration for Argo Events
-                        # TODO: Move this to @kubernetes decorator instead.
+                        # Configuration for Argo Events. Keep these in sync with the
+                        # environment variables for @kubernetes decorator.
                         "METAFLOW_ARGO_EVENTS_EVENT": ARGO_EVENTS_EVENT,
                         "METAFLOW_ARGO_EVENTS_EVENT_BUS": ARGO_EVENTS_EVENT_BUS,
                         "METAFLOW_ARGO_EVENTS_EVENT_SOURCE": ARGO_EVENTS_EVENT_SOURCE,
