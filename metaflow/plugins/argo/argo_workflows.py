@@ -276,6 +276,23 @@ class ArgoWorkflows(object):
                 )
         return None
 
+    @classmethod
+    def list(cls, name, states):
+        client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+        try:
+            workflow_template = client.get_workflow_template(name)
+        except Exception as e:
+            raise ArgoWorkflowsException(str(e))
+        if workflow_template is None:
+            raise ArgoWorkflowsException(
+                "The workflow *%s* doesn't exist on Argo Workflows in namespace *%s*. "
+                "Please deploy your flow first." % (name, KUBERNETES_NAMESPACE)
+            )
+
+        executions = client.list_executions(name, states)
+
+        return executions
+
     def _process_parameters(self):
         parameters = {}
         has_schedule = self.flow._flow_decorators.get("schedule") is not None

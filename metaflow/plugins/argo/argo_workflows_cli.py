@@ -1,6 +1,7 @@
 import base64
 import json
 import platform
+from datetime import datetime
 import re
 import sys
 from distutils.version import LooseVersion
@@ -541,3 +542,100 @@ def trigger(obj, run_id_file=None, **kwargs):
             "See the run in the UI at %s" % run_url,
             bold=True,
         )
+
+
+@argo_workflows.command(help="List all runs of the workflow on Argo Workflows.")
+@click.option(
+    "--pending",
+    default=False,
+    is_flag=True,
+    help="List all runs of the workflow in Pending state on " "Argo Workflows.",
+)
+@click.option(
+    "--running",
+    default=False,
+    is_flag=True,
+    help="List all runs of the workflow in Running state on " "Argo Workflows.",
+)
+@click.option(
+    "--succeeded",
+    default=False,
+    is_flag=True,
+    help="List all runs of the workflow in Succeeded state on " "Argo Workflows.",
+)
+@click.option(
+    "--failed",
+    default=False,
+    is_flag=True,
+    help="List all runs of the workflow in Failed state on " "Argo Workflows.",
+)
+@click.option(
+    "--error",
+    default=False,
+    is_flag=True,
+    help="List all runs of the workflow in Error state on " "Argo Workflows.",
+)
+@click.option(
+    "--unknown",
+    default=False,
+    is_flag=True,
+    help="List all runs of the workflow in Unknown state on " "Argo Workflows.",
+)
+@click.pass_obj
+def list_runs(obj, pending, running, succeeded, failed, error, unknown):
+    states = []
+    if pending:
+        states.append("Pending")
+    if running:
+        states.append("Running")
+    if succeeded:
+        states.append("Succeeded")
+    if failed:
+        states.append("Failed")
+    if error:
+        states.append("Error")
+    if unknown:
+        states.append("Unknown")
+
+    executions = ArgoWorkflows.list(obj.workflow_name, states)
+    found = False
+
+    def format_timestamp(timestamp):
+        TS_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+        return datetime.strptime(timestamp, TS_FORMAT)
+
+    for execution in executions:
+        found = True
+        obj.echo(
+            "*argo-{id}* "
+            "startedAt: '{startedAt}' "
+            "finishedAt: '{finishedAt}' "
+            "*{status}*".format(
+                id=execution["metadata"]["name"],
+                status=execution["status"]["phase"],
+                startedAt=format_timestamp(execution["status"]["startedAt"]),
+                finishedAt=format_timestamp(execution["status"]["finishedAt"])
+                if execution["status"]["finishedAt"]
+                else "-",
+            )
+        )
+
+    if not found:
+        if len(states) > 0:
+            status = ""
+            for idx, state in enumerate(states):
+                if idx == 0:
+                    pass
+                elif idx == len(states) - 1:
+                    status += " and "
+                else:
+                    status += ", "
+                status += "*%s*" % state
+            obj.echo(
+                "No %s executions for *%s* found on Argo Workflows."
+                % (status, obj.workflow_name)
+            )
+        else:
+            obj.echo(
+                "No executions for *%s* found on Argo Workflows." % (obj.workflow_name)
+            )

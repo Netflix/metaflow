@@ -34,6 +34,32 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
+    def list_executions(self, name, states):
+        client = self._client.get()
+        # Problems with the API capabilities:
+        # https://github.com/argoproj/argo-workflows/discussions/7123
+        # https://github.com/argoproj/argo-workflows/discussions/8500
+        # kubernetes/argo api does not support label-selectors for the following
+        # spec.workflowTemplateRef.name = name
+        # status.phase = states
+        #
+        # but status can be filtered through labels.
+        # it would seem that the only way to filter with workflow template name is to do it in-memory
+        filters = ["status.phase=%s" % state for state in states]
+        try:
+            return client.CustomObjectsApi().list_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="workflows",
+                # field_selector=",".join(filters),
+                limit=10,
+            )["items"]
+        except client.rest.ApiException as e:
+            raise ArgoClientException(
+                json.loads(e.body)["message"] if e.body is not None else e.reason
+            )
+
     def register_workflow_template(self, name, workflow_template):
         # Unfortunately, Kubernetes client does not handle optimistic
         # concurrency control by itself unlike kubectl
