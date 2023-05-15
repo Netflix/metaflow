@@ -252,19 +252,11 @@ class Kubernetes(object):
         )
 
         # Set environment variables to support metaflow.integrations.ArgoEvent
-        job.environment_variable(
-            "METAFLOW_ARGO_EVENTS_WEBHOOK_URL", ARGO_EVENTS_WEBHOOK_URL
-        )
+        job.environment_variable("METAFLOW_ARGO_EVENTS_WEBHOOK_URL", ARGO_EVENTS_WEBHOOK_URL)
         job.environment_variable("METAFLOW_ARGO_EVENTS_EVENT", ARGO_EVENTS_EVENT)
-        job.environment_variable(
-            "METAFLOW_ARGO_EVENTS_EVENT_BUS", ARGO_EVENTS_EVENT_BUS
-        )
-        job.environment_variable(
-            "METAFLOW_ARGO_EVENTS_EVENT_SOURCE", ARGO_EVENTS_EVENT_SOURCE
-        )
-        job.environment_variable(
-            "METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT", ARGO_EVENTS_SERVICE_ACCOUNT
-        )
+        job.environment_variable("METAFLOW_ARGO_EVENTS_EVENT_BUS", ARGO_EVENTS_EVENT_BUS)
+        job.environment_variable("METAFLOW_ARGO_EVENTS_EVENT_SOURCE",ARGO_EVENTS_EVENT_SOURCE)
+        job.environment_variable("METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT",ARGO_EVENTS_SERVICE_ACCOUNT)
 
         tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
         if tmpfs_enabled and tmpfs_tempdir:
