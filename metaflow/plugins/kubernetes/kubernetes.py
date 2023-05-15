@@ -7,6 +7,10 @@ import time
 from metaflow import current, util
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
+    ARGO_EVENTS_EVENT,
+    ARGO_EVENTS_EVENT_BUS,
+    ARGO_EVENTS_EVENT_SOURCE,
+    ARGO_EVENTS_SERVICE_ACCOUNT,
     ARGO_EVENTS_WEBHOOK_URL,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
     AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
@@ -240,15 +244,20 @@ class Kubernetes(object):
             .environment_variable(
                 "METAFLOW_INIT_SCRIPT", KUBERNETES_SANDBOX_INIT_SCRIPT
             )
-            .environment_variable(
-                "METAFLOW_ARGO_EVENTS_WEBHOOK_URL", ARGO_EVENTS_WEBHOOK_URL
-            )
+
             # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync
             # between the local user instance and the remote Kubernetes pod
             # assumes metadata is stored in DATASTORE_LOCAL_DIR on the Kubernetes
             # pod; this happens when METAFLOW_DATASTORE_SYSROOT_LOCAL is NOT set (
             # see get_datastore_root_from_config in datastore/local.py).
         )
+
+        # Set environment variables to support metaflow.integrations.ArgoEvent
+        job.environment_variable("METAFLOW_ARGO_EVENTS_WEBHOOK_URL", ARGO_EVENTS_WEBHOOK_URL)
+        job.environment_variable("METAFLOW_ARGO_EVENTS_EVENT", ARGO_EVENTS_EVENT)
+        job.environment_variable("METAFLOW_ARGO_EVENTS_EVENT_BUS", ARGO_EVENTS_EVENT_BUS)
+        job.environment_variable("METAFLOW_ARGO_EVENTS_EVENT_SOURCE",ARGO_EVENTS_EVENT_SOURCE)
+        job.environment_variable("METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT",ARGO_EVENTS_SERVICE_ACCOUNT)
 
         tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
         if tmpfs_enabled and tmpfs_tempdir:
