@@ -980,7 +980,7 @@ class ArgoWorkflows(object):
                         "METAFLOW_OWNER": self.username,
                     },
                     **{
-                        # Configuration for Argo Events. Keep these in sync with the 
+                        # Configuration for Argo Events. Keep these in sync with the
                         # environment variables for @kubernetes decorator.
                         "METAFLOW_ARGO_EVENTS_EVENT": ARGO_EVENTS_EVENT,
                         "METAFLOW_ARGO_EVENTS_EVENT_BUS": ARGO_EVENTS_EVENT_BUS,
