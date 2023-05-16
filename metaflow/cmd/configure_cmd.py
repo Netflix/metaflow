@@ -630,7 +630,8 @@ def configure_argo_events(existing_env):
         + " URL for Argo Events Webhook "
         + "(Accessible only within a Kubernetes cluster).",
         default=existing_env.get(
-            "METAFLOW_ARGO_EVENTS_WEBHOOK_URL", env["METAFLOW_ARGO_EVENTS_WEBHOOK_URL"]
+            "METAFLOW_ARGO_EVENTS_INTERNAL_WEBHOOK_URL",
+            env["METAFLOW_ARGO_EVENTS_WEBHOOK_URL"],
         ),
         show_default=True,
     )
