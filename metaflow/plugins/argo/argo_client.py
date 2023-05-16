@@ -50,7 +50,6 @@ class ArgoClient(object):
                 namespace=self._namespace,
                 plural="workflows",
                 label_selector=",".join(filters),
-                limit=10,
             )["items"]
         except client.rest.ApiException as e:
             raise ArgoClientException(
