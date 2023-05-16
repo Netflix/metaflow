@@ -45,14 +45,14 @@ class ArgoClient(object):
         #
         # but status can be filtered through labels.
         # it would seem that the only way to filter with workflow template name is to do it in-memory
-        filters = ["status.phase=%s" % state for state in states]
+        filters = ["workflows.argoproj.io/phase=%s" % state for state in states]
         try:
             return client.CustomObjectsApi().list_namespaced_custom_object(
                 group=self._group,
                 version=self._version,
                 namespace=self._namespace,
                 plural="workflows",
-                # field_selector=",".join(filters),
+                label_selector=",".join(filters),
                 limit=10,
             )["items"]
         except client.rest.ApiException as e:
