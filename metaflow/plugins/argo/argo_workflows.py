@@ -530,6 +530,7 @@ class ArgoWorkflows(object):
                     Metadata()
                     .label("app.kubernetes.io/name", "metaflow-run")
                     .label("app.kubernetes.io/part-of", "metaflow")
+                    .label("workflows.argoproj.io/workflow-template", self.name)
                     .annotations(
                         {**annotations, **{"metaflow/run_id": "argo-{{workflow.name}}"}}
                     )
