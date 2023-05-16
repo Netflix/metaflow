@@ -136,7 +136,7 @@ def argo_workflows(obj, name=None):
 )
 @click.option(
     "--auto-emit-argo-events/--no-auto-emit-argo-events",
-    default=False,  # TODO: Default to a value from config
+    default=True,  # TODO: Default to a value from config
     show_default=True,
     help="Auto emits Argo Events when the run completes successfully",
 )
@@ -206,15 +206,16 @@ def create(
                 "due to Kubernetes naming conventions\non Argo Workflows. The "
                 "original flow name is stored in the workflow annotation.\n"
             )
+
         if ARGO_WORKFLOWS_UI_URL:
+            obj.echo("See the deployed workflow here:", bold=True)
+            argo_workflowtemplate_link = "%s/workflow-templates/%s" % (
+                ARGO_WORKFLOWS_UI_URL.rstrip("/"),
+                KUBERNETES_NAMESPACE,
+            )
             obj.echo(
-                "See it in the Argo Workflows UI here - \n"
-                "%s/workflow-templates/%s/%s\n"
-                % (
-                    ARGO_WORKFLOWS_UI_URL.rstrip("/"),
-                    KUBERNETES_NAMESPACE,
-                    obj.workflow_name,
-                )
+                "%s/%s\n\n" % (argo_workflowtemplate_link, obj.workflow_name),
+                indent=True,
             )
         flow.schedule()
         obj.echo("What will trigger execution of the workflow:", bold=True)
