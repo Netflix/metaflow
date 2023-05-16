@@ -1289,7 +1289,26 @@ class ArgoWorkflows(object):
                         json.dumps(
                             {
                                 "text": ":rotating_light: _%s/argo-{{workflow.name}}_ failed!"
-                                % self.flow.name
+                                % self.flow.name,
+                                "blocks": [
+                                    {
+                                        "type": "header",
+                                        "text": {
+                                            "type": "plain_text",
+                                            "text": "%s/argo-{{workflow.name}}"
+                                            % self.flow.name,
+                                        },
+                                    },
+                                    {
+                                        "type": "section",
+                                        "fields": [
+                                            {
+                                                "type": "mrkdwn",
+                                                "text": "*status*: failed",
+                                            }
+                                        ],
+                                    },
+                                ],
                             }
                         )
                     )
@@ -1304,7 +1323,26 @@ class ArgoWorkflows(object):
                         json.dumps(
                             {
                                 "text": ":white_check_mark: _%s/argo-{{workflow.name}}_ succeeded!"
-                                % self.flow.name
+                                % self.flow.name,
+                                "blocks": [
+                                    {
+                                        "type": "header",
+                                        "text": {
+                                            "type": "plain_text",
+                                            "text": "%s/argo-{{workflow.name}}"
+                                            % self.flow.name,
+                                        },
+                                    },
+                                    {
+                                        "type": "section",
+                                        "fields": [
+                                            {
+                                                "type": "mrkdwn",
+                                                "text": "*status*: succeeded",
+                                            }
+                                        ],
+                                    },
+                                ],
                             }
                         )
                     )
