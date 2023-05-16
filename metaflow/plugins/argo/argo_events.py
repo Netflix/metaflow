@@ -28,7 +28,10 @@ class ArgoEvent(object):
         self._payload[key] = str(value)
         return self
 
-    def publish(self, payload=None, force=False, ignore_errors=True):
+    def safe_publish(self, payload=None, ignore_errors=True):
+        return self.publish(payload=payload, force=False, ignore_errors=ignore_errors)
+
+    def publish(self, payload=None, force=True, ignore_errors=True):
         if payload == None:
             payload = {}
         # Publish event iff forced or running on Argo Workflows
@@ -88,7 +91,7 @@ class ArgoEvent(object):
         else:
             msg = (
                 "Argo Event (%s) was not published. Use "
-                + "ArgoEvent(...).publish(..., force=True) "
+                + "ArgoEvent(...).publish(...) "
                 + "to force publish."
             ) % self._name
 
