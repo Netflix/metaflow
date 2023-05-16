@@ -36,16 +36,13 @@ class ArgoClient(object):
 
     def list_executions(self, name, states):
         client = self._client.get()
-        # Problems with the API capabilities:
-        # https://github.com/argoproj/argo-workflows/discussions/7123
-        # https://github.com/argoproj/argo-workflows/discussions/8500
-        # kubernetes/argo api does not support label-selectors for the following
-        # spec.workflowTemplateRef.name = name
-        # status.phase = states
-        #
-        # but status can be filtered through labels.
-        # it would seem that the only way to filter with workflow template name is to do it in-memory
-        filters = ["workflows.argoproj.io/phase=%s" % state for state in states]
+        # NOTE: At the moment Kubernetes API does not support field-selectors for most of the custom fields,
+        # including the following: spec.workflowTemplateRef.name, status.phase
+        # Therefore we use labels for filtering the runs, but this has required us to add a label for the workflow-template name
+        # making the solution not backwards compatible.
+        filters = ["workflows.argoproj.io/workflow-template=%s" % name] + [
+            "workflows.argoproj.io/phase=%s" % state for state in states
+        ]
         try:
             return client.CustomObjectsApi().list_namespaced_custom_object(
                 group=self._group,
