@@ -11,7 +11,7 @@ from metaflow.metaflow_config import (
     ARGO_EVENTS_EVENT_BUS,
     ARGO_EVENTS_EVENT_SOURCE,
     ARGO_EVENTS_SERVICE_ACCOUNT,
-    ARGO_EVENTS_WEBHOOK_URL,
+    ARGO_EVENTS_INTERNAL_WEBHOOK_URL,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
     AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
     CARD_AZUREROOT,
@@ -253,7 +253,7 @@ class Kubernetes(object):
 
         # Set environment variables to support metaflow.integrations.ArgoEvent
         job.environment_variable(
-            "METAFLOW_ARGO_EVENTS_WEBHOOK_URL", ARGO_EVENTS_WEBHOOK_URL
+            "METAFLOW_ARGO_EVENTS_WEBHOOK_URL", ARGO_EVENTS_INTERNAL_WEBHOOK_URL
         )
         job.environment_variable("METAFLOW_ARGO_EVENTS_EVENT", ARGO_EVENTS_EVENT)
         job.environment_variable(
