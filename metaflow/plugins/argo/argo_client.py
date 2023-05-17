@@ -86,6 +86,82 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
+    def suspend_workflow(self, run_id):
+        client = self._client.get()
+        try:
+            workflow = client.CustomObjectsApi().get_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="workflows",
+                name=run_id,
+            )
+        except client.rest.ApiException as e:
+            raise ArgoClientException(
+                json.loads(e.body)["message"] if e.body is not None else e.reason
+            )
+
+        if workflow["status"]["finishedAt"] is not None:
+            raise ArgoClientException(
+                "Cannot suspend an execution that has already finished."
+            )
+        if workflow["spec"].get("suspend") is True:
+            raise ArgoClientException("Execution has already been suspended.")
+
+        try:
+            body = {"spec": workflow["spec"]}
+            body["spec"]["suspend"] = True
+            return client.CustomObjectsApi().patch_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="workflows",
+                name=run_id,
+                body=body,
+            )
+        except client.rest.ApiException as e:
+            raise ArgoClientException(
+                json.loads(e.body)["message"] if e.body is not None else e.reason
+            )
+
+    def unsuspend_workflow(self, run_id):
+        client = self._client.get()
+        try:
+            workflow = client.CustomObjectsApi().get_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="workflows",
+                name=run_id,
+            )
+        except client.rest.ApiException as e:
+            raise ArgoClientException(
+                json.loads(e.body)["message"] if e.body is not None else e.reason
+            )
+
+        if workflow["status"]["finishedAt"] is not None:
+            raise ArgoClientException(
+                "Cannot unsuspend an execution that has already finished."
+            )
+        if not workflow["spec"].get("suspend", False):
+            raise ArgoClientException("Execution is already proceeding.")
+
+        try:
+            body = {"spec": workflow["spec"]}
+            body["spec"]["suspend"] = False
+            return client.CustomObjectsApi().patch_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="workflows",
+                name=run_id,
+                body=body,
+            )
+        except client.rest.ApiException as e:
+            raise ArgoClientException(
+                json.loads(e.body)["message"] if e.body is not None else e.reason
+            )
+
     def trigger_workflow_template(self, name, parameters={}):
         client = self._client.get()
         body = {

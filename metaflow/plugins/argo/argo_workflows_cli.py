@@ -594,3 +594,35 @@ def trigger(obj, run_id_file=None, **kwargs):
             "See the run in the UI at %s" % run_url,
             bold=True,
         )
+
+
+@argo_workflows.command(help="Suspend flow execution on Argo Workflows.")
+@click.option(
+    "--authorize",
+    default=None,
+    type=str,
+    help="Authorize the suspension with a production token",
+)
+@click.argument("run-id", required=True, type=str)
+@click.pass_obj
+def suspend(obj, run_id, authorize=None):
+    workflow_suspended = ArgoWorkflows.suspend(obj.flow.name, run_id)
+
+    if workflow_suspended:
+        obj.echo("Suspended execution of *%s*" % run_id)
+
+
+@argo_workflows.command(help="Unsuspend flow execution on Argo Workflows.")
+@click.option(
+    "--authorize",
+    default=None,
+    type=str,
+    help="Authorize the unsuspend with a production token",
+)
+@click.argument("run-id", required=True, type=str)
+@click.pass_obj
+def unsuspend(obj, run_id, authorize=None):
+    workflow_suspended = ArgoWorkflows.unsuspend(obj.flow.name, run_id)
+
+    if workflow_suspended:
+        obj.echo("Unsuspended execution of *%s*" % run_id)
