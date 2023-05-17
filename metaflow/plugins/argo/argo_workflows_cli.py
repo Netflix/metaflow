@@ -606,7 +606,8 @@ def trigger(obj, run_id_file=None, **kwargs):
 @click.argument("run-id", required=True, type=str)
 @click.pass_obj
 def suspend(obj, run_id, authorize=None):
-    workflow_suspended = ArgoWorkflows.suspend(obj.flow.name, run_id)
+    # TODO: implement production token authorize
+    workflow_suspended = ArgoWorkflows.pause(obj.flow.name, run_id, suspend=True)
 
     if workflow_suspended:
         obj.echo("Suspended execution of *%s*" % run_id)
@@ -622,7 +623,8 @@ def suspend(obj, run_id, authorize=None):
 @click.argument("run-id", required=True, type=str)
 @click.pass_obj
 def unsuspend(obj, run_id, authorize=None):
-    workflow_suspended = ArgoWorkflows.unsuspend(obj.flow.name, run_id)
+    # TODO: implement production token authorize
+    workflow_suspended = ArgoWorkflows.pause(obj.flow.name, run_id, suspend=False)
 
     if workflow_suspended:
         obj.echo("Unsuspended execution of *%s*" % run_id)
