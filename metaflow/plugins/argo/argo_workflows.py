@@ -37,6 +37,8 @@ from metaflow.metaflow_config import (
     S3_ENDPOINT_URL,
     SERVICE_HEADERS,
     SERVICE_INTERNAL_URL,
+    UI_URL,
+    ARGO_WORKFLOWS_UI_URL,
 )
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
@@ -1278,40 +1280,73 @@ class ArgoWorkflows(object):
 
     # Return exit hook templates for workflow execution notifications.
     def _exit_hook_templates(self):
-        # TODO: Add details to slack message
+        def slack_message_payload(success=True):
+            body = {
+                "blocks": [
+                    {
+                        "type": "header",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "%s/argo-{{workflow.name}}" % self.flow.name,
+                        },
+                    },
+                    {
+                        "type": "section",
+                        "fields": [
+                            {
+                                "type": "mrkdwn",
+                                "text": "*Status*: %s"
+                                % (
+                                    ":white_check_mark: success"
+                                    if success
+                                    else ":rotating_light: failed"
+                                ),
+                            }
+                        ],
+                    },
+                ],
+            }
+            if UI_URL or ARGO_WORKFLOWS_UI_URL:
+                body["blocks"].append({"type": "divider"})
+            if UI_URL:
+                body["blocks"].append(
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": "See details of the run at <%s/%s/%s|Metaflow UI>"
+                            % (
+                                UI_URL.rstrip("/"),
+                                self.flow.name,
+                                "argo-{{workflow.name}}",
+                            ),
+                        },
+                    }
+                )
+            if ARGO_WORKFLOWS_UI_URL:
+                body["blocks"].append(
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": "See details of the execution at <%s/workflows/%s/%s|Argo UI>"
+                            % (
+                                ARGO_WORKFLOWS_UI_URL.rstrip("/"),
+                                KUBERNETES_NAMESPACE,
+                                "{{workflow.name}}",
+                            ),
+                        },
+                    }
+                )
+            return json.dumps(body)
+
         templates = []
         if self.notify_on_error:
             templates.append(
                 Template("notify-on-error").http(
                     Http("POST")
                     .url(self.notify_slack_webhook_url)
-                    .body(
-                        json.dumps(
-                            {
-                                "text": ":rotating_light: _%s/argo-{{workflow.name}}_ failed!"
-                                % self.flow.name,
-                                "blocks": [
-                                    {
-                                        "type": "header",
-                                        "text": {
-                                            "type": "plain_text",
-                                            "text": "%s/argo-{{workflow.name}}"
-                                            % self.flow.name,
-                                        },
-                                    },
-                                    {
-                                        "type": "section",
-                                        "fields": [
-                                            {
-                                                "type": "mrkdwn",
-                                                "text": "*status*: failed",
-                                            }
-                                        ],
-                                    },
-                                ],
-                            }
-                        )
-                    )
+                    .body(slack_message_payload(success=False))
                 )
             )
         if self.notify_on_success:
@@ -1319,33 +1354,7 @@ class ArgoWorkflows(object):
                 Template("notify-on-success").http(
                     Http("POST")
                     .url(self.notify_slack_webhook_url)
-                    .body(
-                        json.dumps(
-                            {
-                                "text": ":white_check_mark: _%s/argo-{{workflow.name}}_ succeeded!"
-                                % self.flow.name,
-                                "blocks": [
-                                    {
-                                        "type": "header",
-                                        "text": {
-                                            "type": "plain_text",
-                                            "text": "%s/argo-{{workflow.name}}"
-                                            % self.flow.name,
-                                        },
-                                    },
-                                    {
-                                        "type": "section",
-                                        "fields": [
-                                            {
-                                                "type": "mrkdwn",
-                                                "text": "*status*: succeeded",
-                                            }
-                                        ],
-                                    },
-                                ],
-                            }
-                        )
-                    )
+                    .body(slack_message_payload(success=True))
                 )
             )
         if self.notify_on_error or self.notify_on_success:
