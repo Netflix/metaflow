@@ -1709,6 +1709,8 @@ class Run(MetaflowObject):
         Time this run finished.
     code : MetaflowCode
         Code package for this run (if present). See `MetaflowCode`.
+    trigger : MetaflowTrigger
+        Information about event(s) that triggered this run (if present). See `MetaflowTrigger`.
     end_task : Task
         `Task` for the end step (if it is present already).
     """
