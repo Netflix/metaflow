@@ -17,6 +17,24 @@ class ArgoClient(object):
         self._group = "argoproj.io"
         self._version = "v1alpha1"
 
+    def get_workflow(self, name):
+        client = self._client.get()
+        try:
+            workflow = client.CustomObjectsApi().get_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="workflows",
+                name=name,
+            )
+        except client.rest.ApiException as e:
+            if e.status == 404:
+                return None
+            raise ArgoClientException(
+                json.loads(e.body)["message"] if e.body is not None else e.reason
+            )
+        return workflow
+
     def get_workflow_template(self, name):
         client = self._client.get()
         try:
@@ -87,19 +105,9 @@ class ArgoClient(object):
             )
 
     def suspend_workflow(self, run_id):
-        client = self._client.get()
-        try:
-            workflow = client.CustomObjectsApi().get_namespaced_custom_object(
-                group=self._group,
-                version=self._version,
-                namespace=self._namespace,
-                plural="workflows",
-                name=run_id,
-            )
-        except client.rest.ApiException as e:
-            raise ArgoClientException(
-                json.loads(e.body)["message"] if e.body is not None else e.reason
-            )
+        workflow = self.get_workflow(run_id)
+        if workflow is None:
+            return None
 
         if workflow["status"]["finishedAt"] is not None:
             raise ArgoClientException(
@@ -108,36 +116,14 @@ class ArgoClient(object):
         if workflow["spec"].get("suspend") is True:
             raise ArgoClientException("Execution has already been suspended.")
 
-        try:
-            body = {"spec": workflow["spec"]}
-            body["spec"]["suspend"] = True
-            return client.CustomObjectsApi().patch_namespaced_custom_object(
-                group=self._group,
-                version=self._version,
-                namespace=self._namespace,
-                plural="workflows",
-                name=run_id,
-                body=body,
-            )
-        except client.rest.ApiException as e:
-            raise ArgoClientException(
-                json.loads(e.body)["message"] if e.body is not None else e.reason
-            )
+        body = {"spec": workflow["spec"]}
+        body["spec"]["suspend"] = True
+        return self._patch_workflow(run_id, body)
 
     def unsuspend_workflow(self, run_id):
-        client = self._client.get()
-        try:
-            workflow = client.CustomObjectsApi().get_namespaced_custom_object(
-                group=self._group,
-                version=self._version,
-                namespace=self._namespace,
-                plural="workflows",
-                name=run_id,
-            )
-        except client.rest.ApiException as e:
-            raise ArgoClientException(
-                json.loads(e.body)["message"] if e.body is not None else e.reason
-            )
+        workflow = self.get_workflow(run_id)
+        if workflow is None:
+            return None
 
         if workflow["status"]["finishedAt"] is not None:
             raise ArgoClientException(
@@ -146,15 +132,19 @@ class ArgoClient(object):
         if not workflow["spec"].get("suspend", False):
             raise ArgoClientException("Execution is already proceeding.")
 
+        body = {"spec": workflow["spec"]}
+        body["spec"]["suspend"] = False
+        return self._patch_workflow(run_id, body)
+
+    def _patch_workflow(self, name, body):
+        client = self._client.get()
         try:
-            body = {"spec": workflow["spec"]}
-            body["spec"]["suspend"] = False
             return client.CustomObjectsApi().patch_namespaced_custom_object(
                 group=self._group,
                 version=self._version,
                 namespace=self._namespace,
                 plural="workflows",
-                name=run_id,
+                name=name,
                 body=body,
             )
         except client.rest.ApiException as e:
