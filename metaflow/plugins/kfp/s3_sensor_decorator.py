@@ -9,7 +9,7 @@ from metaflow.exception import MetaflowException
 Within identity_formatter, which is passed in as the path_formatter parameter,
 customers have access to all variables in flow_parameters_json (which 
 include all parameters passed in through the flow at compile and run time by
-KFP) as well as a number of environment variables.
+Argo) as well as a number of environment variables.
 
 Please see metaflow/plugin/environment_decorator.py for details on how
 to add environment variables to be accessible within steps.

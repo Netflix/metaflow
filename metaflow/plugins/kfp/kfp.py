@@ -36,7 +36,6 @@ from metaflow.decorators import FlowDecorator
 from metaflow.metaflow_config import (
     DATASTORE_SYSROOT_S3,
     KFP_TTL_SECONDS_AFTER_FINISHED,
-    KFP_USER_DOMAIN,
     KUBERNETES_SERVICE_ACCOUNT,
     METAFLOW_USER,
     ZILLOW_INDIVIDUAL_NAMESPACE,
@@ -47,15 +46,16 @@ from metaflow.metaflow_config import (
 from metaflow.plugins import EnvironmentDecorator, KfpInternalDecorator
 from metaflow.plugins.kfp.kfp_constants import S3_SENSOR_RETRY_COUNT
 from metaflow.plugins.kfp.kfp_decorator import KfpException
-
+from .accelerator_decorator import AcceleratorDecorator
+from .argo_client import ArgoClient
+from .interruptible_decorator import interruptibleDecorator
+from .kfp_foreach_splits import graph_to_task_ids
+from ..aws.batch.batch_decorator import BatchDecorator
+from ..aws.eks.kubernetes_client import KubernetesClient
+from ..aws.step_functions.schedule_decorator import ScheduleDecorator
 from ...graph import DAGNode
 from ...metaflow_environment import MetaflowEnvironment
 from ...plugins.resources_decorator import ResourcesDecorator
-from ..aws.batch.batch_decorator import BatchDecorator
-from ..aws.step_functions.schedule_decorator import ScheduleDecorator
-from .accelerator_decorator import AcceleratorDecorator
-from .interruptible_decorator import interruptibleDecorator
-from .kfp_foreach_splits import KfpForEachSplits, graph_to_task_ids
 
 # TODO: @schedule
 UNSUPPORTED_DECORATORS = (
@@ -83,6 +83,9 @@ class StepVariables:
     is_split_index: bool
     task_id: str
     user_code_retries: int
+
+
+METAFLOW_RUN_ID = "argo-{{workflow.name}}"
 
 
 class KfpComponent(object):
@@ -147,8 +150,6 @@ class KubeflowPipelines(object):
         sys_tags=None,
         experiment=None,
         namespace=None,
-        kfp_namespace=None,
-        api_namespace=None,
         username=None,
         max_parallelism=None,
         workflow_timeout=None,
@@ -174,8 +175,6 @@ class KubeflowPipelines(object):
         self.sys_tags = sys_tags
         self.experiment = experiment
         self.namespace = namespace
-        self.kfp_namespace = kfp_namespace
-        self.api_namespace = api_namespace
         self.username = username
         self.base_image = base_image
         self.s3_code_package = s3_code_package
@@ -188,35 +187,11 @@ class KubeflowPipelines(object):
         self.notify_on_success = notify_on_success
         self._client = None
 
-    def set_kfp_client(self):
-        # kfp userid needs to have the user domain
-        kfp_client_user_email = self.username
-        if KFP_USER_DOMAIN:
-            kfp_client_user_email += f"@{KFP_USER_DOMAIN}"
-
-        self._client = kfp.Client(
-            namespace=self.api_namespace, userid=kfp_client_user_email
-        )
-
-    def create_run_on_kfp(self, run_name: str, flow_parameters: dict):
+    def _create_workflow_yaml(
+        self, flow_parameters: dict, output_format: str = "argo-workflow"
+    ) -> Dict[str, Any]:
         """
-        Creates a new run on KFP using the `kfp.Client()`.
-        """
-        # TODO: first create KFP Pipeline, then an experiment if provided else default experiment.
-        self.set_kfp_client()
-        pipeline_func, _ = self.create_kfp_pipeline_from_flow_graph()
-        return self._client.create_run_from_pipeline_func(
-            pipeline_func=pipeline_func,
-            arguments={"flow_parameters_json": json.dumps(flow_parameters)},
-            experiment_name=self.experiment,
-            run_name=run_name,
-            namespace=self.kfp_namespace,
-            service_account=KUBERNETES_SERVICE_ACCOUNT,
-        )
-
-    def create_workflow_yaml(self, output_path: str, output_format: str = "kfp") -> str:
-        """
-        Creates a new KFP pipeline YAML using `kfp.compiler.Compiler()`.
+        Creates a new Argo Workflow pipeline YAML using `kfp.compiler.Compiler()`.
         Note: Intermediate pipeline YAML is saved at `pipeline_file_path`
         """
         pipeline_func, pipeline_conf = self.create_kfp_pipeline_from_flow_graph()
@@ -225,19 +200,20 @@ class KubeflowPipelines(object):
             pipeline_conf=pipeline_conf,
         )
 
-        if KUBERNETES_SERVICE_ACCOUNT:
-            workflow["spec"]["serviceAccountName"] = KUBERNETES_SERVICE_ACCOUNT
+        workflow["spec"]["arguments"]["parameters"] = [
+            {
+                "name": "flow_parameters_json",
+                "value": json.dumps(flow_parameters if flow_parameters else {}),
+            }
+        ]
 
-        if output_format == "kfp":
-            pass  # KFP pipeline yaml is created by default
-        elif output_format == "argo-workflow":
+        if output_format == "argo-workflow":
             # Output of KFP compiler already has workflow["kind"] = "Workflow".
 
             # Keep generateName - Argo Workflow is usually used in single run.
 
             # Service account is added through webhooks.
             workflow["spec"].pop("serviceAccountName", None)
-
         elif output_format == "argo-workflow-template":
             workflow["kind"] = "WorkflowTemplate"
 
@@ -254,8 +230,32 @@ class KubeflowPipelines(object):
         else:
             raise NotImplementedError(f"Unsupported output format {output_format}.")
 
-        kfp.compiler.Compiler()._write_workflow(workflow, output_path)
+        return workflow
 
+    def create_run_on_argo(
+        self, kubernetes_namespace: str, flow_parameters: dict
+    ) -> Dict[str, Any]:
+        """
+        Creates a new run on Argo using the `KubernetesClient()`.
+        """
+        workflow: Dict[str, Any] = self._create_workflow_yaml(
+            flow_parameters, output_format="argo-workflow"
+        )
+
+        try:
+            return ArgoClient(
+                namespace=kubernetes_namespace,
+            ).run_workflow(workflow)
+        except Exception as e:
+            raise KfpException(str(e))
+
+    def create_workflow_yaml_file(
+        self, output_path: str, flow_parameters: dict, output_format: str = "kfp"
+    ) -> str:
+        workflow: Dict[str, Any] = self._create_workflow_yaml(
+            flow_parameters, output_format
+        )
+        kfp.compiler.Compiler()._write_workflow(workflow, output_path)
         return os.path.abspath(output_path)
 
     @staticmethod
@@ -506,8 +506,8 @@ class KubeflowPipelines(object):
         else:
             return None
 
-    @staticmethod
     def _set_container_volume(
+        self,
         container_op: ContainerOp,
         kfp_component: KfpComponent,
         workflow_uid: str,
@@ -525,7 +525,7 @@ class KubeflowPipelines(object):
                 (resource_op, volume) = shared_volumes[kfp_component.step_name]
                 container_op.add_pvolumes(volume)
             else:
-                (resource_op, volume) = KubeflowPipelines._create_volume(
+                (resource_op, volume) = self._create_volume(
                     step_name=kfp_component.step_name,
                     size=resource_requirements["volume"],
                     workflow_uid=workflow_uid,
@@ -652,8 +652,8 @@ class KubeflowPipelines(object):
         container_op.container.set_memory_request(memory)
         container_op.container.set_memory_limit(memory)
 
-    @staticmethod
     def _create_volume(
+        self,
         step_name: str,
         size: str,
         workflow_uid: str,
@@ -697,19 +697,25 @@ class KubeflowPipelines(object):
             attribute_outputs=attribute_outputs,
         )
 
+        self._set_container_labels(resource)
+
         volume = PipelineVolume(
             name=f"{volume_name}-volume", pvc=resource.outputs["name"]
         )
         return (resource, volume)
 
-    def _set_container_labels(self, container_op: ContainerOp, metaflow_run_id: str):
+    def _set_container_labels(self, container_op: ContainerOp):
         # TODO(talebz): A Metaflow plugin framework to customize tags, labels, etc.
         container_op.add_pod_label("aip.zillowgroup.net/kfp-pod-default", "true")
+
+        # https://github.com/argoproj/argo-workflows/issues/4525
+        # all argo workflows need istio-injection disabled, else the workflow hangs.
+        container_op.add_pod_label("sidecar.istio.io/inject", "false")
 
         prefix = "metaflow.org"
         container_op.add_pod_annotation(f"{prefix}/flow_name", self.name)
         container_op.add_pod_annotation(f"{prefix}/step", container_op.name)
-        container_op.add_pod_annotation(f"{prefix}/run_id", metaflow_run_id)
+        container_op.add_pod_annotation(f"{prefix}/run_id", METAFLOW_RUN_ID)
         if self.experiment:
             container_op.add_pod_annotation(f"{prefix}/experiment", self.experiment)
         all_tags = list()
@@ -774,11 +780,10 @@ class KubeflowPipelines(object):
             str, KfpComponent
         ] = self._create_kfp_components_from_graph()
         flow_variables: FlowVariables = self._create_flow_variables()
-        metaflow_run_id = f"kfp-{dsl.RUN_ID_PLACEHOLDER}"
 
         def pipeline_transform(op: ContainerOp):
             if isinstance(op, ContainerOp):
-                self._set_container_labels(op, metaflow_run_id)
+                self._set_container_labels(op)
 
                 # Disable caching because Metaflow doesn't have memoization
                 op.execution_options.caching_strategy.max_cache_staleness = "P0D"
@@ -880,7 +885,6 @@ class KubeflowPipelines(object):
                     step_variables,
                     flow_variables,
                     metaflow_configs,
-                    metaflow_run_id,
                     flow_parameters_json,
                     passed_in_split_indexes,
                     preceding_component_inputs,
@@ -933,7 +937,7 @@ class KubeflowPipelines(object):
                 KubeflowPipelines._set_container_resources(
                     metaflow_step_op, kfp_component
                 )
-                resource_op: ResourceOp = KubeflowPipelines._set_container_volume(
+                resource_op: ResourceOp = self._set_container_volume(
                     metaflow_step_op, kfp_component, workflow_uid, shared_volumes
                 )
                 if resource_op:
@@ -994,7 +998,7 @@ class KubeflowPipelines(object):
                 build_kfp_dag(
                     self.graph["start"],
                     workflow_uid=workflow_uid_op.output if workflow_uid_op else None,
-                    shared_volumes=KubeflowPipelines.create_shared_volumes(
+                    shared_volumes=self.create_shared_volumes(
                         step_name_to_kfp_component, workflow_uid_op
                     ),
                 )
@@ -1058,8 +1062,8 @@ class KubeflowPipelines(object):
         kfp_pipeline_from_flow.__name__ = self.name
         return kfp_pipeline_from_flow, pipeline_conf
 
-    @staticmethod
     def create_shared_volumes(
+        self,
         step_name_to_kfp_component: Dict[str, KfpComponent],
         workflow_uid_op: ContainerOp,
     ) -> Dict[str, Dict[str, Tuple[ResourceOp, PipelineVolume]]]:
@@ -1078,7 +1082,7 @@ class KubeflowPipelines(object):
                 and resources["volume_mode"] == "ReadWriteMany"
             ):
                 volume_dir = resources["volume_dir"]
-                (resource_op, volume) = KubeflowPipelines._create_volume(
+                (resource_op, volume) = self._create_volume(
                     step_name=f"{kfp_component.step_name}-shared",
                     size=resources["volume"],
                     workflow_uid=workflow_uid_op.output,
@@ -1099,7 +1103,6 @@ class KubeflowPipelines(object):
         step_variables: StepVariables,
         flow_variables: FlowVariables,
         metaflow_configs: Dict[str, str],
-        metaflow_run_id: str,
         flow_parameters_json: str,
         passed_in_split_indexes: str,
         preceding_component_inputs: List[str],
@@ -1117,7 +1120,7 @@ class KubeflowPipelines(object):
             f" --event_logger {flow_variables.event_logger}"
             f" --flow_name {flow_variables.flow_name}"
             f" --metaflow_configs_json {json.dumps(json.dumps(metaflow_configs))}"
-            f" --metaflow_run_id {metaflow_run_id}"
+            f" --metaflow_run_id {METAFLOW_RUN_ID}"
             f" --monitor {flow_variables.monitor}"
             f' --passed_in_split_indexes "{passed_in_split_indexes}"'
             f" --preceding_component_inputs_json {json.dumps(json.dumps(preceding_component_inputs))}"
@@ -1270,7 +1273,7 @@ class KubeflowPipelines(object):
             (
                 f"{package_commands}"
                 " && python -m metaflow.plugins.kfp.kfp_s3_sensor"
-                f" --kfp_run_id {dsl.RUN_ID_PLACEHOLDER}"
+                " --run_id argo-{{workflow.name}}"
                 f" --flow_name {self.name}"
                 f" --flow_parameters_json '{flow_parameters_json}'"
                 f" --path {path}"
@@ -1301,7 +1304,7 @@ class KubeflowPipelines(object):
                 "METAFLOW_NOTIFY_EMAIL_SMTP_HOST",
                 "METAFLOW_NOTIFY_EMAIL_SMTP_PORT",
                 "METAFLOW_NOTIFY_EMAIL_BODY",
-                "KFP_RUN_URL_PREFIX",
+                "ARGO_RUN_URL_PREFIX",
             ]
             if from_conf(key)
         }
@@ -1319,7 +1322,7 @@ class KubeflowPipelines(object):
                 f"{package_commands}"
                 " && python -m metaflow.plugins.kfp.kfp_exit_handler"
                 f" --flow_name {self.name}"
-                f" --kfp_run_id {dsl.RUN_ID_PLACEHOLDER}"
+                " --run_id {{workflow.name}}"
                 f" --notify_variables_json {json.dumps(json.dumps(notify_variables))}"
                 "  --status {{workflow.status}}"
             ),

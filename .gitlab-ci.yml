@@ -66,8 +66,9 @@ stages:
         -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY 
         -e AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN 
         -e AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION 
-        -e KFP_RUN_URL_PREFIX=$KFP_RUN_URL_PREFIX 
-        -e KFP_SDK_NAMESPACE=$KFP_SDK_NAMESPACE 
+        -e ARGO_RUN_URL_PREFIX=$ARGO_RUN_URL_PREFIX
+        -e METAFLOW_RUN_URL_PREFIX=$METAFLOW_RUN_URL_PREFIX 
+        -e METAFLOW_KUBERNETES_NAMESPACE=$METAFLOW_KUBERNETES_NAMESPACE 
         -e USER=$GITLAB_USER_EMAIL
         -e KFP_STEP_IMAGE=${BUILT_IMAGE_FULL_PATH_KFP_STEP}
         ${BUILT_IMAGE_FULL_PATH}
@@ -146,8 +147,9 @@ test:sandbox:
     - .devex_sandbox_eks
     - .test
   variables:
-    KFP_RUN_URL_PREFIX: "https://kubeflow.corp.sandbox-k8s.zg-aip.net/"
-    KFP_SDK_NAMESPACE: "metaflow-integration-testing-sandbox"
+    ARGO_RUN_URL_PREFIX: "https://argo-server.int.sandbox-k8s.zg-aip.net/"
+    METAFLOW_RUN_URL_PREFIX: "https://metaflow.int.sandbox-k8s.zg-aip.net"
+    METAFLOW_KUBERNETES_NAMESPACE: "metaflow-integration-testing-sandbox"
   rules:
     - if: '$DEPLOY_SANDBOX == "true"'
 
@@ -156,8 +158,9 @@ test:internal:
     - .devex_internal_eks
     - .test
   variables:
-    KFP_RUN_URL_PREFIX: "https://kubeflow.corp.dev-k8s.zg-aip.net/"
-    KFP_SDK_NAMESPACE: "metaflow-integration-testing-internal"
+    ARGO_RUN_URL_PREFIX: "https://argo-server.int.dev-k8s.zg-aip.net/"
+    METAFLOW_RUN_URL_PREFIX: "https://metaflow.int.dev-k8s.zg-aip.net"
+    METAFLOW_KUBERNETES_NAMESPACE: "metaflow-integration-testing-internal"
   rules:
     - if: '$DEPLOY_INTERNAL == "true"'
 
@@ -166,8 +169,9 @@ test:nonprod:
     - .devex_nonprod_eks
     - .test
   variables:
-    KFP_RUN_URL_PREFIX: "https://kubeflow.corp.stage-k8s.zg-aip.net/"
-    KFP_SDK_NAMESPACE: "metaflow-integration-testing-stage"
+    ARGO_RUN_URL_PREFIX: "https://argo-server.int.stage-k8s.zg-aip.net/"
+    METAFLOW_RUN_URL_PREFIX: "https://metaflow.int.stage-k8s.zg-aip.net"
+    METAFLOW_KUBERNETES_NAMESPACE: "metaflow-integration-testing-stage"
   rules:
     - if: '$DEPLOY_NONPROD == "true"'
 
@@ -176,7 +180,8 @@ test:prod:
   - .devex_prod_eks
   - .test
   variables:
-    KFP_RUN_URL_PREFIX: "https://kubeflow.corp.prod-k8s.zg-aip.net/"
-    KFP_SDK_NAMESPACE: "metaflow-integration-testing-prod"
+    ARGO_RUN_URL_PREFIX: "https://argo-server.int.prod-k8s.zg-aip.net/"
+    METAFLOW_RUN_URL_PREFIX: "https://metaflow.int.prod-k8s.zg-aip.net"
+    METAFLOW_KUBERNETES_NAMESPACE: "metaflow-integration-testing-prod"
   rules:
     - if: '$DEPLOY_PROD == "true"'

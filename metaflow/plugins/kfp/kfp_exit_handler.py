@@ -6,12 +6,12 @@ from metaflow._vendor import click
 @click.command()
 @click.option("--flow_name")
 @click.option("--status")
-@click.option("--kfp_run_id")
+@click.option("--run_id")
 @click.option("--notify_variables_json")
 def exit_handler(
     flow_name: str,
     status: str,
-    kfp_run_id: str,
+    run_id: str,
     notify_variables_json: str,
 ):
     """
@@ -52,19 +52,16 @@ def exit_handler(
         msg["To"] = send_to
         msg["Date"] = formatdate(localtime=True)
 
-        kfp_run_url = posixpath.join(
-            get_env("KFP_RUN_URL_PREFIX", ""),
-            "_/pipeline/#/runs/details",
-            kfp_run_id,
-        )
-
-        k8s_namespace = get_env("POD_NAMESPACE", "")
         argo_workflow_name = get_env("MF_ARGO_WORKFLOW_NAME", "")
         email_body = get_env("METAFLOW_NOTIFY_EMAIL_BODY", "")
+        argo_url_prefix = get_env("ARGO_RUN_URL_PREFIX", "")
+        k8s_namespace = get_env("POD_NAMESPACE", "")
+
+        argo_ui_url = f"{argo_url_prefix}/argo-ui/workflows/{k8s_namespace}/{run_id}"
         body = (
             f"status = {status} <br/>\n"
-            f"{kfp_run_url} <br/>\n"
-            f"Metaflow RunId = kfp-{kfp_run_id} <br/>\n"
+            f"{argo_ui_url} <br/>\n"
+            f"Metaflow RunId = argo-{run_id} <br/>\n"
             f"argo -n {k8s_namespace} get {argo_workflow_name} <br/>"
             "<br/>"
             f"{email_body}"

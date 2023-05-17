@@ -50,11 +50,12 @@ non_standard_test_flows = [
 
 disabled_test_flows = [
     "kfp_flow.py",  # kfp_preceding_component feature has been deprecated.
+    "flow_triggering_flow.py",  # TODO(talebz): will re-enable with Argo FTF
     # TODO(talebz) AIP-6717 re-enable for compilation changes or when cluster can handle
-    "foreach_linear_foreach.py",
-    "foreach_linear_split.py",
-    "foreach_split_linear.py",
-    "nested_foreach_with_branching.py",
+    # "foreach_linear_foreach.py",
+    # "foreach_linear_split.py",
+    # "foreach_split_linear.py",
+    # "nested_foreach_with_branching.py",
 ]
 
 
@@ -342,8 +343,9 @@ def test_kubernetes_service_account_compile_only() -> None:
 
         flow_yaml = get_compiled_yaml(compile_to_yaml_cmd, yaml_file_path)
 
-    # check we set serviceAccountName for workflow pods per individual IAM role
-    assert flow_yaml["spec"]["serviceAccountName"] == service_account
+    # check we don't serviceAccountName for workflow pods
+    assert "serviceAccountName" not in flow_yaml["spec"]
+
     # check we set serviceaccount env variable for spark use
     for step in flow_yaml["spec"]["templates"]:
         if step.get("container"):

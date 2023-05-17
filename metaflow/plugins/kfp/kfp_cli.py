@@ -1,6 +1,7 @@
 import json
 import shutil
 import subprocess
+from typing import Dict, Any
 
 from metaflow import JSONType, current, decorators, parameters
 from metaflow._vendor import click
@@ -8,16 +9,16 @@ from metaflow.exception import CommandException, MetaflowException
 from metaflow.metaflow_config import (
     KFP_DEFAULT_CONTAINER_IMAGE,
     KFP_MAX_PARALLELISM,
-    KFP_SDK_API_NAMESPACE,
-    KFP_SDK_NAMESPACE,
     from_conf,
+    KUBERNETES_NAMESPACE,
+    ARGO_RUN_URL_PREFIX,
+    METAFLOW_RUN_URL_PREFIX,
 )
 from metaflow.package import MetaflowPackage
 from metaflow.plugins.aws.step_functions.step_functions_cli import (
     check_metadata_service_version,
 )
 from metaflow.plugins.kfp.kfp_step_init import save_step_environment_variables
-from metaflow.plugins.kfp.kfp_utils import run_id_to_url
 from metaflow.util import get_username
 
 
@@ -30,15 +31,13 @@ def cli():
     pass
 
 
-@cli.group(name="kfp", help="Commands related to Kubeflow Pipelines.")
+@cli.group(name="kfp", help="Commands related to Workflow SDK.")
 @click.pass_obj
 def kubeflow_pipelines(obj):
     pass
 
 
-@kubeflow_pipelines.command(
-    help="Internal KFP step command to initialize parent taskIds"
-)
+@kubeflow_pipelines.command(help="Internal step command to initialize parent taskIds")
 @click.option("--run-id")
 @click.option("--step_name")
 @click.option("--passed_in_split_indexes")
@@ -57,31 +56,13 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
 
 
 @parameters.add_custom_parameters(deploy_mode=True)
-@kubeflow_pipelines.command(
-    help="Deploy a new version of this workflow to Kubeflow Pipelines."
-)
-@click.option(
-    "--experiment-name",
-    "experiment",
-    default=None,
-    help="Deprecated. Please use --experiment option."
-    "Default of None uses KFP 'default' experiment",
-    show_default=True,
-)
+@kubeflow_pipelines.command(help="Submit this flow to Argo.")
 @click.option(
     "--experiment",
     "-e",
     "experiment",
     default=None,
-    help="The associated experiment name for the run. "
-    "Default of None uses KFP 'default' experiment",
-    show_default=True,
-)
-@click.option(
-    "--run-name",
-    "run_name",
-    default=None,
-    help="Name assigned to the new KFP run. If not assigned None is sent to KFP",
+    help="The associated experiment name for the run. ",
     show_default=True,
 )
 @click.option(
@@ -89,7 +70,7 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
     "tags",
     multiple=True,
     default=None,
-    help="Annotate all Metaflow objects produced by KFP Metaflow runs "
+    help="Annotate all Metaflow objects produced by Argo Metaflow runs "
     "with the given tag. You can specify this option multiple "
     "times to attach multiple tags.",
 )
@@ -98,7 +79,7 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
     "sys_tags",
     multiple=True,
     default=None,
-    help="Annotate all Metaflow objects produced by KFP Metaflow runs "
+    help="Annotate all Metaflow objects produced by Argo Metaflow runs "
     "with the given system tag. You can specify this option multiple "
     "times to attach multiple tags.",
 )
@@ -110,17 +91,11 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
     show_default=True,
 )
 @click.option(
-    "--kfp-namespace",
-    "kfp_namespace",
-    default=KFP_SDK_NAMESPACE,
-    help="Namespace of your run in KFP.",
-    show_default=True,
-)
-@click.option(
-    "--api-namespace",
-    "api_namespace",
-    default=KFP_SDK_API_NAMESPACE,
-    help="Namespace where the API service is run.",
+    "--k8s-namespace",
+    "--kubernetes-namespace",
+    "kubernetes_namespace",
+    default=KUBERNETES_NAMESPACE,
+    help="Kubernetes Namespace for your run in Argo.",
     show_default=True,
 )
 @click.option(
@@ -128,22 +103,21 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
     "yaml_only",
     is_flag=True,
     default=False,
-    help="Generate the KFP YAML which is used to run the workflow on Kubeflow Pipelines.",
+    help="Generate the Workflow YAML which is used to run the workflow on Argo.",
     show_default=True,
 )
 @click.option(
     "--yaml-format",
     "yaml_format",
-    default="kfp",
-    type=click.Choice(["kfp", "argo-workflow", "argo-workflow-template"]),
-    help="'kfp', 'argo-workflow', or 'argo-workflow-template'",
+    default="argo-workflow",
+    type=click.Choice(["argo-workflow", "argo-workflow-template"]),
     show_default=True,
 )
 @click.option(
     "--pipeline-path",
     "pipeline_path",
     default=None,
-    help="The output path of the generated KFP pipeline yaml file",
+    help="The output path of the generated Argo pipeline yaml file",
     show_default=True,
 )
 @click.option(
@@ -157,7 +131,7 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
     "--base-image",
     "base_image",
     default=KFP_DEFAULT_CONTAINER_IMAGE,
-    help="Base docker image used in Kubeflow Pipelines.",
+    help="Base docker image used in Argo.",
     show_default=True,
 )
 @click.option(
@@ -191,7 +165,7 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
     "argo_wait",
     is_flag=True,
     default=False,
-    help="Use Argo CLI watch to wait for KFP run to complete.",
+    help="Use Argo CLI watch to wait for Argo run to complete.",
     show_default=True,
 )
 @click.option(
@@ -227,12 +201,10 @@ def step_init(obj, run_id, step_name, passed_in_split_indexes, task_id):
 def run(
     obj,
     experiment=None,
-    run_name=None,
     tags=None,
     sys_tags=None,
     namespace=None,
-    kfp_namespace=KFP_SDK_NAMESPACE,
-    api_namespace=KFP_SDK_API_NAMESPACE,
+    kubernetes_namespace=KUBERNETES_NAMESPACE,
     yaml_only=False,
     yaml_format=None,
     pipeline_path=None,
@@ -275,8 +247,6 @@ def run(
         sys_tags=sys_tags,
         experiment=experiment,
         namespace=namespace,
-        kfp_namespace=kfp_namespace,
-        api_namespace=api_namespace,
         base_image=base_image,
         s3_code_package=s3_code_package,
         max_parallelism=max_parallelism,
@@ -290,8 +260,10 @@ def run(
         if pipeline_path is None:
             raise CommandException("Please specify --pipeline-path")
 
-        pipeline_path = flow.create_workflow_yaml(pipeline_path, yaml_format)
-        obj.echo(f"\nDone converting *{current.flow_name}* to {pipeline_path}")
+        pipeline_path = flow.create_workflow_yaml_file(
+            pipeline_path, flow_parameters, yaml_format
+        )
+        obj.echo(f"\nDone compiling *{current.flow_name}* to {pipeline_path}")
     else:
         if s3_code_package and obj.flow_datastore.TYPE != "s3":
             raise CommandException(
@@ -299,31 +271,44 @@ def run(
             )
 
         obj.echo(
-            f"Deploying *{current.flow_name}* to Kubeflow Pipelines...",
+            f"Deploying *{current.flow_name}* to Argo...",
             bold=True,
         )
-        run_pipeline_result = flow.create_run_on_kfp(run_name, flow_parameters)
-        kfp_run_id = run_pipeline_result.run_id
-        kfp_run_url = run_id_to_url(kfp_run_id)
-        metaflow_run_id = f"kfp-{kfp_run_id}"
-
+        workflow_manifest: Dict[str, Any] = flow.create_run_on_argo(
+            kubernetes_namespace, flow_parameters
+        )
+        argo_run_id = workflow_manifest["metadata"]["name"]
+        metaflow_run_id = f"argo-{argo_run_id}"
+        metaflow_ui_url = f"{METAFLOW_RUN_URL_PREFIX}/{flow.name}/{metaflow_run_id}"
+        argo_ui_url = f"{ARGO_RUN_URL_PREFIX}/argo-ui/workflows/{kubernetes_namespace}/{argo_run_id}"
+        # ddog_ui_url = (
+        #     f"https://ai-platform.datadoghq.com/orchestration/overview/pod?query=annotation%23metaflow.org%2F"
+        #     f"run_id%3A{metaflow_run_id}"
+        #     f"&groups=tag%23kube_namespace%2Cannotation%23metaflow.org%2Fflow_name"
+        #     "%2Cannotation%23metaflow.org%2Fstep&inspect=&inspect_group=&panel_tab=yaml&pg=0"
+        # )
+        # ddog_wf_url = (
+        #     "https://ai-platform.datadoghq.com/dashboard/mtq-j2e-p6g"
+        #     f"?tpl_var_env%5B0%5D=%2A&tpl_var_run_id%5B0%5D={metaflow_run_id}"
+        # )
         obj.echo("\nRun created successfully!\n")
-        obj.echo(f"Metaflow run_id=*{metaflow_run_id}* \n", fg="magenta")
-        obj.echo(f"*Run link:* {kfp_run_url}\n", fg="cyan")
+        obj.echo(f"Metaflow run_id=*{metaflow_run_id}*\n", fg="magenta")
+        obj.echo(f"*Argo UI:* {argo_ui_url}", fg="cyan")
+        obj.echo(f"*Metaflow UI:* {metaflow_ui_url}", fg="cyan")
+        # obj.echo(f"*ddog dashboard:* {ddog_wf_url}", fg="cyan")
+        # obj.echo(f"*ddog pod groups:* {ddog_ui_url}\n", fg="cyan")
 
-        run_info = flow._client.get_run(kfp_run_id)
-        workflow_manifest = json.loads(run_info.pipeline_runtime.workflow_manifest)
         argo_workflow_name = workflow_manifest["metadata"]["name"]
 
         obj.echo(
-            f"*Argo workflow:* argo -n {kfp_namespace} watch {argo_workflow_name}\n",
+            f"*Argo workflow:* argo -n {kubernetes_namespace} watch {argo_workflow_name}\n",
             fg="cyan",
         )
 
         if argo_wait:
             argo_path: str = shutil.which("argo")
 
-            argo_cmd = f"{argo_path} -n {kfp_namespace} "
+            argo_cmd = f"{argo_path} -n {kubernetes_namespace} "
             cmd = f"{argo_cmd} watch {argo_workflow_name}"
             subprocess.run(
                 cmd,
@@ -337,15 +322,20 @@ def run(
                 cmd, shell=True, stdout=subprocess.PIPE, encoding="utf8"
             )
             succeeded = "Succeeded" in ret.stdout
-            show_status(metaflow_run_id, kfp_run_url, obj.echo, succeeded)
+            show_status(
+                metaflow_run_id, argo_ui_url, metaflow_ui_url, obj.echo, succeeded
+            )
 
 
-def show_status(run_id: str, kfp_run_url: str, echo: callable, succeeded: bool):
+def show_status(
+    run_id: str, argo_ui_url: str, metaflow_ui_url: str, echo: callable, succeeded: bool
+):
     if succeeded:
         echo("\nSUCCEEDED!", fg="green")
     else:
         raise Exception(
-            f"Flow: {current.flow_name}, run_id: {run_id}, run_link: {kfp_run_url} FAILED!"
+            f"Flow: {current.flow_name}, run_id: {run_id} FAILED!\n"
+            f"Argo UI: {argo_ui_url}, Metaflow UI: {metaflow_ui_url}"
         )
 
 
@@ -356,8 +346,6 @@ def make_flow(
     sys_tags,
     experiment,
     namespace,
-    kfp_namespace,
-    api_namespace,
     base_image,
     s3_code_package,
     max_parallelism,
@@ -413,8 +401,6 @@ def make_flow(
         sys_tags=sys_tags,
         experiment=experiment,
         namespace=namespace,
-        kfp_namespace=kfp_namespace,
-        api_namespace=api_namespace,
         username=get_username(),
         max_parallelism=max_parallelism,
         workflow_timeout=workflow_timeout,

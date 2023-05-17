@@ -12,11 +12,12 @@ This can also be obtained by running `metaflow configure show`.
 A sample configuration:
 ```
 {
-    "METAFLOW_DATASTORE_SYSROOT_S3": "s3://aip-example-dev/metaflow",
-    "METAFLOW_DEFAULT_DATASTORE": "local",
-    "KFP_RUN_URL_PREFIX": "https://kubeflow.corp.dev.zg-aip.net/",
-    "KFP_SDK_NAMESPACE": "aip-example",
-    "METAFLOW_USER": "hariharans@zillowgroup.com"
+    "ARGO_RUN_URL_PREFIX": "https://argo-server.int.sandbox-k8s.zg-aip.net/",
+    "METAFLOW_DATASTORE_SYSROOT_S3": "s3://serve-datalake-zillowgroup/zillow/workflow_sdk/metaflow_28d/dev/aip-playground",
+    "METAFLOW_KUBERNETES_NAMESPACE": "aip-playground-sandbox",
+    "METAFLOW_DEFAULT_DATASTORE": "s3",
+    "METAFLOW_USER": "talebz",
+    "METAFLOW_SERVICE_URL": "https://metaflow.int.sandbox-k8s.zg-aip.net/metaflow-service"
 }
 ```
 

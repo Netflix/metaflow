@@ -1,3 +1,5 @@
+import time
+
 from metaflow import FlowSpec, Step, current, step
 
 
@@ -15,34 +17,43 @@ class ForeachLinearForeach(FlowSpec):
 
     @step
     def linear_1(self):
+        # AIP-6717 sleeps to avoid Datadog OOM events because of too many pods
+        # being created and decommissioned in a short time frame.
+        time.sleep(1)
         self.next(self.linear_2)
 
     @step
     def linear_2(self):
+        time.sleep(1)
         print(self.log_testing_msg.format(data=self.input))
         self.next(self.foreach_split_z)
 
     @step
     def foreach_split_z(self):
+        time.sleep(1)
         self.z = "ef"
         self.next(self.linear_3, foreach="z")
 
     @step
     def linear_3(self):
+        time.sleep(1)
         print(self.log_testing_msg.format(data=self.input))
         self.next(self.linear_4)
 
     @step
     def linear_4(self):
+        time.sleep(1)
         self.next(self.foreach_join_z)
 
     @step
     def foreach_join_z(self, inputs):
+        time.sleep(1)
         self.merge_artifacts(inputs)
         self.next(self.foreach_join_start)
 
     @step
     def foreach_join_start(self, inputs):
+        time.sleep(1)
         self.merge_artifacts(inputs)
         self.next(self.end)
 

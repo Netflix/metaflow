@@ -8,6 +8,7 @@ on:
     branches:
     - master
     - feature/kfp
+    - feature/kfp-argo
   workflow_call:
   
 jobs:
