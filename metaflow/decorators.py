@@ -47,6 +47,17 @@ class BadFlowDecoratorException(MetaflowException):
         super(BadFlowDecoratorException, self).__init__(msg)
 
 
+class BadProjectDecoratorArgsException(MetaflowException):
+    headline = "Invalid project argument error"
+
+    def __init__(self, cls):
+        msg = (
+            "The 'name' argument in the 'project' decorator must be specified like @project(name='%s')."
+            % cls
+        )
+        super(BadProjectDecoratorArgsException, self).__init__(msg)
+
+
 class UnknownStepDecoratorException(MetaflowException):
     headline = "Unknown step decorator"
 
@@ -408,6 +419,8 @@ def _base_flow_decorator(decofunc, *args, **kwargs):
                 deco_instance = decofunc(attributes=kwargs, statically_defined=True)
                 cls._flow_decorators.setdefault(decofunc.name, []).append(deco_instance)
         else:
+            if decofunc.name == "project" and isinstance(cls, str):
+                raise BadProjectDecoratorArgsException(cls)
             raise BadFlowDecoratorException(decofunc.name)
         return cls
     else:
