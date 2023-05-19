@@ -93,7 +93,13 @@ def from_conf(name, default=None, validate_fn=None):
             return value
         elif isinstance(default, (bool, int, float)) or is_stringish(default):
             try:
-                is_default = type(default)(value) == default
+                if type(value) != type(default):
+                    if isinstance(default, bool):
+                        # Env vars are strings so try to evaluate logically
+                        value = value.lower() not in ("0", "false", "")
+                    else:
+                        value = type(default)(value)
+                is_default = value == default
             except ValueError:
                 raise ValueError(
                     "Expected a %s for %s, got: %s" % (type(default), env_name, value)
