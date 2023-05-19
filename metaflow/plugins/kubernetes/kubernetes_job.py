@@ -166,14 +166,29 @@ class KubernetesJob(object):
                                         if self._kwargs["gpu"] is not None
                                     },
                                 ),
-                                volume_mounts=[
-                                    client.V1VolumeMount(
-                                        mount_path=self._kwargs.get("tmpfs_path"),
-                                        name="tmpfs-ephemeral-volume",
-                                    )
-                                ]
-                                if tmpfs_enabled
-                                else [],
+                                volume_mounts=(
+                                    [
+                                        client.V1VolumeMount(
+                                            mount_path=self._kwargs.get("tmpfs_path"),
+                                            name="tmpfs-ephemeral-volume",
+                                        )
+                                    ]
+                                    if tmpfs_enabled
+                                    else []
+                                )
+                                + (
+                                    [
+                                        client.V1VolumeMount(
+                                            mount_path=path, name=claim
+                                        )
+                                        for claim, path in self._kwargs[
+                                            "persistent_volume_claims"
+                                        ].items()
+                                    ]
+                                    if self._kwargs["persistent_volume_claims"]
+                                    is not None
+                                    else []
+                                ),
                             )
                         ],
                         node_selector=self._kwargs.get("node_selector"),
@@ -195,18 +210,35 @@ class KubernetesJob(object):
                             client.V1Toleration(**toleration)
                             for toleration in self._kwargs.get("tolerations") or []
                         ],
-                        volumes=[
-                            client.V1Volume(
-                                name="tmpfs-ephemeral-volume",
-                                empty_dir=client.V1EmptyDirVolumeSource(
-                                    medium="Memory",
-                                    # Add default unit as ours differs from Kubernetes default.
-                                    size_limit="{}Mi".format(tmpfs_size),
-                                ),
-                            )
-                        ]
-                        if tmpfs_enabled
-                        else [],
+                        volumes=(
+                            [
+                                client.V1Volume(
+                                    name="tmpfs-ephemeral-volume",
+                                    empty_dir=client.V1EmptyDirVolumeSource(
+                                        medium="Memory",
+                                        # Add default unit as ours differs from Kubernetes default.
+                                        size_limit="{}Mi".format(tmpfs_size),
+                                    ),
+                                )
+                            ]
+                            if tmpfs_enabled
+                            else []
+                        )
+                        + (
+                            [
+                                client.V1Volume(
+                                    name=claim,
+                                    persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
+                                        claim_name=claim
+                                    ),
+                                )
+                                for claim in self._kwargs[
+                                    "persistent_volume_claims"
+                                ].keys()
+                            ]
+                            if self._kwargs["persistent_volume_claims"] is not None
+                            else []
+                        ),
                         # TODO (savin): Set termination_message_policy
                     ),
                 ),

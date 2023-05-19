@@ -18,6 +18,7 @@ echo = echo_always
 METAFLOW_CONFIGURATION_DIR = expanduser(
     os.environ.get("METAFLOW_HOME", "~/.metaflowconfig")
 )
+METAFLOW_PROFILE = os.environ.get("METAFLOW_PROFILE", "")
 
 
 @click.group()
@@ -91,7 +92,9 @@ def persist_env(env_dict, profile):
 
 
 @configure.command(help="Reset configuration to disable cloud access.")
-@click.option("--profile", "-p", default="", help="Optional named profile.")
+@click.option(
+    "--profile", "-p", default=METAFLOW_PROFILE, help="Optional named profile."
+)
 def reset(profile):
     check_for_missing_profile(profile)
     path = get_config_path(profile)
@@ -108,7 +111,9 @@ def reset(profile):
 
 
 @configure.command(help="Show existing configuration.")
-@click.option("--profile", "-p", default="", help="Optional named profile.")
+@click.option(
+    "--profile", "-p", default=METAFLOW_PROFILE, help="Optional named profile."
+)
 def show(profile):
     check_for_missing_profile(profile)
     path = get_config_path(profile)
@@ -129,7 +134,7 @@ def show(profile):
 @click.option(
     "--profile",
     "-p",
-    default="",
+    default=METAFLOW_PROFILE,
     help="Optional named profile whose configuration must be " "exported.",
 )
 @click.argument("output_filename", type=click.Path(resolve_path=True))
@@ -162,7 +167,7 @@ def export(profile, output_filename):
 @click.option(
     "--profile",
     "-p",
-    default="",
+    default=METAFLOW_PROFILE,
     help="Optional named profile to which the configuration must be " "imported into.",
 )
 @click.argument("input_filename", type=click.Path(exists=True, resolve_path=True))
@@ -577,6 +582,63 @@ def check_kubernetes_config(ctx):
         )
 
 
+def configure_argo_events(existing_env):
+    env = {}
+
+    # Argo events service account
+    env["METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT"] = click.prompt(
+        cyan("[METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT]")
+        + " Service Account for Argo Events. ",
+        default=existing_env.get("METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT", ""),
+        show_default=True,
+    )
+
+    # Argo events event bus
+    env["METAFLOW_ARGO_EVENTS_EVENT_BUS"] = click.prompt(
+        cyan("[METAFLOW_ARGO_EVENTS_EVENT_BUS]")
+        + yellow(" (optional)")
+        + " Event Bus for Argo Events.",
+        default=existing_env.get("METAFLOW_ARGO_EVENTS_EVENT_BUS", "default"),
+        show_default=True,
+    )
+
+    # Argo events event source
+    env["METAFLOW_ARGO_EVENTS_EVENT_SOURCE"] = click.prompt(
+        cyan("[METAFLOW_ARGO_EVENTS_EVENT_SOURCE]") + " Event Source for Argo Events.",
+        default=existing_env.get("METAFLOW_ARGO_EVENTS_EVENT_SOURCE", ""),
+        show_default=True,
+    )
+
+    # Argo events event name
+    env["METAFLOW_ARGO_EVENTS_EVENT"] = click.prompt(
+        cyan("[METAFLOW_ARGO_EVENTS_EVENT]") + " Event name for Argo Events.",
+        default=existing_env.get("METAFLOW_ARGO_EVENTS_EVENT", ""),
+        show_default=True,
+    )
+
+    # Argo events webhook url
+    env["METAFLOW_ARGO_EVENTS_WEBHOOK_URL"] = click.prompt(
+        cyan("[METAFLOW_ARGO_EVENTS_WEBHOOK_URL]")
+        + " Publicly accessible URL for Argo Events Webhook.",
+        default=existing_env.get("METAFLOW_ARGO_EVENTS_WEBHOOK_URL", ""),
+        show_default=True,
+    )
+    # Set internal URL for Argo events webhook
+    env["METAFLOW_ARGO_EVENTS_INTERNAL_WEBHOOK_URL"] = click.prompt(
+        cyan("[METAFLOW_ARGO_EVENTS_INTERNAL_WEBHOOK_URL]")
+        + yellow(" (optional)")
+        + " URL for Argo Events Webhook "
+        + "(Accessible only within a Kubernetes cluster).",
+        default=existing_env.get(
+            "METAFLOW_ARGO_EVENTS_INTERNAL_WEBHOOK_URL",
+            env["METAFLOW_ARGO_EVENTS_WEBHOOK_URL"],
+        ),
+        show_default=True,
+    )
+
+    return env
+
+
 def configure_kubernetes(existing_env):
     empty_profile = False
     if not existing_env:
@@ -723,7 +785,6 @@ def verify_gcp_credentials(ctx):
 )
 @click.pass_context
 def azure(ctx, profile):
-
     # Greet the user!
     echo(
         "Welcome to Metaflow! Follow the prompts to configure your installation.\n",
@@ -765,7 +826,6 @@ def azure(ctx, profile):
 )
 @click.pass_context
 def gcp(ctx, profile):
-
     # Greet the user!
     echo(
         "Welcome to Metaflow! Follow the prompts to configure your installation.\n",
@@ -807,7 +867,6 @@ def gcp(ctx, profile):
 )
 @click.pass_context
 def aws(ctx, profile):
-
     # Greet the user!
     echo(
         "Welcome to Metaflow! Follow the prompts to configure your " "installation.\n",
@@ -855,7 +914,6 @@ def aws(ctx, profile):
 )
 @click.pass_context
 def kubernetes(ctx, profile):
-
     check_kubernetes_client(ctx)
 
     # Greet the user!
@@ -902,5 +960,9 @@ def kubernetes(ctx, profile):
 
     # Configure Kubernetes for compute.
     env.update(configure_kubernetes(existing_env))
+
+    # Configure Argo Workflows Events
+    if click.confirm("\nConfigure support for Argo Workflow Events?"):
+        env.update(configure_argo_events(existing_env))
 
     persist_env({k: v for k, v in env.items() if v}, profile)

@@ -9,7 +9,12 @@ from hashlib import sha1
 from metaflow import JSONType, current, decorators, parameters
 from metaflow._vendor import click
 from metaflow.exception import MetaflowException, MetaflowInternalError
-from metaflow.metaflow_config import SERVICE_VERSION_CHECK, UI_URL
+from metaflow.metaflow_config import (
+    SERVICE_VERSION_CHECK,
+    UI_URL,
+    ARGO_WORKFLOWS_UI_URL,
+    KUBERNETES_NAMESPACE,
+)
 from metaflow.package import MetaflowPackage
 
 # TODO: Move production_token to utils
@@ -126,14 +131,31 @@ def argo_workflows(obj, name=None):
     default=None,
     type=int,
     help="Workflow priority as an integer. Workflows with higher priority "
-    "are processed first if Argo Workflows controller is configured to process limited "
-    "number of workflows in parallel",
+    "are processed first if Argo Workflows controller is configured to process "
+    "limited number of workflows in parallel",
 )
 @click.option(
     "--auto-emit-argo-events/--no-auto-emit-argo-events",
     default=True,  # TODO: Default to a value from config
     show_default=True,
-    help="Auto emits Argo Events when the run completes successfully",
+    help="Auto emits Argo Events when the run completes successfully.",
+)
+@click.option(
+    "--notify-on-error/--no-notify-on-error",
+    default=False,
+    show_default=True,
+    help="Notify if the workflow fails.",
+)
+@click.option(
+    "--notify-on-success/--no-notify-on-success",
+    default=False,
+    show_default=True,
+    help="Notify if the workflow succeeds.",
+)
+@click.option(
+    "--notify-slack-webhook-url",
+    default="",
+    help="Slack incoming webhook url for workflow success/failure notifications.",
 )
 @click.pass_obj
 def create(
@@ -148,6 +170,9 @@ def create(
     workflow_timeout=None,
     workflow_priority=None,
     auto_emit_argo_events=False,
+    notify_on_error=False,
+    notify_on_success=False,
+    notify_slack_webhook_url=None,
 ):
     validate_tags(tags)
 
@@ -180,6 +205,9 @@ def create(
         workflow_timeout,
         workflow_priority,
         auto_emit_argo_events,
+        notify_on_error,
+        notify_on_success,
+        notify_slack_webhook_url,
     )
 
     if only_json:
@@ -200,6 +228,17 @@ def create(
                 "Note that the flow was deployed with a modified name "
                 "due to Kubernetes naming conventions\non Argo Workflows. The "
                 "original flow name is stored in the workflow annotation.\n"
+            )
+
+        if ARGO_WORKFLOWS_UI_URL:
+            obj.echo("See the deployed workflow here:", bold=True)
+            argo_workflowtemplate_link = "%s/workflow-templates/%s" % (
+                ARGO_WORKFLOWS_UI_URL.rstrip("/"),
+                KUBERNETES_NAMESPACE,
+            )
+            obj.echo(
+                "%s/%s\n\n" % (argo_workflowtemplate_link, obj.workflow_name),
+                indent=True,
             )
         flow.schedule()
         obj.echo("What will trigger execution of the workflow:", bold=True)
@@ -345,12 +384,23 @@ def make_flow(
     workflow_timeout,
     workflow_priority,
     auto_emit_argo_events,
+    notify_on_error,
+    notify_on_success,
+    notify_slack_webhook_url,
 ):
     # TODO: Make this check less specific to Amazon S3 as we introduce
     #       support for more cloud object stores.
     if obj.flow_datastore.TYPE not in ("azure", "gs", "s3"):
         raise MetaflowException(
             "Argo Workflows requires --datastore=s3 or --datastore=azure or --datastore=gs"
+        )
+
+    if (notify_on_error or notify_on_success) and not notify_slack_webhook_url:
+        raise MetaflowException(
+            "Slack notifications require specifying an incoming Slack "
+            "webhook url via --notify-slack-webhook-url. \nIf you would like to "
+            "set up one for your Slack workspace, follow the instructions "
+            "at https://api.slack.com/messaging/webhooks."
         )
 
     # Attach @kubernetes and @environment decorator to the flow to
@@ -391,6 +441,9 @@ def make_flow(
         workflow_timeout=workflow_timeout,
         workflow_priority=workflow_priority,
         auto_emit_argo_events=auto_emit_argo_events,
+        notify_on_error=notify_on_error,
+        notify_on_success=notify_on_success,
+        notify_slack_webhook_url=notify_slack_webhook_url,
     )
 
 

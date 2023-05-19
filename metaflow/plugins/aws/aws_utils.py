@@ -140,3 +140,15 @@ def compute_resource_attributes(decos, compute_deco, resource_defaults):
             result[k] = str(compute_deco.attributes[k] or "0")
 
     return result
+
+
+def sanitize_batch_tag(key, value):
+    """
+    Sanitize a key and value for use as a Batch tag.
+    """
+    # https://docs.aws.amazon.com/batch/latest/userguide/using-tags.html#tag-restrictions
+    RE_NOT_PERMITTED = r"[^A-Za-z0-9\s\+\-\=\.\_\:\/\@]"
+    _key = re.sub(RE_NOT_PERMITTED, "", key)[:128]
+    _value = re.sub(RE_NOT_PERMITTED, "", value)[:256]
+
+    return _key, _value
