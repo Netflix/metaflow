@@ -148,6 +148,7 @@ class KubernetesJob(object):
                                     if k
                                 ],
                                 image=self._kwargs["image"],
+                                image_pull_policy=self._kwargs["image_pull_policy"],
                                 name=self._kwargs["step_name"].replace("_", "-"),
                                 resources=client.V1ResourceRequirements(
                                     requests={
