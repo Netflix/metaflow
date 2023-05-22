@@ -1385,7 +1385,7 @@ class ArgoWorkflows(object):
                 "https://argoproj.github.io/argo-events/eventsources/naming/. "
                 "It is very likely that all events for your deployment share the "
                 "same name. You can configure it by executing "
-                "`metaflow configure events` or setting METAFLOW_ARGO_EVENTS_EVENT "
+                "`metaflow configure kubernetes` or setting METAFLOW_ARGO_EVENTS_EVENT "
                 "in your configuration. If in doubt, reach out for support at "
                 "http://chat.metaflow.org"
             )
@@ -1397,7 +1397,7 @@ class ArgoWorkflows(object):
                 "An Argo Event Source name hasn't been configured for your deployment "
                 "yet. Please see this article for more details on event names - "
                 "https://argoproj.github.io/argo-events/eventsources/naming/. "
-                "You can configure it by executing `metaflow configure events` or "
+                "You can configure it by executing `metaflow configure kubernetes` or "
                 "setting METAFLOW_ARGO_EVENTS_EVENT_SOURCE in your configuration. If "
                 "in doubt, reach out for support at http://chat.metaflow.org"
             )
@@ -1408,7 +1408,7 @@ class ArgoWorkflows(object):
                 "An Argo Event service account hasn't been configured for your "
                 "deployment yet. Please see this article for more details on event "
                 "names - https://argoproj.github.io/argo-events/service-accounts/. "
-                "You can configure it by executing `metaflow configure events` or "
+                "You can configure it by executing `metaflow configure kubernetes` or "
                 "setting METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT in your configuration. "
                 "If in doubt, reach out for support at http://chat.metaflow.org"
             )
