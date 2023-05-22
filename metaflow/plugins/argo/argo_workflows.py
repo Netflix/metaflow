@@ -1211,6 +1211,7 @@ class ArgoWorkflows(object):
                                 }.items()
                             ],
                             image=resources["image"],
+                            image_pull_policy=resources["image_pull_policy"],
                             resources=kubernetes_sdk.V1ResourceRequirements(
                                 requests={
                                     "cpu": str(resources["cpu"]),

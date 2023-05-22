@@ -38,6 +38,11 @@ def kubernetes():
 )
 @click.option("--image", help="Docker image requirement for Kubernetes pod.")
 @click.option(
+    "--image-pull-policy",
+    default=None,
+    help="Optional Docker Image Pull Policy for Kubernetes pod.",
+)
+@click.option(
     "--service-account",
     help="IRSA requirement for Kubernetes pod.",
 )
@@ -108,6 +113,7 @@ def step(
     code_package_url,
     executable=None,
     image=None,
+    image_pull_policy=None,
     service_account=None,
     secrets=None,
     node_selector=None,
@@ -220,6 +226,7 @@ def step(
                 code_package_ds=ctx.obj.flow_datastore.TYPE,
                 step_cli=step_cli,
                 docker_image=image,
+                docker_image_pull_policy=image_pull_policy,
                 service_account=service_account,
                 secrets=secrets,
                 node_selector=node_selector,
