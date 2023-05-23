@@ -3,14 +3,14 @@ import sys
 import time
 import traceback
 
-from metaflow import util, JSONTypeClass
+from metaflow import JSONTypeClass, util
 from metaflow._vendor import click
 from metaflow.exception import METAFLOW_EXIT_DISALLOW_RETRY, CommandException
 from metaflow.metadata.util import sync_local_metadata_from_datastore
-from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
+from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, KUBERNETES_LABELS
 from metaflow.mflog import TASK_LOG_SOURCE
 
-from .kubernetes import Kubernetes, KubernetesKilledException
+from .kubernetes import Kubernetes, KubernetesKilledException, parse_kube_keyvalue_list
 from .kubernetes_decorator import KubernetesDecorator
 
 
@@ -195,7 +195,7 @@ def step(
     stderr_location = ds.get_log_location(TASK_LOG_SOURCE, "stderr")
 
     # `node_selector` is a tuple of strings, convert it to a dictionary
-    node_selector = KubernetesDecorator.parse_node_selector(node_selector)
+    node_selector = parse_kube_keyvalue_list(node_selector)
 
     def _sync_metadata():
         if ctx.obj.metadata.TYPE == "local":

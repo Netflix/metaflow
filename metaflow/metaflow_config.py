@@ -277,6 +277,8 @@ KUBERNETES_PERSISTENT_VOLUME_CLAIMS = from_conf(
     "KUBERNETES_PERSISTENT_VOLUME_CLAIMS", ""
 )
 KUBERNETES_SECRETS = from_conf("KUBERNETES_SECRETS", "")
+# Default labels for kubernetes pods
+KUBERNETES_LABELS = from_conf("KUBERNETES_LABELS", "")
 # Default GPU vendor to use by K8S jobs created by Metaflow (supports nvidia, amd)
 KUBERNETES_GPU_VENDOR = from_conf("KUBERNETES_GPU_VENDOR", "nvidia")
 # Default container image for K8S

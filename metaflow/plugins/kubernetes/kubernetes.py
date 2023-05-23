@@ -1,8 +1,10 @@
 import json
 import math
 import os
+import re
 import shlex
 import time
+from typing import Dict, List, Optional
 
 from metaflow import current, util
 from metaflow.exception import MetaflowException
@@ -25,6 +27,7 @@ from metaflow.metaflow_config import (
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
     KUBERNETES_FETCH_EC2_METADATA,
+    KUBERNETES_LABELS,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
     S3_ENDPOINT_URL,
     SERVICE_HEADERS,
@@ -163,6 +166,7 @@ class Kubernetes(object):
         env=None,
         persistent_volume_claims=None,
         tolerations=None,
+        labels=None,
     ):
         if env is None:
             env = {}
@@ -196,6 +200,7 @@ class Kubernetes(object):
                 retries=0,
                 step_name=step_name,
                 tolerations=tolerations,
+                labels=self._get_labels(labels),
                 use_tmpfs=use_tmpfs,
                 tmpfs_tempdir=tmpfs_tempdir,
                 tmpfs_size=tmpfs_size,
@@ -394,3 +399,60 @@ class Kubernetes(object):
             "stderr",
             job_id=self._job.id,
         )
+
+    @staticmethod
+    def _get_labels(extra_labels=None):
+        if extra_labels is None:
+            extra_labels = {}
+        env_labels = KUBERNETES_LABELS.split(",") if KUBERNETES_LABELS else []
+        env_labels = parse_kube_keyvalue_list(env_labels, False)
+        labels = {**env_labels, **extra_labels}
+        validate_kube_labels(labels)
+        return labels
+
+
+def validate_kube_labels(
+    labels: Optional[Dict[str, Optional[str]]],
+) -> bool:
+    """Validate label values.
+
+    This validates the kubernetes label values.  It does not validate the keys.
+    Ideally, keys should be static and also the validation rules for keys are
+    more complex than those for values.  For full validation rules, see:
+
+    https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
+    """
+
+    def validate_label(s: Optional[str]):
+        regex_match = r"^(([A-Za-z0-9][-A-Za-z0-9_.]{0,61})?[A-Za-z0-9])?$"
+        if not s:
+            # allow empty label
+            return True
+        if not re.search(regex_match, s):
+            raise KubernetesException(
+                'Invalid value: "%s"\n'
+                "A valid label must be an empty string or one that\n"
+                "  - Consist of alphanumeric, '-', '_' or '.' characters\n"
+                "  - Begins and ends with an alphanumeric character\n"
+                "  - Is at most 63 characters" % s
+            )
+        return True
+
+    return all([validate_label(v) for v in labels.values()]) if labels else True
+
+
+def parse_kube_keyvalue_list(items: List[str], requires_both: bool = True):
+    try:
+        ret = {}
+        for item_str in items:
+            item = item_str.split("=", 1)
+            if requires_both:
+                item[1]  # raise IndexError
+            if str(item[0]) in ret:
+                raise KubernetesException("Duplicate key found: %s" % str(item[0]))
+            ret[str(item[0])] = str(item[1]) if len(item) > 1 else None
+        return ret
+    except KubernetesException as e:
+        raise e
+    except (AttributeError, IndexError):
+        raise KubernetesException("Unable to parse kubernetes list: %s" % items)

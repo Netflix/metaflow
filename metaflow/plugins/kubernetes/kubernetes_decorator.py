@@ -1,7 +1,10 @@
+import hashlib
 import json
 import os
 import platform
+import re
 import sys
+from typing import Dict, List, Optional, Union
 
 from metaflow import current
 from metaflow.decorators import StepDecorator
@@ -12,23 +15,22 @@ from metaflow.metaflow_config import (
     DATASTORE_LOCAL_DIR,
     KUBERNETES_CONTAINER_IMAGE,
     KUBERNETES_CONTAINER_REGISTRY,
+    KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_IMAGE_PULL_POLICY,
     KUBERNETES_GPU_VENDOR,
+    KUBERNETES_LABELS,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
+    KUBERNETES_PERSISTENT_VOLUME_CLAIMS,
     KUBERNETES_TOLERATIONS,
     KUBERNETES_SERVICE_ACCOUNT,
-    KUBERNETES_SECRETS,
-    KUBERNETES_FETCH_EC2_METADATA,
-    KUBERNETES_PERSISTENT_VOLUME_CLAIMS,
 )
 from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.sidecar import Sidecar
 
 from ..aws.aws_utils import get_docker_registry, get_ec2_instance_metadata
-
-from .kubernetes import KubernetesException
+from .kubernetes import KubernetesException, parse_kube_keyvalue_list
 
 try:
     unicode
@@ -129,7 +131,7 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["image_pull_policy"] = KUBERNETES_IMAGE_PULL_POLICY
 
         if isinstance(self.attributes["node_selector"], str):
-            self.attributes["node_selector"] = self.parse_node_selector(
+            self.attributes["node_selector"] = parse_kube_keyvalue_list(
                 self.attributes["node_selector"].split(",")
             )
 
@@ -326,10 +328,11 @@ class KubernetesDecorator(StepDecorator):
             for k, v in self.attributes.items():
                 if k == "namespace":
                     cli_args.command_options["k8s_namespace"] = v
-                elif k == "node_selector" and v:
-                    cli_args.command_options[k] = ",".join(
-                        ["=".join([key, str(val)]) for key, val in v.items()]
-                    )
+                elif k in {"node_selector"} and v:
+                    cli_args.command_options[k] = [
+                        "=".join([key, str(val)]) if val else key
+                        for key, val in v.items()
+                    ]
                 elif k in ["tolerations", "persistent_volume_claims"]:
                     cli_args.command_options[k] = json.dumps(v)
                 else:
@@ -441,15 +444,3 @@ class KubernetesDecorator(StepDecorator):
             cls.package_url, cls.package_sha = flow_datastore.save_data(
                 [package.blob], len_hint=1
             )[0]
-
-    @staticmethod
-    def parse_node_selector(node_selector: list):
-        try:
-            return {
-                str(k.split("=", 1)[0]): str(k.split("=", 1)[1])
-                for k in node_selector or []
-            }
-        except (AttributeError, IndexError):
-            raise KubernetesException(
-                "Unable to parse node_selector: %s" % node_selector
-            )

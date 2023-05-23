@@ -30,6 +30,7 @@ from metaflow.metaflow_config import (
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
     KUBERNETES_FETCH_EC2_METADATA,
+    KUBERNETES_LABELS,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
@@ -40,6 +41,10 @@ from metaflow.metaflow_config import (
 )
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
+from metaflow.plugins.kubernetes.kubernetes import (
+    parse_kube_keyvalue_list,
+    validate_kube_labels,
+)
 from metaflow.util import (
     compress_list,
     dict_to_cli_options,
@@ -146,6 +151,7 @@ class ArgoWorkflows(object):
         self.triggers, self.trigger_options = self._process_triggers()
         self._schedule, self._timezone = self._get_schedule()
 
+        self.kubernetes_labels = self._get_kubernetes_labels()
         self._workflow_template = self._compile_workflow_template()
         self._sensor = self._compile_sensor()
 
@@ -200,6 +206,19 @@ class ArgoWorkflows(object):
             )
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
+
+    @staticmethod
+    def _get_kubernetes_labels():
+        """
+        Get Kubernetes labels from environment variable.
+        Parses the string into a dict and validates that values adhere to Kubernetes restrictions.
+        """
+        if not KUBERNETES_LABELS:
+            return {}
+        env_labels = KUBERNETES_LABELS.split(",")
+        env_labels = parse_kube_keyvalue_list(env_labels, False)
+        validate_kube_labels(env_labels)
+        return env_labels
 
     def _get_schedule(self):
         schedule = self.flow._flow_decorators.get("schedule")
@@ -557,6 +576,7 @@ class ArgoWorkflows(object):
                     .label("app.kubernetes.io/name", "metaflow-task")
                     .label("app.kubernetes.io/part-of", "metaflow")
                     .annotations(annotations)
+                    .labels(self.kubernetes_labels)
                 )
                 # Set the entrypoint to flow name
                 .entrypoint(self.flow.name)
@@ -1172,6 +1192,7 @@ class ArgoWorkflows(object):
                 .pvc_volumes(resources.get("persistent_volume_claims"))
                 # Set node selectors
                 .node_selectors(resources.get("node_selector"))
+                # Set tolerations
                 .tolerations(resources.get("tolerations"))
                 # Set container
                 .container(
@@ -1450,6 +1471,7 @@ class ArgoWorkflows(object):
                 .namespace(KUBERNETES_NAMESPACE)
                 .label("app.kubernetes.io/name", "metaflow-sensor")
                 .label("app.kubernetes.io/part-of", "metaflow")
+                .labels(self.kubernetes_labels)
                 .annotations(annotations)
             )
             .spec(
@@ -1735,7 +1757,7 @@ class ObjectMeta(object):
     def labels(self, labels):
         if "labels" not in self.payload:
             self.payload["labels"] = {}
-        self.payload["labels"].update(labels)
+        self.payload["labels"].update(labels or {})
         return self
 
     def name(self, name):
@@ -1852,7 +1874,7 @@ class Metadata(object):
     def labels(self, labels):
         if "labels" not in self.payload:
             self.payload["labels"] = {}
-        self.payload["labels"].update(labels)
+        self.payload["labels"].update(labels or {})
         return self
 
     def labels_from(self, labels_from):
