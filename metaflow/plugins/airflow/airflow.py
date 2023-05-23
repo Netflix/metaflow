@@ -642,10 +642,15 @@ class Airflow(object):
             )
             if kube_deco:
                 # Only guard against use_tmpfs and tmpfs_size as these determine if tmpfs is enabled.
-                for attr in ["use_tmpfs", "tmpfs_size", "persistent_volume_claims"]:
+                for attr in [
+                    "use_tmpfs",
+                    "tmpfs_size",
+                    "persistent_volume_claims",
+                    "image_pull_policy",
+                ]:
                     if kube_deco[attr]:
                         raise AirflowException(
-                            "tmpfs attribute *%s* is currently not supported on Airflow "
+                            "The decorator attribute *%s* is currently not supported on Airflow "
                             "for the @kubernetes decorator on step *%s*"
                             % (attr, node.name)
                         )

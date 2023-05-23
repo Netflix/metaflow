@@ -16,6 +16,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_CONTAINER_IMAGE,
     KUBERNETES_CONTAINER_REGISTRY,
     KUBERNETES_FETCH_EC2_METADATA,
+    KUBERNETES_IMAGE_PULL_POLICY,
     KUBERNETES_GPU_VENDOR,
     KUBERNETES_LABELS,
     KUBERNETES_NAMESPACE,
@@ -87,6 +88,7 @@ class KubernetesDecorator(StepDecorator):
         "memory": "4096",
         "disk": "10240",
         "image": None,
+        "image_pull_policy": None,
         "service_account": None,
         "secrets": None,  # e.g., mysecret
         "node_selector": None,  # e.g., kubernetes.io/os=linux
@@ -125,6 +127,8 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["persistent_volume_claims"] = json.loads(
                 KUBERNETES_PERSISTENT_VOLUME_CLAIMS
             )
+        if not self.attributes["image_pull_policy"] and KUBERNETES_IMAGE_PULL_POLICY:
+            self.attributes["image_pull_policy"] = KUBERNETES_IMAGE_PULL_POLICY
 
         if isinstance(self.attributes["node_selector"], str):
             self.attributes["node_selector"] = parse_kube_keyvalue_list(
