@@ -1,10 +1,7 @@
-import hashlib
 import json
 import os
 import platform
-import re
 import sys
-from typing import Dict, List, Optional, Union
 
 from metaflow import current
 from metaflow.decorators import StepDecorator
@@ -18,7 +15,6 @@ from metaflow.metaflow_config import (
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_IMAGE_PULL_POLICY,
     KUBERNETES_GPU_VENDOR,
-    KUBERNETES_LABELS,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_PERSISTENT_VOLUME_CLAIMS,
@@ -80,6 +76,8 @@ class KubernetesDecorator(StepDecorator):
         memory allocated for this step.
     tmpfs_path: string, optional
         Path to tmpfs mount for this step. Defaults to /metaflow_temp.
+    persistent_volume_claims: Dict[str, str], optional
+        A dictionary of persistent volumes to be mounted to the pod for this step.
     """
 
     name = "kubernetes"
