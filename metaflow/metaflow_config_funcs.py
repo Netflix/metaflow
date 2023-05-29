@@ -59,8 +59,8 @@ def from_conf(name, default=None, validate_fn=None):
     validate_fn should accept (name, value).
     If the value validates, return None, else raise an MetaflowException.
     """
-    env_name = "METAFLOW_%s" % name
     is_default = True
+    env_name = "METAFLOW_%s" % name
     value = os.environ.get(env_name, METAFLOW_CONFIG.get(env_name, default))
     if validate_fn and value is not None:
         validate_fn(env_name, value)

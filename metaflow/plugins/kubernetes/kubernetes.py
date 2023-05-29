@@ -32,6 +32,7 @@ from metaflow.metaflow_config import (
     S3_ENDPOINT_URL,
     SERVICE_HEADERS,
     SERVICE_INTERNAL_URL,
+    S3_SERVER_SIDE_ENCRYPTION,
 )
 from metaflow.mflog import (
     BASH_SAVE_LOGS,
@@ -257,6 +258,9 @@ class Kubernetes(object):
             # pod; this happens when METAFLOW_DATASTORE_SYSROOT_LOCAL is NOT set (
             # see get_datastore_root_from_config in datastore/local.py).
         )
+
+        if S3_SERVER_SIDE_ENCRYPTION is not None:
+            job.environment_variable("METAFLOW_S3_SERVER_SIDE_ENCRYPTION", S3_SERVER_SIDE_ENCRYPTION)
 
         # Set environment variables to support metaflow.integrations.ArgoEvent
         job.environment_variable(
