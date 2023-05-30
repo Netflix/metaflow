@@ -32,7 +32,6 @@ from metaflow.metaflow_config import (
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_LABELS,
     KUBERNETES_NAMESPACE,
-    KUBERNETES_NODE_SELECTOR,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
     KUBERNETES_SECRETS,
     S3_ENDPOINT_URL,
@@ -513,6 +512,12 @@ class ArgoWorkflows(object):
                 WorkflowSpec()
                 # Set overall workflow timeout.
                 .active_deadline_seconds(self.workflow_timeout)
+                # Remove workflow after a week.
+                .ttl_strategy(
+                    {
+                        "secondsAfterCompletion": 7 * 60 * 60 * 24,
+                    }
+                )
                 # TODO: Allow Argo to optionally archive all workflow execution logs
                 #       It's disabled for now since it requires all Argo installations
                 #       to enable an artifactory repository. If log archival is
@@ -1787,6 +1792,13 @@ class WorkflowSpec(object):
         # Overall duration of a workflow in seconds
         if active_deadline_seconds is not None:
             self.payload["activeDeadlineSeconds"] = int(active_deadline_seconds)
+        return self
+
+    def ttl_strategy(self, ttl_strategy):
+        # https://argoproj.github.io/argo-workflows/fields/#ttlstrategy
+        if "ttlStrategy" not in self.payload:
+            self.payload["ttlStrategy"] = {}
+        self.payload["ttlStrategy"] = ttl_strategy
         return self
 
     def automount_service_account_token(self, mount=True):
