@@ -1,7 +1,7 @@
 # talebz copied from https://github.com/Netflix/metaflow/blob/master/metaflow/plugins/argo/argo_client.py
 
 import json
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from metaflow.exception import MetaflowException
 from metaflow.plugins.aws.eks.kubernetes_client import KubernetesClient
@@ -28,6 +28,30 @@ class ArgoClient(object):
                 plural="workflowtemplates",
                 name=name,
             )
+        except client.rest.ApiException as e:
+            if e.status == 404:
+                return None
+            raise ArgoClientException(
+                json.loads(e.body)["message"] if e.body is not None else e.reason
+            )
+
+    def get_workflow_run_status(self, name):
+        client = self._client.get()
+        try:
+            workflow: Dict[
+                str, Any
+            ] = client.CustomObjectsApi().get_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="workflows",
+                name=name,
+            )
+
+            if "metadata" in workflow and "labels" in workflow["metadata"]:
+                return workflow["metadata"]["labels"]["workflows.argoproj.io/phase"]
+            else:
+                return None
         except client.rest.ApiException as e:
             if e.status == 404:
                 return None
@@ -87,7 +111,7 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
-    def trigger_workflow_template(self, name, parameters={}):
+    def trigger_workflow_template(self, name: str, parameters: Optional[Dict] = None):
         client = self._client.get()
         body = {
             "apiVersion": "argoproj.io/v1alpha1",
@@ -97,8 +121,10 @@ class ArgoClient(object):
                 "workflowTemplateRef": {"name": name},
                 "arguments": {
                     "parameters": [
-                        {"name": k, "value": json.dumps(v)}
-                        for k, v in parameters.items()
+                        {
+                            "name": "flow_parameters_json",
+                            "value": json.dumps(parameters if parameters else {}),
+                        }
                     ]
                 },
             },
@@ -191,6 +217,21 @@ class ArgoClient(object):
                 namespace=self._namespace,
                 plural="workflows",
                 body=workflow,
+            )
+        except client.rest.ApiException as e:
+            raise ArgoClientException(
+                json.loads(e.body)["message"] if e.body is not None else e.reason
+            )
+
+    def delete_workflow_template(self, name: str):
+        client = self._client.get()
+        try:
+            return client.CustomObjectsApi().delete_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="workflowtemplates",
+                name=name,
             )
         except client.rest.ApiException as e:
             raise ArgoClientException(

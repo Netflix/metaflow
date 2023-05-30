@@ -51,7 +51,6 @@ from .argo_client import ArgoClient
 from .interruptible_decorator import interruptibleDecorator
 from .kfp_foreach_splits import graph_to_task_ids
 from ..aws.batch.batch_decorator import BatchDecorator
-from ..aws.eks.kubernetes_client import KubernetesClient
 from ..aws.step_functions.schedule_decorator import ScheduleDecorator
 from ...graph import DAGNode
 from ...metaflow_environment import MetaflowEnvironment
@@ -70,7 +69,7 @@ class FlowVariables:
     environment: str
     event_logger: str
     monitor: str
-    namespace: str
+    user_namespace: str
     tags: List[str]
     sys_tags: List[str]
     package_commands: str
@@ -149,7 +148,7 @@ class KubeflowPipelines(object):
         tags=None,
         sys_tags=None,
         experiment=None,
-        namespace=None,
+        user_namespace=None,
         username=None,
         max_parallelism=None,
         workflow_timeout=None,
@@ -174,7 +173,7 @@ class KubeflowPipelines(object):
         self.tags = tags
         self.sys_tags = sys_tags
         self.experiment = experiment
-        self.namespace = namespace
+        self.user_namespace = user_namespace
         self.username = username
         self.base_image = base_image
         self.s3_code_package = s3_code_package
@@ -187,8 +186,58 @@ class KubeflowPipelines(object):
         self.notify_on_success = notify_on_success
         self._client = None
 
+    def deploy(self, kubernetes_namespace: str, name: Optional[str]) -> Dict[str, Any]:
+        try:
+            # Register workflow template.
+            workflow: Dict[Text, Any] = self._create_workflow_yaml(
+                output_format="argo-workflow-template", name=name
+            )
+
+            return ArgoClient(
+                namespace=kubernetes_namespace
+            ).register_workflow_template(name if name else self.name, workflow)
+        except Exception as e:
+            raise KfpException(str(e))
+
+    @classmethod
+    def trigger(cls, kubernetes_namespace: str, name: str, parameters=None):
+        if parameters is None:
+            parameters = {}
+        try:
+            workflow_template = ArgoClient(
+                namespace=kubernetes_namespace
+            ).get_workflow_template(name)
+        except Exception as e:
+            raise KfpException(str(e))
+        if workflow_template is None:
+            raise KfpException(
+                f"The workflow *{name}* doesn't exist on Argo Workflows in namespace *{kubernetes_namespace}*. "
+                "Please deploy your flow first."
+            )
+        # TODO(talebz): check this?
+        # else:
+        #     try:
+        #         # Check that the workflow was deployed through Metaflow
+        #         workflow_template["metadata"]["annotations"]["metaflow.org/flow_name"]
+        #     except KeyError as e:
+        #         raise KfpException(
+        #             "An existing non-metaflow workflow with the same name as "
+        #             f"*{name}* already exists in Argo Workflows. \n"
+        #             "Please modify the name of this flow or delete your existing "
+        #             "workflow on Argo Workflows before proceeding."
+        #         )
+        try:
+            return ArgoClient(namespace=kubernetes_namespace).trigger_workflow_template(
+                name, parameters
+            )
+        except Exception as e:
+            raise KfpException(str(e))
+
     def _create_workflow_yaml(
-        self, flow_parameters: dict, output_format: str = "argo-workflow"
+        self,
+        flow_parameters: Optional[Dict] = None,
+        output_format: str = "argo-workflow",
+        name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Creates a new Argo Workflow pipeline YAML using `kfp.compiler.Compiler()`.
@@ -222,7 +271,7 @@ class KubeflowPipelines(object):
             # self.name is typically CamelCase as it's python class name.
             # generateName contains a sanitized version of self.name from kfp.compiler
             workflow["metadata"]["name"] = (
-                workflow["metadata"].pop("generateName").rstrip("-")
+                name if name else workflow["metadata"].pop("generateName").rstrip("-")
             )
 
             # Service account is added through webhooks.
@@ -243,20 +292,23 @@ class KubeflowPipelines(object):
         )
 
         try:
-            return ArgoClient(
-                namespace=kubernetes_namespace,
-            ).run_workflow(workflow)
+            return ArgoClient(namespace=kubernetes_namespace).run_workflow(workflow)
         except Exception as e:
             raise KfpException(str(e))
 
     def create_workflow_yaml_file(
-        self, output_path: str, flow_parameters: dict, output_format: str = "kfp"
-    ) -> str:
+        self,
+        output_path: str,
+        flow_parameters: Optional[dict] = None,
+        output_format: str = "argo-workflow",
+        name: Optional[str] = None,
+    ) -> Tuple[Dict[str, Any], str]:
         workflow: Dict[str, Any] = self._create_workflow_yaml(
-            flow_parameters, output_format
+            flow_parameters, output_format, name
         )
+
         kfp.compiler.Compiler()._write_workflow(workflow, output_path)
-        return os.path.abspath(output_path)
+        return workflow, os.path.abspath(output_path)
 
     @staticmethod
     def _get_retries(node: DAGNode) -> Tuple[int, int]:
@@ -333,7 +385,7 @@ class KubeflowPipelines(object):
             environment=self.environment.TYPE,
             event_logger=self.event_logger.logger_type,
             monitor=self.monitor.monitor_type,
-            namespace=self.namespace,
+            user_namespace=self.user_namespace,
             tags=list(self.tags),
             sys_tags=list(self.sys_tags),
             package_commands=self._get_package_commands(
@@ -1145,8 +1197,10 @@ class KubeflowPipelines(object):
             )
         if node.type == "foreach":
             metaflow_execution_cmd += f" --is_foreach_step"
-        if flow_variables.namespace:
-            metaflow_execution_cmd += f" --namespace {flow_variables.namespace}"
+        if flow_variables.user_namespace:
+            metaflow_execution_cmd += (
+                f" --user_namespace {flow_variables.user_namespace}"
+            )
         if step_variables.is_split_index:
             metaflow_execution_cmd += " --is_split_index"
 

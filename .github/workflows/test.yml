@@ -9,6 +9,7 @@ on:
     - master
     - feature/kfp
     - feature/kfp-argo
+    - tz/AIP-7299-argo-submit  # TODO(talebz) remove before merging
   workflow_call:
   
 jobs:

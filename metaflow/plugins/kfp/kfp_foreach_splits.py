@@ -29,7 +29,7 @@ def graph_to_task_ids(graph: FlowGraph) -> Dict[str, str]:
         current_step = steps_queue.pop(0)
         node = graph.nodes[current_step]
         task_id += 1
-        step_to_task_id[current_step] = f"t{task_id}"
+        step_to_task_id[current_step] = f"{node.name}-{task_id}"
 
         for step in node.out_funcs:
             if step not in seen_steps:
