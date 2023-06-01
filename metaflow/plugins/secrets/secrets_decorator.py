@@ -108,6 +108,14 @@ class SecretSpec:
                 "Bad @secrets specification - 'option' must be a dict - found %s"
                 % type(options)
             )
+        role_for_source = secret_spec_dict.get("role", None)
+        if role_for_source is not None:
+            if not isinstance(role_for_source, str):
+                raise MetaflowException(
+                    "Bad @secrets specification - 'role' must be a str - found %s"
+                    % type(role_for_source)
+                )
+            role = role_for_source
         return SecretSpec(
             secrets_backend_type, secret_id=secret_id, options=options, role=role
         )
@@ -214,6 +222,7 @@ class SecretsDecorator(StepDecorator):
         # E.g in AWS, this would be an IAM Role ARN.
         #
         # Config precedence (decreasing):
+        # - Source level: @secrets(source=[{"role": ...}])
         # - Decorator level: @secrets(role=...)
         # - Metaflow config key DEFAULT_SECRETS_ROLE
         role = self.attributes["role"]
