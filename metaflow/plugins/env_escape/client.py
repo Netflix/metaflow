@@ -85,12 +85,17 @@ class Client(object):
         # distinguish it from other modules named "overrides" (either a third party
         # lib -- there is one -- or just other escaped modules). We therefore load
         # a fuller path to distinguish them from one another.
+        # We insert in sys.path a prefix that doesn't go up past metaflow/metaflow_extensions
+        # because overrides may import other modules and we want to make sure we
+        # don't "leak" things from the outside environment.
         pkg_components = []
         prefix, last_basename = os.path.split(config_dir)
-        while last_basename not in ("metaflow", "metaflow_extensions"):
+        while True:
             pkg_components.append(last_basename)
-            prefix, last_basename = os.path.split(prefix)
-        pkg_components.append(last_basename)
+            possible_prefix, last_basename = os.path.split(prefix)
+            if last_basename in ("metaflow", "metaflow_extensions"):
+                break
+            prefix = possible_prefix
 
         try:
             sys.path.insert(0, prefix)
