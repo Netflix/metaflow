@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import DEFAULT_SECRETS_BACKEND_TYPE
+import metaflow.metaflow_config
 from metaflow.plugins.secrets.secrets_decorator import (
     SecretSpec,
     validate_env_vars_across_secrets,
@@ -15,11 +15,15 @@ from metaflow.plugins.secrets.secrets_decorator import (
 
 
 class TestSecretsDecorator(unittest.TestCase):
+    @patch(
+        "metaflow.metaflow_config.DEFAULT_SECRETS_BACKEND_TYPE",
+        None,
+    )
     def test_missing_default_secrets_backend_type(self):
-        self.assertIsNone(DEFAULT_SECRETS_BACKEND_TYPE)
+        self.assertIsNone(metaflow.metaflow_config.DEFAULT_SECRETS_BACKEND_TYPE)
         # assumes DEFAULT_SECRETS_BACKEND_TYPE is None when we run this test
         with self.assertRaises(MetaflowException):
-            SecretSpec.secret_spec_from_str("secret_id")
+            SecretSpec.secret_spec_from_str("secret_id", None)
 
     @patch(
         "metaflow.metaflow_config.DEFAULT_SECRETS_BACKEND_TYPE",
@@ -33,8 +37,9 @@ class TestSecretsDecorator(unittest.TestCase):
                 "options": {},
                 "secret_id": "the_id",
                 "secrets_backend_type": "explicit-type",
+                "role": None,
             },
-            SecretSpec.secret_spec_from_str("explicit-type.the_id").to_json(),
+            SecretSpec.secret_spec_from_str("explicit-type.the_id", None).to_json(),
         )
         # implicit type
         self.assertEqual(
@@ -42,8 +47,9 @@ class TestSecretsDecorator(unittest.TestCase):
                 "options": {},
                 "secret_id": "the_id",
                 "secrets_backend_type": "some-default-backend-type",
+                "role": None,
             },
-            SecretSpec.secret_spec_from_str("the_id").to_json(),
+            SecretSpec.secret_spec_from_str("the_id", None).to_json(),
         )
 
         # from dict
@@ -53,12 +59,14 @@ class TestSecretsDecorator(unittest.TestCase):
                 "options": {},
                 "secret_id": "the_id",
                 "secrets_backend_type": "explicit-type",
+                "role": None,
             },
             SecretSpec.secret_spec_from_dict(
                 {
                     "type": "explicit-type",
                     "id": "the_id",
-                }
+                },
+                None,
             ).to_json(),
         )
         # implicit type, with options
@@ -67,9 +75,38 @@ class TestSecretsDecorator(unittest.TestCase):
                 "options": {"a": "b"},
                 "secret_id": "the_id",
                 "secrets_backend_type": "some-default-backend-type",
+                "role": None,
             },
             SecretSpec.secret_spec_from_dict(
-                {"id": "the_id", "options": {"a": "b"}}
+                {"id": "the_id", "options": {"a": "b"}}, None
+            ).to_json(),
+        )
+
+        # test role resolution - source level wins
+        self.assertDictEqual(
+            {
+                "secret_id": "the_id",
+                "secrets_backend_type": "some-default-backend-type",
+                "role": "source-level-role",
+                "options": {},
+            },
+            SecretSpec.secret_spec_from_dict(
+                {"id": "the_id", "role": "source-level-role"},
+                "decorator-level-role",
+            ).to_json(),
+        )
+
+        # test role resolution - default to decorator level if source level unset
+        self.assertDictEqual(
+            {
+                "secret_id": "the_id",
+                "secrets_backend_type": "some-default-backend-type",
+                "role": "decorator-level-role",
+                "options": {},
+            },
+            SecretSpec.secret_spec_from_dict(
+                {"id": "the_id"},
+                role="decorator-level-role",
             ).to_json(),
         )
 
@@ -79,18 +116,24 @@ class TestSecretsDecorator(unittest.TestCase):
                 {
                     "type": 42,
                     "id": "the_id",
-                }
+                },
+                None,
             )
         # check raise on bad id field
         with self.assertRaises(MetaflowException):
             SecretSpec.secret_spec_from_dict(
                 {
                     "id": 42,
-                }
+                },
+                None,
             )
         # check raise on bad options field
         with self.assertRaises(MetaflowException):
-            SecretSpec.secret_spec_from_dict({"id": "the_id", "options": []})
+            SecretSpec.secret_spec_from_dict({"id": "the_id", "options": []}, None)
+
+        # check raise on bad role field
+        with self.assertRaises(MetaflowException):
+            SecretSpec.secret_spec_from_dict({"id": "the_id", "role": 42}, None)
 
     def test_secrets_provider_resolution(self):
         with self.assertRaises(MetaflowException):
@@ -101,8 +144,8 @@ class TestEnvVarValidations(unittest.TestCase):
     def test_validate_env_vars_across_secrets(self):
         # overlap
         all_secrets_env_vars = [
-            (SecretSpec.secret_spec_from_str("t.1"), {"A": "a", "B": "b"}),
-            (SecretSpec.secret_spec_from_str("t.2"), {"B": "b", "C": "c"}),
+            (SecretSpec.secret_spec_from_str("t.1", None), {"A": "a", "B": "b"}),
+            (SecretSpec.secret_spec_from_str("t.2", None), {"B": "b", "C": "c"}),
         ]
         with self.assertRaises(MetaflowException):
             validate_env_vars_across_secrets(all_secrets_env_vars)
@@ -112,7 +155,7 @@ class TestEnvVarValidations(unittest.TestCase):
         existing_os_env_k, existing_os_env_v = next(iter(os.environ.items()))
         all_secrets_env_vars = [
             (
-                SecretSpec.secret_spec_from_str("t.1"),
+                SecretSpec.secret_spec_from_str("t.1", None),
                 {"A": "a", existing_os_env_k: existing_os_env_v},
             ),
         ]
