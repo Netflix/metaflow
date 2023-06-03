@@ -78,7 +78,7 @@ class KubernetesDecorator(StepDecorator):
         Path to tmpfs mount for this step. Defaults to /metaflow_temp.
     persistent_volume_claims: Dict[str, str], optional
         A map (dictionary) of persistent volumes to be mounted to the pod for this step. The map is from persistent
-        volumes to the path to which the volume is to be mounted, e.g., { "pvc-name": "/path/to/mount/on" }.
+        volumes to the path to which the volume is to be mounted, e.g., `{'pvc-name': '/path/to/mount/on'}`.
     """
 
     name = "kubernetes"
