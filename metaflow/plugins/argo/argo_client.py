@@ -107,7 +107,7 @@ class ArgoClient(object):
     def suspend_workflow(self, name):
         workflow = self.get_workflow(name)
         if workflow is None:
-            return None
+            raise ArgoClientException("Execution argo-%s was not found" % name)
 
         if workflow["status"]["finishedAt"] is not None:
             raise ArgoClientException(
@@ -123,7 +123,7 @@ class ArgoClient(object):
     def unsuspend_workflow(self, name):
         workflow = self.get_workflow(name)
         if workflow is None:
-            return None
+            raise ArgoClientException("Execution argo-%s was not found" % name)
 
         if workflow["status"]["finishedAt"] is not None:
             raise ArgoClientException(

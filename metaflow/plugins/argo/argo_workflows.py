@@ -182,16 +182,10 @@ class ArgoWorkflows(object):
         trimmed_run_id = run_id[5:]
 
         if suspend:
-            response = client.suspend_workflow(trimmed_run_id)
+            client.suspend_workflow(trimmed_run_id)
         else:
-            response = client.unsuspend_workflow(trimmed_run_id)
+            client.unsuspend_workflow(trimmed_run_id)
 
-        if response is None:
-            raise ArgoWorkflowsException(
-                "No execution found for {flow_name}/{run_id} in Argo Workflows.".format(
-                    flow_name=flow_name, run_id=run_id
-                )
-            )
         return True
 
     @classmethod
