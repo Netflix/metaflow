@@ -613,7 +613,7 @@ def suspend(obj, run_id, authorize=None):
         raise MetaflowException("Argo workflow execution id's start with 'argo-'")
     name = run_id[5:]
 
-    workflow_suspended = ArgoWorkflows.pause(obj.flow.name, name, suspend=True)
+    workflow_suspended = ArgoWorkflows.suspend(name)
 
     if workflow_suspended:
         obj.echo("Suspended execution of *%s*" % run_id)
@@ -636,7 +636,7 @@ def unsuspend(obj, run_id, authorize=None):
         raise MetaflowException("Argo workflow execution id's start with 'argo-'")
     name = run_id[5:]
 
-    workflow_suspended = ArgoWorkflows.pause(obj.flow.name, name, suspend=False)
+    workflow_suspended = ArgoWorkflows.unsuspend(name)
 
     if workflow_suspended:
         obj.echo("Unsuspended execution of *%s*" % run_id)

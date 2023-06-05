@@ -169,13 +169,18 @@ class ArgoWorkflows(object):
         return name.replace("_", "-")
 
     @staticmethod
-    def pause(flow_name, name, suspend=True):
+    def suspend(name):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
-        if suspend:
-            client.suspend_workflow(name)
-        else:
-            client.unsuspend_workflow(name)
+        client.suspend_workflow(name)
+
+        return True
+
+    @staticmethod
+    def unsuspend(name):
+        client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+
+        client.unsuspend_workflow(name)
 
         return True
 
