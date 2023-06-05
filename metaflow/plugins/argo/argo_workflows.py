@@ -169,22 +169,13 @@ class ArgoWorkflows(object):
         return name.replace("_", "-")
 
     @staticmethod
-    def pause(flow_name, run_id, suspend=True):
+    def pause(flow_name, name, suspend=True):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
-        # Verify that user is trying to change an Argo workflow
-        if not run_id.startswith("argo-"):
-            raise ArgoWorkflowsException(
-                "No execution found for {flow_name}/{run_id} in Argo Workflows.".format(
-                    flow_name=flow_name, run_id=run_id
-                )
-            )
-        trimmed_run_id = run_id[5:]
-
         if suspend:
-            client.suspend_workflow(trimmed_run_id)
+            client.suspend_workflow(name)
         else:
-            client.unsuspend_workflow(trimmed_run_id)
+            client.unsuspend_workflow(name)
 
         return True
 
