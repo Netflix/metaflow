@@ -104,8 +104,8 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
-    def suspend_workflow(self, run_id):
-        workflow = self.get_workflow(run_id)
+    def suspend_workflow(self, name):
+        workflow = self.get_workflow(name)
         if workflow is None:
             return None
 
@@ -118,10 +118,10 @@ class ArgoClient(object):
 
         body = {"spec": workflow["spec"]}
         body["spec"]["suspend"] = True
-        return self._patch_workflow(run_id, body)
+        return self._patch_workflow(name, body)
 
-    def unsuspend_workflow(self, run_id):
-        workflow = self.get_workflow(run_id)
+    def unsuspend_workflow(self, name):
+        workflow = self.get_workflow(name)
         if workflow is None:
             return None
 
@@ -134,7 +134,7 @@ class ArgoClient(object):
 
         body = {"spec": workflow["spec"]}
         body["spec"]["suspend"] = False
-        return self._patch_workflow(run_id, body)
+        return self._patch_workflow(name, body)
 
     def _patch_workflow(self, name, body):
         client = self._client.get()
