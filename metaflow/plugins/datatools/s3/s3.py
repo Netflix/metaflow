@@ -30,6 +30,7 @@ from metaflow.util import (
 )
 from metaflow.exception import MetaflowException
 from metaflow.debug import debug
+import platform
 
 try:
     # python2
@@ -269,8 +270,25 @@ class S3Object(object):
         bytes
             Contents of the object as bytes.
         """
+        _CHUNKSIZE = 8192
+
+        def _read_file_py35(file):
+            bytes_arr = []
+            bytes_read = file.read(_CHUNKSIZE)
+            while bytes_read:
+                bytes_arr.append(bytes_read)
+                bytes_read = file.read(_CHUNKSIZE)
+            return b"".join(bytes_arr)
+
         if self._path:
+            current_py_version = int(platform.python_version_tuple()[0]) * 10 + int(
+                platform.python_version_tuple()[1]
+            )
             with open(self._path, "rb") as f:
+                # For Python3.5 we face the issue of loading large files.
+                # f.read() throws OSErrors, so we read byte by byte.
+                if current_py_version < 36:
+                    return _read_file_py35(f)
                 return f.read()
 
     @property

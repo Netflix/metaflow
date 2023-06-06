@@ -5,6 +5,7 @@ from hashlib import sha1
 from tempfile import mkdtemp
 from itertools import groupby, starmap
 import random
+import platform
 from uuid import uuid4
 from metaflow.plugins.datatools import s3
 
@@ -859,6 +860,15 @@ def test_put_one(s3root, objs, expected):
     argnames=["s3root", "blobs", "expected"], **s3_data.pytest_put_blobs_case()
 )
 def test_put_files(tempdir, inject_failure_rate, s3root, blobs, expected):
+    def _write_file_py35(path, data):
+        with open(path, "ab") as f:
+            for d in data.split(b"\n"):
+                f.write(d)
+
+    current_py_version = int(platform.python_version_tuple()[0]) * 10 + int(
+        platform.python_version_tuple()[1]
+    )
+
     def _files(blobs):
         for blob in blobs:
             key = getattr(blob, "key", blob[0])
@@ -866,8 +876,11 @@ def test_put_files(tempdir, inject_failure_rate, s3root, blobs, expected):
             content_type = getattr(blob, "content_type", None)
             metadata = getattr(blob, "metadata", None)
             path = os.path.join(tempdir, key)
-            with open(path, "wb") as f:
-                f.write(data)
+            if current_py_version < 36:
+                _write_file_py35(path, data)
+            else:
+                with open(path, "wb") as f:
+                    f.write(data)
             yield S3PutObject(
                 key=key, value=path, content_type=content_type, metadata=metadata
             )
