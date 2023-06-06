@@ -628,6 +628,8 @@ def list_runs(obj, pending, running, succeeded, failed, unknown):
             for idx, state in enumerate(states):
                 if idx == 0:
                     pass
+                elif state == "Error":
+                    continue
                 elif idx == len(states) - 1:
                     status += " and "
                 else:
