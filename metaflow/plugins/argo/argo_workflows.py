@@ -43,7 +43,7 @@ from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_v
 from metaflow.parameters import deploy_time_eval
 from metaflow.plugins.kubernetes.kubernetes import (
     parse_kube_keyvalue_list,
-    validate_kube_labels,
+    validate_kube_labels_or_annotations,
 )
 from metaflow.util import (
     compress_list,
@@ -217,7 +217,7 @@ class ArgoWorkflows(object):
             return {}
         env_labels = KUBERNETES_LABELS.split(",")
         env_labels = parse_kube_keyvalue_list(env_labels, False)
-        validate_kube_labels(env_labels)
+        validate_kube_labels_or_annotations(env_labels)
         return env_labels
 
     def _get_schedule(self):

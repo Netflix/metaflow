@@ -168,6 +168,7 @@ class Kubernetes(object):
         persistent_volume_claims=None,
         tolerations=None,
         labels=None,
+        annotations=None,
     ):
         if env is None:
             env = {}
@@ -175,9 +176,7 @@ class Kubernetes(object):
         job = (
             KubernetesClient()
             .job(
-                annotations={
-                    "cluster-autoscaler.kubernetes.io/scale-down-disabled": "true"
-                },
+                annotations=self._get_annotations(annotations),
                 generate_name="t-",
                 namespace=namespace,
                 service_account=service_account,
@@ -411,23 +410,36 @@ class Kubernetes(object):
         env_labels = KUBERNETES_LABELS.split(",") if KUBERNETES_LABELS else []
         env_labels = parse_kube_keyvalue_list(env_labels, False)
         labels = {**env_labels, **extra_labels}
-        validate_kube_labels(labels)
+        validate_kube_labels_or_annotations(labels)
         return labels
 
+    @staticmethod
+    def _get_annotations(extra_annotations=None):
+        if extra_annotations is None:
+            extra_annotations = {}
+        env_annotations = (
+            KUBERNETES_ANNOTATIONS.split(",") if KUBERNETES_ANNOTATIONS else []
+        )
+        env_annotations = parse_kube_keyvalue_list(env_annotations, False)
+        annotations = {**env_annotations, **extra_annotations}
+        validate_kube_annotations(annotations)
+        return annotations
 
-def validate_kube_labels(
+
+def validate_kube_labels_or_annotations(
     labels: Optional[Dict[str, Optional[str]]],
 ) -> bool:
     """Validate label values.
 
-    This validates the kubernetes label values.  It does not validate the keys.
+    This validates the kubernetes label/annotation values.  It does not validate the keys.
     Ideally, keys should be static and also the validation rules for keys are
     more complex than those for values.  For full validation rules, see:
 
     https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
+    https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/#syntax-and-character-set
     """
 
-    def validate_label(s: Optional[str]):
+    def validate_label_annotation(s: Optional[str]):
         regex_match = r"^(([A-Za-z0-9][-A-Za-z0-9_.]{0,61})?[A-Za-z0-9])?$"
         if not s:
             # allow empty label
@@ -442,7 +454,9 @@ def validate_kube_labels(
             )
         return True
 
-    return all([validate_label(v) for v in labels.values()]) if labels else True
+    return (
+        all([validate_label_annotation(v) for v in labels.values()]) if labels else True
+    )
 
 
 def parse_kube_keyvalue_list(items: List[str], requires_both: bool = True):
